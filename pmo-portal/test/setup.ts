@@ -93,3 +93,20 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 (globalThis as Record<string, unknown>).__APP_VERSION__ ??= '0.0.0-test';
 (globalThis as Record<string, unknown>).__GIT_SHA__ ??= 'testsha';
 (globalThis as Record<string, unknown>).__BUILD_TIME__ ??= '1970-01-01T00:00:00.000Z';
+
+// ── Locale pin (AC-L10N-061) ───────────────────────────────────────────────
+// Every formatter in src/lib/format.ts now reads the resolved locale out of a module holder, so
+// without an explicit pin the suite would certify whatever locale the holder happened to be left
+// in. 53 test files assert `$`-shaped money and several assert "Mon D, YYYY" dates; pinned here so
+// those assertions state a CHOSEN locale rather than inheriting one — an unpinned suite either goes
+// red for the wrong reason or, worse, stays green while proving nothing.
+//
+// `afterEach` restores it so a test that switches locale to exercise `id` cannot leak that choice
+// into the next file's money assertions.
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const TEST_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+setActiveLocale(TEST_LOCALE);
+afterEach(() => {
+  setActiveLocale(TEST_LOCALE);
+});

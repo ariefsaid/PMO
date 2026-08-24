@@ -24,6 +24,8 @@ import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
@@ -40,14 +42,23 @@ interface FormValues {
   notes: string;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.full_name.trim()) errors.full_name = 'Contact name is required.';
-  if (!v.company_id) errors.company_id = 'A company is required.';
-  return errors;
-};
+/**
+ * `t` has to be threaded in: both messages are user-visible, and a module-level literal cannot
+ * reach the active locale. The validation SHAPE is unchanged — same fields, same trigger, same keys.
+ */
+const makeValidate =
+  (t: TFunction) =>
+  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+    const errors: Partial<Record<keyof FormValues, string>> = {};
+    if (!v.full_name.trim())
+      errors.full_name = t('contacts.form.errors.nameRequired', 'Contact name is required.');
+    if (!v.company_id)
+      errors.company_id = t('contacts.form.errors.companyRequired', 'A company is required.');
+    return errors;
+  };
 
 const Contacts: React.FC = () => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -108,8 +119,11 @@ const Contacts: React.FC = () => {
   if (!canView) {
     return (
       <AccessDenied
-        title="You don't have access to Contacts"
-        sub="The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks."
+        title={t('contacts.accessDenied.title', "You don't have access to Contacts")}
+        sub={t(
+          'contacts.accessDenied.sub',
+          'The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+        )}
         onBack={() => navigate('/')}
       />
     );
@@ -118,7 +132,7 @@ const Contacts: React.FC = () => {
   const columns: Column<ContactRow>[] = [
     {
       key: 'full_name',
-      header: 'Name',
+      header: t('contacts.columns.name', 'Name'),
       cell: (c) => (
         <span className="truncate font-semibold" title={c.full_name}>
           {c.full_name}
@@ -128,7 +142,7 @@ const Contacts: React.FC = () => {
     },
     {
       key: 'company',
-      header: 'Company',
+      header: t('contacts.columns.company', 'Company'),
       cell: (c) => (
         <span className="truncate text-muted-foreground" title={companyById.get(c.company_id) ?? ''}>
           {companyById.get(c.company_id) ?? '—'}
@@ -138,7 +152,7 @@ const Contacts: React.FC = () => {
     },
     {
       key: 'email',
-      header: 'Email',
+      header: t('contacts.columns.email', 'Email'),
       cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
       exportValue: (c) => c.email ?? '',
     },
@@ -146,9 +160,22 @@ const Contacts: React.FC = () => {
 
   const rowMenu = (c: ContactRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ contact: c }) });
-    if (canArchive) items.push({ label: 'Archive', onClick: () => setArchiveTarget(c) });
-    if (canDelete) items.push({ label: 'Delete', onClick: () => setDeleteTarget(c), danger: true });
+    if (canEdit)
+      items.push({
+        label: t('contacts.actions.edit', 'Edit'),
+        onClick: () => setFormTarget({ contact: c }),
+      });
+    if (canArchive)
+      items.push({
+        label: t('contacts.actions.archive', 'Archive'),
+        onClick: () => setArchiveTarget(c),
+      });
+    if (canDelete)
+      items.push({
+        label: t('contacts.actions.delete', 'Delete'),
+        onClick: () => setDeleteTarget(c),
+        danger: true,
+      });
     return items;
   };
 
@@ -157,7 +184,7 @@ const Contacts: React.FC = () => {
     const target = archiveTarget;
     try {
       await archive.mutateAsync(target.id);
-      toast('Contact archived', target.full_name, 'success');
+      toast(t('contacts.toast.archived', 'Contact archived'), target.full_name, 'success');
       setArchiveTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -170,7 +197,7 @@ const Contacts: React.FC = () => {
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast('Contact deleted', target.full_name, 'success');
+      toast(t('contacts.toast.deleted', 'Contact deleted'), target.full_name, 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -181,32 +208,38 @@ const Contacts: React.FC = () => {
 
   return (
     <ListPage
-      title="Contacts"
-      description="People at the companies you work with. Master data shared by the whole organisation — log calls, emails and meetings against each contact."
+      title={t('contacts.title', 'Contacts')}
+      description={t(
+        'contacts.description',
+        'People at the companies you work with. Master data shared by the whole organisation — log calls, emails and meetings against each contact.',
+      )}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ contact: null })}>
             <Icon name="plus" />
-            New contact
+            {t('contacts.actions.new', 'New contact')}
           </Button>
         )
       }
       filters={
         state !== 'loading' && (
           <SelectField
-            label="Filter by company"
+            label={t('contacts.filters.companyLabel', 'Filter by company')}
             hideLabel
             value={companyFilter}
             onChange={setCompanyFilter}
-            options={[{ value: 'All', label: 'All companies' }, ...companyOptions]}
+            options={[
+              { value: 'All', label: t('contacts.filters.allCompanies', 'All companies') },
+              ...companyOptions,
+            ]}
           />
         )
       }
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder="Search contacts…"
-            aria-label="Search contacts"
+            placeholder={t('contacts.search.placeholder', 'Search contacts…')}
+            aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
@@ -237,8 +270,8 @@ const Contacts: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load contacts"
-          sub="The request failed. Check your connection and try again."
+          title={t('contacts.states.errorTitle', "Couldn't load contacts")}
+          sub={t('contacts.states.errorSub', 'The request failed. Check your connection and try again.')}
           onRetry={() => refetch()}
         />
       )}
@@ -247,13 +280,21 @@ const Contacts: React.FC = () => {
         <ListState
           variant="empty"
           icon="folder"
-          title="No contacts yet"
-          sub="Add your first contact to start logging calls, emails and meetings against the people you work with."
+          title={t('contacts.states.emptyTitle', 'No contacts yet')}
+          sub={t(
+            'contacts.states.emptySub',
+            'Add your first contact to start logging calls, emails and meetings against the people you work with.',
+          )}
           stateId="contacts-empty"
           role={realRole ?? undefined}
           module="contacts"
           action={
-            canCreate ? { label: 'Add your first contact', onClick: () => setFormTarget({ contact: null }) } : undefined
+            canCreate
+              ? {
+                  label: t('contacts.states.emptyAction', 'Add your first contact'),
+                  onClick: () => setFormTarget({ contact: null }),
+                }
+              : undefined
           }
         />
       )}
@@ -266,11 +307,13 @@ const Contacts: React.FC = () => {
           // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the
           // drawer-as-record is retired). Create/edit-in-modal are unchanged.
           onActivate={(c) => navigate(`/contacts/${c.id}`)}
+          // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
+          // notReady `t` the unit suite uses (no i18next instance is mounted there).
           rowLabel={(c) => `Open ${c.full_name}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No contacts match your filters"
-          emptySub="Try a different company or clear the search."
+          emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
+          emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
         />
       )}
 
@@ -281,12 +324,12 @@ const Contacts: React.FC = () => {
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
-            toast('Contact created', input.full_name, 'success');
+            toast(t('contacts.toast.created', 'Contact created'), input.full_name, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (id, input) => {
             await update.mutateAsync({ id, input });
-            toast('Contact updated', input.full_name, 'success');
+            toast(t('contacts.toast.updated', 'Contact updated'), input.full_name, 'success');
             setFormTarget(null);
           }}
           onError={(err) => {
@@ -299,9 +342,17 @@ const Contacts: React.FC = () => {
       <ConfirmDialog
         open={!!archiveTarget}
         tone="default"
-        title={archiveTarget ? `Archive ${archiveTarget.full_name}?` : 'Archive contact?'}
-        description="They will be hidden from the default list. Existing activity stays intact. You can restore them any time."
-        confirmLabel="Archive contact"
+        /* ⚑ The named branch stays a template literal — see the interpolation note above. */
+        title={
+          archiveTarget
+            ? `Archive ${archiveTarget.full_name}?`
+            : t('contacts.confirm.archiveTitle', 'Archive contact?')
+        }
+        description={t(
+          'contacts.confirm.archiveDescription',
+          'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',
+        )}
+        confirmLabel={t('contacts.confirm.archiveConfirm', 'Archive contact')}
         loading={archive.isPending}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveTarget(null)}
@@ -310,9 +361,16 @@ const Contacts: React.FC = () => {
       <ConfirmDialog
         open={!!deleteTarget}
         tone="destructive"
-        title={deleteTarget ? `Delete ${deleteTarget.full_name}?` : 'Delete contact?'}
-        description="This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history."
-        confirmLabel="Delete contact"
+        title={
+          deleteTarget
+            ? `Delete ${deleteTarget.full_name}?`
+            : t('contacts.confirm.deleteTitle', 'Delete contact?')
+        }
+        description={t(
+          'contacts.confirm.deleteDescription',
+          'This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.',
+        )}
+        confirmLabel={t('contacts.confirm.deleteConfirm', 'Delete contact')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
@@ -344,7 +402,11 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!contact;
+  // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
+  // `runValidate` memo behaves exactly as it did with the old module-level function.
+  const validate = useMemo(() => makeValidate(t), [t]);
   // When defaultCompanyId is set (in-context create from CompanyDetail) the
   // company_id initialises to it and the field is disabled.
   const lockedCompanyId = defaultCompanyId ?? null;
@@ -410,9 +472,21 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit contact' : 'New contact'}
-      subtitle={isEdit ? 'Update this contact record' : 'Add a person at one of your companies'}
-      submitLabel={isEdit ? 'Save contact' : 'Create contact'}
+      title={
+        isEdit
+          ? t('contacts.form.editTitle', 'Edit contact')
+          : t('contacts.form.newTitle', 'New contact')
+      }
+      subtitle={
+        isEdit
+          ? t('contacts.form.editSubtitle', 'Update this contact record')
+          : t('contacts.form.newSubtitle', 'Add a person at one of your companies')
+      }
+      submitLabel={
+        isEdit
+          ? t('contacts.form.editSubmit', 'Save contact')
+          : t('contacts.form.newSubmit', 'Create contact')
+      }
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -421,46 +495,49 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
       errorSummary={errorSummary.length ? errorSummary : undefined}
       submitError={saveError}
     >
-      <FormSection legend="Identity">
+      <FormSection legend={t('contacts.form.sections.identity', 'Identity')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Full name"
+            label={t('contacts.form.fullName.label', 'Full name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Jane Doe"
+            placeholder={t('contacts.form.fullName.placeholder', 'e.g. Jane Doe')}
             autoComplete="name"
             fullWidth
           />
           <SelectField
             id={companyField.id}
-            label="Company"
+            label={t('contacts.form.company.label', 'Company')}
             required
             value={companyField.value}
             onChange={(v) => companyField.onChange(v)}
             onBlur={companyField.onBlur}
             error={companyField.error}
-            options={[{ value: '', label: 'Select a company…' }, ...companyOptions]}
+            options={[
+              { value: '', label: t('contacts.form.company.placeholder', 'Select a company…') },
+              ...companyOptions,
+            ]}
             disabled={!!lockedCompanyId}
           />
           <TextField
             id={titleField.id}
-            label="Title"
+            label={t('contacts.form.jobTitle.label', 'Title')}
             value={titleField.value}
             onChange={titleField.onChange}
             onBlur={titleField.onBlur}
-            placeholder="e.g. Procurement Lead"
+            placeholder={t('contacts.form.jobTitle.placeholder', 'e.g. Procurement Lead')}
           />
         </FormGrid>
       </FormSection>
-      <FormSection legend="Contact details">
+      <FormSection legend={t('contacts.form.sections.contactDetails', 'Contact details')}>
         <FormGrid>
           <TextField
             id={emailField.id}
-            label="Email"
+            label={t('contacts.form.email.label', 'Email')}
             type="email"
             value={emailField.value}
             onChange={emailField.onChange}
@@ -470,22 +547,25 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
           />
           <TextField
             id={phoneField.id}
-            label="Phone"
+            label={t('contacts.form.phone.label', 'Phone')}
             value={phoneField.value}
             onChange={phoneField.onChange}
             onBlur={phoneField.onBlur}
-            placeholder="e.g. +1 555 010 0000"
+            placeholder={t('contacts.form.phone.placeholder', 'e.g. +1 555 010 0000')}
             autoComplete="tel"
           />
           <TextArea
             id={notesField.id}
-            label="Notes"
+            label={t('contacts.form.notes.label', 'Notes')}
             value={notesField.value}
             onChange={notesField.onChange}
             onBlur={notesField.onBlur}
             rows={3}
             fullWidth
-            placeholder="Anything worth remembering about this contact"
+            placeholder={t(
+              'contacts.form.notes.placeholder',
+              'Anything worth remembering about this contact',
+            )}
           />
         </FormGrid>
       </FormSection>

@@ -1,0 +1,1543 @@
+{
+  "approvals": {
+    "accessDenied": {
+      "sub": "Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.",
+      "title": "You don't have access to approvals"
+    },
+    "attest": {
+      "bodyFor": "for",
+      "bodyPrefix": "Certify that you have checked ERPNext and it holds",
+      "bodySuffix": "’s week. This records an audited attestation and re-opens the week for correction — it does not contact ERPNext.",
+      "cancelLabel": "Cancel",
+      "confirmLabel": "Confirm — no ERP document",
+      "noTimesheet": "no Timesheet",
+      "reasonLabel": "What did you check in ERPNext?",
+      "reasonPlaceholder": "e.g. Searched Timesheets for this employee and week — none exists.",
+      "thisPerson": "this person",
+      "title": "Confirm what ERPNext holds"
+    },
+    "caughtUp": {
+      "sub": "Nothing is waiting on your approval right now. New purchase requests and submitted timesheets will appear here.",
+      "title": "You’re all caught up"
+    },
+    "employeeLinks": {
+      "title": "Employee links awaiting confirmation"
+    },
+    "entryOne": "entry",
+    "entryOther": "entries",
+    "group": {
+      "procurement": {
+        "emptySub": "Purchase requests that need your approval will appear here.",
+        "emptyTitle": "No requests awaiting your decision",
+        "title": "Purchase requests"
+      },
+      "timesheets": {
+        "emptySub": "Submitted timesheets from your reports will appear here for review.",
+        "emptyTitle": "No timesheets awaiting your decision",
+        "title": "Timesheets"
+      }
+    },
+    "mobile": {
+      "procurementLabel": "Purchase requests awaiting you",
+      "timesheetsLabel": "Timesheets awaiting you"
+    },
+    "noProjectLinked": "No project linked",
+    "previewEmpty": {
+      "sub": "When a pending request is available, its preview and actions appear here.",
+      "title": "Select an approval item"
+    },
+    "previewError": {
+      "sub": "Retry from the queue pane to refresh the latest approvals.",
+      "title": "Couldn't load the selected queue"
+    },
+    "previewRegionLabel": "Approval preview",
+    "pushAttention": {
+      "retryFailure": "That timesheet could not be pushed",
+      "retrySuccess": "Timesheet pushed to ERPNext",
+      "title": "ERP pushes needing attention"
+    },
+    "queue": {
+      "loadErrorPrefix": "Couldn't load",
+      "loadErrorSub": "Try again to refresh this queue."
+    },
+    "queueHeading": "Approvals queue",
+    "queueHint": "Select an item to preview its details and decision controls.",
+    "queueRegionLabel": "Approvals queue",
+    "reopen": {
+      "action": "Re-open for correction",
+      "alreadyPushed": "Already pushed to ERP — correction path coming",
+      "attestFailure": "Could not confirm the ERP result",
+      "attestSuccess": "Confirmed — the week is clear to re-open",
+      "attestSuccessDetail": "ERPNext holds no document",
+      "confirmErpButton": "Confirm what ERPNext holds",
+      "errorDocumentHeld": "Already in ERP — this week cannot be re-opened yet.",
+      "errorGeneric": "Could not re-open",
+      "errorOutcomeUnknown": "This week’s ERP result is unknown — an administrator must confirm what ERPNext holds before it can be re-opened.",
+      "errorPushInFlight": "A push is in flight for this week — try again shortly.",
+      "heading": "Approved — re-open for correction",
+      "outcomeUnknown": "ERP result unknown — an administrator must confirm what ERPNext holds",
+      "pushInProgress": "Push in progress",
+      "sectionLabelPrefix": "Approved timesheets from the last",
+      "sectionLabelSuffix": "days that can be re-opened for correction",
+      "success": "Re-opened — the week is back in Draft for editing.",
+      "windowPrefix": "last",
+      "windowSuffix": "days"
+    },
+    "scope": {
+      "all": "All",
+      "procurement": "Procurement",
+      "timesheets": "Timesheets"
+    },
+    "scopeToggleLabel": "Approvals scope",
+    "subtitle": "Needs my approval — everything waiting on your decision, across procurement and timesheets.",
+    "title": "Approvals",
+    "unknownOwner": "Unknown",
+    "unknownRequester": "Unknown requester",
+    "weekOf": "Week of"
+  },
+  "companies": {
+    "accessDenied": {
+      "sub": "The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.",
+      "title": "You don't have access to Companies"
+    },
+    "actions": {
+      "archive": "Archive",
+      "delete": "Delete",
+      "edit": "Edit",
+      "new": "New company"
+    },
+    "columns": {
+      "name": "Company",
+      "type": "Type"
+    },
+    "confirm": {
+      "archiveConfirm": "Archive company",
+      "archiveDescription": "It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time.",
+      "archiveTitle": "Archive company?",
+      "deleteConfirm": "Delete company",
+      "deleteDescription": "This permanently removes the company. A company referenced by projects or procurements can't be deleted; archive it instead.",
+      "deleteTitle": "Delete company?"
+    },
+    "deleteGate": {
+      "archiveInstead": "Archive instead",
+      "dismiss": "Dismiss"
+    },
+    "description": "Clients and vendors used across projects and procurement. Master data shared by the whole organisation.",
+    "filters": {
+      "all": "All",
+      "ariaLabel": "Filter by type"
+    },
+    "form": {
+      "editSubmit": "Save company",
+      "editSubtitle": "Update this company record",
+      "editTitle": "Edit company",
+      "errors": {
+        "nameRequired": "Company name is required."
+      },
+      "name": {
+        "label": "Company name",
+        "placeholder": "e.g. Cascade Port Authority"
+      },
+      "newSubmit": "Create company",
+      "newSubtitle": "Add a client or vendor to the directory",
+      "newTitle": "New company",
+      "sections": {
+        "identity": "Identity"
+      },
+      "type": {
+        "label": "Type"
+      }
+    },
+    "search": {
+      "ariaLabel": "Search companies",
+      "placeholder": "Search companies…"
+    },
+    "states": {
+      "emptySub": "Add your first client or vendor to start linking projects and purchase requests to a directory.",
+      "emptyTitle": "No companies yet",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load companies"
+    },
+    "table": {
+      "emptySub": "Try a different type or clear the search.",
+      "emptyTitle": "No companies match your filters"
+    },
+    "title": "Companies",
+    "toast": {
+      "archived": "Company archived",
+      "created": "Company created",
+      "deleted": "Company deleted",
+      "updated": "Company updated"
+    },
+    "type": {
+      "client": "Client",
+      "internal": "Internal",
+      "vendor": "Vendor"
+    }
+  },
+  "companyDetail": {
+    "accessDenied": {
+      "sub": "The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.",
+      "title": "You don't have access to Companies"
+    },
+    "activity": {
+      "coldStart": "Add a contact to start logging activity",
+      "contact": "Contact",
+      "contactPlaceholder": "Select a contact…",
+      "deleteAction": "Delete activity",
+      "deleteConfirm": {
+        "confirmLabel": "Delete",
+        "description": "This action cannot be undone. The activity log entry will be permanently removed.",
+        "title": "Delete this activity?"
+      },
+      "editAction": "Edit activity",
+      "empty": "No activity logged yet.",
+      "error": {
+        "sub": "The request failed. Try again.",
+        "title": "Couldn't load activity"
+      },
+      "logAction": "Log activity",
+      "notes": "Notes",
+      "notesPlaceholder": "What was discussed?",
+      "subject": "Subject",
+      "subjectPlaceholder": "e.g. Kickoff call",
+      "title": "Activity",
+      "type": "Activity type"
+    },
+    "activityKind": {
+      "call": "Call",
+      "email": "Email",
+      "meeting": "Meeting",
+      "note": "Note"
+    },
+    "addContact": {
+      "legendContact": "Contact details",
+      "legendIdentity": "Identity",
+      "submitLabel": "Create contact",
+      "subtitle": "Add a person at this company",
+      "title": "New contact"
+    },
+    "archive": "Archive",
+    "archiveConfirm": {
+      "confirmLabel": "Archive company",
+      "description": "It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time.",
+      "titlePrefix": "Archive"
+    },
+    "backToCompanies": "Companies",
+    "contacts": {
+      "addContact": "Add contact",
+      "empty": "No contacts yet",
+      "error": {
+        "sub": "Something went wrong. Try again.",
+        "title": "Couldn't load contacts"
+      },
+      "listLabel": "Contacts list",
+      "loading": "Loading…",
+      "loadingLabel": "Loading contacts",
+      "openRow": "Open",
+      "title": "Contacts"
+    },
+    "edit": "Edit",
+    "editActivity": {
+      "legend": "Details",
+      "submitLabel": "Save",
+      "subtitle": "Update this activity log entry",
+      "title": "Edit activity"
+    },
+    "editCompany": {
+      "legendIdentity": "Identity",
+      "submitLabel": "Save company",
+      "subtitle": "Update this company record",
+      "title": "Edit company"
+    },
+    "error": {
+      "sub": "Something went wrong fetching this company.",
+      "title": "Couldn't load company"
+    },
+    "field": {
+      "company": "Company",
+      "companyName": "Company name",
+      "companyNamePlaceholder": "e.g. Cascade Port Authority",
+      "email": "Email",
+      "emailPlaceholder": "name@example.com",
+      "fullName": "Full name",
+      "fullNamePlaceholder": "e.g. Jane Doe",
+      "name": "Name",
+      "notes": "Notes",
+      "notesPlaceholder": "Anything worth remembering about this contact",
+      "phone": "Phone",
+      "phonePlaceholder": "e.g. +1 555 010 0000",
+      "primaryContact": "Primary contact",
+      "title": "Title",
+      "titlePlaceholder": "e.g. Procurement Lead",
+      "type": "Type"
+    },
+    "form": {
+      "errors": {
+        "companyNameRequired": "Company name is required.",
+        "contactNameRequired": "Contact name is required."
+      }
+    },
+    "notFound": {
+      "sub": "This company either doesn't exist or isn't visible to you. Return to the directory to find it.",
+      "title": "Company not found"
+    },
+    "related": {
+      "loadErrorPrefix": "Couldn't load",
+      "loadErrorSub": "Something went wrong. Try again."
+    },
+    "relatedProcurement": {
+      "empty": "No procurement yet",
+      "heading": "Procurement",
+      "listLabel": "Procurement list"
+    },
+    "relatedProjects": {
+      "empty": "No related projects yet",
+      "heading": "Related projects"
+    },
+    "sectionTitle": "Company detail",
+    "toast": {
+      "activityDeleted": "Activity deleted",
+      "activityLogged": "Activity logged",
+      "activityUpdated": "Activity updated",
+      "archived": "Company archived",
+      "contactCreated": "Contact created",
+      "updated": "Company updated"
+    },
+    "type": {
+      "client": "Client",
+      "internal": "Internal",
+      "vendor": "Vendor"
+    }
+  },
+  "contactDetail": {
+    "accessDenied": {
+      "sub": "The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.",
+      "title": "You don't have access to Contacts"
+    },
+    "activity": {
+      "deleteAction": "Delete activity",
+      "deleteConfirm": {
+        "confirmLabel": "Delete",
+        "description": "This action cannot be undone. The activity log entry will be permanently removed.",
+        "title": "Delete this activity?"
+      },
+      "editAction": "Edit activity",
+      "empty": "No activity logged yet.",
+      "error": {
+        "sub": "The request failed. Try again.",
+        "title": "Couldn't load activity"
+      },
+      "logAction": "Log activity",
+      "notes": "Notes",
+      "notesPlaceholder": "What was discussed?",
+      "subject": "Subject",
+      "subjectPlaceholder": "e.g. Kickoff call",
+      "title": "Activity",
+      "type": "Activity type"
+    },
+    "activityKind": {
+      "call": "Call",
+      "email": "Email",
+      "meeting": "Meeting",
+      "note": "Note"
+    },
+    "archive": "Archive",
+    "archiveConfirm": {
+      "confirmLabel": "Archive contact",
+      "description": "They will be hidden from the default list. Existing activity stays intact. You can restore them any time.",
+      "titlePrefix": "Archive"
+    },
+    "backToContacts": "Contacts",
+    "edit": "Edit",
+    "editActivity": {
+      "legend": "Details",
+      "submitLabel": "Save",
+      "subtitle": "Update this activity log entry",
+      "title": "Edit activity"
+    },
+    "editContact": {
+      "legendContact": "Contact details",
+      "legendIdentity": "Identity",
+      "submitLabel": "Save contact",
+      "subtitle": "Update this contact record",
+      "title": "Edit contact"
+    },
+    "error": {
+      "sub": "Something went wrong fetching this contact.",
+      "title": "Couldn't load contact"
+    },
+    "field": {
+      "company": "Company",
+      "companyPlaceholder": "Select a company…",
+      "email": "Email",
+      "emailPlaceholder": "name@example.com",
+      "fullName": "Full name",
+      "fullNamePlaceholder": "e.g. Jane Doe",
+      "notes": "Notes",
+      "notesPlaceholder": "Anything worth remembering about this contact",
+      "phone": "Phone",
+      "phonePlaceholder": "e.g. +1 555 010 0000",
+      "title": "Title",
+      "titlePlaceholder": "e.g. Procurement Lead"
+    },
+    "form": {
+      "errors": {
+        "companyRequired": "A company is required.",
+        "nameRequired": "Contact name is required."
+      }
+    },
+    "notFound": {
+      "sub": "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
+      "title": "Contact not found"
+    },
+    "pill": "Contact",
+    "sectionTitle": "Contact detail",
+    "toast": {
+      "activityDeleted": "Activity deleted",
+      "activityLogged": "Activity logged",
+      "activityUpdated": "Activity updated",
+      "archived": "Contact archived",
+      "updated": "Contact updated"
+    }
+  },
+  "contacts": {
+    "accessDenied": {
+      "sub": "The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.",
+      "title": "You don't have access to Contacts"
+    },
+    "actions": {
+      "archive": "Archive",
+      "delete": "Delete",
+      "edit": "Edit",
+      "new": "New contact"
+    },
+    "columns": {
+      "company": "Company",
+      "email": "Email",
+      "name": "Name"
+    },
+    "confirm": {
+      "archiveConfirm": "Archive contact",
+      "archiveDescription": "They will be hidden from the default list. Existing activity stays intact. You can restore them any time.",
+      "archiveTitle": "Archive contact?",
+      "deleteConfirm": "Delete contact",
+      "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.",
+      "deleteTitle": "Delete contact?"
+    },
+    "description": "People at the companies you work with. Master data shared by the whole organisation — log calls, emails and meetings against each contact.",
+    "filters": {
+      "allCompanies": "All companies",
+      "companyLabel": "Filter by company"
+    },
+    "form": {
+      "company": {
+        "label": "Company",
+        "placeholder": "Select a company…"
+      },
+      "editSubmit": "Save contact",
+      "editSubtitle": "Update this contact record",
+      "editTitle": "Edit contact",
+      "email": {
+        "label": "Email"
+      },
+      "errors": {
+        "companyRequired": "A company is required.",
+        "nameRequired": "Contact name is required."
+      },
+      "fullName": {
+        "label": "Full name",
+        "placeholder": "e.g. Jane Doe"
+      },
+      "jobTitle": {
+        "label": "Title",
+        "placeholder": "e.g. Procurement Lead"
+      },
+      "newSubmit": "Create contact",
+      "newSubtitle": "Add a person at one of your companies",
+      "newTitle": "New contact",
+      "notes": {
+        "label": "Notes",
+        "placeholder": "Anything worth remembering about this contact"
+      },
+      "phone": {
+        "label": "Phone",
+        "placeholder": "e.g. +1 555 010 0000"
+      },
+      "sections": {
+        "contactDetails": "Contact details",
+        "identity": "Identity"
+      }
+    },
+    "search": {
+      "ariaLabel": "Search contacts",
+      "placeholder": "Search contacts…"
+    },
+    "states": {
+      "emptyAction": "Add your first contact",
+      "emptySub": "Add your first contact to start logging calls, emails and meetings against the people you work with.",
+      "emptyTitle": "No contacts yet",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load contacts"
+    },
+    "table": {
+      "emptySub": "Try a different company or clear the search.",
+      "emptyTitle": "No contacts match your filters"
+    },
+    "title": "Contacts",
+    "toast": {
+      "archived": "Contact archived",
+      "created": "Contact created",
+      "deleted": "Contact deleted",
+      "updated": "Contact updated"
+    }
+  },
+  "dashboard": {
+    "approvals": {
+      "label": "Approvals"
+    },
+    "atRisk": {
+      "label": "at-risk",
+      "linkPrefix": "View",
+      "linkSuffix": "at-risk projects"
+    },
+    "boardPack": {
+      "ariaLabel": "Board pack (coming soon)",
+      "label": "Board pack",
+      "tooltip": "Board pack export arrives with Reports"
+    },
+    "chart": {
+      "bva": {
+        "empty": "No active projects yet",
+        "title": "Budget vs Actual — Active Projects"
+      },
+      "pipelineMargin": {
+        "empty": "No open pipeline",
+        "error": "Couldn't load the pipeline",
+        "title": "Pipeline forecast margin"
+      },
+      "procStatus": {
+        "chartLabel": "Procurement by status",
+        "empty": "No procurement activity yet",
+        "noun": "requests",
+        "title": "Procurement by Status"
+      }
+    },
+    "empty": {
+      "sub": "Create your first project to see portfolio KPIs here.",
+      "title": "No data yet"
+    },
+    "error": {
+      "sub": "The dashboard query failed. Retry, or check back shortly.",
+      "title": "Couldn't load the dashboard"
+    },
+    "kpi": {
+      "activeProjects": {
+        "help": "Projects currently in delivery.",
+        "label": "Active projects",
+        "linkLabel": "Open the active projects list",
+        "vs": "at-risk"
+      },
+      "pipelineMargin": {
+        "help": "Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).",
+        "label": "Pipeline forecast margin",
+        "vs": "probability-weighted"
+      },
+      "pipelineWeighted": {
+        "help": "Sum of (project value × stage win-probability) across all open stages.",
+        "label": "Pipeline (weighted)",
+        "linkLabel": "Open the sales pipeline",
+        "vsPrefix": "of",
+        "vsSuffix": "gross"
+      },
+      "revenueOnHand": {
+        "help": "Booked revenue on active + closed-out contracts. The realized margin to date is the % shown below.",
+        "label": "Revenue on hand",
+        "vs": "realized"
+      },
+      "totalContractValue": {
+        "help": "Total contract value across the active portfolio.",
+        "label": "Total contract value",
+        "linkLabel": "Open active projects to see total contract value",
+        "vs": "active projects"
+      },
+      "totalSpend": {
+        "help": "Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)",
+        "label": "Total project spend",
+        "linkLabel": "Open active projects to see spend breakdown",
+        "vs": "actual to date"
+      }
+    },
+    "kpiBand": {
+      "label": "Portfolio KPIs"
+    },
+    "sr": {
+      "activeProjects": "active projects",
+      "statuses": "statuses"
+    },
+    "subtitle": {
+      "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
+      "mobile": "What needs your attention across the contracting book."
+    },
+    "title": "Executive Dashboard"
+  },
+  "myTasks": {
+    "changeStatusOf": "Change status of",
+    "duePrefix": "Due",
+    "empty": {
+      "sub": "When tasks are assigned to you they will appear here across all your projects.",
+      "title": "No tasks assigned to you"
+    },
+    "error": {
+      "sub": "Something went wrong fetching your assigned tasks.",
+      "title": "Couldn't load your tasks"
+    },
+    "logTime": "Log time",
+    "noProjectGroup": "No project",
+    "overdue": "Overdue",
+    "startPrefix": "Start",
+    "subtitle": "Your assigned tasks across all projects.",
+    "title": "My Tasks"
+  },
+  "procurement": {
+    "column": {
+      "lifecycle": "Lifecycle",
+      "project": "Project",
+      "request": "Request",
+      "requestedBy": "Requested by",
+      "status": "Status",
+      "value": "Value"
+    },
+    "description": {
+      "orgWide": "Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.",
+      "ownScoped": "The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one."
+    },
+    "empty": {
+      "orgWide": {
+        "title": "No purchase requests yet"
+      },
+      "ownScoped": {
+        "title": "You haven't raised any requests yet"
+      },
+      "sub": "Requests you raise will appear here through their full lifecycle."
+    },
+    "error": {
+      "sub": "Something went wrong fetching your requests.",
+      "title": "Couldn't load procurements"
+    },
+    "filter": {
+      "all": "All",
+      "needsApproval": "Needs approval",
+      "open": "Open",
+      "ordered": "Ordered",
+      "paid": "Paid",
+      "vendorInvoiced": "Vendor Invoiced"
+    },
+    "importCycleData": "Import cycle data",
+    "lifecycleLabel": "Lifecycle",
+    "listLabel": "Procurement requests",
+    "noMatch": {
+      "sub": "Try a different status, search term, or clear the filters.",
+      "title": "No requests match your filters"
+    },
+    "raiseRequest": "Raise request",
+    "search": {
+      "label": "Filter requests",
+      "placeholder": "Filter requests…"
+    },
+    "statusFilterLabel": "Status filter",
+    "title": {
+      "orgWide": "Procurement",
+      "ownScoped": "Your purchase requests"
+    },
+    "toast": {
+      "created": {
+        "detail": "Add line items and quotations next",
+        "headline": "Request created"
+      }
+    },
+    "unknownRequester": "Unknown",
+    "view": {
+      "board": "Board",
+      "table": "Table"
+    },
+    "viewToggleLabel": "Procurement view"
+  },
+  "procurementDetail": {
+    "accessDenied": {
+      "sub": "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.",
+      "title": "You don't have access to this record"
+    },
+    "action": {
+      "approve": "Approve",
+      "cancelRequest": "Cancel request",
+      "confirmReceipt": "Confirm Receipt",
+      "generatePurchaseOrder": "Generate Purchase Order",
+      "markAsPaid": "Mark as Paid",
+      "markVendorInvoiced": "Mark Vendor Invoiced",
+      "reject": "Reject",
+      "requestVendorQuotes": "Request Vendor Quotes",
+      "rework": "Rework (Back to Draft)",
+      "selectQuote": "Select Quote",
+      "submitRequest": "Submit Request"
+    },
+    "approvalNotes": "Approval notes",
+    "backToProcurement": "Procurement",
+    "confirm": {
+      "approvePrefix": "Approve",
+      "cancelTitle": "Cancel this request?",
+      "grBodyPrefix": "This records a",
+      "grBodySuffix": "goods receipt against",
+      "grTitle": "Record this goods receipt?",
+      "keepRequest": "Keep request",
+      "markPaidPrefix": "Mark",
+      "markPaidSuffix": "as paid? This releases payment and cannot be undone.",
+      "onProject": "on",
+      "requestedBy": ", requested by",
+      "saveGR": "Save GR",
+      "saveVI": "Save VI",
+      "terminal": "This is a terminal action for this request and cannot be undone.",
+      "thisRequest": "this request",
+      "viBodyPrefix": "This records a vendor invoice against",
+      "viTitle": "Record this vendor invoice?"
+    },
+    "detail": {
+      "approvedBy": "Approved by",
+      "notLinked": "Not linked",
+      "notYetSelected": "Not yet selected",
+      "pending": "Pending",
+      "project": "Project",
+      "requestedBy": "Requested by",
+      "vendor": "Vendor"
+    },
+    "editHeader": "Edit",
+    "error": {
+      "sub": "Something went wrong fetching the procurement details.",
+      "title": "Couldn't load procurement"
+    },
+    "lifecycleLabel": "Procurement lifecycle",
+    "meta": {
+      "requestedBy": "requested by"
+    },
+    "rejectionNotes": "Rejection notes",
+    "tabs": {
+      "documents": "Documents",
+      "lineItems": "Line items",
+      "overview": "Overview",
+      "vendorQuotes": "Vendor quotes"
+    },
+    "tabsLabel": "Procurement sections",
+    "tile": {
+      "goodsReceived": "Goods received",
+      "poCommitted": "PO committed",
+      "prValue": "PR value",
+      "receiptOne": "receipt",
+      "receiptOther": "receipts",
+      "selectedFallback": "selected",
+      "selectedQuote": "Selected quote"
+    },
+    "toast": {
+      "grRecorded": "Goods receipt recorded",
+      "headerSaved": "Header saved",
+      "lineItemAdded": "Line item added",
+      "lineItemRemoved": "Line item removed",
+      "lineItemUpdated": "Line item updated",
+      "movedTo": "Moved to",
+      "quotationAdded": "Quotation added",
+      "quoteSelected": "Quote selected",
+      "quoteSelectedDetail": "The request advanced to Quote Selected",
+      "requestUpdated": "Request updated",
+      "viRecorded": "Vendor invoice recorded"
+    }
+  },
+  "projectDetail": {
+    "backToProjects": "Projects",
+    "documents": {
+      "action": {
+        "approve": "Approve",
+        "close": "Close",
+        "delete": "Delete",
+        "edit": "Edit",
+        "issue": "Issue",
+        "reject": "Reject",
+        "reopen": "Reopen for revision",
+        "whyUnavailable": "Why is review unavailable?"
+      },
+      "addDocument": "Add document",
+      "column": {
+        "category": "Category",
+        "code": "Code",
+        "date": "Date",
+        "document": "Document",
+        "file": "File",
+        "status": "Status"
+      },
+      "deleteConfirm": {
+        "body": "This permanently removes the document register entry. This can't be undone.",
+        "confirm": "Delete document",
+        "titleFallback": "Delete document?"
+      },
+      "dismiss": "Dismiss",
+      "download": "Download",
+      "emptySub": "Add a drawing, specification, or transmittal to start the project's document register.",
+      "emptyTitle": "No documents yet",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load documents",
+      "field": {
+        "category": "Category",
+        "code": "Code",
+        "docDate": "Document date",
+        "file": "File",
+        "lineage": "Revision lineage",
+        "revision": "Revision",
+        "status": "Status",
+        "supersededBy": "Superseded by"
+      },
+      "fileValidationFailed": "File validation failed",
+      "form": {
+        "category": "Category",
+        "code": "Code",
+        "codeHelper": "Optional document number or drawing code.",
+        "codePlaceholder": "e.g. DWG-001",
+        "docDate": "Document date",
+        "editSubtitle": "Update this register entry",
+        "editTitle": "Edit document",
+        "errors": {
+          "categoryRequired": "Category is required.",
+          "titleRequired": "Title is required."
+        },
+        "legend": "Document",
+        "newSubtitle": "Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.",
+        "revision": "Revision",
+        "revisionPlaceholder": "e.g. A",
+        "save": "Save document",
+        "title": "Title",
+        "titlePlaceholder": "e.g. Foundation general arrangement"
+      },
+      "heading": "Document register",
+      "newRevision": "New revision",
+      "newRevisionFor": "Create new revision for",
+      "noSearchMatch": "No documents match your search",
+      "noSearchMatchSub": "Try a different title, code, or category.",
+      "ofWord": "of",
+      "revLabel": "Rev",
+      "searchAriaLabel": "Search documents",
+      "searchPlaceholder": "Search documents…",
+      "sod": {
+        "drawerNotice": "You can't approve your own document. Approving is a segregation-of-duties step, so a different reviewer must approve or reject it.",
+        "explanation": "Approving a document is a segregation-of-duties step, so a different reviewer must approve or reject it.",
+        "ownDocument": "You can't approve your own document"
+      },
+      "subheading": "Drawings, specifications, and transmittals for this project. Upload files on Draft rows.",
+      "supersededNotice": "Read-only — continue on Rev",
+      "toast": {
+        "added": "Document added",
+        "deleted": "Document deleted",
+        "revisionCreated": "Revision created",
+        "transitioned": "Document",
+        "updated": "Document updated"
+      },
+      "transitionConfirm": {
+        "approved": "Approving records you as the reviewer. This is a segregation-of-duties step and is recorded.",
+        "closed": "Closing finalises the document. This is a terminal status.",
+        "confirmFallback": "Update status",
+        "issued": "Issuing moves the document into review so a reviewer can approve or reject it.",
+        "rejected": "Rejecting returns the document for revision. This is recorded.",
+        "titleFallback": "Update status?"
+      },
+      "updateStatus": "Update status",
+      "uploadAriaLabel": "Upload a document",
+      "verb": {
+        "approve": "Approve document",
+        "close": "Close document",
+        "issue": "Issue document",
+        "reject": "Reject document",
+        "reopen": "Reopen for revision"
+      },
+      "viewDocument": "View",
+      "viewRevision": "View revision"
+    },
+    "gantt": {
+      "boardView": "Board view",
+      "dependsOn": "depends on",
+      "emptySub": "Add start/due dates to tasks or target dates to milestones to see the timeline.",
+      "emptyTitle": "No dated work yet",
+      "listView": "List view",
+      "milestoneWord": "milestone",
+      "mobileSub": "The timeline is best viewed on a wider screen. Switch to a view that fits your device:",
+      "mobileTitle": "Open on a larger screen",
+      "openTask": "Open",
+      "scale": {
+        "day": "Day",
+        "month": "Month",
+        "quarter": "Quarter",
+        "week": "Week"
+      },
+      "targetWord": "target",
+      "taskColumn": "Task",
+      "taskTableAriaLabel": "Task table",
+      "today": "Today",
+      "undated": "Undated",
+      "zoomAriaLabel": "Timeline zoom"
+    },
+    "header": {
+      "action": {
+        "archive": "Archive",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "save": "Save"
+      },
+      "archiveConfirm": {
+        "body": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
+        "confirm": "Archive project",
+        "title": "Archive"
+      },
+      "contractValue": "Contract value",
+      "contractValueConfirm": {
+        "confirm": "Change and record",
+        "notice": "Changing the contract value on a won project is a segregation of duties action and is recorded against your name, the date, and the previous value.",
+        "title": "Change the contract value?"
+      },
+      "deleteConfirm": {
+        "body": "This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it.",
+        "confirm": "Delete project",
+        "title": "Delete"
+      },
+      "editContractValue": "Edit contract value",
+      "poPrefix": "PO",
+      "readOnly": "Read-only",
+      "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
+      "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
+      "taxAmount": "Tax amount",
+      "taxTreatment": "Tax treatment",
+      "tile": {
+        "actual": "Actual",
+        "committed": "Committed",
+        "contract": "Contract",
+        "margin": "On-hand margin",
+        "spend": "Spend"
+      },
+      "toast": {
+        "archived": "Project archived",
+        "contractValueUpdated": "Contract value updated",
+        "deleted": "Project deleted"
+      }
+    },
+    "milestoneForm": {
+      "create": "Create milestone",
+      "detailsLegend": "Details",
+      "editSubtitle": "Update this milestone",
+      "editTitle": "Edit milestone",
+      "errors": {
+        "nameRequired": "Milestone name is required",
+        "progressRange": "Progress must be between 0 and 100",
+        "weight": "Weight must be 0 or greater"
+      },
+      "inputPct": "PM input % (optional)",
+      "inputPctPlaceholder": "Leave blank to use calculated",
+      "name": "Milestone name",
+      "namePlaceholder": "e.g. Engineering design",
+      "newSubtitle": "Add a delivery milestone to this project",
+      "newTitle": "New milestone",
+      "save": "Save milestone",
+      "sortOrder": "Sort order",
+      "targetDate": "Target date",
+      "weight": "Weight"
+    },
+    "milestones": {
+      "addFirstPhase": "Add the first phase",
+      "addMilestone": "Add milestone",
+      "cancel": "Cancel",
+      "current": "Current",
+      "deleteConfirm": {
+        "body": "Tasks under this milestone become ungrouped; they are not deleted.",
+        "confirm": "Delete milestone",
+        "title": "Delete",
+        "titleFallback": "Delete milestone?"
+      },
+      "deleteMilestone": "Delete milestone",
+      "edit": "Edit",
+      "editInputPct": "Edit PM input %",
+      "editMilestone": "Edit milestone",
+      "editProgressFor": "Edit progress for",
+      "emptyReadOnly": "No delivery phases yet",
+      "emptySub": "Add the key phases for this project so delivery progress can roll up from weighted milestones.",
+      "emptyTitle": "Plan this project's delivery phases",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load milestones",
+      "fallbackName": "Milestone",
+      "heading": "Delivery phases",
+      "moreActionsFor": "More actions for",
+      "planPhases": "Plan delivery phases",
+      "prewinPlaceholder": "Delivery planning starts once this is won",
+      "progressRangeError": "Progress must be between 0 and 100",
+      "rollupAriaLabel": "Project delivery",
+      "rollupLabel": "Project delivery",
+      "save": "Save",
+      "targetDate": "Target",
+      "toast": {
+        "created": "Milestone created",
+        "deleted": "Milestone deleted",
+        "progressUpdated": "Progress updated",
+        "updated": "Milestone updated"
+      },
+      "viewBlockingTasks": "View blocking tasks",
+      "weightShare": "of project"
+    },
+    "notFound": {
+      "sub": "This project does not exist or you don't have access to it. Use Back to Projects to return.",
+      "title": "Project not found"
+    },
+    "overview": {
+      "budgetSnapshot": {
+        "activeBudget": "Active budget",
+        "actualSpent": "Actual spent",
+        "byCategory": "By category",
+        "byCategoryLabel": "Budget by category",
+        "empty": {
+          "sub": "Activate a budget version on the Budget tab to see a snapshot here.",
+          "title": "No active budget"
+        },
+        "error": "Couldn't load budget",
+        "openBudgetTab": "Open Budget tab",
+        "title": "Budget snapshot",
+        "variance": "Variance"
+      },
+      "budgetUtil": {
+        "atRisk": "At risk",
+        "barLabel": "Budget committed",
+        "budgetCommitted": "budget committed",
+        "error": "Couldn't load budget",
+        "of": "of",
+        "ofBudget": "of budget",
+        "title": "Budget utilization"
+      },
+      "finance": {
+        "actual": "Actual",
+        "committed": "Committed",
+        "contract": "Contract",
+        "contractValue": "Contract value",
+        "lockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
+        "onHandMargin": "On-hand margin",
+        "readOnly": "Read-only",
+        "spend": "Spend",
+        "title": "Financial summary"
+      },
+      "procSummary": {
+        "closed": "Closed",
+        "committedAcross": "committed across",
+        "completed": "Completed",
+        "empty": {
+          "sub": "Requests raised against this project will appear here.",
+          "title": "No purchase requests for this project yet"
+        },
+        "error": "Couldn't load procurement",
+        "open": "Open",
+        "requestOne": "request",
+        "requestOther": "requests",
+        "title": "Procurement summary",
+        "viewAll": "View all procurement"
+      }
+    },
+    "pipeline": {
+      "advanceTo": "Advance to",
+      "backToSalesPipeline": "← Back to Sales Pipeline",
+      "cancel": "Cancel",
+      "confirmWon": "Confirm won",
+      "contractDateLabel": "Contract date",
+      "contractRefLabel": "Customer contract reference",
+      "contractRefPlaceholder": "e.g. CPO-2026-0042",
+      "dateRequired": "Contract date is required",
+      "journeyAriaLabel": "Project stage journey",
+      "journeyHeading": "Project journey",
+      "lostConfirm": {
+        "bodyPrefix": "This moves",
+        "bodySuffix": "to a terminal lost stage. You can still review it, but it will leave the active pipeline.",
+        "confirm": "Mark lost",
+        "title": "Mark project as lost"
+      },
+      "lostNotice": "This project is marked lost. It has left the active pipeline.",
+      "markLost": "Mark lost",
+      "markWon": "Mark won",
+      "nextActionsHeading": "Next actions",
+      "notSet": "Not set",
+      "pending": "Pending",
+      "readOnlyNotice": "Pipeline managed by the project owner. You can review this project’s stage and journey here; lifecycle changes are made by the project manager.",
+      "readyToAdvance": "Ready to advance.",
+      "recordWonHeading": "Record the won project",
+      "refRequired": "Customer contract reference is required",
+      "stat": {
+        "decision": "Decision",
+        "owner": "Owner",
+        "value": "Value",
+        "weighted": "Weighted",
+        "winProbability": "Win probability"
+      },
+      "terminalNotice": "This project has reached a terminal stage. No further pipeline actions.",
+      "toast": {
+        "movedTo": "Moved to",
+        "updated": "Project updated"
+      },
+      "transitionFailed": "Transition failed"
+    },
+    "procurement": {
+      "column": {
+        "lifecycle": "Lifecycle",
+        "request": "Request",
+        "status": "Status",
+        "value": "Value"
+      },
+      "empty": {
+        "sub": "Requests raised against this project will appear here through their lifecycle.",
+        "title": "No purchase requests for this project yet"
+      },
+      "error": {
+        "sub": "Something went wrong fetching this project's purchase requests.",
+        "title": "Couldn't load procurement"
+      },
+      "lifecycleLabel": "Lifecycle",
+      "newRequest": "New request",
+      "openRow": "Open",
+      "subtitle": "Requests raised against this project, tracked through their lifecycle.",
+      "title": "Purchase Requests"
+    },
+    "rail": {
+      "actionsAriaLabel": "Project rail actions",
+      "ariaLabel": "Project details rail",
+      "code": "Code",
+      "customer": "Customer",
+      "customerPoRef": "Customer PO ref",
+      "detailsHeading": "Details",
+      "notSet": "Not set",
+      "projectManager": "Project manager",
+      "recordHeading": "Record",
+      "recordHelp": "Move the project through its delivery stages from here. Edit stays in the header menu.",
+      "start": "Start",
+      "status": "Status",
+      "targetEnd": "Target end",
+      "unassigned": "Unassigned"
+    },
+    "scurve": {
+      "backfillCaveat": "Completion dates before today are estimated; live tracking starts now.",
+      "emptySub": "Add target dates to your delivery phases to see the planned-vs-actual curve.",
+      "emptyTitle": "No dated milestones yet",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load the progress curve",
+      "heading": "Progress curve",
+      "seriesActual": "Actual to date",
+      "seriesPlanned": "Planned",
+      "summaryByToday": "by today.",
+      "summaryLead": "Project S-curve: actual to date",
+      "summaryPlanClause": "plan expected"
+    },
+    "tabs": {
+      "ariaLabel": "Project sections",
+      "budget": "Budget",
+      "documents": "Documents",
+      "overview": "Overview",
+      "procurement": "Procurement",
+      "tasks": "Tasks"
+    },
+    "tasks": {
+      "action": {
+        "archive": "Archive",
+        "delete": "Delete",
+        "edit": "Edit",
+        "unarchive": "Unarchive"
+      },
+      "addTask": "Add task",
+      "board": {
+        "noTasks": "No tasks"
+      },
+      "column": {
+        "assignee": "Assignee",
+        "due": "Due",
+        "status": "Status",
+        "task": "Task"
+      },
+      "deleteConfirm": {
+        "body": "This permanently removes the task and any dependency links to it. This can't be undone.",
+        "confirm": "Delete task",
+        "titleFallback": "Delete task?"
+      },
+      "emptySub": "Break the project into tasks, assign them to the team, and track each through to Done.",
+      "emptyTitle": "No tasks yet",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load tasks",
+      "fallbackName": "Task",
+      "form": {
+        "addDependency": "Add a dependency",
+        "assignee": "Assignee",
+        "create": "Create task",
+        "dependsOnLegend": "Depends on",
+        "description": "Description",
+        "descriptionPlaceholder": "Add scope, notes, or acceptance criteria…",
+        "detailsLegend": "Details",
+        "dueDate": "Due date",
+        "editSubtitle": "Update this task",
+        "editTitle": "Edit task",
+        "errors": {
+          "nameRequired": "Task name is required."
+        },
+        "loadingPeople": "Loading people…",
+        "milestone": "Milestone",
+        "name": "Task name",
+        "namePlaceholder": "e.g. Survey the site",
+        "newSubtitle": "Add a task to this project",
+        "noDependencies": "No dependencies. Add a task that must finish first.",
+        "noParent": "No parent (top-level)",
+        "parentTask": "Parent task",
+        "peopleLoadFailed": "People could not be loaded; you can still save and assign later.",
+        "priority": "Priority",
+        "removeDependency": "Remove dependency",
+        "save": "Save task",
+        "searchMilestones": "Search milestones…",
+        "searchPeople": "Search people…",
+        "searchTasks": "Search tasks…",
+        "selectTask": "Select a task…",
+        "startDate": "Start date",
+        "status": "Status"
+      },
+      "heading": "Tasks",
+      "hideArchived": "Hide archived",
+      "newTask": "New task",
+      "noMilestone": "No milestone",
+      "noPriority": "No priority",
+      "noTasksInGroup": "No tasks in this group.",
+      "showArchived": "Show archived",
+      "statusFor": "Status for",
+      "subheading": "Plan, assign, and track the work for this project.",
+      "subtaskLevel": "Subtask, level",
+      "toast": {
+        "archived": "Task archived",
+        "created": "Task created",
+        "deleted": "Task deleted",
+        "isNow": "is now",
+        "restored": "Task restored",
+        "statusUpdated": "Status updated",
+        "updated": "Task updated"
+      },
+      "unassigned": "Unassigned",
+      "ungrouped": "Ungrouped",
+      "view": {
+        "board": "Board",
+        "list": "List",
+        "timeline": "Timeline"
+      },
+      "viewAriaLabel": "Task view"
+    },
+    "toast": {
+      "projectUpdated": "Project updated"
+    }
+  },
+  "projects": {
+    "actions": {
+      "archive": "Archive",
+      "edit": "Edit",
+      "new": "New project"
+    },
+    "atRiskPill": "At risk",
+    "columns": {
+      "action": "Action",
+      "actual": "Actual",
+      "budgetUsed": "Budget used",
+      "contract": "Contract",
+      "customer": "Customer",
+      "pm": "PM",
+      "progress": "Progress",
+      "project": "Project",
+      "status": "Status"
+    },
+    "confirm": {
+      "archiveConfirm": "Archive project",
+      "archiveDescription": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
+      "archiveTitle": "Archive project?"
+    },
+    "description": "Track your active and completed projects. Open one to drill into its budget, procurement, and detail. Pre-win projects live in the Pipeline.",
+    "empty": {
+      "clearFilters": "Clear filters",
+      "noMatchSub": "Try a different status, customer, PM, or search term.",
+      "noMatchTitle": "No projects match these filters",
+      "nothingAtRiskSub": "Every active project is under 90% budget — nothing needs attention right now.",
+      "nothingAtRiskTitle": "Nothing at risk"
+    },
+    "filters": {
+      "all": "All",
+      "allCustomers": "All customers",
+      "allManagers": "All managers",
+      "ariaLabel": "Status filter",
+      "atRisk": "At risk",
+      "completed": "Completed",
+      "customerLabel": "Filter by customer",
+      "myProjects": "My Projects",
+      "ongoing": "Ongoing",
+      "pmLabel": "Filter by project manager"
+    },
+    "importBudgets": "Import budgets",
+    "noPhasesYet": "No phases yet",
+    "search": {
+      "ariaLabel": "Search projects",
+      "placeholder": "Search projects…"
+    },
+    "states": {
+      "emptySub": "Projects you create or win will appear here.",
+      "emptyTitle": "No projects yet",
+      "errorSub": "Something went wrong fetching your projects.",
+      "errorTitle": "Couldn't load projects"
+    },
+    "title": "Projects",
+    "toast": {
+      "archived": "Project archived",
+      "created": "Project created",
+      "updated": "Project updated"
+    },
+    "unassigned": "Unassigned",
+    "view": {
+      "ariaLabel": "Projects view",
+      "board": "Board",
+      "calendar": "Calendar",
+      "cards": "Cards",
+      "table": "Table"
+    }
+  },
+  "sales": {
+    "accessDenied": {
+      "sub": "The Sales Pipeline is available to managers and finance. Your work lives on your dashboard, projects, and tasks.",
+      "title": "You don't have access to the Sales Pipeline"
+    },
+    "column": {
+      "customer": "Customer",
+      "lastTouch": "Last touch",
+      "owner": "Owner",
+      "project": "Project",
+      "stage": "Stage",
+      "value": "Value",
+      "weighted": "Weighted",
+      "winPct": "Win %"
+    },
+    "description": "Track projects in the sales pipeline, manage leads, and forecast revenue.",
+    "empty": {
+      "sub": "Add a project to start tracking the pipeline.",
+      "title": "No projects yet"
+    },
+    "error": {
+      "sub": "Something went wrong fetching your pipeline.",
+      "title": "Couldn't load the sales pipeline"
+    },
+    "funnel": {
+      "weightedSuffix": "weighted"
+    },
+    "lastTouch": {
+      "daysAgo": "days ago",
+      "oneDayAgo": "1 day ago",
+      "stalePrefix": "Untouched for",
+      "staleSuffix": "days — needs attention",
+      "today": "today"
+    },
+    "lastTouchUnavailable": "Last touch not available",
+    "lostError": {
+      "sub": "Something went wrong fetching lost projects.",
+      "title": "Couldn't load lost projects"
+    },
+    "newProject": "New project",
+    "openRow": "Open",
+    "ownerUnavailable": "Owner not available",
+    "scope": {
+      "lost": "Lost",
+      "needsAttention": "Needs attention",
+      "open": "Open"
+    },
+    "scopeToggleLabel": "Project scope",
+    "search": {
+      "label": "Search projects",
+      "placeholder": "Search projects…"
+    },
+    "summaryLabel": "Pipeline summary",
+    "tableEmpty": {
+      "lost": {
+        "sub": "Projects marked lost will appear here.",
+        "title": "No lost projects"
+      },
+      "needsAttention": {
+        "subPrefix": "No project has been untouched for",
+        "subSuffix": "+ days — pipeline is active.",
+        "title": "No projects need attention"
+      },
+      "search": {
+        "sub": "Try a different name or customer.",
+        "title": "No projects match your search"
+      }
+    },
+    "title": "Pipeline",
+    "toast": {
+      "projectCreated": "Project created"
+    },
+    "view": {
+      "board": "Board",
+      "table": "Table"
+    },
+    "viewToggleLabel": "Pipeline view",
+    "weightedForecast": "Weighted pipeline forecast",
+    "winProbability": "Win probability"
+  },
+  "shell": {
+    "breadcrumb": {
+      "label": "Breadcrumb"
+    },
+    "contextBar": {
+      "accountMenu": "Account menu",
+      "help": "Help",
+      "helpWhatsApp": "Contact support via WhatsApp",
+      "legalAndSupport": "Legal & support",
+      "openCommandPalette": "Open command palette",
+      "openNavigation": "Open navigation menu",
+      "privacy": "Privacy",
+      "searchPlaceholder": "Search or jump to…",
+      "signOut": "Sign out",
+      "terms": "Terms",
+      "viewAsRoleHeading": "View as role",
+      "viewAsRoleInline": "View as role:"
+    },
+    "drawer": {
+      "close": "Close navigation menu",
+      "navigationMenu": "Navigation menu"
+    },
+    "nav": {
+      "administration": "Administration",
+      "approvals": "Approvals",
+      "companies": "Companies",
+      "contacts": "Contacts",
+      "dashboard": "Dashboard",
+      "incidents": "Incidents",
+      "incomingPayments": "Incoming Payments",
+      "integrations": "Integrations",
+      "myTasks": "My Tasks",
+      "procurement": "Procurement",
+      "projects": "Projects",
+      "revenueByProject": "Revenue by Project",
+      "sales": "Sales Pipeline",
+      "salesInvoices": "Sales Invoices",
+      "timesheets": "Timesheets"
+    },
+    "notifications": {
+      "empty": "No notifications yet.",
+      "inboxHeading": "Notifications inbox",
+      "listLabel": "Notifications",
+      "loadError": "Couldn't load notifications. Try again shortly.",
+      "loading": "Loading notifications…",
+      "noneUnread": "No unread notifications",
+      "read": "Read",
+      "unread": "Unread"
+    },
+    "palette": {
+      "askAiSub": "Open the assistant with this draft",
+      "dialogLabel": "Command palette",
+      "inputLabel": "Search projects, records, or run a command",
+      "inputPlaceholder": "Search projects, PRs, customers, or run a command…",
+      "recordsError": "Couldn’t load records.",
+      "recordsGroup": "Records",
+      "resultsLabel": "Command results",
+      "retry": "Retry"
+    },
+    "rail": {
+      "assistant": "Assistant",
+      "group": {
+        "crm": "CRM",
+        "delivery": "Delivery",
+        "finance": "Finance",
+        "overview": "Overview",
+        "workforce": "Workforce"
+      },
+      "myViews": "My Views",
+      "primaryNavigation": "Primary navigation"
+    },
+    "skipLink": {
+      "mainContent": "Skip to main content"
+    },
+    "themeToggle": {
+      "switchToDark": "Switch to dark theme",
+      "switchToLight": "Switch to light theme"
+    }
+  },
+  "task": {
+    "status": {
+      "blocked": "Blocked",
+      "done": "Done",
+      "inProgress": "In Progress",
+      "toDo": "To Do"
+    }
+  },
+  "timesheets": {
+    "accessDenied": {
+      "sub": "Timesheets and approvals are part of the workforce surface. Finance work lives on your dashboard, projects, and procurement.",
+      "title": "You don't have access to Timesheets"
+    },
+    "addAProject": "Add a project",
+    "addProject": "Add project",
+    "approvalsLink": "Approvals",
+    "deleteRow": {
+      "confirmLabel": "Delete row",
+      "descriptionPrefix": "This removes",
+      "descriptionSuffix": "and all its hours from this week. You can add it back, but the entered hours won’t be restored.",
+      "title": "Delete this project row?"
+    },
+    "empty": {
+      "sub": "Add a project to start logging hours, or use the week controls to find another week.",
+      "title": "No hours logged this week"
+    },
+    "emptyEdit": {
+      "sub": "Use “Add a project” above to start logging hours.",
+      "title": "No hours logged this week"
+    },
+    "enterHoursToSubmit": "Enter hours to submit",
+    "error": {
+      "sub": "Something went wrong fetching your hours.",
+      "title": "Couldn't load timesheets"
+    },
+    "hoursThisWeek": "h this week",
+    "nextWeek": "Next week",
+    "picker": {
+      "none": "No projects to add",
+      "select": "Select a project…"
+    },
+    "previousWeek": "Previous week",
+    "returned": {
+      "revise": "Revise this week",
+      "sub": "Your line manager sent it back. Review the flagged days, correct them, and resubmit.",
+      "title": "This week was returned for changes"
+    },
+    "reviewPrefix": "Review",
+    "reviewSuffix": "awaiting",
+    "save": "Save",
+    "status": {
+      "draftNotSubmitted": "Draft — not submitted"
+    },
+    "submit": "Submit timesheet",
+    "submitConfirm": {
+      "confirmLabel": "Submit timesheet",
+      "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
+      "title": "Submit this week for approval?"
+    },
+    "subtitle": ". Enter hours per project per day, then submit the whole week for your line manager to approve.",
+    "title": "Timesheets",
+    "toast": {
+      "deleteFailed": "Delete failed",
+      "reopened": {
+        "detail": "Week moved back to Draft — make your changes and resubmit.",
+        "headline": "Reopened for editing"
+      },
+      "rowDeleted": {
+        "detail": "Removed this project from the week",
+        "headline": "Row deleted"
+      },
+      "saveFailed": "Save failed",
+      "submitted": {
+        "detail": "Sent to your line manager for approval",
+        "headline": "Timesheet submitted"
+      }
+    },
+    "unknownProject": "Unknown Project",
+    "weekOf": "Week of"
+  }
+}

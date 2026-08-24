@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Toolbar,
   ViewToggle,
@@ -23,6 +23,8 @@ import {
 } from '@/src/components/ui';
 import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
 import { useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
@@ -52,6 +54,11 @@ const SUBTASK_INDENT_PX = 16;
 // `progress` (NOT the action-blue, per the Freed-Blue Status Rule), Done = green
 // `won`, Blocked = red `lost`. The distinct LABEL always rides alongside (never
 // colour-only — DESIGN.md Tinted-Status / color-not-only).
+// ⛔ NOT TRANSLATED, deliberately: these ARE the task_status enum values, and they are used
+// as both the option value and its label. They also render raw next to this control via
+// <StatusPill>{task.status}</StatusPill>, so translating one side alone would show the same
+// status in two languages side by side. Status vocabulary is one cross-cutting decision
+// (it also covers doc status, procurement stages and pipeline stages) -- not this file's.
 const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 
@@ -59,7 +66,12 @@ const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 // explicit unset (value="" → null): the column is nullable, so "no priority" must stay expressible
 // AND clearable (a disabled placeholder couldn't be re-selected after a value was set).
 const PRIORITIES: TaskPriority[] = ['Urgent', 'High', 'Normal', 'Low'];
-const PRIORITY_OPTIONS = [{ value: '', label: 'No priority' }, ...PRIORITIES.map((p) => ({ value: p, label: p }))];
+/** ⚑ The four priority labels are the DB enum values themselves (untranslated -- see
+ *  the status-vocabulary note in the handover); only the leading unset option is UI copy. */
+const priorityOptions = (t: TFunction) => [
+  { value: '', label: t('projectDetail.tasks.noPriority', 'No priority') },
+  ...PRIORITIES.map((p) => ({ value: p, label: p })),
+];
 
 type ViewMode = 'list' | 'board' | 'timeline';
 
@@ -73,9 +85,10 @@ interface FormValues {
   priority: string;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.name.trim()) errors.name = 'Task name is required.';
+  if (!v.name.trim())
+    errors.name = t('projectDetail.tasks.form.errors.nameRequired', 'Task name is required.');
   return errors;
 };
 
@@ -93,6 +106,7 @@ export interface TasksTabProps {
  * clarity projection, RLS is the authority.
  */
 const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
   const currentUserId = currentUser?.id ?? null;
@@ -190,11 +204,15 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
         : undefined;
 
   // ── Mutations ───────────────────────────────────────────────────────────
-  const onStatusChange = async (t: TaskWithRefs, status: TaskStatus) => {
-    if (status === t.status) return;
+  const onStatusChange = async (task: TaskWithRefs, status: TaskStatus) => {
+    if (status === task.status) return;
     try {
-      await updateStatus.mutateAsync({ id: t.id, status });
-      toast('Status updated', `${t.name} is now ${status}`, 'success');
+      await updateStatus.mutateAsync({ id: task.id, status });
+      toast(
+        t('projectDetail.tasks.toast.statusUpdated', 'Status updated'),
+        `${task.name} ${t('projectDetail.tasks.toast.isNow', 'is now')} ${status}`,
+        'success',
+      );
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
@@ -204,7 +222,13 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const onArchive = async (task: TaskWithRefs) => {
     try {
       await archive.mutateAsync({ id: task.id, archived: task.archived_at == null });
-      toast(task.archived_at == null ? 'Task archived' : 'Task restored', task.name, 'success');
+      toast(
+        task.archived_at == null
+          ? t('projectDetail.tasks.toast.archived', 'Task archived')
+          : t('projectDetail.tasks.toast.restored', 'Task restored'),
+        task.name,
+        'success',
+      );
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
@@ -216,7 +240,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast('Task deleted', target.name, 'success');
+      toast(t('projectDetail.tasks.toast.deleted', 'Task deleted'), target.name, 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
@@ -231,7 +255,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       {canSetStatus(task) ? (
         <SelectField
           hideLabel
-          label={`Status for ${task.name}`}
+          label={`${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`}
           value={task.status}
           disabled={updateStatus.isPending}
           onChange={(v) => onStatusChange(task, v as TaskStatus)}
@@ -257,44 +281,48 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const buildColumns = (depths: Map<string, number>): Column<TaskWithRefs>[] => [
     {
       key: 'name',
-      header: 'Task',
-      cell: (t) => {
-        const depth = depths.get(t.id) ?? 0;
+      header: t('projectDetail.tasks.column.task', 'Task'),
+      cell: (task) => {
+        const depth = depths.get(task.id) ?? 0;
         return (
           <span
-            id={`task-${t.id}`}
+            id={`task-${task.id}`}
             /* `block`: `truncate` (overflow-hidden) is a no-op on an INLINE span, so a long
                task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
                the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
                the card title wrapper's min-w-0 lets it clip with an ellipsis. */
-            className={`block truncate font-semibold${highlightedTaskId === t.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+            className={`block truncate font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
             style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
-            title={t.name}
+            title={task.name}
           >
             {depth > 0 && (
-              <span className="sr-only">{`Subtask, level ${depth}. `}</span>
+              <span className="sr-only">
+                {`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}
+              </span>
             )}
-            {t.name}
+            {task.name}
           </span>
         );
       },
     },
     {
       key: 'assignee',
-      header: 'Assignee',
-      cell: (t) =>
-        t.assignee ? (
-          <span className="truncate text-muted-foreground" title={t.assignee.full_name}>
-            {t.assignee.full_name}
+      header: t('projectDetail.tasks.column.assignee', 'Assignee'),
+      cell: (task) =>
+        task.assignee ? (
+          <span className="truncate text-muted-foreground" title={task.assignee.full_name}>
+            {task.assignee.full_name}
           </span>
         ) : (
-          <span className="text-muted-foreground">Unassigned</span>
+          <span className="text-muted-foreground">
+            {t('projectDetail.tasks.unassigned', 'Unassigned')}
+          </span>
         ),
       colClassName: 'hidden sm:table-cell',
     },
     {
       key: 'due',
-      header: 'Due',
+      header: t('projectDetail.tasks.column.due', 'Due'),
       cell: (t) =>
         t.end_date ? (
           <span className="tabular text-muted-foreground">{formatDate(t.end_date)}</span>
@@ -305,18 +333,33 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
     },
     {
       key: 'status',
-      header: 'Status',
-      cell: (t) => <StatusCell task={t} />,
+      header: t('projectDetail.tasks.column.status', 'Status'),
+      cell: (task) => <StatusCell task={task} />,
     },
   ];
 
-  const rowMenu = (t: TaskWithRefs): RowMenuItem[] => {
+  const rowMenu = (task: TaskWithRefs): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ task: t }) });
+    if (canEdit)
+      items.push({
+        label: t('projectDetail.tasks.action.edit', 'Edit'),
+        onClick: () => setFormTarget({ task }),
+      });
     if (canArchive && !externallyOwned) {
-      items.push({ label: t.archived_at == null ? 'Archive' : 'Unarchive', onClick: () => void onArchive(t) });
+      items.push({
+        label:
+          task.archived_at == null
+            ? t('projectDetail.tasks.action.archive', 'Archive')
+            : t('projectDetail.tasks.action.unarchive', 'Unarchive'),
+        onClick: () => void onArchive(task),
+      });
     }
-    if (canDelete) items.push({ label: 'Delete', onClick: () => setDeleteTarget(t), danger: true });
+    if (canDelete)
+      items.push({
+        label: t('projectDetail.tasks.action.delete', 'Delete'),
+        onClick: () => setDeleteTarget(task),
+        danger: true,
+      });
     return items;
   };
 
@@ -324,9 +367,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
     <div>
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">Tasks</h2>
+          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+            {t('projectDetail.tasks.heading', 'Tasks')}
+          </h2>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Plan, assign, and track the work for this project.
+            {t('projectDetail.tasks.subheading', 'Plan, assign, and track the work for this project.')}
           </p>
         </div>
         {all.some((t) => t.archived_at != null) && (
@@ -336,13 +381,15 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             aria-pressed={showArchived}
             onClick={() => setShowArchived((value) => !value)}
           >
-            {showArchived ? 'Hide archived' : 'Show archived'}
+            {showArchived
+              ? t('projectDetail.tasks.hideArchived', 'Hide archived')
+              : t('projectDetail.tasks.showArchived', 'Show archived')}
           </Button>
         )}
         {canCreate && (
           <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
             <Icon name="plus" />
-            New task
+            {t('projectDetail.tasks.newTask', 'New task')}
           </Button>
         )}
       </div>
@@ -354,13 +401,13 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
         <Toolbar standalone>
           <ViewToggle<ViewMode>
             options={[
-              { value: 'list', label: 'List' },
-              { value: 'board', label: 'Board' },
-              { value: 'timeline', label: 'Timeline' },
+              { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
+              { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
+              { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
             ]}
             value={view}
             onChange={setView}
-            ariaLabel="Task view"
+            ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
           />
         </Toolbar>
       )}
@@ -374,8 +421,8 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load tasks"
-          sub="The request failed. Check your connection and try again."
+          title={t('projectDetail.tasks.errorTitle', "Couldn't load tasks")}
+          sub={t('projectDetail.tasks.errorSub', 'The request failed. Check your connection and try again.')}
           onRetry={() => refetch()}
         />
       )}
@@ -384,10 +431,18 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
         <ListState
           variant="empty"
           icon="check"
-          title="No tasks yet"
-          sub="Break the project into tasks, assign them to the team, and track each through to Done."
+          title={t('projectDetail.tasks.emptyTitle', 'No tasks yet')}
+          sub={t(
+            'projectDetail.tasks.emptySub',
+            'Break the project into tasks, assign them to the team, and track each through to Done.',
+          )}
           action={
-            canCreate ? { label: 'New task', onClick: () => setFormTarget({ task: null }) } : undefined
+            canCreate
+              ? {
+                  label: t('projectDetail.tasks.newTask', 'New task'),
+                  onClick: () => setFormTarget({ task: null }),
+                }
+              : undefined
           }
         />
       )}
@@ -401,7 +456,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             rowKey={(t) => t.id}
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
-            rowLabel={canEdit ? (t) => `Edit ${t.name}` : undefined}
+            rowLabel={
+              canEdit
+                ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
+                : undefined
+            }
           />
         ) : (
           // Milestones exist: group tasks by milestone
@@ -459,7 +518,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
-            toast('Task created', input.name, 'success');
+            toast(t('projectDetail.tasks.toast.created', 'Task created'), input.name, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (id, patch, deps) => {
@@ -468,7 +527,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             for (const d of deps.add) await addDependency.mutateAsync({ taskId: id, dependsOnId: d });
             for (const d of deps.remove)
               await removeDependency.mutateAsync({ taskId: id, dependsOnId: d });
-            toast('Task updated', patch.name ?? 'Task', 'success');
+            toast(
+              t('projectDetail.tasks.toast.updated', 'Task updated'),
+              patch.name ?? t('projectDetail.tasks.fallbackName', 'Task'),
+              'success',
+            );
             setFormTarget(null);
           }}
           onError={(err) => {
@@ -482,9 +545,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       <ConfirmDialog
         open={!!deleteTarget}
         tone="destructive"
-        title={deleteTarget ? `Delete ${deleteTarget.name}?` : 'Delete task?'}
-        description="This permanently removes the task and any dependency links to it. This can't be undone."
-        confirmLabel="Delete task"
+        title={
+          deleteTarget
+            ? `${t('projectDetail.tasks.action.delete', 'Delete')} ${deleteTarget.name}?`
+            : t('projectDetail.tasks.deleteConfirm.titleFallback', 'Delete task?')
+        }
+        description={t(
+          'projectDetail.tasks.deleteConfirm.body',
+          "This permanently removes the task and any dependency links to it. This can't be undone.",
+        )}
+        confirmLabel={t('projectDetail.tasks.deleteConfirm.confirm', 'Delete task')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
@@ -517,7 +587,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   externallyOwned,
   pendingPushByTask,
 }) => {
-  const byStatus = (s: TaskStatus) => tasks.filter((t) => t.status === s);
+  const { t } = useTranslation();
+  const byStatus = (s: TaskStatus) => tasks.filter((task) => task.status === s);
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {STATUSES.map((s) => {
@@ -536,37 +607,41 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             </div>
             <div className="flex min-h-[60px] flex-col gap-2 p-[9px]">
               {col.length === 0 ? (
-                <div className="py-6 text-center text-xs text-muted-foreground">No tasks</div>
+                <div className="py-6 text-center text-xs text-muted-foreground">
+                  {t('projectDetail.tasks.board.noTasks', 'No tasks')}
+                </div>
               ) : (
-                col.map((t) => (
+                col.map((task) => (
                   <div
-                    key={t.id}
+                    key={task.id}
                     className="rounded-md border border-border bg-card px-3 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[13px] font-semibold" title={t.name}>
-                        {t.name}
+                      <span className="truncate text-[13px] font-semibold" title={task.name}>
+                        {task.name}
                       </span>
                       {externallyOwned && (
-                        <TaskPushBadge state={pendingPushByTask[t.id] ?? IDLE_PENDING_PUSH} />
+                        <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
                       )}
                     </div>
                     <div className="mt-1 truncate text-[11.5px] text-muted-foreground">
-                      {t.assignee ? t.assignee.full_name : 'Unassigned'}
+                      {task.assignee
+                        ? task.assignee.full_name
+                        : t('projectDetail.tasks.unassigned', 'Unassigned')}
                     </div>
                     <div className="mt-2">
-                      {canSetStatus(t) ? (
+                      {canSetStatus(task) ? (
                         <SelectField
                           hideLabel
-                          label={`Status for ${t.name}`}
-                          value={t.status}
+                          label={`${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`}
+                          value={task.status}
                           disabled={statusBusy}
-                          onChange={(v) => onStatusChange(t, v as TaskStatus)}
+                          onChange={(v) => onStatusChange(task, v as TaskStatus)}
                           options={STATUS_OPTIONS}
                           fullWidth
                         />
                       ) : (
-                        <StatusPill variant={workflowVariant(t.status)}>{t.status}</StatusPill>
+                        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
                       )}
                     </div>
                   </div>
@@ -617,9 +692,12 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!task;
   const { data: profiles, isPending: profilesPending, isError: profilesError } =
     useAssignableProfiles();
+  // Memoised on `t` so the validator identity is stable between renders.
+  const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
 
   // milestone_id is tracked separately (not part of useEntityForm, since it's a string | null
   // but not a text field). Default: pre-populated group id for create, or the task's current value.
@@ -641,7 +719,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       description: task?.description ?? '',
       priority: task?.priority ?? '',
     },
-    validate,
+    validate: validateWithT,
     idPrefix: 'task-form',
     module: 'projects',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required task name is present.
@@ -747,9 +825,21 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit task' : 'New task'}
-      subtitle={isEdit ? 'Update this task' : 'Add a task to this project'}
-      submitLabel={isEdit ? 'Save task' : 'Create task'}
+      title={
+        isEdit
+          ? t('projectDetail.tasks.form.editTitle', 'Edit task')
+          : t('projectDetail.tasks.newTask', 'New task')
+      }
+      subtitle={
+        isEdit
+          ? t('projectDetail.tasks.form.editSubtitle', 'Update this task')
+          : t('projectDetail.tasks.form.newSubtitle', 'Add a task to this project')
+      }
+      submitLabel={
+        isEdit
+          ? t('projectDetail.tasks.form.save', 'Save task')
+          : t('projectDetail.tasks.form.create', 'Create task')
+      }
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -761,32 +851,36 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           pending-push state here (pushing while saving, push-failed when the save is rejected and the
           modal stays open). Idle renders nothing (create + PMO-owned). */}
       {isEdit && <TaskPushBadge state={pendingPushState} />}
-      <FormSection legend="Details">
+      <FormSection legend={t('projectDetail.tasks.form.detailsLegend', 'Details')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Task name"
+            label={t('projectDetail.tasks.form.name', 'Task name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Survey the site"
+            placeholder={t('projectDetail.tasks.form.namePlaceholder', 'e.g. Survey the site')}
             fullWidth
           />
           <Combobox
-            label="Assignee"
+            label={t('projectDetail.tasks.form.assignee', 'Assignee')}
             value={assigneeField.value || null}
             selectedOption={selectedAssignee}
             loadOptions={async () => assigneeOptions}
             onChange={(v) => assigneeField.onChange(v)}
-            placeholder={profilesPending ? 'Loading people…' : 'Unassigned'}
-            searchPlaceholder="Search people…"
+            placeholder={
+              profilesPending
+                ? t('projectDetail.tasks.form.loadingPeople', 'Loading people…')
+                : t('projectDetail.tasks.unassigned', 'Unassigned')
+            }
+            searchPlaceholder={t('projectDetail.tasks.form.searchPeople', 'Search people…')}
             noun="person"
           />
           <SelectField
             id={statusField.id}
-            label="Status"
+            label={t('projectDetail.tasks.form.status', 'Status')}
             required
             value={statusField.value}
             onChange={(v) => statusField.onChange(v as TaskStatus)}
@@ -797,15 +891,15 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               maps to null and stays selectable so an existing priority can be cleared. */}
           <SelectField
             id={priorityField.id}
-            label="Priority"
+            label={t('projectDetail.tasks.form.priority', 'Priority')}
             value={priorityField.value}
             onChange={(v) => priorityField.onChange(v)}
             onBlur={priorityField.onBlur}
-            options={PRIORITY_OPTIONS}
+            options={priorityOptions(t)}
           />
           <TextField
             id={startField.id}
-            label="Start date"
+            label={t('projectDetail.tasks.form.startDate', 'Start date')}
             type="date"
             value={startField.value}
             onChange={startField.onChange}
@@ -813,7 +907,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           />
           <TextField
             id={endField.id}
-            label="Due date"
+            label={t('projectDetail.tasks.form.dueDate', 'Due date')}
             type="date"
             value={endField.value}
             onChange={endField.onChange}
@@ -821,13 +915,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           />
           {milestones.length > 0 && (
             <Combobox
-              label="Milestone"
+              label={t('projectDetail.tasks.form.milestone', 'Milestone')}
               value={milestoneId}
               selectedOption={selectedMilestone}
               loadOptions={async () => milestoneOptions}
               onChange={(v) => setMilestoneId(v || null)}
-              placeholder="Ungrouped"
-              searchPlaceholder="Search milestones…"
+              placeholder={t('projectDetail.tasks.ungrouped', 'Ungrouped')}
+              searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search milestones…')}
               noun="milestone"
             />
           )}
@@ -837,13 +931,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               task), mirroring the Milestone field's gating above. */}
           {parentOptions.length > 0 && (
             <Combobox
-              label="Parent task"
+              label={t('projectDetail.tasks.form.parentTask', 'Parent task')}
               value={parentTaskId}
               selectedOption={selectedParent}
               loadOptions={async () => parentOptions}
               onChange={(v) => setParentTaskId(v || null)}
-              placeholder="No parent (top-level)"
-              searchPlaceholder="Search tasks…"
+              placeholder={t('projectDetail.tasks.form.noParent', 'No parent (top-level)')}
+              searchPlaceholder={t('projectDetail.tasks.form.searchTasks', 'Search tasks…')}
               noun="task"
             />
           )}
@@ -852,27 +946,36 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               (visible label + aria wiring) — no ad-hoc styling. */}
           <TextArea
             id={descriptionField.id}
-            label="Description"
+            label={t('projectDetail.tasks.form.description', 'Description')}
             value={descriptionField.value}
             onChange={descriptionField.onChange}
             onBlur={descriptionField.onBlur}
-            placeholder="Add scope, notes, or acceptance criteria…"
+            placeholder={t(
+              'projectDetail.tasks.form.descriptionPlaceholder',
+              'Add scope, notes, or acceptance criteria…',
+            )}
             fullWidth
           />
         </FormGrid>
         {profilesError && (
           <p className="mt-1 text-[12px] text-muted-foreground">
-            People could not be loaded; you can still save and assign later.
+            {t(
+              'projectDetail.tasks.form.peopleLoadFailed',
+              'People could not be loaded; you can still save and assign later.',
+            )}
           </p>
         )}
       </FormSection>
 
       {/* Dependencies — only when editing an existing task (need its id + the sibling list). */}
       {isEdit && (
-        <FormSection legend="Depends on">
+        <FormSection legend={t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}>
           {deps.length === 0 ? (
             <p className="text-[12.5px] text-muted-foreground">
-              No dependencies. Add a task that must finish first.
+              {t(
+                'projectDetail.tasks.form.noDependencies',
+                'No dependencies. Add a task that must finish first.',
+              )}
             </p>
           ) : (
             <ul className="flex flex-col gap-1.5">
@@ -887,7 +990,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     variant="ghost"
                     size="sm"
                     iconOnly
-                    aria-label={`Remove dependency ${taskName(d)}`}
+                    aria-label={`${t(
+                      'projectDetail.tasks.form.removeDependency',
+                      'Remove dependency',
+                    )} ${taskName(d)}`}
                     onClick={() => setDeps((prev) => prev.filter((x) => x !== d))}
                   >
                     <Icon name="x" />
@@ -899,15 +1005,15 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           {depCandidates.length > 0 && (
             <div className="mt-2.5">
               <Combobox
-                label="Add a dependency"
+                label={t('projectDetail.tasks.form.addDependency', 'Add a dependency')}
                 value={depPick}
                 loadOptions={async () => depCandidates}
                 onChange={(v) => {
                   setDeps((prev) => (prev.includes(v) ? prev : [...prev, v]));
                   setDepPick(null);
                 }}
-                placeholder="Select a task…"
-                searchPlaceholder="Search tasks…"
+                placeholder={t('projectDetail.tasks.form.selectTask', 'Select a task…')}
+                searchPlaceholder={t('projectDetail.tasks.form.searchTasks', 'Search tasks…')}
                 noun="task"
               />
             </div>
@@ -948,6 +1054,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   onAddTask,
   onActivate,
 }) => {
+  const { t } = useTranslation();
   // Group tasks by milestone_id
   const tasksByMilestone = useMemo(() => {
     const map = new Map<string | null, TaskWithRefs[]>();
@@ -968,7 +1075,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   const ungrouped = tasksByMilestone.get(null) ?? [];
 
   const renderGroup = (ms: MilestoneWithProgress | null, groupTasks: TaskWithRefs[]) => {
-    const sectionLabel = ms ? ms.name : 'Ungrouped';
+    const sectionLabel = ms ? ms.name : t('projectDetail.tasks.ungrouped', 'Ungrouped');
     const isUngrouped = ms === null;
     // OD-INT-9 (AC-SUB-UI-004) — order + depth are computed PER GROUP. A subtask whose parent
     // sits in a different milestone group is not present in `groupTasks`, so
@@ -985,7 +1092,9 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
       >
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
           {isUngrouped ? (
-            <span className="text-[12px] text-muted-foreground">No milestone</span>
+            <span className="text-[12px] text-muted-foreground">
+              {t('projectDetail.tasks.noMilestone', 'No milestone')}
+            </span>
           ) : (
             <MilestonePhaseHeader
               variant="compact"
@@ -1002,7 +1111,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
               onClick={() => onAddTask(ms?.id ?? null)}
             >
               <Icon name="plus" />
-              Add task
+              {t('projectDetail.tasks.addTask', 'Add task')}
             </Button>
           )}
         </div>
@@ -1015,7 +1124,9 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             onActivate={onActivate}
           />
         ) : (
-          <p className="py-2 text-center text-[12px] text-muted-foreground">No tasks in this group.</p>
+          <p className="py-2 text-center text-[12px] text-muted-foreground">
+            {t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}
+          </p>
         )}
       </section>
     );

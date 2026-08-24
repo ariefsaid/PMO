@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   RecordHeader,
   StatTiles,
@@ -96,6 +97,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   committedSpend,
   onEditProject,
 }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
@@ -153,27 +155,27 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     project.client?.name ?? null,
     project.code ? `· ${project.code}` : null,
     project.customer_contract_ref
-      ? `· PO ${project.customer_contract_ref}${project.contract_date ? ` (${formatDate(project.contract_date)})` : ''}`
+      ? `· ${t('projectDetail.header.poPrefix', 'PO')} ${project.customer_contract_ref}${project.contract_date ? ` (${formatDate(project.contract_date)})` : ''}`
       : null,
   ]
     .filter(Boolean)
     .join(' ');
 
   const tiles: StatTile[] = [
-    { label: 'Contract', value: formatCurrency(contract, project.currency) },
-    { label: 'Committed', value: formatCurrency(committed, project.currency) },
+    { label: t('projectDetail.header.tile.contract', 'Contract'), value: formatCurrency(contract, project.currency) },
+    { label: t('projectDetail.header.tile.committed', 'Committed'), value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
     // Both tiles intentionally show the same number — they are the same realized-spend
     // basis (OD-BUDGET-2). "Committed" is the canonical label per glossary §Committed;
     // "Actual" is the human label per the original finance-strip design. The dead
     // projects.spent column (always 0) is NOT used here.
-    { label: 'Actual', value: formatCurrency(committed, project.currency) },
+    { label: t('projectDetail.header.tile.actual', 'Actual'), value: formatCurrency(committed, project.currency) },
     {
-      label: 'On-hand margin',
+      label: t('projectDetail.header.tile.margin', 'On-hand margin'),
       value: signedCurrency(margin, project.currency),
       tone: margin < 0 ? 'neg' : 'pos',
     },
-    { label: 'Spend', value: `${spendPct}%` },
+    { label: t('projectDetail.header.tile.spend', 'Spend'), value: `${spendPct}%` },
   ];
 
   const beginValueEdit = () => {
@@ -218,7 +220,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const commitValue = async (next: PendingContractValue) => {
     try {
       await setContractValue.mutateAsync({ id: project.id, ...next });
-      toast('Contract value updated', formatCurrency(next.value, project.currency), 'success');
+      toast(
+        t('projectDetail.header.toast.contractValueUpdated', 'Contract value updated'),
+        formatCurrency(next.value, project.currency),
+        'success',
+      );
       setValueEditing(false);
       setValueDraft('');
       setTaxTreatmentDraft('');
@@ -234,7 +240,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const onArchiveConfirm = async () => {
     try {
       await archive.mutateAsync(project.id);
-      toast('Project archived', project.name, 'success');
+      toast(t('projectDetail.header.toast.archived', 'Project archived'), project.name, 'success');
       setArchiveOpen(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -248,7 +254,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const onDeleteConfirm = async () => {
     try {
       await remove.mutateAsync(project.id);
-      toast('Project deleted', project.name, 'success');
+      toast(t('projectDetail.header.toast.deleted', 'Project deleted'), project.name, 'success');
       setDeleteOpen(false);
       navigate('/projects');
     } catch (err) {
@@ -262,12 +268,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     <>
       {canEdit && (
         <Button variant="outline" size="sm" onClick={onEditProject}>
-          Edit
+          {t('projectDetail.header.action.edit', 'Edit')}
         </Button>
       )}
       {canArchive && (
         <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(true)}>
-          Archive
+          {t('projectDetail.header.action.archive', 'Archive')}
         </Button>
       )}
       {canDelete && (
@@ -280,7 +286,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           onClick={() => setDeleteOpen(true)}
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
-          Delete
+          {t('projectDetail.header.action.delete', 'Delete')}
         </Button>
       )}
     </>
@@ -297,7 +303,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         <div className="flex flex-wrap items-end gap-2">
           <div className="w-[180px]">
             <NumberField
-              label="Contract value"
+              label={t('projectDetail.header.contractValue', 'Contract value')}
               prefix="$"
               value={valueDraft}
               onChange={(v) => setValueDraft(formatThousands(v))}
@@ -310,7 +316,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               and the vendor-invoice forms cannot drift. */}
           <div className="w-[240px]">
             <SelectField
-              label="Tax treatment"
+              label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
               value={taxTreatmentDraft}
               onChange={setTaxTreatmentDraft}
               placeholder={TAX_TREATMENT_PLACEHOLDER}
@@ -320,7 +326,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           </div>
           <div className="w-[160px]">
             <NumberField
-              label="Tax amount"
+              label={t('projectDetail.header.taxAmount', 'Tax amount')}
               prefix="$"
               value={taxAmountDraft}
               onChange={(v) => setTaxAmountDraft(formatThousands(v))}
@@ -334,10 +340,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             disabled={stagedValue === null}
             loading={setContractValue.isPending}
           >
-            Save
+            {t('projectDetail.header.action.save', 'Save')}
           </Button>
           <Button variant="ghost" size="sm" onClick={cancelValueEdit}>
-            Cancel
+            {t('projectDetail.header.action.cancel', 'Cancel')}
           </Button>
           {stagedValue === null && (
             <p
@@ -350,31 +356,43 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         </div>
       ) : (
         <span className="flex items-center gap-2.5">
-          <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
+          <span className="text-[12.5px] font-semibold text-muted-foreground">
+            {t('projectDetail.header.contractValue', 'Contract value')}
+          </span>
           <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
             {formatCurrency(contract, project.currency)}
           </span>
           {canEditValue && isFinanceForward ? (
-            <Button variant="outline" size="sm" onClick={beginValueEdit} aria-label="Edit contract value">
-              Edit
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={beginValueEdit}
+              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}
+            >
+              {t('projectDetail.header.action.edit', 'Edit')}
             </Button>
           ) : isOnHand ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
               <Icon name="lock" className="size-3" />
-              Read-only
+              {t('projectDetail.header.readOnly', 'Read-only')}
             </span>
           ) : null}
         </span>
       )}
       {isOnHand && canEditValue && isFinanceForward && !valueEditing && (
         <span className="basis-full text-[12px] text-muted-foreground">
-          Changing the value on a won project is a segregation-of-duties action and is recorded.
+          {t(
+            'projectDetail.header.sodEditableNote',
+            'Changing the value on a won project is a segregation-of-duties action and is recorded.',
+          )}
         </span>
       )}
       {isOnHand && (!canEditValue || !isFinanceForward) && (
         <span className="basis-full text-[12px] text-muted-foreground">
-          Once a project is won, the contract value is locked for your role. Only Executive or
-          Finance can change it, and the change is recorded.
+          {t(
+            'projectDetail.header.sodLockedNote',
+            'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.',
+          )}
         </span>
       )}
     </div>
@@ -412,9 +430,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={archiveOpen}
         tone="destructive"
-        title={`Archive ${project.name}?`}
-        description="It will be hidden from the default project list. Existing references stay intact. You can restore it later."
-        confirmLabel="Archive project"
+        title={`${t('projectDetail.header.archiveConfirm.title', 'Archive')} ${project.name}?`}
+        description={t(
+          'projectDetail.header.archiveConfirm.body',
+          'It will be hidden from the default project list. Existing references stay intact. You can restore it later.',
+        )}
+        confirmLabel={t('projectDetail.header.archiveConfirm.confirm', 'Archive project')}
         loading={archive.isPending}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveOpen(false)}
@@ -425,9 +446,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={deleteOpen}
         tone="destructive"
-        title={`Delete ${project.name}?`}
-        description="This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it."
-        confirmLabel="Delete project"
+        title={`${t('projectDetail.header.deleteConfirm.title', 'Delete')} ${project.name}?`}
+        description={t(
+          'projectDetail.header.deleteConfirm.body',
+          "This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it.",
+        )}
+        confirmLabel={t('projectDetail.header.deleteConfirm.confirm', 'Delete project')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteOpen(false)}
@@ -437,10 +461,18 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={pendingValue !== null}
         tone="default"
-        title="Change the contract value?"
+        title={t('projectDetail.header.contractValueConfirm.title', 'Change the contract value?')}
         description={
           pendingValue !== null ? (
             <>
+              {/* ⛔ NOT TRANSLATED, deliberately — see docs note in the handover.
+                  This sentence interleaves four bold spans, so it needs <Trans>. <Trans>
+                  renders NOTHING when i18next has not been initialised, and the unit-test
+                  runner never calls initI18n() — so translating it here blanks the entire
+                  confirm body under test (and during app boot, before init resolves).
+                  Splitting it into five gluable fragments is the other option and is worse:
+                  Indonesian reorders this sentence and fragments cannot be reordered.
+                  Unblocks the moment the test setup initialises i18next. */}
               You are changing the contract value of a won project from{' '}
               <b className="tabular text-foreground">{formatCurrency(contract, project.currency)}</b> to{' '}
               <b className="tabular text-foreground">{formatCurrency(pendingValue.value, project.currency)}</b>,
@@ -448,15 +480,17 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               <b className="tabular text-foreground">{formatCurrency(pendingValue.taxAmount, project.currency)}</b>{' '}
               tax.
               <GateNotice variant="blocked" className="mt-3">
-                Changing the contract value on a won project is a segregation of duties action and
-                is recorded against your name, the date, and the previous value.
+                {t(
+                  'projectDetail.header.contractValueConfirm.notice',
+                  'Changing the contract value on a won project is a segregation of duties action and is recorded against your name, the date, and the previous value.',
+                )}
               </GateNotice>
             </>
           ) : (
             ''
           )
         }
-        confirmLabel="Change and record"
+        confirmLabel={t('projectDetail.header.contractValueConfirm.confirm', 'Change and record')}
         loading={setContractValue.isPending}
         onConfirm={() => pendingValue !== null && void commitValue(pendingValue)}
         onCancel={() => setPendingValue(null)}

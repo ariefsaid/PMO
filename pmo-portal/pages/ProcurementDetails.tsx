@@ -1,5 +1,7 @@
 import React, { useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
@@ -137,6 +139,11 @@ function allowedActions(
   role: string,
   isRequester: boolean,
   isApprover: boolean,
+  // The labels below are rendered on the stage buttons AND restated in the confirm dialogs, so
+  // they are message strings, not data. `t` is threaded in rather than the labels being turned
+  // into keys resolved at the call site: `i18next-parser` extracts literal keys only, so a
+  // `t(action.labelKey)` would be invisible to the en-side completeness gate (FR-L10N-042a).
+  t: TFunction,
 ): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
   const actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[] = [];
 
@@ -144,7 +151,7 @@ function allowedActions(
 
   // Draft → Requested: any member (FR-PROC-005)
   if (legal('Requested')) {
-    actions.push({ to: 'Requested', label: 'Submit Request', variant: 'primary' });
+    actions.push({ to: 'Requested', label: t('procurementDetail.action.submitRequest', 'Submit Request'), variant: 'primary' });
   }
 
   // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
@@ -153,15 +160,15 @@ function allowedActions(
     // (polish #1). It previously read solid `success` green, which competed with
     // the system's one interactive blue (DESIGN.md One-Blue Rule). Reject stays a
     // quiet outline so only one affordance carries weight.
-    actions.push({ to: 'Approved', label: 'Approve', variant: 'primary' });
+    actions.push({ to: 'Approved', label: t('procurementDetail.action.approve', 'Approve'), variant: 'primary' });
   }
   if (legal('Rejected') && canApproveReject(role) && !isRequester) {
-    actions.push({ to: 'Rejected', label: 'Reject', variant: 'destructive' });
+    actions.push({ to: 'Rejected', label: t('procurementDetail.action.reject', 'Reject'), variant: 'destructive' });
   }
 
   // Rejected → Draft: requester rework (FR-PROC-007)
   if (legal('Draft') && isRequester) {
-    actions.push({ to: 'Draft', label: 'Rework (Back to Draft)', variant: 'outline' });
+    actions.push({ to: 'Draft', label: t('procurementDetail.action.rework', 'Rework (Back to Draft)'), variant: 'outline' });
   }
 
   // Approved → Vendor Quoted / Ordered (skip): PM/Finance/Admin (FR-PROC-008)
@@ -170,46 +177,46 @@ function allowedActions(
   // Purchase Order" is a valid skip-to-PO path but is demoted to `outline` so only
   // ONE blue appears per stage (DESIGN.md One-Blue Rule). BOTH remain clickable.
   if (legal('Vendor Quoted') && canSource(role)) {
-    actions.push({ to: 'Vendor Quoted', label: 'Request Vendor Quotes', variant: 'primary' });
+    actions.push({ to: 'Vendor Quoted', label: t('procurementDetail.action.requestVendorQuotes', 'Request Vendor Quotes'), variant: 'primary' });
   }
   if (legal('Ordered') && canSource(role) && status === 'Approved') {
     // outline (not primary) — see D7 note above
-    actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'outline' });
+    actions.push({ to: 'Ordered', label: t('procurementDetail.action.generatePurchaseOrder', 'Generate Purchase Order'), variant: 'outline' });
   }
 
   // Vendor Quoted → Quote Selected: PM/Finance/Admin
   if (legal('Quote Selected') && canSource(role)) {
-    actions.push({ to: 'Quote Selected', label: 'Select Quote', variant: 'primary' });
+    actions.push({ to: 'Quote Selected', label: t('procurementDetail.action.selectQuote', 'Select Quote'), variant: 'primary' });
   }
 
   // Quote Selected → Ordered: PM/Finance/Admin. status is exactly one value, so
   // legal('Ordered') holds for at most one of these branches — they cannot collide.
   if (legal('Ordered') && canSource(role) && status === 'Quote Selected') {
-    actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'primary' });
+    actions.push({ to: 'Ordered', label: t('procurementDetail.action.generatePurchaseOrder', 'Generate Purchase Order'), variant: 'primary' });
   }
 
   // Ordered → Received: requester or PM (FR-PROC-008)
   if (legal('Received') && (isRequester || RECEIPT_ROLES.has(role))) {
-    actions.push({ to: 'Received', label: 'Confirm Receipt', variant: 'primary' });
+    actions.push({ to: 'Received', label: t('procurementDetail.action.confirmReceipt', 'Confirm Receipt'), variant: 'primary' });
   }
 
   // Received → Vendor Invoiced: Finance only (FR-PROC-009)
   if (legal('Vendor Invoiced') && INVOICE_PAY_ROLES.has(role)) {
-    actions.push({ to: 'Vendor Invoiced', label: 'Mark Vendor Invoiced', variant: 'primary' });
+    actions.push({ to: 'Vendor Invoiced', label: t('procurementDetail.action.markVendorInvoiced', 'Mark Vendor Invoiced'), variant: 'primary' });
   }
 
   // Vendor Invoiced → Paid: Finance only, AND not the user who approved the
   // request. SoD-b is enforced server-side and ALWAYS rejects pay-by-approver,
   // so offering it cosmetically produced a "click that does nothing" — gate it.
   if (legal('Paid') && INVOICE_PAY_ROLES.has(role) && !isApprover) {
-    actions.push({ to: 'Paid', label: 'Mark as Paid', variant: 'primary' });
+    actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
   }
 
   // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B). The page
   // action reads "Cancel request" (verb + object) so it never reads as a bare
   // "Cancel" that could be mistaken for dismissing the screen (polish #2).
   if (legal('Cancelled') && canCancel(role, isRequester, status)) {
-    actions.push({ to: 'Cancelled', label: 'Cancel request', variant: 'destructive' });
+    actions.push({ to: 'Cancelled', label: t('procurementDetail.action.cancelRequest', 'Cancel request'), variant: 'destructive' });
   }
 
   return actions;
@@ -246,6 +253,7 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
 }
 
 const ProcurementDetails: React.FC = () => {
+  const { t } = useTranslation();
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
   const tab = tabFromParam(tabParam);
@@ -312,7 +320,7 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isPending) {
     return (
       <>
-        <BackBar label="Procurement" onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
         <div data-testid="procurement-loading">
           <ListState variant="loading" rows={6} />
         </div>
@@ -337,15 +345,18 @@ const ProcurementDetails: React.FC = () => {
   if (isNoAccess || (!detailQuery.isError && !detailQuery.data)) {
     return (
       <>
-        <BackBar label="Procurement" onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
         {/* BackBar above already carries the "Back to Procurement" escape route,
             so the empty state does not repeat it (avoids a duplicate control). */}
         <div data-testid="procurement-no-access">
           <ListState
             variant="empty"
             icon="lock"
-            title="You don't have access to this record"
-            sub="This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests."
+            title={t('procurementDetail.accessDenied.title', "You don't have access to this record")}
+            sub={t(
+              'procurementDetail.accessDenied.sub',
+              "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.",
+            )}
           />
         </div>
       </>
@@ -356,11 +367,11 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isError) {
     return (
       <>
-        <BackBar label="Procurement" onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
         <ListState
           variant="error"
-          title="Couldn't load procurement"
-          sub="Something went wrong fetching the procurement details."
+          title={t('procurementDetail.error.title', "Couldn't load procurement")}
+          sub={t('procurementDetail.error.sub', 'Something went wrong fetching the procurement details.')}
           onRetry={() => detailQuery.refetch()}
         />
       </>
@@ -373,7 +384,7 @@ const ProcurementDetails: React.FC = () => {
   // SoD-b: a user cannot pay a request they themselves approved.
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
   // D8: sort so primary → outline/success → destructive (Cancel/Reject always last)
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover));
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t));
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -445,8 +456,19 @@ const ProcurementDetails: React.FC = () => {
   const moneyContext = (
     <>
       <b>{formatCurrency(Number(p.total_value), p.currency)}</b>
-      {p.project?.name ? <> on <ProjectNameLink projectId={p.project_id} name={p.project.name} /></> : null}
-      {p.requested_by?.full_name ? <>, requested by <i>{p.requested_by.full_name}</i></> : null}
+      {p.project?.name ? (
+        <>
+          {' '}
+          {t('procurementDetail.confirm.onProject', 'on')}{' '}
+          <ProjectNameLink projectId={p.project_id} name={p.project.name} />
+        </>
+      ) : null}
+      {p.requested_by?.full_name ? (
+        <>
+          {t('procurementDetail.confirm.requestedBy', ', requested by')}{' '}
+          <i>{p.requested_by.full_name}</i>
+        </>
+      ) : null}
     </>
   );
 
@@ -474,23 +496,36 @@ const ProcurementDetails: React.FC = () => {
     // terminal destructive moves (the only other consequential targets).
     const description: React.ReactNode =
       action.to === 'Approved' ? (
-        <>Approve {moneyContext}?</>
+        <>
+          {t('procurementDetail.confirm.approvePrefix', 'Approve')} {moneyContext}?
+        </>
       ) : action.to === 'Paid' ? (
-        <>Mark {moneyContext} as paid? This releases payment and cannot be undone.</>
+        <>
+          {t('procurementDetail.confirm.markPaidPrefix', 'Mark')} {moneyContext}{' '}
+          {t(
+            'procurementDetail.confirm.markPaidSuffix',
+            'as paid? This releases payment and cannot be undone.',
+          )}
+        </>
       ) : (
-        'This is a terminal action for this request and cannot be undone.'
+        t(
+          'procurementDetail.confirm.terminal',
+          'This is a terminal action for this request and cannot be undone.',
+        )
       );
     setPendingConfirm({
       kind: 'transition',
       to: action.to,
       title: isCancel
-        ? 'Cancel this request?'
+        ? t('procurementDetail.confirm.cancelTitle', 'Cancel this request?')
         : destructive
-          ? `${action.label} this request`
+          ? `${action.label} ${t('procurementDetail.confirm.thisRequest', 'this request')}`
           : `${action.label}?`,
       description,
       confirmLabel: action.label,
-      cancelLabel: isCancel ? 'Keep request' : undefined,
+      cancelLabel: isCancel
+        ? t('procurementDetail.confirm.keepRequest', 'Keep request')
+        : undefined,
       tone: destructive ? 'destructive' : 'default',
     });
   };
@@ -505,7 +540,11 @@ const ProcurementDetails: React.FC = () => {
       setPendingConfirm(null);
       // AC-IXD-PROC-001: the toast names the SAME canonical state the badge will
       // show — not the raw enum value (button verb → badge → toast all agree).
-      toast('Request updated', `Moved to ${toastStateLabel(to)}`, 'success');
+      toast(
+        t('procurementDetail.toast.requestUpdated', 'Request updated'),
+        `${t('procurementDetail.toast.movedTo', 'Moved to')} ${toastStateLabel(to)}`,
+        'success',
+      );
     } catch (err) {
       setPendingConfirm(null);
       const { headline, detail } = classifyMutationError(err);
@@ -533,7 +572,7 @@ const ProcurementDetails: React.FC = () => {
           intent: pendingConfirm.intent,
         });
         setShowCreateGR(false);
-        toast('Goods receipt recorded', undefined, 'success');
+        toast(t('procurementDetail.toast.grRecorded', 'Goods receipt recorded'), undefined, 'success');
       } else {
         await mutations.createInvoice.mutateAsync({
           status: pendingConfirm.status,
@@ -546,7 +585,7 @@ const ProcurementDetails: React.FC = () => {
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
-        toast('Vendor invoice recorded', undefined, 'success');
+        toast(t('procurementDetail.toast.viRecorded', 'Vendor invoice recorded'), undefined, 'success');
       }
       setPendingConfirm(null);
     } catch (err) {
@@ -576,7 +615,11 @@ const ProcurementDetails: React.FC = () => {
       });
       setNotesInput('');
       setShowVICapture(false);
-      toast('Vendor invoice recorded', `Moved to ${toastStateLabel('Vendor Invoiced')}`, 'success');
+      toast(
+        t('procurementDetail.toast.viRecorded', 'Vendor invoice recorded'),
+        `${t('procurementDetail.toast.movedTo', 'Moved to')} ${toastStateLabel('Vendor Invoiced')}`,
+        'success',
+      );
     } catch (err) {
       // Keep the form open (do NOT close) — the atomic RPC rolled everything back, so the user
       // can fix the input and resubmit from the same panel.
@@ -603,7 +646,7 @@ const ProcurementDetails: React.FC = () => {
   const statTilesRaw: (StatTile | null)[] = [
     // PR value — always shown (every procurement has a total_value)
     {
-      label: 'PR value',
+      label: t('procurementDetail.tile.prValue', 'PR value'),
       value: formatCurrency(Number(p.total_value), p.currency),
       sub: p.project?.name ?? undefined,
     },
@@ -612,12 +655,12 @@ const ProcurementDetails: React.FC = () => {
     // PRD-1 (AC-JR-W3B-E1): vendor name is a CompanyNameLink.
     selectedQuote
       ? {
-          label: 'Selected quote',
+          label: t('procurementDetail.tile.selectedQuote', 'Selected quote'),
           value: formatCurrency(Number(selectedQuote.total_amount), selectedQuote.currency),
           sub: (
             <CompanyNameLink
               companyId={p.vendor_id}
-              name={p.vendor?.name ?? selectedQuote.vq_number ?? 'selected'}
+              name={p.vendor?.name ?? selectedQuote.vq_number ?? t('procurementDetail.tile.selectedFallback', 'selected')}
               className="text-[11px]"
             />
           ),
@@ -628,7 +671,7 @@ const ProcurementDetails: React.FC = () => {
     // p.po_number header column (which may be set before a PO record is captured).
     p.purchase_orders && p.purchase_orders.length > 0
       ? {
-          label: 'PO committed',
+          label: t('procurementDetail.tile.poCommitted', 'PO committed'),
           // Use the PO record's amount if available, else fall back to total_value —
           // and its currency alongside it (PO ?? parent PR, FR-L10N-020).
           value: formatCurrency(
@@ -654,8 +697,12 @@ const ProcurementDetails: React.FC = () => {
     // delivery"). If no receipt exists on a terminal case, omit the tile entirely.
     p.receipts.length > 0
       ? {
-          label: 'Goods received',
-          value: `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}`,
+          label: t('procurementDetail.tile.goodsReceived', 'Goods received'),
+          value: `${p.receipts.length} ${
+            p.receipts.length > 1
+              ? t('procurementDetail.tile.receiptOther', 'receipts')
+              : t('procurementDetail.tile.receiptOne', 'receipt')
+          }`,
           // Derive from actual receipt status — never assert "awaiting delivery"
           // on a terminal case (Paid/Cancelled) where goods are already settled.
           sub: p.receipts[p.receipts.length - 1].status,
@@ -667,38 +714,40 @@ const ProcurementDetails: React.FC = () => {
   const meta = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
     p.project?.name ? <span key="proj"> · <ProjectNameLink projectId={p.project_id} name={p.project.name} /></span> : null,
-    p.requested_by?.full_name ? <span key="req"> · requested by {p.requested_by.full_name}</span> : null,
+    p.requested_by?.full_name ? <span key="req"> · {t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span> : null,
   ].filter(Boolean);
 
   // Overview Detail <dl> rows (the Field grammar). Vendor / Approved-by read a muted
   // "Not yet selected" / "Pending" while absent rather than a bare blank (G5 honesty).
   const detailRows: DetailRow[] = [
     {
-      label: 'Project',
+      label: t('procurementDetail.detail.project', 'Project'),
       value: p.project?.name ? (
         <ProjectNameLink projectId={p.project_id} name={p.project.name} />
       ) : (
-        <span className="text-muted-foreground">Not linked</span>
+        <span className="text-muted-foreground">{t('procurementDetail.detail.notLinked', 'Not linked')}</span>
       ),
     },
     {
-      label: 'Vendor',
+      label: t('procurementDetail.detail.vendor', 'Vendor'),
       value: p.vendor?.name ? (
         <CompanyNameLink companyId={p.vendor_id} name={p.vendor.name} />
       ) : (
-        <span className="text-muted-foreground">Not yet selected</span>
+        <span className="text-muted-foreground">
+          {t('procurementDetail.detail.notYetSelected', 'Not yet selected')}
+        </span>
       ),
     },
     {
-      label: 'Requested by',
+      label: t('procurementDetail.detail.requestedBy', 'Requested by'),
       value: p.requested_by?.full_name ?? (
         <span className="text-muted-foreground">—</span>
       ),
     },
     {
-      label: 'Approved by',
+      label: t('procurementDetail.detail.approvedBy', 'Approved by'),
       value: p.approved_by?.full_name ?? (
-        <span className="text-muted-foreground">Pending</span>
+        <span className="text-muted-foreground">{t('procurementDetail.detail.pending', 'Pending')}</span>
       ),
     },
   ];
@@ -713,10 +762,22 @@ const ProcurementDetails: React.FC = () => {
   const ledgerRows = buildLedgerRows(p);
   const documentsCount = ledgerRows.length;
   const procTabs: TabItem<ProcTab>[] = [
-    { value: 'overview', label: 'Overview' },
-    { value: 'items', label: 'Line items', count: p.items.length || null },
-    { value: 'documents', label: 'Documents', count: documentsCount || null },
-    { value: 'quotes', label: 'Vendor quotes', count: p.quotations.length || null },
+    { value: 'overview', label: t('procurementDetail.tabs.overview', 'Overview') },
+    {
+      value: 'items',
+      label: t('procurementDetail.tabs.lineItems', 'Line items'),
+      count: p.items.length || null,
+    },
+    {
+      value: 'documents',
+      label: t('procurementDetail.tabs.documents', 'Documents'),
+      count: documentsCount || null,
+    },
+    {
+      value: 'quotes',
+      label: t('procurementDetail.tabs.vendorQuotes', 'Vendor quotes'),
+      count: p.quotations.length || null,
+    },
   ];
 
   return (
@@ -727,7 +788,7 @@ const ProcurementDetails: React.FC = () => {
           only in-content escape. CSS-only visibility: `hidden` on desktop,
           `max-[920px]:block` on mobile — single DOM, no dual a11y tree. */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
-        <BackBar label="Procurement" onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
       </div>
 
       {/* CW-3a: the ONE RecordHeader anatomy — icon + name + status pill + top-right
@@ -755,7 +816,7 @@ const ProcurementDetails: React.FC = () => {
               onClick={() => setHeaderEditOpen((open) => !open)}
               aria-expanded={headerEditOpen}
             >
-              Edit
+              {t('procurementDetail.editHeader', 'Edit')}
             </Button>
           ) : undefined
         }
@@ -781,7 +842,7 @@ const ProcurementDetails: React.FC = () => {
               gr_number: p.receipts[0]?.gr_number,
               vi_number: p.invoices[0]?.vi_number,
             })}
-            aria-label="Procurement lifecycle"
+            aria-label={t('procurementDetail.lifecycleLabel', 'Procurement lifecycle')}
           />
         </CardPad>
       </Card>
@@ -799,7 +860,11 @@ const ProcurementDetails: React.FC = () => {
           onClose={() => setHeaderEditOpen(false)}
           onSave={async (patch) => {
             await crud.updateHeader.mutateAsync(patch);
-            toast('Request updated', 'Header saved', 'success');
+            toast(
+              t('procurementDetail.toast.requestUpdated', 'Request updated'),
+              t('procurementDetail.toast.headerSaved', 'Header saved'),
+              'success',
+            );
           }}
         />
       )}
@@ -847,7 +912,7 @@ const ProcurementDetails: React.FC = () => {
         items={procTabs}
         value={tab}
         onChange={setTab}
-        ariaLabel="Procurement sections"
+        ariaLabel={t('procurementDetail.tabsLabel', 'Procurement sections')}
         idBase="procurement-detail"
       />
 
@@ -878,15 +943,15 @@ const ProcurementDetails: React.FC = () => {
             onError={onMutationError}
             onAdd={async (input) => {
               await crud.createItem.mutateAsync(input);
-              toast('Line item added', input.name, 'success');
+              toast(t('procurementDetail.toast.lineItemAdded', 'Line item added'), input.name, 'success');
             }}
             onUpdate={async (id, patch) => {
               await crud.updateItem.mutateAsync({ id, patch });
-              toast('Line item updated', patch.name, 'success');
+              toast(t('procurementDetail.toast.lineItemUpdated', 'Line item updated'), patch.name, 'success');
             }}
             onDelete={async (id) => {
               await crud.deleteItem.mutateAsync(id);
-              toast('Line item removed', undefined, 'success');
+              toast(t('procurementDetail.toast.lineItemRemoved', 'Line item removed'), undefined, 'success');
             }}
             currency={p.currency}
           />
@@ -929,11 +994,18 @@ const ProcurementDetails: React.FC = () => {
             onError={onMutationError}
             onAdd={async (input) => {
               await mutations.createQuotation.mutateAsync(input);
-              toast('Quotation added', undefined, 'success');
+              toast(t('procurementDetail.toast.quotationAdded', 'Quotation added'), undefined, 'success');
             }}
             onSelect={async (quotationId) => {
               await crud.selectQuote.mutateAsync(quotationId);
-              toast('Quote selected', 'The request advanced to Quote Selected', 'success');
+              toast(
+                t('procurementDetail.toast.quoteSelected', 'Quote selected'),
+                t(
+                  'procurementDetail.toast.quoteSelectedDetail',
+                  'The request advanced to Quote Selected',
+                ),
+                'success',
+              );
             }}
           />
         )}
@@ -942,7 +1014,7 @@ const ProcurementDetails: React.FC = () => {
       {/* Approval / rejection notes */}
       {p.approval_notes && (
         <Card className="mt-4">
-          <CardHead>Approval notes</CardHead>
+          <CardHead>{t('procurementDetail.approvalNotes', 'Approval notes')}</CardHead>
           <CardPad>
             <p className="text-[13.5px]">{p.approval_notes}</p>
           </CardPad>
@@ -950,7 +1022,7 @@ const ProcurementDetails: React.FC = () => {
       )}
       {p.rejection_notes && (
         <Card className="mt-4">
-          <CardHead>Rejection notes</CardHead>
+          <CardHead>{t('procurementDetail.rejectionNotes', 'Rejection notes')}</CardHead>
           <CardPad>
             <p className="text-[13.5px] text-destructive">{p.rejection_notes}</p>
           </CardPad>
@@ -966,22 +1038,22 @@ const ProcurementDetails: React.FC = () => {
           pendingConfirm?.kind === 'transition'
             ? pendingConfirm.title
             : pendingConfirm?.kind === 'createGR'
-              ? 'Record this goods receipt?'
-              : 'Record this vendor invoice?'
+              ? t('procurementDetail.confirm.grTitle', 'Record this goods receipt?')
+              : t('procurementDetail.confirm.viTitle', 'Record this vendor invoice?')
         }
         description={
           pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
-              ? `This records a ${pendingConfirm.status.toLowerCase()} goods receipt against ${p.title}.`
-              : `This records a vendor invoice against ${p.title}.`
+              ? `${t('procurementDetail.confirm.grBodyPrefix', 'This records a')} ${pendingConfirm.status.toLowerCase()} ${t('procurementDetail.confirm.grBodySuffix', 'goods receipt against')} ${p.title}.`
+              : `${t('procurementDetail.confirm.viBodyPrefix', 'This records a vendor invoice against')} ${p.title}.`
         }
         confirmLabel={
           pendingConfirm?.kind === 'transition'
             ? pendingConfirm.confirmLabel
             : pendingConfirm?.kind === 'createGR'
-              ? 'Save GR'
-              : 'Save VI'
+              ? t('procurementDetail.confirm.saveGR', 'Save GR')
+              : t('procurementDetail.confirm.saveVI', 'Save VI')
         }
         cancelLabel={
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined

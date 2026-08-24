@@ -20,6 +20,7 @@ import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
 import { useNavigate, useSearchParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import {
@@ -63,6 +64,7 @@ const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, Pro
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
 const Projects: React.FC = () => {
+  const { t } = useTranslation();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -180,14 +182,33 @@ const Projects: React.FC = () => {
     view === 'calendar',
   );
 
+  /**
+   * The label for each status segment. The VALUE stays the untranslated English token — it is
+   * `?filter=` URL state, analytics input and `filtersActive`'s comparison basis, so translating
+   * it would break a shared drill-in link the moment the viewer's language differs from the
+   * sender's. Only the word on the button moves.
+   */
+  const filterLabels: Record<StatusFilter, string> = {
+    All: t('projects.filters.all', 'All'),
+    'My Projects': t('projects.filters.myProjects', 'My Projects'),
+    Ongoing: t('projects.filters.ongoing', 'Ongoing'),
+    Completed: t('projects.filters.completed', 'Completed'),
+    'at-risk': t('projects.filters.atRisk', 'At risk'),
+  };
+
+  const pageDescription = t(
+    'projects.description',
+    'Track your active and completed projects. Open one to drill into its budget, procurement, and detail. Pre-win projects live in the Pipeline.',
+  );
+
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.
   const customerFilterOptions = useMemo(
     () => [
-      { value: 'All', label: 'All customers' },
+      { value: 'All', label: t('projects.filters.allCustomers', 'All customers') },
       ...clientCompanies.map((c) => ({ value: c.id, label: c.name })),
     ],
-    [clientCompanies],
+    [clientCompanies, t],
   );
   const importDescriptor = useMemo(
     () =>
@@ -209,10 +230,10 @@ const Projects: React.FC = () => {
   );
   const pmFilterOptions = useMemo(
     () => [
-      { value: 'All', label: 'All managers' },
+      { value: 'All', label: t('projects.filters.allManagers', 'All managers') },
       ...projectManagers.map((u) => ({ value: u.id, label: u.full_name })),
     ],
-    [projectManagers],
+    [projectManagers, t],
   );
 
   const filtersActive =
@@ -238,8 +259,13 @@ const Projects: React.FC = () => {
   // detail-header uses (edit | archive project). ARCHIVE_ROLES = Admin·Exec.
   const rowMenu = (p: ProjectWithRefs): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canEdit) items.push({ label: 'Edit', onClick: () => setEditTarget(p) });
-    if (canArchive) items.push({ label: 'Archive', onClick: () => setArchiveTarget(p) });
+    if (canEdit)
+      items.push({ label: t('projects.actions.edit', 'Edit'), onClick: () => setEditTarget(p) });
+    if (canArchive)
+      items.push({
+        label: t('projects.actions.archive', 'Archive'),
+        onClick: () => setArchiveTarget(p),
+      });
     return items;
   };
 
@@ -248,7 +274,7 @@ const Projects: React.FC = () => {
     const target = archiveTarget;
     try {
       await archive.mutateAsync(target.id);
-      toast('Project archived', target.name, 'success');
+      toast(t('projects.toast.archived', 'Project archived'), target.name, 'success');
       setArchiveTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -264,7 +290,7 @@ const Projects: React.FC = () => {
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
         await create.mutateAsync(input);
-        toast('Project created', input.name, 'success');
+        toast(t('projects.toast.created', 'Project created'), input.name, 'success');
         setCreateOpen(false);
       }}
       onError={(err) => {
@@ -277,7 +303,7 @@ const Projects: React.FC = () => {
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
-      header: 'Project',
+      header: t('projects.columns.project', 'Project'),
       exportValue: (p) => p.name,
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
@@ -304,7 +330,9 @@ const Projects: React.FC = () => {
                   {p.name}
                 </button>
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
-                {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
+                {atRisk && (
+                  <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
+                )}
               </div>
               <div className="truncate font-mono text-[11px] text-muted-foreground">
                 {p.code ?? p.id.slice(0, 8)}
@@ -321,7 +349,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'customer',
-      header: 'Customer',
+      header: t('projects.columns.customer', 'Customer'),
       exportValue: (p) => p.client?.name ?? '',
       // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
       // can navigate directly to the client record. stopPropagation prevents the
@@ -341,7 +369,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'pm',
-      header: 'PM',
+      header: t('projects.columns.pm', 'PM'),
       exportValue: (p) => p.pm?.full_name ?? '',
       // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
       // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
@@ -353,13 +381,18 @@ const Projects: React.FC = () => {
           >
             {(p.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase()}
           </span>
-          <span className="whitespace-normal leading-tight">{p.pm?.full_name ?? 'Unassigned'}</span>
+          <span className="whitespace-normal leading-tight">
+            {p.pm?.full_name ?? t('projects.unassigned', 'Unassigned')}
+          </span>
         </span>
       ),
     },
     {
       key: 'status',
-      header: 'Status',
+      // ⚑ The pill CONTENT (`p.status`) is a database enum, not a literal — localising workflow
+      // status labels is its own decision (it needs one map every surface shares) and is not in
+      // this pass. Only the column header moves.
+      header: t('projects.columns.status', 'Status'),
       exportValue: (p) => String(p.status),
       cell: (p) => (
         <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>
@@ -367,7 +400,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'contract',
-      header: 'Contract',
+      header: t('projects.columns.contract', 'Contract'),
       align: 'num',
       exportValue: (p) => p.contract_value,
       // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
@@ -376,7 +409,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'actual',
-      header: 'Actual',
+      header: t('projects.columns.actual', 'Actual'),
       align: 'num',
       // AC-MONEY-01: use the live committed-PO basis from deliverySummary, not the dead
       // stored projects.spent column (always 0 — 0001_init_schema.sql:79 DEFERRED).
@@ -391,7 +424,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'progress',
-      header: 'Progress',
+      header: t('projects.columns.progress', 'Progress'),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -400,7 +433,11 @@ const Projects: React.FC = () => {
         }
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
-          return <span className="text-[12px] text-muted-foreground">No phases yet</span>;
+          return (
+            <span className="text-[12px] text-muted-foreground">
+              {t('projects.noPhasesYet', 'No phases yet')}
+            </span>
+          );
         }
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
@@ -412,7 +449,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'budget-used',
-      header: 'Budget used',
+      header: t('projects.columns.budgetUsed', 'Budget used'),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of $0/$0.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -428,6 +465,10 @@ const Projects: React.FC = () => {
         return (
           <div className="flex flex-col gap-0.5">
             <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
+            {/* ⚑ Not extracted — embeds two values. This is the one that MOST wants a key
+                (Indonesian will not keep "X of Y budget" word order), and it is exactly the
+                DD-I18N-7 shape: format the money first, interpolate the finished strings. It
+                stays English until `t()` interpolation is safe under the unit suite. */}
             <div className="text-[11px] text-muted-foreground">
               {`${formatCompactCurrency(summary.committedSpend, p.currency)} of ${formatCompactCurrency(summary.budget, p.currency)} budget`}
             </div>
@@ -437,7 +478,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'transition',
-      header: 'Action',
+      header: t('projects.columns.action', 'Action'),
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()}>
           <ProjectStatusControl
@@ -453,11 +494,19 @@ const Projects: React.FC = () => {
   ];
 
   // ── States ──────────────────────────────────────────────────────────────
-  const primaryAction = newProjectAction(canCreate, () => setCreateOpen(true));
+  const primaryAction = newProjectAction(
+    canCreate,
+    () => setCreateOpen(true),
+    t('projects.actions.new', 'New project'),
+  );
 
   if (isPending) {
     return (
-      <ListPage title="Projects" description={PAGE_DESCRIPTION} primaryAction={primaryAction}>
+      <ListPage
+        title={t('projects.title', 'Projects')}
+        description={pageDescription}
+        primaryAction={primaryAction}
+      >
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
         </div>
@@ -468,11 +517,15 @@ const Projects: React.FC = () => {
 
   if (isError || !data) {
     return (
-      <ListPage title="Projects" description={PAGE_DESCRIPTION} primaryAction={primaryAction}>
+      <ListPage
+        title={t('projects.title', 'Projects')}
+        description={pageDescription}
+        primaryAction={primaryAction}
+      >
         <ListState
           variant="error"
-          title="Couldn't load projects"
-          sub="Something went wrong fetching your projects."
+          title={t('projects.states.errorTitle', "Couldn't load projects")}
+          sub={t('projects.states.errorSub', 'Something went wrong fetching your projects.')}
           onRetry={() => refetch()}
         />
         {createModal}
@@ -482,17 +535,26 @@ const Projects: React.FC = () => {
 
   if (all.length === 0) {
     return (
-      <ListPage title="Projects" description={PAGE_DESCRIPTION} primaryAction={primaryAction}>
+      <ListPage
+        title={t('projects.title', 'Projects')}
+        description={pageDescription}
+        primaryAction={primaryAction}
+      >
         <ListState
           variant="empty"
           icon="folder"
-          title="No projects yet"
-          sub="Projects you create or win will appear here."
+          title={t('projects.states.emptyTitle', 'No projects yet')}
+          sub={t('projects.states.emptySub', 'Projects you create or win will appear here.')}
           stateId="projects-empty"
           role={realRole ?? undefined}
           module="projects"
           action={
-            canCreate ? { label: 'New project', onClick: () => setCreateOpen(true) } : undefined
+            canCreate
+              ? {
+                  label: t('projects.actions.new', 'New project'),
+                  onClick: () => setCreateOpen(true),
+                }
+              : undefined
           }
         />
         {createModal}
@@ -502,8 +564,8 @@ const Projects: React.FC = () => {
 
   return (
     <ListPage
-      title="Projects"
-      description={PAGE_DESCRIPTION}
+      title={t('projects.title', 'Projects')}
+      description={pageDescription}
       primaryAction={primaryAction}
       filters={
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
@@ -511,20 +573,20 @@ const Projects: React.FC = () => {
            affordance (the project tab strip pattern). */
         <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
           <ViewToggle<StatusFilter>
-            options={FILTERS.map((f) => ({ value: f, label: f === 'at-risk' ? 'At risk' : f }))}
+            options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
             value={filter}
             onChange={(v) => {
               setFilter(v);
               trackFilterApplied('status', FILTERS.length, 'projects');
             }}
-            ariaLabel="Status filter"
+            ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
           />
         </div>
       }
       search={
         <SearchMini
-          placeholder="Search projects…"
-          aria-label="Search projects"
+          placeholder={t('projects.search.placeholder', 'Search projects…')}
+          aria-label={t('projects.search.ariaLabel', 'Search projects')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           searchSurface="projects-list"
@@ -545,7 +607,7 @@ const Projects: React.FC = () => {
           <>
             <SelectField
               hideLabel
-              label="Filter by customer"
+              label={t('projects.filters.customerLabel', 'Filter by customer')}
               value={filterClient}
               onChange={(v) => {
                 setFilterClient(v);
@@ -556,7 +618,7 @@ const Projects: React.FC = () => {
             />
             <SelectField
               hideLabel
-              label="Filter by project manager"
+              label={t('projects.filters.pmLabel', 'Filter by project manager')}
               value={filterPM}
               onChange={(v) => {
                 setFilterPM(v);
@@ -586,14 +648,19 @@ const Projects: React.FC = () => {
         */
         <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
           options={[
-            { value: 'table', label: 'Table', icon: 'table', wrapperClassName: 'hidden md:block' },
-            { value: 'cards', label: 'Cards', icon: 'cards' },
-            { value: 'calendar', label: 'Calendar', icon: 'cal' },
-            { value: 'kanban', label: 'Board', icon: 'cols' },
+            {
+              value: 'table',
+              label: t('projects.view.table', 'Table'),
+              icon: 'table',
+              wrapperClassName: 'hidden md:block',
+            },
+            { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
+            { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
+            { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
           ]}
           value={view}
           onChange={setView}
-          ariaLabel="Projects view"
+          ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
         />
       }
       importAction={
@@ -605,7 +672,7 @@ const Projects: React.FC = () => {
           />
           <ImportButton
             entity="budgetLine"
-            label="Import budgets"
+            label={t('projects.importBudgets', 'Import budgets')}
             descriptor={budgetImportDescriptor}
             onImported={() => void refetch()}
           />
@@ -634,20 +701,27 @@ const Projects: React.FC = () => {
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={
             filter === 'at-risk'
-              ? 'Nothing at risk'
-              : filtersActive ? 'No projects match these filters' : 'No projects yet'
+              ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
+              : filtersActive
+                ? t('projects.empty.noMatchTitle', 'No projects match these filters')
+                : t('projects.states.emptyTitle', 'No projects yet')
           }
           emptySub={
             filter === 'at-risk'
-              ? 'Every active project is under 90% budget — nothing needs attention right now.'
+              ? t(
+                  'projects.empty.nothingAtRiskSub',
+                  'Every active project is under 90% budget — nothing needs attention right now.',
+                )
               : filtersActive
-                ? 'Try a different status, customer, PM, or search term.'
-                : 'Projects you create or win will appear here.'
+                ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
+                : t('projects.states.emptySub', 'Projects you create or win will appear here.')
           }
           emptyAction={
             filter === 'at-risk'
               ? undefined
-              : filtersActive ? { label: 'Clear filters', onClick: clearFilters } : undefined
+              : filtersActive
+                ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
+                : undefined
           }
         />
       ) : filtered.length === 0 ? (
@@ -656,20 +730,27 @@ const Projects: React.FC = () => {
           icon="folder"
           title={
             filter === 'at-risk'
-              ? 'Nothing at risk'
-              : filtersActive ? 'No projects match these filters' : 'No projects yet'
+              ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
+              : filtersActive
+                ? t('projects.empty.noMatchTitle', 'No projects match these filters')
+                : t('projects.states.emptyTitle', 'No projects yet')
           }
           sub={
             filter === 'at-risk'
-              ? 'Every active project is under 90% budget — nothing needs attention right now.'
+              ? t(
+                  'projects.empty.nothingAtRiskSub',
+                  'Every active project is under 90% budget — nothing needs attention right now.',
+                )
               : filtersActive
-                ? 'Try a different status, customer, PM, or search term.'
-                : 'Projects you create or win will appear here.'
+                ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
+                : t('projects.states.emptySub', 'Projects you create or win will appear here.')
           }
           action={
             filter === 'at-risk'
               ? undefined
-              : filtersActive ? { label: 'Clear filters', onClick: clearFilters } : undefined
+              : filtersActive
+                ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
+                : undefined
           }
         />
       ) : (
@@ -708,7 +789,7 @@ const Projects: React.FC = () => {
           onClose={() => setEditTarget(null)}
           onSave={async (id, input) => {
             await updateHeader.mutateAsync({ id, input });
-            toast('Project updated', input.name, 'success');
+            toast(t('projects.toast.updated', 'Project updated'), input.name, 'success');
             setEditTarget(null);
           }}
           onError={(err) => {
@@ -722,9 +803,17 @@ const Projects: React.FC = () => {
       <ConfirmDialog
         open={!!archiveTarget}
         tone="default"
-        title={archiveTarget ? `Archive ${archiveTarget.name}?` : 'Archive project?'}
-        description="It will be hidden from the default project list. Existing references stay intact. You can restore it later."
-        confirmLabel="Archive project"
+        /* ⚑ The named branch stays a template literal — see the interpolation note above. */
+        title={
+          archiveTarget
+            ? `Archive ${archiveTarget.name}?`
+            : t('projects.confirm.archiveTitle', 'Archive project?')
+        }
+        description={t(
+          'projects.confirm.archiveDescription',
+          'It will be hidden from the default project list. Existing references stay intact. You can restore it later.',
+        )}
+        confirmLabel={t('projects.confirm.archiveConfirm', 'Archive project')}
         loading={archive?.isPending ?? false}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveTarget(null)}
@@ -733,16 +822,17 @@ const Projects: React.FC = () => {
   );
 };
 
-/** Page subtitle — shared across the loading / error / empty / list `ListPage` shells. */
-const PAGE_DESCRIPTION =
-  'Track your active and completed projects. Open one to drill into its budget, procurement, and detail. Pre-win projects live in the Pipeline.';
-
-/** The single per-screen primary "New project" CTA (gated by can('create','project')). */
-const newProjectAction = (canCreate: boolean | undefined, onNew: () => void) =>
+/**
+ * The single per-screen primary "New project" CTA (gated by can('create','project')).
+ *
+ * The label is passed in rather than written here: this is module scope, so it cannot call a hook,
+ * and a literal here would be the one CTA on the page that never follows the viewer's language.
+ */
+const newProjectAction = (canCreate: boolean | undefined, onNew: () => void, label: string) =>
   canCreate ? (
     <Button variant="primary" onClick={onNew}>
       <Icon name="plus" />
-      New project
+      {label}
     </Button>
   ) : undefined;
 

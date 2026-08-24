@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
@@ -123,6 +124,7 @@ export interface RailProps {
 }
 
 export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen }) => {
+  const { t } = useTranslation();
   const { effectiveRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
 
@@ -150,6 +152,37 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     ? (userViews ?? []).slice(0, MAX_NAV_VIEWS)
     : [];
 
+  // Display labels for the nav, keyed by the SAME route/group values `ALL_ITEMS` already carries.
+  // Written as literal `t(key, default)` calls rather than a field on `ALL_ITEMS` for one reason:
+  // `i18next-parser` extracts literal keys only, so a `t(item.labelKey, item.text)` call site would
+  // be invisible to the en-side completeness gate (FR-L10N-042a) and the key would read as orphaned.
+  // `ALL_ITEMS` stays untouched data; its `text` remains the English source and the fallback for a
+  // route added here without a label.
+  const navLabels: Record<string, string> = {
+    '/': t('shell.nav.dashboard', 'Dashboard'),
+    '/integrations': t('shell.nav.integrations', 'Integrations'),
+    '/projects': t('shell.nav.projects', 'Projects'),
+    '/sales': t('shell.nav.sales', 'Sales Pipeline'),
+    '/procurement': t('shell.nav.procurement', 'Procurement'),
+    '/timesheets': t('shell.nav.timesheets', 'Timesheets'),
+    '/approvals': t('shell.nav.approvals', 'Approvals'),
+    '/companies': t('shell.nav.companies', 'Companies'),
+    '/contacts': t('shell.nav.contacts', 'Contacts'),
+    '/incidents': t('shell.nav.incidents', 'Incidents'),
+    '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
+    '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
+    '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
+    '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
+  };
+  const groupLabels: Record<NavItem['group'], string> = {
+    Overview: t('shell.rail.group.overview', 'Overview'),
+    CRM: t('shell.rail.group.crm', 'CRM'),
+    Delivery: t('shell.rail.group.delivery', 'Delivery'),
+    Workforce: t('shell.rail.group.workforce', 'Workforce'),
+    Finance: t('shell.rail.group.finance', 'Finance'),
+  };
+  const myViewsLabel = t('shell.rail.myViews', 'My Views');
+
   const renderItem = (item: NavItem) => {
     // For the two stage-aware items, when an override is set, drive active from
     // the override instead of NavLink's built-in URL-prefix matching.
@@ -176,7 +209,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           }
         >
           <Icon name={item.icon} />
-          <span>{item.text}</span>
+          <span>{navLabels[item.to] ?? item.text}</span>
         </NavLink>
       );
     }
@@ -197,7 +230,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         }
       >
         <Icon name={item.icon} />
-        <span>{item.text}</span>
+        <span>{navLabels[item.to] ?? item.text}</span>
       </NavLink>
     );
   };
@@ -220,23 +253,26 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         <span className="text-[15px] font-bold tracking-[-0.01em]">PMO Portal</span>
       </div>
 
-      <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto p-2.5">
+      <nav
+        aria-label={t('shell.rail.primaryNavigation', 'Primary navigation')}
+        className="min-h-0 flex-1 overflow-y-auto p-2.5"
+      >
         {GROUP_ORDER.map((group) => {
           const groupItems = items.filter((i) => i.group === group);
           if (groupItems.length === 0) return null;
           return (
             <React.Fragment key={group}>
               <div className="px-2 pb-1.5 pt-3.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                {group}
+                {groupLabels[group]}
               </div>
               {groupItems.map(renderItem)}
             </React.Fragment>
           );
         })}
         {showMyViews && (
-          <div role="group" aria-label="My Views">
+          <div role="group" aria-label={myViewsLabel}>
             <div className="px-2 pb-1.5 pt-3.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              My Views
+              {myViewsLabel}
             </div>
             {myViewsItems.map((view) => (
               <NavLink
@@ -275,7 +311,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
             className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-accent')}
           >
             <Icon name="message" />
-            <span>Assistant</span>
+            <span>{t('shell.rail.assistant', 'Assistant')}</span>
           </button>
         </div>
       )}
@@ -295,7 +331,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
             }
           >
             <Icon name="admin" />
-            <span>Administration</span>
+            <span>{t('shell.nav.administration', 'Administration')}</span>
           </NavLink>
         </div>
       )}

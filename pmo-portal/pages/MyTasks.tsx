@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, SelectField, useToast } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { formatDate } from '@/src/lib/format';
@@ -51,9 +52,20 @@ const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Bloc
 const NO_PROJECT = '\u0000no-project';
 
 const MyTasks: React.FC = () => {
+  const { t } = useTranslation();
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   const { toast } = useToast();
+
+  // Display labels for the DB `task_status` enum. The VALUES stay the raw enum strings (they are
+  // persisted); only the labels are translated. Static keys, one per member — a computed
+  // `t(`task.status.${s}`)` would be invisible to i18next-parser and so to the completeness gate.
+  const statusLabels: Record<TaskStatus, string> = {
+    'To Do': t('task.status.toDo', 'To Do'),
+    'In Progress': t('task.status.inProgress', 'In Progress'),
+    Done: t('task.status.done', 'Done'),
+    Blocked: t('task.status.blocked', 'Blocked'),
+  };
 
   // Group by project for a structured "what do I do today" view, then sort each group by urgency.
   // AC-IFW-TASKS-01: within each project group, overdue open tasks sort first (key=0), then
@@ -62,18 +74,18 @@ const MyTasks: React.FC = () => {
     if (!tasks) return [];
     // #525 FR-FCT-041: a project-less task groups under its own heading. `NO_PROJECT` is a Map key
     // only — it never reaches a URL, which is the bug it exists to prevent: the old code keyed on
-    // `t.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
+    // `task.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
     const map = new Map<string, { projectId: string | null; projectName: string; items: typeof tasks }>();
-    for (const t of tasks) {
-      const key = t.project_id ?? NO_PROJECT;
+    for (const task of tasks) {
+      const key = task.project_id ?? NO_PROJECT;
       if (!map.has(key)) {
         map.set(key, {
-          projectId: t.project_id,
-          projectName: t.project_name ?? 'No project',
+          projectId: task.project_id,
+          projectName: task.project_name ?? t('myTasks.noProjectGroup', 'No project'),
           items: [],
         });
       }
-      map.get(key)!.items.push(t);
+      map.get(key)!.items.push(task);
     }
     const groups = [...map.values()];
     // Sort within each group
@@ -90,14 +102,14 @@ const MyTasks: React.FC = () => {
       });
     }
     return groups;
-  }, [tasks]);
+  }, [tasks, t]);
 
   return (
     <div>
       <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">My Tasks</h1>
+        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('myTasks.title', 'My Tasks')}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Your assigned tasks across all projects.
+          {t('myTasks.subtitle', 'Your assigned tasks across all projects.')}
         </p>
       </div>
 
@@ -108,8 +120,8 @@ const MyTasks: React.FC = () => {
       {isError && (
         <ListState
           variant="error"
-          title="Couldn't load your tasks"
-          sub="Something went wrong fetching your assigned tasks."
+          title={t('myTasks.error.title', "Couldn't load your tasks")}
+          sub={t('myTasks.error.sub', 'Something went wrong fetching your assigned tasks.')}
           onRetry={() => refetch()}
         />
       )}
@@ -118,8 +130,11 @@ const MyTasks: React.FC = () => {
         <ListState
           variant="empty"
           icon="check"
-          title="No tasks assigned to you"
-          sub="When tasks are assigned to you they will appear here across all your projects."
+          title={t('myTasks.empty.title', 'No tasks assigned to you')}
+          sub={t(
+            'myTasks.empty.sub',
+            'When tasks are assigned to you they will appear here across all your projects.',
+          )}
         />
       )}
 
@@ -175,14 +190,22 @@ const MyTasks: React.FC = () => {
                         )}
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
                         {isOverdueTask(task) && (
-                          <StatusPill variant="warn">Overdue</StatusPill>
+                          <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>
                         )}
                       </div>
                       {(task.start_date || task.end_date) && (
                         <span className="mt-0.5 block text-[12px] text-muted-foreground">
-                          {task.start_date && <span>Start {formatDate(task.start_date)}</span>}
+                          {task.start_date && (
+                            <span>
+                              {t('myTasks.startPrefix', 'Start')} {formatDate(task.start_date)}
+                            </span>
+                          )}
                           {task.start_date && task.end_date && <span className="mx-1">·</span>}
-                          {task.end_date && <span>Due {formatDate(task.end_date)}</span>}
+                          {task.end_date && (
+                            <span>
+                              {t('myTasks.duePrefix', 'Due')} {formatDate(task.end_date)}
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>
@@ -198,7 +221,7 @@ const MyTasks: React.FC = () => {
                           to={`/timesheets?project=${task.project_id}`}
                           className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          Log time
+                          {t('myTasks.logTime', 'Log time')}
                         </Link>
                       ) : null}
                       {/* Fix #6 (AC-FIX6-NAV-02/03): use SelectField (app's shared status
@@ -206,7 +229,7 @@ const MyTasks: React.FC = () => {
                           Engineer may set own task status per the `taskStatus` policy. */}
                       <SelectField
                         hideLabel
-                        label={`Change status of ${task.name}`}
+                        label={`${t('myTasks.changeStatusOf', 'Change status of')} ${task.name}`}
                         value={task.status}
                         disabled={updateStatus.isPending}
                         onChange={(v) =>
@@ -220,7 +243,7 @@ const MyTasks: React.FC = () => {
                             },
                           )
                         }
-                        options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
+                        options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabels[s] }))}
                         className="w-auto min-w-[120px]"
                       />
                     </div>

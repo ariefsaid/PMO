@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -37,6 +38,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   onOpenPalette,
   onToggleRail,
 }) => {
+  const { t } = useTranslation();
   const { currentUser, signOut } = useAuth();
   const { effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -83,7 +85,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
     >
       <button
         type="button"
-        aria-label="Open navigation menu"
+        aria-label={t('shell.contextBar.openNavigation', 'Open navigation menu')}
         onClick={onToggleRail}
         className="touch-target mobile-rail-toggle hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground max-[921px]:grid [&_svg]:size-[17px]"
       >
@@ -96,13 +98,15 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 
       <button
         type="button"
-        aria-label="Open command palette"
+        aria-label={t('shell.contextBar.openCommandPalette', 'Open command palette')}
         aria-keyshortcuts="Meta+K Control+K"
         onClick={onOpenPalette}
         className="touch-target cmdk-trigger flex h-8 min-w-[250px] items-center gap-2 rounded-lg border border-input bg-background pl-[11px] pr-[9px] text-[13px] text-muted-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] max-[921px]:min-w-0 max-[921px]:w-9 max-[921px]:justify-center max-[921px]:px-0 [&_svg]:size-[15px]"
       >
         <Icon name="search" />
-        <span className="cmdk-label flex-1 text-left max-[921px]:hidden">Search or jump to…</span>
+        <span className="cmdk-label flex-1 text-left max-[921px]:hidden">
+          {t('shell.contextBar.searchPlaceholder', 'Search or jump to…')}
+        </span>
         <span className="cmdk-kbd rounded-[5px] border border-border bg-secondary px-1.5 py-px text-[11px] font-semibold max-[921px]:hidden">
           ⌘K
         </span>
@@ -129,7 +133,9 @@ export const ContextBar: React.FC<ContextBarProps> = ({
             onClick={() => setMenuOpen((v) => !v)}
             className="touch-target inline-flex h-8 items-center gap-[7px] rounded-lg border border-input bg-background pl-[11px] pr-2.5 text-[13px] font-medium text-foreground hover:bg-accent [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
           >
-            <span className="text-muted-foreground max-[921px]:hidden">View as role:</span>
+            <span className="text-muted-foreground max-[921px]:hidden">
+              {t('shell.contextBar.viewAsRoleInline', 'View as role:')}
+            </span>
             <strong>{effectiveRole}</strong>
             <Icon name="chev" className="rotate-90" />
           </button>
@@ -186,7 +192,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
           href={HELP_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Contact support via WhatsApp"
+          aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
           className="touch-target inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-input bg-background px-2.5 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
         >
           <Icon name="message" />
@@ -203,7 +209,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         onClick={() => void signOut()}
         className="touch-target inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg border border-input bg-background px-3 text-[13px] font-medium text-foreground hover:bg-accent max-[921px]:px-2.5"
       >
-        Sign out
+        {t('shell.contextBar.signOut', 'Sign out')}
       </button>
       </div>
 
@@ -215,7 +221,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
           type="button"
           aria-haspopup="menu"
           aria-expanded={acctOpen}
-          aria-label="Account menu"
+          aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
           onClick={() => setAcctOpen((v) => !v)}
           className="touch-target grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary-foreground"
           style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))' }}
@@ -235,7 +241,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
               <>
                 <div className="my-1 border-t border-border" />
                 <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  View as role
+                  {t('shell.contextBar.viewAsRoleHeading', 'View as role')}
                 </div>
                 {IMPERSONATION_ROLES.map((role) => (
                   <button
@@ -260,7 +266,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
             )}
             <div className="my-1 border-t border-border" />
             <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Legal &amp; support
+              {t('shell.contextBar.legalAndSupport', 'Legal & support')}
             </div>
             {/* FR-LEG-027 / AC-LEG-023: Terms / Privacy route links + Help (wa.me new tab). */}
             <Link
@@ -269,7 +275,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
               onClick={() => setAcctOpen(false)}
               className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
             >
-              Terms
+              {t('shell.contextBar.terms', 'Terms')}
             </Link>
             <Link
               to="/privacy"
@@ -277,7 +283,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
               onClick={() => setAcctOpen(false)}
               className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
             >
-              Privacy
+              {t('shell.contextBar.privacy', 'Privacy')}
             </Link>
             {HELP_URL && (
               <a
@@ -285,10 +291,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 role="menuitem"
-                aria-label="Contact support via WhatsApp"
+                aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
                 className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
               >
-                Help
+                {t('shell.contextBar.help', 'Help')}
               </a>
             )}
 
@@ -302,7 +308,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
               }}
               className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
             >
-              Sign out
+              {t('shell.contextBar.signOut', 'Sign out')}
             </button>
           </div>
         )}

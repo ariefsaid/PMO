@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   ListState,
   Button,
@@ -52,6 +53,7 @@ const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
 
 const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { toast } = useToast();
   const isDesktop = useIsDesktop();
@@ -82,13 +84,17 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
 
   const handleModalCreate = async (input: MilestoneInput) => {
     await create.mutateAsync({ input });
-    toast('Milestone created', input.name, 'success');
+    toast(t('projectDetail.milestones.toast.created', 'Milestone created'), input.name, 'success');
     setFormTarget(null);
   };
 
   const handleModalUpdate = async (id: string, patch: MilestonePatch) => {
     await update.mutateAsync({ id, patch });
-    toast('Milestone updated', patch.name ?? 'Milestone', 'success');
+    toast(
+      t('projectDetail.milestones.toast.updated', 'Milestone updated'),
+      patch.name ?? t('projectDetail.milestones.fallbackName', 'Milestone'),
+      'success',
+    );
     setFormTarget(null);
   };
 
@@ -102,7 +108,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast('Milestone deleted', target.name, 'success');
+      toast(t('projectDetail.milestones.toast.deleted', 'Milestone deleted'), target.name, 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -123,8 +129,11 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
     return (
       <ListState
         variant="error"
-        title="Couldn't load milestones"
-        sub="The request failed. Check your connection and try again."
+        title={t('projectDetail.milestones.errorTitle', "Couldn't load milestones")}
+        sub={t(
+          'projectDetail.milestones.errorSub',
+          'The request failed. Check your connection and try again.',
+        )}
         onRetry={() => refetch()}
       />
     );
@@ -140,7 +149,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             className="flex items-center gap-2 py-1"
           >
             <span className="flex-1 text-[13px] text-muted-foreground">
-              Delivery planning starts once this is won
+              {t('projectDetail.milestones.prewinPlaceholder', 'Delivery planning starts once this is won')}
             </span>
             {canCreate && (
               <button
@@ -148,7 +157,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                 className="shrink-0 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
                 onClick={() => setFormTarget({ milestone: null })}
               >
-                Plan delivery phases
+                {t('projectDetail.milestones.planPhases', 'Plan delivery phases')}
               </button>
             )}
           </div>
@@ -157,26 +166,38 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             {canCreate ? (
               <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
             ) : (
-              <p className="text-[13px] text-muted-foreground">No delivery phases yet</p>
+              <p className="text-[13px] text-muted-foreground">
+                {t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}
+              </p>
             )}
           </div>
         )
       ) : (
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-[14px] font-bold tracking-[-0.01em]">Delivery phases</h2>
-            <div className="flex items-center gap-3" aria-label={`Project delivery ${deliveryRollup}%`}>
-              <span className="text-[12px] text-muted-foreground">Project delivery</span>
+            <h2 className="text-[14px] font-bold tracking-[-0.01em]">
+              {t('projectDetail.milestones.heading', 'Delivery phases')}
+            </h2>
+            <div
+              className="flex items-center gap-3"
+              aria-label={`${t(
+                'projectDetail.milestones.rollupAriaLabel',
+                'Project delivery',
+              )} ${deliveryRollup}%`}
+            >
+              <span className="text-[12px] text-muted-foreground">
+                {t('projectDetail.milestones.rollupLabel', 'Project delivery')}
+              </span>
               <span className="text-[23px] font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
             </div>
             {canCreate && (
               <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
-                Add milestone
+                {t('projectDetail.milestones.addMilestone', 'Add milestone')}
               </Button>
             )}
           </div>
 
-          <ol aria-label="Delivery phases" className="space-y-4">
+          <ol aria-label={t('projectDetail.milestones.heading', 'Delivery phases')} className="space-y-4">
             <li>
               {isDesktop ? (
                 <div className="delivery-track flex h-3 overflow-hidden rounded-full bg-secondary">
@@ -220,7 +241,11 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                       onUpdateInputPct={async (id, input_pct) => {
                         try {
                           await update.mutateAsync({ id, patch: { input_pct } });
-                          toast('Progress updated', milestone.name, 'success');
+                          toast(
+                            t('projectDetail.milestones.toast.progressUpdated', 'Progress updated'),
+                            milestone.name,
+                            'success',
+                          );
                         } catch (err) {
                           const { headline, detail } = classifyMutationError(err);
                           toast(headline, detail, 'warning');
@@ -248,9 +273,16 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
       <ConfirmDialog
         open={!!deleteTarget}
         tone="destructive"
-        title={deleteTarget ? `Delete "${deleteTarget.name}"?` : 'Delete milestone?'}
-        description="Tasks under this milestone become ungrouped; they are not deleted."
-        confirmLabel="Delete milestone"
+        title={
+          deleteTarget
+            ? `${t('projectDetail.milestones.deleteConfirm.title', 'Delete')} "${deleteTarget.name}"?`
+            : t('projectDetail.milestones.deleteConfirm.titleFallback', 'Delete milestone?')
+        }
+        description={t(
+          'projectDetail.milestones.deleteConfirm.body',
+          'Tasks under this milestone become ungrouped; they are not deleted.',
+        )}
+        confirmLabel={t('projectDetail.milestones.deleteConfirm.confirm', 'Delete milestone')}
         loading={remove.isPending}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
@@ -274,9 +306,13 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   canEdit,
   onEdit,
 }) => {
+  const { t } = useTranslation();
   const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : null;
+  // The date is formatted by format.ts FIRST; i18next only ever sees the finished string.
   const targetLabel = milestone.target_date
-    ? `Target ${formatDayMonth(new Date(`${milestone.target_date}T00:00:00`))}`
+    ? `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDayMonth(
+        new Date(`${milestone.target_date}T00:00:00`),
+      )}`
     : null;
   const overdue = isOverdueMilestone(milestone);
 
@@ -297,11 +333,19 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
           <span className={`text-[13px] font-semibold ${overdue ? 'text-warning-foreground' : 'text-foreground'}`}>
             {milestone.name}
           </span>
-          {isCurrent && <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">Current</span>}
+          {isCurrent && (
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+              {t('projectDetail.milestones.current', 'Current')}
+            </span>
+          )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
           <span>{pct(milestone.effective_pct)}</span>
-          {weightShare != null && <span>{weightShare}% of project</span>}
+          {weightShare != null && (
+            <span>
+              {`${weightShare}% ${t('projectDetail.milestones.weightShare', 'of project')}`}
+            </span>
+          )}
           {targetLabel && (
             <span className={overdue ? 'font-semibold text-warning-foreground' : undefined}>
               {targetLabel}
@@ -315,11 +359,14 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
         {canEdit && (
           <button
             type="button"
-            aria-label={`Edit progress for ${milestone.name}`}
+            aria-label={`${t(
+              'projectDetail.milestones.editProgressFor',
+              'Edit progress for',
+            )} ${milestone.name}`}
             className="text-[11px] font-semibold text-primary-text hover:underline"
             onClick={onEdit}
           >
-            Edit
+            {t('projectDetail.milestones.edit', 'Edit')}
           </button>
         )}
       </div>
@@ -327,7 +374,9 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   );
 };
 
-const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
+const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) => {
+  const { t } = useTranslation();
+  return (
   <div className="flex flex-col gap-4">
     <div className="flex items-end gap-1.5" aria-hidden="true">
       {[100, 72, 36, 0].map((width, index) => (
@@ -337,18 +386,24 @@ const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) =
       ))}
     </div>
     <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold">Plan this project&apos;s delivery phases</h3>
+      <h3 className="text-[15px] font-semibold">
+        {t('projectDetail.milestones.emptyTitle', "Plan this project's delivery phases")}
+      </h3>
       <p className="max-w-[52ch] text-[13px] text-muted-foreground">
-        Add the key phases for this project so delivery progress can roll up from weighted milestones.
+        {t(
+          'projectDetail.milestones.emptySub',
+          'Add the key phases for this project so delivery progress can roll up from weighted milestones.',
+        )}
       </p>
     </div>
     <div>
       <Button variant="primary" size="sm" onClick={onCreate}>
-        Add the first phase
+        {t('projectDetail.milestones.addFirstPhase', 'Add the first phase')}
       </Button>
     </div>
   </div>
-);
+  );
+};
 
 interface MilestonePhaseCardProps {
   milestone: MilestoneWithProgress;
@@ -374,6 +429,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   onDelete,
   onUpdateInputPct,
 }) => {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [inputVal, setInputVal] = useState('');
@@ -407,7 +463,9 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
     const raw = inputVal.trim();
     const parsed = raw === '' ? null : Number(raw);
     if (parsed !== null && (isNaN(parsed) || parsed < 0 || parsed > 100)) {
-      setInputError('Progress must be between 0 and 100');
+      setInputError(
+        t('projectDetail.milestones.progressRangeError', 'Progress must be between 0 and 100'),
+      );
       savedRef.current = false;
       return;
     }
@@ -445,7 +503,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               to={`/projects/${projectId}/tasks`}
               className="mt-1 inline-block text-[12px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
             >
-              View blocking tasks
+              {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
             </Link>
           )}
         </div>
@@ -454,7 +512,10 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
           <div className="relative shrink-0">
             <button
               type="button"
-              aria-label={`More actions for ${milestone.name}`}
+              aria-label={`${t(
+                'projectDetail.milestones.moreActionsFor',
+                'More actions for',
+              )} ${milestone.name}`}
               className="touch-target inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => setMenuOpen((open) => !open)}
             >
@@ -471,20 +532,23 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                       onEditDetails();
                     }}
                   >
-                    Edit milestone
+                    {t('projectDetail.milestones.editMilestone', 'Edit milestone')}
                   </button>
                 )}
                 {canDelete && (
                   <button
                     type="button"
                     className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
-                    aria-label={`Delete milestone ${milestone.name}`}
+                    aria-label={`${t(
+                      'projectDetail.milestones.deleteMilestone',
+                      'Delete milestone',
+                    )} ${milestone.name}`}
                     onClick={() => {
                       setMenuOpen(false);
                       onDelete();
                     }}
                   >
-                    Delete milestone
+                    {t('projectDetail.milestones.deleteMilestone', 'Delete milestone')}
                   </button>
                 )}
               </div>
@@ -500,7 +564,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               type="number"
               min={0}
               max={100}
-              aria-label="Edit PM input %"
+              aria-label={t('projectDetail.milestones.editInputPct', 'Edit PM input %')}
               className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-[13px] tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={inputVal}
               onChange={(e) => {
@@ -524,7 +588,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               autoFocus
             />
             <Button variant="primary" size="sm" onClick={saveEdit}>
-              Save
+              {t('projectDetail.milestones.save', 'Save')}
             </Button>
             <Button
               variant="ghost"
@@ -537,7 +601,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               }}
               onClick={cancelEdit}
             >
-              Cancel
+              {t('projectDetail.milestones.cancel', 'Cancel')}
             </Button>
           </div>
           {inputError && <span className="text-[11.5px] text-destructive">{inputError}</span>}

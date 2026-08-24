@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardHead,
@@ -31,6 +32,10 @@ import {
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+// ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
+// class as the raw `project.status` rendered in the StatusPill beside them, and as
+// `dealJourneySteps` in components/salesPipeline. Translating them here alone would put
+// two languages on one screen. Belongs with the cross-cutting status-vocabulary decision.
 const NEXT_PIPELINE_LABEL: Record<string, string> = {
   Leads: 'Pre-Qual',
   'PQ Submitted': 'Quotation',
@@ -54,6 +59,7 @@ export interface PipelineLensProps {
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
 const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -124,7 +130,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       setContractRef('');
       setContractDate('');
       setConfirmAction(null);
-      toast('Project updated', `Moved to ${to}`, 'success');
+      toast(
+        t('projectDetail.pipeline.toast.updated', 'Project updated'),
+        `${t('projectDetail.pipeline.toast.movedTo', 'Moved to')} ${to}`,
+        'success',
+      );
       // N10 (OD-W5-C3-B): post-transition focus management. On Won the page re-renders
       // into the delivery layout; move focus to the page h1. On Advance/Lost move focus
       // to the Next-actions card heading so a keyboard/SR user is told what changed.
@@ -141,7 +151,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       // Surface the RPC error verbatim — it carries the P0001 SoD message.
       // Close the confirm so the verbatim error reads in the inline alert.
       setConfirmAction(null);
-      setError(err instanceof Error ? err.message : 'Transition failed');
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('projectDetail.pipeline.transitionFailed', 'Transition failed'),
+      );
     } finally {
       setPending(false);
     }
@@ -150,8 +164,14 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   const submitWon = () => {
     const refMissing = !contractRef.trim();
     const dateMissing = !contractDate;
-    setRefError(refMissing ? 'Customer contract reference is required' : null);
-    setDateError(dateMissing ? 'Contract date is required' : null);
+    setRefError(
+      refMissing
+        ? t('projectDetail.pipeline.refRequired', 'Customer contract reference is required')
+        : null,
+    );
+    setDateError(
+      dateMissing ? t('projectDetail.pipeline.dateRequired', 'Contract date is required') : null,
+    );
     if (refMissing || dateMissing) return;
     void runTransition('Won, Pending KoM', {
       customerContractRef: contractRef.trim(),
@@ -160,13 +180,18 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   };
 
   const stats: StatTile[] = [
-    { label: 'Value', value: formatCurrency(value, currency) },
-    { label: 'Win probability', value: formatPercent(winProb) },
-    { label: 'Weighted', value: formatCurrency(weighted, currency) },
-    { label: 'Owner', value: project.pm?.full_name ?? 'Not set' },
+    { label: t('projectDetail.pipeline.stat.value', 'Value'), value: formatCurrency(value, currency) },
+    { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
+    { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
     {
-      label: 'Decision',
-      value: project.decided_at ? formatDateNumeric(new Date(project.decided_at)) : 'Pending',
+      label: t('projectDetail.pipeline.stat.owner', 'Owner'),
+      value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),
+    },
+    {
+      label: t('projectDetail.pipeline.stat.decision', 'Decision'),
+      value: project.decided_at
+        ? formatDateNumeric(new Date(project.decided_at))
+        : t('projectDetail.pipeline.pending', 'Pending'),
     },
   ];
 
@@ -177,12 +202,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Opportunity journey */}
         <Card>
-          <CardHead>Project journey</CardHead>
+          <CardHead>{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
           <CardPad>
             <LifecycleStepper
               variant="bar"
               steps={dealJourneySteps(liveStatus as never)}
-              aria-label="Project stage journey"
+              aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')}
             />
           </CardPad>
         </Card>
@@ -195,30 +220,40 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
               programmatically after an Advance/Lost transition so a keyboard/SR user is
               told what changed. tabIndex={-1} keeps it out of the natural tab order. */}
           <div ref={nextActionsHeadRef} tabIndex={-1} className="outline-none focus-visible:ring-0">
-            <CardHead>Next actions</CardHead>
+            <CardHead>{t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</CardHead>
           </div>
           <CardPad className="flex flex-col gap-3">
             {!canTransition ? (
               // Denied (Finance·Engineer, §C): a clean read-only note in place of the action
               // cluster — never a wall of disabled buttons (rbac-visibility reading-rule 5).
               <GateNotice variant="ready">
-                Pipeline managed by the project owner. You can review this project&rsquo;s stage and
-                journey here; lifecycle changes are made by the project manager.
+                {t(
+                  'projectDetail.pipeline.readOnlyNotice',
+                  'Pipeline managed by the project owner. You can review this project\u2019s stage and journey here; lifecycle changes are made by the project manager.',
+                )}
               </GateNotice>
             ) : (
               <>
             {isTerminal ? (
               projectStatusGroup(liveStatus as never) === 'lost' ? (
                 <GateNotice variant="ready">
-                  This project is marked lost. It has left the active pipeline.
+                  {t(
+                    'projectDetail.pipeline.lostNotice',
+                    'This project is marked lost. It has left the active pipeline.',
+                  )}
                 </GateNotice>
               ) : (
                 <GateNotice variant="ready">
-                  This project has reached a terminal stage. No further pipeline actions.
+                  {t(
+                    'projectDetail.pipeline.terminalNotice',
+                    'This project has reached a terminal stage. No further pipeline actions.',
+                  )}
                 </GateNotice>
               )
             ) : (
-              <GateNotice variant="ready">Ready to advance.</GateNotice>
+              <GateNotice variant="ready">
+                {t('projectDetail.pipeline.readyToAdvance', 'Ready to advance.')}
+              </GateNotice>
             )}
 
             {/* Action hierarchy: exactly ONE solid blue (Advance — the primary path); Mark won
@@ -228,19 +263,21 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
               <div className="flex flex-wrap gap-2">
                 {nextStage && (
                   <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
-                    Advance to {NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}
+                    {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${
+                      NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage
+                    }`}
                   </Button>
                 )}
                 {canWin && (
                   <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
                     <span aria-hidden className="size-1.5 rounded-full bg-success" />
-                    Mark won
+                    {t('projectDetail.pipeline.markWon', 'Mark won')}
                   </Button>
                 )}
                 {canLose && (
                   <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
                     <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
-                    Mark lost
+                    {t('projectDetail.pipeline.markLost', 'Mark lost')}
                   </Button>
                 )}
               </div>
@@ -250,17 +287,24 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
             {showWonPanel && canWin && (
               <div className="flex flex-col gap-3 rounded-md border border-border bg-secondary/40 p-3">
                 <div className="text-[12px] font-semibold text-muted-foreground">
-                  Record the won project
+                  {t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}
                 </div>
                 {/* Confirm against the money (AC-IXD-DASH-005): restate the value being booked to
                     contract value on win, above the capture inputs. */}
+                {/* ⛔ NOT TRANSLATED, deliberately — same reason as the contract-value SoD
+                    confirm in ProjectDetailHeader: the amount sits mid-sentence inside a
+                    <strong>, so it needs <Trans>, and <Trans> renders NOTHING when i18next
+                    has not been initialised — which is how the unit-test runner renders.
+                    Splitting "Booking" / "to contract value on win" into two gluable
+                    fragments is unorderable for Indonesian. Unblocks once the test setup
+                    initialises i18next. */}
                 <div className="text-[13px] text-foreground">
                   Booking <strong className="font-semibold tabular">{formatCurrency(value, currency)}</strong>{' '}
                   to contract value on win
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-ref" className="text-[12px] font-semibold">
-                    Customer contract reference
+                    {t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}
                   </label>
                   <input
                     id="won-ref"
@@ -271,7 +315,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                     }}
                     aria-invalid={!!refError}
                     aria-describedby={refError ? 'won-ref-err' : undefined}
-                    placeholder="e.g. CPO-2026-0042"
+                    placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')}
                     className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground ${
                       refError ? 'border-destructive' : 'border-input'
                     }`}
@@ -284,7 +328,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-date" className="text-[12px] font-semibold">
-                    Contract date
+                    {t('projectDetail.pipeline.contractDateLabel', 'Contract date')}
                   </label>
                   <input
                     id="won-date"
@@ -308,10 +352,10 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 </div>
                 <div className="flex gap-2">
                   <Button variant="primary" size="sm" loading={pending} onClick={submitWon}>
-                    Confirm won
+                    {t('projectDetail.pipeline.confirmWon', 'Confirm won')}
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setShowWonPanel(false)}>
-                    Cancel
+                    {t('projectDetail.pipeline.cancel', 'Cancel')}
                   </Button>
                 </div>
               </div>
@@ -337,7 +381,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
               href="/sales"
               className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
-              ← Back to Sales Pipeline
+              {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
             </a>
           </CardPad>
         </Card>
@@ -351,9 +395,14 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       <ConfirmDialog
         open={canTransition && confirmAction === 'lost'}
         tone="destructive"
-        title="Mark project as lost"
-        description={`This moves ${project.name} to a terminal lost stage. You can still review it, but it will leave the active pipeline.`}
-        confirmLabel="Mark lost"
+        title={t('projectDetail.pipeline.lostConfirm.title', 'Mark project as lost')}
+        description={`${t('projectDetail.pipeline.lostConfirm.bodyPrefix', 'This moves')} ${
+          project.name
+        } ${t(
+          'projectDetail.pipeline.lostConfirm.bodySuffix',
+          'to a terminal lost stage. You can still review it, but it will leave the active pipeline.',
+        )}`}
+        confirmLabel={t('projectDetail.pipeline.lostConfirm.confirm', 'Mark lost')}
         loading={pending}
         onCancel={() => setConfirmAction(null)}
         onConfirm={() => void runTransition('Loss Tender')}

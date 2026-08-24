@@ -1,4 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   Toolbar,
   SearchMini,
@@ -68,12 +70,37 @@ interface FormValues {
   doc_date: string;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.title.trim()) errors.title = 'Title is required.';
-  if (!v.category.trim()) errors.category = 'Category is required.';
+  if (!v.title.trim())
+    errors.title = t('projectDetail.documents.form.errors.titleRequired', 'Title is required.');
+  if (!v.category.trim())
+    errors.category = t(
+      'projectDetail.documents.form.errors.categoryRequired',
+      'Category is required.',
+    );
   return errors;
 };
+
+/**
+ * The bare action word for a transition, used as the confirm-dialog title verb.
+ * Derived from the target STATUS (a stable enum) rather than by stripping an English
+ * " document" suffix off the translated verb, which only ever worked in English.
+ */
+function transitionActionLabel(to: DocStatus, t: TFunction): string {
+  switch (to) {
+    case 'Issued':
+      return t('projectDetail.documents.action.issue', 'Issue');
+    case 'Approved':
+      return t('projectDetail.documents.action.approve', 'Approve');
+    case 'Rejected':
+      return t('projectDetail.documents.action.reject', 'Reject');
+    case 'Draft':
+      return t('projectDetail.documents.action.reopen', 'Reopen for revision');
+    default:
+      return t('projectDetail.documents.action.close', 'Close');
+  }
+}
 
 /** A pending status transition launched from a row. */
 interface PendingTransition {
@@ -84,6 +111,7 @@ interface PendingTransition {
 }
 
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -124,6 +152,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   // axis). RLS/RPC stays the authority; this is FE clarity.
   const canEditDoc = (d: ProjectDocumentRow) =>
     may('edit', 'document', { currentUserId, record: { author_id: d.author_id } });
+
+  // Used as a row-menu label AND as the identity the drawer filters that row out by.
+  const reviewUnavailableLabel = t(
+    'projectDetail.documents.action.whyUnavailable',
+    'Why is review unavailable?',
+  );
 
   const all = useMemo(() => (data ?? []) as ProjectDocumentRow[], [data]);
 
@@ -173,7 +207,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       // keyboard/SR doorway into the quick-view drawer. (Was Code-first; Code
       // can be null and is hidden below `sm`, so it's the wrong activation cell.)
       key: 'title',
-      header: 'Document',
+      header: t('projectDetail.documents.column.document', 'Document'),
       cell: (d) => (
         <DocumentTitleCell
           doc={d}
@@ -185,7 +219,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     },
     {
       key: 'code',
-      header: 'Code',
+      header: t('projectDetail.documents.column.code', 'Code'),
       colClassName: 'hidden sm:table-cell w-[96px]',
       cell: (d) =>
         d.code ? (
@@ -198,7 +232,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     },
     {
       key: 'file_path',
-      header: 'File',
+      header: t('projectDetail.documents.column.file', 'File'),
       colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => (
         <FileCell
@@ -218,13 +252,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     },
     {
       key: 'category',
-      header: 'Category',
+      header: t('projectDetail.documents.column.category', 'Category'),
       colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => <span className="text-[13px] text-muted-foreground">{d.category}</span>,
     },
     {
       key: 'doc_date',
-      header: 'Date',
+      header: t('projectDetail.documents.column.date', 'Date'),
       colClassName: 'hidden lg:table-cell w-[108px]',
       cell: (d) =>
         d.doc_date ? (
@@ -235,7 +269,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: t('projectDetail.documents.column.status', 'Status'),
       colClassName: 'w-[112px] min-w-[112px]',
       cell: (d) => <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
@@ -250,9 +284,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
             variant="outline"
             size="sm"
             onClick={() => setRevisionParent(d)}
-            aria-label={`Create new revision for ${d.title}`}
+            aria-label={`${t(
+              'projectDetail.documents.newRevisionFor',
+              'Create new revision for',
+            )} ${d.title}`}
           >
-            New revision
+            {t('projectDetail.documents.newRevision', 'New revision')}
           </Button>
         ) : null,
     },
@@ -263,28 +300,28 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     const items: RowMenuItem[] = [];
     // Draft → Issued (a non-approval move: any document write-role).
     if (d.status === 'Draft' && canWriteDocs) {
-      items.push({ label: 'Issue', onClick: () => setPending({ doc: d, to: 'Issued', verb: 'Issue document' }) });
+      items.push({ label: t('projectDetail.documents.action.issue', 'Issue'), onClick: () => setPending({ doc: d, to: 'Issued', verb: t('projectDetail.documents.verb.issue', 'Issue document') }) });
     }
     // Issued → Approved / Rejected (the SoD step: approver must NOT be the author).
     if (d.status === 'Issued' && canApprove) {
       if (isOwnDocument(d)) {
         // Author of their own document: the approve/reject path is hidden; expose the reason.
-        items.push({ label: 'Why is review unavailable?', onClick: () => setSodBlocked(d) });
+        items.push({ label: reviewUnavailableLabel, onClick: () => setSodBlocked(d) });
       } else {
-        items.push({ label: 'Approve', onClick: () => setPending({ doc: d, to: 'Approved', verb: 'Approve document' }) });
-        items.push({ label: 'Reject', onClick: () => setPending({ doc: d, to: 'Rejected', verb: 'Reject document' }), danger: true });
+        items.push({ label: t('projectDetail.documents.action.approve', 'Approve'), onClick: () => setPending({ doc: d, to: 'Approved', verb: t('projectDetail.documents.verb.approve', 'Approve document') }) });
+        items.push({ label: t('projectDetail.documents.action.reject', 'Reject'), onClick: () => setPending({ doc: d, to: 'Rejected', verb: t('projectDetail.documents.verb.reject', 'Reject document') }), danger: true });
       }
     }
     // Approved → Closed (terminal close-out: any document write-role).
     if (d.status === 'Approved' && canWriteDocs) {
-      items.push({ label: 'Close', onClick: () => setPending({ doc: d, to: 'Closed', verb: 'Close document' }) });
+      items.push({ label: t('projectDetail.documents.action.close', 'Close'), onClick: () => setPending({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
     }
     // Rejected → Draft (rework path) / Rejected → Closed (abandon path). AC-W3-B2.
     // These are non-approval moves (same gate as Draft→Issued / Approved→Closed: canWriteDocs).
     // The SoD approver≠author rule applies only to the Issued→Approved/Rejected step; not here.
     if (d.status === 'Rejected' && canWriteDocs) {
-      items.push({ label: 'Reopen for revision', onClick: () => setPending({ doc: d, to: 'Draft', verb: 'Reopen for revision' }) });
-      items.push({ label: 'Close', onClick: () => setPending({ doc: d, to: 'Closed', verb: 'Close document' }) });
+      items.push({ label: t('projectDetail.documents.action.reopen', 'Reopen for revision'), onClick: () => setPending({ doc: d, to: 'Draft', verb: t('projectDetail.documents.verb.reopen', 'Reopen for revision') }) });
+      items.push({ label: t('projectDetail.documents.action.close', 'Close'), onClick: () => setPending({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
     }
     return items;
   };
@@ -294,10 +331,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     // Edit metadata while not yet terminal (Draft/Issued/Rejected can still be corrected) AND
     // only for the AUTHOR (or Admin break-glass) — A-7 author rule (rbac-visibility §H).
     if (canEditDoc(d) && d.status !== 'Closed' && d.status !== 'Superseded') {
-      items.push({ label: 'Edit', onClick: () => setFormTarget({ doc: d }) });
+      items.push({ label: t('projectDetail.documents.action.edit', 'Edit'), onClick: () => setFormTarget({ doc: d }) });
     }
     items.push(...statusActions(d));
-    if (canDelete) items.push({ label: 'Delete', onClick: () => setDeleteTarget(d), danger: true });
+    if (canDelete) items.push({ label: t('projectDetail.documents.action.delete', 'Delete'), onClick: () => setDeleteTarget(d), danger: true });
     return items;
   };
 
@@ -308,7 +345,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     const { doc, to } = pending;
     try {
       await transition.mutateAsync({ id: doc.id, status: to });
-      toast(`Document ${to.toLowerCase()}`, doc.title, 'success');
+      // ⚑ `to` is a raw DB status folded into an English sentence. The shell is
+      // translatable; the status word itself still arrives in English (see handover).
+      toast(
+        `${t('projectDetail.documents.toast.transitioned', 'Document')} ${to.toLowerCase()}`,
+        doc.title,
+        'success',
+      );
       setPending(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -322,7 +365,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast('Document deleted', target.title, 'success');
+      toast(t('projectDetail.documents.toast.deleted', 'Document deleted'), target.title, 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -353,7 +396,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     if (!validation.ok) {
       setClientUploadErrors((prev) => ({
         ...prev,
-        [activeFileDoc.docId]: validation.message ?? 'File validation failed',
+        [activeFileDoc.docId]:
+          validation.message ??
+          t('projectDetail.documents.fileValidationFailed', 'File validation failed'),
       }));
       if (fileInputRef.current) fileInputRef.current.value = '';
       setActiveFileDoc(null);
@@ -413,7 +458,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       { parentId: revisionParent.id, ...data },
       {
         onSuccess: () => {
-          toast('Revision created', `${revisionParent.title} Rev ${data.revision}`, 'success');
+          toast(
+            t('projectDetail.documents.toast.revisionCreated', 'Revision created'),
+            `${revisionParent.title} ${t('projectDetail.documents.revLabel', 'Rev')} ${data.revision}`,
+            'success',
+          );
           setRevisionParent(null);
         },
         onError: (err) => {
@@ -428,9 +477,14 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     <div>
       <div className="mb-3.5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">Document register</h2>
+          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+            {t('projectDetail.documents.heading', 'Document register')}
+          </h2>
           <p className="mt-0.5 max-w-[64ch] text-[13px] text-muted-foreground">
-            Drawings, specifications, and transmittals for this project. Upload files on Draft rows.
+            {t(
+              'projectDetail.documents.subheading',
+              'Drawings, specifications, and transmittals for this project. Upload files on Draft rows.',
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -440,7 +494,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           {canCreate && (
             <Button variant="outline" size="sm" onClick={() => setFormTarget({ doc: null })}>
               <Icon name="plus" />
-              Add document
+              {t('projectDetail.documents.addDocument', 'Add document')}
             </Button>
           )}
         </div>
@@ -450,12 +504,15 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       {sodBlocked && (
         <GateNotice variant="blocked" className="mb-3.5" data-testid="document-sod-gate">
           <div>
-            You can't approve your own document (<b className="font-semibold">{sodBlocked.title}</b>).
-            Approving a document is a segregation-of-duties step, so a different reviewer must
-            approve or reject it.
+            {t('projectDetail.documents.sod.ownDocument', "You can't approve your own document")}{' '}
+            (<b className="font-semibold">{sodBlocked.title}</b>).{' '}
+            {t(
+              'projectDetail.documents.sod.explanation',
+              'Approving a document is a segregation-of-duties step, so a different reviewer must approve or reject it.',
+            )}
             <div className="mt-2.5">
               <Button variant="ghost" size="sm" onClick={() => setSodBlocked(null)}>
-                Dismiss
+                {t('projectDetail.documents.dismiss', 'Dismiss')}
               </Button>
             </div>
           </div>
@@ -466,12 +523,14 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         <Toolbar standalone>
           {/* Left-aligned count anchors the toolbar (matches the Admin Users pattern,
               polish #6) so the bar no longer reads as dead space beside the search. */}
+          {/* ⛔ NOT TRANSLATED — English plural selection is welded in and DD-I18N-1's
+              `Intl.PluralRules` helper does not exist yet. See the note in ProjectGantt. */}
           <span data-testid="documents-count" className="text-[13px] font-semibold tabular">
             {all.length} {all.length === 1 ? 'document' : 'documents'}
           </span>
           <SearchMini
-            placeholder="Search documents…"
-            aria-label="Search documents"
+            placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}
+            aria-label={t('projectDetail.documents.searchAriaLabel', 'Search documents')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
@@ -488,8 +547,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load documents"
-          sub="The request failed. Check your connection and try again."
+          title={t('projectDetail.documents.errorTitle', "Couldn't load documents")}
+          sub={t(
+            'projectDetail.documents.errorSub',
+            'The request failed. Check your connection and try again.',
+          )}
           onRetry={() => refetch()}
         />
       )}
@@ -498,10 +560,18 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         <ListState
           variant="empty"
           icon="doc"
-          title="No documents yet"
-          sub="Add a drawing, specification, or transmittal to start the project's document register."
+          title={t('projectDetail.documents.emptyTitle', 'No documents yet')}
+          sub={t(
+            'projectDetail.documents.emptySub',
+            "Add a drawing, specification, or transmittal to start the project's document register.",
+          )}
           action={
-            canCreate ? { label: 'Add document', onClick: () => setFormTarget({ doc: null }) } : undefined
+            canCreate
+              ? {
+                  label: t('projectDetail.documents.addDocument', 'Add document'),
+                  onClick: () => setFormTarget({ doc: null }),
+                }
+              : undefined
           }
         />
       )}
@@ -515,8 +585,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           rowMenu={anyRowWrite ? rowMenu : undefined}
           selectedKey={drawerDoc?.id}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No documents match your search"
-          emptySub="Try a different title, code, or category."
+          emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
+          emptySub={t(
+            'projectDetail.documents.noSearchMatchSub',
+            'Try a different title, code, or category.',
+          )}
         />
       )}
 
@@ -530,9 +603,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           parentDoc={drawerDoc.parent_document_id ? (documentsById.get(drawerDoc.parent_document_id) ?? null) : null}
           childDoc={childDocumentsByParentId.get(drawerDoc.id) ?? null}
           // The transitions, already role- + SoD-gated by statusActions(d).
-          transitions={statusActions(drawerDoc).filter(
-            (a) => a.label !== 'Why is review unavailable?',
-          )}
+          transitions={statusActions(drawerDoc).filter((a) => a.label !== reviewUnavailableLabel)}
           // SoD: author of their own Issued doc → no Approve/Reject; show the reason inline.
           sodBlocked={drawerDoc.status === 'Issued' && canApprove && isOwnDocument(drawerDoc)}
           canEdit={canEditDoc(drawerDoc) && drawerDoc.status !== 'Closed' && drawerDoc.status !== 'Superseded'}
@@ -564,12 +635,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
-            toast('Document added', input.title, 'success');
+            toast(t('projectDetail.documents.toast.added', 'Document added'), input.title, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (id, input) => {
             await update.mutateAsync({ id, input });
-            toast('Document updated', input.title, 'success');
+            toast(t('projectDetail.documents.toast.updated', 'Document updated'), input.title, 'success');
             setFormTarget(null);
           }}
           onError={(err) => {
@@ -583,7 +654,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         ref={fileInputRef}
         type="file"
         accept={FILE_INPUT_ACCEPT}
-        aria-label="Upload a document"
+        aria-label={t('projectDetail.documents.uploadAriaLabel', 'Upload a document')}
         className="hidden"
         onChange={handleFileSelected}
         data-testid="file-input"
@@ -602,17 +673,35 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       <ConfirmDialog
         open={!!pending}
         tone={pending?.to === 'Rejected' ? 'destructive' : 'default'}
-        title={pending ? `${pending.verb.replace(/ document$/, '')} ${pending.doc.title}?` : 'Update status?'}
+        title={
+          pending
+            ? `${transitionActionLabel(pending.to, t)} ${pending.doc.title}?`
+            : t('projectDetail.documents.transitionConfirm.titleFallback', 'Update status?')
+        }
         description={
           pending?.to === 'Approved'
-            ? 'Approving records you as the reviewer. This is a segregation-of-duties step and is recorded.'
+            ? t(
+                'projectDetail.documents.transitionConfirm.approved',
+                'Approving records you as the reviewer. This is a segregation-of-duties step and is recorded.',
+              )
             : pending?.to === 'Rejected'
-              ? 'Rejecting returns the document for revision. This is recorded.'
+              ? t(
+                  'projectDetail.documents.transitionConfirm.rejected',
+                  'Rejecting returns the document for revision. This is recorded.',
+                )
               : pending?.to === 'Issued'
-                ? 'Issuing moves the document into review so a reviewer can approve or reject it.'
-                : 'Closing finalises the document. This is a terminal status.'
+                ? t(
+                    'projectDetail.documents.transitionConfirm.issued',
+                    'Issuing moves the document into review so a reviewer can approve or reject it.',
+                  )
+                : t(
+                    'projectDetail.documents.transitionConfirm.closed',
+                    'Closing finalises the document. This is a terminal status.',
+                  )
         }
-        confirmLabel={pending?.verb ?? 'Update status'}
+        confirmLabel={
+          pending?.verb ?? t('projectDetail.documents.transitionConfirm.confirmFallback', 'Update status')
+        }
         loading={transition.isPending}
         onConfirm={onTransitionConfirm}
         onCancel={() => setPending(null)}
@@ -622,9 +711,16 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       <ConfirmDialog
         open={!!deleteTarget}
         tone="destructive"
-        title={deleteTarget ? `Delete ${deleteTarget.title}?` : 'Delete document?'}
-        description="This permanently removes the document register entry. This can't be undone."
-        confirmLabel="Delete document"
+        title={
+          deleteTarget
+            ? `${t('projectDetail.documents.action.delete', 'Delete')} ${deleteTarget.title}?`
+            : t('projectDetail.documents.deleteConfirm.titleFallback', 'Delete document?')
+        }
+        description={t(
+          'projectDetail.documents.deleteConfirm.body',
+          "This permanently removes the document register entry. This can't be undone.",
+        )}
+        confirmLabel={t('projectDetail.documents.deleteConfirm.confirm', 'Delete document')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
@@ -642,19 +738,26 @@ interface LineageButtonProps {
   onClick: () => void;
 }
 
-const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => (
+const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => {
+  const { t } = useTranslation();
+  return (
   <button
     type="button"
     className="w-fit text-[11px] text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-    aria-label={`View revision ${revision} of ${title}`}
+    aria-label={`${t('projectDetail.documents.viewRevision', 'View revision')} ${revision} ${t(
+      'projectDetail.documents.ofWord',
+      'of',
+    )} ${title}`}
     onClick={(e) => {
       e.stopPropagation();
       onClick();
     }}
   >
-    {direction === 'back' ? '←' : '→'} Rev {revision}
+    {direction === 'back' ? '←' : '→'}{' '}
+    {`${t('projectDetail.documents.revLabel', 'Rev')} ${revision}`}
   </button>
-);
+  );
+};
 
 const DocumentTitleCell: React.FC<{
   doc: ProjectDocumentRow;
@@ -662,11 +765,12 @@ const DocumentTitleCell: React.FC<{
   childDoc: ProjectDocumentRow | null;
   onViewDocument: (doc: ProjectDocumentRow) => void;
 }> = ({ doc, parentDoc, childDoc, onViewDocument }) => {
+  const { t } = useTranslation();
   return (
     <div className="min-w-0">
       <button
         type="button"
-        aria-label={`View ${doc.title}`}
+        aria-label={`${t('projectDetail.documents.viewDocument', 'View')} ${doc.title}`}
         onClick={() => onViewDocument(doc)}
         className="block w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
@@ -674,7 +778,9 @@ const DocumentTitleCell: React.FC<{
           {doc.title}
         </span>
         {doc.revision && (
-          <span className="text-[12px] text-muted-foreground">Rev {doc.revision}</span>
+          <span className="text-[12px] text-muted-foreground">
+            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
+          </span>
         )}
       </button>
       {parentDoc?.revision && (
@@ -696,7 +802,12 @@ const DocumentTitleCell: React.FC<{
             onClick={() => onViewDocument(childDoc)}
           />
           {doc.status === 'Superseded' && (
-            <span className="text-[11px] text-muted-foreground">Read-only — continue on Rev {childDoc.revision}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {`${t(
+                'projectDetail.documents.supersededNotice',
+                'Read-only — continue on Rev',
+              )} ${childDoc.revision}`}
+            </span>
           )}
         </div>
       )}
@@ -749,10 +860,15 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   onViewDocument,
   onDownload,
 }) => {
+  const { t } = useTranslation();
   const hasFooter = canEdit || canDelete;
   // The primary transition (Issue / Approve) reads as One-Blue; Reject reads as
   // destructive (danger flag from statusActions); the rest are quiet outlines.
-  const isPrimary = (label: string) => label === 'Issue' || label === 'Approve';
+  // ⚑ Compared through the SAME keys statusActions builds the labels from -- RowMenuItem
+  // carries no id, so the label IS the identity. Translate one side only and this breaks.
+  const isPrimary = (label: string) =>
+    label === t('projectDetail.documents.action.issue', 'Issue') ||
+    label === t('projectDetail.documents.action.approve', 'Approve');
 
   return (
     <Drawer
@@ -766,12 +882,12 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
           <>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
-                Edit
+                {t('projectDetail.documents.action.edit', 'Edit')}
               </Button>
             )}
             {canDelete && (
               <Button variant="destructive" size="sm" className="ml-auto" onClick={onDelete}>
-                Delete
+                {t('projectDetail.documents.action.delete', 'Delete')}
               </Button>
             )}
           </>
@@ -779,16 +895,20 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
       }
     >
       <dl className="flex flex-col gap-4">
-        {doc.revision && <DocField label="Revision">{`Rev ${doc.revision}`}</DocField>}
-        <DocField label="Code">
+        {doc.revision && (
+          <DocField label={t('projectDetail.documents.field.revision', 'Revision')}>
+            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
+          </DocField>
+        )}
+        <DocField label={t('projectDetail.documents.field.code', 'Code')}>
           {doc.code ? (
             <span className="font-mono text-[13px]">{doc.code}</span>
           ) : (
             <span className="text-muted-foreground">{'—'}</span>
           )}
         </DocField>
-        <DocField label="Category">{doc.category}</DocField>
-        <DocField label="Document date">
+        <DocField label={t('projectDetail.documents.field.category', 'Category')}>{doc.category}</DocField>
+        <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
           {doc.doc_date ? (
             <span className="tabular">{doc.doc_date}</span>
           ) : (
@@ -796,7 +916,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
           )}
         </DocField>
         {parentDoc?.revision && (
-          <DocField label="Revision lineage">
+          <DocField label={t('projectDetail.documents.field.lineage', 'Revision lineage')}>
             <LineageButton
               revision={parentDoc.revision}
               title={doc.title}
@@ -806,7 +926,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
           </DocField>
         )}
         {doc.status === 'Superseded' && childDoc?.revision && (
-          <DocField label="Superseded by">
+          <DocField label={t('projectDetail.documents.field.supersededBy', 'Superseded by')}>
             <LineageButton
               revision={childDoc.revision}
               title={doc.title}
@@ -816,18 +936,20 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
           </DocField>
         )}
         {doc.file_path && (
-          <DocField label="File">
+          <DocField label={t('projectDetail.documents.field.file', 'File')}>
             <button
               type="button"
               onClick={() => void onDownload(doc)}
               className="touch-target inline-flex rounded-sm text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              aria-label={`Download ${doc.file_path.split('/').pop() || 'file'}`}
+              aria-label={`${t('projectDetail.documents.download', 'Download')} ${
+                doc.file_path.split('/').pop() || 'file'
+              }`}
             >
               {doc.file_path.split('/').pop()}
             </button>
           </DocField>
         )}
-        <DocField label="Status">
+        <DocField label={t('projectDetail.documents.field.status', 'Status')}>
           <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>
         </DocField>
       </dl>
@@ -838,15 +960,17 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
       {(transitions.length > 0 || sodBlocked) && (
         <div className="mt-5 border-t border-border pt-4">
           <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            Update status
+            {t('projectDetail.documents.updateStatus', 'Update status')}
           </h3>
           {sodBlocked ? (
             // SoD preserved: author can't approve/reject their own Issued doc.
             // Honest-disabled done right — the reason is shown, not a dead button.
             <GateNotice variant="blocked" data-testid="drawer-sod-gate">
               <div>
-                You can't approve your own document. Approving is a segregation-of-duties step,
-                so a different reviewer must approve or reject it.
+                {t(
+                  'projectDetail.documents.sod.drawerNotice',
+                  "You can't approve your own document. Approving is a segregation-of-duties step, so a different reviewer must approve or reject it.",
+                )}
               </div>
             </GateNotice>
           ) : (
@@ -886,7 +1010,10 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!doc;
+  // Memoised on `t` so the validator identity is stable between renders.
+  const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
   const form = useEntityForm<FormValues>({
     initialValues: {
       title: doc?.title ?? '',
@@ -895,7 +1022,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       revision: doc?.revision ?? '',
       doc_date: doc?.doc_date ?? '',
     },
-    validate,
+    validate: validateWithT,
     idPrefix: 'document-form',
     module: 'projects',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title + category
@@ -936,13 +1063,24 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit document' : 'Add document'}
+      title={
+        isEdit
+          ? t('projectDetail.documents.form.editTitle', 'Edit document')
+          : t('projectDetail.documents.addDocument', 'Add document')
+      }
       subtitle={
         isEdit
-          ? 'Update this register entry'
-          : 'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.'
+          ? t('projectDetail.documents.form.editSubtitle', 'Update this register entry')
+          : t(
+              'projectDetail.documents.form.newSubtitle',
+              'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
+            )
       }
-      submitLabel={isEdit ? 'Save document' : 'Add document'}
+      submitLabel={
+        isEdit
+          ? t('projectDetail.documents.form.save', 'Save document')
+          : t('projectDetail.documents.addDocument', 'Add document')
+      }
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -950,32 +1088,35 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
-      <FormSection legend="Document">
+      <FormSection legend={t('projectDetail.documents.form.legend', 'Document')}>
         <FormGrid>
           <TextField
             id={titleField.id}
-            label="Title"
+            label={t('projectDetail.documents.form.title', 'Title')}
             required
             value={titleField.value}
             onChange={titleField.onChange}
             onBlur={titleField.onBlur}
             error={titleField.error}
-            placeholder="e.g. Foundation general arrangement"
+            placeholder={t('projectDetail.documents.form.titlePlaceholder', 'e.g. Foundation general arrangement')}
             fullWidth
           />
           <TextField
             id={codeField.id}
-            label="Code"
+            label={t('projectDetail.documents.form.code', 'Code')}
             mono
             value={codeField.value}
             onChange={codeField.onChange}
             onBlur={codeField.onBlur}
-            placeholder="e.g. DWG-001"
-            helper="Optional document number or drawing code."
+            placeholder={t('projectDetail.documents.form.codePlaceholder', 'e.g. DWG-001')}
+            helper={t(
+              'projectDetail.documents.form.codeHelper',
+              'Optional document number or drawing code.',
+            )}
           />
           <SelectField
             id={categoryField.id}
-            label="Category"
+            label={t('projectDetail.documents.form.category', 'Category')}
             required
             value={categoryField.value}
             onChange={categoryField.onChange}
@@ -985,15 +1126,15 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
           />
           <TextField
             id={revisionField.id}
-            label="Revision"
+            label={t('projectDetail.documents.form.revision', 'Revision')}
             value={revisionField.value}
             onChange={revisionField.onChange}
             onBlur={revisionField.onBlur}
-            placeholder="e.g. A"
+            placeholder={t('projectDetail.documents.form.revisionPlaceholder', 'e.g. A')}
           />
           <TextField
             id={dateField.id}
-            label="Document date"
+            label={t('projectDetail.documents.form.docDate', 'Document date')}
             type="date"
             value={dateField.value}
             onChange={dateField.onChange}

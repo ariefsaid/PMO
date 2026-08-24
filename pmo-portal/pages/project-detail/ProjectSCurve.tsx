@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -30,6 +31,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
  * Both lines share One-Blue (DESIGN.md single-blue identity); style-only distinction.
  */
 const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
+  const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   // NFR-SCA-004: reuse tasks already loaded on the project-detail page — no extra round-trip.
   const { data: tasksData } = useTasks(projectId);
@@ -63,22 +65,37 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
         : 'ready';
 
   const plannedToday = model.plannedToDate;
+  // ⛔ DD-I18N-7: the percentages are rendered to STRINGS here and interpolated as text.
+  // i18next never receives a number, so the message carries no formatting responsibility.
+  const actualText = `${model.actualToDate}%`;
+  const summaryLead = t('projectDetail.scurve.summaryLead', 'Project S-curve: actual to date');
   const summary = plannedToday != null
-    ? `Project S-curve: actual to date ${model.actualToDate}%, plan expected ${Math.round(plannedToday)}% by today.`
-    : `Project S-curve: actual to date ${model.actualToDate}%.`;
+    ? `${summaryLead} ${actualText}, ${t(
+        'projectDetail.scurve.summaryPlanClause',
+        'plan expected',
+      )} ${Math.round(plannedToday)}% ${t('projectDetail.scurve.summaryByToday', 'by today.')}`
+    : `${summaryLead} ${actualText}.`;
 
   return (
     <div>
-      <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">Progress curve</h2>
+      <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">
+        {t('projectDetail.scurve.heading', 'Progress curve')}
+      </h2>
 
       <ChartFrame
         state={state}
         loadingRows={4}
         emptyIcon="cal"
-        emptyTitle="No dated milestones yet"
-        emptySub="Add target dates to your delivery phases to see the planned-vs-actual curve."
-        errorTitle="Couldn't load the progress curve"
-        errorSub="The request failed. Check your connection and try again."
+        emptyTitle={t('projectDetail.scurve.emptyTitle', 'No dated milestones yet')}
+        emptySub={t(
+          'projectDetail.scurve.emptySub',
+          'Add target dates to your delivery phases to see the planned-vs-actual curve.',
+        )}
+        errorTitle={t('projectDetail.scurve.errorTitle', "Couldn't load the progress curve")}
+        errorSub={t(
+          'projectDetail.scurve.errorSub',
+          'The request failed. Check your connection and try again.',
+        )}
         onRetry={() => refetch()}
       >
         <figure role="img" aria-label={summary} className="m-0">
@@ -116,7 +133,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
               <Line
                 type="monotone"
                 dataKey="planned"
-                name="Planned"
+                name={t('projectDetail.scurve.seriesPlanned', 'Planned')}
                 stroke={chartTheme.series.primary}
                 strokeWidth={2}
                 strokeDasharray="5 4"
@@ -129,7 +146,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
               <Line
                 type="linear"
                 dataKey="actual"
-                name="Actual to date"
+                name={t('projectDetail.scurve.seriesActual', 'Actual to date')}
                 stroke={chartTheme.series.primary}
                 strokeWidth={2}
                 dot={hasActualSeries ? false : { r: 4, fill: chartTheme.series.primary }}
@@ -149,7 +166,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                   background: `repeating-linear-gradient(to right, ${chartTheme.series.primary} 0 5px, transparent 5px 9px)`,
                 }}
               />
-              Planned
+              {t('projectDetail.scurve.seriesPlanned', 'Planned')}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span
@@ -158,14 +175,17 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 className="h-0.5 w-4 shrink-0 rounded-full"
                 style={{ background: chartTheme.series.primary }}
               />
-              Actual to date
+              {t('projectDetail.scurve.seriesActual', 'Actual to date')}
               <span className="tabular font-semibold text-foreground">{model.actualToDate}%</span>
             </span>
           </figcaption>
 
           {/* FR-SCA-014 backfill caveat — proxy dates (completed_at absent) are estimates. */}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Completion dates before today are estimated; live tracking starts now.
+            {t(
+              'projectDetail.scurve.backfillCaveat',
+              'Completion dates before today are estimated; live tracking starts now.',
+            )}
           </p>
         </figure>
       </ChartFrame>

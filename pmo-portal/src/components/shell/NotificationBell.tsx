@@ -20,6 +20,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
@@ -86,6 +87,7 @@ type InboxState =
   | { status: 'ready'; rows: NotificationRow[] };
 
 export const NotificationBell: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { openPanel, openThread } = useAssistantPanel();
   const [unread, setUnread] = useState(0);
@@ -199,7 +201,9 @@ export const NotificationBell: React.FC = () => {
       >
         <Icon name="bell" />
         <span aria-live="polite" className="sr-only">
-          {unread > 0 ? `${unread} unread notifications` : 'No unread notifications'}
+          {unread > 0
+            ? `${unread} unread notifications`
+            : t('shell.notifications.noneUnread', 'No unread notifications')}
         </span>
         {unread > 0 && (
           <span
@@ -217,21 +221,28 @@ export const NotificationBell: React.FC = () => {
           className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
         >
           <h2 id="notification-bell-inbox-heading" className="sr-only">
-            Notifications inbox
+            {t('shell.notifications.inboxHeading', 'Notifications inbox')}
           </h2>
           {inbox.status === 'loading' && (
-            <p className="px-2.5 py-3 text-[13px] text-muted-foreground">Loading notifications…</p>
+            <p className="px-2.5 py-3 text-[13px] text-muted-foreground">
+              {t('shell.notifications.loading', 'Loading notifications…')}
+            </p>
           )}
           {inbox.status === 'error' && (
             <p className="px-2.5 py-3 text-[13px] text-muted-foreground">
-              Couldn&apos;t load notifications. Try again shortly.
+              {t(
+                'shell.notifications.loadError',
+                "Couldn't load notifications. Try again shortly.",
+              )}
             </p>
           )}
           {inbox.status === 'ready' && inbox.rows.length === 0 && (
-            <p className="px-2.5 py-3 text-[13px] text-muted-foreground">No notifications yet.</p>
+            <p className="px-2.5 py-3 text-[13px] text-muted-foreground">
+              {t('shell.notifications.empty', 'No notifications yet.')}
+            </p>
           )}
           {inbox.status === 'ready' && inbox.rows.length > 0 && (
-            <ul aria-label="Notifications" className="flex max-h-96 flex-col gap-0.5 overflow-y-auto">
+            <ul aria-label={t('shell.notifications.listLabel', 'Notifications')} className="flex max-h-96 flex-col gap-0.5 overflow-y-auto">
               {inbox.rows.map((row) => {
                 const isUnread = row.read_at === null;
                 const sev = severityStyle(row.severity);
@@ -265,7 +276,9 @@ export const NotificationBell: React.FC = () => {
                         <span className="line-clamp-2 text-[12px] text-muted-foreground">{row.body}</span>
                       )}
                       <span className="text-[11px] text-muted-foreground">
-                        {isUnread ? 'Unread' : 'Read'}
+                        {isUnread
+                          ? t('shell.notifications.unread', 'Unread')
+                          : t('shell.notifications.read', 'Read')}
                       </span>
                     </button>
                   </li>

@@ -18,6 +18,7 @@ import { ProcurementCycleImportWizard } from '@/src/components/import/procuremen
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useNavigate, useSearchParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -91,6 +92,7 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
 }
 
 const ProcurementPage: React.FC = () => {
+  const { t } = useTranslation();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
   const userId = currentUser?.id;
@@ -159,6 +161,17 @@ const ProcurementPage: React.FC = () => {
     ? ['All', 'Needs approval', ...ALL_FILTERS.slice(1)]
     : ALL_FILTERS;
 
+  // Display labels for the status segments. The VALUES stay literal: they are `?status=` URL
+  // params, `matchesFilter` inputs and analytics dimensions. Only the segment label is translated.
+  const filterLabels: Record<StatusFilter, string> = {
+    All: t('procurement.filter.all', 'All'),
+    'Needs approval': t('procurement.filter.needsApproval', 'Needs approval'),
+    Open: t('procurement.filter.open', 'Open'),
+    Ordered: t('procurement.filter.ordered', 'Ordered'),
+    'Vendor Invoiced': t('procurement.filter.vendorInvoiced', 'Vendor Invoiced'),
+    Paid: t('procurement.filter.paid', 'Paid'),
+  };
+
   // Raise request is open to ANY member incl. Engineer (requester server-stamped).
   const canCreate = may('create', 'procurement');
 
@@ -193,7 +206,7 @@ const ProcurementPage: React.FC = () => {
   const columns: Column<ProcurementWithRefs>[] = [
     {
       key: 'request',
-      header: 'Request',
+      header: t('procurement.column.request', 'Request'),
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate font-semibold" title={r.title}>
@@ -208,13 +221,13 @@ const ProcurementPage: React.FC = () => {
     },
     {
       key: 'project',
-      header: 'Project',
+      header: t('procurement.column.project', 'Project'),
       cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project?.name} className="text-muted-foreground" />,
       exportValue: (r) => r.project?.name ?? '',
     },
     {
       key: 'requester',
-      header: 'Requested by',
+      header: t('procurement.column.requestedBy', 'Requested by'),
       cell: (r) => (
         <span className="flex items-center gap-2">
           <span
@@ -223,26 +236,28 @@ const ProcurementPage: React.FC = () => {
           >
             {(r.requested_by?.full_name ?? '?').trim().charAt(0).toUpperCase() || '?'}
           </span>
-          <span className="truncate">{r.requested_by?.full_name ?? 'Unknown'}</span>
+          <span className="truncate">
+            {r.requested_by?.full_name ?? t('procurement.unknownRequester', 'Unknown')}
+          </span>
         </span>
       ),
       exportValue: (r) => r.requested_by?.full_name ?? '',
     },
     {
       key: 'value',
-      header: 'Value',
+      header: t('procurement.column.value', 'Value'),
       align: 'num',
       cell: (r) => formatCurrency(r.total_value, r.currency),
       exportValue: (r) => r.total_value,
     },
     {
       key: 'lifecycle',
-      header: 'Lifecycle',
+      header: t('procurement.column.lifecycle', 'Lifecycle'),
       cell: (r) => (
         <LifecycleStepper
           variant="inline"
           steps={lifecycleSteps(r.status as ProcurementStatus)}
-          aria-label={`Lifecycle: ${stageLabelForStatus(r.status as ProcurementStatus)}`}
+          aria-label={`${t('procurement.lifecycleLabel', 'Lifecycle')}: ${stageLabelForStatus(r.status as ProcurementStatus)}`}
         />
       ),
       // Export the human-readable stage label (the stepper component can't be serialized)
@@ -250,7 +265,7 @@ const ProcurementPage: React.FC = () => {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: t('procurement.column.status', 'Status'),
       cell: (r) => (
         <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
           {stageLabelForStatus(r.status as ProcurementStatus)}
@@ -271,17 +286,27 @@ const ProcurementPage: React.FC = () => {
 
   return (
     <ListPage
-      title={ownScoped ? 'Your purchase requests' : 'Procurement'}
+      title={
+        ownScoped
+          ? t('procurement.title.ownScoped', 'Your purchase requests')
+          : t('procurement.title.orgWide', 'Procurement')
+      }
       description={
         ownScoped
-          ? 'The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one.'
-          : 'Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.'
+          ? t(
+              'procurement.description.ownScoped',
+              'The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one.',
+            )
+          : t(
+              'procurement.description.orgWide',
+              'Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.',
+            )
       }
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setShowNew(true)}>
             <Icon name="plus" />
-            Raise request
+            {t('procurement.raiseRequest', 'Raise request')}
           </Button>
         )
       }
@@ -295,13 +320,13 @@ const ProcurementPage: React.FC = () => {
                 gets a bounded width to scroll against. */}
             <div data-testid="status-filter-scroll" className="min-w-0 flex-1 overflow-x-auto scroll-fade-x">
               <ViewToggle<StatusFilter>
-                options={FILTERS.map((f) => ({ value: f, label: f }))}
+                options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
                 value={filter}
                 onChange={(v) => {
                   setFilter(v);
                   trackFilterApplied('status', FILTERS.length, 'procurement');
                 }}
-                ariaLabel="Status filter"
+                ariaLabel={t('procurement.statusFilterLabel', 'Status filter')}
               />
             </div>
             {/* CW-6: the "Needs approval" segment is the toolbar's single approvals doorway.
@@ -313,8 +338,8 @@ const ProcurementPage: React.FC = () => {
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder="Filter requests…"
-            aria-label="Filter requests"
+            placeholder={t('procurement.search.placeholder', 'Filter requests…')}
+            aria-label={t('procurement.search.label', 'Filter requests')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             searchSurface="procurement-list"
@@ -342,7 +367,7 @@ const ProcurementPage: React.FC = () => {
             {canCreate && (
               <Button variant="outline" onClick={() => setShowCycleImport(true)}>
                 <Icon name="upload" />
-                Import cycle data
+                {t('procurement.importCycleData', 'Import cycle data')}
               </Button>
             )}
           </>
@@ -355,12 +380,12 @@ const ProcurementPage: React.FC = () => {
           <div className="hidden md:block">
             <ViewToggle<'table' | 'board'>
               options={[
-                { value: 'table', label: 'Table', icon: 'table' },
-                { value: 'board', label: 'Board', icon: 'cols' },
+                { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
+                { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
               ]}
               value={view}
               onChange={setView}
-              ariaLabel="Procurement view"
+              ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
             />
           </div>
         )
@@ -376,8 +401,8 @@ const ProcurementPage: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load procurements"
-          sub="Something went wrong fetching your requests."
+          title={t('procurement.error.title', "Couldn't load procurements")}
+          sub={t('procurement.error.sub', 'Something went wrong fetching your requests.')}
           onRetry={() => refetch()}
         />
       )}
@@ -386,13 +411,22 @@ const ProcurementPage: React.FC = () => {
         <ListState
           variant="empty"
           icon="cart"
-          title={ownScoped ? "You haven't raised any requests yet" : 'No purchase requests yet'}
-          sub="Requests you raise will appear here through their full lifecycle."
+          title={
+            ownScoped
+              ? t('procurement.empty.ownScoped.title', "You haven't raised any requests yet")
+              : t('procurement.empty.orgWide.title', 'No purchase requests yet')
+          }
+          sub={t(
+            'procurement.empty.sub',
+            'Requests you raise will appear here through their full lifecycle.',
+          )}
           stateId="procurement-empty"
           role={realRole ?? undefined}
           module="procurement"
           action={
-            canCreate ? { label: 'Raise request', onClick: () => setShowNew(true) } : undefined
+            canCreate
+              ? { label: t('procurement.raiseRequest', 'Raise request'), onClick: () => setShowNew(true) }
+              : undefined
           }
         />
       )}
@@ -404,8 +438,11 @@ const ProcurementPage: React.FC = () => {
         filtered.length === 0 ? (
           <ListState
             variant="empty"
-            title="No requests match your filters"
-            sub="Try a different status, search term, or clear the filters."
+            title={t('procurement.noMatch.title', 'No requests match your filters')}
+            sub={t(
+              'procurement.noMatch.sub',
+              'Try a different status, search term, or clear the filters.',
+            )}
           />
         ) : (
           <ProcurementBoard procurements={filtered} onOpen={onOpen} />
@@ -419,11 +456,14 @@ const ProcurementPage: React.FC = () => {
         filtered.length === 0 ? (
           <ListState
             variant="empty"
-            title="No requests match your filters"
-            sub="Try a different status, search term, or clear the filters."
+            title={t('procurement.noMatch.title', 'No requests match your filters')}
+            sub={t(
+              'procurement.noMatch.sub',
+              'Try a different status, search term, or clear the filters.',
+            )}
           />
         ) : (
-          <div className="rounded-lg border border-border bg-card" aria-label="Procurement requests">
+          <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement requests')}>
             {filtered.map((r) => (
               <ProcurementListRow key={r.id} row={r} />
             ))}
@@ -438,7 +478,11 @@ const ProcurementPage: React.FC = () => {
           onCreate={(input) => create.mutateAsync(input)}
           onCreated={(id) => {
             setShowNew(false);
-            toast('Request created', 'Add line items and quotations next', 'success');
+            toast(
+              t('procurement.toast.created.headline', 'Request created'),
+              t('procurement.toast.created.detail', 'Add line items and quotations next'),
+              'success',
+            );
             navigate(`/procurement/${id}`);
           }}
           onError={(err) => {

@@ -17,6 +17,7 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { useNavigate, useSearchParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
@@ -52,6 +53,7 @@ type DealScope = 'Open' | 'Lost' | 'Needs attention';
 const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
+  const { t } = useTranslation();
   // FR-L10N-020: this page's STAGE/FUNNEL AGGREGATES (and total-weighted forecast) sum across
   // deals and so carry no record currency — the org default is the honest denomination for those.
   // Per-ROW deal figures (table Value/Weighted cells, kanban cards) render each deal's OWN currency
@@ -155,17 +157,25 @@ const SalesPipeline: React.FC = () => {
       prob: s ? formatPercent(s.win_probability) : undefined,
       // FR-L10N-020: a STAGE total sums across deals, so it has no record currency — org default.
       value: formatCurrency(s?.total_value ?? 0, orgCurrency),
-      weighted: `${formatCurrency(weighted, orgCurrency)} weighted`,
+      weighted: `${formatCurrency(weighted, orgCurrency)} ${t('sales.funnel.weightedSuffix', 'weighted')}`,
       barPct: maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
     };
   });
+
+  // Display labels for the scope segments. The VALUES stay literal — they drive `filtered`'s
+  // branch and the lost-deals error gate below.
+  const scopeLabels: Record<DealScope, string> = {
+    Open: t('sales.scope.open', 'Open'),
+    Lost: t('sales.scope.lost', 'Lost'),
+    'Needs attention': t('sales.scope.needsAttention', 'Needs attention'),
+  };
 
   const onOpen = (p: PipelineProject) => openOpportunity(navigate, p);
 
   const tableColumns: Column<PipelineProject>[] = [
     {
       key: 'opp',
-      header: 'Project',
+      header: t('sales.column.project', 'Project'),
       cell: (r) => (
         <div className="flex items-center gap-2.5">
           <span
@@ -189,19 +199,19 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'customer',
-      header: 'Customer',
+      header: t('sales.column.customer', 'Customer'),
       cell: (r) => r.client_name ?? '—',
       exportValue: (r) => r.client_name ?? '',
     },
     {
       key: 'stage',
-      header: 'Stage',
+      header: t('sales.column.stage', 'Stage'),
       cell: (r) => <StatusPill variant={pillVariantForStatus(r.status)}>{r.status}</StatusPill>,
       exportValue: (r) => r.status,
     },
     {
       key: 'value',
-      header: 'Value',
+      header: t('sales.column.value', 'Value'),
       align: 'num',
       // Per-ROW here, unlike the stage totals above — each deal renders in its OWN currency
       // (migration 0201), so a mixed-currency list stays honest row by row. `exportValue` stays a
@@ -212,7 +222,7 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'weighted',
-      header: 'Weighted',
+      header: t('sales.column.weighted', 'Weighted'),
       align: 'num',
       cell: (r) => (
         <span className="text-muted-foreground">{formatCurrency(weightedValue(r), r.currency)}</span>
@@ -221,7 +231,7 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'win',
-      header: 'Win %',
+      header: t('sales.column.winPct', 'Win %'),
       align: 'num',
       cell: (r) => {
         const pct = Math.round(r.win_probability * 100);
@@ -230,7 +240,7 @@ const SalesPipeline: React.FC = () => {
             value={pct}
             tone="primary"
             showValue
-            aria-label={`Win probability ${pct}%`}
+            aria-label={`${t('sales.winProbability', 'Win probability')} ${pct}%`}
             className="ml-auto"
           />
         );
@@ -245,10 +255,12 @@ const SalesPipeline: React.FC = () => {
        * (useLostDeals, full ProjectWithRefs row). A project with no PM renders "—" (honest).
        */
       key: 'owner',
-      header: 'Owner',
+      header: t('sales.column.owner', 'Owner'),
       cell: (r) => {
         if (!r.pm_name) {
-          return <span className="text-muted-foreground" aria-label="Owner not available">—</span>;
+          return <span className="text-muted-foreground" aria-label={t('sales.ownerUnavailable', 'Owner not available')}>
+              —
+            </span>;
         }
         return (
           <span className="flex items-center gap-1.5">
@@ -274,19 +286,33 @@ const SalesPipeline: React.FC = () => {
        * text-not-color-only per DESIGN.md accessibility rule.
        */
       key: 'last_touch',
-      header: 'Last touch',
+      header: t('sales.column.lastTouch', 'Last touch'),
       align: 'num',
       cell: (r) => {
         const days = daysSince(r.last_update);
         if (days === null) {
-          return <span className="text-muted-foreground" aria-label="Last touch not available">—</span>;
+          return <span
+              className="text-muted-foreground"
+              aria-label={t('sales.lastTouchUnavailable', 'Last touch not available')}
+            >
+              —
+            </span>;
         }
         const stale = days >= ATTENTION_THRESHOLD_DAYS;
-        const label = days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`;
+        const label =
+          days === 0
+            ? t('sales.lastTouch.today', 'today')
+            : days === 1
+              ? t('sales.lastTouch.oneDayAgo', '1 day ago')
+              : `${days} ${t('sales.lastTouch.daysAgo', 'days ago')}`;
         return (
           <span
             className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
-            title={stale ? `Untouched for ${days} days — needs attention` : undefined}
+            title={
+              stale
+                ? `${t('sales.lastTouch.stalePrefix', 'Untouched for')} ${days} ${t('sales.lastTouch.staleSuffix', 'days — needs attention')}`
+                : undefined
+            }
           >
             {label}
           </span>
@@ -310,6 +336,7 @@ const SalesPipeline: React.FC = () => {
     if (col.key === 'value') {
       exportColumns.push({
         key: 'currency',
+        // i18n-exempt: export-only column, never rendered — FR-L10N-050 forbids t() on export values.
         header: 'Currency',
         cell: (r) => r.currency,
         exportValue: (r) => r.currency,
@@ -343,8 +370,11 @@ const SalesPipeline: React.FC = () => {
   if (!canViewSales) {
     return (
       <AccessDenied
-        title="You don't have access to the Sales Pipeline"
-        sub="The Sales Pipeline is available to managers and finance. Your work lives on your dashboard, projects, and tasks."
+        title={t('sales.accessDenied.title', "You don't have access to the Sales Pipeline")}
+        sub={t(
+          'sales.accessDenied.sub',
+          'The Sales Pipeline is available to managers and finance. Your work lives on your dashboard, projects, and tasks.',
+        )}
         onBack={() => navigate('/')}
       />
     );
@@ -352,8 +382,11 @@ const SalesPipeline: React.FC = () => {
 
   return (
     <ListPage
-      title="Pipeline"
-      description="Track projects in the sales pipeline, manage leads, and forecast revenue."
+      title={t('sales.title', 'Pipeline')}
+      description={t(
+        'sales.description',
+        'Track projects in the sales pipeline, manage leads, and forecast revenue.',
+      )}
       /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
          pre-win projects live — not the Projects list. Reuses the same create modal +
          mutation as Projects.tsx (no new create path). Gated on can('create','project')
@@ -362,7 +395,7 @@ const SalesPipeline: React.FC = () => {
         canCreate && (
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <Icon name="plus" />
-            New project
+            {t('sales.newProject', 'New project')}
           </Button>
         )
       }
@@ -374,7 +407,7 @@ const SalesPipeline: React.FC = () => {
               onClose={() => setCreateOpen(false)}
               onSubmit={async (input) => {
                 await create.mutateAsync(input);
-                toast('Project created', input.name, 'success');
+                toast(t('sales.toast.projectCreated', 'Project created'), input.name, 'success');
                 setCreateOpen(false);
               }}
               onError={(err) => {
@@ -389,7 +422,7 @@ const SalesPipeline: React.FC = () => {
               <ListState variant="loading" rows={2} />
             </div>
           ) : state === undefined ? (
-            <section aria-label="Pipeline summary" className="mb-4">
+            <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="mb-4">
               {/* Narrow viewports scroll the band horizontally so the five stages stay
                   readable rather than crushing below their min track width (§2 reflow). */}
               <div className="overflow-x-auto">
@@ -401,7 +434,7 @@ const SalesPipeline: React.FC = () => {
                 />
               </div>
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
-                <span>Weighted pipeline forecast</span>
+                <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
                 <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
                   {formatCurrency(totalWeighted, orgCurrency)}
                 </span>
@@ -415,18 +448,18 @@ const SalesPipeline: React.FC = () => {
         /* Open / Lost scope — table-only (the kanban already shows the Lost column). */
         view === 'table' && (
           <ViewToggle<DealScope>
-            options={DEAL_SCOPES.map((s) => ({ value: s, label: s }))}
+            options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
             value={scope}
             onChange={setScope}
-            ariaLabel="Project scope"
+            ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
           />
         )
       }
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder="Search projects…"
-            aria-label="Search projects"
+            placeholder={t('sales.search.placeholder', 'Search projects…')}
+            aria-label={t('sales.search.label', 'Search projects')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
@@ -443,12 +476,12 @@ const SalesPipeline: React.FC = () => {
         state !== 'loading' && (
           <ViewToggle
             options={[
-              { value: 'kanban', label: 'Board', icon: 'cards' },
-              { value: 'table', label: 'Table', icon: 'table' },
+              { value: 'kanban', label: t('sales.view.board', 'Board'), icon: 'cards' },
+              { value: 'table', label: t('sales.view.table', 'Table'), icon: 'table' },
             ]}
             value={view}
             onChange={setView}
-            ariaLabel="Pipeline view"
+            ariaLabel={t('sales.viewToggleLabel', 'Pipeline view')}
           />
         )
       }
@@ -463,8 +496,8 @@ const SalesPipeline: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load the sales pipeline"
-          sub="Something went wrong fetching your pipeline."
+          title={t('sales.error.title', "Couldn't load the sales pipeline")}
+          sub={t('sales.error.sub', 'Something went wrong fetching your pipeline.')}
           onRetry={() => refetch()}
         />
       )}
@@ -472,8 +505,8 @@ const SalesPipeline: React.FC = () => {
       {state === 'empty' && (
         <ListState
           variant="empty"
-          title="No projects yet"
-          sub="Add a project to start tracking the pipeline."
+          title={t('sales.empty.title', 'No projects yet')}
+          sub={t('sales.empty.sub', 'Add a project to start tracking the pipeline.')}
         />
       )}
 
@@ -484,8 +517,8 @@ const SalesPipeline: React.FC = () => {
       {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (
         <ListState
           variant="error"
-          title="Couldn't load lost projects"
-          sub="Something went wrong fetching lost projects."
+          title={t('sales.lostError.title', "Couldn't load lost projects")}
+          sub={t('sales.lostError.sub', 'Something went wrong fetching lost projects.')}
           onRetry={() => refetchLost()}
         />
       )}
@@ -496,21 +529,21 @@ const SalesPipeline: React.FC = () => {
           columns={tableColumns}
           rowKey={(r) => r.id}
           onActivate={onOpen}
-          rowLabel={(r) => `Open ${r.name}`}
+          rowLabel={(r) => `${t('sales.openRow', 'Open')} ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={
             scope === 'Lost'
-              ? 'No lost projects'
+              ? t('sales.tableEmpty.lost.title', 'No lost projects')
               : scope === 'Needs attention'
-                ? 'No projects need attention'
-                : 'No projects match your search'
+                ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
+                : t('sales.tableEmpty.search.title', 'No projects match your search')
           }
           emptySub={
             scope === 'Lost'
-              ? 'Projects marked lost will appear here.'
+              ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
               : scope === 'Needs attention'
-                ? `No project has been untouched for ${ATTENTION_THRESHOLD_DAYS}+ days — pipeline is active.`
-                : 'Try a different name or customer.'
+                ? `${t('sales.tableEmpty.needsAttention.subPrefix', 'No project has been untouched for')} ${ATTENTION_THRESHOLD_DAYS}${t('sales.tableEmpty.needsAttention.subSuffix', '+ days — pipeline is active.')}`
+                : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')
           }
         />
       )}
