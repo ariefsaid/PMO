@@ -704,3 +704,46 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **✅ Coherence wave — BUILT & on `dev` (PRs #103–#112 + #111 + #114):** whole-app pattern unification. Design verdict: **SHIP.** Follow-up residuals resolved in #114 (sticky record-action zone + procurement header Edit + "deal" copy leak).
 - **▶ Next after promote:** candidates per kanna-program.md §3 — Sub-projects · Append-only audit events · Commitment-governance spec · Spine-4 Revenue/AR. Default SOP = **series + pi** (the parallel burst consumed the Claude weekly-quota window and is now closed).
 
+---
+
+## 2026-08-24 — `dev` → `main` promote (PR #556): 134 commits, 17 migrations
+
+**Merged `8a4f0878` with `--merge` (never `--squash` — a squash breaks ancestry and the next promote
+cannot tell what is already on `main`).** Verified after the fact rather than trusting the report:
+merge commit reachable from `origin/main`, `main..dev` = 0, `dev` an ancestor of `main`, and
+`main` tree == `dev` tree == the tree the local gate certified (`84f0c12d`).
+
+**Migrations `0187`–`0203`:** the currency + tax seam (`money_currency_seam`,
+`sales_invoice_tax_treatment`, `vendor_invoice_tax_treatment`, `project_contract_value_tax`,
+`sales_pipeline_currency`, `mirror_guards_currency_and_tax`) · `work_orders` · `first_class_tasks`
+(+ `task_milestone_same_project`, `assignee_column_allowlist`) · multi-org (`operator_create_org`,
+`org_lifecycle_guard`, `profiles_org_id_immutable`) · RLS hardening
+(`dead_authenticated_write_grants`, `rls_active_member_write_composition`) ·
+`locale_preference_columns` · `budget_import_provenance`.
+
+⛔ **NOT DEPLOYED.** The cloud Supabase project stayed at `0186` and `production` stayed at
+`868ab117`. `main` is the autonomous ceiling; production needs an explicit per-instance owner
+instruction.
+
+### What this promote actually taught — the part worth keeping
+
+**The local promote gate found 9 failing e2e journeys that every PR to `dev` had passed.** CI's
+`integration` lane (pgTAP + e2e + visual) only fires on a PR to `main`, so **133 commits accumulated
+behind it**. Running `scripts/verify-main-pr.sh` before opening the PR is what turned a red CI run
+into a green first try.
+
+- **7 of 9 were one crash.** `ProjectDetail` resolves an on-hand record from a `select('*')` cache
+  and a pre-win record from an **explicit column list**. The currency seam added `projects.currency`;
+  the fallback never selected it; `Intl.NumberFormat` threw and the error boundary swallowed the page
+  for **every pipeline deal** while the on-hand lens looked perfect. Two `as` casts hid it from the
+  compiler. Fixed in #554 — the column list is now data feeding both the type and the query.
+- **2 were stale journeys**, not bugs: #513 and #505 made tax treatment/amount **required** on a form
+  and on VI import rows, and the journeys predated them. Steps updated, goal oracles untouched.
+- ⛔ **The gate certified a commit it never tested.** It runs against the working tree and stamps
+  `HEAD`; a dirty run mints a green token for the previous commit. It did exactly that mid-task. A
+  dirty-tree refusal shipped in `13673a68`; the deeper defects — nothing reads the stamp, and it keys
+  on the SHA rather than the tree it tested — are #555.
+
+**The recurring class, three times in one day:** the artifact asserting a fact and the thing that
+determines it were different objects — a policy vs its GRANT, a spec default vs the code, a stamp vs
+the tree. Read the deciding one before reporting.

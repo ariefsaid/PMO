@@ -137,13 +137,32 @@ on the SSSF ADW; money/SoD/auth **and anything under `adws/`** are Director-disp
 
 ---
 
-### v0.9.0 IN PRODUCTION (2026-07-31); M365 connection-model rebuild active on `dev`
+### Deployment state — ⛔ DO NOT READ THE NUMBERS BELOW AS CURRENT. RUN THE COMMANDS.
 
-**`production` = `cd368302` = tag `v0.9.0` (promoted 2026-07-31). `main` = promoted 2026-08-06
-(#431: #427 witness fixtures, #428 M365 three-step model, #430 dep bumps, backlog refresh). `dev`
-ahead of `main` with the 2026-08-06 round: public-repo hygiene docs, #434 (Matt-skills port +
-overlay convention), #435 (SSSF stamp) — verify with `git log origin/main..origin/dev`, never
-this paragraph.**
+**Every SHA, tag and migration number in this file is a snapshot that starts rotting the moment it
+is written.** This paragraph has been wrong at least twice: it claimed `production = cd368302 =
+v0.9.0` long after `production` had moved to `868ab117`, and a Director memory asserted the cloud DB
+was at `0166` when it was at `0186`. **A stale state fact is worse than no state fact**, because it
+reads like knowledge and nobody re-derives it.
+
+**The four commands that ARE the answer** — run them, do not quote this block:
+
+```bash
+git fetch -q origin && for b in production main dev; do \
+  printf '%-11s %s %s\n' "$b" "$(git rev-parse --short origin/$b)" "$(git log -1 --format=%cs origin/$b)"; done
+git rev-list --count origin/production..origin/main   # what is on main and NOT deployed
+git rev-list --count origin/main..origin/dev          # what is on dev and NOT promoted
+supabase migration list --linked                      # the CLOUD DB's real migration level
+```
+
+**Snapshot 2026-08-24, for orientation only:** `production` `868ab117` (2026-08-05, the #431 merge —
+**not** the `v0.9.0` tag, which is `cd368302`) · `main` `8a4f0878` (today's promote, PR #556) · `dev`
+`270813ae` **fully merged into `main`** (`main..dev` = 0). **`production..main` = 135 commits and the
+cloud Supabase project is at `0186` while `main` carries `0203`** — so *nothing* from the last three
+weeks is deployed. An open release-please PR (#432, `v0.10.0`) is the version bump for it.
+
+⚑ **`main` → `production` needs an EXPLICIT, per-instance owner instruction naming production**
+(CLAUDE.md). It is never implied by a promote to `main`, a stated plan, or a prior approval.
 
 **Dev-tooling (2026-08-06): SSSF stamped (#435).** `adws/` ADW scripts orchestrate bounded pi
 phases (zai GLM + codex-OAuth roster per `docs/pi-delegation.md`; openrouter/fireworks swapped
@@ -1125,7 +1144,32 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
       (customer refs, tax fields, account codes, currency) to be migratable at all; built after.
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
-### ⚑⚑ M365 INTEGRATION — RESUME HERE (updated 2026-07-29) — ✅ MERGED to `dev`; **connect leg PROVEN live, `graph_proxy` NEVER proven**
+### ⚑⚑ M365 INTEGRATION — **PARKED on tenant licensing, resumes at RIS** (status re-derived 2026-08-24)
+
+> **WHERE IT ACTUALLY IS — read this before the older notes below, which predate it.**
+>
+> | | state |
+> |---|---|
+> | Phase 0 (SSO + entitlement) · Phase 1 (Graph token custody) | **MERGED — PR #333, 2026-07-20. On `main`.** |
+> | Operator/client separation (#428) | on `main` (`AC-M365SEP-*`, pgTAP `0178`) |
+> | Migrations | `0112`–`0117`, `0151`, `0186` on `main`; edge fn `m365-token-custody` |
+> | **M0** baseline verify | ✅ done 2026-08-16 |
+> | **M1** live use-leg proof | ⛔ **PARKED.** Connect leg proven live end-to-end incl. first auto-refresh — Graph accepts our token. The **vendor tenant has no SharePoint Online licence**, so a data-carrying 200 is impossible there. Owner: *"wait until RIS."* Record: `docs/spikes/2026-08-18-m365-use-leg-live-probe.md` |
+> | **M2** doc-linking spec | `docs/specs/m365-onedrive-doc-linking.spec.md` exists |
+> | **M3** doc-linking build | **not started, gated on M1** — the brief's build-follows-proof rule: the code waits on real Graph response shapes |
+> | **M4** coverage debt + promote | not started |
+>
+> ⚑ **`graph_proxy` has never decrypted a token in anger.** Custody is built and proven; *use* is not.
+> ⛔ **The DEPLOYED function is stale**: `m365-token-custody` v5 @ 2026-07-31 (**pre-#428**), still
+> enforcing the old operator gate, and `0152`/`0186` are not on the cloud DB. **M1's live run needs an
+> owner-gated deploy first** — now compounded by the 17 migrations `main` gained on 2026-08-24.
+> ⚑ **M365 completion is DOWNSTREAM of RIS go-live, not a prerequisite for it.** M1's data-200 closes
+> at the first SPO-licensed tenant, which is RIS.
+>
+> Brief (SIGNED): `docs/plans/2026-08-16-m365-promote-and-finish-brief.md`.
+
+<details><summary>Older M365 notes (pre-2026-08-24), kept for the detail — check them against the table above</summary>
+
 
 > **✅ M0 baseline verify (2026-08-16, milestone brief `docs/plans/2026-08-16-m365-promote-and-finish-brief.md` — SIGNED):**
 > pgTAP chain PASS (locked, zero parse errors) · full verify 8/8 green · race probe TOCTOU CLOSED in
@@ -1368,6 +1412,8 @@ client-side path to exercise in any tenant.**
   the migration collisions (parallel agents numbering off stale bases). So a bare "ADR-0059" is **ambiguous**;
   always cite ADRs by *filename* in M365 docs. NOT renumbered here: 0058 is cited in ~55 files and 0059 in ~21,
   spanning other programs' work — that is an owner-level call, not a side effect of an M365 doc pass.
+
+</details>
 
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
 - **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
