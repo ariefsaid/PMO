@@ -64,6 +64,7 @@ const seed = [
     name: 'Survey the site',
     status: 'To Do',
     assignee_id: 'eng-1',
+    created_by: 'pm-1', // ⚑ asymmetric on purpose: assignee ≠ creator, or the two rights are indistinguishable
     start_date: null,
     end_date: '2026-06-20',
     org_id: 'org-1',
@@ -77,6 +78,7 @@ const seed = [
     name: 'Mobilise crew',
     status: 'In Progress',
     assignee_id: 'pm-1',
+    created_by: 'eng-1', // the Engineer-created row (assigned to the PM) — DD-TASK-8's fixture shape
     start_date: null,
     end_date: null,
     org_id: 'org-1',
@@ -226,9 +228,24 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
     expect(screen.queryByLabelText(/status for mobilise crew/i)).not.toBeInTheDocument();
   });
 
-  it('AC-TASK-003/004 gate: Engineer sees NO New task and NO row edit/delete menu', () => {
+  // ⚑ INVERTED BY DD-TASK-8 (#551, migration 0204), then REWRITTEN after the 3-lens review: the
+  // first inversion asserted `queryByRole('button', {name:/delete/i})` — which passes for a PM too,
+  // because Delete lives inside a CLOSED row menu and is never a rendered button. An oracle that
+  // passes for the role it exists to exclude is not an oracle. This one opens the menu.
+  it('AC-TASK-003/004 gate (DD-TASK-8): Engineer gets New task + Edit on THEIR row only, Delete nowhere', async () => {
     renderTab('Engineer', 'eng-1');
-    expect(screen.queryByRole('button', { name: /new task/i })).not.toBeInTheDocument();
+    // The widened half: create is offered.
+    expect(screen.getByRole('button', { name: /new task/i })).toBeInTheDocument();
+    // Their own creation (t2, created_by eng-1, assigned pm-1): menu opens, Edit yes, Delete no.
+    const own = screen.getByText('Mobilise crew').closest('tr')!;
+    await userEvent.click(within(own).getByRole('button', { name: /row actions/i }));
+    expect(screen.getByRole('menuitem', { name: /edit/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /delete/i })).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    // A row they merely EXECUTE (t1, assignee eng-1, created by the PM): no menu at all — the
+    // assignee's affordance is the status control, not Edit (RLS carries no assignee edit path).
+    const assigned = screen.getByText('Survey the site').closest('tr')!;
+    expect(within(assigned).queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
   });
 });
 

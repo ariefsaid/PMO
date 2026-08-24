@@ -6,7 +6,7 @@
 --   AC-TASK-102  an Engineer assignee CANNOT change a NON-status column on their own task (name) → 42501.
 --   AC-TASK-103  an Engineer assignee CANNOT reassign their own task away (assignee_id) → 42501.
 --   AC-TASK-104  an Engineer who is NOT the assignee CANNOT update another's task status (USING hides → 0-row no-op).
---   AC-TASK-105  an Engineer CANNOT INSERT a task (tasks_write WITH CHECK role gate → 42501).
+--   AC-TASK-105  an Engineer CAN INSERT a task (DD-TASK-8/0204 — was CANNOT until 2026-08-24).
 --   AC-TASK-106  an Engineer CANNOT DELETE a task (no permissive policy grants Engineer delete → 0-row no-op).
 --   AC-TASK-107  a manager (PM) retains FULL structure edit (rename + reassign + status) on any task.
 --   AC-TASK-108  cross-org isolation: an org-B Engineer cannot touch an org-A task (USING hides → 0-row no-op).
@@ -72,12 +72,15 @@ select lives_ok(
   $$ update tasks set status = 'Done' where id = '00520000-0000-0000-0000-000000000022' $$,
   'AC-TASK-104: an Engineer updating ANOTHER user''s task status runs without error (USING hides → RLS no-op)');
 
--- AC-TASK-105: the Engineer cannot INSERT a task (tasks_write WITH CHECK role gate denies) → 42501.
-select throws_ok(
+-- AC-TASK-105: ⚑ SUPERSEDED BY DD-TASK-8 (0204, #551). The Engineer role gate on tasks_insert is
+-- gone — it traced to the 0002 bootstrap role list and no OD-/DD- ever justified it, while OD-MTG-1
+-- ruled every role may minute a meeting whose /action creates a task. INVERTED, not deleted: the
+-- insert must still SUCCEED for the right reasons, so the assertion now proves the widening actually
+-- landed. AC-TASK-106 (no DELETE) is untouched — that half did NOT widen.
+select lives_ok(
   $$ insert into tasks (org_id, project_id, name, status)
        values (auth_org_id(), '00520000-0000-0000-0000-000000000010', 'Eng Task', 'To Do') $$,
-  '42501', null,
-  'AC-TASK-105: an Engineer cannot INSERT a task (tasks_write WITH CHECK role gate → 42501)');
+  'AC-TASK-105 (DD-TASK-8): an Engineer CAN INSERT a task in their own org');
 
 -- AC-TASK-106: the Engineer cannot DELETE a task (no permissive policy grants Engineer delete → no-op).
 select lives_ok(

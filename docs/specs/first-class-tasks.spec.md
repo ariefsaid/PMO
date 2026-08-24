@@ -528,7 +528,14 @@ policy that checks neither correctly. Required: an Engineer-created task assigne
 (refused) — then break each disjunct and confirm the matching case reddens. Also assert a
 client-supplied `created_by` is overwritten by the trigger rather than accepted.
 
-Tracked as [#551](https://github.com/ariefsaid/PMO/issues/551).
+Tracked as [#551](https://github.com/ariefsaid/PMO/issues/551). **Owning layer:** pgTAP —
+`supabase/tests/0204_engineer_task_create.test.sql` (`AC-T8-001..021`, mutation-verified in four
+directions); the FE projection is `policy.test.ts` (DD-TASK-8 block) + `TasksTab.test.tsx`'s
+rendered menu oracle. ⚑ The shipped shape differs from FR-FCT-042 as first written: **no assignee
+disjunct on `tasks_update`** — a 3-lens review proved it redundant with `tasks_update_own_status`
+and a bypass of the ClickUp guard; the assignee keeps status-only via the 0199 policy. `created_by`
+is additionally **immutable on UPDATE for every actor** (it is an authorization input), and the
+creator's trigger scope is an allowlist of work fields, never lifecycle/provenance columns.
 
 ### 8.5 Correction to #527 item 8's premise
 
