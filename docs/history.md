@@ -747,3 +747,204 @@ into a green first try.
 **The recurring class, three times in one day:** the artifact asserting a fact and the thing that
 determines it were different objects — a policy vs its GRANT, a spec default vs the code, a stamp vs
 the tree. Read the deciding one before reporting.
+
+---
+
+## Archived status blocks — moved out of `docs/backlog.md` 2026-08-24
+
+Superseded snapshots, kept for provenance. **Every branch/SHA/version/migration figure below is
+frozen at the date in its heading and is almost certainly false now** — re-derive with the commands
+in `docs/backlog.md` § Deployment state. They were removed from the backlog because several were
+titled *"CURRENT STATUS — read first"* or *"RESUME HERE"* while asserting a `dev == main` that had
+not been true for six weeks: an agent reading top-down met the stalest claim first.
+
+### v0.8.0 IN PRODUCTION (2026-07-25)
+`production` == `main` == **`0079bcc9`**, tagged **v0.8.0**. The ERPNext program is
+closed, promoted, released and deployed.
+
+⚑ **`dev` is 4 commits AHEAD of `main`** — CI-only work that landed after the promote (#393
+`RELEASE_PLEASE_TOKEN`, #392 docs-deadlock fix) plus two docs/chore commits. All non-releasable
+types, so release-please will not cut a tag for them; they ride along with the next promote.
+*(An earlier revision of this line claimed `dev` == `main` == `0079bcc9`. It was wrong — verify with
+`git log --oneline origin/main..origin/dev`, not by recalling what was promoted.)*
+
+**What went live (all verified, not assumed):**
+- **DB** — prod migrated through `0166`; `scripts/db-push-prod.sh --pending` reports "up to date".
+- **Edge functions** — **22/22** deployed from v0.8.0 source. `adapter-dispatch` had been stuck at a
+  **07-13 build for 8 days**, predating the entire P3 money program; `erpnext-*`, `external-*` (7) and
+  `clickup-webhook-worker` had **never been deployed at all**.
+- **FE** — CF Pages serving v0.8.0; confirmed by reading `0.8.0` out of the served bundle, not by a
+  green build badge.
+
+**⚑ A live security defect was found DURING the deploy — by a migration refusing to apply.**
+`0151_m365_ciphertext_envelope_check.sql` failed with `23514`: a real `ms_graph_connections` row held
+an M365 token whose envelope was JSON-stringified ASCII (14,709 bytes starting `{`) instead of raw
+bytes — the HIGH-A1 defect the constraint exists to prevent. It could never be decrypted, so
+`disconnect` would delete the local row and audit `m365.connection.revoked` **while the refresh token
+stayed live at Microsoft for ~90 days**. Owner's own account (`arief@gordi.id`), connected
+2026-07-24 02:20. **Closed:** revoked in Entra → row deleted → constraint applied and now enforcing.
+⚑ The earlier "revoke sessions during implementation" did NOT cover it — Entra only invalidates
+tokens issued *before* the revoke, and this one was minted afterwards. Check timestamps, don't assume.
+
+**Release/versioning:** `v0.8.0` tagged. `bump-minor-pre-major: true` was added first — without it the
+`chore(deps)!: react-router 7→8` commit would have tagged **v1.0.0**, a GA claim off a dependency
+upgrade. Next `fix:` → 0.8.1, next `feat:` → 0.9.0, next `!` → 0.9.0 (not 1.0.0).
+⚑ Only `feat`/`fix`/`deps` are releasable — `ci`/`chore`/`docs` produce **no release PR at all**.
+
+**New tooling shipped this session** (all self-tested in CI — the gates are themselves gated):
+- `scripts/check-e2e-skips.mjs` — a skipped test is not a passing one. Justified allowlist + a
+  `restore` path; a **stale** entry fails too. Enforcement detail: [`docs/qa-portfolio.md`](qa-portfolio.md).
+- `scripts/check-e2e-isolation.sh` — no e2e spec may gate on `process.env.CI`; gate on the DEPENDENCY.
+- `scripts/db-push-prod.sh --pending` — read-only "what would a prod push apply?".
+- `scripts/ci-integration-order.test.mjs` — locks CI step ORDER and the reporter wiring.
+
+### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
+- **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
+  migs `0093/0094 + 0096–0103`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra ·
+  fenced money outbox · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface ·
+  aging/actuals · change-feed). Battery: Luna money audit ×2 (build round: double-pay C-1 → PE
+  composite probe + `held`; finalization TOCTOU → fenced RPC; post-open round: 3 BLOCK + 2 SF all
+  fixed — 0097 Internal-exemption bypass, webhook shared-secret ambiguity → 401, future-due aging
+  leftover → `current` invariant, fencing-loss re-read, per-currency aging rows) · quality/spec ·
+  Discover. **Post-open (2026-07-14): EDGE_JWT_ISSUER (SUPABASE_ env prefix platform-rejected —
+  dev's override was dead) · aging parser rewritten for the real per-voucher v15 report ·
+  PostgREST NULL-composite in claim/quarantine RPCs · 3s bounded committing-wait · INBOUND FEED
+  ARMED LIVE (Frappe Webhook + HMAC → full-fidelity party adopt; sweep GL/PLE mirror; field-level
+  inbound re-sync of linked rows deliberately out of P2 scope — lifecycle+adopt only).** Gates:
+  verify 5,325 · pgTAP 166/1,458 · serial battery 21/21 + smokes 16/16 (zero skips, live bench).
+  Residuals (decisions.md `OD-ENA-*`): contacts-inbound deferred · procurement_items INSERT open
+  by design · VendorQuotesTab badge slot · e2e-cleanup un-flips manual fixtures (ops note) ·
+  OD-ENA-VAULT-SEAM + OD-ENA-SHARED-BINDINGS (coordination with the OD-INT admin-connect layer).
+  **Activation checklist (owner-gated):** per-org `external_org_bindings` + secret_ref fn-secrets ·
+  Vault `erpnext_sweep_url/secret` · webhook secret per instance · Frappe Webhook doctype config
+  (local demo of ALL of it ran 2026-07-14 on the owner's machine — 2-way sync verified).
+
+### ⚑⚑ SHIPPED TO PROD — v0.7.0 (2026-07-14, owner-instructed full release)
+`main`→`production` promoted; release-please cut **v0.7.0** (PR #319 admin-merged). Prod state: **DB at
+mig `0095`** (`db-push-prod.sh` applied `0084–0095` — agent_usage cols, external adapter seam, rate-limit,
+ClickUp flip/sweep, is_active_member banned_until; all additive/flag-off), **all 10 edge fns deployed at
+`99df5fc`** (health reports it), **FE `production`=`99df5fc`** (pmo-bfb.pages.dev). Contents = **ADR-0057
+JWT Task 3** (compose-view/adapter-dispatch/agent-chat → local ES256 JWKS caller-JWT verify, dropping
+`auth.getUser`; is_active_member also checks `banned_until`) + analytics #324 + e2e-isolation #317/#326.
+Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07-12-jwt-signing-keys.md).
+- **Deploy gotchas learned (see `deployment.md` memory):** `stamp-edge-fns.sh`/`supabase functions deploy`
+  ship the WORKING-TREE code at the CURRENT `HEAD` — `git reset --hard origin/main` BEFORE deploying (a
+  stale local `main` briefly regressed prod fns this release, corrected). Docker Desktop file-sharing
+  breaks under heavy load → restart Docker if the bundler mount-fails. `db-push-prod` is all-or-nothing
+  sequential — check the `--dry-run` list before confirming.
+- **Pending (owner, none blocking):** (1) valid-token end-to-end smoke = a live-app login → Assistant
+  answers (couldn't mint a prod token safely; reject-path + JWKS(ES256) already green); (2) ClickUp sweep
+  cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
+  (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
+
+### ⚑ prior program block (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp shipped (#307)
+- **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
+  `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
+  `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on
+  Administration. Full battery (spec APPROVE · quality/design APPROVE-WITH-FIXES→applied ·
+  security SHIP); gates Director-run. Deferred: error-passthrough + payload-bound (security
+  L2/L3), display-label map (`OD-EAS-LABELS`), `executeWrite` wiring into real repos (P1).
+- **✅ P1 ClickUp adapter (tasks domain) — BUILT, battery-green, PR pending** (branch
+  `feat/clickup-adapter-p1`; spec signed off + ADR-0056): 6 slices (schema flip 0093 + Vault-cron
+  0094 · adapter module · repo wiring + byte-for-byte net · change-feed webhook/sweep · onboarding
+  both directions · view/labels), 35/35 ACs proven, 2 e2e (AC-CUA-090/091, page.route pattern,
+  serial-only — shared seed org). Battery: spec/quality/Discover APPROVE-W-F → all applied;
+  security SHIP-W-F → HIGH-1 (sweep-cron Vault regression) FIXED + cross-family CONFIRMED-SHIP.
+  Gates Director-run: verify 4906 · pgTAP 157/1291 · 4× deno · e2e 2/2. **Mocked-only: live
+  ~~ClickUp smoke deferred until a token exists~~ **✅ DONE 2026-07-23 audit — the smoke RAN 2026-07-17
+  (`docs/spikes/2026-07-17-clickup-live-smoke.md`) and the `CLICKUP_API_BASE_URL` seam is in two places.**
+  Activation checklist (owner-gated): 2 Vault secrets (clickup_sweep_url/secret) + fn envs
+  (CLICKUP_API_TOKEN/WEBHOOK_SECRET/SWEEP_SECRET, 1P vault-AS items clickup-api-token/-webhook-secret).
+  B2B note: per-org webhook secret before >1 employing org shares a deployment (security LOW-1).
+  **P2 prereq (Director): served-edge-fn e2e infra — money commands get the real boundary, not
+  page.route.** Next: P2 ERPNext money core, P3 width, P4 Odoo (ADR-0055 §8).
+
+### ⚑⚑ RESUME HERE (2026-07-09) — agent experience SHIPPED to prod; automations HELD for prod
+Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each session). Snapshot:
+- **⚑ BINDING: agent model = `deepseek/deepseek-v4-flash` — NEVER change without a DIRECT per-instance owner instruction. Browser tests via a Playwright CLI script / `agent-browser`, NEVER the Playwright MCP (it leaks node servers).**
+- **✅ SHIPPED TO PROD — `v0.4.0`** (`production` == `main` content; edge fns redeployed to `prwccpsiumjzvnwjlkwq`; verify: `curl .../functions/v1/health` reports the git SHA): run-persistence fix (#271), **multi-turn follow-ups**, **adoptRun** (follow up on a History-loaded convo), **latency ~19s→~6s** (`provider:{sort:'throughput'}` + temp 0.8, model unchanged), **ThinkingBubble interactivity**, **edge-fn versioning** (baked per-fn SHA + `x-deploy-version`), **client-facing cleanup** (removed the `edge·sha` panel label + the GitHub commit link — repo is public). Proven via Playwright-CLI: 8/8 multi-round turns, history persist+reload, follow-up-from-history.
+- **⏸️ HELD FOR PROD (owner "hold for productions" 2026-07-09): automation enablement — MERGED to `main` (`d5e97d0`), NOT deployed.** The e2e uncovered + FIXED that automations NEVER fired: `agent-dispatch/mint.ts` read `data.properties.access_token`, which Supabase `admin.generateLink({type:'magiclink'})` NEVER returns (it returns `hashed_token`) → every fire threw `mint failed`. Fixed to the correct **generateLink → verifyOtp(token_hash) → owner session** flow (proven e2e locally: real notification written). Plus: dedicated `AGENT_DISPATCH_SECRET` in **Vault** replaces the master service_role key for the cron→fn auth (mig `0082` — master key no longer in the DB); schedules restricted to **daily/weekly/day-of-month** (minute-0); tick → **hourly**. Security-auditor: **SHIP** (no High/Critical; deputy invariant intact).
+- **HELD prod-enablement checklist (owner-gated, on GO):** (1) apply mig `0082` to prod DB (`db-push-prod.sh`; prod at `0081`, `0082` is the only pending, additive); (2) create 2 Vault secrets (`agent_dispatch_url`=fn URL, `agent_dispatch_secret`=fresh `openssl rand`); (3) set `AGENT_DISPATCH_SECRET` fn env = SAME value; (4) redeploy `agent-dispatch`+`agent-chat`; (5) prod fire-test (due automation → notification + confirm NO owner email). **No owner secret input needed** (service_role auto-injected; dispatch secret self-generated).
+- **Agent write set** = 4 RLS-scoped, approval-gated actions: `create_activity` (CRM), `update_task_status`, `create_automation`, `notify`. Base agent is read-only; no general "edit project" action yet (would be a new can()+RLS+SoD+approval action). **Audit trails:** `audit_events` (0076, immutable, who/what/from→to for money/transitions/deletes/credits), `procurement_status_events` (0038), `agent_events` (0046, every agent tool call), `0079` agent-denial audit; business tables carry created_at/updated_at.
+- **Specs (dev):** ARH/ARM/ATO/ALR/AMT (agent gap-analysis do-now/do-next) — planning docs, NOT built. Token streaming still queued.
+
+### ⚑ CURRENT STATUS (2026-07-07 late) — read first; trust git over memory
+
+**Branches:** `origin/dev` == `origin/main` == **`c0b0081`** (RECONCILED 2026-07-07 — two parallel agents' work unified: the GTM hardening wave + agent-prod-readiness; only `backlog.md` conflicted, resolved by union). `origin/production` == **`94ce615` (UNTOUCHED — prod NOT deployed** with any of the below; still the OLD prompt/schema, Cloud DB at mig ~`0060`). Migrations → `0075`, pgTAP top `0133`.
+
+**On dev/main now:**
+- **7-issue GTM wave** (ops-admin #243 · legal #247 · obs-floor #248 · onboarding #249 · auth #235 · deputy-help #233 · DR #230), each full-loop.
+- **org_id-seam hardening** (#250, mig `0074`): `stamp_org_id()` trigger on 42 tables (narrow variant — stamp when null/seed-default, forged foreign org → 42501; `credits`/`org_features` excluded); security SHIP, pgTAP 1119.
+- **Agent prod-readiness** (other agent): mig `0061` persistence-for-all-orgs (fixed the real prod bug — `org_id` seed-only default made non-seed users' runs fail RLS silently), 8-entity read-scope (`entityCatalog.ts`), deterministic query-skills (`agent-chat/prompt.ts`), skill-creator vendored, query-selection eval probe (deepseek-v4-flash 100% call rate), CRM flag enabled. Component-verified; the live answer→render→persist loop NOT proven-in-prod (browser harness failed).
+- **Deep multi-auditor audit (2026-07-07): GO-WITH-CAVEATS** — foundation is ship-grade (RLS 48/48, org_id seam, SoD RPCs all pgTAP-proven, money uniformly `numeric`, `npm audit` clean, no Critical *security* hole); the blockers cluster in **agent-subsystem reliability + supply-chain + no audit-trail**, not the CRUD/RBAC/RLS foundation. (Full audit body in the 2026-07-07 session transcript.)
+
+**Audit fixes SHIPPED to dev/main:** auth-floor pre-flight enforcement (#251, `check-auth-floor.mjs` gates `provision-client.sh`) · avatar AA-contrast (#252, `--avatar-1..5` tokens) · `auto_expose_new_tables=false` + explicit-grants mig `0075` (#255, column-level-aware mirror) · CORS fail-closed + `||true`-test fix + ADR-0049→0054 (#254) · production-auth-config deploy checklist codified (`environments.md`).
+
+### ⚑ CRITICALS + AUDIT-GAP FIXES LANDED (2026-07-07 — all merged to `dev`, prod untouched) ⚑
+Substrate: glm-5.2 (opus alt) + glm-4.7 (sonnet alt) built; Director security-reviewed every diff + verified pgTAP serially. `origin/dev` tip carries ALL of the below; `origin/production` == `94ce615` (UNTOUCHED). **NOT yet promoted to `main`** — see "Next" below.
+
+**MERGED to dev (audit's 3 Criticals + 4 top gaps):**
+- **#16 automation double-fire (Rel-Crit)** — PR merged. Mig `0078_automation_fire_claim.sql` (per-`(automation_id,event_id)` PK claim, service-role-only) + `claimTriggerFire` in `dispatcher.ts` + pgTAP `0135`. *(Director fixed glm-4.7's hallucinated `.on().ignore()` supabase-js API + `has_table`/`trigger_on` pgTAP bugs.)*
+- **#17 audit_events + log_audit() (Obs-Crit)** — PR #256. Mig `0076_audit_events.sql` (append-only, FORCE RLS, one SELECT policy own-org Admin/Operator, `log_audit()` postgres-owned definer sole writer; wired into `operator_grant_credits`/`set_project_contract_value`/`transition_document_status` + companies/projects AFTER-DELETE triggers) + pgTAP `0133` (28). *(Director caught: transition copied from STALE 0017 → dropped 0025's auto-Supersede → `0066` regressed → re-based on 0025; hardened append-only to privilege-denied; fixed non-runnable frozen-test SQL.)*
+- **#15 reserve_credits (Rel-Crit) — DORMANT primitive** — PR #257. Mig `0077_reserve_credits.sql` (`credit_reservations` hold-ledger + `reserve_credits()` under `pg_advisory_xact_lock` + `release_credits()`) + guard `check(orgId, runId?)` + pgTAP `0134`. Director-reviewed (advisory-lock accounting closes the race). **⚠️ DORMANT: no call-site passes a runId + `AGENT_CREDITS_ENFORCED` OFF → reserve/release never invoked → changes no live behavior.** **Deferred wiring (the actual race-closer, tracked below).**
+- **#18 agent SoD-refusal audit (Obs-High, gap #1)** — PR #259. Mig `0079_audit_agent_denial.sql` — `authenticated`-callable SECURITY DEFINER wrapper stamping action/org/actor server-side (non-forgeable) → `log_audit`; wired into the 2 `can()`-preflight refusal sites in `agent-chat/handler.ts` (fail-open). pgTAP `0136` (19).
+- **#19 agent-dispatch reliability (gap #3) + #16-regression fix** — PR #258. `advanceWatermark` now surfaces `WATERMARK_ADVANCE_FAILED` (was swallowed). **AND fixes a vitest regression #16 landed on dev**: `claimTriggerFire` hit `dispatcher.deputy-invariant.test.ts`'s mock default-throw → AC-AAN-024 failed; taught the mock the `agent_automation_fires` claim. *(gap #4 select_trigger_events org-constraint = NO-OP by design: 0054 is service_role-only + its (org_id,to_status) filter-join IS the tenancy authority; no automation context in the RPC to constrain further. Not changed.)*
+
+**Migrations now `0076–0079`; pgTAP `0133–0136`.** *(Op-lessons this wave: glm agents copy the STALE migration body for `create or replace` RPCs — grep ALL defs, use latest. Frozen RED tests carried non-runnable SQL — non-hex UUIDs, `is(numeric,integer)`, `table_exists`→`has_table`, `profile_status` enum is `active`/`disabled` not `inactive`. Merging on pgTAP-ONLY verify let a VITEST regression reach dev — run BOTH pgTAP + `npm run verify` before merge for anything the dispatcher/handler touch. AC-AUTHF-036 timed out only under heavy concurrent-agent load = flake; CI (isolated) is the reliable gate. A live pi run collides with `db reset` on the shared stack — `pgrep -fl "pi --provider"` before resetting.)*
+
+### ⚑ GTM BUILD — HANDOFF STATE (2026-07-05, for the resuming agent — READ THIS to continue)
+
+**What this is:** the GTM MVP program (the 8 rows above) is mid-build. **Build ≈ 72% done** (2026-07-05):
+3 issues merged to `dev` (auth #235, deputy-help #233, DR #230), ops-admin built+verified awaiting
+rendered-pass+PR, legal code-complete awaiting rendered-pass+PR, observability + onboarding
+signed-but-not-built, Entity dimension deferred-conditional (Entity #7 excluded from the denominator
+until a group client signs). **Build% ≠ ready-for-first-client%** — the gap also needs the owner-side
+wiring + promote gates listed at the bottom of this block. Every issue has a signed **spec + plan**
+authored via the full 2-model review battery (author → cross-model REVISE review → fix round →
+Director commit; plan reviews caught real defects — a disabled-user write hole, two would-be-regressed
+security fixes, 7 ACs excluded from CI). SDD docs by issue below — **read the spec then the plan
+before touching any issue.** Process is unchanged: `CLAUDE.md` per-issue loop +
+`docs/director-playbook.md`; `docs/pi-delegation.md` for GLM dispatch; the **binding
+`pr-after-review-battery` rule — full battery (3-lens code review + rendered/Discover pass for UI +
+e2e/BDD) green LOCALLY before any PR**; branch flow work→`dev`→`main` (`main` = autonomous ceiling).
+
+**Per-issue status (branch `feat/<name>` in `../PMO-worktrees/<name>`):**
+| # | Issue | Spec | Plan | Extra | State |
+|---|---|---|---|---|---|
+| 1 | Auth floor | `docs/specs/auth-production-floor.spec.md` | `docs/plans/2026-07-04-auth-production-floor.md` | — | ✅ **MERGED to `dev` (PR #235)** — full battery passed |
+| 7 | Deputy-help | `docs/specs/deputy-help.spec.md` | `docs/plans/2026-07-04-deputy-help.md` | live-verify = `docs/qa-portfolio.md` (AC-DH-005) | ✅ **MERGED to `dev` (PR #233)** |
+| 4 | DR runbooks | — | — | `docs/runbooks/{incident-response,restore-drill}.md` | ✅ **MERGED to `dev` (PR #230)** |
+| 2 | Ops-admin | `docs/specs/ops-admin-surface.spec.md` | `docs/plans/2026-07-04-ops-admin-surface.md` | `docs/adr/0049-ops-admin-surface.md` | 🟢 **ALL 7 SLICES BUILT + 3-lens battery hardening VERIFIED — needs only rendered pass + PR** (branch `feat/ops-admin` @ **`e4e135b`, pushed; NO PR yet**). Slices: S1–S5 (`8cd0faa`), **S6** (`eae9d47` — `org_features` mig **0068**, `useFeature`/`FeatureGate`, Features/Credits sections, a11y capstone; pgTAP **0122/0123**), **S7** (`9c978c2` — 3 curated e2e: AC-INV-001 invite, AC-CRE-004 grant, AC-ENT-005 toggle). Migrations **0060–0068**, pgTAP through **0123**. **3-lens review battery ran (spec+code+security)** → hardening applied in `e4e135b` (sec M1 disabled-Operator RPC entry-guards, M2 invite redirectTo from `SITE_URL` not Origin header, L1/L3 credit-attribution + entitlement-probe close, L4 TOCTOU sole-admin `SHARE ROW EXCLUSIVE` lock, L5, code I1/I2/I3, spec I1). **Verified: pgTAP 1041/1041 green + typecheck/lint clean.** ⏭ **RESUME:** rendered Discover pass (AdminUsers/Usage/Features UI) → open PR to `dev`. **Deviations to carry:** CI extended for `admin-invite-user` deno-check/boot-smoke; `errorLog.ts` `EdgeFunctionName` widened; `classifyMutationError` `overrides` param; `AdminUsers.mailto.test.tsx` deleted (FR-INV-006); `deno.lock`s untracked per repo pattern. |
+| 5 | Legal pages | `docs/specs/legal-pages.spec.md` | `docs/plans/2026-07-04-legal-pages.md` | — | 🟡 **CODE-COMPLETE** (branch, unpushed) — 2-lens SHIP, e2e 70/70. **NEEDS: rendered Discover pass** (stack) → PR. |
+| 3 | Observability | `docs/specs/observability-floor.spec.md` | `docs/plans/2026-07-04-observability-floor.md` | no ADR (uses ADR-0046/0048 precedents) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber migration/pgTAP vs then-current `dev` max at build time. |
+| 6 | Onboarding | `docs/specs/onboarding-tooling.spec.md` | `docs/plans/2026-07-04-onboarding-tooling.md` | `OD-ONB-1` in `docs/decisions.md` (on branch) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber at build time. |
+
+**Cross-issue contracts already wired (don't re-derive):** ops-admin's `admin-invite-user` edge fn
+passes `redirectTo:<origin>/update-password` + stamps `user_metadata.invite_pending=true` — the
+auth-floor invite-accept gate consumes these (in the ops-admin plan).
+
+**Two hard constraints for whoever resumes:**
+1. **Single local Supabase stack = serial lock.** `db reset` is global across worktrees, so only
+   **ONE stack-driving task at a time** (build with migrations/pgTAP/e2e, or a rendered pass). Order
+   the remaining stack work: finish ops-admin build → its rendered pass → legal rendered pass →
+   observability build → onboarding build. FE-only/unit/typecheck/lint/build + no-stack reviews may
+   run in parallel.
+2. **Migration/pgTAP numbers keep moving** as parallel sessions merge to `dev`. **Before building #3
+   or #6, `git merge origin/dev` into its branch and re-check `ls supabase/migrations | tail` +
+   `ls supabase/tests | tail`, then renumber that plan (+offset) to the next-free numbers.** (ops-admin
+   was already shifted +2 → 0060–0068 for exactly this reason.)
+
+**Executor at handoff:** GLM (pi) rate-limited until **~12:04** (2026-07-05); **Claude subagents
+available** (reset 03:20). Route per `docs/pi-delegation.md` (glm-5.2 default) when GLM returns;
+else Claude implementer/reviewer agents. The ops-admin completion is currently a **Claude sonnet**
+agent (owns the stack).
+
+**Owner-pending (not the build agent's to do):** wire `RESEND_API_KEY` + real DNS/sender + domain
+decision (deferred); Supabase Pro billing at first client; take `docs/legal/2026-07-04-msa-brief.md`
+to counsel; provide the OpenRouter fallback chain. **Deferred tech follow-up:** `auto_expose_new_tables`
+GRANT migration (see the "Deferred follow-up" note above).
+
+### Status
+- **✅ PROMOTED `dev`→`main`** (PR #261, `e4fc018`) — `main` == `dev` content; `production` UNTOUCHED (`94ce615`). All audit Criticals + gaps + supply-chain/CI + the service_role regression fix are on `main`. Integration lane (full e2e + visual) GREEN.
+- **✅ service_role grants regression FIXED** (PR #262, mig `0080` + pgTAP `0137`) — **the promote's e2e caught it**: `0075`'s auto-expose lockdown re-granted `authenticated`/`anon` per-table but **never re-granted `service_role`** → service_role lost DML on all tables → would 42501 `admin-invite-user` + agent persistence IN PRODUCTION. 0080 restores service_role's full DML + `ALTER DEFAULT PRIVILEGES`. **Op-lesson: PR→dev skips e2e, so a service_role/grant regression is invisible until the promote's `integration` lane — pgTAP runs as the superuser migration role (bypasses grants) and cannot catch it. The integration gate earned its keep.**
+- **✅ `main`→`production` DEPLOYED (owner-instructed 2026-07-07)** — holistic: prod Cloud DB migrated `0061→0080` (`db-push-prod.sh`, all additive, ✓ applied, dry-run clean) · all 6 edge fns redeployed to `prwccpsiumjzvnwjlkwq` · **`SITE_URL=https://pmo-bfb.pages.dev` set** (was MISSING — would have 500'd admin-invite-user + blocked agent-chat CORS) · FE pushed `git push origin main:production` (`94ce615..e4fc018`, CF Pages build). Smoke: health fn 200 `{ok:true}`, DB at 0080, pages.dev 200. **`production` == `e4fc018` == `main` content.** ⏭ Still to verify: a live login→agent-answer browser smoke (needs prod creds). Auth-floor dashboard config (signup-off/confirmations/Resend) remains the owner-only manual step.
