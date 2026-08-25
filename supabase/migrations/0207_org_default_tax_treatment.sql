@@ -50,3 +50,17 @@ create policy organizations_update_tax_default on public.organizations for updat
 -- this is only meaningful because `authenticated` holds no table-wide UPDATE on organizations —
 -- asserted by AC-TAX-208 rather than assumed.
 grant update (default_tax_treatment) on public.organizations to authenticated;
+
+-- ── §2 — the composition rule 0203 enforces, honoured rather than exempted ──────────────────────
+-- ⚑ 0203's gate caught this migration: "if ANY policy on a table gates active membership, EVERY
+-- permissive policy on that table must." The new UPDATE policy above gates it; `organizations_select`
+-- (0002) never did. The gate is right and the READ side is the gap — an offboarded member holding a
+-- live JWT should not read the org record either, and leaving the pair inconsistent is precisely
+-- the shape 0203 exists to stop spreading.
+--
+-- Safe by construction: `service_role` holds BYPASSRLS, so the sweep, the adapter dispatch and every
+-- other server-authority reader are untouched. It binds only the `authenticated` path — which is the
+-- path a disabled account still holds a token for.
+drop policy organizations_select on public.organizations;
+create policy organizations_select on public.organizations for select
+  using (id = auth_org_id() and public.is_active_member());
