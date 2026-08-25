@@ -68,13 +68,15 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   // ⛔ DD-I18N-7: the percentages are rendered to STRINGS here and interpolated as text.
   // i18next never receives a number, so the message carries no formatting responsibility.
   const actualText = `${model.actualToDate}%`;
-  const summaryLead = t('projectDetail.scurve.summaryLead', 'Project S-curve: actual to date');
   const summary = plannedToday != null
-    ? `${summaryLead} ${actualText}, ${t(
-        'projectDetail.scurve.summaryPlanClause',
-        'plan expected',
-      )} ${Math.round(plannedToday)}% ${t('projectDetail.scurve.summaryByToday', 'by today.')}`
-    : `${summaryLead} ${actualText}.`;
+    ? t(
+        'projectDetail.scurve.summaryWithPlan',
+        'Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today.',
+        { actual: actualText, planned: `${Math.round(plannedToday)}%` },
+      )
+    : t('projectDetail.scurve.summary', 'Project S-curve: actual to date {{actual}}.', {
+        actual: actualText,
+      });
 
   return (
     <div>

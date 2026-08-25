@@ -275,7 +275,9 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
         tone="destructive"
         title={
           deleteTarget
-            ? `${t('projectDetail.milestones.deleteConfirm.title', 'Delete')} "${deleteTarget.name}"?`
+            ? t('projectDetail.milestones.deleteConfirm.title', 'Delete "{{name}}"?', {
+                name: deleteTarget.name,
+              })
             : t('projectDetail.milestones.deleteConfirm.titleFallback', 'Delete milestone?')
         }
         description={t(
@@ -343,7 +345,9 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
           <span>{pct(milestone.effective_pct)}</span>
           {weightShare != null && (
             <span>
-              {`${weightShare}% ${t('projectDetail.milestones.weightShare', 'of project')}`}
+              {t('projectDetail.milestones.weightShare', '{{pct}}% of project', {
+                pct: String(weightShare),
+              })}
             </span>
           )}
           {targetLabel && (

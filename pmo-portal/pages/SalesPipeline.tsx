@@ -157,7 +157,9 @@ const SalesPipeline: React.FC = () => {
       prob: s ? formatPercent(s.win_probability) : undefined,
       // FR-L10N-020: a STAGE total sums across deals, so it has no record currency — org default.
       value: formatCurrency(s?.total_value ?? 0, orgCurrency),
-      weighted: `${formatCurrency(weighted, orgCurrency)} ${t('sales.funnel.weightedSuffix', 'weighted')}`,
+      weighted: t('sales.funnel.weighted', '{{value}} weighted', {
+        value: formatCurrency(weighted, orgCurrency),
+      }),
       barPct: maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
     };
   });
@@ -310,7 +312,9 @@ const SalesPipeline: React.FC = () => {
             className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
             title={
               stale
-                ? `${t('sales.lastTouch.stalePrefix', 'Untouched for')} ${days} ${t('sales.lastTouch.staleSuffix', 'days — needs attention')}`
+                ? t('sales.lastTouch.stale', 'Untouched for {{days}} days — needs attention', {
+                    days: String(days),
+                  })
                 : undefined
             }
           >
@@ -385,7 +389,7 @@ const SalesPipeline: React.FC = () => {
       title={t('sales.title', 'Pipeline')}
       description={t(
         'sales.description',
-        'Track projects in the sales pipeline, manage leads, and forecast revenue.',
+        'Track projects in the sales pipeline and forecast revenue.',
       )}
       /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
          pre-win projects live — not the Projects list. Reuses the same create modal +
@@ -542,7 +546,11 @@ const SalesPipeline: React.FC = () => {
             scope === 'Lost'
               ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
               : scope === 'Needs attention'
-                ? `${t('sales.tableEmpty.needsAttention.subPrefix', 'No project has been untouched for')} ${ATTENTION_THRESHOLD_DAYS}${t('sales.tableEmpty.needsAttention.subSuffix', '+ days — pipeline is active.')}`
+                ? t(
+                    'sales.tableEmpty.needsAttention.sub',
+                    'No project has been untouched for {{days}}+ days — pipeline is active.',
+                    { days: String(ATTENTION_THRESHOLD_DAYS) },
+                  )
                 : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')
           }
         />

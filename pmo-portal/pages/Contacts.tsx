@@ -23,7 +23,7 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -209,10 +209,24 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
-      description={t(
-        'contacts.description',
-        'People at the companies you work with. Master data shared by the whole organisation — log calls, emails and meetings against each contact.',
-      )}
+      description={
+        // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
+        // attendees and minutes lives in the Meetings module — so this copy no longer promises
+        // "meetings" here, and links across to the module instead (the ruling's actual ask).
+        <>
+          {t(
+            'contacts.description',
+            'People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the',
+          )}{' '}
+          <Link
+            to="/meetings"
+            className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {t('contacts.descriptionMeetingsLink', 'Meetings module')}
+          </Link>
+          .
+        </>
+      }
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ contact: null })}>
@@ -283,7 +297,8 @@ const Contacts: React.FC = () => {
           title={t('contacts.states.emptyTitle', 'No contacts yet')}
           sub={t(
             'contacts.states.emptySub',
-            'Add your first contact to start logging calls, emails and meetings against the people you work with.',
+            // DD-MTG-6: same re-scope as the page description — touchpoints here, minutes in Meetings.
+            'Add your first contact to start logging calls and emails against the people you work with.',
           )}
           stateId="contacts-empty"
           role={realRole ?? undefined}

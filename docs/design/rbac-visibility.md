@@ -213,6 +213,36 @@ Engineer is the key read-only-vs-editable split: on **their own assigned task**,
 
 ---
 
+## F2. Meetings `/meetings` (index + detail) — #526, migrations `0205`/`0206`
+
+⛔ **Meetings are NOT master data, and their read model is unique in this schema: reading a
+meeting's body is ATTENDANCE, not role** (owner ruling `OD-MTG-1`/`OD-MTG-2`, 2026-08-21). The
+`meetings` select policy admits attendee ∪ author ∪ explicit grant ∪ Admin — never a role
+shortcut, never a project-scope disjunct (`DD-MTG-7`). Every table below is therefore about
+*affordances on meetings the viewer can already read*; the row set itself is RLS-scoped.
+
+| Affordance | Admin | Executive | PM | Finance | Engineer |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Meetings nav + list (RLS-scoped rows) | ● | ● | ● | ● | ● |
+| Header **New meeting** (`OD-MTG-1`: every role minutes) | ● | ● | ● | ● | ● |
+| **Edit** minutes / header / attendees | ● | ◆ author | ◆ author | ◆ author | ◆ author |
+| **/action** — create a task from a minute line | ● | ● | ● | ● | ● (`DD-TASK-8`/`0204`) |
+| **Share** (add a view-only grant to a named user) | ● | ◆ reader | ◆ reader | ◆ reader | ◆ reader |
+| **Revoke** a grant | ● | ◆ granter/author | ◆ granter/author | ◆ granter/author | ◆ granter/author |
+| **Archive** (soft, `archived_at`) | ● | ○ | ○ | ○ | ○ |
+| **Delete** (hard) — *FK-blocked while tasks reference it* | ● | ○ | ○ | ○ | ○ |
+
+◆ notes: **Edit** is record-scoped to the AUTHOR (`created_by_id`, trigger-stamped + pinned by
+`0205`) or Admin — grants are **view-only** (`OD-MTG-2`), so an attendee or grantee reads and never
+rewrites. **Share** requires read access ("anyone who can already read a minute can share it");
+grants are audit-logged both ways. The FE archive/delete affordances are deliberately STRICTER
+than RLS (RLS lets the author stamp `archived_at`; the surfaced buttons are Admin-only). A
+project's PM gets **no automatic read** — the share panel pre-suggests them as a one-click add
+(`DD-MTG-7`/FR-MTG-034). `/action` is hidden-with-explanation when the org's tasks domain is
+externally owned (ClickUp — spec §8.5).
+
+---
+
 ## G. Incidents `/incidents` (new route)
 
 | Affordance | Admin | Executive | PM | Finance | Engineer |

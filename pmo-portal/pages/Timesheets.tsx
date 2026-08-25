@@ -16,7 +16,7 @@ import {
   type TimesheetGridRow,
 } from '@/src/components/ui';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
@@ -575,10 +575,10 @@ const TimesheetsPage: React.FC = () => {
             {t('timesheets.title', 'Timesheets')}
           </h1>
           <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
-            {t('timesheets.weekOf', 'Week of')} {weekRangeLabel}
             {t(
               'timesheets.subtitle',
-              '. Enter hours per project per day, then submit the whole week for your line manager to approve.',
+              'Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.',
+              { range: weekRangeLabel },
             )}
           </p>
         </div>
@@ -598,7 +598,7 @@ const TimesheetsPage: React.FC = () => {
           >
             <Icon name="check" aria-hidden />
             {pendingCount > 0
-              ? `${t('timesheets.reviewPrefix', 'Review')} ${pendingCount} ${t('timesheets.reviewSuffix', 'awaiting')}`
+              ? t('timesheets.review', 'Review {{n}} awaiting', { n: String(pendingCount) })
               : t('timesheets.approvalsLink', 'Approvals')}
             <Icon name="chev" aria-hidden />
           </Link>
@@ -839,14 +839,12 @@ const TimesheetsPage: React.FC = () => {
           tone="destructive"
           title={t('timesheets.deleteRow.title', 'Delete this project row?')}
           description={
-            <>
-              {t('timesheets.deleteRow.descriptionPrefix', 'This removes')}{' '}
-              <strong>{rowToDelete.project}</strong>{' '}
-              {t(
-                'timesheets.deleteRow.descriptionSuffix',
-                'and all its hours from this week. You can add it back, but the entered hours won’t be restored.',
-              )}
-            </>
+            <Trans
+              i18nKey="timesheets.deleteRow.description"
+              defaults="This removes <strong>{{project}}</strong> and all its hours from this week. You can add it back, but the entered hours won’t be restored."
+              values={{ project: rowToDelete.project }}
+              components={{ strong: <strong /> }}
+            />
           }
           confirmLabel={t('timesheets.deleteRow.confirmLabel', 'Delete row')}
           loading={deleteRow.isPending}

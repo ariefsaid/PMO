@@ -94,6 +94,26 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 (globalThis as Record<string, unknown>).__GIT_SHA__ ??= 'testsha';
 (globalThis as Record<string, unknown>).__BUILD_TIME__ ??= '1970-01-01T00:00:00.000Z';
 
+// ── i18next test instance (M12, #526 review) ───────────────────────────────
+// Without an initialised instance, react-i18next's notReady `t` returns the default string and
+// SILENTLY DROPS the options bag — `t('k', 'Share with {{name}}', { name })` rendered the literal
+// braces in every unit test, which is why interpolated keys were banned (the Companies.tsx notes)
+// and values were string-concatenated instead. Initialising a minimal synchronous instance here
+// makes `t` behave in tests as it does at runtime: a missing key resolves to its defaultValue WITH
+// interpolation applied. Resources stay empty on purpose — the suite asserts the English source
+// strings the call sites carry, never a catalogue (catalogues are fetched JSON, FR-L10N-043).
+import i18nextTest from 'i18next';
+import { initReactI18next } from 'react-i18next';
+
+void i18nextTest.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: { en: { common: {} } },
+  defaultNS: 'common',
+  initImmediate: false, // synchronous init — no async gap before the first render
+  interpolation: { escapeValue: false }, // React escapes; double-escaping corrupts "D&B" etc.
+});
+
 // ── Locale pin (AC-L10N-061) ───────────────────────────────────────────────
 // Every formatter in src/lib/format.ts now reads the resolved locale out of a module holder, so
 // without an explicit pin the suite would certify whatever locale the holder happened to be left

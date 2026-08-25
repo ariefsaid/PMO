@@ -91,3 +91,9 @@
 # ── Same directory pairing — a project's people, reached daily from the company record.
 /contacts                      pages/Contacts.tsx
 /contacts/:contactId           pages/ContactDetail.tsx
+
+# ── Meetings (#526, launch-scope item 3 on map #450): minuted meetings with attendees, action
+#    items and view-only shares. Added by the slice that built the screens (DD-I18N-9's additive
+#    rule — a launch-scope screen shipping without its line silently shrinks this gate).
+/meetings                      pages/Meetings.tsx
+/meetings/:meetingId           pages/MeetingDetail.tsx

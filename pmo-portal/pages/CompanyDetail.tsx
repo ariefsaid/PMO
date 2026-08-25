@@ -304,7 +304,9 @@ const CompanyDetail: React.FC = () => {
       <ConfirmDialog
         open={archiveOpen}
         tone="default"
-        title={`${t('companyDetail.archiveConfirm.titlePrefix', 'Archive')} ${company.name}?`}
+        title={t('companyDetail.archiveConfirm.title', 'Archive {{name}}?', {
+          name: company.name,
+        })}
         description={t(
           'companyDetail.archiveConfirm.description',
           "It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time.",
@@ -406,7 +408,9 @@ const RelatedList: React.FC<RelatedListProps> = ({
       {isError && !isPending && (
         <ListState
           variant="error"
-          title={`${t('companyDetail.related.loadErrorPrefix', "Couldn't load")} ${heading.toLowerCase()}`}
+          title={t('companyDetail.related.loadError', "Couldn't load {{section}}", {
+            section: heading.toLowerCase(),
+          })}
           sub={t('companyDetail.related.loadErrorSub', 'Something went wrong. Try again.')}
           onRetry={onRetry}
         />

@@ -71,6 +71,9 @@ const ALL_ITEMS: NavItem[] = [
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are
+  // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all roles.
+  { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // B-1 (AC-W2-IXD-001 / OD-W2-4): My Tasks — IC (Engineer) own-assigned cross-project list.
   // An Engineer lands on something actionable rather than the all-projects financial table.
   // Admin is included for parity (Admin may also have tasks assigned to them).
@@ -169,6 +172,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/companies': t('shell.nav.companies', 'Companies'),
     '/contacts': t('shell.nav.contacts', 'Contacts'),
     '/incidents': t('shell.nav.incidents', 'Incidents'),
+    '/meetings': t('shell.nav.meetings', 'Meetings'),
     '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),

@@ -66,6 +66,7 @@ vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({
 
 import {
   listTasks,
+  listTasksByMeeting,
   getTask,
   createTask,
   updateTask,
@@ -198,6 +199,7 @@ describe('AC-TASK-003 createTask', () => {
         parent_task_id: null,
         description: null, // OD-INT-9
         priority: null, // OD-INT-9
+        meeting_id: null, // #526 (0206): the /action seam — null for an ordinary project task
       },
     ]);
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
@@ -241,6 +243,34 @@ describe('AC-TASK-003 createTask', () => {
     await createTask({ project_id: 'p1', name: 'Top', status: 'To Do', assignee_id: null });
     const insert = h.calls.insert[0] as Record<string, unknown>;
     expect(insert.parent_task_id).toBeNull();
+  });
+
+  // ── #526 (0206): the /action seam — a meeting-born task carries meeting_id, and may be
+  //    project-less (DD-TASK-1 / 0199 made project_id nullable). ──
+  it('#526: listTasksByMeeting filters on meeting_id, excludes tombstones, keeps the joined shape', async () => {
+    h.result.value = {
+      data: [{ id: 't1', name: 'A', assignee: null, dependencies: null }],
+      error: null,
+    };
+    const rows = await listTasksByMeeting('m1');
+    expect(h.calls.eq).toContainEqual(['meeting_id', 'm1']);
+    expect(h.calls.is).toContainEqual(['tombstoned_at', null]);
+    expect(rows[0].dependencies).toEqual([]);
+  });
+
+  it('threads meeting_id into the insert, with a NULL project (a project-less action item)', async () => {
+    h.result.value = { data: { id: 'new' }, error: null };
+    await createTask({
+      project_id: null,
+      name: 'Order the flange samples',
+      status: 'To Do',
+      assignee_id: null,
+      meeting_id: 'm1',
+    });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.meeting_id).toBe('m1');
+    expect(insert.project_id).toBeNull();
+    expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
   });
 });
 

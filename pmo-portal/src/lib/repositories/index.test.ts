@@ -167,11 +167,18 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      // ⚑ 'workOrder' added by #566 — a DELIBERATE extension of the API seam, which is what this
-      // assertion exists to force. The work-order surface reaches the money path only through the
-      // 0193 RPCs (set_work_order_value / transition_work_order); `authenticated` holds SELECT only
-      // on the table, so the repository's write methods are RPC calls, not table writes.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'milestone', 'operator', 'orgFeature', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
+      // Two entities landed the same day, each a DELIBERATE extension of the seam — which is what
+      // this assertion exists to force, and it did: the two branches conflicted here rather than
+      // silently co-existing. 'meeting' from #526 (migrations 0205/0206); 'workOrder' from #566.
+      // ⚑ CORRECTED after the security review joined `role_column_grants`: an earlier version of
+      // this comment claimed `authenticated` holds SELECT only on work_orders, so every write is an
+      // RPC. FALSE — it holds COLUMN-level INSERT on 16 columns and UPDATE on 8, so create and
+      // body-edit are ordinary table writes; `order_value`, `tax_treatment`, `tax_amount`, `status`
+      // and every witness column are absent from UPDATE, which is what forces the MONEY and
+      // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
+      // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
+      // silent no-op trap 0193 §5 exists to prevent.
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
     );
   });
 
@@ -217,9 +224,17 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
     expect(Object.keys(repositories.task).sort()).toEqual(
       // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018
-      // soft-archive). This list is an exhaustive API-seam contract (ADR-0017) — extending the
-      // repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      // soft-archive). 'listByMeeting' added deliberately with #526 (the /action seam, migration
+      // 0206 — the meeting detail lists its minuted tasks). This list is an exhaustive API-seam
+      // contract (ADR-0017) — extending the repository surface must be an explicit change here,
+      // never an accident.
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByMeeting', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+    );
+    expect(Object.keys(repositories.meeting).sort()).toEqual(
+      // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
+      // created and revoked, never edited; 0205 ships no UPDATE grant and no UPDATE policy).
+      // 'listForContact' added with the I7 review round — the DD-MTG-6 contact-timeline union.
+      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'revokeGrant', 'update'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       [

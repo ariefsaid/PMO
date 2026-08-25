@@ -64,7 +64,7 @@ export type FrictionClass =
  */
 const ANALYTICS_MODULES = [
   'administration', 'approvals', 'auth', 'budget-account-map', 'companies', 'contacts',
-  'dashboard', 'incidents', 'my-tasks', 'procurement', 'projects', 'reports', 'sales',
+  'dashboard', 'incidents', 'meetings', 'my-tasks', 'procurement', 'projects', 'reports', 'sales',
   'settings', 'timesheets', 'unknown',
 ] as const;
 export type AnalyticsModule = (typeof ANALYTICS_MODULES)[number];
@@ -170,6 +170,21 @@ const POSTGRES_GENERATED_DETAIL: Record<string, string> = {
   '23505': 'Another record already uses one of these values. Change it and try again.',
   '23503': 'Another record still refers to this one. Remove or reassign those references first, or archive it instead.',
 };
+
+/**
+ * The 0206 trigger's inbound-/action guard (#526 security review): a 42501 whose message is
+ * exactly this string means the caller tried to link a task to a meeting they cannot read —
+ * injecting an action item into someone else's minute. Belt-and-braces only: the ActionItemModal
+ * opens solely from a meeting the user is already reading, so this essentially never fires from
+ * the real UI. It exists so a hand-crafted request (or a future caller) gets a legible message
+ * instead of the generic "your role does not allow this" 42501 copy, which would misdescribe it.
+ */
+const MEETING_READ_DENIED_MARKER = 'task meeting must be one you can read';
+export function isMeetingReadDenied(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code;
+  const message = err instanceof Error ? err.message : '';
+  return code === '42501' && message.includes(MEETING_READ_DENIED_MARKER);
+}
 
 export interface ClassifiedMutationError {
   /** The primary, human headline. */

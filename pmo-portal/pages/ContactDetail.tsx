@@ -24,7 +24,8 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
-import { useContact, useContactActivities, useContactMutations } from '@/src/hooks/useContacts';
+import { useContact, useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
+import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDate } from '@/src/lib/format';
@@ -287,7 +288,9 @@ const ContactDetail: React.FC = () => {
       <ConfirmDialog
         open={archiveOpen}
         tone="default"
-        title={`${t('contactDetail.archiveConfirm.titlePrefix', 'Archive')} ${contact.full_name}?`}
+        title={t('contactDetail.archiveConfirm.title', 'Archive {{name}}?', {
+          name: contact.full_name,
+        })}
         description={t(
           'contactDetail.archiveConfirm.description',
           'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',
@@ -332,6 +335,10 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
   const may = usePermission();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useContactActivities(contactId);
+  // DD-MTG-6 (second half): the timeline unions the touchpoint log with MINUTED meetings this
+  // contact attended. RLS filters the meetings to what the viewer may read (FR-MTG-031) — most
+  // viewers legitimately see none, so empty is a normal state, never an error.
+  const meetingsQuery = useContactMeetings(contactId);
   const { logActivity, updateActivity, deleteActivity } = useContactMutations();
   const canLog = may('create', 'contactActivity');
   const canEdit = may('edit', 'contactActivity');
@@ -347,6 +354,16 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   const activities = data ?? [];
+  const contactMeetings = meetingsQuery.data ?? [];
+
+  // One timeline, newest-first: touchpoints (editable) + minuted meetings (read-only links).
+  type TimelineEntry =
+    | { kind: 'activity'; occurredAt: string; activity: CrmActivityRow }
+    | { kind: 'meeting'; occurredAt: string; meeting: ContactMeetingRef };
+  const timeline: TimelineEntry[] = [
+    ...activities.map((a): TimelineEntry => ({ kind: 'activity', occurredAt: a.occurred_at, activity: a })),
+    ...contactMeetings.map((m): TimelineEntry => ({ kind: 'meeting', occurredAt: m.occurred_at, meeting: m })),
+  ].sort((x, y) => (x.occurredAt < y.occurredAt ? 1 : x.occurredAt > y.occurredAt ? -1 : 0));
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -430,15 +447,51 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
         />
       )}
 
-      {!isPending && !isError && activities.length === 0 && (
+      {/* The meetings half of the union failing must not take down the touchpoint log — a quiet
+          one-line note, never an error card (the activities query above owns the error surface). */}
+      {!isPending && !isError && meetingsQuery.isError && (
+        <p className="mb-2 text-[12px] text-muted-foreground">
+          {t('contactDetail.meetings.error', 'Minuted meetings could not be loaded.')}
+        </p>
+      )}
+
+      {!isPending && !isError && timeline.length === 0 && (
         <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
           {t('contactDetail.activity.empty', 'No activity logged yet.')}
         </p>
       )}
 
-      {!isPending && !isError && activities.length > 0 && (
+      {!isPending && !isError && timeline.length > 0 && (
         <ol data-testid="activity-timeline" className="flex flex-col gap-3">
-          {activities.map((a) => {
+          {timeline.map((entry) => {
+            // DD-MTG-6: a minuted meeting renders READ-ONLY — its record lives in the meeting
+            // module (edit rights are the author's there), the timeline only links across.
+            if (entry.kind === 'meeting') {
+              const m = entry.meeting;
+              return (
+                <li
+                  key={`meeting-${m.id}`}
+                  data-testid="timeline-meeting"
+                  className="flex flex-col gap-1 rounded-md border border-border bg-card p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <StatusPill variant="violet">
+                      {t('contactDetail.meetings.pill', 'Minuted meeting')}
+                    </StatusPill>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatOccurred(m.occurred_at)}
+                    </span>
+                  </div>
+                  <Link
+                    to={`/meetings/${m.id}`}
+                    className="text-[13.5px] font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                  >
+                    {m.title}
+                  </Link>
+                </li>
+              );
+            }
+            const a = entry.activity;
             const relatedHref = hrefForActivity(a);
             return (
               <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">

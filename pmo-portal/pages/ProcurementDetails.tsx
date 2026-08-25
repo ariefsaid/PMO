@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
   RecordHeader,
@@ -453,23 +453,45 @@ const ProcurementDetails: React.FC = () => {
   ]);
 
   // The shared money/context line the kept financial confirms restate.
-  const moneyContext = (
-    <>
-      <b>{formatCurrency(Number(p.total_value), p.currency)}</b>
-      {p.project?.name ? (
-        <>
-          {' '}
-          {t('procurementDetail.confirm.onProject', 'on')}{' '}
-          <ProjectNameLink projectId={p.project_id} name={p.project.name} />
-        </>
-      ) : null}
-      {p.requested_by?.full_name ? (
-        <>
-          {t('procurementDetail.confirm.requestedBy', ', requested by')}{' '}
-          <i>{p.requested_by.full_name}</i>
-        </>
-      ) : null}
-    </>
+  //
+  // #571 — ONE key per shape, never "amount" + " on " + "…, requested by ". The optional project
+  // and requester clauses are what forced the fragments, so each combination gets its own whole
+  // sentence with the pieces as placeholders a translator can reorder.
+  const moneyAmount = formatCurrency(Number(p.total_value), p.currency);
+  const moneyProject = p.project?.name ?? null;
+  const moneyRequester = p.requested_by?.full_name ?? null;
+  const moneyContext = moneyProject ? (
+    moneyRequester ? (
+      <Trans
+        i18nKey="procurementDetail.confirm.moneyOnProjectRequestedBy"
+        defaults="<amount>{{amount}}</amount> on <project/>, requested by <person>{{name}}</person>"
+        values={{ amount: moneyAmount, name: moneyRequester }}
+        components={{
+          amount: <b />,
+          project: <ProjectNameLink projectId={p.project_id} name={moneyProject} />,
+          person: <i />,
+        }}
+      />
+    ) : (
+      <Trans
+        i18nKey="procurementDetail.confirm.moneyOnProject"
+        defaults="<amount>{{amount}}</amount> on <project/>"
+        values={{ amount: moneyAmount }}
+        components={{
+          amount: <b />,
+          project: <ProjectNameLink projectId={p.project_id} name={moneyProject} />,
+        }}
+      />
+    )
+  ) : moneyRequester ? (
+    <Trans
+      i18nKey="procurementDetail.confirm.moneyRequestedBy"
+      defaults="<amount>{{amount}}</amount>, requested by <person>{{name}}</person>"
+      values={{ amount: moneyAmount, name: moneyRequester }}
+      components={{ amount: <b />, person: <i /> }}
+    />
+  ) : (
+    <b>{moneyAmount}</b>
   );
 
   const onActionClick = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
@@ -496,17 +518,17 @@ const ProcurementDetails: React.FC = () => {
     // terminal destructive moves (the only other consequential targets).
     const description: React.ReactNode =
       action.to === 'Approved' ? (
-        <>
-          {t('procurementDetail.confirm.approvePrefix', 'Approve')} {moneyContext}?
-        </>
+        <Trans
+          i18nKey="procurementDetail.confirm.approveBody"
+          defaults="Approve <money/>?"
+          components={{ money: <span>{moneyContext}</span> }}
+        />
       ) : action.to === 'Paid' ? (
-        <>
-          {t('procurementDetail.confirm.markPaidPrefix', 'Mark')} {moneyContext}{' '}
-          {t(
-            'procurementDetail.confirm.markPaidSuffix',
-            'as paid? This releases payment and cannot be undone.',
-          )}
-        </>
+        <Trans
+          i18nKey="procurementDetail.confirm.markPaidBody"
+          defaults="Mark <money/> as paid? This releases payment and cannot be undone."
+          components={{ money: <span>{moneyContext}</span> }}
+        />
       ) : (
         t(
           'procurementDetail.confirm.terminal',
@@ -519,7 +541,9 @@ const ProcurementDetails: React.FC = () => {
       title: isCancel
         ? t('procurementDetail.confirm.cancelTitle', 'Cancel this request?')
         : destructive
-          ? `${action.label} ${t('procurementDetail.confirm.thisRequest', 'this request')}`
+          ? t('procurementDetail.confirm.destructiveTitle', '{{action}} this request', {
+              action: action.label,
+            })
           : `${action.label}?`,
       description,
       confirmLabel: action.label,
@@ -1045,8 +1069,16 @@ const ProcurementDetails: React.FC = () => {
           pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
-              ? `${t('procurementDetail.confirm.grBodyPrefix', 'This records a')} ${pendingConfirm.status.toLowerCase()} ${t('procurementDetail.confirm.grBodySuffix', 'goods receipt against')} ${p.title}.`
-              : `${t('procurementDetail.confirm.viBodyPrefix', 'This records a vendor invoice against')} ${p.title}.`
+              ? t(
+                  'procurementDetail.confirm.grBody',
+                  'This records a {{status}} goods receipt against {{request}}.',
+                  { status: pendingConfirm.status.toLowerCase(), request: p.title },
+                )
+              : t(
+                  'procurementDetail.confirm.viBody',
+                  'This records a vendor invoice against {{request}}.',
+                  { request: p.title },
+                )
         }
         confirmLabel={
           pendingConfirm?.kind === 'transition'
