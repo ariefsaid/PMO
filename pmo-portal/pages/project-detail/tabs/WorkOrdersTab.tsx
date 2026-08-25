@@ -19,6 +19,7 @@ import {
   isOverCommitmentRefusal,
   type WorkOrderRow,
   type WorkOrderStatus,
+  isLegalWorkOrderTransition,
 } from '@/src/lib/db/workOrders';
 import { useProjectWorkOrders, useWorkOrderMutations } from '@/src/hooks/useWorkOrders';
 import ProjectDrawdown from '../ProjectDrawdown';
@@ -216,8 +217,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
       key: 'actions',
       header: t('projectDetail.workOrders.column.actions', 'Actions'),
       cell: (row) => {
-        const isDraft = row.status === 'Draft';
-        const isIssued = row.status === 'Issued';
+        // ⚑ Consult the shared transition map rather than re-encoding the graph here (spec review:
+        // the map was exported with zero consumers while this file hardcoded the same rules). One
+        // source for "what may follow this status", shared with the DAL and mirroring 0193's
+        // server-side graph — so an illegal move is never offered rather than offered and refused.
+        const isDraft = isLegalWorkOrderTransition(row.status, 'Issued');
+        const isIssued = isLegalWorkOrderTransition(row.status, 'Closed');
         const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
         const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
         const canTransition = may('transition', 'workOrder');

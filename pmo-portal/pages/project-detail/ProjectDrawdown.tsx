@@ -69,10 +69,14 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
   const basisLabel = (basis: string) =>
     basis === 'net'
       ? t('projectDetail.drawdown.basis.net', 'net of tax')
-      : t('projectDetail.drawdown.basis.other', 'basis: {{basis}}', { basis });
+      // ⚑ options-object form, NOT t(key, default, opts): the three-arg shape does not interpolate
+      // the DEFAULT string, so this rendered the literal "basis: {{basis}}" to the user. Invisible
+      // until a fixture used a non-'net' basis — the branch was unreachable in the suite, which is
+      // exactly what the spec review's "is the label derived?" question was probing for.
+      : t('projectDetail.drawdown.basis.other', { defaultValue: 'basis: {{basis}}', basis });
 
   return (
-    <Card variant="bare" className={className}>
+    <Card variant="bare" className={className} data-testid="project-drawdown">
       <CardHead>{t('projectDetail.drawdown.title', 'Contract drawdown')}</CardHead>
       {isPending ? (
         <ListState variant="loading" rows={3} testId="drawdown-loading" />
@@ -89,10 +93,18 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
       ) : (
         (() => {
           const { committed, draft, ceiling, currency, basis } = data;
+          // ⚑ EPSILON, not bare float comparison (security review L4). `ceiling - committed` on JS
+          // floats lands at ~-1e-13 at exact parity, which painted "Remaining headroom" in
+          // destructive red over a formatted 0 — the card shouting over-commitment at a project
+          // that is exactly on budget. Half a minor unit is below anything money can express, so
+          // it cannot mask a real overage.
+          const EPS = 0.005;
           const headroom = ceiling - committed;
-          const pct = ceiling > 0 ? Math.round((committed / ceiling) * 100) : 0;
-          const alreadyOver = committed > ceiling;
-          const wouldGoOver = !alreadyOver && committed + draft > ceiling;
+          // FLOOR, not round: Math.round showed 100% at 99.6% while headroom was genuinely
+          // positive — a full bar on a project with money left.
+          const pct = ceiling > 0 ? Math.min(100, Math.floor((committed / ceiling) * 100)) : 0;
+          const alreadyOver = committed - ceiling > EPS;
+          const wouldGoOver = !alreadyOver && committed + draft - ceiling > EPS;
           const overBy = alreadyOver ? committed - ceiling : committed + draft - ceiling;
 
           return (

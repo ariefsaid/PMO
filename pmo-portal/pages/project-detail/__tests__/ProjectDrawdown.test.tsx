@@ -89,6 +89,18 @@ describe('the figures', () => {
     }
   });
 
+  // ⚑ DERIVED, not decorative (spec review Critical). The assertion above passes even if the label
+  // is hardcoded "net of tax" and the RPC's answer ignored — every fixture says `basis: 'net'`, so
+  // the other branch is unreachable in the suite. A server that starts returning a different basis
+  // would then have the UI confidently mislabel every figure on the screen. This fixture is the
+  // only thing making the label a function of the RPC's response.
+  it('OD-TAX-1: the basis label is DERIVED from the RPC, not hardcoded', () => {
+    state.data = drawdown({ basis: 'gross' });
+    render(<ProjectDrawdown projectId="p1" />);
+    expect(screen.getByTestId('drawdown-committed')).toHaveTextContent('gross');
+    expect(screen.getByTestId('drawdown-committed')).not.toHaveTextContent('net of tax');
+  });
+
   it('says so when there is no ceiling yet, instead of drawing a bar against zero', () => {
     state.data = drawdown({ ceiling: 0, committed: 0, draft: 0 });
     render(<ProjectDrawdown projectId="p1" />);

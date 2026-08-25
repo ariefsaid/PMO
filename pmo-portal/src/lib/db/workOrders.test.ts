@@ -67,7 +67,6 @@ import {
   getProjectDrawdown,
   isLegalWorkOrderTransition,
   isOverCommitmentRefusal,
-  netOf,
   LEGAL_WORK_ORDER_TRANSITIONS,
   type WorkOrderInput,
 } from './workOrders';
@@ -303,10 +302,6 @@ describe('the transition map and the net conversion mirror the SQL', () => {
     expect(isLegalWorkOrderTransition('Cancelled', 'Issued')).toBe(false);
   });
 
-  it('nets an inclusive figure and leaves an exclusive one alone (0197 §3’s formula)', () => {
-    expect(netOf(500_000, 'inclusive', 50_000)).toBe(450_000);
-    expect(netOf(500_000, 'exclusive', 55_000)).toBe(500_000);
-  });
 });
 
 describe('isOverCommitmentRefusal', () => {

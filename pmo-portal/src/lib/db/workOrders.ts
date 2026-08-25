@@ -56,7 +56,9 @@ function throwWrite(error: PostgrestErrorLike): never {
  *
  * ⚑ `taxTreatment` and `taxAmount` are REQUIRED, not optional-with-a-default. Both columns are
  * NOT NULL with no DB default precisely so an omission is a hard error rather than a silently
- * wrong basis (`0193 §1`), and OD-TAX-1 forbids pre-selecting a treatment anywhere in the UI.
+ * wrong basis (`0193 §1`). ⚑ OD-TAX-1 does NOT forbid pre-selection — it rules the org-wide
+ * `default_tax_treatment` "pre-selects only", the stored per-row value staying authoritative.
+ * Nothing pre-selects today because that column does not exist yet (#548 adds it).
  */
 export interface WorkOrderInput {
   title: string;
@@ -128,15 +130,6 @@ export const LEGAL_WORK_ORDER_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStat
 export function isLegalWorkOrderTransition(from: WorkOrderStatus, to: WorkOrderStatus): boolean {
   if (from === to) return false;
   return LEGAL_WORK_ORDER_TRANSITIONS[from]?.includes(to) ?? false;
-}
-
-/**
- * Normalise one figure to NET, the same way `get_project_drawdown` and `transition_work_order`
- * both do (`0197 §3`/`§4`): an inclusive figure already contains its tax, an exclusive one does
- * not. Exported so the FE's over-commitment preview and the server's gate cannot drift.
- */
-export function netOf(value: number, treatment: string, taxAmount: number): number {
-  return treatment === 'inclusive' ? value - taxAmount : value;
 }
 
 /**
