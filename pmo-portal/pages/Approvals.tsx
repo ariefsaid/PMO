@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { AccessDenied, Badge, Card, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
 import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
@@ -180,7 +180,9 @@ function QueueGroup({
       ) : isError ? (
         <ListState
           variant="error"
-          title={`${t('approvals.queue.loadErrorPrefix', "Couldn't load")} ${title.toLowerCase()}`}
+          title={t('approvals.queue.loadError', "Couldn't load {{queue}}", {
+            queue: title.toLowerCase(),
+          })}
           sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
           onRetry={onRetry}
         />
@@ -398,15 +400,22 @@ function ReopenableApprovedSection() {
   return (
     <section
       className="mb-4"
-      aria-label={`${t('approvals.reopen.sectionLabelPrefix', 'Approved timesheets from the last')} ${REOPENABLE_WINDOW_DAYS} ${t('approvals.reopen.sectionLabelSuffix', 'days that can be re-opened for correction')}`}
+      aria-label={t(
+        'approvals.reopen.sectionLabel',
+        'Approved timesheets from the last {{days}} days that can be re-opened for correction',
+        { days: String(REOPENABLE_WINDOW_DAYS) },
+      )}
     >
       {/* ⚑ S4 — the list is bounded to a correction window, so the heading says so: a section that
           silently drops older weeks reads as a bug the first time someone looks for one. */}
       <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {t('approvals.reopen.heading', 'Approved — re-open for correction')}{' '}
         <span className="font-normal normal-case tracking-normal">
-          ({t('approvals.reopen.windowPrefix', 'last')} {REOPENABLE_WINDOW_DAYS}{' '}
-          {t('approvals.reopen.windowSuffix', 'days')})
+          (
+          {t('approvals.reopen.window', 'last {{days}} days', {
+            days: String(REOPENABLE_WINDOW_DAYS),
+          })}
+          )
         </span>
       </h2>
       <div className="space-y-1.5">
@@ -558,14 +567,19 @@ function ReopenableApprovedSection() {
         description={
           <div className="space-y-3">
             <p>
-              {t('approvals.attest.bodyPrefix', 'Certify that you have checked ERPNext and it holds')}{' '}
-              <strong>{t('approvals.attest.noTimesheet', 'no Timesheet')}</strong>{' '}
-              {t('approvals.attest.bodyFor', 'for')}
-              {attestFor ? ` ${attestFor.owner}` : ` ${t('approvals.attest.thisPerson', 'this person')}`}
-              {t(
-                'approvals.attest.bodySuffix',
-                '’s week. This records an audited attestation and re-opens the week for correction — it does not contact ERPNext.',
-              )}
+              {/* #571 — ONE sentence, not five fragments: the emphasis and the person are
+                  placeholders a translator moves, so a language that orders the clause
+                  differently still reads as prose. */}
+              <Trans
+                i18nKey="approvals.attest.body"
+                defaults="Certify that you have checked ERPNext and it holds <strong>no Timesheet</strong> for {{person}}’s week. This records an audited attestation and re-opens the week for correction — it does not contact ERPNext."
+                values={{
+                  person: attestFor
+                    ? attestFor.owner
+                    : t('approvals.attest.thisPerson', 'this person'),
+                }}
+                components={{ strong: <strong /> }}
+              />
             </p>
             <TextArea
               label={t('approvals.attest.reasonLabel', 'What did you check in ERPNext?')}

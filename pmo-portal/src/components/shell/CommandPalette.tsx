@@ -222,7 +222,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {/* A record list failed — keep module nav working, offer a retry. */}
           {error && (
             <div className="mx-1 mt-1 flex items-center justify-between gap-2 rounded-[7px] border border-border bg-destructive/10 px-2.5 py-2 text-[12.5px] text-destructive">
-              <span>{t('shell.palette.recordsError', 'Couldn’t load records.')}</span>
+              <span>{t('shell.palette.recordsError', "Couldn't load records.")}</span>
               {onRetry && (
                 <button
                   type="button"

@@ -167,7 +167,14 @@ export function blankComments(src) {
 }
 
 /**
- * Every `t('some.key' …)` key a source file references.
+ * Every key a source file references — `t('some.key' …)` and `<Trans i18nKey="some.key" …>`.
+ *
+ * Both shapes are ordinary literal references and must count identically. `<Trans>` is the only
+ * way to keep markup INSIDE one translatable sentence (#571): a sentence with a `<strong>` or a
+ * `<Link>` in the middle is otherwise assembled from prefix/suffix fragments in English word
+ * order, which silently renders nonsense in a language that orders the clause differently.
+ * Counting only `t(` would report every such sentence's key as an orphan and push authors back
+ * to the fragments.
  *
  * ⚑ Static literals only, which is sufficient because the call sites were written that way on
  * purpose: `i18next-parser` extracts literal keys only, so a computed `t(\`task.status.${s}\`)`
@@ -181,15 +188,20 @@ export function collectKeyRefs(src) {
   const stripped = blankComments(src);
   // The key literal is blanked out by `blankComments`, so match the key on the ORIGINAL source
   // at offsets the stripped source proves are live code.
-  const re = /(?<![A-Za-z0-9_$.])t\(\s*(['"])/g;
-  let m;
-  while ((m = re.exec(stripped))) {
-    const quote = m[1];
-    const start = m.index + m[0].length;
-    const end = src.indexOf(quote, start);
-    if (end < 0) continue;
-    const key = src.slice(start, end);
-    if (key && !key.includes('\n')) keys.add(key);
+  const shapes = [
+    /(?<![A-Za-z0-9_$.])t\(\s*(['"])/g,
+    /(?<![A-Za-z0-9_$.])i18nKey\s*=\s*\{?\s*(['"])/g,
+  ];
+  for (const re of shapes) {
+    let m;
+    while ((m = re.exec(stripped))) {
+      const quote = m[1];
+      const start = m.index + m[0].length;
+      const end = src.indexOf(quote, start);
+      if (end < 0) continue;
+      const key = src.slice(start, end);
+      if (key && !key.includes('\n')) keys.add(key);
+    }
   }
   return keys;
 }
@@ -230,8 +242,31 @@ function exemptAt(lines, lineNo) {
  * in a text node or a `label=` / `label:` slot — which is what makes "extracted" the passing
  * state rather than something the gate has to prove separately.
  */
+/**
+ * Blank the BODY of every JSX attribute value (offsets and newlines preserved), leaving the
+ * quotes in place.
+ *
+ * A JSX attribute value is not a text node, and rule 1 below is a text-node scan. It only starts
+ * to matter with `<Trans defaults="Certify … <strong>no Timesheet</strong> …">` (#571): keeping
+ * the markup INSIDE the sentence is the whole point of `<Trans>`, but to the `>…<` scan that
+ * `>no Timesheet<` reads as rendered prose nobody extracted — the exact opposite of the truth,
+ * and a finding whose only "fix" is to shatter the sentence back into fragments.
+ *
+ * Deliberately narrow. It requires `identifier=` immediately before the quote, so it can never
+ * match a quote inside prose — the apostrophe in a JSX text node like `Couldn't load` is not an
+ * attribute and is left alone. And it is applied to the text-node scan ONLY: the prop and
+ * object-field rules keep the untouched source, so `label="Unwrapped copy"` is still found.
+ */
+export function blankAttrValues(s) {
+  return s.replace(
+    /(\b[A-Za-z][A-Za-z0-9_-]*\s*=\s*(['"]))([^'"\n]*)(\2)/g,
+    (_, head, _q, body, tail) => head + ' '.repeat(body.length) + tail,
+  );
+}
+
 export function findUnextracted(src) {
   const stripped = blankComments(src);
+  const strippedText = blankAttrValues(stripped);
   const lines = src.split('\n');
   const found = [];
   const push = (idx, kind, text) => {
@@ -243,10 +278,10 @@ export function findUnextracted(src) {
   // 1. JSX text nodes: `>…<` with the `{…}` expression containers removed.
   const textRe = />([^<>]*)</g;
   let m;
-  while ((m = textRe.exec(stripped))) {
+  while ((m = textRe.exec(strippedText))) {
     // `=>` — the `>` of an arrow function closes nothing. Without this, the generic in
     // `(d: Map<string, number>) => Column<T>[]` reads as the rendered text "Column".
-    if (m.index > 0 && stripped[m.index - 1] === '=') continue;
+    if (m.index > 0 && strippedText[m.index - 1] === '=') continue;
     const start = m.index + 1;
     const raw = src.slice(start, start + m[1].length);
     let text = '';
@@ -670,6 +705,66 @@ function selfTest() {
     const src = `// see ${call(k(NS, 'illustration'), 'Example')} for the convention\n`;
     const r = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': src } });
     check('a key inside a comment is not a reference', !r.missing.length, `missing=${r.missing.length}`);
+  }
+
+  // 5b. `<Trans i18nKey="…">` is a reference, not an orphan (#571). A sentence carrying markup
+  //     can only stay ONE translatable string via `<Trans>`; if this gate saw only `t(`, every
+  //     such key would read as dead and the fix would be to shatter the sentence back into
+  //     English-ordered fragments. Both halves are asserted: the key counts as referenced, and
+  //     a `<Trans>` key the catalogue does not hold still reddens the gate.
+  {
+    const DQ = String.fromCharCode(34);
+    const attr = ['i18n', 'Key'].join('');
+    const trans = (key) => `<Trans ${attr}=${DQ}${key}${DQ} defaults=${DQ}Hello <b>there</b>${DQ} />`;
+    const src = `export const P = () => ${trans(OK_KEY)};\n`;
+    const r = analyse({
+      ...clean,
+      launchScopeFiles: { 'pages/Probe.tsx': src },
+      referenceFiles: { 'pages/Probe.tsx': src },
+    });
+    check(
+      'a <Trans i18nKey> key counts as referenced',
+      !r.orphans.includes(OK_KEY) && !r.missing.length,
+      `orphans=${JSON.stringify(r.orphans)} missing=${JSON.stringify(r.missing.map((x) => x.key))}`,
+    );
+    const bad = `export const P = () => ${trans(PLANTED_KEY)};\n`;
+    const rBad = analyse({
+      ...clean,
+      launchScopeFiles: { 'pages/Probe.tsx': bad },
+      referenceFiles: { 'pages/Probe.tsx': bad, ...clean.referenceFiles },
+    });
+    check(
+      'a <Trans i18nKey> naming a key the catalogue lacks fails the gate',
+      rBad.missing.some((x) => x.key === PLANTED_KEY),
+      `missing=${JSON.stringify(rBad.missing.map((x) => x.key))}`,
+    );
+  }
+
+  // 5c. The markup inside a `<Trans defaults="…">` is part of the extracted sentence, not a
+  //     rendered text node — and the false-positive it used to raise had only one "fix": break
+  //     the sentence back into English-ordered fragments, i.e. re-introduce the defect #571
+  //     removed. The apostrophe control is the other half: narrowing rule 1 must not go so wide
+  //     that a JSX text node containing `'` stops being scanned.
+  {
+    const DQ = String.fromCharCode(34);
+    const attr = ['def', 'aults'].join('');
+    const inner = ['no', 'Timesheet'].join(' ');
+    const src =
+      `export const P = () => <Trans ${attr}=${DQ}Certify it holds ` +
+      `<strong>${inner}</strong> for the week.${DQ} />;\n`;
+    const r = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': src } });
+    check(
+      'markup inside a <Trans defaults> attribute is not a rendered text node',
+      !r.unextracted.length,
+      `unextracted=${JSON.stringify(r.unextracted)}`,
+    );
+    const apos = `export const P = () => <p>${RAW} isn${String.fromCharCode(39)}t wrapped</p>;\n`;
+    const rApos = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': apos } });
+    check(
+      'an apostrophe in JSX text does not hide the unextracted string',
+      rApos.unextracted.some((u) => u.kind === 'jsx-text'),
+      `unextracted=${JSON.stringify(rApos.unextracted)}`,
+    );
   }
 
   // 6. The exemption needs a reason. A bare marker must NOT mute a finding.

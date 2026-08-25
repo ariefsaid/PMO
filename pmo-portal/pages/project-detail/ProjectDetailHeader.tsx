@@ -155,7 +155,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     project.client?.name ?? null,
     project.code ? `· ${project.code}` : null,
     project.customer_contract_ref
-      ? `· ${t('projectDetail.header.poPrefix', 'PO')} ${project.customer_contract_ref}${project.contract_date ? ` (${formatDate(project.contract_date)})` : ''}`
+      ? `· ${
+          project.contract_date
+            ? t('projectDetail.header.poWithDate', 'PO {{ref}} ({{date}})', {
+                ref: project.customer_contract_ref,
+                date: formatDate(project.contract_date),
+              })
+            : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
+        }`
       : null,
   ]
     .filter(Boolean)
@@ -430,7 +437,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={archiveOpen}
         tone="destructive"
-        title={`${t('projectDetail.header.archiveConfirm.title', 'Archive')} ${project.name}?`}
+        title={t('projectDetail.header.archiveConfirm.title', 'Archive {{name}}?', {
+          name: project.name,
+        })}
         description={t(
           'projectDetail.header.archiveConfirm.body',
           'It will be hidden from the default project list. Existing references stay intact. You can restore it later.',
@@ -446,7 +455,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={deleteOpen}
         tone="destructive"
-        title={`${t('projectDetail.header.deleteConfirm.title', 'Delete')} ${project.name}?`}
+        title={t('projectDetail.header.deleteConfirm.title', 'Delete {{name}}?', {
+          name: project.name,
+        })}
         description={t(
           'projectDetail.header.deleteConfirm.body',
           "This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it.",

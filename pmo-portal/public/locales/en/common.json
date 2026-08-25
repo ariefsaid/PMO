@@ -5,12 +5,9 @@
       "title": "You don't have access to approvals"
     },
     "attest": {
-      "bodyFor": "for",
-      "bodyPrefix": "Certify that you have checked ERPNext and it holds",
-      "bodySuffix": "’s week. This records an audited attestation and re-opens the week for correction — it does not contact ERPNext.",
+      "body": "Certify that you have checked ERPNext and it holds <strong>no Timesheet</strong> for {{person}}’s week. This records an audited attestation and re-opens the week for correction — it does not contact ERPNext.",
       "cancelLabel": "Cancel",
       "confirmLabel": "Confirm — no ERP document",
-      "noTimesheet": "no Timesheet",
       "reasonLabel": "What did you check in ERPNext?",
       "reasonPlaceholder": "e.g. Searched Timesheets for this employee and week — none exists.",
       "thisPerson": "this person",
@@ -57,7 +54,7 @@
       "title": "ERP pushes needing attention"
     },
     "queue": {
-      "loadErrorPrefix": "Couldn't load",
+      "loadError": "Couldn't load {{queue}}",
       "loadErrorSub": "Try again to refresh this queue."
     },
     "queueHeading": "Approvals queue",
@@ -77,11 +74,9 @@
       "heading": "Approved — re-open for correction",
       "outcomeUnknown": "ERP result unknown — an administrator must confirm what ERPNext holds",
       "pushInProgress": "Push in progress",
-      "sectionLabelPrefix": "Approved timesheets from the last",
-      "sectionLabelSuffix": "days that can be re-opened for correction",
+      "sectionLabel": "Approved timesheets from the last {{days}} days that can be re-opened for correction",
       "success": "Re-opened — the week is back in Draft for editing.",
-      "windowPrefix": "last",
-      "windowSuffix": "days"
+      "window": "last {{days}} days"
     },
     "scope": {
       "all": "All",
@@ -221,7 +216,7 @@
     "archiveConfirm": {
       "confirmLabel": "Archive company",
       "description": "It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time.",
-      "titlePrefix": "Archive"
+      "title": "Archive {{name}}?"
     },
     "backToCompanies": "Companies",
     "contacts": {
@@ -283,7 +278,7 @@
       "title": "Company not found"
     },
     "related": {
-      "loadErrorPrefix": "Couldn't load",
+      "loadError": "Couldn't load {{section}}",
       "loadErrorSub": "Something went wrong. Try again."
     },
     "relatedProcurement": {
@@ -346,7 +341,7 @@
     "archiveConfirm": {
       "confirmLabel": "Archive contact",
       "description": "They will be hidden from the default list. Existing activity stays intact. You can restore them any time.",
-      "titlePrefix": "Archive"
+      "title": "Archive {{name}}?"
     },
     "backToContacts": "Contacts",
     "edit": "Edit",
@@ -503,8 +498,7 @@
     },
     "atRisk": {
       "label": "at-risk",
-      "linkPrefix": "View",
-      "linkSuffix": "at-risk projects"
+      "linkLabel": "View {{n}} at-risk projects"
     },
     "boardPack": {
       "ariaLabel": "Board pack (coming soon)",
@@ -552,8 +546,7 @@
         "help": "Sum of (project value × stage win-probability) across all open stages.",
         "label": "Pipeline (weighted)",
         "linkLabel": "Open the sales pipeline",
-        "vsPrefix": "of",
-        "vsSuffix": "gross"
+        "vs": "of {{gross}} gross"
       },
       "revenueOnHand": {
         "help": "Booked revenue on active + closed-out contracts. The realized margin to date is the % shown below.",
@@ -778,7 +771,7 @@
   },
   "myTasks": {
     "changeStatusOf": "Change status of",
-    "duePrefix": "Due",
+    "due": "Due {{date}}",
     "empty": {
       "sub": "When tasks are assigned to you they will appear here across all your projects.",
       "title": "No tasks assigned to you"
@@ -790,7 +783,7 @@
     "logTime": "Log time",
     "noProjectGroup": "No project",
     "overdue": "Overdue",
-    "startPrefix": "Start",
+    "start": "Start {{date}}",
     "subtitle": "Your assigned tasks across all projects.",
     "title": "My Tasks"
   },
@@ -826,7 +819,7 @@
       "open": "Open",
       "ordered": "Ordered",
       "paid": "Paid",
-      "vendorInvoiced": "Vendor Invoiced"
+      "vendorInvoiced": "Vendor invoiced"
     },
     "importCycleData": "Import cycle data",
     "lifecycleLabel": "Lifecycle",
@@ -879,21 +872,20 @@
     "approvalNotes": "Approval notes",
     "backToProcurement": "Procurement",
     "confirm": {
-      "approvePrefix": "Approve",
+      "approveBody": "Approve <money/>?",
       "cancelTitle": "Cancel this request?",
-      "grBodyPrefix": "This records a",
-      "grBodySuffix": "goods receipt against",
+      "destructiveTitle": "{{action}} this request",
+      "grBody": "This records a {{status}} goods receipt against {{request}}.",
       "grTitle": "Record this goods receipt?",
       "keepRequest": "Keep request",
-      "markPaidPrefix": "Mark",
-      "markPaidSuffix": "as paid? This releases payment and cannot be undone.",
-      "onProject": "on",
-      "requestedBy": ", requested by",
+      "markPaidBody": "Mark <money/> as paid? This releases payment and cannot be undone.",
+      "moneyOnProject": "<amount>{{amount}}</amount> on <project/>",
+      "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> on <project/>, requested by <person>{{name}}</person>",
+      "moneyRequestedBy": "<amount>{{amount}}</amount>, requested by <person>{{name}}</person>",
       "saveGR": "Save GR",
       "saveVI": "Save VI",
       "terminal": "This is a terminal action for this request and cannot be undone.",
-      "thisRequest": "this request",
-      "viBodyPrefix": "This records a vendor invoice against",
+      "viBody": "This records a vendor invoice against {{request}}.",
       "viTitle": "Record this vendor invoice?"
     },
     "detail": {
@@ -1086,7 +1078,7 @@
       "archiveConfirm": {
         "body": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
         "confirm": "Archive project",
-        "title": "Archive"
+        "title": "Archive {{name}}?"
       },
       "contractValue": "Contract value",
       "contractValueConfirm": {
@@ -1097,10 +1089,11 @@
       "deleteConfirm": {
         "body": "This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it.",
         "confirm": "Delete project",
-        "title": "Delete"
+        "title": "Delete {{name}}?"
       },
       "editContractValue": "Edit contract value",
-      "poPrefix": "PO",
+      "po": "PO {{ref}}",
+      "poWithDate": "PO {{ref}} ({{date}})",
       "readOnly": "Read-only",
       "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
       "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
@@ -1148,7 +1141,7 @@
       "deleteConfirm": {
         "body": "Tasks under this milestone become ungrouped; they are not deleted.",
         "confirm": "Delete milestone",
-        "title": "Delete",
+        "title": "Delete \"{{name}}\"?",
         "titleFallback": "Delete milestone?"
       },
       "deleteMilestone": "Delete milestone",
@@ -1178,7 +1171,7 @@
         "updated": "Milestone updated"
       },
       "viewBlockingTasks": "View blocking tasks",
-      "weightShare": "of project"
+      "weightShare": "{{pct}}% of project"
     },
     "notFound": {
       "sub": "This project does not exist or you don't have access to it. Use Back to Projects to return.",
@@ -1221,7 +1214,7 @@
       },
       "procSummary": {
         "closed": "Closed",
-        "committedAcross": "committed across",
+        "committedAcross": "<amount>{{amount}}</amount> committed across {{n}} {{unit}}",
         "completed": "Completed",
         "empty": {
           "sub": "Requests raised against this project will appear here.",
@@ -1247,8 +1240,7 @@
       "journeyAriaLabel": "Project stage journey",
       "journeyHeading": "Project journey",
       "lostConfirm": {
-        "bodyPrefix": "This moves",
-        "bodySuffix": "to a terminal lost stage. You can still review it, but it will leave the active pipeline.",
+        "body": "This moves {{project}} to a terminal lost stage. You can still review it, but it will leave the active pipeline.",
         "confirm": "Mark lost",
         "title": "Mark project as lost"
       },
@@ -1322,9 +1314,8 @@
       "heading": "Progress curve",
       "seriesActual": "Actual to date",
       "seriesPlanned": "Planned",
-      "summaryByToday": "by today.",
-      "summaryLead": "Project S-curve: actual to date",
-      "summaryPlanClause": "plan expected"
+      "summary": "Project S-curve: actual to date {{actual}}.",
+      "summaryWithPlan": "Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today."
     },
     "tabs": {
       "ariaLabel": "Project sections",
@@ -1408,8 +1399,8 @@
         "archived": "Task archived",
         "created": "Task created",
         "deleted": "Task deleted",
-        "isNow": "is now",
         "restored": "Task restored",
+        "statusDetail": "{{task}} is now {{status}}",
         "statusUpdated": "Status updated",
         "updated": "Task updated"
       },
@@ -1511,7 +1502,7 @@
       "weighted": "Weighted",
       "winPct": "Win %"
     },
-    "description": "Track projects in the sales pipeline, manage leads, and forecast revenue.",
+    "description": "Track projects in the sales pipeline and forecast revenue.",
     "empty": {
       "sub": "Add a project to start tracking the pipeline.",
       "title": "No projects yet"
@@ -1521,13 +1512,12 @@
       "title": "Couldn't load the sales pipeline"
     },
     "funnel": {
-      "weightedSuffix": "weighted"
+      "weighted": "{{value}} weighted"
     },
     "lastTouch": {
       "daysAgo": "days ago",
       "oneDayAgo": "1 day ago",
-      "stalePrefix": "Untouched for",
-      "staleSuffix": "days — needs attention",
+      "stale": "Untouched for {{days}} days — needs attention",
       "today": "today"
     },
     "lastTouchUnavailable": "Last touch not available",
@@ -1555,8 +1545,7 @@
         "title": "No lost projects"
       },
       "needsAttention": {
-        "subPrefix": "No project has been untouched for",
-        "subSuffix": "+ days — pipeline is active.",
+        "sub": "No project has been untouched for {{days}}+ days — pipeline is active.",
         "title": "No projects need attention"
       },
       "search": {
@@ -1631,7 +1620,7 @@
       "dialogLabel": "Command palette",
       "inputLabel": "Search projects, records, or run a command",
       "inputPlaceholder": "Search projects, PRs, customers, or run a command…",
-      "recordsError": "Couldn’t load records.",
+      "recordsError": "Couldn't load records.",
       "recordsGroup": "Records",
       "resultsLabel": "Command results",
       "retry": "Retry"
@@ -1674,8 +1663,7 @@
     "approvalsLink": "Approvals",
     "deleteRow": {
       "confirmLabel": "Delete row",
-      "descriptionPrefix": "This removes",
-      "descriptionSuffix": "and all its hours from this week. You can add it back, but the entered hours won’t be restored.",
+      "description": "This removes <strong>{{project}}</strong> and all its hours from this week. You can add it back, but the entered hours won’t be restored.",
       "title": "Delete this project row?"
     },
     "empty": {
@@ -1703,8 +1691,7 @@
       "sub": "Your line manager sent it back. Review the flagged days, correct them, and resubmit.",
       "title": "This week was returned for changes"
     },
-    "reviewPrefix": "Review",
-    "reviewSuffix": "awaiting",
+    "review": "Review {{n}} awaiting",
     "save": "Save",
     "status": {
       "draftNotSubmitted": "Draft — not submitted"
@@ -1715,7 +1702,7 @@
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       "title": "Submit this week for approval?"
     },
-    "subtitle": ". Enter hours per project per day, then submit the whole week for your line manager to approve.",
+    "subtitle": "Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.",
     "title": "Timesheets",
     "toast": {
       "deleteFailed": "Delete failed",
