@@ -37,6 +37,21 @@ begin
      and v_meeting_project is distinct from new.project_id then
     raise exception 'task meeting must be in the same org and project' using errcode = '42501';
   end if;
+  -- ⚑ THE INBOUND GUARD (security review, 2026-08-24 — a High the first cut missed). DD-MTG-8
+  -- reasoned about /action's OUTBOUND leak (the author publishes a task name org-wide, by choice).
+  -- The inbound direction was never considered: without this, ANY member POSTs a task carrying a
+  -- harvested meeting_id (meeting_id is org-readable on every task) and injects an action item into
+  -- a minute they are excluded from — read by the real attendees as agreed there, and an Engineer
+  -- author cannot take it down (tasks_delete is manager-only). Linking a task to a meeting is a
+  -- claim about that meeting, so it requires READ on the meeting, checked AFTER org/project so a
+  -- cross-org id still yields the message above rather than a readability oracle.
+  -- Fires only when the LINK changes: ordinary edits to a task by a non-reader must not start
+  -- failing. The service-role / external-sync path returned early at the top, so sweeps are exempt.
+  if tg_op = 'INSERT' or new.meeting_id is distinct from old.meeting_id then
+    if not public.can_read_meeting(new.meeting_id) then
+      raise exception 'task meeting must be one you can read' using errcode = '42501';
+    end if;
+  end if;
   return new;
 end; $$;
 revoke all on function public.check_task_meeting_same_project() from public;

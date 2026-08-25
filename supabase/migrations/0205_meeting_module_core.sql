@@ -99,13 +99,17 @@ grant all on public.meetings, public.meeting_attendees, public.meeting_access_gr
 -- ── §2 — the cycle-breaking visibility helpers ──────────────────────────────────────────────────
 create or replace function public.is_meeting_attendee(p_meeting_id uuid)
   returns boolean language sql stable security definer set search_path = public as $$
+  -- org-scoped internally (security review LOW-4): every caller already conjoins org, but the
+  -- name promises attendance and the next reuse without an org conjunct would be a cross-tenant read.
   select exists (select 1 from public.meeting_attendees a
-                  where a.meeting_id = p_meeting_id and a.profile_id = auth.uid())
+                  where a.meeting_id = p_meeting_id and a.profile_id = auth.uid()
+                    and a.org_id = auth_org_id())
 $$;
 create or replace function public.has_meeting_grant(p_meeting_id uuid)
   returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.meeting_access_grants g
-                  where g.meeting_id = p_meeting_id and g.user_id = auth.uid())
+                  where g.meeting_id = p_meeting_id and g.user_id = auth.uid()
+                    and g.org_id = auth_org_id())
 $$;
 -- The child-table policies' side of the cycle: may the caller read this meeting? Same disjuncts as
 -- meetings_select, evaluated OUTSIDE the policy engine so children can consult it safely.
@@ -196,7 +200,10 @@ begin
                                            then new.notes else '[]'::jsonb end) ->> 'text' as t) x
    where x.t is not null;
   new.notes_text   := v_text;
-  new.notes_search := to_tsvector('simple', new.title || ' ' || v_text);
+  -- INFO-7: bound the tsvector input — >1MB of tokenizable text raises 54000 with no classifier
+  -- branch. Search truncates at ~900k chars; notes_text keeps the whole body. Own-row only, no
+  -- cross-user reach, but a legible failure beats a raw Postgres error.
+  new.notes_search := to_tsvector('simple', left(new.title || ' ' || v_text, 900000));
   -- FR-MTG-005: the schema version is SERVER-written on every insert and update — a client-supplied
   -- value never sticks. `authenticated` holds table-wide UPDATE, so without this line a raw PATCH
   -- sets it freely and future readers branch on a lie (spec-review C-class find, 2026-08-24).
@@ -224,7 +231,13 @@ create policy meeting_attendees_insert on public.meeting_attendees for insert
   with check (org_id = auth_org_id() and public.is_active_member()
     and exists (select 1 from public.meetings m where m.id = meeting_attendees.meeting_id
                  and m.org_id = auth_org_id()
-                 and (m.created_by_id = (select auth.uid()) or auth_role() = 'Admin')));
+                 and (m.created_by_id = (select auth.uid()) or auth_role() = 'Admin'))
+    -- LOW-5: the seated identity must be in-org too (mirrors the grants table). Inert single-tenant;
+    -- exactly the row that goes wrong when org_id starts varying at the B2B seam.
+    and (profile_id is null or exists (select 1 from public.profiles pr
+           where pr.id = meeting_attendees.profile_id and pr.org_id = auth_org_id()))
+    and (contact_id is null or exists (select 1 from public.contacts ct
+           where ct.id = meeting_attendees.contact_id and ct.org_id = auth_org_id())));
 create policy meeting_attendees_delete on public.meeting_attendees for delete
   using (org_id = auth_org_id() and public.is_active_member()
     and exists (select 1 from public.meetings m where m.id = meeting_attendees.meeting_id
@@ -297,6 +310,8 @@ begin
                            jsonb_build_object('user_id', old.user_id, 'granted_by', old.granted_by));
   return old;
 end; $$;
+revoke all on function public.audit_meeting_grant_insert() from public;
+revoke all on function public.audit_meeting_grant_delete() from public;
 create trigger meeting_access_grants_audit_insert
   after insert on public.meeting_access_grants
   for each row execute function public.audit_meeting_grant_insert();

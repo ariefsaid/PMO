@@ -9,7 +9,7 @@
 -- Row-modifying assertions count rows via top-level CTEs (an RLS-denied UPDATE is a silent no-op).
 -- ================================================================================================
 begin;
-select plan(29);
+select plan(33);
 
 insert into organizations (id, name) values
   ('00d50000-0000-0000-0000-000000000001','MTG Org A'),
@@ -209,6 +209,43 @@ select throws_ok($$
   delete from meetings where id = '00d50000-0000-0000-0000-000000000101'
 $$, '23503', null,
   'AC-MTG-124 a meeting hard-delete FK-BLOCKS while an action task references it (FR-MTG-016)');
+
+-- ── §7 — THE INBOUND GUARD (security review High, 2026-08-24) ──────────────────────────────────
+-- A non-reader must not be able to LINK a task to a minute they cannot read — that injects an
+-- action item the real attendees see, with no way for a non-manager author to remove it. ⚑ f1 (the
+-- PM) is the right fixture: a same-org member whose grant was REVOKED at AC-MTG-118, so f1 genuinely
+-- cannot read by now — e2 still holds a live grant from AC-MTG-111 and legitimately can (that shaped
+-- the first draft of this oracle wrong, caught by the mutation run itself).
+set local request.jwt.claims = '{"sub":"00d50000-0000-0000-0000-0000000000f1","role":"authenticated"}';
+select throws_ok($$
+  insert into tasks (org_id, project_id, name, status, meeting_id)
+  values ('00d50000-0000-0000-0000-000000000001','00d50000-0000-0000-0000-000000000010',
+          'INJECTED action item','To Do','00d50000-0000-0000-0000-000000000101')
+$$, '42501', 'task meeting must be one you can read',
+  'AC-MTG-130 a NON-READER cannot link a task to a meeting they cannot read (inbound guard)');
+
+select throws_ok($$
+  insert into tasks (org_id, name, status, meeting_id)
+  values ('00d50000-0000-0000-0000-000000000001','INJECTED nullproject','To Do',
+          '00d50000-0000-0000-0000-000000000101')
+$$, '42501', 'task meeting must be one you can read',
+  'AC-MTG-131 …the project_id-null inbound path is guarded too');
+
+-- The attendee (e3) — who CAN read — links fine: the guard admits the legitimate /action.
+set local request.jwt.claims = '{"sub":"00d50000-0000-0000-0000-0000000000e3","role":"authenticated"}';
+select lives_ok($$
+  insert into tasks (org_id, project_id, name, status, meeting_id)
+  values ('00d50000-0000-0000-0000-000000000001','00d50000-0000-0000-0000-000000000010',
+          'Legit action','To Do','00d50000-0000-0000-0000-000000000101')
+$$, 'AC-MTG-132 an ATTENDEE (can read) links their /action task normally — the guard admits it');
+
+-- ── §8 — LOW-5: a foreign-org seated identity is rejected ──────────────────────────────────────
+set local request.jwt.claims = '{"sub":"00d50000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select throws_ok($$
+  insert into meeting_attendees (meeting_id, profile_id)
+  values ('00d50000-0000-0000-0000-000000000101','00d50000-0000-0000-0000-0000000000b1')
+$$, '42501', null,
+  'AC-MTG-133 an author cannot seat a FOREIGN-org profile as an attendee (LOW-5, B2B seam)');
 
 select * from finish();
 rollback;
