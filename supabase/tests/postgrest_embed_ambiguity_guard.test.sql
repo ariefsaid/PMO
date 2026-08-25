@@ -51,6 +51,12 @@ select set_eq(
             -- tasks selects (`useMyTasks.ts:41`, `milestones.ts:230`, the ClickUp dispatch factory)
             -- embed no profile at all. So nothing broke; the pair is recorded, not waived.
             ('tasks -> profiles'),
+            -- 0205 (#526): meeting_access_grants carries user_id AND granted_by, both -> profiles.
+            -- ⚑ Checked before adding, per this assertion's own instruction: NO DAL for meetings
+            -- exists yet (git grep meeting_access_grants pmo-portal/src -> nothing), so there is no
+            -- unqualified embed to break. Whatever ships first MUST use
+            -- `alias:profiles!meeting_access_grants_<column>_fkey(...)`.
+            ('meeting_access_grants -> profiles'),
             ('timesheets -> profiles'),
             -- 0193 (#498): work_orders carries THREE person columns — order_value_set_by (the SoD
             -- witness), issued_by, and over_commit_ack_by. Checked before adding: nothing in the DAL
