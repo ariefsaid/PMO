@@ -88,4 +88,23 @@ describe('useMeetingMutations.createActionItem — the /action seam (FR-MTG-017 
       expect.objectContaining({ project_id: null, meeting_id: 'm2' }),
     );
   });
+
+  it('invalidates the action-item list AND the task lists (a /action task is a real task)', async () => {
+    repoMock.task.create.mockResolvedValue({ id: 't3' });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const localWrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useMeetingMutations(), { wrapper: localWrapper });
+    await result.current.createActionItem.mutateAsync({
+      meetingId: 'm1',
+      projectId: 'p1',
+      name: 'Chase samples',
+    });
+    const keys = spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0]);
+    expect(keys).toContain('meeting-action-items');
+    expect(keys).toContain('tasks'); // project Tasks tab cache
+    expect(keys).toContain('my-tasks'); // the IC's cross-project list cache
+  });
 });

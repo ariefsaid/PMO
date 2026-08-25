@@ -167,7 +167,14 @@ export function useMeetingMutations() {
         assignee_id: null,
         meeting_id: meetingId,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-action-items'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting-action-items'] });
+      // A /action task is a real task — refresh any open task list too, not just the meeting's
+      // own action-item list: the project Tasks tab keys off ['tasks', …] and My Tasks off
+      // ['my-tasks', …] (distinct caches — both must be busted).
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['my-tasks'] });
+    },
   });
 
   return {

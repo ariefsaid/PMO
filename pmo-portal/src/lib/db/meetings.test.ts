@@ -135,11 +135,14 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     expect(h.calls.or).toEqual([]);
   });
 
-  it('falls back to ilike over title + notes_text when the FTS query errors', async () => {
+  it('falls back to ilike over title + notes_text when the FTS PATH itself errors (infra fault)', async () => {
+    // ⚑ Not bad user input: websearch_to_tsquery is the forgiving parser and never raises on a
+    // malformed query. This simulates an INFRA fault on the FTS path (index unavailable /
+    // transient DB error) — the only thing that reaches the ilike fallback. See the DAL header.
     h.queue.length = 0;
-    h.queue.push({ data: null, error: { message: 'syntax error in tsquery' } });
+    h.queue.push({ data: null, error: { message: 'index "meetings_notes_search_idx" is not available' } });
     h.queue.push({ data: [{ id: 'm2', title: 'Fallback hit' }], error: null });
-    const rows = await listMeetings({ search: 'weird(query' });
+    const rows = await listMeetings({ search: 'pipeline' });
     expect(h.calls.or.length).toBe(1);
     expect(String(h.calls.or[0])).toContain('title.ilike.');
     expect(String(h.calls.or[0])).toContain('notes_text.ilike.');
@@ -188,6 +191,12 @@ describe('createMeeting (FR-MTG-014 / 0205 stamps)', () => {
     for (const forbidden of ['org_id', 'created_by_id', 'notes_text', 'notes_search', 'notes_schema_version']) {
       expect(sent).not.toHaveProperty(forbidden);
     }
+  });
+
+  it('trims a whitespace-only location to null (never stored verbatim)', async () => {
+    h.queue[0] = { data: { id: 'm1', title: 'T' }, error: null };
+    await createMeeting({ title: 'T', location: '   ' });
+    expect((h.calls.insert[0] as Record<string, unknown>).location).toBeNull();
   });
 });
 

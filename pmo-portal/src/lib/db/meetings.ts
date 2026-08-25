@@ -117,9 +117,15 @@ export interface MeetingListParams {
  *
  * Search: `textSearch` on the stored `notes_search` tsvector with `websearch` semantics
  * (FR-MTG-011 — quoted phrases and -exclusions behave as everywhere else); the trigger builds the
- * vector with the `simple` config (0205), so the query parses with the same config. If the
- * websearch query fails (e.g. syntax the parser rejects), falls back to a plain ilike over
- * `title` + `notes_text`.
+ * vector with the `simple` config (0205), so the query parses with the same config.
+ *
+ * ⚑ The ilike fallback is for INFRASTRUCTURE faults, NOT bad user input: `websearch_to_tsquery`
+ * is the FORGIVING parser — it never raises on malformed query text (unbalanced quotes, stray
+ * operators all degrade gracefully), so a user's typing cannot reach this branch. It fires only
+ * when the FTS path itself errors — e.g. the GIN index is unavailable / a transient DB fault — and
+ * when it does it SILENTLY swaps stemmed full-text matching for substring (`ilike`) semantics.
+ * Kept as a resilience net so search stays usable through such a fault; the semantic downgrade is
+ * the accepted cost of not failing the whole list.
  */
 export async function listMeetings(params?: MeetingListParams): Promise<MeetingWithRefs[]> {
   const build = (useFts: boolean) => {
@@ -143,6 +149,9 @@ export async function listMeetings(params?: MeetingListParams): Promise<MeetingW
 
   const { data, error } = await build(true);
   if (error) {
+    // Only a search query has a fallback (the ilike path needs a term); a non-search error is a
+    // real failure. See the header: this catches an FTS-path/infra fault, never bad user input,
+    // and degrades stemmed matching to substring for that one query.
     if (!params?.search?.trim()) throwWrite(error);
     const fallback = await build(false);
     if (fallback.error) throwWrite(fallback.error);
@@ -173,7 +182,9 @@ export async function getMeeting(id: string): Promise<MeetingWithRefs | null> {
 export async function createMeeting(input: MeetingInput): Promise<MeetingRow> {
   const row: TablesInsert<'meetings'> = {
     title: input.title,
-    location: input.location || null,
+    // Trim to null so a whitespace-only location is not stored verbatim (matches
+    // addMeetingAttendee's `display_name?.trim() || null`).
+    location: input.location?.trim() || null,
     project_id: input.project_id ?? null,
   };
   if (input.occurred_at) row.occurred_at = input.occurred_at;

@@ -38,6 +38,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
 import { formatDateTime, formatDate } from '@/src/lib/format';
+import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -59,11 +60,6 @@ import {
  * The share panel (FR-MTG-032..034): named users, view-only, no tiers/links/expiry, and the
  * project's PM is PRE-SUGGESTED as a one-click add — never auto-granted (DD-MTG-7).
  */
-
-const toLocalInput = (d: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 const attendeeName = (a: MeetingAttendeeWithRefs): string =>
   a.profile?.full_name ?? a.contact?.full_name ?? a.display_name ?? '—';
@@ -841,7 +837,7 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
   const form = useEntityForm<EditFormValues>({
     initialValues: {
       title: meeting.title,
-      occurredAt: toLocalInput(new Date(meeting.occurred_at)),
+      occurredAt: toDatetimeLocalValue(new Date(meeting.occurred_at)),
       location: meeting.location ?? '',
       projectId: meeting.project_id ?? '',
     },

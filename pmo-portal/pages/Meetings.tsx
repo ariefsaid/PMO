@@ -28,6 +28,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { formatDateTime } from '@/src/lib/format';
+import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
 import type { MeetingWithRefs, MeetingInput } from '@/src/lib/db/meetings';
 
 /**
@@ -55,12 +56,6 @@ const makeValidate =
       errors.title = t('meetings.form.errors.titleRequired', 'Meeting title is required.');
     return errors;
   };
-
-/** Local-tz value for a `datetime-local` input (the input type carries no timezone). */
-const toLocalInput = (d: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 const Meetings: React.FC = () => {
   const { t } = useTranslation();
@@ -367,7 +362,7 @@ const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
   const form = useEntityForm<FormValues>({
     initialValues: {
       title: '',
-      occurredAt: toLocalInput(new Date()),
+      occurredAt: toDatetimeLocalValue(new Date()),
       location: '',
       projectId: '',
     },
