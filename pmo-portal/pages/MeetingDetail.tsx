@@ -36,7 +36,7 @@ import {
 } from '@/src/hooks/useMeetings';
 import { useProjects } from '@/src/hooks/useProjects';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
 import { formatDateTime, formatDate } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
@@ -726,6 +726,20 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
       try {
         await onCreate(values.name);
       } catch (err) {
+        // #526 security review: the 0206 trigger blocks linking a task to a meeting the caller
+        // can't read. This should never fire here — the modal only opens from a meeting already
+        // on screen — but if it does, name it plainly rather than as a generic role denial.
+        if (isMeetingReadDenied(err)) {
+          setSaveError({
+            headline: t('meetingDetail.action.readDeniedHeadline', 'Action item not created'),
+            detail: t(
+              'meetingDetail.action.readDeniedDetail',
+              'You can only create action items on meetings you can access.',
+            ),
+          });
+          onError(err);
+          return;
+        }
         const { headline, detail } = classifyMutationError(err, undefined, {
           module: 'meetings',
           operation: 'create',

@@ -600,7 +600,9 @@
       "placeholderName": "Untitled action",
       "projectFixed": "(fixed to this meeting’s project)",
       "projectLabel": "Project",
-      "projectNone": "No project"
+      "projectNone": "No project",
+      "readDeniedDetail": "You can only create action items on meetings you can access.",
+      "readDeniedHeadline": "Action item not created"
     },
     "actionItems": {
       "empty": "No action items yet. Use Action on a minute line to create one.",

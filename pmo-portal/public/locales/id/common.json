@@ -600,7 +600,9 @@
       "placeholderName": "Action tanpa judul",
       "projectFixed": "(terkunci ke proyek rapat ini)",
       "projectLabel": "Proyek",
-      "projectNone": "Tanpa proyek"
+      "projectNone": "Tanpa proyek",
+      "readDeniedDetail": "Anda hanya dapat membuat action item pada rapat yang dapat Anda akses.",
+      "readDeniedHeadline": "Action item tidak dibuat"
     },
     "actionItems": {
       "empty": "Belum ada action item. Gunakan Action pada baris notulen untuk membuatnya.",
