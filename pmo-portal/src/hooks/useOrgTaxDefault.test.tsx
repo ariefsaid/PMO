@@ -112,3 +112,32 @@ describe('useTaxTreatmentPreselect — pre-selects only', () => {
     await waitFor(() => expect(result.current.value).toBe(''));
   });
 });
+
+// ⚑ THE LATCH'S REAL ORACLE (spec review Critical). The neighbouring test — "does not re-seed after
+// the user clears the control" — CANNOT fail: the effect's deps are [enabled, orgDefault], and
+// clearing the control changes neither, so the effect never re-runs and `seeded.current` is never
+// consulted. Removing the latch left that suite 10/10 green.
+//
+// The scenario the latch actually exists for, and the hook's own docstring names: the Admin flips
+// the org posture MID-SESSION, ORG_TAX_DEFAULT_KEY is invalidated, a NEW default arrives — and the
+// user, who has deliberately cleared or changed the control, must not have it typed back in under
+// their cursor. Only a changing `orgDefault` re-runs the effect, so only this shape binds the latch.
+describe('the seed-once latch (OD-TAX-1: pre-select, never re-impose)', () => {
+  it('does not re-seed when the org default CHANGES after the user has already answered', () => {
+    const apply = vi.fn();
+    let current = '';
+    const { rerender } = renderHook(
+      ({ def }: { def: TaxTreatment | undefined }) =>
+        useTaxTreatmentPreselect(def, current, apply, true),
+      { initialProps: { def: 'exclusive' as TaxTreatment | undefined } },
+    );
+    expect(apply).toHaveBeenCalledWith('exclusive');
+
+    // The user clears it on purpose, then an Admin flips the org posture mid-session.
+    current = '';
+    apply.mockClear();
+    rerender({ def: 'inclusive' as TaxTreatment | undefined });
+
+    expect(apply).not.toHaveBeenCalled();
+  });
+});

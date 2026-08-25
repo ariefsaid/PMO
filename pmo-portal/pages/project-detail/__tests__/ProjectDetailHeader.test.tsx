@@ -45,6 +45,12 @@ const onHand = {
   status: 'Ongoing Project',
   client_id: 'c2',
   project_manager_id: 'u-alice',
+  // ⚑ THE BACKFILL ARTIFACT, present on purpose (DD-TAX-2). 0197 wrote 'exclusive' onto EVERY
+  // existing project, so a stored marker on an old row may be something nobody chose. Without it
+  // on this fixture the assertion below cannot fail — seeding the editor from the row would look
+  // identical to leaving it empty, which is exactly how DD-TAX-2's only guard went dead.
+  tax_treatment: 'exclusive',
+  tax_amount: 550000,
   contract_value: 5000000,
   currency: 'USD',
   budget: 4700000,

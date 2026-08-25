@@ -1,3 +1,4 @@
+import TaxBasisLabel from '@/src/components/ui/TaxBasisLabel';
 import React, { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -180,7 +181,15 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   };
 
   const stats: StatTile[] = [
-    { label: t('projectDetail.pipeline.stat.value', 'Value'), value: formatCurrency(value, currency) },
+    // OD-TAX-1 §2: this is the figure that BECOMES the drawdown ceiling on win, so it states its
+    // basis like every other money figure. The row carries it — OPPORTUNITY_COLUMNS includes
+    // tax_treatment precisely for this (opportunity.ts). The pipeline LIST is a fair omission
+    // (its RPC doesn't project the column, #578); this lens is not.
+    {
+      label: t('projectDetail.pipeline.stat.value', 'Value'),
+      value: formatCurrency(value, currency),
+      sub: <TaxBasisLabel treatment={project.tax_treatment} />,
+    },
     { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
     { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
     {
@@ -300,7 +309,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                     initialises i18next. */}
                 <div className="text-[13px] text-foreground">
                   Booking <strong className="font-semibold tabular">{formatCurrency(value, currency)}</strong>{' '}
-                  to contract value on win
+                  <TaxBasisLabel treatment={project.tax_treatment} /> to contract value on win
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-ref" className="text-[12px] font-semibold">

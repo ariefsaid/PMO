@@ -110,3 +110,25 @@ describe('setOrgTaxDefault — Admin-only write, targeted at the row RLS returne
     await expect(setOrgTaxDefault('inclusive')).rejects.toThrow(/row-level security/);
   });
 });
+
+describe('setOrgTaxDefault refuses an ambiguous target (security review, Low)', () => {
+  // ⚑ The security-fix commit shipped this guard with NO oracle — against the repo's own
+  // no-prod-code-without-a-failing-test rule, caught by the spec review. The guard exists because
+  // the old `.limit(1)` was deterministic only while RLS shows exactly one org: the safety was the
+  // POLICY's, not the query's. The day an operator view or B2B tenancy makes two rows visible,
+  // "the first row Postgres returned" silently flips the wrong org's tax posture.
+  it('refuses out loud rather than writing to whichever org came back first', async () => {
+    h.queue.push({ data: [{ id: 'org-a' }, { id: 'org-b' }], error: null });
+    await expect(setOrgTaxDefault('inclusive')).rejects.toThrow(/more than one organization/i);
+    // …and critically: it wrote NOTHING.
+    expect(h.calls.update).toEqual([]);
+  });
+
+  it('still writes normally when exactly one org is visible', async () => {
+    h.queue.push({ data: [{ id: 'org-a' }], error: null });
+    h.queue.push({ data: null, error: null });
+    await setOrgTaxDefault('inclusive');
+    expect(h.calls.update).toEqual([{ default_tax_treatment: 'inclusive' }]);
+    expect(h.calls.eq).toEqual([['id', 'org-a']]);
+  });
+});
