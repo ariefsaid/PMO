@@ -173,6 +173,15 @@ import {
   updateTaskMilestone,
 } from '@/src/lib/db/milestones';
 import {
+  listProjectWorkOrders,
+  getWorkOrder,
+  createWorkOrder,
+  updateWorkOrder,
+  setWorkOrderValue,
+  transitionWorkOrder,
+  getProjectDrawdown,
+} from '@/src/lib/db/workOrders';
+import {
   listProcurementFiles,
   prepareUpload as prepareProcurementFileUpload,
   confirmUpload as confirmProcurementFileUpload,
@@ -229,6 +238,7 @@ import type {
   TaskRepository,
   IncidentRepository,
   MilestoneRepository,
+  WorkOrderRepository,
   ProcurementFileRepository,
   ContactRepository,
   UserViewRepository,
@@ -663,6 +673,22 @@ const milestone: MilestoneRepository = {
   setTaskMilestone: (taskId, milestoneId) => wrap(() => updateTaskMilestone(taskId, milestoneId)),
 };
 
+/**
+ * Work orders (#566). Thin wrappers, deliberately one-to-one with the DAL: `setValue` and
+ * `transition` stay SEPARATE from `update` because the server keeps them separate — the value and
+ * its tax basis move through the sole witnessed writer, and status moves through the single
+ * transition authority. Collapsing any pair here would hide a control behind a convenience.
+ */
+const workOrder: WorkOrderRepository = {
+  list: (projectId) => wrap(() => listProjectWorkOrders(projectId)),
+  get: (id) => wrap(() => getWorkOrder(id)),
+  create: (projectId, input) => wrap(() => createWorkOrder(projectId, input)),
+  update: (id, patch) => wrap(() => updateWorkOrder(id, patch)),
+  setValue: (input) => wrap(() => setWorkOrderValue(input)),
+  transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
+  drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
+};
+
 const procurementFiles: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
   prepareUpload: (phase, procurementId, fileName) =>
@@ -889,6 +915,7 @@ export const repositories: Repositories = {
   task,
   incident,
   milestone,
+  workOrder,
   procurementFiles,
   contact,
   userView,
@@ -915,6 +942,7 @@ export type {
   TaskRepository,
   IncidentRepository,
   MilestoneRepository,
+  WorkOrderRepository,
   ProcurementFileRepository,
   ContactRepository,
   UserViewRepository,

@@ -11,6 +11,7 @@ import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import ProjectDrawdown from '../ProjectDrawdown';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -213,6 +214,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
       </div>
 
       {/* T18: Row 2 — Procurement summary + Budget snapshot */}
+      {/* #566 / OD-CR-13: the contract drawdown, full width and above the procurement/budget
+          detail. The PM manages by this number day one, so it is on the screen they land on
+          rather than behind the Work orders tab — the tab is where they ACT on it. */}
+      <ProjectDrawdown projectId={project.id} />
+
       <div data-testid="overview-row2" className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* T14/T15 — Procurement summary card */}
         <Card variant="bare">
