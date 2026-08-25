@@ -8,7 +8,7 @@
 -- edits a preference (#478 — unrecoverable after the fact).
 -- ================================================================================================
 begin;
-select plan(8);
+select plan(11);
 
 insert into organizations (id, name) values
   ('00d60000-0000-0000-0000-000000000001','TAX Org A'),
@@ -69,6 +69,30 @@ select throws_ok($$
    where id = '00d60000-0000-0000-0000-000000000001'
 $$, '42501', null,
   'AC-TAX-207 …and the same Admin cannot rename the org through it — the grant is column-scoped');
+
+-- ⚑ The columns that would actually MATTER if the scoping failed — `name` was the narrowest
+-- possible probe (security review Low). `default_currency` re-denominates every org-level
+-- aggregate; `lifecycle_state` is terminal and gates the destructive-write guard.
+select throws_ok($$
+  update organizations set default_currency = 'USD'
+   where id = '00d60000-0000-0000-0000-000000000001'
+$$, '42501', null,
+  'AC-TAX-209 …nor default_currency — the column that would re-denominate every aggregate');
+
+select throws_ok($$
+  update organizations set lifecycle_state = 'demo'
+   where id = '00d60000-0000-0000-0000-000000000001'
+$$, '42501', null,
+  'AC-TAX-210 …nor lifecycle_state — terminal, and what the destructive-write guard reads');
+
+-- The flip is attributable: who, when, from what, to what (security review Medium).
+select is(
+  (select count(*)::int from audit_events
+    where action = 'org.tax_default.change'
+      and entity_id = '00d60000-0000-0000-0000-000000000001'
+      and detail->>'from' = 'exclusive' and detail->>'to' = 'inclusive'),
+  1,
+  'AC-TAX-211 flipping the org tax posture writes an audit row naming both sides — a money-steering config write must be attributable');
 
 select is(
   (select count(*)::int from information_schema.role_table_grants

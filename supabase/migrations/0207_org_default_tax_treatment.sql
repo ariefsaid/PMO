@@ -64,3 +64,31 @@ grant update (default_tax_treatment) on public.organizations to authenticated;
 drop policy organizations_select on public.organizations;
 create policy organizations_select on public.organizations for select
   using (id = auth_org_id() and public.is_active_member());
+
+-- ── §3 — the flip leaves a trace (security review, Medium: STRIDE-R) ────────────────────────────
+-- ⚑ `organizations` carried NO audit trigger, no updated_at, no updated_by — while 13 tables have
+-- one, including every money table. That was tolerable while the row held only descriptive
+-- settings. It stops being tolerable here: this is the program's first MONEY-STEERING org-config
+-- write. Flip the default and every new contract, work order and vendor-invoice form thereafter
+-- pre-selects the opposite basis; someone trusting the pre-fill records a ceiling on the wrong
+-- basis — an ~11% misstatement of the very figure the work-order drawdown compares against.
+-- Afterwards you can see which basis each ROW carries (those tables are audited) but not WHEN the
+-- default changed, so the affected window cannot be bounded and the change cannot be attributed.
+--
+-- Scoped deliberately to the tax posture: this trigger fires only when that column actually moves,
+-- so ordinary org edits do not spam the audit log with no-ops.
+create or replace function public.audit_org_tax_default_update()
+  returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.default_tax_treatment is distinct from old.default_tax_treatment then
+    perform public.log_audit('org.tax_default.change', new.id, auth.uid(), new.id,
+                             jsonb_build_object('from', old.default_tax_treatment,
+                                                'to',   new.default_tax_treatment));
+  end if;
+  return new;
+end; $$;
+revoke all on function public.audit_org_tax_default_update() from public;
+
+create trigger organizations_audit_tax_default
+  after update on public.organizations
+  for each row execute function public.audit_org_tax_default_update();

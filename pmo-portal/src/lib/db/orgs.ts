@@ -87,8 +87,19 @@ export async function getOrgTaxDefault(): Promise<TaxTreatment | null> {
  * regressed.
  */
 export async function setOrgTaxDefault(value: TaxTreatment): Promise<void> {
-  const { data, error } = await supabase.from('organizations').select('id').limit(1);
+  // ⚑ NOT `.limit(1)` (security review Low). That was deterministic only because RLS makes exactly
+  // one org visible — the safety was the POLICY's, not the query's, and this seam exists precisely
+  // for the day that stops being true (an operator view, or the B2B multi-tenancy the org_id seam
+  // anticipates). Then "the first row Postgres happens to return" silently flips the wrong org's
+  // tax posture. Read the whole visible set and refuse ambiguity out loud instead.
+  const { data, error } = await supabase.from('organizations').select('id');
   if (error) throw new Error(error.message);
+  if ((data?.length ?? 0) > 1) {
+    throw new Error(
+      'More than one organization is readable; refusing to guess which one to write. ' +
+        'This setting must name its target org explicitly.',
+    );
+  }
   const orgId = data?.[0]?.id;
   if (!orgId) throw new Error('No organization is readable for the current user');
   const { error: updateError } = await supabase
