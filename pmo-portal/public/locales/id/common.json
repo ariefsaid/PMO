@@ -5,12 +5,9 @@
       "title": "Anda tidak memiliki akses ke persetujuan"
     },
     "attest": {
-      "bodyFor": "untuk minggu",
-      "bodyPrefix": "Nyatakan bahwa Anda telah memeriksa ERPNext dan yang tercatat di sana adalah",
-      "bodySuffix": ". Tindakan ini mencatat atestasi yang diaudit dan membuka kembali minggu tersebut untuk koreksi — tanpa menghubungi ERPNext.",
+      "body": "Nyatakan bahwa Anda telah memeriksa ERPNext dan yang tercatat di sana adalah <strong>tidak ada Timesheet</strong> untuk minggu {{person}}. Tindakan ini mencatat atestasi yang diaudit dan membuka kembali minggu tersebut untuk koreksi — tanpa menghubungi ERPNext.",
       "cancelLabel": "Batal",
       "confirmLabel": "Konfirmasi — tanpa dokumen ERP",
-      "noTimesheet": "tidak ada Timesheet",
       "reasonLabel": "Apa yang Anda periksa di ERPNext?",
       "reasonPlaceholder": "mis. Mencari Timesheet untuk karyawan dan minggu ini — tidak ada.",
       "thisPerson": "orang ini",
@@ -57,7 +54,7 @@
       "title": "Pengiriman ke ERP yang perlu perhatian"
     },
     "queue": {
-      "loadErrorPrefix": "Gagal memuat",
+      "loadError": "Gagal memuat {{queue}}",
       "loadErrorSub": "Coba lagi untuk memuat ulang antrean ini."
     },
     "queueHeading": "Antrean persetujuan",
@@ -77,11 +74,9 @@
       "heading": "Disetujui — buka kembali untuk koreksi",
       "outcomeUnknown": "Hasil ERP tidak diketahui — administrator harus mengonfirmasi apa yang tercatat di ERPNext",
       "pushInProgress": "Pengiriman sedang berlangsung",
-      "sectionLabelPrefix": "Timesheet yang disetujui dalam",
-      "sectionLabelSuffix": "hari terakhir yang dapat dibuka kembali untuk koreksi",
+      "sectionLabel": "Timesheet yang disetujui dalam {{days}} hari terakhir yang dapat dibuka kembali untuk koreksi",
       "success": "Dibuka kembali — minggu ini kembali ke Draf untuk diedit.",
-      "windowPrefix": "dalam",
-      "windowSuffix": "hari terakhir"
+      "window": "{{days}} hari terakhir"
     },
     "scope": {
       "all": "Semua",
@@ -221,7 +216,7 @@
     "archiveConfirm": {
       "confirmLabel": "Arsipkan perusahaan",
       "description": "Perusahaan ini akan disembunyikan dari daftar default dan tidak dapat dipilih pada data baru. Referensi yang sudah ada tetap utuh. Anda dapat memulihkannya kapan saja.",
-      "titlePrefix": "Arsipkan"
+      "title": "Arsipkan {{name}}?"
     },
     "backToCompanies": "Perusahaan",
     "contacts": {
@@ -283,7 +278,7 @@
       "title": "Perusahaan tidak ditemukan"
     },
     "related": {
-      "loadErrorPrefix": "Gagal memuat",
+      "loadError": "Gagal memuat {{section}}",
       "loadErrorSub": "Terjadi kesalahan. Coba lagi."
     },
     "relatedProcurement": {
@@ -346,7 +341,7 @@
     "archiveConfirm": {
       "confirmLabel": "Arsipkan kontak",
       "description": "Kontak ini akan disembunyikan dari daftar default. Aktivitas yang sudah ada tetap utuh. Anda dapat memulihkannya kapan saja.",
-      "titlePrefix": "Arsipkan"
+      "title": "Arsipkan {{name}}?"
     },
     "backToContacts": "Kontak",
     "edit": "Edit",
@@ -503,8 +498,7 @@
     },
     "atRisk": {
       "label": "berisiko",
-      "linkPrefix": "Lihat",
-      "linkSuffix": "proyek berisiko"
+      "linkLabel": "Lihat {{n}} proyek berisiko"
     },
     "boardPack": {
       "ariaLabel": "Board pack (segera hadir)",
@@ -552,8 +546,7 @@
         "help": "Jumlah (nilai proyek × peluang menang tahap) di semua tahap aktif.",
         "label": "Pipeline (tertimbang)",
         "linkLabel": "Buka pipeline penjualan",
-        "vsPrefix": "dari",
-        "vsSuffix": "bruto"
+        "vs": "dari {{gross}} bruto"
       },
       "revenueOnHand": {
         "help": "Pendapatan yang sudah terkontrak pada kontrak aktif + selesai. Margin terealisasi hingga kini adalah % yang ditampilkan di bawah.",
@@ -778,7 +771,7 @@
   },
   "myTasks": {
     "changeStatusOf": "Ubah status",
-    "duePrefix": "Tenggat",
+    "due": "Tenggat {{date}}",
     "empty": {
       "sub": "Saat ada tugas yang ditugaskan kepada Anda, tugas itu akan muncul di sini dari semua proyek Anda.",
       "title": "Belum ada tugas yang ditugaskan kepada Anda"
@@ -790,7 +783,7 @@
     "logTime": "Catat jam",
     "noProjectGroup": "Tanpa proyek",
     "overdue": "Terlambat",
-    "startPrefix": "Mulai",
+    "start": "Mulai {{date}}",
     "subtitle": "Tugas yang ditugaskan kepada Anda di semua proyek.",
     "title": "Tugas Saya"
   },
@@ -879,21 +872,20 @@
     "approvalNotes": "Catatan persetujuan",
     "backToProcurement": "Pengadaan",
     "confirm": {
-      "approvePrefix": "Setujui",
+      "approveBody": "Setujui <money/>?",
       "cancelTitle": "Batalkan permintaan ini?",
-      "grBodyPrefix": "Ini mencatat penerimaan barang senilai",
-      "grBodySuffix": "terhadap",
+      "destructiveTitle": "{{action}} permintaan ini",
+      "grBody": "Ini mencatat penerimaan barang berstatus {{status}} untuk {{request}}.",
       "grTitle": "Catat penerimaan barang ini?",
       "keepRequest": "Pertahankan permintaan",
-      "markPaidPrefix": "Tandai",
-      "markPaidSuffix": "lunas? Ini melepaskan pembayaran dan tidak dapat dibatalkan.",
-      "onProject": "pada",
-      "requestedBy": ", diminta oleh",
+      "markPaidBody": "Tandai <money/> sebagai lunas? Ini melepaskan pembayaran dan tidak dapat dibatalkan.",
+      "moneyOnProject": "<amount>{{amount}}</amount> pada <project/>",
+      "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> pada <project/>, diminta oleh <person>{{name}}</person>",
+      "moneyRequestedBy": "<amount>{{amount}}</amount>, diminta oleh <person>{{name}}</person>",
       "saveGR": "Simpan GR",
       "saveVI": "Simpan VI",
       "terminal": "Ini tindakan akhir untuk permintaan ini dan tidak dapat dibatalkan.",
-      "thisRequest": "permintaan ini",
-      "viBodyPrefix": "Ini mencatat invoice vendor terhadap",
+      "viBody": "Ini mencatat invoice vendor untuk {{request}}.",
       "viTitle": "Catat invoice vendor ini?"
     },
     "detail": {
@@ -1086,7 +1078,7 @@
       "archiveConfirm": {
         "body": "Proyek akan disembunyikan dari daftar proyek default. Referensi yang ada tetap utuh. Anda dapat memulihkannya nanti.",
         "confirm": "Arsipkan proyek",
-        "title": "Arsipkan"
+        "title": "Arsipkan {{name}}?"
       },
       "contractValue": "Nilai kontrak",
       "contractValueConfirm": {
@@ -1097,10 +1089,11 @@
       "deleteConfirm": {
         "body": "Ini menghapus proyek beserta anggaran, tugas, dan dokumennya secara permanen. Tindakan ini tidak dapat dibatalkan, dan proyek dengan pengadaan atau jam tercatat tidak dapat dihapus. Arsipkan saja jika Anda hanya perlu menyembunyikannya.",
         "confirm": "Hapus proyek",
-        "title": "Hapus"
+        "title": "Hapus {{name}}?"
       },
       "editContractValue": "Edit nilai kontrak",
-      "poPrefix": "PO",
+      "po": "PO {{ref}}",
+      "poWithDate": "PO {{ref}} ({{date}})",
       "readOnly": "Hanya lihat",
       "sodEditableNote": "Mengubah nilai pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat.",
       "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
@@ -1148,7 +1141,7 @@
       "deleteConfirm": {
         "body": "Tugas di bawah milestone ini menjadi tanpa grup; tugas tidak dihapus.",
         "confirm": "Hapus milestone",
-        "title": "Hapus",
+        "title": "Hapus \"{{name}}\"?",
         "titleFallback": "Hapus milestone ini?"
       },
       "deleteMilestone": "Hapus milestone",
@@ -1178,7 +1171,7 @@
         "updated": "Milestone diperbarui"
       },
       "viewBlockingTasks": "Lihat tugas penghambat",
-      "weightShare": "dari proyek"
+      "weightShare": "{{pct}}% dari proyek"
     },
     "notFound": {
       "sub": "Proyek ini tidak ada atau Anda tidak memiliki akses. Gunakan Kembali ke Proyek untuk kembali.",
@@ -1221,7 +1214,7 @@
       },
       "procSummary": {
         "closed": "Ditutup",
-        "committedAcross": "terkomitmen di",
+        "committedAcross": "<amount>{{amount}}</amount> terkomitmen di {{n}} {{unit}}",
         "completed": "Selesai",
         "empty": {
           "sub": "Permintaan yang diajukan untuk proyek ini akan muncul di sini.",
@@ -1247,8 +1240,7 @@
       "journeyAriaLabel": "Perjalanan tahap proyek",
       "journeyHeading": "Perjalanan proyek",
       "lostConfirm": {
-        "bodyPrefix": "Ini memindahkan",
-        "bodySuffix": "ke tahap kalah yang bersifat akhir. Anda masih dapat meninjaunya, tetapi proyek akan keluar dari pipeline aktif.",
+        "body": "Ini memindahkan {{project}} ke tahap kalah yang bersifat akhir. Anda masih dapat meninjaunya, tetapi proyek akan keluar dari pipeline aktif.",
         "confirm": "Tandai kalah",
         "title": "Tandai proyek kalah"
       },
@@ -1322,9 +1314,8 @@
       "heading": "Kurva progres",
       "seriesActual": "Realisasi hingga kini",
       "seriesPlanned": "Rencana",
-      "summaryByToday": "per hari ini.",
-      "summaryLead": "Kurva S proyek: realisasi hingga kini",
-      "summaryPlanClause": "rencana diperkirakan"
+      "summary": "Kurva S proyek: realisasi hingga kini {{actual}}.",
+      "summaryWithPlan": "Kurva S proyek: realisasi hingga kini {{actual}}, rencana diperkirakan {{planned}} per hari ini."
     },
     "tabs": {
       "ariaLabel": "Bagian proyek",
@@ -1408,8 +1399,8 @@
         "archived": "Tugas diarsipkan",
         "created": "Tugas dibuat",
         "deleted": "Tugas dihapus",
-        "isNow": "sekarang",
         "restored": "Tugas dipulihkan",
+        "statusDetail": "{{task}} sekarang berstatus {{status}}",
         "statusUpdated": "Status diperbarui",
         "updated": "Tugas diperbarui"
       },
@@ -1521,13 +1512,12 @@
       "title": "Gagal memuat pipeline penjualan"
     },
     "funnel": {
-      "weightedSuffix": "tertimbang"
+      "weighted": "{{value}} tertimbang"
     },
     "lastTouch": {
       "daysAgo": "hari lalu",
       "oneDayAgo": "1 hari lalu",
-      "stalePrefix": "Tidak tersentuh selama",
-      "staleSuffix": "hari — perlu perhatian",
+      "stale": "Tidak tersentuh selama {{days}} hari — perlu perhatian",
       "today": "hari ini"
     },
     "lastTouchUnavailable": "Aktivitas terakhir tidak tersedia",
@@ -1555,8 +1545,7 @@
         "title": "Tidak ada proyek yang kalah"
       },
       "needsAttention": {
-        "subPrefix": "Tidak ada proyek yang tak tersentuh selama",
-        "subSuffix": "+ hari — pipeline aktif.",
+        "sub": "Tidak ada proyek yang tak tersentuh selama {{days}}+ hari — pipeline aktif.",
         "title": "Tidak ada proyek yang perlu perhatian"
       },
       "search": {
@@ -1674,8 +1663,7 @@
     "approvalsLink": "Persetujuan",
     "deleteRow": {
       "confirmLabel": "Hapus baris",
-      "descriptionPrefix": "Ini akan menghapus",
-      "descriptionSuffix": "beserta semua jamnya dari minggu ini. Anda dapat menambahkannya kembali, tetapi jam yang sudah diisi tidak akan dipulihkan.",
+      "description": "Ini akan menghapus <strong>{{project}}</strong> beserta semua jamnya dari minggu ini. Anda dapat menambahkannya kembali, tetapi jam yang sudah diisi tidak akan dipulihkan.",
       "title": "Hapus baris proyek ini?"
     },
     "empty": {
@@ -1703,8 +1691,7 @@
       "sub": "Atasan Anda mengembalikannya. Periksa hari yang ditandai, perbaiki, lalu ajukan ulang.",
       "title": "Minggu ini dikembalikan untuk diperbaiki"
     },
-    "reviewPrefix": "Tinjau",
-    "reviewSuffix": "yang menunggu",
+    "review": "Tinjau {{n}} yang menunggu",
     "save": "Simpan",
     "status": {
       "draftNotSubmitted": "Draf — belum diajukan"
@@ -1715,7 +1702,7 @@
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
-    "subtitle": ". Isi jam per proyek per hari, lalu ajukan seluruh minggu untuk disetujui atasan Anda.",
+    "subtitle": "Minggu {{range}}. Isi jam per proyek per hari, lalu ajukan seluruh minggu untuk disetujui atasan Anda.",
     "title": "Timesheet",
     "toast": {
       "deleteFailed": "Gagal menghapus",

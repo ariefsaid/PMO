@@ -168,7 +168,7 @@ const ProcurementPage: React.FC = () => {
     'Needs approval': t('procurement.filter.needsApproval', 'Needs approval'),
     Open: t('procurement.filter.open', 'Open'),
     Ordered: t('procurement.filter.ordered', 'Ordered'),
-    'Vendor Invoiced': t('procurement.filter.vendorInvoiced', 'Vendor Invoiced'),
+    'Vendor Invoiced': t('procurement.filter.vendorInvoiced', 'Vendor invoiced'),
     Paid: t('procurement.filter.paid', 'Paid'),
   };
 

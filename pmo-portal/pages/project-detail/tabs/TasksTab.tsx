@@ -223,7 +223,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       await updateStatus.mutateAsync({ id: task.id, status });
       toast(
         t('projectDetail.tasks.toast.statusUpdated', 'Status updated'),
-        `${task.name} ${t('projectDetail.tasks.toast.isNow', 'is now')} ${status}`,
+        t('projectDetail.tasks.toast.statusDetail', '{{task}} is now {{status}}', {
+          task: task.name,
+          status,
+        }),
         'success',
       );
     } catch (err) {

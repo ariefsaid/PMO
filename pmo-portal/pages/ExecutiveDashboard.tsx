@@ -271,7 +271,9 @@ const ExecutiveDashboard: React.FC = () => {
             icon="pipe"
             label={t('dashboard.kpi.pipelineWeighted.label', 'Pipeline (weighted)')}
             value={formatCurrency(data.pipeline_weighted_value, orgCurrency)}
-            vs={`${t('dashboard.kpi.pipelineWeighted.vsPrefix', 'of')} ${formatCurrency(data.pipeline_total_value, orgCurrency)} ${t('dashboard.kpi.pipelineWeighted.vsSuffix', 'gross')}`}
+            vs={t('dashboard.kpi.pipelineWeighted.vs', 'of {{gross}} gross', {
+              gross: formatCurrency(data.pipeline_total_value, orgCurrency),
+            })}
             to="/sales"
             linkLabel={t('dashboard.kpi.pipelineWeighted.linkLabel', 'Open the sales pipeline')}
             help={t(
@@ -356,7 +358,9 @@ const ExecutiveDashboard: React.FC = () => {
             <Link
               to="/projects?filter=at-risk"
               className="font-medium text-warning hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-              aria-label={`${t('dashboard.atRisk.linkPrefix', 'View')} ${data.projects_at_risk} ${t('dashboard.atRisk.linkSuffix', 'at-risk projects')}`}
+              aria-label={t('dashboard.atRisk.linkLabel', 'View {{n}} at-risk projects', {
+                n: String(data.projects_at_risk),
+              })}
             >
               {data.projects_at_risk} {t('dashboard.atRisk.label', 'at-risk')} →
             </Link>

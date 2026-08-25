@@ -288,7 +288,9 @@ const ContactDetail: React.FC = () => {
       <ConfirmDialog
         open={archiveOpen}
         tone="default"
-        title={`${t('contactDetail.archiveConfirm.titlePrefix', 'Archive')} ${contact.full_name}?`}
+        title={t('contactDetail.archiveConfirm.title', 'Archive {{name}}?', {
+          name: contact.full_name,
+        })}
         description={t(
           'contactDetail.archiveConfirm.description',
           'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',

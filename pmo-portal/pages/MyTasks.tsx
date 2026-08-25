@@ -197,13 +197,17 @@ const MyTasks: React.FC = () => {
                         <span className="mt-0.5 block text-[12px] text-muted-foreground">
                           {task.start_date && (
                             <span>
-                              {t('myTasks.startPrefix', 'Start')} {formatDate(task.start_date)}
+                              {t('myTasks.start', 'Start {{date}}', {
+                                date: formatDate(task.start_date),
+                              })}
                             </span>
                           )}
                           {task.start_date && task.end_date && <span className="mx-1">·</span>}
                           {task.end_date && (
                             <span>
-                              {t('myTasks.duePrefix', 'Due')} {formatDate(task.end_date)}
+                              {t('myTasks.due', 'Due {{date}}', {
+                                date: formatDate(task.end_date),
+                              })}
                             </span>
                           )}
                         </span>

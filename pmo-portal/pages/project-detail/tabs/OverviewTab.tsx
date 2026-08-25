@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, type StatTile } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -262,14 +262,22 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
               {/* Committed total */}
               <div className="text-[12px] text-muted-foreground">
-                <span className="font-semibold tabular text-foreground text-[14px]">
-                  {formatCurrency(procSummary.committedTotal, project.currency)}
-                </span>{' '}
-                {t('projectDetail.overview.procSummary.committedAcross', 'committed across')}{' '}
-                {procSummary.count}{' '}
-                {procSummary.count === 1
-                  ? t('projectDetail.overview.procSummary.requestOne', 'request')
-                  : t('projectDetail.overview.procSummary.requestOther', 'requests')}
+                {/* #571 — one sentence; the styled amount is a placeholder a translator moves. */}
+                <Trans
+                  i18nKey="projectDetail.overview.procSummary.committedAcross"
+                  defaults="<amount>{{amount}}</amount> committed across {{n}} {{unit}}"
+                  values={{
+                    amount: formatCurrency(procSummary.committedTotal, project.currency),
+                    n: String(procSummary.count),
+                    unit:
+                      procSummary.count === 1
+                        ? t('projectDetail.overview.procSummary.requestOne', 'request')
+                        : t('projectDetail.overview.procSummary.requestOther', 'requests'),
+                  }}
+                  components={{
+                    amount: <span className="font-semibold tabular text-foreground text-[14px]" />,
+                  }}
+                />
               </div>
 
               {/* Top 3 recent requests */}

@@ -396,12 +396,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
         open={canTransition && confirmAction === 'lost'}
         tone="destructive"
         title={t('projectDetail.pipeline.lostConfirm.title', 'Mark project as lost')}
-        description={`${t('projectDetail.pipeline.lostConfirm.bodyPrefix', 'This moves')} ${
-          project.name
-        } ${t(
-          'projectDetail.pipeline.lostConfirm.bodySuffix',
-          'to a terminal lost stage. You can still review it, but it will leave the active pipeline.',
-        )}`}
+        description={t(
+          'projectDetail.pipeline.lostConfirm.body',
+          'This moves {{project}} to a terminal lost stage. You can still review it, but it will leave the active pipeline.',
+          { project: project.name },
+        )}
         confirmLabel={t('projectDetail.pipeline.lostConfirm.confirm', 'Mark lost')}
         loading={pending}
         onCancel={() => setConfirmAction(null)}
