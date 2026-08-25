@@ -81,6 +81,9 @@ create index meetings_created_by_idx      on public.meetings (created_by_id);
 create index meetings_notes_search_idx    on public.meetings using gin (notes_search);
 create index meeting_attendees_meeting_idx on public.meeting_attendees (meeting_id);
 create index meeting_attendees_profile_idx on public.meeting_attendees (profile_id);
+-- Hot path: listMeetingsForContact inner-joins meeting_attendees by contact_id on EVERY ContactDetail
+-- view (DD-MTG-6 union). Without this it is a seq scan per contact view (quality review, 2026-08-24).
+create index meeting_attendees_contact_idx on public.meeting_attendees (contact_id);
 create index meeting_access_grants_meeting_idx on public.meeting_access_grants (meeting_id);
 create index meeting_access_grants_user_idx    on public.meeting_access_grants (user_id);
 

@@ -62,8 +62,10 @@ create trigger tasks_check_meeting_same_project
 
 -- The creator may LINK their own task to a meeting after the fact (the natural flow is link-at-
 -- creation from the minute; re-linking is still a work-field edit, not a lifecycle one).
--- Extends 0204's k_creator_allowed by exactly this column; body otherwise byte-identical to 0204's
--- (which was itself 0200-verbatim plus one branch) — copied, not re-typed, per the standing lesson.
+-- Extends 0204's k_creator_allowed by exactly `meeting_id`; the rest of the body follows 0204's
+-- (itself 0200 + one branch). ⚑ NOT asserted byte-identical anywhere — only the exception messages
+-- are pinned verbatim by first_class_tasks.test.sql — so read this as "extends 0204's allow-list by
+-- meeting_id", not as a guarantee the surrounding lines never diverged (quality review M6).
 create or replace function public.enforce_assignee_status_only()
   returns trigger language plpgsql set search_path = public as $$
 declare
