@@ -2537,3 +2537,29 @@ control the ruling named is now real**: `created_by` is trigger-stamped, immutab
 every actor including `service_role` (`0204` §1b), so every task that moves the number carries an
 unforgeable author. Revisit if abused in practice — the fix then is visibility (surface author on the
 rollup) or a milestone-membership bound, not a write ban.
+
+---
+
+## DD-MTG-8 · DD-MTG-9 — two rulings the #526 spec review forced into the open (Director, 2026-08-24)
+
+**[DD-MTG-8] `/action` is an informed authoring act, never a silent copy.** The review's sharpest
+find: the first build copied the minute line verbatim into `tasks.name`, and `tasks_select` is
+org-wide — so text protected by the attendance-keyed read model leaked into a column the excluded
+peer and the excluded PM can read, at write time, irreversibly. **Ruling: `/action` opens the
+standard task-create modal, prefilled from the line and fully editable.** The author consciously
+publishes exactly the text they choose into the org-visible task system — identical in kind to typing
+a task name by hand, which no ruling restricts. The alternative (placeholder-only names, FR-MTG-017
+read literally) makes My Tasks a wall of "Action item" and was rejected; FR-MTG-017's placeholder
+remains the empty-line fallback. ⚑ The privacy boundary is the HUMAN's choice at the modal, and the
+modal is what makes the choice real.
+
+**[DD-MTG-9] The v1 scope reduction is recorded HERE, not in a code comment.** Shipped v1: action
+items are discovered by `tasks.meeting_id` (the relational seam), the notes body is flat typed-text
+blocks, templates are a flag + list filter. **Structurally out of v1, spec amended to match:** the
+`actionItem` document block and everything downstream of it — FR-MTG-003/004/006's `props.taskId`
+shape, FR-MTG-018..021 (block-delete vs task-delete, tombstone rendering, paste = two refs, template
+copy-on-create with emptied `taskId`) and AC-MTG-001..008. These are not deferred polish; with no
+block in the document they are structurally moot. Revisit only if a ruling brings the in-document
+block back, and then as a fresh design — DD-MTG-2 (no task-state copies in the note) still binds it.
+Copy-on-create for templates is deferred WITH the block. ⚑ A scope cut that lives only in a code
+comment is invisible to the next spec reader; this entry plus the spec amendment is the fix for that.

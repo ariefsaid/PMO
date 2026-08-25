@@ -2177,3 +2177,41 @@ begin
       'ERPNext webhook HMAC secret for the local e2e lane (see supabase/seed.sql)');
   end if;
 end $$;
+
+-- ============================================================
+-- §V  meetings (#526) — the rendered gates need a POPULATED page (I2, spec review 2026-08-24)
+--     Both AUTHORED BY pm@acme.test (a2): reads are attendance ∪ author ∪ grant ∪ Admin
+--     (0205/DD-MTG-7), so meetings authored by anyone else would BLANK the list for the
+--     axe/no-bleed users and the gates would certify an empty shell. The engineer (a4)
+--     attends EE-1 so engineer-role journeys see a populated list too. LOCAL-ONLY file.
+--     notes_text / notes_search are trigger-maintained on insert — never seeded by hand.
+-- ============================================================
+
+insert into meetings (id, project_id, title, occurred_at, location, notes, is_template, created_by_id) values
+  -- EE-1: projected meeting on SP-2401 (Meridian), several-block minute, 2 attendees below.
+  ('ee000000-0000-0000-0000-000000000001',
+   '41000000-0000-0000-0000-000000000001',
+   'Meridian PV — weekly site coordination',
+   now()-interval '9 days','Meridian site office',
+   '[{"type":"p","text":"Reviewed the crane schedule against the civil works handover."},
+     {"type":"p","text":"Priya confirmed the inverter delivery window slips one week."},
+     {"type":"p","text":"Agreed to re-sequence string testing ahead of the switchgear inspection."},
+     {"type":"p","text":"Open risk: the access road closure overlaps the module delivery days."}]'::jsonb,
+   false,'00000000-0000-0000-0000-0000000000a2'),
+  -- EE-2: project-less TEMPLATE (excluded from the default list; the template flag path).
+  ('ee000000-0000-0000-0000-000000000002',
+   null,
+   'Weekly coordination template',
+   now()-interval '30 days',null,
+   '[{"type":"p","text":"Attendance and safety moment."},
+     {"type":"p","text":"Progress vs plan."},
+     {"type":"p","text":"Risks and decisions."}]'::jsonb,
+   true,'00000000-0000-0000-0000-0000000000a2')
+on conflict (id) do nothing;
+
+insert into meeting_attendees (id, meeting_id, profile_id, contact_id, display_name) values
+  ('ee100000-0000-0000-0000-000000000001','ee000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-0000000000a4',null,null),                                   -- Tomas (Engineer)
+  ('ee100000-0000-0000-0000-000000000002','ee000000-0000-0000-0000-000000000001',
+   null,'ce000000-0000-0000-0000-000000000001',null)                                    -- Priya Mehta (contact)
+on conflict (id) do nothing;

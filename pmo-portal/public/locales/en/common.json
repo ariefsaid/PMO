@@ -387,6 +387,10 @@
         "nameRequired": "Contact name is required."
       }
     },
+    "meetings": {
+      "error": "Minuted meetings could not be loaded.",
+      "pill": "Minuted meeting"
+    },
     "notFound": {
       "sub": "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
       "title": "Contact not found"
@@ -425,7 +429,8 @@
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.",
       "deleteTitle": "Delete contact?"
     },
-    "description": "People at the companies you work with. Master data shared by the whole organisation — log calls, emails and meetings against each contact.",
+    "description": "People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the",
+    "descriptionMeetingsLink": "Meetings module",
     "filters": {
       "allCompanies": "All companies",
       "companyLabel": "Filter by company"
@@ -475,7 +480,7 @@
     },
     "states": {
       "emptyAction": "Add your first contact",
-      "emptySub": "Add your first contact to start logging calls, emails and meetings against the people you work with.",
+      "emptySub": "Add your first contact to start logging calls and emails against the people you work with.",
       "emptyTitle": "No contacts yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load contacts"
@@ -580,6 +585,196 @@
       "mobile": "What needs your attention across the contracting book."
     },
     "title": "Executive Dashboard"
+  },
+  "meetingDetail": {
+    "action": {
+      "button": "Action",
+      "buttonTitle": "Create a task from this line (the meeting keeps only a reference)",
+      "externalGate": "Tasks are managed by the connected task system, so action items cannot be created from these minutes.",
+      "modalSection": "Task",
+      "modalSubmit": "Create task",
+      "modalSubtitle": "This creates a real task. Its name is visible to everyone who can see tasks — edit it before publishing.",
+      "modalTitle": "New action item",
+      "nameHelper": "Prefilled from the minute line. Left empty, the task is created with the placeholder name.",
+      "nameLabel": "Task name",
+      "placeholderName": "Untitled action",
+      "projectFixed": "(fixed to this meeting’s project)",
+      "projectLabel": "Project",
+      "projectNone": "No project",
+      "readDeniedDetail": "You can only create action items on meetings you can access.",
+      "readDeniedHeadline": "Action item not created"
+    },
+    "actionItems": {
+      "empty": "No action items yet. Use Action on a minute line to create one.",
+      "error": "Couldn't load this meeting's action items.",
+      "title": "Action items"
+    },
+    "archive": "Archive",
+    "attendees": {
+      "addGuest": "Add guest",
+      "addMember": "Add attendee",
+      "addMemberPlaceholder": "Pick an organisation member…",
+      "contactTag": "Contact",
+      "empty": "No attendees recorded. Attendees can read this meeting’s minutes.",
+      "guestLabel": "External guest",
+      "guestPlaceholder": "e.g. Ir. Sari (Acme)",
+      "guestTag": "Guest",
+      "memberNoun": "member",
+      "remove": "Remove attendee",
+      "title": "Attendees"
+    },
+    "backToMeetings": "Meetings",
+    "confirm": {
+      "archiveConfirm": "Archive meeting",
+      "archiveDescription": "It will be hidden from the default list. Its minutes, attendees and action items stay intact.",
+      "archiveTitle": "Archive meeting?",
+      "deleteConfirm": "Delete meeting",
+      "deleteDescription": "This permanently removes the meeting and its minutes. A meeting whose action items still exist as tasks cannot be deleted; archive it instead.",
+      "deleteTitle": "Delete meeting?"
+    },
+    "delete": "Delete",
+    "edit": "Edit",
+    "error": {
+      "sub": "Something went wrong fetching this meeting.",
+      "title": "Couldn't load meeting"
+    },
+    "form": {
+      "editSubmit": "Save meeting",
+      "editSubtitle": "Update this meeting record",
+      "editTitle": "Edit meeting",
+      "errors": {
+        "titleRequired": "Meeting title is required."
+      },
+      "location": {
+        "label": "Location"
+      },
+      "project": {
+        "label": "Project",
+        "none": "No project"
+      },
+      "sections": {
+        "details": "Details"
+      },
+      "title": {
+        "label": "Title"
+      },
+      "when": {
+        "label": "When"
+      }
+    },
+    "minutes": {
+      "addLine": "Add line",
+      "empty": "No minutes were recorded for this meeting.",
+      "emptyEditor": "No minutes yet — add the first line.",
+      "lineLabel": "Minute line",
+      "linePlaceholder": "Type a minute…",
+      "removeLine": "Remove line",
+      "save": "Save minutes",
+      "title": "Minutes"
+    },
+    "notFound": {
+      "sub": "This meeting either doesn't exist or isn't shared with you. Ask an attendee or its author to share it.",
+      "title": "Meeting not found"
+    },
+    "pill": {
+      "archived": "Archived",
+      "meeting": "Meeting"
+    },
+    "share": {
+      "addLabel": "Share with a named person",
+      "addPlaceholder": "Pick an organisation member…",
+      "empty": "Not shared with anyone yet.",
+      "explainer": "Only attendees, the author, and people it is shared with can read this meeting. Shares are view-only.",
+      "memberNoun": "member",
+      "revoke": "Revoke",
+      "sharedBy": "shared by",
+      "suggestPm": "Share with {{name}} (Project Manager)",
+      "title": "Sharing"
+    },
+    "toast": {
+      "actionCreated": "Action item created",
+      "archived": "Meeting archived",
+      "deleted": "Meeting deleted",
+      "minutesSaved": "Minutes saved",
+      "shared": "Meeting shared",
+      "updated": "Meeting updated"
+    }
+  },
+  "meetings": {
+    "actions": {
+      "archive": "Archive",
+      "delete": "Delete",
+      "new": "New meeting",
+      "open": "Open"
+    },
+    "columns": {
+      "location": "Location",
+      "project": "Project",
+      "title": "Meeting",
+      "when": "When"
+    },
+    "confirm": {
+      "archiveConfirm": "Archive meeting",
+      "archiveDescription": "It will be hidden from the default list. Its minutes, attendees and action items stay intact. You can restore it any time.",
+      "archiveTitle": "Archive meeting?",
+      "archiveTitleNamed": "Archive {{title}}?",
+      "deleteConfirm": "Delete meeting",
+      "deleteDescription": "This permanently removes the meeting and its minutes. A meeting whose action items still exist as tasks cannot be deleted; archive it instead.",
+      "deleteTitle": "Delete meeting?",
+      "deleteTitleNamed": "Delete {{title}}?"
+    },
+    "description": "Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.",
+    "filters": {
+      "allProjects": "All projects",
+      "projectLabel": "Filter by project"
+    },
+    "form": {
+      "errors": {
+        "titleRequired": "Meeting title is required."
+      },
+      "location": {
+        "label": "Location",
+        "placeholder": "e.g. Site office, Teams call"
+      },
+      "newSubmit": "Create meeting",
+      "newSubtitle": "Record when it happened and start the minutes",
+      "newTitle": "New meeting",
+      "project": {
+        "label": "Project",
+        "none": "No project"
+      },
+      "sections": {
+        "details": "Details"
+      },
+      "title": {
+        "label": "Title",
+        "placeholder": "e.g. Weekly site coordination"
+      },
+      "when": {
+        "label": "When"
+      }
+    },
+    "search": {
+      "ariaLabel": "Search meetings",
+      "placeholder": "Search notes and titles…"
+    },
+    "states": {
+      "emptySub": "Minute your first meeting to capture notes, attendees and action items in one place.",
+      "emptyTitle": "No meetings yet",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load meetings"
+    },
+    "table": {
+      "emptySub": "Try a different project or clear the search.",
+      "emptyTitle": "No meetings match",
+      "rowLabel": "Open {{title}}"
+    },
+    "title": "Meetings",
+    "toast": {
+      "archived": "Meeting archived",
+      "created": "Meeting created",
+      "deleted": "Meeting deleted"
+    }
   },
   "myTasks": {
     "changeStatusOf": "Change status of",
@@ -1412,6 +1607,7 @@
       "incidents": "Incidents",
       "incomingPayments": "Incoming Payments",
       "integrations": "Integrations",
+      "meetings": "Meetings",
       "myTasks": "My Tasks",
       "procurement": "Procurement",
       "projects": "Projects",

@@ -37,6 +37,8 @@ const { detailState, activitiesState, mutations, companiesState } = vi.hoisted((
 vi.mock('@/src/hooks/useContacts', () => ({
   useContact: () => detailState,
   useContactActivities: () => activitiesState,
+  // DD-MTG-6 (I7): the timeline's meetings half — empty by default in these suites.
+  useContactMeetings: () => ({ data: [], isPending: false, isError: false }),
   useContactMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({

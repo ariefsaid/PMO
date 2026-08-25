@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyMutationError } from './classifyMutationError';
+import { classifyMutationError, isMeetingReadDenied } from './classifyMutationError';
 import { AppError } from './appError';
 
 describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', () => {
@@ -128,5 +128,32 @@ describe('AC-ERR-002: user-facing detail never leaks raw Postgres text', () => {
     // replacing them with a generic sentence would destroy the only specific information.
     const e = Object.assign(new Error('A procurement can only be paid after it is invoiced.'), { code: 'P0001' });
     expect(classifyMutationError(e).detail).toBe('A procurement can only be paid after it is invoiced.');
+  });
+});
+
+describe('isMeetingReadDenied — the 0206 inbound /action guard (#526 security review)', () => {
+  it('true for a 42501 carrying the trigger message', () => {
+    const e = Object.assign(new Error('task meeting must be one you can read'), { code: '42501' });
+    expect(isMeetingReadDenied(e)).toBe(true);
+  });
+
+  it('true even when the marker is embedded in longer Postgres text', () => {
+    const e = new AppError('ERROR: task meeting must be one you can read (SQLSTATE 42501)', '42501');
+    expect(isMeetingReadDenied(e)).toBe(true);
+  });
+
+  it('false for a 42501 that is an ordinary role denial — this branch must not steal it', () => {
+    const e = Object.assign(new Error('permission denied for table tasks'), { code: '42501' });
+    expect(isMeetingReadDenied(e)).toBe(false);
+  });
+
+  it('false when the marker text appears under a different (non-42501) code', () => {
+    const e = Object.assign(new Error('task meeting must be one you can read'), { code: 'P0001' });
+    expect(isMeetingReadDenied(e)).toBe(false);
+  });
+
+  it('false for a non-Error / codeless value', () => {
+    expect(isMeetingReadDenied(undefined)).toBe(false);
+    expect(isMeetingReadDenied({ message: 'task meeting must be one you can read' })).toBe(false);
   });
 });
