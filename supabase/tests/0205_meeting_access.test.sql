@@ -9,7 +9,7 @@
 -- Row-modifying assertions count rows via top-level CTEs (an RLS-denied UPDATE is a silent no-op).
 -- ================================================================================================
 begin;
-select plan(25);
+select plan(29);
 
 insert into organizations (id, name) values
   ('00d50000-0000-0000-0000-000000000001','MTG Org A'),
@@ -160,6 +160,36 @@ select throws_ok($$
           'Wrong project','To Do','00d50000-0000-0000-0000-000000000101')
 $$, '42501', 'task meeting must be in the same org and project',
   'AC-MTG-123 a task and its meeting cannot name different projects (DD-TASK-1)');
+
+-- FR-MTG-005: the schema version is server-written; a client-supplied value never sticks.
+update meetings set notes_schema_version = 7 where id='00d50000-0000-0000-0000-000000000101';
+select is((select notes_schema_version from meetings where id='00d50000-0000-0000-0000-000000000101'),
+  1::smallint,
+  'AC-MTG-126 notes_schema_version is server-pinned — a raw client PATCH cannot move it (FR-MTG-005)');
+
+-- FR-MTG-011/012: search is proven AT THE DATABASE — the trigger, the config pairing and the GIN
+-- index regressing returns zero rows SILENTLY, and no mocked unit test can see that (spec-review I4).
+update meetings
+   set notes = '[{"type":"p","text":"agreed the crane schedule"},{"type":"p","text":"pipeline pressure test moved to Friday"}]'::jsonb
+ where id='00d50000-0000-0000-0000-000000000101';
+select is(
+  (select count(*)::int from meetings
+    where notes_search @@ websearch_to_tsquery('simple','pipeline')),
+  1,
+  'AC-MTG-127 a term from a LATER block is findable via notes_search — the projection walks all blocks');
+select is(
+  (select count(*)::int from meetings
+    where notes_search @@ websearch_to_tsquery('simple','zeppelin')),
+  0,
+  'AC-MTG-128 …and an absent term finds nothing (the positive above is not a match-anything artifact)');
+
+-- AC-MTG-016: an EXPLICITLY foreign org_id on an attendee row is REJECTED, never silently rewritten.
+select throws_ok($$
+  insert into meeting_attendees (org_id, meeting_id, profile_id)
+  values ('00d50000-0000-0000-0000-000000000002','00d50000-0000-0000-0000-000000000101',
+          '00d50000-0000-0000-0000-0000000000e2')
+$$, '42501', null,
+  'AC-MTG-129 a spoofed foreign org_id on an attendee dies at WITH CHECK — the stamp only fills blanks');
 
 -- The authorship pin, attacked AS ADMIN on purpose: the author's own attempt dies at WITH CHECK
 -- with or without the pin (an abort, which points at the wrong layer), but Admin passes the policy

@@ -86,7 +86,7 @@ select is(
   (select count(*)::int from information_schema.columns
     where table_schema='public' and table_name='tasks' and column_name='meeting_id'),
   1,
-  'AC-FCT-006 the second nullable parent (meeting_id) exists — delivered by its OWN migration 0206 (DD-TASK-2)');
+  'AC-FCT-006 the second nullable parent (meeting_id) exists (0206 is its own migration - see git for the DD-TASK-2 sequencing proof; this oracle binds to the COLUMN, not the delivery route)');
 
 -- ── §B — THE FOUR POLICIES AGREE. ───────────────────────────────────────────────────────────────
 set local role authenticated;

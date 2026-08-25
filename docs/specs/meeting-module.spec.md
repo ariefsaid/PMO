@@ -17,6 +17,26 @@
 
 ---
 
+> ## ⚑ v1 AS SHIPPED (2026-08-24) — read this before the body; `DD-MTG-8`/`DD-MTG-9` amend it
+>
+> The build landed on `dev` via #526 with two recorded amendments (`docs/decisions.md`):
+>
+> - **`DD-MTG-9` — the `actionItem` document block is OUT of v1**, and with it FR-MTG-003/004/006's
+>   `props.taskId` shape, FR-MTG-018..021, and AC-MTG-001..008 (structurally moot: action items are
+>   discovered by `tasks.meeting_id`, not by position in the document). Notes are flat typed-text
+>   blocks; templates are a flag + filter, copy-on-create deferred with the block.
+> - **`DD-MTG-8` — `/action` opens the task-create modal prefilled and editable** (an informed
+>   publication into the org-visible task system), never a silent copy of the line.
+>
+> **Where the shipped oracles live (the greppable map — the build's test ids are `AC-MTG-1xx`, this
+> spec's are `AC-MTG-0xx`; this table is the join):** access model + persistence + /action seam →
+> `supabase/tests/0205_meeting_access.test.sql` (`AC-MTG-101..129`: attendance reads 106..110,
+> shares/audit 111..119, edit rights + CHECK 120..121, /action + same-project + FK-block 122..124,
+> authorship pin 125, schema-version pin 126, DB-level search 127..128, attendee org spoof 129) ·
+> the cross-stack journey → `e2e/AC-MTG-060-meeting-minute-action.spec.ts` · axe →
+> `e2e/AC-MTG-023-meetings-axe.spec.ts` · no-bleed → the shared sweep. Spec ACs whose subject
+> matter those cover are owned there; AC-MTG-001..008 are void per `DD-MTG-9`.
+
 ## 1. Scope
 
 A meeting is a **note-taking surface with a record around it**: title, when it happened, an optional

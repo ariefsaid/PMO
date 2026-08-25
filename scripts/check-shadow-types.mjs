@@ -48,8 +48,6 @@ const ALLOW = [
   // ── Deliberate narrowings at a WRITE boundary. The DAL requires a value the column permits to be
   //    NULL, which is a product rule, not drift. They still shadow, so they are listed rather than
   //    invisible.
-  { file: 'src/lib/db/tasks.ts', name: 'TaskInput',
-    reason: 'FR-FCT-045 (#525): creating a task deliberately still requires a project, though the column is now nullable.' },
   { file: 'src/lib/db/incidents.ts', name: 'IncidentInput',
     reason: 'Raising an incident requires a location and a description; the columns are nullable for legacy rows.' },
 

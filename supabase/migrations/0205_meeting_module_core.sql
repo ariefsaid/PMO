@@ -197,6 +197,10 @@ begin
    where x.t is not null;
   new.notes_text   := v_text;
   new.notes_search := to_tsvector('simple', new.title || ' ' || v_text);
+  -- FR-MTG-005: the schema version is SERVER-written on every insert and update — a client-supplied
+  -- value never sticks. `authenticated` holds table-wide UPDATE, so without this line a raw PATCH
+  -- sets it freely and future readers branch on a lie (spec-review C-class find, 2026-08-24).
+  new.notes_schema_version := 1;
   return new;
 end; $$;
 create trigger meetings_ab_project_notes

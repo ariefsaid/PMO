@@ -52,10 +52,10 @@ select set_eq(
             -- embed no profile at all. So nothing broke; the pair is recorded, not waived.
             ('tasks -> profiles'),
             -- 0205 (#526): meeting_access_grants carries user_id AND granted_by, both -> profiles.
-            -- ⚑ Checked before adding, per this assertion's own instruction: NO DAL for meetings
-            -- exists yet (git grep meeting_access_grants pmo-portal/src -> nothing), so there is no
-            -- unqualified embed to break. Whatever ships first MUST use
-            -- `alias:profiles!meeting_access_grants_<column>_fkey(...)`.
+            -- The DAL shipped in the same branch and every profiles embed in it is
+            -- constraint-qualified (src/lib/db/meetings.ts — `!meeting_access_grants_user_id_fkey`
+            -- and `!meeting_access_grants_granted_by_fkey`; verified by the 526 spec review). Any
+            -- NEW embed of profiles from this table must be qualified the same way.
             ('meeting_access_grants -> profiles'),
             ('timesheets -> profiles'),
             -- 0193 (#498): work_orders carries THREE person columns — order_value_set_by (the SoD
