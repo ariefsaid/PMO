@@ -54,6 +54,7 @@ export type Entity =
   | 'milestone'
   | 'contact'
   | 'contactActivity'
+  | 'meeting'
   | 'userView'
   | 'salesInvoice'
   | 'incomingPayment'
@@ -77,6 +78,9 @@ export interface PolicyContext {
      *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
      *  assigned to someone else is still yours to edit. */
     created_by?: string | null;
+    /** Meeting author — OD-MTG-1/#526. Trigger-stamped + pinned server-side (`0205`), never
+     *  client-set, so it is safe to read as the meeting-edit right here. */
+    created_by_id?: string | null;
     /** EVERY user who has built this record's body — the sales-invoice SoD oracle (migration 0113's
      *  append-only `sales_invoice_authors` set). The `author_id` scalar is last-writer-wins and so is
      *  only a legacy member of this set, never the whole truth. */
@@ -298,6 +302,28 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(MASTER_DATA),
     edit: allow(MASTER_DATA),
     delete: allow(MASTER_DATA),
+  },
+  meeting: {
+    // #526 (OD-MTG-1, migrations 0205/0206): meetings are NOT master data — writing minutes is
+    // ordinary RBAC for EVERY role, Engineer included (the widening is meetings-only; contacts
+    // and crm_activities are untouched). READING a meeting body is attendance ∪ author ∪ grant ∪
+    // Admin — enforced by RLS row-scoping, so `view` here only says "the route/page exists for
+    // you"; an Engineer who attends meetings needs the page. RLS is the authority (ADR-0016).
+    view: allow(ALL),
+    create: allow(ALL),
+    // Record-scoped, mirroring `meetings_update` (0205 §3) exactly: the AUTHOR or Admin. Grants
+    // are VIEW-ONLY (OD-MTG-2) — a grantee or attendee reads, they never rewrite — so offering a
+    // non-author an Edit affordance would promise a write the server refuses. Deny-by-default
+    // authorship: with no record context only Admin passes.
+    edit: (role, ctx) => {
+      if (role === 'Admin') return true;
+      if (!has(ALL, role)) return false;
+      return !!ctx.currentUserId && ctx.record?.created_by_id === ctx.currentUserId;
+    },
+    // FE is deliberately STRICTER than RLS here (the allowed direction): RLS lets the author
+    // stamp archived_at via update, but the surfaced archive/delete affordances are Admin-only.
+    archive: allow(ADMIN),
+    delete: allow(ADMIN),
   },
   userView: {
     // Any authenticated user may create, edit, and archive their OWN views.

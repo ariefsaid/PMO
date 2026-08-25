@@ -28,6 +28,7 @@ function makeTask(
     completed_at: null,
     created_by: null,
     tombstoned_at: null,
+    meeting_id: null,
     source_updated_at: null,
     description: null,
     priority: null,

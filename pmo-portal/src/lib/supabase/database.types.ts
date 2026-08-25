@@ -2152,6 +2152,197 @@ export type Database = {
           },
         ]
       }
+      meeting_access_grants: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          id: string
+          meeting_id: string
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          meeting_id: string
+          org_id?: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          meeting_id?: string
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_access_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_access_grants_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_access_grants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_access_grants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_attendees: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          meeting_id: string
+          org_id: string
+          profile_id: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          meeting_id: string
+          org_id?: string
+          profile_id?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          meeting_id?: string
+          org_id?: string
+          profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attendees_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meetings: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by_id: string | null
+          id: string
+          is_template: boolean
+          location: string | null
+          notes: Json
+          notes_schema_version: number
+          notes_search: unknown
+          notes_text: string
+          occurred_at: string
+          org_id: string
+          project_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          id?: string
+          is_template?: boolean
+          location?: string | null
+          notes?: Json
+          notes_schema_version?: number
+          notes_search?: unknown
+          notes_text?: string
+          occurred_at?: string
+          org_id?: string
+          project_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          id?: string
+          is_template?: boolean
+          location?: string | null
+          notes?: Json
+          notes_schema_version?: number
+          notes_search?: unknown
+          notes_text?: string
+          occurred_at?: string
+          org_id?: string
+          project_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_created_by_id_fkey"
+            columns: ["created_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ms_graph_connections: {
         Row: {
           access_token_ciphertext: string | null
@@ -4268,6 +4459,7 @@ export type Database = {
           description: string | null
           end_date: string | null
           id: string
+          meeting_id: string | null
           milestone_id: string | null
           name: string
           org_id: string
@@ -4288,6 +4480,7 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           id?: string
+          meeting_id?: string | null
           milestone_id?: string | null
           name: string
           org_id?: string
@@ -4308,6 +4501,7 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           id?: string
+          meeting_id?: string | null
           milestone_id?: string | null
           name?: string
           org_id?: string
@@ -4332,6 +4526,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
             referencedColumns: ["id"]
           },
           {
@@ -4715,56 +4916,9 @@ export type Database = {
       }
     }
     Views: {
-      pg_all_foreign_keys: {
-        Row: {
-          fk_columns: unknown[] | null
-          fk_constraint_name: unknown
-          fk_schema_name: unknown
-          fk_table_name: unknown
-          fk_table_oid: unknown
-          is_deferrable: boolean | null
-          is_deferred: boolean | null
-          match_type: string | null
-          on_delete: string | null
-          on_update: string | null
-          pk_columns: unknown[] | null
-          pk_constraint_name: unknown
-          pk_index_name: unknown
-          pk_schema_name: unknown
-          pk_table_name: unknown
-          pk_table_oid: unknown
-        }
-        Relationships: []
-      }
-      tap_funky: {
-        Row: {
-          args: string | null
-          is_definer: boolean | null
-          is_strict: boolean | null
-          is_visible: boolean | null
-          kind: unknown
-          langoid: unknown
-          name: unknown
-          oid: unknown
-          owner: unknown
-          returns: string | null
-          returns_set: boolean | null
-          schema: unknown
-          volatility: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      _cleanup: { Args: never; Returns: boolean }
-      _contract_on: { Args: { "": string }; Returns: unknown }
-      _currtest: { Args: never; Returns: number }
-      _db_privs: { Args: never; Returns: unknown[] }
-      _extensions: { Args: never; Returns: unknown[] }
-      _get: { Args: { "": string }; Returns: number }
-      _get_latest: { Args: { "": string }; Returns: number[] }
-      _get_note: { Args: { "": string }; Returns: string }
-      _is_verbose: { Args: never; Returns: boolean }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -4774,13 +4928,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      _prokind: { Args: { p_oid: unknown }; Returns: unknown }
-      _query: { Args: { "": string }; Returns: string }
-      _refine_vol: { Args: { "": string }; Returns: string }
-      _retval: { Args: { "": string }; Returns: string }
-      _table_privs: { Args: never; Returns: unknown[] }
-      _temptypes: { Args: { "": string }; Returns: string }
-      _todo: { Args: never; Returns: string }
       activate_budget_version: {
         Args: { version_id: string }
         Returns: undefined
@@ -4852,6 +4999,7 @@ export type Database = {
         Args: { p_fiscal_year: string }
         Returns: string
       }
+      can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
@@ -4944,42 +5092,6 @@ export type Database = {
       clickup_sweep_tick: { Args: never; Returns: undefined }
       clickup_webhook_worker_tick: { Args: never; Returns: undefined }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
-      col_is_null:
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              schema_name: unknown
-              table_name: unknown
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              table_name: unknown
-            }
-            Returns: string
-          }
-      col_not_null:
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              schema_name: unknown
-              table_name: unknown
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              table_name: unknown
-            }
-            Returns: string
-          }
       committed_procurement_statuses: { Args: never; Returns: string[] }
       confirm_erp_employee_link: {
         Args: { p_erp_employee_id: string; p_profile_id: string }
@@ -5274,23 +5386,6 @@ export type Database = {
         Args: { p_secret_name: string }
         Returns: undefined
       }
-      diag:
-        | {
-            Args: { msg: unknown }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-        | {
-            Args: { msg: string }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-      diag_test_name: { Args: { "": string }; Returns: string }
-      do_tap:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
       domain_externally_owned: {
         Args: { p_domain: string; p_org_id: string }
         Returns: boolean
@@ -5300,9 +5395,6 @@ export type Database = {
         Returns: boolean
       }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
-      fail:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
       finalize_external_connect: {
         Args: {
           p_actor_id: string
@@ -5314,9 +5406,6 @@ export type Database = {
         }
         Returns: string
       }
-      findfuncs: { Args: { "": string }; Returns: string[] }
-      finish: { Args: { exception_on_failure?: boolean }; Returns: string[] }
-      format_type_string: { Args: { "": string }; Returns: string }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
@@ -5426,7 +5515,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      has_unique: { Args: { "": string }; Returns: string }
+      has_meeting_grant: { Args: { p_meeting_id: string }; Returns: boolean }
       holds_pipeline_value_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
@@ -5439,7 +5528,6 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
       }
-      in_todo: { Args: never; Returns: boolean }
       insert_timesheet_outbox_pending: {
         Args: {
           p_actor: string
@@ -5484,10 +5572,9 @@ export type Database = {
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
-      is_empty: { Args: { "": string }; Returns: string }
+      is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       is_unattributed_authority: { Args: never; Returns: boolean }
-      isnt_empty: { Args: { "": string }; Returns: string }
       list_budget_fiscal_years: {
         Args: { p_project_id: string }
         Returns: {
@@ -5495,7 +5582,6 @@ export type Database = {
           is_active_push: boolean
         }[]
       }
-      lives_ok: { Args: { "": string }; Returns: string }
       log_audit: {
         Args: {
           p_action: string
@@ -5586,8 +5672,6 @@ export type Database = {
         Args: { p_org: string; p_prefix: string }
         Returns: string
       }
-      no_plan: { Args: never; Returns: boolean[] }
-      num_failed: { Args: never; Returns: number }
       on_hand_project_statuses: { Args: never; Returns: string[] }
       operator_agent_run_stats: {
         Args: { p_org_id?: string }
@@ -5710,7 +5794,6 @@ export type Database = {
           run_count: number
         }[]
       }
-      os_name: { Args: never; Returns: string }
       outbox_max_auto_age: { Args: never; Returns: string }
       outbox_max_auto_attempts: { Args: never; Returns: number }
       outbox_reconcile_candidates: {
@@ -5744,12 +5827,6 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      pass:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
-      pg_version: { Args: never; Returns: string }
-      pg_version_num: { Args: never; Returns: number }
-      pgtap_version: { Args: never; Returns: number }
       pipeline_project_statuses: { Args: never; Returns: string[] }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
@@ -5859,9 +5936,6 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: number
       }
-      runtests:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
       save_timesheet_week: {
         Args: {
           p_delete_ids?: string[]
@@ -5910,9 +5984,6 @@ export type Database = {
         Returns: undefined
       }
       si_submit_clearance_ttl: { Args: never; Returns: string }
-      skip:
-        | { Args: { "": string }; Returns: string }
-        | { Args: { how_many: number; why: string }; Returns: string }
       submit_sales_invoice: {
         Args: { p_si_id: string }
         Returns: {
@@ -5955,17 +6026,7 @@ export type Database = {
         Returns: boolean
       }
       telegram_notify_tick: { Args: never; Returns: undefined }
-      throws_ok: { Args: { "": string }; Returns: string }
       timesheet_push_key_witness: { Args: { p_key: string }; Returns: string }
-      todo:
-        | { Args: { how_many: number }; Returns: boolean[] }
-        | { Args: { how_many: number; why: string }; Returns: boolean[] }
-        | { Args: { why: string }; Returns: boolean[] }
-        | { Args: { how_many: number; why: string }; Returns: boolean[] }
-      todo_end: { Args: never; Returns: boolean[] }
-      todo_start:
-        | { Args: never; Returns: boolean[] }
-        | { Args: { "": string }; Returns: boolean[] }
       transition_document_status: {
         Args: {
           p_doc_id: string
@@ -6067,9 +6128,7 @@ export type Database = {
       work_order_status: "Draft" | "Issued" | "Closed" | "Cancelled"
     }
     CompositeTypes: {
-      _time_trial_type: {
-        a_time: number | null
-      }
+      [_ in never]: never
     }
   }
 }

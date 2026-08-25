@@ -64,7 +64,7 @@ export type FrictionClass =
  */
 const ANALYTICS_MODULES = [
   'administration', 'approvals', 'auth', 'budget-account-map', 'companies', 'contacts',
-  'dashboard', 'incidents', 'my-tasks', 'procurement', 'projects', 'reports', 'sales',
+  'dashboard', 'incidents', 'meetings', 'my-tasks', 'procurement', 'projects', 'reports', 'sales',
   'settings', 'timesheets', 'unknown',
 ] as const;
 export type AnalyticsModule = (typeof ANALYTICS_MODULES)[number];

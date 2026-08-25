@@ -211,7 +211,10 @@ const Contacts: React.FC = () => {
       title={t('contacts.title', 'Contacts')}
       description={t(
         'contacts.description',
-        'People at the companies you work with. Master data shared by the whole organisation — log calls, emails and meetings against each contact.',
+        // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
+        // attendees and minutes lives in the Meetings module — so this copy no longer promises
+        // "meetings" here.
+        'People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the Meetings module.',
       )}
       primaryAction={
         canCreate && (
@@ -283,7 +286,8 @@ const Contacts: React.FC = () => {
           title={t('contacts.states.emptyTitle', 'No contacts yet')}
           sub={t(
             'contacts.states.emptySub',
-            'Add your first contact to start logging calls, emails and meetings against the people you work with.',
+            // DD-MTG-6: same re-scope as the page description — touchpoints here, minutes in Meetings.
+            'Add your first contact to start logging calls and emails against the people you work with.',
           )}
           stateId="contacts-empty"
           role={realRole ?? undefined}

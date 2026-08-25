@@ -425,7 +425,7 @@
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan — arsipkan saja untuk menyimpan riwayatnya.",
       "deleteTitle": "Hapus kontak ini?"
     },
-    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi — catat telepon, email, dan meeting untuk setiap kontak.",
+    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi — catat telepon dan email untuk setiap kontak. Rapat bernotulen ada di modul Rapat.",
     "filters": {
       "allCompanies": "Semua perusahaan",
       "companyLabel": "Filter berdasarkan perusahaan"
@@ -475,7 +475,7 @@
     },
     "states": {
       "emptyAction": "Tambahkan kontak pertama Anda",
-      "emptySub": "Tambahkan kontak pertama Anda untuk mulai mencatat telepon, email, dan meeting dengan orang yang bekerja sama dengan Anda.",
+      "emptySub": "Tambahkan kontak pertama Anda untuk mulai mencatat telepon dan email dengan orang yang bekerja sama dengan Anda.",
       "emptyTitle": "Belum ada kontak",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat kontak"
@@ -580,6 +580,181 @@
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
     },
     "title": "Dashboard Eksekutif"
+  },
+  "meetingDetail": {
+    "action": {
+      "button": "Action",
+      "buttonTitle": "Buat tugas dari baris ini (rapat hanya menyimpan referensinya)",
+      "externalGate": "Tugas dikelola oleh sistem tugas yang terhubung, jadi action item tidak dapat dibuat dari notulen ini.",
+      "placeholderName": "Action tanpa judul"
+    },
+    "actionItems": {
+      "empty": "Belum ada action item. Gunakan Action pada baris notulen untuk membuatnya.",
+      "error": "Gagal memuat action item rapat ini.",
+      "title": "Action item"
+    },
+    "archive": "Arsipkan",
+    "attendees": {
+      "addGuest": "Tambah tamu",
+      "addMember": "Tambah peserta",
+      "addMemberPlaceholder": "Pilih anggota organisasi…",
+      "contactTag": "Kontak",
+      "empty": "Belum ada peserta tercatat. Peserta dapat membaca notulen rapat ini.",
+      "guestLabel": "Tamu eksternal",
+      "guestPlaceholder": "mis. Ir. Sari (Acme)",
+      "guestTag": "Tamu",
+      "memberNoun": "anggota",
+      "remove": "Hapus peserta",
+      "title": "Peserta"
+    },
+    "backToMeetings": "Rapat",
+    "confirm": {
+      "archiveConfirm": "Arsipkan rapat",
+      "archiveDescription": "Rapat akan disembunyikan dari daftar default. Notulen, peserta, dan action item-nya tetap utuh.",
+      "archiveTitle": "Arsipkan rapat ini?",
+      "deleteConfirm": "Hapus rapat",
+      "deleteDescription": "Tindakan ini menghapus rapat beserta notulennya secara permanen. Rapat yang action item-nya masih ada sebagai tugas tidak dapat dihapus; arsipkan saja.",
+      "deleteTitle": "Hapus rapat ini?"
+    },
+    "delete": "Hapus",
+    "edit": "Edit",
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil rapat ini.",
+      "title": "Gagal memuat rapat"
+    },
+    "form": {
+      "editSubmit": "Simpan rapat",
+      "editSubtitle": "Perbarui data rapat ini",
+      "editTitle": "Edit rapat",
+      "errors": {
+        "titleRequired": "Judul rapat wajib diisi."
+      },
+      "location": {
+        "label": "Lokasi"
+      },
+      "project": {
+        "label": "Proyek",
+        "none": "Tanpa proyek"
+      },
+      "sections": {
+        "details": "Detail"
+      },
+      "title": {
+        "label": "Judul"
+      },
+      "when": {
+        "label": "Waktu"
+      }
+    },
+    "minutes": {
+      "addLine": "Tambah baris",
+      "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
+      "emptyEditor": "Belum ada notulen — tambahkan baris pertama.",
+      "lineLabel": "Baris notulen",
+      "linePlaceholder": "Ketik notulen…",
+      "removeLine": "Hapus baris",
+      "save": "Simpan notulen",
+      "title": "Notulen"
+    },
+    "notFound": {
+      "sub": "Rapat ini tidak ada atau tidak dibagikan kepada Anda. Minta peserta atau penulisnya untuk membagikannya.",
+      "title": "Rapat tidak ditemukan"
+    },
+    "pill": {
+      "archived": "Diarsipkan",
+      "meeting": "Rapat"
+    },
+    "share": {
+      "addLabel": "Bagikan ke orang tertentu",
+      "addPlaceholder": "Pilih anggota organisasi…",
+      "empty": "Belum dibagikan ke siapa pun.",
+      "explainer": "Hanya peserta, penulis, dan orang yang menerima bagikan yang dapat membaca rapat ini. Bagikan bersifat lihat-saja.",
+      "memberNoun": "anggota",
+      "revoke": "Cabut",
+      "sharedBy": "dibagikan oleh",
+      "title": "Berbagi"
+    },
+    "toast": {
+      "actionCreated": "Action item dibuat",
+      "archived": "Rapat diarsipkan",
+      "deleted": "Rapat dihapus",
+      "minutesSaved": "Notulen disimpan",
+      "shared": "Rapat dibagikan",
+      "updated": "Rapat diperbarui"
+    }
+  },
+  "meetings": {
+    "actions": {
+      "archive": "Arsipkan",
+      "delete": "Hapus",
+      "new": "Rapat baru",
+      "open": "Buka"
+    },
+    "columns": {
+      "location": "Lokasi",
+      "project": "Proyek",
+      "title": "Rapat",
+      "when": "Waktu"
+    },
+    "confirm": {
+      "archiveConfirm": "Arsipkan rapat",
+      "archiveDescription": "Rapat akan disembunyikan dari daftar default. Notulen, peserta, dan action item-nya tetap utuh. Anda dapat memulihkannya kapan saja.",
+      "archiveTitle": "Arsipkan rapat ini?",
+      "deleteConfirm": "Hapus rapat",
+      "deleteDescription": "Tindakan ini menghapus rapat beserta notulennya secara permanen. Rapat yang action item-nya masih ada sebagai tugas tidak dapat dihapus; arsipkan saja.",
+      "deleteTitle": "Hapus rapat ini?"
+    },
+    "description": "Rapat bernotulen dengan peserta dan action item. Anda melihat rapat yang Anda hadiri, tulis, atau dibagikan kepada Anda.",
+    "filters": {
+      "allProjects": "Semua proyek",
+      "projectLabel": "Filter berdasarkan proyek"
+    },
+    "form": {
+      "errors": {
+        "titleRequired": "Judul rapat wajib diisi."
+      },
+      "location": {
+        "label": "Lokasi",
+        "placeholder": "mis. Kantor site, panggilan Teams"
+      },
+      "newSubmit": "Buat rapat",
+      "newSubtitle": "Catat kapan rapat berlangsung dan mulai notulennya",
+      "newTitle": "Rapat baru",
+      "project": {
+        "label": "Proyek",
+        "none": "Tanpa proyek"
+      },
+      "sections": {
+        "details": "Detail"
+      },
+      "title": {
+        "label": "Judul",
+        "placeholder": "mis. Koordinasi site mingguan"
+      },
+      "when": {
+        "label": "Waktu"
+      }
+    },
+    "search": {
+      "ariaLabel": "Cari rapat",
+      "placeholder": "Cari notulen dan judul…"
+    },
+    "states": {
+      "emptySub": "Buat notulen rapat pertama Anda untuk mencatat catatan, peserta, dan action item di satu tempat.",
+      "emptyTitle": "Belum ada rapat",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat rapat"
+    },
+    "table": {
+      "emptySub": "Coba proyek lain atau hapus pencarian.",
+      "emptyTitle": "Tidak ada rapat yang cocok"
+    },
+    "title": "Rapat",
+    "toast": {
+      "archived": "Rapat diarsipkan",
+      "created": "Rapat dibuat",
+      "deleted": "Rapat dihapus"
+    }
   },
   "myTasks": {
     "changeStatusOf": "Ubah status",
@@ -1412,6 +1587,7 @@
       "incidents": "Insiden",
       "incomingPayments": "Pembayaran Masuk",
       "integrations": "Integrasi",
+      "meetings": "Rapat",
       "myTasks": "Tugas Saya",
       "procurement": "Pengadaan",
       "projects": "Proyek",

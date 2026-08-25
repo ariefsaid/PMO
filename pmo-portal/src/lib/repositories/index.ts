@@ -85,7 +85,22 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 // sweep backstop (see the re-export below for why it cannot be defined in this module).
 import { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 import {
+  listMeetings,
+  getMeeting,
+  createMeeting,
+  updateMeeting,
+  archiveMeeting,
+  deleteMeeting,
+  listMeetingAttendees,
+  addMeetingAttendee,
+  removeMeetingAttendee,
+  listMeetingGrants,
+  addMeetingGrant,
+  revokeMeetingGrant,
+} from '@/src/lib/db/meetings';
+import {
   listTasks,
+  listTasksByMeeting,
   getTask,
   createTask,
   updateTask,
@@ -231,6 +246,7 @@ import type {
   MilestoneRepository,
   ProcurementFileRepository,
   ContactRepository,
+  MeetingRepository,
   UserViewRepository,
   OperatorRepository,
   UsageRepository,
@@ -370,6 +386,7 @@ const usage: UsageRepository = {
 
 const task: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
+  listByMeeting: (meetingId) => wrap(() => listTasksByMeeting(meetingId)),
   get: (id) => wrap(() => getTask(id)),
   create: (input) => wrap(() => createTask(input)),
   update: (id, patch, projectId) =>
@@ -689,6 +706,21 @@ const contact: ContactRepository = {
   deleteActivity: (id) => wrap(() => deleteActivity(id)),
 };
 
+const meeting: MeetingRepository = {
+  list: (params) => wrap(() => listMeetings(params)),
+  get: (id) => wrap(() => getMeeting(id)),
+  create: (input) => wrap(() => createMeeting(input)),
+  update: (id, patch) => wrap(() => updateMeeting(id, patch)),
+  archive: (id) => wrap(() => archiveMeeting(id)),
+  delete: (id) => wrap(() => deleteMeeting(id)),
+  listAttendees: (meetingId) => wrap(() => listMeetingAttendees(meetingId)),
+  addAttendee: (meetingId, identity) => wrap(() => addMeetingAttendee(meetingId, identity)),
+  removeAttendee: (id) => wrap(() => removeMeetingAttendee(id)),
+  listGrants: (meetingId) => wrap(() => listMeetingGrants(meetingId)),
+  addGrant: (meetingId, userId) => wrap(() => addMeetingGrant(meetingId, userId)),
+  revokeGrant: (id) => wrap(() => revokeMeetingGrant(id)),
+};
+
 const userView: UserViewRepository = {
   list: () => wrap(() => listUserViews()),
   get: (id) => wrap(() => getUserView(id)),
@@ -891,6 +923,7 @@ export const repositories: Repositories = {
   milestone,
   procurementFiles,
   contact,
+  meeting,
   userView,
   operator,
   usage,
@@ -917,6 +950,7 @@ export type {
   MilestoneRepository,
   ProcurementFileRepository,
   ContactRepository,
+  MeetingRepository,
   UserViewRepository,
   OperatorRepository,
   UsageRepository,
