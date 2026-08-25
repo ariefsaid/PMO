@@ -404,3 +404,44 @@ describe('ProjectDetailHeader — content-over-containers (L2-RECORD)', () => {
     expect(sod.className).not.toContain('rounded-lg');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// #548 / OD-TAX-1 §2 — every contract figure states its basis, and states the ROW's basis
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
+  const inclusive = { ...onHand, tax_treatment: 'inclusive', tax_amount: 495000 } as unknown as ProjectWithRefs;
+  const exclusive = { ...onHand, tax_treatment: 'exclusive', tax_amount: 550000 } as unknown as ProjectWithRefs;
+  const unstated = { ...onHand, contract_value: 0, tax_treatment: null, tax_amount: null } as unknown as ProjectWithRefs;
+
+  it('#548: an INCLUSIVE contract reads "incl. PPN" on both the tile and the SoD row', () => {
+    renderHeader('Finance', inclusive);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('incl. PPN');
+    expect(screen.getByTestId('contract-value-tax-basis')).toHaveTextContent('incl. PPN');
+  });
+
+  it('#548: an EXCLUSIVE contract reads "excl. PPN" — the label is derived from the row, not fixed', () => {
+    // ⚑ The pair is the oracle. One-treatment fixtures cannot distinguish a derived label from a
+    // hardcoded one (the DD-CUR-6 / #529 blind spot named in this issue's own test note).
+    renderHeader('Finance', exclusive);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('contract-value-tax-basis')).toHaveTextContent('excl. PPN');
+  });
+
+  it('#548: a project with NO stated treatment renders NO basis — never a guessed one', () => {
+    // 0197 pairs a NULL treatment with a zero contract value: there is no figure to qualify, so a
+    // label here would be a claim the database deliberately does not make.
+    renderHeader('Finance', unstated);
+    expect(screen.queryByTestId('contract-tile-tax-basis')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-tax-basis')).not.toBeInTheDocument();
+  });
+
+  it('#548: the basis follows the RECORD even when it differs from what other records use', () => {
+    // The point of OD-TAX-1: a government/SOE contract quoted inclusive sits in the same org as
+    // commercial contracts quoted exclusive, and each states its own basis.
+    const { unmount } = renderHeader('Finance', inclusive);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    unmount();
+    renderHeader('Finance', exclusive);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+});

@@ -14,6 +14,7 @@ import React, { useState } from 'react';
 import { Button, Icon, SelectField, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
+import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import {
   TAX_TREATMENT_OPTIONS,
@@ -307,8 +308,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [status, setStatus] = useState(cfg.defaultStatus);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amountStr, setAmountStr] = useState('');
-  // #505: vendor-invoice tax facts. NO initial treatment — '' is "not answered yet", never a value
-  // (see vendorInvoiceTax.ts). Unused by every other kind.
+  // #505: vendor-invoice tax facts. '' is "not answered yet", never a value (see vendorInvoiceTax.ts).
+  // OD-TAX-1 (#548) then gave the org a PRE-SELECTION for this control — see the hook call below.
+  // Unused by every other kind.
   const [taxTreatmentStr, setTaxTreatmentStr] = useState('');
   const [taxAmountStr, setTaxAmountStr] = useState('');
   // [PD-5]: predecessor FK for payment — optional, defaults to none.
@@ -336,6 +338,13 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       ? parseVendorInvoiceTax(taxTreatmentStr, taxAmountStr)
       : ERP_AUTHORED_TAX;
   const taxIncomplete = isVendorInvoice && parsedTax === null;
+
+  // OD-TAX-1 (#548): pre-select the org's `default_tax_treatment` — this form composes a NEW
+  // invoice row, which is the only thing that setting is for. Enabled ONLY where PMO authors the
+  // tax: on a flipped org the ERP computes it and these controls are not rendered at all, so
+  // seeding a value there would stage an answer the outbound command drops on the floor.
+  const orgTaxDefault = useOrgTaxDefault();
+  useTaxTreatmentPreselect(orgTaxDefault, taxTreatmentStr, setTaxTreatmentStr, pmoAuthorsTax);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

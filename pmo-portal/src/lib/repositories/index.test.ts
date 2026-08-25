@@ -168,7 +168,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
       // 'meeting' added with #526 (migrations 0205/0206) — the meetings module's API seam.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView'].sort(),
+      // 'orgSettings' added with #548 (migration 0207) — the org-wide tax-treatment default.
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView'].sort(),
     );
   });
 
@@ -178,6 +179,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.contact).sort()).toEqual(
       ['archive', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listActivities', 'listActivitiesForContacts', 'listByCompany', 'update', 'updateActivity'].sort(),
     );
+  });
+
+  it('orgSettings exposes its expected methods (OD-TAX-1, migration 0207)', () => {
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['getTaxDefault', 'setTaxDefault'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {

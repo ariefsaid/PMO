@@ -37,6 +37,7 @@ import type {
   ProcurementReceiptRow,
   ProcurementInvoiceRow,
   CreateInvoiceInput,
+  TaxTreatment,
 } from '@/src/lib/db/procurementLifecycle';
 import type {
   PurchaseRequestRow,
@@ -610,10 +611,27 @@ export interface Repositories {
   operator: OperatorRepository;
   usage: UsageRepository;
   orgFeature: OrgFeatureRepository;
+  orgSettings: OrgSettingsRepository;
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
   integrations: IntegrationsRepository;
+}
+
+/**
+ * Org accounting settings (`OD-TAX-1`, migration 0207). Read is own-org (RLS-scoped, every member
+ * needs it to pre-select a form control); the write is Admin-only, enforced by an RLS policy plus a
+ * column-scoped UPDATE grant so `default_tax_treatment` is the only column a client can move.
+ *
+ * ⛔ `getTaxDefault` returns a form-time hint and nothing else. It must never be consulted to
+ * decide what a STORED figure means — see `src/lib/db/orgs.ts` for why that inference is
+ * unrecoverable.
+ */
+export interface OrgSettingsRepository {
+  /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
+  getTaxDefault(): Promise<TaxTreatment | null>;
+  /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
+  setTaxDefault(value: TaxTreatment): Promise<void>;
 }
 
 /**

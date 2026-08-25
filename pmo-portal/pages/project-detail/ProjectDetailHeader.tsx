@@ -11,6 +11,7 @@ import {
   SelectField,
   ConfirmDialog,
   GateNotice,
+  TaxBasisLabel,
   useToast,
   type StatTile,
 } from '@/src/components/ui';
@@ -169,7 +170,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     .join(' ');
 
   const tiles: StatTile[] = [
-    { label: t('projectDetail.header.tile.contract', 'Contract'), value: formatCurrency(contract, project.currency) },
+    {
+      label: t('projectDetail.header.tile.contract', 'Contract'),
+      value: formatCurrency(contract, project.currency),
+      // OD-TAX-1 §2: the ceiling states its basis. From THIS project's stored `tax_treatment` —
+      // never the org default, which pre-selects a form and is never read to interpret a row. A
+      // NULL treatment (0197 pairs it with a zero contract value) renders nothing at all.
+      sub: <TaxBasisLabel treatment={project.tax_treatment} testId="contract-tile-tax-basis" />,
+    },
     { label: t('projectDetail.header.tile.committed', 'Committed'), value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
     // Both tiles intentionally show the same number — they are the same realized-spend
@@ -369,6 +377,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
             {formatCurrency(contract, project.currency)}
           </span>
+          {/* OD-TAX-1 §2 — the SoD row's own copy of the figure states its basis too. Two figures
+              on one screen with one caption between them is how a reader ends up applying the
+              wrong basis to the wrong number. */}
+          <TaxBasisLabel treatment={project.tax_treatment} testId="contract-value-tax-basis" />
           {canEditValue && isFinanceForward ? (
             <Button
               variant="outline"

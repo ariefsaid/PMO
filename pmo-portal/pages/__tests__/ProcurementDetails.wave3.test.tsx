@@ -8,6 +8,15 @@
  *             transition + VI-create together; cancel leaves status unchanged.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// OD-TAX-1 (#548): the inline VI capture PRE-SELECTS the org's `default_tax_treatment`. Only the
+// org READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so the real
+// seeding behaviour runs here against a controllable org row.
+const orgDefault = vi.hoisted(() => ({ value: 'exclusive' as string | undefined }));
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, useOrgTaxDefault: () => orgDefault.value };
+});
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -333,6 +342,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
 describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs transition + VI-create together', () => {
   beforeEach(() => {
     mockEffectiveRole = 'Finance';
+    orgDefault.value = 'exclusive';
     mockTransition.mockClear().mockResolvedValue(undefined);
     mockCreateInvoice.mockClear().mockResolvedValue({ id: 'i-new', vi_number: 'VI-001' });
     // harden #2: the capture now goes through the ONE atomic RPC (transition + invoice + event).
@@ -352,12 +362,18 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
     expect(screen.getByTestId('vi-status-select')).toBeInTheDocument();
     expect(screen.getByTestId('vi-date-input')).toBeInTheDocument();
-    // #505: and the two tax fields, with NOTHING pre-selected for the treatment.
-    expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('');
+    // #505/#548: and the two tax fields, the treatment pre-selected to the ORG's default (OD-TAX-1)
+    // rather than empty — a starting point the recorder can change, never a forced answer.
+    await waitFor(() =>
+      expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('exclusive'),
+    );
     expect(screen.getByTestId('vi-tax-amount-input')).toBeInTheDocument();
   });
 
   it('#505: the inline capture cannot be submitted until the tax treatment is chosen', async () => {
+    // ⚑ The org states nothing readable — since #548 that is the only route to an unanswered
+    // treatment on this form, and the #505 guard behind it is unchanged.
+    orgDefault.value = undefined;
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;

@@ -2529,6 +2529,7 @@ export type Database = {
           default_currency: string
           default_locale: string
           default_number_locale: string | null
+          default_tax_treatment: string
           default_timezone: string
           id: string
           lifecycle_state: string | null
@@ -2539,6 +2540,7 @@ export type Database = {
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
+          default_tax_treatment?: string
           default_timezone?: string
           id?: string
           lifecycle_state?: string | null
@@ -2549,6 +2551,7 @@ export type Database = {
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
+          default_tax_treatment?: string
           default_timezone?: string
           id?: string
           lifecycle_state?: string | null

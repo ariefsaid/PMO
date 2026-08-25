@@ -45,6 +45,16 @@ export interface LedgerRow {
   externalRef: string | null;
   /** Numeric amount (optional — RFQ and GR typically null). */
   amount: number | null;
+  /**
+   * OD-TAX-1 §2 — the basis `amount` is stated on, for the record types that STORE one.
+   *
+   * ⚑ Only `Invoice` carries it (`procurement_invoices.tax_treatment`, 0196, NOT NULL). Every other
+   * ledger type is `null` here because its table has no such column — and `null` therefore means
+   * "this record states no basis", never "assume the org default". The label renders nothing for it,
+   * which is the honest reading: a PR or PO amount whose basis nobody recorded must not be shown
+   * wearing one.
+   */
+  taxTreatment: string | null;
   /** Status label for the StatusPill. */
   status: string;
   /** StatusPill variant derived from status. */
@@ -133,6 +143,7 @@ function makeRow(
   status: string,
   currency: string,
   files?: EmbeddedFileRow[],
+  taxTreatment?: string | null,
 ): LedgerRow {
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
@@ -151,6 +162,7 @@ function makeRow(
     financial: isFinancial(type),
     recordId,
     currency,
+    taxTreatment: taxTreatment ?? null,
   };
 }
 
@@ -276,6 +288,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vi.status,
         vi.currency,
         (vi as unknown as { files?: EmbeddedFileRow[] }).files,
+        vi.tax_treatment,          // OD-TAX-1 §2 — the invoice's OWN basis, 0196 NOT NULL
       ),
     );
   }

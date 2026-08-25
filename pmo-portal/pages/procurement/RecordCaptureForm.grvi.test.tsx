@@ -7,8 +7,22 @@
  *   - the PRESERVED data-testids the unit + e2e BDD layer keys off
  *   - VI status options exclude Paid (N1)
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// OD-TAX-1 (#548): the VI capture form PRE-SELECTS the org's `default_tax_treatment`. Only the org
+// READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so what runs below
+// is the real seeding behaviour driven by a controllable org row, with no QueryClientProvider or
+// AuthProvider standing in for a select.
+const orgDefault = vi.hoisted(() => ({ value: 'exclusive' as string | undefined }));
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, useOrgTaxDefault: () => orgDefault.value };
+});
+
+beforeEach(() => {
+  orgDefault.value = 'exclusive';
+});
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -118,14 +132,52 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
   });
 
   // ── #505: the tax facts gate the save ──────────────────────────────────────────────────────
-  it('#505: the tax-treatment select renders with NOTHING pre-selected — the user must choose', () => {
+  it('#548 (OD-TAX-1): the tax-treatment select opens PRE-SELECTED to the org default, both options still offered', async () => {
     renderForm({ kind: 'vendor_invoice' });
     const select = screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement;
-    expect(select.value).toBe('');
+    await waitFor(() => expect(select.value).toBe('exclusive'));
+    // The empty option stays: pre-selected is not the same as forced, and a user may clear it.
     expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'inclusive', 'exclusive']);
   });
 
+  it('#548: an INCLUSIVE org gets inclusive — the pre-selection is read from the org, not hardcoded', async () => {
+    orgDefault.value = 'inclusive';
+    renderForm({ kind: 'vendor_invoice' });
+    await waitFor(() =>
+      expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('inclusive'),
+    );
+  });
+
+  it('#548: with NO org default readable the select opens EMPTY — a marker is never invented', async () => {
+    orgDefault.value = undefined;
+    const onStage = vi.fn();
+    renderForm({ kind: 'vendor_invoice', onStage });
+    const select = screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement;
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    expect(select.value).toBe('');
+    expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
+    expect(screen.getByTestId('vi-tax-required-hint')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(onStage).not.toHaveBeenCalled();
+  });
+
+  it('#548: the pre-selection is a starting point — an override reaches the staged record', async () => {
+    const onStage = vi.fn();
+    renderForm({ kind: 'vendor_invoice', onStage });
+    const select = screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe('exclusive'));
+    await userEvent.selectOptions(select, 'inclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '1100');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(onStage).toHaveBeenCalledWith(
+      expect.objectContaining({ taxTreatment: 'inclusive', taxAmount: 1100 }),
+    );
+  });
+
   it('#505: Save VI is blocked until a tax treatment is chosen, and staging never fires', async () => {
+    // ⚑ The org states nothing, which is the only way this form reaches "no treatment chosen"
+    // since #548 pre-selected the control. The #505 guard itself is unchanged and still binding.
+    orgDefault.value = undefined;
     const onStage = vi.fn();
     renderForm({ kind: 'vendor_invoice', onStage });
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
@@ -147,6 +199,8 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
   it('#505: a blank tax amount also blocks the save — blank never means 0', async () => {
     renderForm({ kind: 'vendor_invoice' });
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    // A basis and no amount is still incomplete: 0197/0196 require BOTH, and the pre-selection
+    // moved neither half of that.
     expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
   });
 
