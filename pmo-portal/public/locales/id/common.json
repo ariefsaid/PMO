@@ -387,6 +387,10 @@
         "nameRequired": "Nama kontak wajib diisi."
       }
     },
+    "meetings": {
+      "error": "Rapat bernotulen tidak dapat dimuat.",
+      "pill": "Rapat bernotulen"
+    },
     "notFound": {
       "sub": "Kontak ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
       "title": "Kontak tidak ditemukan"
@@ -425,7 +429,8 @@
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan — arsipkan saja untuk menyimpan riwayatnya.",
       "deleteTitle": "Hapus kontak ini?"
     },
-    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi — catat telepon dan email untuk setiap kontak. Rapat bernotulen ada di modul Rapat.",
+    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi — catat telepon dan email untuk setiap kontak. Rapat bernotulen ada di",
+    "descriptionMeetingsLink": "modul Rapat",
     "filters": {
       "allCompanies": "Semua perusahaan",
       "companyLabel": "Filter berdasarkan perusahaan"
@@ -586,7 +591,16 @@
       "button": "Action",
       "buttonTitle": "Buat tugas dari baris ini (rapat hanya menyimpan referensinya)",
       "externalGate": "Tugas dikelola oleh sistem tugas yang terhubung, jadi action item tidak dapat dibuat dari notulen ini.",
-      "placeholderName": "Action tanpa judul"
+      "modalSection": "Tugas",
+      "modalSubmit": "Buat tugas",
+      "modalSubtitle": "Tindakan ini membuat tugas sungguhan. Namanya terlihat oleh semua yang dapat melihat tugas — edit sebelum diterbitkan.",
+      "modalTitle": "Action item baru",
+      "nameHelper": "Terisi otomatis dari baris notulen. Jika dikosongkan, tugas dibuat dengan nama placeholder.",
+      "nameLabel": "Nama tugas",
+      "placeholderName": "Action tanpa judul",
+      "projectFixed": "(terkunci ke proyek rapat ini)",
+      "projectLabel": "Proyek",
+      "projectNone": "Tanpa proyek"
     },
     "actionItems": {
       "empty": "Belum ada action item. Gunakan Action pada baris notulen untuk membuatnya.",
@@ -672,6 +686,7 @@
       "memberNoun": "anggota",
       "revoke": "Cabut",
       "sharedBy": "dibagikan oleh",
+      "suggestPm": "Bagikan dengan {{name}} (Project Manager)",
       "title": "Berbagi"
     },
     "toast": {
@@ -700,9 +715,11 @@
       "archiveConfirm": "Arsipkan rapat",
       "archiveDescription": "Rapat akan disembunyikan dari daftar default. Notulen, peserta, dan action item-nya tetap utuh. Anda dapat memulihkannya kapan saja.",
       "archiveTitle": "Arsipkan rapat ini?",
+      "archiveTitleNamed": "Arsipkan {{title}}?",
       "deleteConfirm": "Hapus rapat",
       "deleteDescription": "Tindakan ini menghapus rapat beserta notulennya secara permanen. Rapat yang action item-nya masih ada sebagai tugas tidak dapat dihapus; arsipkan saja.",
-      "deleteTitle": "Hapus rapat ini?"
+      "deleteTitle": "Hapus rapat ini?",
+      "deleteTitleNamed": "Hapus {{title}}?"
     },
     "description": "Rapat bernotulen dengan peserta dan action item. Anda melihat rapat yang Anda hadiri, tulis, atau dibagikan kepada Anda.",
     "filters": {
@@ -747,7 +764,8 @@
     },
     "table": {
       "emptySub": "Coba proyek lain atau hapus pencarian.",
-      "emptyTitle": "Tidak ada rapat yang cocok"
+      "emptyTitle": "Tidak ada rapat yang cocok",
+      "rowLabel": "Buka {{title}}"
     },
     "title": "Rapat",
     "toast": {

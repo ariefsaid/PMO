@@ -23,7 +23,6 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAuth } from '@/src/auth/useAuth';
 import { useMeetings, useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useProjects } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -67,7 +66,6 @@ const Meetings: React.FC = () => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
-  const { currentUser } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -88,7 +86,6 @@ const Meetings: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<MeetingWithRefs | null>(null);
 
   const canCreate = may('create', 'meeting');
-  const currentUserId = currentUser?.id ?? null;
 
   const rows = useMemo(() => data ?? [], [data]);
 
@@ -143,11 +140,12 @@ const Meetings: React.FC = () => {
 
   const rowMenu = (m: MeetingWithRefs): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (may('edit', 'meeting', { currentUserId, record: { created_by_id: m.created_by_id } }))
-      items.push({
-        label: t('meetings.actions.open', 'Open'),
-        onClick: () => navigate(`/meetings/${m.id}`),
-      });
+    // M13: Open is NAVIGATION, not a write — every viewer who can see the row may open it
+    // (RLS already scoped the row set to what they can read). Never gate it on edit rights.
+    items.push({
+      label: t('meetings.actions.open', 'Open'),
+      onClick: () => navigate(`/meetings/${m.id}`),
+    });
     if (may('archive', 'meeting'))
       items.push({
         label: t('meetings.actions.archive', 'Archive'),
@@ -279,9 +277,9 @@ const Meetings: React.FC = () => {
           columns={columns}
           rowKey={(m) => m.id}
           onActivate={(m) => navigate(`/meetings/${m.id}`)}
-          // ⚑ Not extracted — embeds a value; `t()` interpolation is unsafe in this repo today
-          // (the unit suite mounts no i18next instance — see Companies.tsx for the full note).
-          rowLabel={(m) => `Open ${m.title}`}
+          // M12: interpolated key — safe now that test/setup.ts initialises i18next, so the
+          // options bag interpolates in unit tests exactly as it does at runtime.
+          rowLabel={(m) => t('meetings.table.rowLabel', 'Open {{title}}', { title: m.title })}
           rowMenu={rowMenu}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
@@ -309,10 +307,11 @@ const Meetings: React.FC = () => {
       <ConfirmDialog
         open={!!archiveTarget}
         tone="default"
-        /* ⚑ The named branch stays a template literal — embeds a value (see Companies.tsx). */
         title={
           archiveTarget
-            ? `Archive ${archiveTarget.title}?`
+            ? t('meetings.confirm.archiveTitleNamed', 'Archive {{title}}?', {
+                title: archiveTarget.title,
+              })
             : t('meetings.confirm.archiveTitle', 'Archive meeting?')
         }
         description={t(
@@ -330,7 +329,9 @@ const Meetings: React.FC = () => {
         tone="destructive"
         title={
           deleteTarget
-            ? `Delete ${deleteTarget.title}?`
+            ? t('meetings.confirm.deleteTitleNamed', 'Delete {{title}}?', {
+                title: deleteTarget.title,
+              })
             : t('meetings.confirm.deleteTitle', 'Delete meeting?')
         }
         description={t(

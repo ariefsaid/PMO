@@ -387,6 +387,10 @@
         "nameRequired": "Contact name is required."
       }
     },
+    "meetings": {
+      "error": "Minuted meetings could not be loaded.",
+      "pill": "Minuted meeting"
+    },
     "notFound": {
       "sub": "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
       "title": "Contact not found"
@@ -425,7 +429,8 @@
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.",
       "deleteTitle": "Delete contact?"
     },
-    "description": "People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the Meetings module.",
+    "description": "People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the",
+    "descriptionMeetingsLink": "Meetings module",
     "filters": {
       "allCompanies": "All companies",
       "companyLabel": "Filter by company"
@@ -586,7 +591,16 @@
       "button": "Action",
       "buttonTitle": "Create a task from this line (the meeting keeps only a reference)",
       "externalGate": "Tasks are managed by the connected task system, so action items cannot be created from these minutes.",
-      "placeholderName": "Untitled action"
+      "modalSection": "Task",
+      "modalSubmit": "Create task",
+      "modalSubtitle": "This creates a real task. Its name is visible to everyone who can see tasks — edit it before publishing.",
+      "modalTitle": "New action item",
+      "nameHelper": "Prefilled from the minute line. Left empty, the task is created with the placeholder name.",
+      "nameLabel": "Task name",
+      "placeholderName": "Untitled action",
+      "projectFixed": "(fixed to this meeting’s project)",
+      "projectLabel": "Project",
+      "projectNone": "No project"
     },
     "actionItems": {
       "empty": "No action items yet. Use Action on a minute line to create one.",
@@ -672,6 +686,7 @@
       "memberNoun": "member",
       "revoke": "Revoke",
       "sharedBy": "shared by",
+      "suggestPm": "Share with {{name}} (Project Manager)",
       "title": "Sharing"
     },
     "toast": {
@@ -700,9 +715,11 @@
       "archiveConfirm": "Archive meeting",
       "archiveDescription": "It will be hidden from the default list. Its minutes, attendees and action items stay intact. You can restore it any time.",
       "archiveTitle": "Archive meeting?",
+      "archiveTitleNamed": "Archive {{title}}?",
       "deleteConfirm": "Delete meeting",
       "deleteDescription": "This permanently removes the meeting and its minutes. A meeting whose action items still exist as tasks cannot be deleted; archive it instead.",
-      "deleteTitle": "Delete meeting?"
+      "deleteTitle": "Delete meeting?",
+      "deleteTitleNamed": "Delete {{title}}?"
     },
     "description": "Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.",
     "filters": {
@@ -747,7 +764,8 @@
     },
     "table": {
       "emptySub": "Try a different project or clear the search.",
-      "emptyTitle": "No meetings match"
+      "emptyTitle": "No meetings match",
+      "rowLabel": "Open {{title}}"
     },
     "title": "Meetings",
     "toast": {

@@ -84,7 +84,7 @@ export interface MeetingPatch {
   notes?: MeetingNoteBlock[];
 }
 
-/** FR-MTG-030 (list): an explicit row cap + explicit ordering rather than a required filter. */
+/** FR-MTG-035 (list): an explicit row cap + explicit ordering rather than a required filter. */
 export const MEETING_LIST_CAP = 200;
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -112,7 +112,7 @@ export interface MeetingListParams {
 /**
  * List meetings visible to the caller (RLS: attendee ∪ author ∪ grant ∪ Admin, org-scoped),
  * newest-first by `occurred_at` (FR-MTG-028), excluding templates and archived rows by default
- * (FR-MTG-029), capped by MEETING_LIST_CAP (FR-MTG-030). A project filter narrows to one project;
+ * (FR-MTG-029), capped by MEETING_LIST_CAP (FR-MTG-035). A project filter narrows to one project;
  * without it project-less meetings are included.
  *
  * Search: `textSearch` on the stored `notes_search` tsvector with `websearch` semantics
@@ -218,6 +218,37 @@ export async function deleteMeeting(id: string): Promise<void> {
   const { data, error } = await supabase.from('meetings').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Meeting not found or you do not have permission to delete it.');
+}
+
+/** The slim shape the contact timeline renders (DD-MTG-6's second half). */
+export interface ContactMeetingRef {
+  id: string;
+  title: string;
+  occurred_at: string;
+}
+
+/**
+ * Meetings a contact attended (`meeting_attendees.contact_id`) — the contact timeline's union
+ * source (DD-MTG-6: the CRM 'Meeting' kind is the touchpoint log; minuted meetings live here and
+ * the timeline unions both). The viewer's RLS does the filtering naturally: a caller who may not
+ * read a meeting (FR-MTG-031) simply gets no row — most viewers see none, and that is a normal
+ * state, not an error. The reverse embed is constraint-qualified per the house rule.
+ */
+export async function listMeetingsForContact(contactId: string): Promise<ContactMeetingRef[]> {
+  const { data, error } = await supabase
+    .from('meetings')
+    .select(
+      'id, title, occurred_at, attendees:meeting_attendees!meeting_attendees_meeting_id_fkey!inner(contact_id)',
+    )
+    .eq('attendees.contact_id', contactId)
+    .is('archived_at', null)
+    .order('occurred_at', { ascending: false });
+  if (error) throwWrite(error);
+  return (data ?? []).map((m) => ({
+    id: (m as { id: string }).id,
+    title: (m as { title: string }).title,
+    occurred_at: (m as { occurred_at: string }).occurred_at,
+  }));
 }
 
 // ── Attendees ──────────────────────────────────────────────────────────────────────────────────

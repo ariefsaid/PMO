@@ -223,7 +223,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
       // created and revoked, never edited; 0205 ships no UPDATE grant and no UPDATE policy).
-      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listGrants', 'removeAttendee', 'revokeGrant', 'update'].sort(),
+      // 'listForContact' added with the I7 review round — the DD-MTG-6 contact-timeline union.
+      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'revokeGrant', 'update'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       [

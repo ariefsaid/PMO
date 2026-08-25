@@ -50,7 +50,10 @@ const ROUTES: { path: string; label: string }[] = [
   { path: '/timesheets', label: 'timesheets' },
   { path: '/approvals', label: 'approvals' },
   // AC-MTG-021: the meeting routes join the EXISTING sweep, never a fork (spec §6 traceability).
+  // The detail is the §V seeded meeting (authored by pm@, but the sweep's admin@ reads all —
+  // the one role disjunct 0205 grants) so the editor/attendees/share surfaces get measured.
   { path: '/meetings', label: 'meetings-list' },
+  { path: '/meetings/ee000000-0000-0000-0000-000000000001', label: 'meeting-detail' },
   { path: '/companies', label: 'companies' },
   { path: '/contacts', label: 'contacts' },
   { path: '/administration', label: 'administration' },

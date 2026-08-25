@@ -100,6 +100,8 @@ const MeetingDetail: React.FC = () => {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [guestName, setGuestName] = useState('');
+  // DD-MTG-8: /action opens the task-create modal prefilled from THIS line (null = closed).
+  const [actionLine, setActionLine] = useState<string | null>(null);
 
   const savedBlocks = useMemo(() => (meeting ? parseNoteBlocks(meeting.notes) : []), [meeting]);
   const minutesDirty = useMemo(
@@ -197,18 +199,22 @@ const MeetingDetail: React.FC = () => {
     }
   };
 
-  const onActionFromLine = async (line: MeetingNoteBlock) => {
-    const name = line.text.trim() || t('meetingDetail.action.placeholderName', 'Untitled action');
-    try {
-      await createActionItem.mutateAsync({
-        meetingId: meeting.id,
-        projectId: meeting.project_id,
-        name,
-      });
-      toast(t('meetingDetail.toast.actionCreated', 'Action item created'), name, 'success');
-    } catch (err) {
-      onMutationError(err);
-    }
+  /**
+   * DD-MTG-8: the /action save — invoked from the modal with the text the author CHOSE to
+   * publish, never straight from the line. `tasks_select` is org-wide, so the task name leaves
+   * the attendance-keyed read model the moment it is created; the modal is what makes that an
+   * informed act. FR-MTG-017's placeholder remains the empty-name fallback.
+   */
+  const onCreateActionItem = async (name: string) => {
+    const finalName =
+      name.trim() || t('meetingDetail.action.placeholderName', 'Untitled action');
+    await createActionItem.mutateAsync({
+      meetingId: meeting.id,
+      projectId: meeting.project_id,
+      name: finalName,
+    });
+    toast(t('meetingDetail.toast.actionCreated', 'Action item created'), finalName, 'success');
+    setActionLine(null);
   };
 
   const onAddMember = async (option: ComboboxOption) => {
@@ -394,7 +400,9 @@ const MeetingDetail: React.FC = () => {
                       'meetingDetail.action.buttonTitle',
                       'Create a task from this line (the meeting keeps only a reference)',
                     )}
-                    onClick={() => void onActionFromLine(b)}
+                    // DD-MTG-8: opens the task-create modal, prefilled and editable — the task
+                    // name is org-visible, so publishing it is the AUTHOR's explicit choice.
+                    onClick={() => setActionLine(b.text)}
                   >
                     {t('meetingDetail.action.button', 'Action')}
                   </Button>
@@ -564,9 +572,10 @@ const MeetingDetail: React.FC = () => {
                 onClick={() => void onShareWith(pmSuggestion.id, pmSuggestion.full_name)}
               >
                 <Icon name="plus" />
-                {/* ⚑ Not extracted — embeds the PM's name (interpolation is unsafe here; see
-                    Companies.tsx). The surrounding affordances are extracted. */}
-                {`Share with ${pmSuggestion.full_name} (Project Manager)`}
+                {/* M12: interpolated key — safe now that test/setup.ts initialises i18next. */}
+                {t('meetingDetail.share.suggestPm', 'Share with {{name}} (Project Manager)', {
+                  name: pmSuggestion.full_name,
+                })}
               </Button>
             </div>
           )}
@@ -618,6 +627,17 @@ const MeetingDetail: React.FC = () => {
         </CardPad>
       </Card>
 
+      {/* ── /action task-create modal (DD-MTG-8) ───────────────────────────── */}
+      {actionLine !== null && (
+        <ActionItemModal
+          initialName={actionLine.trim()}
+          projectName={meeting.project?.name ?? null}
+          onClose={() => setActionLine(null)}
+          onCreate={onCreateActionItem}
+          onError={onMutationError}
+        />
+      )}
+
       {/* ── Edit modal ─────────────────────────────────────────────────────── */}
       {editOpen && (
         <MeetingEditModal
@@ -661,6 +681,106 @@ const MeetingDetail: React.FC = () => {
         onCancel={() => setDeleteOpen(false)}
       />
     </div>
+  );
+};
+
+// ── /action task-create modal (DD-MTG-8) ────────────────────────────────────
+
+interface ActionItemModalProps {
+  /** The minute line's text — the PREFILL, fully editable (never silently published). */
+  initialName: string;
+  /** The meeting's project name, or null — the task's project is FIXED to it, shown not chosen. */
+  projectName: string | null;
+  onClose: () => void;
+  onCreate: (name: string) => Promise<void>;
+  onError: (err: unknown) => void;
+}
+
+/**
+ * DD-MTG-8: `/action` is an informed authoring act. The minute line prefills the task name, the
+ * author edits it freely, and only what they submit reaches `tasks.name` — a column the org-wide
+ * `tasks_select` exposes to peers the attendance-keyed meeting read model excludes. Project is
+ * fixed to the meeting's own project (the /action contract); meeting linkage is set on save.
+ * Built on the shared form primitives, matching every other create modal.
+ */
+const ActionItemModal: React.FC<ActionItemModalProps> = ({
+  initialName,
+  projectName,
+  onClose,
+  onCreate,
+  onError,
+}) => {
+  const { t } = useTranslation();
+  const form = useEntityForm<{ name: string }>({
+    initialValues: { name: initialName },
+    validate: () => ({}), // an empty name is legal — FR-MTG-017's placeholder covers it on save
+    idPrefix: 'meeting-action-form',
+    module: 'meetings',
+  });
+  const nameField = form.fieldProps('name');
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void form.handleSubmit(async (values) => {
+      try {
+        await onCreate(values.name);
+      } catch (err) {
+        const { headline, detail } = classifyMutationError(err, undefined, {
+          module: 'meetings',
+          operation: 'create',
+          suppressCapture: true,
+        });
+        setSaveError({ headline, detail });
+        onError(err);
+      }
+    });
+  };
+
+  return (
+    <EntityFormModal
+      open
+      title={t('meetingDetail.action.modalTitle', 'New action item')}
+      subtitle={t(
+        'meetingDetail.action.modalSubtitle',
+        'This creates a real task. Its name is visible to everyone who can see tasks — edit it before publishing.',
+      )}
+      submitLabel={t('meetingDetail.action.modalSubmit', 'Create task')}
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      loading={form.isSubmitting}
+      dirty={form.isDirty}
+      submitError={saveError}
+    >
+      <FormSection legend={t('meetingDetail.action.modalSection', 'Task')}>
+        <FormGrid>
+          <TextField
+            id={nameField.id}
+            label={t('meetingDetail.action.nameLabel', 'Task name')}
+            value={nameField.value}
+            onChange={nameField.onChange}
+            onBlur={nameField.onBlur}
+            placeholder={t('meetingDetail.action.placeholderName', 'Untitled action')}
+            helper={t(
+              'meetingDetail.action.nameHelper',
+              'Prefilled from the minute line. Left empty, the task is created with the placeholder name.',
+            )}
+            fullWidth
+          />
+          <div className="text-sm">
+            <div className="mb-1 font-medium text-muted-foreground">
+              {t('meetingDetail.action.projectLabel', 'Project')}
+            </div>
+            <p data-testid="action-modal-project">
+              {projectName ?? t('meetingDetail.action.projectNone', 'No project')}{' '}
+              <span className="text-muted-foreground">
+                {t('meetingDetail.action.projectFixed', '(fixed to this meeting’s project)')}
+              </span>
+            </p>
+          </div>
+        </FormGrid>
+      </FormSection>
+    </EntityFormModal>
   );
 };
 

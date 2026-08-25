@@ -56,6 +56,7 @@ import {
   MEETING_LIST_CAP,
   parseNoteBlocks,
   listMeetings,
+  listMeetingsForContact,
   getMeeting,
   createMeeting,
   updateMeeting,
@@ -99,7 +100,7 @@ describe('parseNoteBlocks (FR-MTG-002 — the schema asserts only "array")', () 
   });
 });
 
-describe('listMeetings (FR-MTG-028/029/030)', () => {
+describe('listMeetings (FR-MTG-028/029/035)', () => {
   it('excludes templates + archived, orders occurred_at DESC, and caps rows explicitly', async () => {
     h.queue[0] = { data: [{ id: 'm1', title: 'Kickoff' }], error: null };
     const rows = await listMeetings();
@@ -148,6 +149,23 @@ describe('listMeetings (FR-MTG-028/029/030)', () => {
   it('a non-search query error is NOT retried — it throws with the code preserved', async () => {
     h.queue[0] = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(listMeetings()).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('listMeetingsForContact (DD-MTG-6 — the contact-timeline union source)', () => {
+  it('inner-joins attendees by contact_id via a CONSTRAINT-QUALIFIED embed, newest-first, unarchived', async () => {
+    h.queue[0] = {
+      data: [{ id: 'm1', title: 'Kickoff', occurred_at: '2026-08-01T00:00:00Z', attendees: [{ contact_id: 'ct1' }] }],
+      error: null,
+    };
+    const rows = await listMeetingsForContact('ct1');
+    const sel = String(h.calls.select[0]);
+    expect(sel).toContain('meeting_attendees!meeting_attendees_meeting_id_fkey!inner');
+    expect(h.calls.eq).toContainEqual(['attendees.contact_id', 'ct1']);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+    expect(h.calls.order).toContainEqual(['occurred_at', { ascending: false }]);
+    // The slim ref shape only — the embed ride-along never leaks to the timeline.
+    expect(rows).toEqual([{ id: 'm1', title: 'Kickoff', occurred_at: '2026-08-01T00:00:00Z' }]);
   });
 });
 

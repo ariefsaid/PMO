@@ -86,6 +86,7 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 import {
   listMeetings,
+  listMeetingsForContact,
   getMeeting,
   createMeeting,
   updateMeeting,
@@ -708,6 +709,7 @@ const contact: ContactRepository = {
 
 const meeting: MeetingRepository = {
   list: (params) => wrap(() => listMeetings(params)),
+  listForContact: (contactId) => wrap(() => listMeetingsForContact(contactId)),
   get: (id) => wrap(() => getMeeting(id)),
   create: (input) => wrap(() => createMeeting(input)),
   update: (id, patch) => wrap(() => updateMeeting(id, patch)),

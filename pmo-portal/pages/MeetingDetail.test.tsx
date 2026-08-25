@@ -158,15 +158,47 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
     ]);
   });
 
-  it('/action creates the task IMMEDIATELY with meeting_id + the meeting’s own project (FR-MTG-017)', async () => {
+  // DD-MTG-8: /action is an INFORMED authoring act — the modal, never a silent copy. The task
+  // name lands in org-wide `tasks_select`, outside the attendance-keyed read model, so the
+  // author must consciously publish exactly the text they choose.
+  it('/action opens the task-create modal PREFILLED from the line — no task exists yet (DD-MTG-8)', async () => {
     renderPage('Engineer');
     await userEvent.click(screen.getByTestId('minute-action-1'));
-    await waitFor(() => expect(mutations.createActionItem.mutateAsync).toHaveBeenCalled());
-    expect(mutations.createActionItem.mutateAsync).toHaveBeenCalledWith({
-      meetingId: 'm1',
-      projectId: 'p1',
-      name: 'Order the flange samples',
-    });
+    const dialog = await screen.findByRole('dialog', { name: /New action item/ });
+    expect(within(dialog).getByLabelText(/Task name/)).toHaveValue('Order the flange samples');
+    expect(within(dialog).getByTestId('action-modal-project')).toHaveTextContent('Harbour Upgrade');
+    // The privacy point: NOTHING was created by merely opening the modal.
+    expect(mutations.createActionItem.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('submitting the modal creates the task with the text the author EDITED, meeting linkage set', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('minute-action-1'));
+    const dialog = await screen.findByRole('dialog', { name: /New action item/ });
+    const name = within(dialog).getByLabelText(/Task name/);
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Chase the flange samples (redacted client)');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create task' }));
+    await waitFor(() =>
+      expect(mutations.createActionItem.mutateAsync).toHaveBeenCalledWith({
+        meetingId: 'm1',
+        projectId: 'p1',
+        name: 'Chase the flange samples (redacted client)',
+      }),
+    );
+  });
+
+  it('an emptied name falls back to the FR-MTG-017 placeholder on save', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('minute-action-0'));
+    const dialog = await screen.findByRole('dialog', { name: /New action item/ });
+    await userEvent.clear(within(dialog).getByLabelText(/Task name/));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create task' }));
+    await waitFor(() =>
+      expect(mutations.createActionItem.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Untitled action' }),
+      ),
+    );
   });
 });
 

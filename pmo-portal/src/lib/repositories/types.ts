@@ -57,6 +57,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import type {
   MeetingRow,
   MeetingWithRefs,
+  ContactMeetingRef,
   MeetingInput,
   MeetingPatch,
   MeetingListParams,
@@ -231,6 +232,8 @@ export interface TaskRepository {
 export interface MeetingRepository {
   /** Visible meetings, newest-first, capped; optional project filter + notes/title search. */
   list(params?: MeetingListParams): Promise<MeetingWithRefs[]>;
+  /** Meetings a CONTACT attended, RLS-filtered to what the viewer may read (DD-MTG-6 timeline). */
+  listForContact(contactId: string): Promise<ContactMeetingRef[]>;
   /** A single meeting by id, or null when not found / not readable (attendance-scoped). */
   get(id: string): Promise<MeetingWithRefs | null>;
   /** Create a meeting (org_id + created_by_id stamped server-side, never sent). */

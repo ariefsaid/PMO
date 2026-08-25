@@ -155,11 +155,14 @@ describe('Meetings — row menu gating', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
-  it('an Engineer non-author row has NO row-actions menu (no archive/delete affordance)', () => {
+  it('an Engineer row menu offers Open (navigation, M13) but NO archive/delete affordance', async () => {
     realRole = 'Engineer';
     renderPage('Engineer');
     const row = screen.getByText('Supplier dispute call').closest('tr')!;
-    expect(within(row).queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument();
   });
 });
 
