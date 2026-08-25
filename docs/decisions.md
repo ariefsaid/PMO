@@ -2587,3 +2587,31 @@ artifact and the write is a money-SoD act.** Everywhere else, editing shows the 
 Revisit when the backfilled rows are gone — at that point a stored treatment is always a real choice
 and the asymmetry stops earning its keep.
 
+
+---
+
+## DD-TAX-3 — `OD-TAX-1` §2's reach, stated: a figure states its basis only where the row HAS one (Director, 2026-08-25)
+
+`OD-TAX-1` §2 says every money figure carries `incl./excl. PPN`. #548's build met that everywhere a
+row actually carries a treatment, and the spec review correctly refused to let the three exceptions
+pass as silent omissions. Recording them so the next reader does not re-derive the question:
+
+**1. Budget lines — the ruling over-reaches; no column exists.** `tax_treatment` lives on
+`sales_invoices`, `procurement_invoices`, `projects` and `work_orders`. No budget table has one, so
+there is nothing to state. **Not a gap to fill by inference** — a budget line's basis would have to
+be *recorded*, which is a schema change and a separate decision about whether budgets are even
+quoted on a tax basis. Until someone asks, budget figures stay unlabelled.
+
+**2. Work-order values — deferred with their UI, not skipped.** `work_orders.tax_treatment` is
+`not null`, so the row always has one; the surface that renders `order_value` shipped in #566 and
+already labels it. Nothing outstanding.
+
+**3. The sales-pipeline LIST — blocked, and tracked.** `get_sales_pipeline()` does not project the
+column (#578). ⛔ Deriving the label from the org default there is exactly what §1 forbids. A bare
+number is honest; a guessed label is a confident lie about someone's contract. The pipeline **lens**
+is different — its row does carry the treatment (`OPPORTUNITY_COLUMNS` includes it) — and #548
+labels it, including the "Booking … to contract value on win" sentence, because that is the figure
+that becomes the drawdown ceiling.
+
+⚑ **The general rule this settles:** §2 binds wherever the row carries a treatment, and nowhere else.
+Where it does not, the honest render is nothing at all — never a value inferred from a setting.
