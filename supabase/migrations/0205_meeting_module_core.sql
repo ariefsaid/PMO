@@ -210,13 +210,19 @@ alter table public.meeting_attendees force  row level security;
 create policy meeting_attendees_select on public.meeting_attendees for select
   using (org_id = auth_org_id() and public.is_active_member() and public.can_read_meeting(meeting_id));
 
--- The attendee list is part of the minute: its AUTHOR (or Admin) maintains it.
-create policy meeting_attendees_write on public.meeting_attendees for all
-  using (org_id = auth_org_id() and public.is_active_member()
+-- The attendee list is part of the minute: its AUTHOR (or Admin) maintains it — by ADD and REMOVE
+-- only. ⚑ Deliberately NO update policy, matching the absent UPDATE grant: the first draft was
+-- `FOR ALL`, whose update arm was a DEAD LAYER over the select/insert/delete grant — the exact
+-- policy-without-reach shape #552 exists to kill, caught in review the same day it was written.
+-- An attendee row is immutable; changing who attended is remove + add, which the audit story wants
+-- anyway.
+create policy meeting_attendees_insert on public.meeting_attendees for insert
+  with check (org_id = auth_org_id() and public.is_active_member()
     and exists (select 1 from public.meetings m where m.id = meeting_attendees.meeting_id
                  and m.org_id = auth_org_id()
-                 and (m.created_by_id = (select auth.uid()) or auth_role() = 'Admin')))
-  with check (org_id = auth_org_id() and public.is_active_member()
+                 and (m.created_by_id = (select auth.uid()) or auth_role() = 'Admin')));
+create policy meeting_attendees_delete on public.meeting_attendees for delete
+  using (org_id = auth_org_id() and public.is_active_member()
     and exists (select 1 from public.meetings m where m.id = meeting_attendees.meeting_id
                  and m.org_id = auth_org_id()
                  and (m.created_by_id = (select auth.uid()) or auth_role() = 'Admin')));

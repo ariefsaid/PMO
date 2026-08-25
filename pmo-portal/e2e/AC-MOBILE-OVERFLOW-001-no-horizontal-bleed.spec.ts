@@ -49,6 +49,8 @@ const ROUTES: { path: string; label: string }[] = [
   { path: `/procurement/${PROC_SHOWCASE}/quotes`, label: 'procurement-detail-quotes' },
   { path: '/timesheets', label: 'timesheets' },
   { path: '/approvals', label: 'approvals' },
+  // AC-MTG-021: the meeting routes join the EXISTING sweep, never a fork (spec §6 traceability).
+  { path: '/meetings', label: 'meetings-list' },
   { path: '/companies', label: 'companies' },
   { path: '/contacts', label: 'contacts' },
   { path: '/administration', label: 'administration' },

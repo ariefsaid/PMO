@@ -309,11 +309,13 @@ and do not design around the restriction as this spec's first draft did.
 
 ### List and find
 
+<!-- ⚑ 2026-08-24: this section's requirement was FR-MTG-030, COLLIDING with the access-model FR-MTG-030 added the same week; renumbered FR-MTG-035. The access-model id wins because migrations 0205's comments cite it. -->
+
 - **FR-MTG-028** — *Ubiquitous.* The meeting list shall be ordered `occurred_at` **descending**
   (`DD-MTG-5`).
 - **FR-MTG-029** — *Ubiquitous.* The list shall filter by project, shall include project-less meetings
   when no project filter is applied, and shall exclude templates and archived meetings by default.
-- **FR-MTG-030** — *Ubiquitous.* The list shall be bounded by an explicit row cap and explicit
+- **FR-MTG-035** — *Ubiquitous.* The list shall be bounded by an explicit row cap and explicit
   ordering rather than a required filter — the same correction `DD-TASK-3` applied to tasks.
 
 ---
