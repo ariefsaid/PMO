@@ -523,3 +523,47 @@ describe('can() — confirm_employee_link (P3b OQ-TSP-10(C); UX only — confirm
     expect(can('confirm_employee_link', 'employeeLink', { realRole: null })).toBe(false);
   });
 });
+describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement authority)', () => {
+  const WRITE_FOUR: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
+
+  it('every role reads work orders — work_orders_select carries no role clause at all', () => {
+    expect(allowedRoles('view', 'workOrder')).toEqual(ALL_ROLES);
+  });
+
+  it('create mirrors work_orders_insert: Admin·Exec·PM·Finance, Engineer excluded', () => {
+    expect(allowedRoles('create', 'workOrder')).toEqual(WRITE_FOUR);
+  });
+
+  it('transition mirrors transition_work_order’s coarse role gate', () => {
+    expect(allowedRoles('transition', 'workOrder')).toEqual(WRITE_FOUR);
+  });
+
+  it('edit is offered on a Draft only — the whole body freezes once the row is issued (DD-WO-5)', () => {
+    expect(allowedRoles('edit', 'workOrder', { record: { status: 'Draft' } })).toEqual(WRITE_FOUR);
+    for (const status of ['Issued', 'Closed', 'Cancelled']) {
+      expect(allowedRoles('edit', 'workOrder', { record: { status } })).toEqual([]);
+    }
+  });
+
+  it('setValue is offered on a Draft only, to the pipeline-value roles (rank ≥ PM)', () => {
+    expect(allowedRoles('setValue', 'workOrder', { record: { status: 'Draft' } })).toEqual(
+      WRITE_FOUR,
+    );
+    expect(allowedRoles('setValue', 'workOrder', { record: { status: 'Issued' } })).toEqual([]);
+  });
+
+  it('a missing record fails closed — no status means no proof the row is still a Draft', () => {
+    expect(allowedRoles('edit', 'workOrder')).toEqual([]);
+    expect(allowedRoles('setValue', 'workOrder')).toEqual([]);
+  });
+
+  it('there is no delete — Cancel is the soft-delete, and no DELETE grant exists', () => {
+    expect(allowedRoles('delete', 'workOrder', { record: { status: 'Draft' } })).toEqual([]);
+  });
+
+  it('a null role is denied every work-order action', () => {
+    for (const action of ['view', 'create', 'edit', 'setValue', 'transition'] as const) {
+      expect(can(action, 'workOrder', { realRole: null, record: { status: 'Draft' } })).toBe(false);
+    }
+  });
+});

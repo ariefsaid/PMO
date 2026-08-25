@@ -25,6 +25,13 @@ const project = {
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. This spec
+// mounts ProjectDetail without a QueryClientProvider, so the hook is stubbed here rather than the
+// whole tree re-hosted. Held in its loading state so it contributes no text of its own — the
+// drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
   // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).

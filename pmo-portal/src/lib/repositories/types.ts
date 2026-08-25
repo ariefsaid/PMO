@@ -19,6 +19,14 @@ import type {
   SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
+import type {
+  WorkOrderRow,
+  WorkOrderStatus,
+  WorkOrderInput,
+  WorkOrderPatch,
+  SetWorkOrderValueInput,
+  ProjectDrawdown,
+} from '@/src/lib/db/workOrders';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -518,6 +526,28 @@ export interface MilestoneRepository {
   setTaskMilestone: (taskId: string, milestoneId: string | null) => Promise<void>;
 }
 
+/**
+ * Work orders (#566) — the CLIENT's inbound PO drawing down against a project's committed ceiling.
+ *
+ * ⚑ The asymmetry is the contract, not an accident: `create` and `update` are table writes over
+ * two DIFFERENT granted column lists, while the value+basis and every status move go through
+ * security-definer RPCs. A future ERP-backed implementation must preserve the same split — folding
+ * `setValue` into `update` would discard the witness the issue SoD reads.
+ */
+export interface WorkOrderRepository {
+  list(projectId: string): Promise<WorkOrderRow[]>;
+  get(id: string): Promise<WorkOrderRow | null>;
+  create(projectId: string, input: WorkOrderInput): Promise<WorkOrderRow>;
+  /** Body only — never the value or its tax basis (0197 §5(a) revoked those from the grant). */
+  update(id: string, patch: WorkOrderPatch): Promise<void>;
+  /** The value AND the basis that describes it, in one witnessed call. */
+  setValue(input: SetWorkOrderValueInput): Promise<void>;
+  /** Status moves; `overCommitAck` is sent only for an issue that actually exceeds the ceiling. */
+  transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
+  /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
+  drawdown(projectId: string): Promise<ProjectDrawdown | null>;
+}
+
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
@@ -603,6 +633,7 @@ export interface Repositories {
   task: TaskRepository;
   incident: IncidentRepository;
   milestone: MilestoneRepository;
+  workOrder: WorkOrderRepository;
   procurementFiles: ProcurementFileRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;

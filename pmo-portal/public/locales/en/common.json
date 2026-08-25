@@ -1044,6 +1044,28 @@
       "viewDocument": "View",
       "viewRevision": "View revision"
     },
+    "drawdown": {
+      "barLabel": "Contract drawn down",
+      "basis": {
+        "net": "net of tax",
+        "other": "basis: {{basis}}"
+      },
+      "ceiling": "Contract ceiling",
+      "committed": "Issued drawdown",
+      "draft": "Draft pipeline",
+      "error": {
+        "sub": "The committed total against this contract could not be read. Retry, or reopen the project.",
+        "title": "Couldn't load the drawdown"
+      },
+      "groupLabel": "Contract drawdown",
+      "headroom": "Remaining headroom",
+      "noCeiling": "This project has no contract value yet, so there is no ceiling to draw against. Set the contract value to measure work orders against it.",
+      "overCommitted": "Over-committed",
+      "overCommittedNote": "Issued work orders exceed this project’s contract ceiling by the amount above. Each one was acknowledged by name when it was issued.",
+      "title": "Contract drawdown",
+      "wouldOverCommit": "Drafts exceed the ceiling",
+      "wouldOverCommitNote": "Issuing every draft would take this project past its contract ceiling by the amount above. Issuing one of them will ask you to acknowledge that in writing."
+    },
     "gantt": {
       "boardView": "Board view",
       "dependsOn": "depends on",
@@ -1323,7 +1345,8 @@
       "documents": "Documents",
       "overview": "Overview",
       "procurement": "Procurement",
-      "tasks": "Tasks"
+      "tasks": "Tasks",
+      "workOrders": "Work orders"
     },
     "tasks": {
       "action": {
@@ -1415,6 +1438,121 @@
     },
     "toast": {
       "projectUpdated": "Project updated"
+    },
+    "workOrderForm": {
+      "clientPoHelper": "The client’s own reference. Our WO number is issued by the system.",
+      "clientPoNumber": "Client PO number",
+      "create": "Create draft",
+      "description": "Scope",
+      "detailsLegend": "The client’s order",
+      "editSubtitle": "Only a draft can be edited. The value and its tax basis are set separately, so the person who set them is recorded.",
+      "editTitle": "Edit work order",
+      "endDate": "End date",
+      "errors": {
+        "inclusiveTaxTooLarge": "An inclusive order value already contains its tax, so the tax cannot be larger than the value itself",
+        "taxAmount": "Enter the tax amount — 0 if there is no tax",
+        "titleRequired": "A title is required",
+        "treatmentRequired": "Choose whether the order value already includes tax",
+        "value": "Enter the order value as a non-negative number"
+      },
+      "newSubtitle": "Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.",
+      "newTitle": "New work order",
+      "orderDate": "Order date",
+      "orderValue": "Order value",
+      "save": "Save work order",
+      "startDate": "Start date",
+      "taxAmount": "Tax amount",
+      "taxAmountHelper": "Enter 0 if there is no tax.",
+      "taxTreatment": "Tax treatment",
+      "title": "Title",
+      "titlePlaceholder": "e.g. Phase 1 fabrication",
+      "valueLegend": "Value and tax basis"
+    },
+    "workOrderValue": {
+      "current": "Current value",
+      "errors": {
+        "inclusiveTaxTooLarge": "An inclusive value already contains its tax, so the tax cannot be larger than the value itself",
+        "taxAmount": "Enter the tax amount — 0 if there is no tax",
+        "treatmentRequired": "Choose whether this value already includes tax",
+        "value": "Enter the order value as a non-negative number"
+      },
+      "legend": "Value and tax basis",
+      "save": "Set value",
+      "subtitle": "Your name is recorded against this figure. Whoever sets it cannot also issue the work order — that is the second pair of eyes on the money.",
+      "taxAmount": "Tax amount",
+      "taxAmountHelper": "Enter 0 if there is no tax.",
+      "taxTreatment": "Tax treatment",
+      "title": "Set the work order value",
+      "value": "Order value"
+    },
+    "workOrders": {
+      "action": {
+        "cancel": "Cancel",
+        "close": "Close",
+        "edit": "Edit",
+        "issue": "Issue",
+        "new": "New work order",
+        "setValue": "Set value"
+      },
+      "clientPo": "Client PO",
+      "column": {
+        "actions": "Actions",
+        "number": "WO number",
+        "orderDate": "Order date",
+        "status": "Status",
+        "title": "Scope",
+        "value": "Order value"
+      },
+      "confirm": {
+        "cancel": {
+          "body": "Cancelling is final and cannot be undone — it is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.",
+          "confirm": "Cancel work order",
+          "title": "Cancel this work order?"
+        },
+        "close": {
+          "body": "Closing is final. The value stays in the drawdown — closed work orders count as committed, exactly as issued ones do.",
+          "confirm": "Close work order",
+          "title": "Close this work order?"
+        },
+        "issue": {
+          "body": "It gets our WO number, starts drawing down the project’s contract, and its content is frozen from then on. Amending an issued work order means cancelling it and raising a replacement.",
+          "confirm": "Issue work order",
+          "title": "Issue this work order?"
+        },
+        "overCommit": {
+          "body": "You may still issue it. If you do, your name and the time are recorded on this work order as the person who chose to over-commit.",
+          "confirm": "Acknowledge and issue",
+          "title": "This would go past the contract ceiling"
+        }
+      },
+      "empty": {
+        "sub": "Record the client’s purchase orders here. Once issued, they draw down the project’s contract value.",
+        "title": "No work orders on this project yet"
+      },
+      "error": {
+        "sub": "The client’s purchase orders for this project could not be read. Retry, or reopen the project.",
+        "title": "Couldn’t load the work orders"
+      },
+      "notYetIssued": "Not issued yet",
+      "status": {
+        "cancelled": "Cancelled",
+        "closed": "Closed",
+        "draft": "Draft",
+        "issued": "Issued"
+      },
+      "tax": {
+        "exclusive": "excl. PPN",
+        "inclusive": "incl. PPN"
+      },
+      "title": "Work orders",
+      "toast": {
+        "created": "Draft work order created",
+        "issuedOverCeiling": "Work order issued over the ceiling",
+        "issuedOverCeilingSub": "Your acknowledgement is recorded against this work order.",
+        "transitioned": "Work order updated",
+        "updated": "Work order updated",
+        "valueSet": "Work order value set"
+      }
     }
   },
   "projects": {
@@ -1651,6 +1789,13 @@
       "done": "Done",
       "inProgress": "In Progress",
       "toDo": "To Do"
+    }
+  },
+  "tax": {
+    "treatment": {
+      "choose": "— choose —",
+      "exclusive": "Exclusive — tax is on top of the amount",
+      "inclusive": "Inclusive — the amount already includes tax"
     }
   },
   "timesheets": {
