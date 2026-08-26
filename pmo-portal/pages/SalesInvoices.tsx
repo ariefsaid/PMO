@@ -15,6 +15,7 @@ import {
   FormSection,
   Button,
   Icon,
+  TaxBasisLabel,
   useToast,
   type Column,
   type ComboboxOption,
@@ -172,9 +173,15 @@ const SalesInvoices: React.FC = () => {
       key: 'amount',
       header: 'Amount',
       align: 'num',
+      // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
+      // row, so no invoice total may be bare. The basis is the row's own; the org default
+      // pre-selects a form and is never read here.
       cell: (inv) => (
-        <span className="tabular text-right font-mono text-[13px]">
-          {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+        <span className="inline-flex items-baseline justify-end gap-1.5">
+          <span className="tabular text-right font-mono text-[13px]">
+            {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+          </span>
+          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} /> : null}
         </span>
       ),
       exportValue: (inv) => inv.amount?.toString() ?? '',

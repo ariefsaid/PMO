@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, type StatTile } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, TaxBasisLabel, type StatTile } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -81,6 +81,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
         {
           label: t('projectDetail.overview.finance.contract', 'Contract'),
           value: formatCurrency(contract, project.currency),
+          // OD-TAX-1 §2 — the delivery-role lens shows the same ceiling as the header strip, so it
+          // states the same basis, read off this project's own row.
+          sub: <TaxBasisLabel treatment={project.tax_treatment} testId="overview-contract-tax-basis" />,
         },
         {
           label: t('projectDetail.overview.finance.committed', 'Committed'),
@@ -152,6 +155,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                 <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
                   {formatCurrency(contract, project.currency)}
                 </span>
+                <TaxBasisLabel
+                  treatment={project.tax_treatment}
+                  testId="overview-contract-value-tax-basis"
+                />
                 {isOnHand && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                     <Icon name="lock" className="size-3" />

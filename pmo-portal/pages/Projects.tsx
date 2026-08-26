@@ -15,6 +15,7 @@ import {
   CompanyNameLink,
   type Column,
   type RowMenuItem,
+  TaxBasisLabel,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
@@ -405,7 +406,15 @@ const Projects: React.FC = () => {
       exportValue: (p) => p.contract_value,
       // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
       // per-record column) — an org default would be wrong the moment two currencies coexist.
-      cell: (p) => formatCurrency(p.contract_value, p.currency),
+      // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
+      // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
+      // there reads as comparable when it is not.
+      cell: (p) => (
+        <span className="inline-flex items-baseline gap-1.5">
+          {formatCurrency(p.contract_value, p.currency)}
+          <TaxBasisLabel treatment={p.tax_treatment} />
+        </span>
+      ),
     },
     {
       key: 'actual',

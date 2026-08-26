@@ -17,6 +17,7 @@ const project: ProjectWithRefs = {
   code: 'A001',
   status: 'Ongoing Project',
   contract_value: 1_000_000,
+  tax_treatment: 'exclusive',
   currency: 'USD',
   budget: 900_000,
   spent: 400_000,
@@ -332,6 +333,27 @@ describe('OverviewTab D15 financial summary — Actual tile derives from committ
     // Must show the live committed-basis spend, not the dead stored $0
     expect(actualTile!.textContent).toContain('$3,700,000');
     expect(actualTile!.textContent).not.toContain('$0');
+  });
+});
+
+// ⚑ Bound at the spec review's insistence: removing the labels from BOTH OverviewTab sites (the
+// finance tile and the contract-value SoD row) left the entire 7,363-test suite green. Two
+// distinct render sites, so two assertions — one would let the other rot.
+describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
+  it('labels the finance tile and the contract-value SoD row from the row itself', () => {
+    // ⚑ The finance tile renders ONLY under the delivery-forward lens (D15 / OD-W5-C3-A), so it
+    // needs its own render with that flag on — asserting both from the default render is how this
+    // oracle would have gone quietly dead a second time.
+    const { unmount } = render(
+      <MemoryRouter>
+        <OverviewTab project={project} committedSpend={150_000} setTab={vi.fn()} showFinanceSummary />
+      </MemoryRouter>,
+    );
+    // Both sites live inside the delivery-forward financial summary, so one render covers them —
+    // but they are asserted BY NAME, because they can rot independently and a count would not tell.
+    expect(screen.getByTestId('overview-contract-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getByTestId('overview-contract-value-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    unmount();
   });
 });
 

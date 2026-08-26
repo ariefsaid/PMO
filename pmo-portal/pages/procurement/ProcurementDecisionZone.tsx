@@ -47,6 +47,7 @@ import type {
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 
 /**
  * What the inline VI capture hands up to the page (#505). Derived from the DAL's
@@ -391,9 +392,9 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [refNum, setRefNum] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
-  // #505: NO initial treatment — the empty string is "not answered yet", not a value. Submit stays
-  // disabled until the user picks one (see `tax` below), so nothing can be recorded with a marker
-  // the user never chose.
+  // #505: the empty string is "not answered yet", not a value. Submit stays disabled until the
+  // control holds one of the two (see `tax` below), so nothing can be recorded with a marker nobody
+  // chose. OD-TAX-1 (#548) pre-selects it from the org setting — see the hook call below.
   const [taxTreatmentStr, setTaxTreatmentStr] = React.useState('');
   const [taxAmtStr, setTaxAmtStr] = React.useState('');
 
@@ -404,6 +405,11 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   // earlier round of #505 did.
   const pmoAuthorsTax = taxIsPmoAuthored();
   const tax = pmoAuthorsTax ? parseVendorInvoiceTax(taxTreatmentStr, taxAmtStr) : ERP_AUTHORED_TAX;
+
+  // OD-TAX-1 (#548): pre-select the org default into this NEW invoice's basis. Off on a flipped
+  // org, where the controls are not rendered and the ERP owns the answer.
+  const orgTaxDefault = useOrgTaxDefault();
+  useTaxTreatmentPreselect(orgTaxDefault, taxTreatmentStr, setTaxTreatmentStr, pmoAuthorsTax);
 
   const handleSubmit = () => {
     if (!tax) return;

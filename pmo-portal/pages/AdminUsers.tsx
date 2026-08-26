@@ -35,6 +35,7 @@ import { AdministrationCredits } from './AdministrationCredits';
 import { AdministrationFeatures } from './AdministrationFeatures';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import BudgetAccountMap from './admin/BudgetAccountMap';
+import OrgTaxDefault from './admin/OrgTaxDefault';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -489,6 +490,14 @@ const AdminUsers: React.FC = () => {
       <div className="mt-6">
         <SectionHeader title="Integrations" />
         <IntegrationsView />
+      </div>
+
+      {/* OD-TAX-1 (#548): the org-wide tax-treatment default that pre-selects every new money form.
+          Sits beside the budget account map because it is the same kind of thing — per-org
+          accounting configuration an Admin owns. The component gates its own write affordance via
+          can('manage', 'orgAccounting', ctx); RLS (0207) is the authority. */}
+      <div className="mt-6">
+        <OrgTaxDefault />
       </div>
 
       {/* P3c (FR-BUD-110..113): the budget category↔ERP account bijection. The component gates its

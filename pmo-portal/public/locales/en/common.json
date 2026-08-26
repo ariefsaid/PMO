@@ -1,4 +1,21 @@
 {
+  "admin": {
+    "taxDefault": {
+      "adminOnly": "Only an Admin can change this.",
+      "description": "The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.",
+      "doesNotRestate": "Changing this does not restate any existing figure. Every record keeps the tax treatment it was recorded with.",
+      "label": "Default tax treatment",
+      "title": "Default tax treatment",
+      "toast": {
+        "saved": "Default tax treatment updated",
+        "savedDetail": "New contracts, work orders and invoices will start on this basis. Existing records are unchanged."
+      },
+      "value": {
+        "exclusive": "Exclusive — tax is on top of the amount",
+        "inclusive": "Inclusive — the amount already includes tax"
+      }
+    }
+  },
   "approvals": {
     "accessDenied": {
       "sub": "Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.",
@@ -1792,6 +1809,10 @@
     }
   },
   "tax": {
+    "basis": {
+      "exclusive": "excl. PPN",
+      "inclusive": "incl. PPN"
+    },
     "treatment": {
       "choose": "— choose —",
       "exclusive": "Exclusive — tax is on top of the amount",

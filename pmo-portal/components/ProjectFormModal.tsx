@@ -18,6 +18,7 @@ import {
   CONTRACT_TAX_REQUIRED_HINT,
   parseTaxFacts,
 } from '@/src/lib/taxTreatment';
+import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { projectIconColor } from './projects';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -180,6 +181,22 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // in editHeader mode: that form does not write `contract_value` at all (SoD → the detail-header
   // RPC), so it has no basis to state.
   const taxRequired = !isEdit && needsTaxBasis(form.values.value);
+
+  // OD-TAX-1 (#548): the org's `default_tax_treatment` PRE-SELECTS this control on a NEW project, so
+  // an org that quotes exclusive every day is not re-asked the same question daily and the uncommon
+  // basis stays a visible choice rather than a silent one. It seeds an EMPTY control once and never
+  // overwrites an answer (`useTaxTreatmentPreselect`), and it seeds nothing at all when the org row
+  // cannot be read — so the #513 submit guard below still blocks rather than passing a marker
+  // nobody chose. ⛔ Never in `editHeader` mode: that form writes no `contract_value`, so there is
+  // no new figure for a default to describe, and pre-selecting there would put the CURRENT org
+  // setting on an OLD row's basis — the read-time inference OD-TAX-1 forbids outright.
+  const orgTaxDefault = useOrgTaxDefault();
+  useTaxTreatmentPreselect(
+    orgTaxDefault,
+    form.values.taxTreatment,
+    (v) => form.setValue('taxTreatment', v),
+    !isEdit,
+  );
   const parsedTax = parseTaxFacts(form.values.taxTreatment, form.values.taxAmount);
   const taxIncomplete = taxRequired && parsedTax === null;
   const startField = form.fieldProps('startDate');

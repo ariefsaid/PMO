@@ -16,6 +16,13 @@ export interface SalesInvoiceRow {
   /** FR-L10N-020: the invoice's OWN denomination (0187). `select('*')` already returned it — the
    *  hand-written interface simply never declared it, so the column was invisible to every caller. */
   currency: string;
+  /**
+   * OD-TAX-1 §2 / migration 0188: does `amount` ALREADY include its tax? NOT NULL in the database —
+   * the marker exists on every sales invoice, so no invoice total may be rendered bare. Declared
+   * here for the same reason `currency` above had to be: `select('*')` has always returned it, and
+   * an undeclared column is invisible to every caller and to the compiler alike.
+   */
+  tax_treatment: string;
   erp_outstanding_amount: number | null;
   status: 'Draft' | 'Submitted' | 'Unpaid' | 'Paid' | 'Cancelled';
   erp_docstatus: number | null;

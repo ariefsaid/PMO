@@ -1,4 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
+// live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
+// `useTaxTreatmentPreselect` stays the real implementation, so this suite renders the shipped
+// seeding behaviour without needing a QueryClientProvider/AuthProvider it otherwise has no use for.
+// The pre-selection rule itself is owned by src/hooks/useOrgTaxDefault.test.tsx.
+const orgDefault = vi.hoisted(() => ({ value: 'exclusive' as string | undefined }));
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, useOrgTaxDefault: () => orgDefault.value };
+});
+
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -1008,6 +1020,7 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
   beforeEach(() => {
     detailState.isPending = false;
     detailState.isError = false;
+    orgDefault.value = 'exclusive';
     mockEffectiveRole = 'Finance';
     mockCreateInvoice.mockClear();
     mockCreateInvoice.mockResolvedValue({ id: 'i-new' });
@@ -1053,6 +1066,10 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
   });
 
   it('#505: the VI form cannot be saved until a tax treatment is chosen', async () => {
+    // ⚑ The org states nothing readable. Since #548 (OD-TAX-1) the control opens pre-selected to
+    // the org default, so this is the one route left to an UNANSWERED treatment — and the #505
+    // guard behind it is unchanged and still refuses the write.
+    orgDefault.value = undefined;
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(screen.getByTestId('btn-create-vi'));

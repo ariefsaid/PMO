@@ -229,6 +229,7 @@ import {
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
+import { getOrgTaxDefault, setOrgTaxDefault } from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
 import {
@@ -262,6 +263,7 @@ import type {
   OperatorRepository,
   UsageRepository,
   OrgFeatureRepository,
+  OrgSettingsRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
@@ -763,6 +765,16 @@ const orgFeature: OrgFeatureRepository = {
   toggle: (args) => wrap(() => toggleOrgFeature(args)),
 };
 
+/**
+ * Org accounting settings (`OD-TAX-1`, 0207). The read is every member's — a form cannot
+ * pre-select what it cannot read; the write is Admin-only at the RLS layer, mirrored by
+ * `can('manage', 'orgAccounting')` on the affordance.
+ */
+const orgSettings: OrgSettingsRepository = {
+  getTaxDefault: () => wrap(() => getOrgTaxDefault()),
+  setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
+};
+
 const credits: CreditsRepository = {
   getOrgBalance: (orgId) => wrap(() => getOrgCreditBalance(orgId)),
   grant: (args) => wrap(() => grantOrgCredits(args)),
@@ -957,6 +969,7 @@ export const repositories: Repositories = {
   operator,
   usage,
   orgFeature,
+  orgSettings,
   credits,
   externalDomainOwnership,
   erpSnapshots,
@@ -985,6 +998,7 @@ export type {
   OperatorRepository,
   UsageRepository,
   OrgFeatureRepository,
+  OrgSettingsRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,

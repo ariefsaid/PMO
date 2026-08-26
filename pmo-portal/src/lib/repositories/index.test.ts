@@ -167,9 +167,10 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      // Two entities landed the same day, each a DELIBERATE extension of the seam — which is what
-      // this assertion exists to force, and it did: the two branches conflicted here rather than
-      // silently co-existing. 'meeting' from #526 (migrations 0205/0206); 'workOrder' from #566.
+      // Three entities landed within days, each a DELIBERATE extension of the seam — which is what
+      // this assertion exists to force, and it did: the branches conflicted here rather than
+      // silently co-existing. 'meeting' from #526 (migrations 0205/0206); 'workOrder' from #566;
+      // 'orgSettings' from #548 (migration 0207), the org-wide tax-treatment default.
       // ⚑ CORRECTED after the security review joined `role_column_grants`: an earlier version of
       // this comment claimed `authenticated` holds SELECT only on work_orders, so every write is an
       // RPC. FALSE — it holds COLUMN-level INSERT on 16 columns and UPDATE on 8, so create and
@@ -178,7 +179,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
     );
   });
 
@@ -188,6 +189,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.contact).sort()).toEqual(
       ['archive', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listActivities', 'listActivitiesForContacts', 'listByCompany', 'update', 'updateActivity'].sort(),
     );
+  });
+
+  it('orgSettings exposes its expected methods (OD-TAX-1, migration 0207)', () => {
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['getTaxDefault', 'setTaxDefault'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {

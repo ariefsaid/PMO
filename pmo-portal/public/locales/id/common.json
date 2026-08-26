@@ -1,4 +1,21 @@
 {
+  "admin": {
+    "taxDefault": {
+      "adminOnly": "Hanya Admin yang bisa mengubah ini.",
+      "description": "Basis awal untuk nilai kontrak, work order, atau invoice baru. Siapa pun yang mencatatnya bisa mengubahnya di formulir.",
+      "doesNotRestate": "Mengubah ini tidak mengubah angka yang sudah tercatat. Setiap record tetap memakai perlakuan pajak saat dicatat.",
+      "label": "Perlakuan pajak default",
+      "title": "Perlakuan pajak default",
+      "toast": {
+        "saved": "Perlakuan pajak default diperbarui",
+        "savedDetail": "Kontrak, work order, dan invoice baru akan memakai basis ini. Record yang sudah ada tidak berubah."
+      },
+      "value": {
+        "exclusive": "Exclusive — pajak ditambahkan di atas nilai",
+        "inclusive": "Inclusive — nilai sudah termasuk pajak"
+      }
+    }
+  },
   "approvals": {
     "accessDenied": {
       "sub": "Persetujuan ditujukan untuk role yang menyetujui permintaan pembelian atau timesheet. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
@@ -1792,6 +1809,10 @@
     }
   },
   "tax": {
+    "basis": {
+      "exclusive": "belum termasuk PPN",
+      "inclusive": "termasuk PPN"
+    },
     "treatment": {
       "choose": "— pilih —",
       "exclusive": "Exclusive — pajak ditambahkan di atas jumlahnya",

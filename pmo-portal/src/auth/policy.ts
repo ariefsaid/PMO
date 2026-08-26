@@ -62,6 +62,7 @@ export type Entity =
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
+  | 'orgAccounting'
   | 'employeeLink'
   | 'pushHold';
 
@@ -413,6 +414,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   integration: {
     // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
     // Admin OR platform Operator. FE is stricter (Admin only).
+    manage: allow(ADMIN),
+  },
+  // OD-TAX-1 (#548): org-wide ACCOUNTING configuration — currently the tax-treatment default that
+  // pre-selects every new money form. Admin-only, mirroring migration 0207's RLS policy exactly
+  // (`auth_role() = 'Admin'` + active membership) rather than approximating it: flipping an org's
+  // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
+  // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
+  orgAccounting: {
     manage: allow(ADMIN),
   },
   // P3b (OQ-TSP-10(C) — the owner ruling): the Employee-adopt link is PROPOSE-then-CONFIRM, never
