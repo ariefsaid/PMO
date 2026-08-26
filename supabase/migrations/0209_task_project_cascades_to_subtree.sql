@@ -35,36 +35,89 @@
 create or replace function public.cascade_task_project_to_subtree()
   returns trigger language plpgsql security invoker set search_path = public as $$
 declare
-  v_moved   integer;
-  v_depth   integer := 0;
+  v_frontier  uuid[] := array[new.id];
+  v_depth     integer := 0;
+  v_stranded  integer;
 begin
   -- ⚑ THE RECURSION GUARD. Each level's UPDATE re-fires this same AFTER trigger on every row it
-  -- moves. Without this the first level would start its own full cascade, and so would each of its
-  -- children — exponential re-work converging on the same answer. Only the ORIGINATING statement
-  -- (depth 1) walks the subtree; the cascaded writes it performs are depth >= 2 and return here.
+  -- moves. Without it the first level would start its own full cascade, and so would each of its
+  -- children. Only the ORIGINATING statement (depth 1) walks the subtree.
   if pg_trigger_depth() > 1 then
     return null;
   end if;
 
-  -- Walk one level at a time. `v_moved = 0` terminates at the leaves; the depth cap is a
-  -- belt-and-braces stop in case a `parent_task_id` cycle ever exists — 0140 declares the column
-  -- self-referential with no cycle constraint, so nothing in the schema forbids one, and an
-  -- unbounded loop inside a trigger would hang the caller's transaction rather than fail it.
+  -- ⛔ ROOTED AT `new.id`, VIA THE FRONTIER. The first version of this loop had no reference to
+  -- `new.id` at all: it matched any child whose parent already sat in the destination project, so
+  -- ONE task moving into a project swept every inconsistent parent/child pair in the org into it —
+  -- rows leaving their board with no user action and nothing attributing it. The repair direction
+  -- was chosen by whoever next wrote into that project. `v_frontier` starts at the moved row and
+  -- carries forward only the ids actually written, so the walk cannot leave this subtree.
   loop
     v_depth := v_depth + 1;
-    exit when v_depth > 32;
+    if v_depth > 32 then
+      -- ⚑ RAISE, never `exit`. Silently stopping at 32 leaves the deeper rows behind — the exact
+      -- split this migration exists to close, reintroduced by its own safety valve.
+      raise exception 'task subtree is deeper than 32 levels; the project move was aborted rather than left half applied'
+        using errcode = '54001';
+    end if;
 
-    update public.tasks c
-       set project_id = new.project_id
-      from public.tasks p
-     where c.parent_task_id = p.id
-       and p.project_id is not distinct from new.project_id
-       and c.project_id is distinct from new.project_id
-       and c.org_id = new.org_id;
+    -- ⚑ `milestone_id` IS CLEARED ON THE WAY. Since 0202 the FK is composite
+    -- `(project_id, milestone_id) -> project_milestones(project_id, id)`, so carrying a milestone
+    -- of the OLD project into the new one raises a raw 23503 and aborts the whole move — making a
+    -- parent with a milestone-grouped subtask PERMANENTLY unmovable, behind an error message about
+    -- deleting referenced records. A milestone of the old project has no meaning in the new one, so
+    -- the grouping is dropped and the move proceeds, which is what OD-TASK-2 requires.
+    with moved as (
+      update public.tasks c
+         set project_id   = new.project_id,
+             milestone_id = null
+       where c.parent_task_id = any (v_frontier)
+         and c.project_id is distinct from new.project_id
+         -- ⚑ DEFENCE IN DEPTH, AND NOT PROVABLE BY TEST — stated so nobody deletes it on the
+         -- evidence that the suite stays green. Removing this line leaves all 9 oracles passing,
+         -- because the frontier is rooted at `new.id` and a cross-org row can never enter it:
+         -- 0199's org floor refuses a cross-org parent/child pair in the first place. So the
+         -- rooting is what actually holds the tenancy boundary here, and this is the second lock
+         -- on it — load-bearing only if a future change ever widens the frontier. Same reasoning
+         -- 0199 records for its own floor and `not found` branch, which are likewise individually
+         -- removable and jointly necessary.
+         and c.org_id = new.org_id
+      returning c.id
+    )
+    select coalesce(array_agg(id), '{}'::uuid[]) into v_frontier from moved;
 
-    get diagnostics v_moved = row_count;
-    exit when v_moved = 0;
+    exit when coalesce(array_length(v_frontier, 1), 0) = 0;
   end loop;
+
+  -- ⛔ THE CASCADE IS `security invoker`, SO ITS UPDATE IS SUBJECT TO RLS — and an UPDATE that
+  -- matches no rows is a SILENT no-op. A mover who may edit the parent but not a descendant (it was
+  -- created by someone else, or they hold only the assignee's status-only right) got `UPDATE 1`,
+  -- no error, and a split tree: precisely the defect #550 exists to close, reproduced by its fix.
+  -- Worse, the stranded subtask then rejected even a status change for EVERYONE, because the BEFORE
+  -- guard now sees a parent in another project — surfacing to the user as "ask an administrator",
+  -- which is false.
+  --
+  -- This is a TABLE invariant, not a per-actor one, so the honest outcome is a refusal that names
+  -- what happened. The check is cheap and reliable: `tasks_select` is org-wide, so the function can
+  -- SEE the strays it was not allowed to write.
+  with recursive descendants as (
+    select t.id, t.project_id, 1 as depth
+      from public.tasks t
+     where t.parent_task_id = new.id
+    union all
+    select t.id, t.project_id, d.depth + 1
+      from public.tasks t
+      join descendants d on t.parent_task_id = d.id
+     where d.depth < 32
+  )
+  select count(*) into v_stranded
+    from descendants
+   where project_id is distinct from new.project_id;
+
+  if coalesce(v_stranded, 0) > 0 then
+    raise exception 'this task has % subtask(s) you are not allowed to move; a subtask must stay with its parent, so move or detach them first', v_stranded
+      using errcode = '42501';
+  end if;
 
   return null;
 end; $$;
