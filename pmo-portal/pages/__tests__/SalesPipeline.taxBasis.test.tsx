@@ -38,10 +38,11 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
-  // ⚑ The Lost column comes from useLostDeals, which hand-builds PipelineProject from a full
-  // project row — a SEPARATE code path from the RPC. Typecheck forced the field to exist there;
-  // only this fixture proves the value actually reaches the screen. Its basis is deliberately
-  // 'inclusive' where the open deals differ, so a Lost card cannot borrow another row's label.
+  // ⚑ The Lost column comes from useLostDeals, a SEPARATE path from the RPC. This fixture proves
+  // the Lost SCOPE renders a label at all — it cannot discriminate by VALUE, because with only two
+  // legal treatments some open deal always shares whatever the lost one has (hardcoding the label
+  // reddens 306/307 and leaves 308 green). The VALUE is owned by AC-TAX-311 at the hook layer,
+  // where the mapping actually executes.
   lostState: {
     data: [
       { id: 'l1', name: 'Lost Deal Delta', client_name: 'Delta Co', status: 'Loss Tender', contract_value: 450000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0 },

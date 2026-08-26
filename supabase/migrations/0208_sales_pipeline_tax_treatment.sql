@@ -91,7 +91,18 @@ as $$
   );
 $$;
 
--- Reapply the exact ACLs from the LATEST definition (0201) — a dropped function takes its grants.
+-- ⚑ A FORWARD POINTER, in the only place that has one. Migrations are immutable, so someone who
+-- lands on 0044 or 0201 gets no signal that they are superseded — the "VERBATIM from …" notes only
+-- chain backwards. The catalog comment is mutable and `\df+` shows it, so the instruction lives
+-- where the next person will actually be standing.
+comment on function public.get_sales_pipeline() is
+  'Latest definition: 0208. To add a projection column: copy THIS body verbatim, add the column, reapply the three ACL statements, and extend AC-TAX-305''s key list in supabase/tests/0208_sales_pipeline_tax_treatment.test.sql.';
+
+-- Reapply the ACLs alongside the LATEST definition (0201) — a dropped function takes its grants.
+-- ⚑ Only the anon revoke is load-bearing: `authenticated` and `service_role` also arrive from
+-- Supabase's default privileges, so do not read "reapply" as "these three lines are the whole ACL".
+-- Hosted Supabase grants EXECUTE broadly on functions in `public` where local Docker does not,
+-- which is why the revoke is stated explicitly rather than assumed (see 0185).
 revoke all     on function public.get_sales_pipeline() from public;
 grant  execute on function public.get_sales_pipeline() to authenticated;
 revoke execute on function public.get_sales_pipeline() from anon;

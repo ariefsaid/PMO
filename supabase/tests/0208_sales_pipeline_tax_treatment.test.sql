@@ -81,13 +81,18 @@ select is(
   'AC-TAX-304 no stage aggregate claims a tax treatment — a cross-deal total has no single basis (OD-CR-5 shape)'
 );
 
--- 0201's column must survive this migration's drop/recreate. A recreate that silently loses a
--- sibling projection is the regression this catches.
+-- ⚑ THE WHOLE PROJECTION, not a spot-check. This function is maintained by hand-copying its body
+-- forward (0044 → 0201 → 0208 → …), so the live failure mode is a future migration copying an
+-- OLDER body and silently dropping a key. Asserting only the two keys this change cares about
+-- would leave `pm_name` and `last_update` unguarded — and those two are typed optional on the FE,
+-- so losing them typechecks clean and merely renders an empty column. There is no pgTAP file for
+-- 0044 or 0201 at all; this is the first contract test the chain has ever had, so it states the
+-- FULL key set. A migration that adds a key must update this list — that edit is the point.
 select is(
-  (select count(*)::int from json_array_elements((public.get_sales_pipeline())->'projects') p
-    where p::jsonb ? 'currency' and p::jsonb ? 'tax_treatment'),
-  3,
-  'AC-TAX-305 the recreate keeps 0201''s currency alongside the new basis on every row'
+  (select array_agg(k order by k)
+     from jsonb_object_keys(((public.get_sales_pipeline())->'projects'->0)::jsonb) k),
+  array['client_name','contract_value','currency','id','last_update','name','pm_name','status','tax_treatment','win_probability'],
+  'AC-TAX-305 the recreate preserves the FULL projects projection, not just the new column'
 );
 
 select * from finish();

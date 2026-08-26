@@ -146,11 +146,13 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
 // tell a rendered value from a hardcoded literal, which is exactly how the currency gap shipped in
 // 0044 and how #566's drawdown label passed 26 tests while hardcoded.
 describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', () => {
-  const cardFor = (name: string) => {
-    const heading = screen.getByText(name);
-    const card = heading.closest('[data-testid^="project-card"]') ?? heading.closest('article') ?? heading.parentElement!;
-    return card as HTMLElement;
-  };
+  // ⚑ NO FALLBACK CHAIN, deliberately. An earlier version fell back to `closest('article')` and
+  // then `parentElement` — and those dead branches were not harmless: rename the card testid and
+  // the scope silently collapses to the <span> holding the deal name, where queryByTestId is null
+  // whatever the app renders. The POSITIVE oracle goes red and gets fixed; the NEGATIVE one below
+  // goes on passing for the wrong reason. A missing card must throw here instead.
+  const cardFor = (name: string) =>
+    screen.getByText(name).closest('[data-testid="project-card"]') as HTMLElement;
 
   it('AC-TAX-309: labels an inclusive deal and an exclusive deal from each row, not from one shared default', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
