@@ -374,9 +374,17 @@ function pluralBase(key) {
   return hit ? key.slice(0, -hit.length) : key;
 }
 
-/** True when the catalogue carries at least one plural form of a base key the source references. */
+/**
+ * True when the catalogue carries a USABLE plural set for a base key the source references.
+ *
+ * ⚑ `_other` SPECIFICALLY, not "any suffix". CLDR requires `other` in every language — it is the
+ * only category Indonesian has at all. So a set holding `_one` without `_other` is not a partial
+ * translation, it is a key an Indonesian reader can never hit: every count falls through to the
+ * English default while this gate reports green. Accepting any-suffix was the first version of
+ * this function and it passed exactly that catalogue when tested (#575).
+ */
 function hasPluralForms(known, key) {
-  return PLURAL_SUFFIXES.some((suffix) => known.has(`${key}${suffix}`));
+  return known.has(`${key}_other`);
 }
 
 /**
@@ -844,6 +852,19 @@ function selfTest() {
       referenceFiles: { 'pages/Probe.tsx': `export const P = () => <p>{${call(OK_KEY, 'Hello there')}}</p>;\n` },
       catalogue: pluralCatalogue,
     });
+    // ⚑ An INCOMPLETE set must not pass. `_other` is the only category Indonesian has, so a key
+    //    holding just `_one` is unreachable for every id reader at every count.
+    const rPartial = analyse({
+      launchScopeFiles: { 'pages/Probe.tsx': usesPlural },
+      referenceFiles: { 'pages/Probe.tsx': usesPlural },
+      catalogue: { [NS]: { greeting: 'Hello there', itemsCount_one: '{{count}} item' } },
+    });
+    check(
+      'a plural set missing _other is still reported missing',
+      rPartial.missing.some((m) => m.key === PLURAL_BASE),
+      `missing=${JSON.stringify(rPartial.missing)}`,
+    );
+
     check(
       'plural forms whose base is referenced by NOTHING are still orphans',
       rUnreferenced.orphans.some((o) => o.endsWith('_one')) &&
