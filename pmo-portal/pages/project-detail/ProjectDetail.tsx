@@ -23,11 +23,12 @@ import BudgetTab from './tabs/BudgetTab';
 import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
+import WorkOrdersTab from './tabs/WorkOrdersTab';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
-type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
+type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'documents';
 
 /**
  * Route shell for `/projects/:projectId` — the ONE canonical detail route for a project at EVERY
@@ -48,7 +49,7 @@ type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
  *  Overview but Engineer on Tasks). Engineer task entry points deep-link to `/projects/:id/tasks`
  *  explicitly (e.g. the My Tasks project headers) rather than mutating the default. An explicit
  *  :tab param always wins (every tab stays deep-linkable). */
-const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'documents'];
+const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'work-orders', 'documents'];
 function tabFromParam(param: string | undefined): PTab {
   if (param && (TAB_VALUES as string[]).includes(param)) return param as PTab;
   return 'overview';
@@ -74,6 +75,7 @@ const ProjectDetail: React.FC = () => {
       { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
       { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
       { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
+      { value: 'work-orders', label: t('projectDetail.tabs.workOrders', 'Work orders') },
       { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
     ],
     [t],
@@ -231,6 +233,9 @@ const ProjectDetail: React.FC = () => {
       {tab === 'budget' && <BudgetTab projectId={project.id} />}
       {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
       {tab === 'tasks' && <TasksTab projectId={project.id} />}
+      {tab === 'work-orders' && (
+        <WorkOrdersTab projectId={project.id} currency={project.currency} />
+      )}
       {tab === 'documents' && <DocumentsTab projectId={project.id} />}
     </div>
   );

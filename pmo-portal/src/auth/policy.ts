@@ -27,6 +27,7 @@ export type Action =
   | 'delete'
   | 'transition'
   | 'editContractValue'
+  | 'setValue'
   | 'submit_sales_invoice'
   | 'manage_external_bindings'
   | 'manage'
@@ -52,6 +53,7 @@ export type Entity =
   | 'timesheet'
   | 'approval'
   | 'milestone'
+  | 'workOrder'
   | 'contact'
   | 'contactActivity'
   | 'meeting'
@@ -147,6 +149,36 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       const status = ctx.record?.status ?? '';
       return ON_HAND_SET.has(status) ? has(MONEY_AUTHORITY, role) : has(DELIVERY, role);
     },
+  },
+  /**
+   * Work orders (#566) — the client's inbound PO drawing down against a project's ceiling.
+   *
+   * Each entry MIRRORS what migrations 0193/0197 actually enforce; none of it is invented:
+   *   view       ← `work_orders_select` is org + active membership only, with no role clause, so
+   *                every role reads them. The Engineer's read is genuine, not an oversight.
+   *   create     ← `work_orders_insert`'s role list, verbatim.
+   *   edit       ← `work_orders_update`'s role list, NARROWED to Draft. The narrowing is real:
+   *                `assert_work_order_update` freezes the whole body once the row leaves Draft
+   *                (DD-WO-5), so offering an Edit on an Issued row would promise a write the
+   *                server refuses with 42501.
+   *   setValue   ← `set_work_order_value`'s `holds_pipeline_value_authority` gate (rank ≥ Project
+   *                Manager = Admin·Executive·Finance·PM, Engineer excluded), narrowed to Draft by
+   *                the same freeze.
+   *   transition ← `transition_work_order`'s coarse role gate, verbatim.
+   *
+   * ⚑ WHAT THIS TABLE DELIBERATELY DOES NOT MODEL: the issue SoD. Whether *this* person may issue
+   * *this* work order depends on who set its value, whether they are still active, and whether
+   * they outrank the issuer — three facts a pure role predicate cannot hold. The RPC decides, and
+   * its refusal messages name the remedy. Guessing here would either hide a legitimate Issue or
+   * promise a refused one; both are worse than letting the server answer. There is no `delete`
+   * because there is no DELETE grant and no DELETE policy — Cancel IS the soft-delete.
+   */
+  workOrder: {
+    view: allow(ALL),
+    create: allow(MASTER_DATA),
+    edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
+    setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
+    transition: allow(MASTER_DATA),
   },
   company: {
     // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no

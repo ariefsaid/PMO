@@ -90,6 +90,19 @@ const budgetState: { data: BudgetVersionWithItems[] | undefined; isPending: bool
   refetch: vi.fn(),
 };
 
+// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
+// specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
+// than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
+// the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectDrawdown: () => ({
+    data: {
+      committed: 400_000, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net',
+    },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
+}));
+
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
 }));
@@ -341,5 +354,17 @@ describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
     expect(screen.getByTestId('overview-contract-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
     expect(screen.getByTestId('overview-contract-value-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
     unmount();
+  });
+});
+
+// ⚑ THE MOUNT-POINT ORACLE (#566, spec review Critical). Every drawdown behaviour was covered in
+// ProjectDrawdown.test.tsx — but NOTHING asserted the card is actually MOUNTED here. Guarding the
+// render with `false &&` left 409/409 green: the card could vanish from the screen a PM lands on
+// and no test would notice. That is precisely the failure #566 was filed about — a shipped
+// `get_project_drawdown()` with zero consumers — reproduced one level up, in the tests.
+describe('OverviewTab mounts the contract drawdown (#566, OD-CR-13)', () => {
+  it('OD-CR-13: the drawdown card is on the landing screen, not only behind the Work orders tab', () => {
+    renderTab();
+    expect(screen.getByTestId('project-drawdown')).toBeInTheDocument();
   });
 });

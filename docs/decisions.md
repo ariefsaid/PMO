@@ -2343,7 +2343,9 @@ Checked before retracting, and nothing broke:
 
 **[DD-MTG-7] A PM gets no automatic read across their project's meetings.** The share panel **pre-suggests the project's PM** as a one-click add. A blanket project-scope grant re-opens exactly what `OD-MTG-1` closes — the peer's minute becomes readable by a PM who was not there — and project scope is a much wider net than it sounds. One-click sharing makes inclusion a decision someone made rather than a default nobody noticed. ⚑ The owner may widen this; it is the one direction that stays cheap.
 
-**[DD-CUR-7] Demo/staging rows backfill `tax_treatment` as `exclusive`.** Under `OD-TAX-1` the value is required per row with no form pre-selection, but the existing demo rows still need one. `exclusive` is the common Indonesian B2B quoting shape, so screenshots seed a plausible example rather than a claim about a real contract.
+**[DD-CUR-7] Demo/staging rows backfill `tax_treatment` as `exclusive`.** ⚑ **CORRECTED 2026-08-25 — this entry misquoted `OD-TAX-1` and the misquote was live for four days.** It said the value is required per row *"with no form pre-selection"*. `OD-TAX-1` §1 says the opposite: the org-wide `default_tax_treatment` **PRE-SELECTS ONLY** — it may fill the control when composing a NEW row, while the stored per-row value stays authoritative and is never re-derived at read time. The requirement is that a row *states* its basis, not that a human types it from scratch every time. #548 was built against this entry and the stale wording had to be corrected mid-build.
+
+The backfill itself stands: the existing demo rows needed a value, and `exclusive` is the common Indonesian B2B quoting shape, so screenshots seed a plausible example rather than a claim about a real contract.
 
 **[DD-OPS-9] #499 reduces to its documentation half.** Owner ruling: hosting spend approval and the WIB support-window staffing are **not route decisions and are not planned on this map**. The Director delivers the system requirements, the credential-rotation runbook, the backup/restore procedure and the `docs/environments.md` production section; provisioning and commercials are the owner's and are dropped from the map.
 
@@ -2563,3 +2565,53 @@ block in the document they are structurally moot. Revisit only if a ruling bring
 block back, and then as a fresh design — DD-MTG-2 (no task-state copies in the note) still binds it.
 Copy-on-create for templates is deferred WITH the block. ⚑ A scope cut that lives only in a code
 comment is invisible to the next spec reader; this entry plus the spec amendment is the fix for that.
+
+---
+
+## DD-TAX-2 — the contract-value SoD editor keeps its empty treatment, deliberately (Director, 2026-08-25)
+
+**Question raised by #548's build.** `OD-TAX-1` pre-selects on NEW rows and shows the stored value when
+editing an existing one. The contract-value SoD editor edits an existing project — so should it seed
+the treatment from the row? `#513` deliberately refuses to, and its test pins that.
+
+**Ruling: keep it empty. #513's reason survives `OD-TAX-1`, and this is the one surface where it
+matters most.** `0197`'s backfill wrote `'exclusive'` onto **every** existing project — so a stored
+marker on an old row may be an artifact nobody chose, not a decision anyone made. Seeding the editor
+from it would launder that artifact into a re-confirmed answer at the exact moment someone is
+changing a contract value under separation of duties.
+
+⚑ The asymmetry is the point, and it is narrow: **pre-select where there is no prior answer** (a new
+row — the org default is a genuine starting point); **re-ask where the prior answer may be an
+artifact and the write is a money-SoD act.** Everywhere else, editing shows the stored value.
+
+Revisit when the backfilled rows are gone — at that point a stored treatment is always a real choice
+and the asymmetry stops earning its keep.
+
+
+---
+
+## DD-TAX-3 — `OD-TAX-1` §2's reach, stated: a figure states its basis only where the row HAS one (Director, 2026-08-25)
+
+`OD-TAX-1` §2 says every money figure carries `incl./excl. PPN`. #548's build met that everywhere a
+row actually carries a treatment, and the spec review correctly refused to let the three exceptions
+pass as silent omissions. Recording them so the next reader does not re-derive the question:
+
+**1. Budget lines — the ruling over-reaches; no column exists.** `tax_treatment` lives on
+`sales_invoices`, `procurement_invoices`, `projects` and `work_orders`. No budget table has one, so
+there is nothing to state. **Not a gap to fill by inference** — a budget line's basis would have to
+be *recorded*, which is a schema change and a separate decision about whether budgets are even
+quoted on a tax basis. Until someone asks, budget figures stay unlabelled.
+
+**2. Work-order values — deferred with their UI, not skipped.** `work_orders.tax_treatment` is
+`not null`, so the row always has one; the surface that renders `order_value` shipped in #566 and
+already labels it. Nothing outstanding.
+
+**3. The sales-pipeline LIST — blocked, and tracked.** `get_sales_pipeline()` does not project the
+column (#578). ⛔ Deriving the label from the org default there is exactly what §1 forbids. A bare
+number is honest; a guessed label is a confident lie about someone's contract. The pipeline **lens**
+is different — its row does carry the treatment (`OPPORTUNITY_COLUMNS` includes it) — and #548
+labels it, including the "Booking … to contract value on win" sentence, because that is the figure
+that becomes the drawdown ceiling.
+
+⚑ **The general rule this settles:** §2 binds wherever the row carries a treatment, and nowhere else.
+Where it does not, the honest render is nothing at all — never a value inferred from a setting.

@@ -1061,6 +1061,28 @@
       "viewDocument": "Lihat",
       "viewRevision": "Lihat revisi"
     },
+    "drawdown": {
+      "barLabel": "Kontrak terserap",
+      "basis": {
+        "net": "di luar PPN",
+        "other": "dasar: {{basis}}"
+      },
+      "ceiling": "Pagu kontrak",
+      "committed": "Sudah diterbitkan",
+      "draft": "Draft",
+      "error": {
+        "sub": "Total komitmen terhadap kontrak ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
+        "title": "Gagal memuat penyerapan"
+      },
+      "groupLabel": "Penyerapan kontrak",
+      "headroom": "Sisa pagu",
+      "noCeiling": "Proyek ini belum memiliki nilai kontrak, jadi belum ada pagu untuk diserap. Isi nilai kontrak agar Work Order dapat diukur terhadapnya.",
+      "overCommitted": "Melebihi pagu",
+      "overCommittedNote": "Work Order yang sudah diterbitkan melebihi pagu kontrak proyek ini sebesar jumlah di atas. Setiap penerbitannya sudah diakui atas nama seseorang.",
+      "title": "Penyerapan kontrak",
+      "wouldOverCommit": "Draft melebihi pagu",
+      "wouldOverCommitNote": "Menerbitkan seluruh draft akan membawa proyek ini melewati pagu kontrak sebesar jumlah di atas. Menerbitkan salah satunya akan meminta Anda mengakuinya secara tertulis."
+    },
     "gantt": {
       "boardView": "Tampilan board",
       "dependsOn": "bergantung pada",
@@ -1340,7 +1362,8 @@
       "documents": "Dokumen",
       "overview": "Ringkasan",
       "procurement": "Pengadaan",
-      "tasks": "Tugas"
+      "tasks": "Tugas",
+      "workOrders": "Work Order"
     },
     "tasks": {
       "action": {
@@ -1432,6 +1455,121 @@
     },
     "toast": {
       "projectUpdated": "Proyek diperbarui"
+    },
+    "workOrderForm": {
+      "clientPoHelper": "Referensi milik klien. Nomor WO kita diterbitkan oleh sistem.",
+      "clientPoNumber": "Nomor PO klien",
+      "create": "Buat draft",
+      "description": "Lingkup",
+      "detailsLegend": "Order dari klien",
+      "editSubtitle": "Hanya draft yang dapat diedit. Nilai dan dasar pajaknya diatur terpisah agar tercatat siapa yang menetapkannya.",
+      "editTitle": "Edit Work Order",
+      "endDate": "Tanggal selesai",
+      "errors": {
+        "inclusiveTaxTooLarge": "Nilai order inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
+        "taxAmount": "Isi jumlah pajak — 0 jika tidak ada pajak",
+        "titleRequired": "Judul wajib diisi",
+        "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
+        "value": "Isi nilai order berupa angka non-negatif"
+      },
+      "newSubtitle": "Catat purchase order klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
+      "newTitle": "Work Order baru",
+      "orderDate": "Tanggal order",
+      "orderValue": "Nilai order",
+      "save": "Simpan Work Order",
+      "startDate": "Tanggal mulai",
+      "taxAmount": "Jumlah pajak",
+      "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
+      "taxTreatment": "Perlakuan pajak",
+      "title": "Judul",
+      "titlePlaceholder": "mis. Fabrikasi Fase 1",
+      "valueLegend": "Nilai dan dasar pajak"
+    },
+    "workOrderValue": {
+      "current": "Nilai saat ini",
+      "errors": {
+        "inclusiveTaxTooLarge": "Nilai inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
+        "taxAmount": "Isi jumlah pajak — 0 jika tidak ada pajak",
+        "treatmentRequired": "Pilih apakah nilai ini sudah termasuk pajak",
+        "value": "Isi nilai order berupa angka non-negatif"
+      },
+      "legend": "Nilai dan dasar pajak",
+      "save": "Tetapkan nilai",
+      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan Work Order-nya — itulah pasangan mata kedua atas uangnya.",
+      "taxAmount": "Jumlah pajak",
+      "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
+      "taxTreatment": "Perlakuan pajak",
+      "title": "Tetapkan nilai Work Order",
+      "value": "Nilai order"
+    },
+    "workOrders": {
+      "action": {
+        "cancel": "Batalkan",
+        "close": "Tutup",
+        "edit": "Edit",
+        "issue": "Terbitkan",
+        "new": "Work Order baru",
+        "setValue": "Tetapkan nilai"
+      },
+      "clientPo": "PO klien",
+      "column": {
+        "actions": "Tindakan",
+        "number": "Nomor WO",
+        "orderDate": "Tanggal order",
+        "status": "Status",
+        "title": "Lingkup",
+        "value": "Nilai order"
+      },
+      "confirm": {
+        "cancel": {
+          "body": "Pembatalan bersifat final dan tidak dapat diurungkan — inilah cara menarik sebuah Work Order, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
+          "confirm": "Batalkan Work Order",
+          "title": "Batalkan Work Order ini?"
+        },
+        "close": {
+          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan — Work Order yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
+          "confirm": "Tutup Work Order",
+          "title": "Tutup Work Order ini?"
+        },
+        "issue": {
+          "body": "Work Order akan mendapat nomor WO kita, mulai menyerap kontrak proyek, dan isinya dibekukan sejak saat itu. Mengubah Work Order yang sudah terbit berarti membatalkannya dan menerbitkan penggantinya.",
+          "confirm": "Terbitkan Work Order",
+          "title": "Terbitkan Work Order ini?"
+        },
+        "overCommit": {
+          "body": "Anda tetap dapat menerbitkannya. Jika ya, nama dan waktu Anda tercatat pada Work Order ini sebagai pihak yang memilih melebihi pagu.",
+          "confirm": "Akui dan terbitkan",
+          "title": "Ini akan melewati pagu kontrak"
+        }
+      },
+      "empty": {
+        "sub": "Catat purchase order klien di sini. Setelah diterbitkan, Work Order menyerap nilai kontrak proyek.",
+        "title": "Belum ada Work Order pada proyek ini"
+      },
+      "error": {
+        "sub": "Purchase order klien untuk proyek ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
+        "title": "Gagal memuat Work Order"
+      },
+      "notYetIssued": "Belum diterbitkan",
+      "status": {
+        "cancelled": "Dibatalkan",
+        "closed": "Ditutup",
+        "draft": "Draft",
+        "issued": "Diterbitkan"
+      },
+      "tax": {
+        "exclusive": "belum termasuk PPN",
+        "inclusive": "termasuk PPN"
+      },
+      "title": "Work Order",
+      "toast": {
+        "created": "Draft Work Order dibuat",
+        "issuedOverCeiling": "Work Order diterbitkan melebihi pagu",
+        "issuedOverCeilingSub": "Pengakuan Anda tercatat pada Work Order ini.",
+        "transitioned": "Work Order diperbarui",
+        "updated": "Work Order diperbarui",
+        "valueSet": "Nilai Work Order ditetapkan"
+      }
     }
   },
   "projects": {
@@ -1674,6 +1812,11 @@
     "basis": {
       "exclusive": "belum termasuk PPN",
       "inclusive": "termasuk PPN"
+    },
+    "treatment": {
+      "choose": "— pilih —",
+      "exclusive": "Exclusive — pajak ditambahkan di atas jumlahnya",
+      "inclusive": "Inclusive — jumlahnya sudah termasuk pajak"
     }
   },
   "timesheets": {

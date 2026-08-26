@@ -88,6 +88,51 @@ Finance & Engineer: clean read-only index (no header CTA, no row write menu). Fi
 
 ---
 
+## B4. Work orders tab (within project detail) — #566, migrations `0193` / `0197`
+
+The client's inbound purchase orders and the **drawdown** they make against the project's contract
+ceiling. Revenue side — not procurement. Every row in this table mirrors a control that already
+exists on the server; the FE is UX only (ADR-0016) and is **stricter, never looser**.
+
+| Affordance | Admin | Executive | PM | Finance | Engineer |
+|---|:--:|:--:|:--:|:--:|:--:|
+| View the drawdown card (Overview + this tab) | ● | ● | ● | ● | ● |
+| View the work-order list | ● | ● | ● | ● | ● |
+| **New work order** (creates a Draft) | ● | ● | ● | ● | ○ |
+| **Edit** body — Draft only | ● | ● | ● | ● | ○ |
+| **Set value** + tax basis — Draft only | ● | ● | ● | ● | ○ |
+| Issue / Close / Cancel | ● | ● | ● | ● | ○ |
+| Hard delete | ○ | ○ | ○ | ○ | ○ |
+
+**Why the Engineer READS but never writes.** `work_orders_select` carries org + active membership
+and **no role clause at all**, so the read is deliberate rather than an oversight — an Engineer
+working the scope needs to see what the client actually ordered. Every write policy and both RPCs
+name the four write roles, so nothing else is offered.
+
+**Why "Draft only" is a row of its own.** `assert_work_order_update` freezes the ENTIRE body once a
+work order leaves Draft (`DD-WO-5`) — `issued_at` is the stamp a later ERP push derives its
+idempotency key from, so an edit under an unchanged stamp would be accepted here and silently
+discarded there. Offering Edit on an Issued row would promise a write the server answers with
+`42501`.
+
+**Why there is no delete row worth arguing about.** There is no DELETE grant and no DELETE policy
+on `work_orders`: **Cancel IS the soft-delete** (ADR-0018), and a money document carrying a minted
+document number is not hard-deletable by anyone, Admin included.
+
+**⚑ What this table deliberately does NOT model: the issue SoD.** Whether a given person may issue
+a given work order is not a role question — it depends on who set its value, whether that person is
+still an active member, and whether they outrank or line-manage the issuer. `transition_work_order`
+decides it and its refusal names the remedy. The Issue affordance is therefore shown to all four
+write roles and the server answers; guessing here would either hide a legitimate Issue or promise a
+refused one.
+
+**Over-commitment is allowed, warned and attributed — never blocked** (`DD-WO-2`). Issuing past the
+ceiling is refused ONCE, with the figures; the UI then offers a separate, explicitly-confirmed
+"Acknowledge and issue" that stamps who chose it. There is no auto-retry, and the acknowledgement
+is never sent unasked.
+
+---
+
 ## C. Sales Pipeline `/sales`
 Same gating as the Projects index (opportunities are projects in pre-win states). Engineer: HIDDEN nav (○). New-deal create = Admin·Exec·PM (●); Finance ◐ read-only board.
 

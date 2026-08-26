@@ -61,6 +61,14 @@
 # ── The other half of the tasks launch item: the IC's own cross-project list, opened daily.
 /my-tasks                      pages/MyTasks.tsx
 
+# ── Work orders (#566): the client's inbound PO and the DRAWDOWN it makes against the project's
+#    contract ceiling — the number the PM manages by day one (OD-CR-13). The tab component is
+#    already covered by the `tabs/*.tsx` glob above; the three files named here are its siblings
+#    OUTSIDE that directory, and an entry covers only the files it NAMES. The drawdown card is
+#    also mounted on the Overview tab, so its English is on the landing screen too.
+/projects/:projectId/work-orders  pages/project-detail/tabs/WorkOrdersTab.tsx pages/project-detail/ProjectDrawdown.tsx pages/project-detail/WorkOrderFormModal.tsx pages/project-detail/WorkOrderValueModal.tsx
+
+
 # ── Daily IC entry, and the surface with the widest non-manager audience at the client.
 /timesheets                    pages/Timesheets.tsx
 
