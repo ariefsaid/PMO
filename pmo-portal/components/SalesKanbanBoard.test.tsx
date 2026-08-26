@@ -152,13 +152,13 @@ describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', (
     return card as HTMLElement;
   };
 
-  it('labels an inclusive deal and an exclusive deal from each row, not from one shared default', () => {
+  it('AC-TAX-309: labels an inclusive deal and an exclusive deal from each row, not from one shared default', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Tender Deal Bravo')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
     expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
   });
 
-  it('renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
+  it('AC-TAX-310: renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Unpriced Deal')).queryByTestId('tax-basis')).toBeNull();
   });

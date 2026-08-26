@@ -67,11 +67,16 @@ select is(
   'AC-TAX-303 a NULL basis projects as NULL, never coalesced to a default — OD-TAX-1 forbids inferring a stored figure''s basis from anything but its own row'
 );
 
+-- ⚑ `::jsonb` IS LOAD-BEARING. json_array_elements() returns `json`, and `?` is a jsonb-only
+-- operator — without the cast this raises `operator does not exist: json ? unknown`, which aborts
+-- the transaction BEFORE finish() and reports as a plan mismatch, not as a failed assertion. An
+-- oracle that cannot run is dead in the strongest sense: it can never go red for the right reason.
+--
 -- The stage aggregate deliberately gains NOTHING: it sums across deals whose bases differ (this
 -- fixture proves they can), so there is no single basis to state. Same reasoning as `currency`.
 select is(
   (select count(*)::int from json_array_elements((public.get_sales_pipeline())->'stages') s
-    where s ? 'tax_treatment'),
+    where s::jsonb ? 'tax_treatment'),
   0,
   'AC-TAX-304 no stage aggregate claims a tax treatment — a cross-deal total has no single basis (OD-CR-5 shape)'
 );
@@ -80,7 +85,7 @@ select is(
 -- sibling projection is the regression this catches.
 select is(
   (select count(*)::int from json_array_elements((public.get_sales_pipeline())->'projects') p
-    where p ? 'currency' and p ? 'tax_treatment'),
+    where p::jsonb ? 'currency' and p::jsonb ? 'tax_treatment'),
   3,
   'AC-TAX-305 the recreate keeps 0201''s currency alongside the new basis on every row'
 );
