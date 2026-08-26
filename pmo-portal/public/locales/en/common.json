@@ -1099,9 +1099,24 @@
         "quarter": "Quarter",
         "week": "Week"
       },
+      "summary": {
+        "connectors_one": "{{count}} dependency connector drawn",
+        "connectors_other": "{{count}} dependency connectors drawn",
+        "head": "Task Gantt timeline: {{tasks}} across {{milestones}}",
+        "hidden_one": "{{count}} dependency hidden (endpoint undated)",
+        "hidden_other": "{{count}} dependencies hidden (endpoint undated)",
+        "milestones_one": "{{count}} milestone",
+        "milestones_other": "{{count}} milestones",
+        "scale": "scale: {{scale}}",
+        "tasks_one": "{{count}} task",
+        "tasks_other": "{{count}} tasks",
+        "today": "today at {{pct}}% of the span"
+      },
       "targetWord": "target",
       "taskColumn": "Task",
       "taskTableAriaLabel": "Task table",
+      "tasksOnTimeline_one": "{{count}} task on the timeline",
+      "tasksOnTimeline_other": "{{count}} tasks on the timeline",
       "today": "Today",
       "undated": "Undated",
       "zoomAriaLabel": "Timeline zoom"
@@ -1121,6 +1136,7 @@
       },
       "contractValue": "Contract value",
       "contractValueConfirm": {
+        "body": "You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax.",
         "confirm": "Change and record",
         "notice": "Changing the contract value on a won project is a segregation of duties action and is recorded against your name, the date, and the previous value.",
         "title": "Change the contract value?"
@@ -1187,7 +1203,8 @@
       "edit": "Edit",
       "editInputPct": "Edit PM input %",
       "editMilestone": "Edit milestone",
-      "editProgressFor": "Edit progress for",
+      "editProgress": "Edit progress",
+      "editProgressForName": "Edit progress for {{name}}",
       "emptyReadOnly": "No delivery phases yet",
       "emptySub": "Add the key phases for this project so delivery progress can roll up from weighted milestones.",
       "emptyTitle": "Plan this project's delivery phases",
@@ -1196,6 +1213,7 @@
       "fallbackName": "Milestone",
       "heading": "Delivery phases",
       "moreActionsFor": "More actions for",
+      "overdue": "Overdue",
       "planPhases": "Plan delivery phases",
       "prewinPlaceholder": "Delivery planning starts once this is won",
       "progressRangeError": "Progress must be between 0 and 100",
@@ -1270,6 +1288,7 @@
     "pipeline": {
       "advanceTo": "Advance to",
       "backToSalesPipeline": "← Back to Sales Pipeline",
+      "bookingOnWin": "Booking <1>{{amount}}</1> <3></3> to contract value on win",
       "cancel": "Cancel",
       "confirmWon": "Confirm won",
       "contractDateLabel": "Contract date",

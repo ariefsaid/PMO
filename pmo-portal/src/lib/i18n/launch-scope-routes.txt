@@ -55,7 +55,14 @@
 # ── The daily work surface. Both routes render the same component; the `:tab` route also
 #    carries the launch-scope `tasks` strings, because TasksTab is where tasks live — there is
 #    no standalone tasks route to gate.
-/projects/:projectId           pages/project-detail/ProjectDetail.tsx
+# ⚑ A GLOB, not a file list. The siblings in this directory were unchecked from the day this list
+#    was written — an entry covers only the files it NAMES, and they sit outside the `tabs/*.tsx`
+#    glob below. Twelve unextracted strings hid there, on the app's daily work surface, including
+#    two whole sentences shipped with comments explaining why they could not be translated (#575).
+#    The glob is what stops it recurring: a file added to this directory tomorrow is covered
+#    without anyone remembering to add a line. `MilestonePhaseHeader` is named separately because
+#    it lives elsewhere and is reached only from here.
+/projects/:projectId           pages/project-detail/*.tsx src/components/milestones/MilestonePhaseHeader.tsx
 /projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/*.tsx
 
 # ── The other half of the tasks launch item: the IC's own cross-project list, opened daily.

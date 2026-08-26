@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   RecordHeader,
   StatTiles,
@@ -488,20 +488,34 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         description={
           pendingValue !== null ? (
             <>
-              {/* ⛔ NOT TRANSLATED, deliberately — see docs note in the handover.
-                  This sentence interleaves four bold spans, so it needs <Trans>. <Trans>
-                  renders NOTHING when i18next has not been initialised, and the unit-test
-                  runner never calls initI18n() — so translating it here blanks the entire
-                  confirm body under test (and during app boot, before init resolves).
-                  Splitting it into five gluable fragments is the other option and is worse:
-                  Indonesian reorders this sentence and fragments cannot be reordered.
-                  Unblocks the moment the test setup initialises i18next. */}
-              You are changing the contract value of a won project from{' '}
-              <b className="tabular text-foreground">{formatCurrency(contract, project.currency)}</b> to{' '}
-              <b className="tabular text-foreground">{formatCurrency(pendingValue.value, project.currency)}</b>,
-              stated as <b className="text-foreground">{pendingValue.taxTreatment}</b> of{' '}
-              <b className="tabular text-foreground">{formatCurrency(pendingValue.taxAmount, project.currency)}</b>{' '}
-              tax.
+              {/* ⚑ The note that used to sit here said <Trans> was impossible because the unit
+                  runner never initialises i18next. The #526 review added an i18next instance to
+                  test/setup.ts, so it has been possible since — the block outlived its cause
+                  (#575). ONE sentence, never five gluable fragments: Indonesian reorders this and
+                  fragments cannot be reordered.
+                  ⚑ The basis word is a KEY, not the raw column value. `pendingValue.taxTreatment`
+                  is the English enum 'inclusive'/'exclusive'; interpolating it raw drops an
+                  untranslated English word into an Indonesian sentence. Two literal keys, never
+                  one built from the value — a computed key reads as an orphan to the gate. */}
+              {/* ⚑ The <5> slot is TaxBasisLabel ITSELF, not a copy of its ternary. That component
+                  refuses to render an unknown treatment on purpose — 0197 pairs a NULL basis with
+                  a zero contract value — and a ternary is not exhaustiveness-checked, so a third
+                  state would put a confidently WRONG basis in a segregation-of-duties confirm. */}
+              <Trans
+                i18nKey="projectDetail.header.contractValueConfirm.body"
+                defaults="You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax."
+                values={{
+                  from: formatCurrency(contract, project.currency),
+                  to: formatCurrency(pendingValue.value, project.currency),
+                  tax: formatCurrency(pendingValue.taxAmount, project.currency),
+                }}
+                components={{
+                  1: <b className="tabular text-foreground" />,
+                  3: <b className="tabular text-foreground" />,
+                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} className="text-[13px] text-foreground" />,
+                  7: <b className="tabular text-foreground" />,
+                }}
+              />
               <GateNotice variant="blocked" className="mt-3">
                 {t(
                   'projectDetail.header.contractValueConfirm.notice',
