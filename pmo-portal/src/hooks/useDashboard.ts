@@ -98,6 +98,9 @@ export function useLostDeals() {
         status: r.status,
         contract_value: r.contract_value,
         currency: r.currency,
+        // A lost deal is still a money row on the Lost column/filter, so it states its basis like
+        // any other — from its OWN project row, which the full listProjects read already carries.
+        tax_treatment: r.tax_treatment ?? null,
         win_probability: 0,
         // Pass through the full-row fields that the RPC omits (available here because
         // repositories.project.list returns ProjectWithRefs with the full projects row).

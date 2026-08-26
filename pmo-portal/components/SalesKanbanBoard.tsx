@@ -1,5 +1,5 @@
 import React from 'react';
-import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge } from '@/src/components/ui';
+import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatCurrency } from '@/src/lib/format';
@@ -52,6 +52,8 @@ const DealCard: React.FC<{
             <span className="text-[11px] text-muted-foreground tabular">
               {formatCurrency(weightedValue(project), project.currency)} wtd
             </span>
+            {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default. */}
+            <TaxBasisLabel treatment={project.tax_treatment} />
           </div>
           <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
         </div>

@@ -2606,9 +2606,13 @@ quoted on a tax basis. Until someone asks, budget figures stay unlabelled.
 `not null`, so the row always has one; the surface that renders `order_value` shipped in #566 and
 already labels it. Nothing outstanding.
 
-**3. The sales-pipeline LIST — blocked, and tracked.** `get_sales_pipeline()` does not project the
-column (#578). ⛔ Deriving the label from the org default there is exactly what §1 forbids. A bare
-number is honest; a guessed label is a confident lie about someone's contract. The pipeline **lens**
+**3. The sales-pipeline LIST — was blocked; CLOSED by #578 (migration `0208`).** `get_sales_pipeline()`
+did not project the column, so the FE had nothing to render. ⛔ Deriving the label from the org default
+there is exactly what §1 forbids — a bare number is honest; a guessed label is a confident lie about
+someone's contract — so the fix was to carry the basis in the projection, not to infer it. `0208` adds
+`tax_treatment` per row (no stage aggregate gains one: a cross-deal total has no single basis, the same
+reasoning `0201` applied to `currency`), and the list, kanban and Lost column now label from the row.
+The pipeline **lens**
 is different — its row does carry the treatment (`OPPORTUNITY_COLUMNS` includes it) — and #548
 labels it, including the "Booking … to contract value on win" sentence, because that is the figure
 that becomes the drawdown ceiling.
