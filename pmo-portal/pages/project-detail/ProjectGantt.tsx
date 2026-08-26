@@ -196,18 +196,28 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   const { geometry, ticks, todayLeft, undated } = model;
   const tasksCount = barBoxById.size;
   const edgeCount = geometry.edges.length;
-  // ⛔ NOT TRANSLATED, deliberately: English plural selection ("task"/"tasks") is welded
-  // into this string. DD-I18N-1 rules that plurals resolve through `Intl.PluralRules`, but
-  // that helper does not exist yet (the only mention of it in the tree is a comment in
-  // src/lib/i18n/index.ts). Translating this without it would bake English plural rules
-  // into the catalogue. Convert together with the other plural sites once the helper lands.
+  // ⚑ The note that used to sit here said plurals could not be translated because an
+  // `Intl.PluralRules` helper "does not exist yet". Nothing needed to be built: i18next resolves
+  // `_one`/`_other` THROUGH `Intl.PluralRules` itself, so DD-I18N-1's requirement is met by the
+  // library the same ruling already chose. Verified against i18next 25 rather than assumed, and
+  // Bahasa collapses both forms to one, which is what DD-I18N-1 leans on (#575).
+  //
+  // ⚑ This is the SCREEN-READER summary. Leaving it English while the visible text is translated
+  // gives a sighted Indonesian user a translated screen and a screen-reader user an English one —
+  // the gate never flagged it, because it checks JSX text and this is a template literal.
   const summary =
-    `Task Gantt timeline: ${tasksCount} task${tasksCount !== 1 ? 's' : ''} across ` +
-    `${milestones.length} milestone${milestones.length !== 1 ? 's' : ''}` +
-    `${todayLeft != null ? `, today at ${Math.round(todayLeft * 100)}% of the span` : ''}` +
-    `, ${edgeCount} dependency connector${edgeCount !== 1 ? 's' : ''} drawn` +
-    `${geometry.hiddenEdgeCount > 0 ? `, ${geometry.hiddenEdgeCount} dependency(ies) hidden (endpoint undated)` : ''}` +
-    `, scale: ${scale}.`;
+    t('projectDetail.gantt.summary.head', 'Task Gantt timeline: {{tasks}} across {{milestones}}', {
+      tasks: t('projectDetail.gantt.summary.tasks', { count: tasksCount, defaultValue_one: '{{count}} task', defaultValue_other: '{{count}} tasks' }),
+      milestones: t('projectDetail.gantt.summary.milestones', { count: milestones.length, defaultValue_one: '{{count}} milestone', defaultValue_other: '{{count}} milestones' }),
+    }) +
+    (todayLeft != null
+      ? t('projectDetail.gantt.summary.today', ', today at {{pct}}% of the span', { pct: Math.round(todayLeft * 100) })
+      : '') +
+    t('projectDetail.gantt.summary.connectors', { count: edgeCount, defaultValue_one: ', {{count}} dependency connector drawn', defaultValue_other: ', {{count}} dependency connectors drawn' }) +
+    (geometry.hiddenEdgeCount > 0
+      ? t('projectDetail.gantt.summary.hidden', { count: geometry.hiddenEdgeCount, defaultValue_one: ', {{count}} dependency hidden (endpoint undated)', defaultValue_other: ', {{count}} dependencies hidden (endpoint undated)' })
+      : '') +
+    t('projectDetail.gantt.summary.scale', ', scale: {{scale}}.', { scale });
 
   const activate = onActivateTask
     ? (id: string) => {
@@ -222,9 +232,12 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     <div className="rounded-lg border border-border bg-card">
       {/* Toolbar: caption + zoom toggle (D6) */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2">
-        {/* ⛔ NOT TRANSLATED — English plural welded in; see the note on `summary` above. */}
         <span className="text-[12px] text-muted-foreground">
-          {tasksCount} task{tasksCount !== 1 ? 's' : ''} on the timeline
+          {t('projectDetail.gantt.tasksOnTimeline', {
+            count: tasksCount,
+            defaultValue_one: '{{count}} task on the timeline',
+            defaultValue_other: '{{count}} tasks on the timeline',
+          })}
         </span>
         <ViewToggle<GanttScale>
           options={scaleOptions}

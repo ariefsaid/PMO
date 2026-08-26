@@ -301,7 +301,14 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await userEvent.type(screen.getByLabelText(/tax amount/i), '509000');
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
     const confirm = await screen.findByRole('dialog');
-    expect(confirm).toHaveTextContent(/inclusive/i);
+    // ⚑ The basis now renders as the SAME label every other money figure uses ("incl. PPN"),
+    // not the raw `inclusive` enum — #575, because interpolating the English column value drops
+    // an untranslated word into an Indonesian sentence. The GOAL of this test is unchanged: the
+    // confirm must name the basis the new value is stated on. Asserting the OPPOSITE basis is
+    // absent is what keeps it an oracle rather than a substring sighting — a confirm that always
+    // said "excl. PPN" would otherwise pass.
+    expect(confirm).toHaveTextContent(/incl\. PPN/i);
+    expect(confirm).not.toHaveTextContent(/excl\. PPN/i);
     expect(confirm).toHaveTextContent(/509,000/);
   });
 

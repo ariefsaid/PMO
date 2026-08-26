@@ -363,10 +363,9 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
         {canEdit && (
           <button
             type="button"
-            aria-label={`${t(
-              'projectDetail.milestones.editProgressFor',
-              'Edit progress for',
-            )} ${milestone.name}`}
+            aria-label={t('projectDetail.milestones.editProgressForName', 'Edit progress for {{name}}', {
+              name: milestone.name,
+            })}
             className="text-[11px] font-semibold text-primary-text hover:underline"
             onClick={onEdit}
           >

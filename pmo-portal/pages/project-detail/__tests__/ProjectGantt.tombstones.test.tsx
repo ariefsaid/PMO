@@ -77,7 +77,9 @@ describe('AC-CUA-072 Gantt hides dependency edges whose endpoint is tombstoned',
     render(<ProjectGantt tasks={[a]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
     const summary = ganttSummary();
     expect(summary).toMatch(/0 dependency connectors drawn/); // the tombstoned-endpoint edge is NOT drawn
-    expect(summary).toMatch(/1 dependency\(ies\) hidden/); // it is counted hidden instead
+expect(summary).toMatch(/1 dependency hidden/); // singular now — i18next picks the
+    // form via Intl.PluralRules (#575), replacing the welded "(ies)". The oracle is unchanged:
+    // the hidden COUNT must reach the screen-reader summary.unted hidden instead
   });
 
   it('an edge from a tombstoned successor is likewise hidden (either endpoint tombstoned)', () => {

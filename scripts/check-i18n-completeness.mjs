@@ -353,6 +353,33 @@ export function flattenCatalogueEntries(node, prefix = '', out = new Map()) {
 // ── The analyser ────────────────────────────────────────────────────────────────────────────
 
 /**
+ * i18next plural suffixes (CLDR categories). A count-bearing key lives in the catalogue ONLY in
+ * its suffixed forms — `foo_one`, `foo_other` — while the source references the BASE `foo`, because
+ * i18next picks the form at call time via `Intl.PluralRules`.
+ *
+ * ⚑ WITHOUT THIS THE GATE PUNISHES THE CORRECT PATTERN. Every suffixed key reads as an orphan
+ * ("referenced by no source file") and the base reads as missing, so the only way to a green gate
+ * is to weld the English plural into the source — which is exactly the defect DD-I18N-1 forbids and
+ * exactly what four Gantt strings did for two milestones (#575). A gate that fails the right answer
+ * teaches the wrong one.
+ *
+ * All six CLDR categories are listed, not just the two English uses: a translator adding `_few` for
+ * a language that has it must not turn this gate red.
+ */
+const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
+
+/** `foo_other` → `foo`; anything else unchanged. */
+function pluralBase(key) {
+  const hit = PLURAL_SUFFIXES.find((suffix) => key.endsWith(suffix));
+  return hit ? key.slice(0, -hit.length) : key;
+}
+
+/** True when the catalogue carries at least one plural form of a base key the source references. */
+function hasPluralForms(known, key) {
+  return PLURAL_SUFFIXES.some((suffix) => known.has(`${key}${suffix}`));
+}
+
+/**
  * The whole check, over in-memory inputs so the self-test can exercise THIS function rather
  * than a re-implementation of it. A gate whose self-test tests a copy proves nothing about the
  * gate — that is the `check-edge-fn-test-binding` rule applied to this script itself.
@@ -370,7 +397,7 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue }) {
   for (const [file, src] of Object.entries(launchScopeFiles)) {
     for (const hit of findUnextracted(src)) unextracted.push({ file, ...hit });
     for (const key of collectKeyRefs(src)) {
-      if (!known.has(key)) missing.push({ file, key });
+      if (!known.has(key) && !hasPluralForms(known, key)) missing.push({ file, key });
     }
   }
 
@@ -378,7 +405,7 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue }) {
   for (const src of Object.values(referenceFiles)) {
     for (const key of collectKeyRefs(src)) referenced.add(key);
   }
-  const orphans = catalogueKeys.filter((k) => !referenced.has(k));
+  const orphans = catalogueKeys.filter((k) => !referenced.has(k) && !referenced.has(pluralBase(k)));
 
   return { unextracted, missing, orphans, catalogueKeys };
 }
@@ -778,6 +805,50 @@ function selfTest() {
       'an exemption WITHOUT a reason does not mute it',
       rBare.unextracted.length > 0,
       `unextracted=${rBare.unextracted.length}`,
+    );
+  }
+
+  // 6b. Plural keys (#575). A count-bearing key lives in the catalogue ONLY as `foo_one`/`foo_other`
+  //     while the source references the base `foo`. All three assertions matter, and the THIRD is
+  //     the one that keeps the relaxation honest: without it, teaching the gate to forgive a
+  //     plural suffix would forgive every orphan whose name happens to end in one.
+  {
+    const PLURAL_BASE = k(NS, ['items', 'Count'].join(''));
+    const pluralCatalogue = {
+      [NS]: {
+        greeting: 'Hello there',
+        itemsCount_one: '{{count}} item',
+        itemsCount_other: '{{count}} items',
+      },
+    };
+    const usesPlural = `export const P = () => <p>{${call(PLURAL_BASE, '{{count}} items')}}</p>;\n`;
+    const rPlural = analyse({
+      launchScopeFiles: { 'pages/Probe.tsx': usesPlural },
+      referenceFiles: { 'pages/Probe.tsx': usesPlural },
+      catalogue: pluralCatalogue,
+    });
+    check(
+      'a base key backed only by plural forms is NOT reported missing',
+      !rPlural.missing.some((m) => m.key === PLURAL_BASE),
+      `missing=${JSON.stringify(rPlural.missing)}`,
+    );
+    check(
+      'plural forms whose base IS referenced are NOT orphans',
+      !rPlural.orphans.some((o) => o.endsWith('_one') || o.endsWith('_other')),
+      `orphans=${JSON.stringify(rPlural.orphans)}`,
+    );
+    // ⚑ THE HOLE-CHECK. Same catalogue, nothing referencing the base — the plural forms must STILL
+    // be reported. A suffix is not a licence.
+    const rUnreferenced = analyse({
+      launchScopeFiles: { 'pages/Probe.tsx': `export const P = () => <p>{${call(OK_KEY, 'Hello there')}}</p>;\n` },
+      referenceFiles: { 'pages/Probe.tsx': `export const P = () => <p>{${call(OK_KEY, 'Hello there')}}</p>;\n` },
+      catalogue: pluralCatalogue,
+    });
+    check(
+      'plural forms whose base is referenced by NOTHING are still orphans',
+      rUnreferenced.orphans.some((o) => o.endsWith('_one')) &&
+        rUnreferenced.orphans.some((o) => o.endsWith('_other')),
+      `orphans=${JSON.stringify(rUnreferenced.orphans)}`,
     );
   }
 

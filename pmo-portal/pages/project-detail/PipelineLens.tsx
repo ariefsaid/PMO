@@ -1,7 +1,7 @@
 import TaxBasisLabel from '@/src/components/ui/TaxBasisLabel';
 import React, { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   Card,
   CardHead,
@@ -300,16 +300,21 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 </div>
                 {/* Confirm against the money (AC-IXD-DASH-005): restate the value being booked to
                     contract value on win, above the capture inputs. */}
-                {/* ⛔ NOT TRANSLATED, deliberately — same reason as the contract-value SoD
-                    confirm in ProjectDetailHeader: the amount sits mid-sentence inside a
-                    <strong>, so it needs <Trans>, and <Trans> renders NOTHING when i18next
-                    has not been initialised — which is how the unit-test runner renders.
-                    Splitting "Booking" / "to contract value on win" into two gluable
-                    fragments is unorderable for Indonesian. Unblocks once the test setup
-                    initialises i18next. */}
+                {/* ⚑ The note that used to sit here said <Trans> could not be used because the
+                    unit runner never initialises i18next. That stopped being true when the #526
+                    review added an i18next instance to test/setup.ts — the block outlived its
+                    cause by two milestones (#575). One whole sentence, never gluable fragments:
+                    Indonesian reorders this and fragments cannot be reordered. */}
                 <div className="text-[13px] text-foreground">
-                  Booking <strong className="font-semibold tabular">{formatCurrency(value, currency)}</strong>{' '}
-                  <TaxBasisLabel treatment={project.tax_treatment} /> to contract value on win
+                  <Trans
+                    i18nKey="projectDetail.pipeline.bookingOnWin"
+                    defaults="Booking <1>{{amount}}</1> <3></3> to contract value on win"
+                    values={{ amount: formatCurrency(value, currency) }}
+                    components={{
+                      1: <strong className="font-semibold tabular" />,
+                      3: <TaxBasisLabel treatment={project.tax_treatment} />,
+                    }}
+                  />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-ref" className="text-[12px] font-semibold">
