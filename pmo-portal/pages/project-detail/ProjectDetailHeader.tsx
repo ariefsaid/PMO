@@ -497,22 +497,22 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                   is the English enum 'inclusive'/'exclusive'; interpolating it raw drops an
                   untranslated English word into an Indonesian sentence. Two literal keys, never
                   one built from the value — a computed key reads as an orphan to the gate. */}
+              {/* ⚑ The <5> slot is TaxBasisLabel ITSELF, not a copy of its ternary. That component
+                  refuses to render an unknown treatment on purpose — 0197 pairs a NULL basis with
+                  a zero contract value — and a ternary is not exhaustiveness-checked, so a third
+                  state would put a confidently WRONG basis in a segregation-of-duties confirm. */}
               <Trans
                 i18nKey="projectDetail.header.contractValueConfirm.body"
-                defaults="You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5>{{basis}}</5> of <7>{{tax}}</7> tax."
+                defaults="You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax."
                 values={{
                   from: formatCurrency(contract, project.currency),
                   to: formatCurrency(pendingValue.value, project.currency),
-                  basis:
-                    pendingValue.taxTreatment === 'inclusive'
-                      ? t('tax.basis.inclusive', 'incl. PPN')
-                      : t('tax.basis.exclusive', 'excl. PPN'),
                   tax: formatCurrency(pendingValue.taxAmount, project.currency),
                 }}
                 components={{
                   1: <b className="tabular text-foreground" />,
                   3: <b className="tabular text-foreground" />,
-                  5: <b className="text-foreground" />,
+                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} className="text-[13px] text-foreground" />,
                   7: <b className="tabular text-foreground" />,
                 }}
               />

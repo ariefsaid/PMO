@@ -1100,17 +1100,17 @@
         "week": "Week"
       },
       "summary": {
-        "connectors_one": ", {{count}} dependency connector drawn",
-        "connectors_other": ", {{count}} dependency connectors drawn",
+        "connectors_one": "{{count}} dependency connector drawn",
+        "connectors_other": "{{count}} dependency connectors drawn",
         "head": "Task Gantt timeline: {{tasks}} across {{milestones}}",
-        "hidden_one": ", {{count}} dependency hidden (endpoint undated)",
-        "hidden_other": ", {{count}} dependencies hidden (endpoint undated)",
+        "hidden_one": "{{count}} dependency hidden (endpoint undated)",
+        "hidden_other": "{{count}} dependencies hidden (endpoint undated)",
         "milestones_one": "{{count}} milestone",
         "milestones_other": "{{count}} milestones",
-        "scale": ", scale: {{scale}}.",
+        "scale": "scale: {{scale}}",
         "tasks_one": "{{count}} task",
         "tasks_other": "{{count}} tasks",
-        "today": ", today at {{pct}}% of the span"
+        "today": "today at {{pct}}% of the span"
       },
       "targetWord": "target",
       "taskColumn": "Task",
@@ -1136,7 +1136,7 @@
       },
       "contractValue": "Contract value",
       "contractValueConfirm": {
-        "body": "You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5>{{basis}}</5> of <7>{{tax}}</7> tax.",
+        "body": "You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax.",
         "confirm": "Change and record",
         "notice": "Changing the contract value on a won project is a segregation of duties action and is recorded against your name, the date, and the previous value.",
         "title": "Change the contract value?"

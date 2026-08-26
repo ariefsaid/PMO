@@ -383,7 +383,7 @@ function pluralBase(key) {
  * English default while this gate reports green. Accepting any-suffix was the first version of
  * this function and it passed exactly that catalogue when tested (#575).
  */
-function hasPluralForms(known, key) {
+function hasRequiredPluralForm(known, key) {
   return known.has(`${key}_other`);
 }
 
@@ -405,7 +405,7 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue }) {
   for (const [file, src] of Object.entries(launchScopeFiles)) {
     for (const hit of findUnextracted(src)) unextracted.push({ file, ...hit });
     for (const key of collectKeyRefs(src)) {
-      if (!known.has(key) && !hasPluralForms(known, key)) missing.push({ file, key });
+      if (!known.has(key) && !hasRequiredPluralForm(known, key)) missing.push({ file, key });
     }
   }
 
@@ -431,25 +431,82 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue }) {
  *   EXTRANEOUS   — an id key en does not hold. The id tree mirrors en's exactly; a key with no en
  *   counterpart translates text that no longer exists and counts as coverage while doing it.
  */
+/**
+ * Every interpolation token in a message: `{{name}}` values and `<n>`/`</n>` component slots.
+ * Sorted, so a reordered sentence — which translation REQUIRES — is not mistaken for a dropped
+ * token. Only the multiset matters.
+ */
+function placeholders(value) {
+  return (value.match(/\{\{\s*\w+\s*\}\}|<\/?\d+>/g) ?? []).sort();
+}
+
+/** Read one dotted key out of a nested catalogue object. */
+function catalogueValue(catalogue, dotted) {
+  let cur = catalogue;
+  for (const part of dotted.split('.')) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+
 export function analyseId({ launchScopeFiles, catalogue, idCatalogue }) {
   const enKeys = new Set(flattenCatalogue(catalogue));
   const idMap = flattenCatalogueEntries(idCatalogue);
 
   const scopeKeys = new Set();
   for (const src of Object.values(launchScopeFiles)) {
-    for (const key of collectKeyRefs(src)) if (enKeys.has(key)) scopeKeys.add(key);
+    for (const key of collectKeyRefs(src)) {
+      if (enKeys.has(key)) {
+        scopeKeys.add(key);
+        continue;
+      }
+      // ⚑ A PLURAL CALL SITE REFERENCES THE BASE, WHICH en NEVER HOLDS. Without this branch the
+      // base is silently filtered out and its suffixed forms are checked by NOTHING — so an
+      // en-only plural key passes the id gate green while every Indonesian reader gets English at
+      // every count. That is stage 2's whole purpose defeated, and it was live: `analyse` was
+      // taught about plurals and this sibling was not (#575 review, Critical 1).
+      for (const suffix of PLURAL_SUFFIXES) {
+        if (enKeys.has(`${key}${suffix}`)) scopeKeys.add(`${key}${suffix}`);
+      }
+    }
   }
 
   const untranslated = [];
+  const placeholderMismatches = [];
   for (const key of [...scopeKeys].sort()) {
     const v = idMap.get(key);
-    if (v === undefined) untranslated.push({ key, why: 'absent' });
-    else if (typeof v === 'string' && !v.trim()) untranslated.push({ key, why: 'empty' });
+    if (v === undefined) {
+      untranslated.push({ key, why: 'absent' });
+      continue;
+    }
+    if (typeof v === 'string' && !v.trim()) {
+      untranslated.push({ key, why: 'empty' });
+      continue;
+    }
+    // ⚑ PRESENCE IS NOT CORRECTNESS. A translation that drops `{{amount}}` or `<3></3>` renders a
+    // broken sentence ONLY for Indonesian readers — a money confirmation with no money — and no
+    // en-side test can see it. The catalogue was machine-translated in bulk (#567), which is
+    // exactly the process that drops a token silently.
+    const en = catalogueValue(catalogue, key);
+    if (typeof en === 'string') {
+      const want = placeholders(en);
+      const got = placeholders(v);
+      if (want.join('\u0000') !== got.join('\u0000')) {
+        placeholderMismatches.push({ key, en: want, id: got });
+      }
+    }
   }
 
   const extraneous = [...idMap.keys()].filter((k) => !enKeys.has(k)).sort();
 
-  return { untranslated, extraneous, scopeKeyCount: scopeKeys.size, idKeyCount: idMap.size };
+  return {
+    untranslated,
+    placeholderMismatches,
+    extraneous,
+    scopeKeyCount: scopeKeys.size,
+    idKeyCount: idMap.size,
+  };
 }
 
 // ── Disk plumbing ───────────────────────────────────────────────────────────────────────────
@@ -590,7 +647,7 @@ function report(result, entries, fileCount) {
 }
 
 function reportId(result, entries, fileCount) {
-  const { untranslated, extraneous, scopeKeyCount, idKeyCount } = result;
+  const { untranslated, placeholderMismatches, extraneous, scopeKeyCount, idKeyCount } = result;
   let failed = false;
 
   if (untranslated.length) {
@@ -602,6 +659,20 @@ function reportId(result, entries, fileCount) {
     console.error(`  so nothing looks broken — and a client reads English. Add each key to`);
     console.error(`  pmo-portal/public/locales/id/common.json with a non-empty translation.\n`);
     for (const u of untranslated) console.error(`  ${u.key}  (${u.why})`);
+  }
+
+  if (placeholderMismatches?.length) {
+    failed = true;
+    console.error(
+      `\n✗ ${placeholderMismatches.length} id value(s) do not carry en's interpolation tokens.`,
+    );
+    console.error(`  The translation is PRESENT but structurally wrong: a dropped {{value}} or`);
+    console.error(`  <n></n> slot removes a figure from the rendered sentence — a money confirm`);
+    console.error(`  with no money — and it breaks for Indonesian readers ONLY, where no en-side`);
+    console.error(`  test can see it. Reordering is fine; losing a token is not.\n`);
+    for (const m of placeholderMismatches) {
+      console.error(`  ${m.key}\n    en: ${m.en.join(' ') || '(none)'}\n    id: ${m.id.join(' ') || '(none)'}`);
+    }
   }
 
   if (extraneous.length) {
@@ -933,6 +1004,53 @@ function selfTest() {
       rExtra.extraneous.includes(ORPHAN_KEY),
       `extraneous=${JSON.stringify(rExtra.extraneous)}`,
     );
+
+    // Plural + parity on the id side (#575 review, Critical 1 / Important 2). `analyse` was taught
+    // about plurals and THIS function was not — an en-only plural key passed green while every id
+    // reader got English at every count. And presence was never correctness: a translation that
+    // drops a token breaks only for id readers.
+    {
+      const PLURAL_BASE = k(NS, ['items', 'Count'].join(''));
+      const usesPlural = `export const P = () => <p>{${call(PLURAL_BASE, '{{count}} items')}}</p>;\n`;
+      const enPlural = {
+        [NS]: { itemsCount_one: '{{count}} item', itemsCount_other: '{{count}} items' },
+      };
+      const rMissingPlural = analyseId({
+        launchScopeFiles: { 'pages/Probe.tsx': usesPlural },
+        catalogue: enPlural,
+        idCatalogue: { [NS]: { itemsCount_one: '{{count}} item' } },
+      });
+      check(
+        'a plural form absent from id fails the gate (the base is expanded, not skipped)',
+        rMissingPlural.untranslated.some((u) => u.key.endsWith('_other')),
+        `untranslated=${JSON.stringify(rMissingPlural.untranslated)}`,
+      );
+
+      const rDropped = analyseId({
+        launchScopeFiles: { 'pages/Probe.tsx': usesPlural },
+        catalogue: enPlural,
+        idCatalogue: { [NS]: { itemsCount_one: '{{count}} item', itemsCount_other: 'beberapa item' } },
+      });
+      check(
+        'an id value that DROPS an interpolation token fails the gate',
+        rDropped.placeholderMismatches.some((m) => m.key.endsWith('_other')),
+        `mismatches=${JSON.stringify(rDropped.placeholderMismatches)}`,
+      );
+
+      // Control: translation REORDERS sentences. A reorder must not be mistaken for a drop.
+      const rReordered = analyseId({
+        launchScopeFiles: {
+          'pages/Probe.tsx': `export const P = () => <p>{${call(OK_KEY, 'Hello {{a}} and {{b}}')}}</p>;\n`,
+        },
+        catalogue: { [NS]: { greeting: 'Hello {{a}} and {{b}}' } },
+        idCatalogue: { [NS]: { greeting: 'Halo {{b}} dan {{a}}' } },
+      });
+      check(
+        'a REORDERED translation with the same tokens passes',
+        !rReordered.placeholderMismatches.length,
+        `mismatches=${JSON.stringify(rReordered.placeholderMismatches)}`,
+      );
+    }
 
     // Scope control: an en key OUTSIDE launch scope may stay untranslated (DD-I18N-9's additive
     // staging). Without this, a rule demanding the whole catalogue would pass every red case

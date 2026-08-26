@@ -77,9 +77,9 @@ describe('AC-CUA-072 Gantt hides dependency edges whose endpoint is tombstoned',
     render(<ProjectGantt tasks={[a]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
     const summary = ganttSummary();
     expect(summary).toMatch(/0 dependency connectors drawn/); // the tombstoned-endpoint edge is NOT drawn
-expect(summary).toMatch(/1 dependency hidden/); // singular now — i18next picks the
-    // form via Intl.PluralRules (#575), replacing the welded "(ies)". The oracle is unchanged:
-    // the hidden COUNT must reach the screen-reader summary.unted hidden instead
+    // Singular now — i18next selects the form via Intl.PluralRules (#575), replacing the welded
+    // "(ies)". The oracle is unchanged: the hidden COUNT must reach the screen-reader summary.
+    expect(summary).toMatch(/1 dependency hidden/);
   });
 
   it('an edge from a tombstoned successor is likewise hidden (either endpoint tombstoned)', () => {
@@ -89,5 +89,49 @@ expect(summary).toMatch(/1 dependency hidden/); // singular now — i18next pick
     render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
     const summary = ganttSummary();
     expect(summary).toMatch(/0 dependency connectors drawn/);
+  });
+});
+
+/**
+ * #575: the screen-reader summary is assembled from five independently-translated clauses joined
+ * in code. Three of them had NO oracle — a renamed slot or a lost interpolation would degrade the
+ * label to "Task Gantt timeline: {{tasks}} across" and nothing would redden. The victim is a
+ * screen-reader user, and this string is invisible to sighted QA *and* to the i18n gate (which
+ * scans JSX text, not a template-literal aria-label).
+ */
+describe('the Gantt screen-reader summary states every clause (#575)', () => {
+  it('AC-L10N-070: composes head, connectors and scale into one sentence, singular forms', () => {
+    const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
+    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
+    // The WHOLE label, not a substring: a clause silently dropped from the join is exactly the
+    // failure mode, and a per-clause `toMatch` cannot see a missing neighbour.
+    expect(ganttSummary()).toBe(
+      'Task Gantt timeline: 1 task across 1 milestone, today at 100% of the span, ' +
+        '0 dependency connectors drawn, scale: Month.',
+    );
+  });
+
+  it('AC-L10N-071: picks the plural form per clause independently, and never leaves a raw {{token}}', () => {
+    const a = makeTask({ id: 'task-a', name: 'A', start_date: '2026-01-05', end_date: '2026-01-12', dependencies: [{ depends_on_id: 'task-b' }] });
+    const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
+    render(
+      <ProjectGantt
+        tasks={[a, b]}
+        milestones={[makeMilestone({ id: 'm1', name: 'M1' }), makeMilestone({ id: 'm2', name: 'M2' })]}
+      />,
+    );
+    const summary = ganttSummary();
+    expect(summary).toContain('2 tasks across 2 milestones');   // both plural
+    expect(summary).toContain('1 dependency connector drawn');  // singular, same sentence
+    expect(summary).not.toMatch(/\{\{|\}\}/);                   // no unresolved interpolation
+  });
+
+  it('AC-L10N-072: the scale clause names the TRANSLATED label, never the raw GanttScale enum', () => {
+    const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
+    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
+    // "scale: month" was what shipped — the raw enum, English, inside what will be an Indonesian
+    // sentence, while the visible toggle beside it already read its translated label.
+    expect(ganttSummary()).toMatch(/scale: Month\.$/);
+    expect(ganttSummary()).not.toMatch(/scale: month/);
   });
 });

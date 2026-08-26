@@ -205,19 +205,52 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   // ⚑ This is the SCREEN-READER summary. Leaving it English while the visible text is translated
   // gives a sighted Indonesian user a translated screen and a screen-reader user an English one —
   // the gate never flagged it, because it checks JSX text and this is a template literal.
-  const summary =
+  // ⚑ i18next binds ONE `count` per key, and this sentence has four independent counts plus two
+  // conditional clauses — so it cannot be one key in the chosen library. Each t() returns a
+  // COMPLETE, independently orderable clause; that is what keeps this from being #571's
+  // fragment-glue, where a value could not move relative to its words.
+  //
+  // ⚑ The ", " separator is joined HERE, not carried in the catalogue values. Translation tooling
+  // trims leading punctuation as a matter of course, and a trimmed ", " welds two clauses into
+  // "1 milestone1 konektor" with every gate still green.
+  const summaryClauses = [
     t('projectDetail.gantt.summary.head', 'Task Gantt timeline: {{tasks}} across {{milestones}}', {
-      tasks: t('projectDetail.gantt.summary.tasks', { count: tasksCount, defaultValue_one: '{{count}} task', defaultValue_other: '{{count}} tasks' }),
-      milestones: t('projectDetail.gantt.summary.milestones', { count: milestones.length, defaultValue_one: '{{count}} milestone', defaultValue_other: '{{count}} milestones' }),
-    }) +
-    (todayLeft != null
-      ? t('projectDetail.gantt.summary.today', ', today at {{pct}}% of the span', { pct: Math.round(todayLeft * 100) })
-      : '') +
-    t('projectDetail.gantt.summary.connectors', { count: edgeCount, defaultValue_one: ', {{count}} dependency connector drawn', defaultValue_other: ', {{count}} dependency connectors drawn' }) +
-    (geometry.hiddenEdgeCount > 0
-      ? t('projectDetail.gantt.summary.hidden', { count: geometry.hiddenEdgeCount, defaultValue_one: ', {{count}} dependency hidden (endpoint undated)', defaultValue_other: ', {{count}} dependencies hidden (endpoint undated)' })
-      : '') +
-    t('projectDetail.gantt.summary.scale', ', scale: {{scale}}.', { scale });
+      tasks: t('projectDetail.gantt.summary.tasks', {
+        count: tasksCount,
+        defaultValue_one: '{{count}} task',
+        defaultValue_other: '{{count}} tasks',
+      }),
+      milestones: t('projectDetail.gantt.summary.milestones', {
+        count: milestones.length,
+        defaultValue_one: '{{count}} milestone',
+        defaultValue_other: '{{count}} milestones',
+      }),
+    }),
+    todayLeft != null
+      ? t('projectDetail.gantt.summary.today', 'today at {{pct}}% of the span', {
+          pct: Math.round(todayLeft * 100),
+        })
+      : null,
+    t('projectDetail.gantt.summary.connectors', {
+      count: edgeCount,
+      defaultValue_one: '{{count}} dependency connector drawn',
+      defaultValue_other: '{{count}} dependency connectors drawn',
+    }),
+    geometry.hiddenEdgeCount > 0
+      ? t('projectDetail.gantt.summary.hidden', {
+          count: geometry.hiddenEdgeCount,
+          defaultValue_one: '{{count}} dependency hidden (endpoint undated)',
+          defaultValue_other: '{{count}} dependencies hidden (endpoint undated)',
+        })
+      : null,
+    // ⚑ The scale's LABEL, not the raw `GanttScale` enum. The visible toggle already reads
+    // "Bulan"; interpolating `scale` put "skala: month" in the Indonesian sentence — the same
+    // untranslated-enum defect this change exists to fix, left inside the string it rewrote.
+    t('projectDetail.gantt.summary.scale', 'scale: {{scale}}', {
+      scale: scaleOptions.find((o) => o.value === scale)?.label ?? scale,
+    }),
+  ].filter(Boolean);
+  const summary = `${summaryClauses.join(', ')}.`;
 
   const activate = onActivateTask
     ? (id: string) => {

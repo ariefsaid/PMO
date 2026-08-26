@@ -1100,17 +1100,17 @@
         "week": "Minggu"
       },
       "summary": {
-        "connectors_one": ", {{count}} konektor dependensi digambar",
-        "connectors_other": ", {{count}} konektor dependensi digambar",
+        "connectors_one": "{{count}} konektor dependensi digambar",
+        "connectors_other": "{{count}} konektor dependensi digambar",
         "head": "Timeline Gantt task: {{tasks}} pada {{milestones}}",
-        "hidden_one": ", {{count}} dependensi disembunyikan (titik ujung tanpa tanggal)",
-        "hidden_other": ", {{count}} dependensi disembunyikan (titik ujung tanpa tanggal)",
+        "hidden_one": "{{count}} dependensi disembunyikan (titik ujung tanpa tanggal)",
+        "hidden_other": "{{count}} dependensi disembunyikan (titik ujung tanpa tanggal)",
         "milestones_one": "{{count}} milestone",
         "milestones_other": "{{count}} milestone",
-        "scale": ", skala: {{scale}}.",
+        "scale": "skala: {{scale}}",
         "tasks_one": "{{count}} task",
         "tasks_other": "{{count}} task",
-        "today": ", hari ini di {{pct}}% dari rentang"
+        "today": "hari ini di {{pct}}% dari rentang"
       },
       "targetWord": "target",
       "taskColumn": "Tugas",
@@ -1136,7 +1136,7 @@
       },
       "contractValue": "Nilai kontrak",
       "contractValueConfirm": {
-        "body": "Anda mengubah nilai kontrak proyek yang sudah menang dari <1>{{from}}</1> menjadi <3>{{to}}</3>, dinyatakan sebagai <5>{{basis}}</5> dengan pajak <7>{{tax}}</7>.",
+        "body": "Anda mengubah nilai kontrak proyek yang sudah menang dari <1>{{from}}</1> menjadi <3>{{to}}</3>, dinyatakan sebagai <5></5> dengan pajak <7>{{tax}}</7>.",
         "confirm": "Ubah dan catat",
         "notice": "Mengubah nilai kontrak pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat dengan nama Anda, tanggal, dan nilai sebelumnya.",
         "title": "Ubah nilai kontrak?"
