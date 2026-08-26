@@ -15,6 +15,7 @@ import {
   useToast,
   type FunnelStage,
   type Column,
+  TaxBasisLabel,
 } from '@/src/components/ui';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -219,7 +220,13 @@ const SalesPipeline: React.FC = () => {
       // (migration 0201), so a mixed-currency list stays honest row by row. `exportValue` stays a
       // bare numeric amount so a spreadsheet can sum the column; the per-record ISO code is
       // carried by the adjacent export-only Currency column (see exportColumns below).
-      cell: (r) => formatCurrency(r.contract_value, r.currency),
+      // OD-TAX-1 §2: the basis rides with the figure, taken from THIS deal's row (0208).
+      cell: (r) => (
+        <span className="inline-flex items-baseline gap-1.5">
+          {formatCurrency(r.contract_value, r.currency)}
+          <TaxBasisLabel treatment={r.tax_treatment} />
+        </span>
+      ),
       exportValue: (r) => r.contract_value,
     },
     {

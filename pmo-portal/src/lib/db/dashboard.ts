@@ -74,6 +74,17 @@ export interface PipelineProject {
    * (useLostDeals). Row-backed money surfaces render THIS, never the org default.
    */
   currency: string;
+  /**
+   * The deal's OWN tax basis (projects.tax_treatment, 0197). Returned per row by
+   * get_sales_pipeline() since migration 0208 (#578, OD-TAX-1 §2).
+   *
+   * ⛔ NULLABLE, and the null means something. 0197 permits a NULL basis only where
+   * contract_value = 0 — there is no figure to qualify — so the surface renders NOTHING for it.
+   * Never coalesce this to the org default (`default_tax_treatment`, 0207): that setting
+   * pre-selects a form and is never read at display time, because re-deriving a stored figure's
+   * basis from a current setting silently re-interprets every historical row.
+   */
+  tax_treatment: string | null;
   win_probability: number;
   /**
    * ISO timestamp of the last update to this project row (projects.last_update).

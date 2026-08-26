@@ -1,5 +1,5 @@
 import React from 'react';
-import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge } from '@/src/components/ui';
+import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatCurrency } from '@/src/lib/format';
@@ -49,6 +49,11 @@ const DealCard: React.FC<{
             <span className="text-[15px] font-bold tabular">
               {formatCurrency(project.contract_value, project.currency)}
             </span>
+            {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
+                It sits IMMEDIATELY after the contract value and before the weighted figure — a
+                label whose job is to remove ambiguity must not sit where it could be read as
+                qualifying the number next to it instead. */}
+            <TaxBasisLabel treatment={project.tax_treatment} />
             <span className="text-[11px] text-muted-foreground tabular">
               {formatCurrency(weightedValue(project), project.currency)} wtd
             </span>

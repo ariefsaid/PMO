@@ -5,22 +5,26 @@ import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { formatCurrency } from '@/src/lib/format';
 
-// FR-L10N-020: the board reads useOrgCurrency for its per-column totals (and for the deal cards,
-// because get_sales_pipeline() returns no per-row currency). Pinned rather than left to a real
+// FR-L10N-020: the board reads useOrgCurrency for its per-COLUMN totals only — a column total sums
+// across deals and has no single record currency. The deal CARDS take each project's own currency
+// (0201) and, since #578, its own tax basis (0208). Pinned rather than left to a real
 // query. ⚑ At LINE-START on purpose — inserted inside a neighbouring vi.mock call it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const projects: PipelineProject[] = [
-  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', win_probability: 0.4 },
-  { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', win_probability: 0.5 },
-  { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', win_probability: 1 },
-  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', win_probability: 0 },
+  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+  { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
+  { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 1 },
+  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
   // #530 / FR-L10N-020: a mixed-currency pair proves a card renders ITS OWN currency, not the
   // USD org default — a single-currency fixture set cannot tell a record currency from a
   // hardcoded literal (which is exactly how this issue shipped in 0044).
-  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', win_probability: 0.4 },
-  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', win_probability: 0.4 },
+  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', tax_treatment: 'inclusive', win_probability: 0.4 },
+  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+  // 0197 permits a NULL basis ONLY at zero value, and OD-TAX-1 says render NOTHING for it rather
+  // than invent one. Without this row the "unknown renders nothing" branch has no witness here.
+  { id: 'nb1', name: 'Unpriced Deal', client_name: 'Umbrella', status: 'Quotation Submitted', contract_value: 0, currency: 'USD', tax_treatment: null, win_probability: 0.4 },
 ];
 
 describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
@@ -134,5 +138,30 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     const usd = within(usdCard as HTMLElement);
     expect(usd.getByText('$9,000')).toBeInTheDocument();
     expect(usd.queryByText(/IDR/)).toBeNull();
+  });
+});
+
+// ⚑ OD-TAX-1 §2 on the pipeline board (#578). The two assertions below are deliberately keyed to
+// DIFFERENT deals with DIFFERENT bases: a fixture where every card shares one treatment cannot
+// tell a rendered value from a hardcoded literal, which is exactly how the currency gap shipped in
+// 0044 and how #566's drawdown label passed 26 tests while hardcoded.
+describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', () => {
+  // ⚑ NO FALLBACK CHAIN, deliberately. An earlier version fell back to `closest('article')` and
+  // then `parentElement` — and those dead branches were not harmless: rename the card testid and
+  // the scope silently collapses to the <span> holding the deal name, where queryByTestId is null
+  // whatever the app renders. The POSITIVE oracle goes red and gets fixed; the NEGATIVE one below
+  // goes on passing for the wrong reason. A missing card must throw here instead.
+  const cardFor = (name: string) =>
+    screen.getByText(name).closest('[data-testid="project-card"]') as HTMLElement;
+
+  it('AC-TAX-309: labels an inclusive deal and an exclusive deal from each row, not from one shared default', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    expect(within(cardFor('Tender Deal Bravo')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+
+  it('AC-TAX-310: renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    expect(within(cardFor('Unpriced Deal')).queryByTestId('tax-basis')).toBeNull();
   });
 });
