@@ -27,13 +27,23 @@ git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
 head="$(git rev-parse HEAD 2>/dev/null || true)"
 [ -n "$head" ] || exit 0             # no commits — nothing to assert
 
+# ⚑ COMPARE TREES, NOT COMMITS (#555). The gate tests the working tree, so the tree is what it
+# certified. A squash-merge into `dev` produces a new SHA with a byte-identical tree; keying on the
+# commit forced a thirty-minute re-run to certify content already certified.
+tree="$(git rev-parse 'HEAD^{tree}' 2>/dev/null || true)"
+[ -n "$tree" ] || exit 0
+
 stamp="$(cat "$git_dir/verify-main-pr-ok" 2>/dev/null || echo '')"
-[ "$stamp" = "$head" ] && exit 0     # verified at this exact commit — allow
+[ "$stamp" = "$tree" ] && exit 0     # verified against this exact CONTENT — allow
 
 if [ -z "$stamp" ]; then
   why="scripts/verify-main-pr.sh has never passed in this worktree."
+elif [ "$stamp" = "$head" ]; then
+  # A stamp written by the pre-#555 script, which recorded the commit. It may well describe this
+  # exact content, but nothing here can tell — so it FAILS CLOSED and asks for one cheap re-run.
+  why="the stamp records a COMMIT ($(git rev-parse --short "$stamp" 2>/dev/null || echo "$stamp")), not a tree — it predates the tree-keyed stamp (#555). Re-run the gate once and it will not happen again."
 else
-  why="the last passing run was $(git rev-parse --short "$stamp" 2>/dev/null || echo "$stamp"), but HEAD is now $(git rev-parse --short HEAD). Commits landed since the gate ran."
+  why="the last passing run certified tree $(git rev-parse --short "$stamp" 2>/dev/null || echo "$stamp"), but HEAD's tree is now $(git rev-parse --short "$tree"). The CONTENT changed since the gate ran — note a squash or rebase that preserves content does NOT trip this."
 fi
 
 jq -nc --arg r "BLOCKED by .claude/hooks/pre-pr-main-gate.sh — $why
