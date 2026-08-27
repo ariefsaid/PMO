@@ -157,3 +157,45 @@ describe('isMeetingReadDenied — the 0206 inbound /action guard (#526 security 
     expect(isMeetingReadDenied({ message: 'task meeting must be one you can read' })).toBe(false);
   });
 });
+
+/**
+ * #577 (from the #566 security review): `42501` is the ONE code both Postgres and the app write.
+ * Treating it as machine-generated swallowed every segregation-of-duties remedy the server wrote.
+ *
+ * The named failure: a PM who set the value on their own draft work order clicks Issue and reads
+ * "Your role does not allow this change. Ask an administrator." Their role is fine — the second
+ * pair of eyes is missing — and they are pointed at the one role that can dissolve the control.
+ *
+ * ⚑ These are the SERVER'S ACTUAL SENTENCES, copied from 0197 §4, not paraphrases. If a migration
+ * rewords one, this test still passes (it asserts the remedy survives, not the wording); if the
+ * classifier ever swallows them again, it fails.
+ */
+describe('#577: an app-authored 42501 reaches the user with its own remedy', () => {
+  const SOD_REFUSALS = [
+    "you set this work order's value yourself, so you cannot also issue it: the value must be confirmed by your supervisor or by someone who outranks you, through set_work_order_value (which records who set it) — or ask them to issue it",
+    "this work order's value has no recorded author, so you cannot issue it: the value must be set by your supervisor or by someone who outranks you, through set_work_order_value (which records who set it) — or ask them to issue it",
+    "this work order's value was set by someone who is no longer an active member of this organisation, so you cannot issue it: it must be re-set by your supervisor or by someone who outranks you who is currently active, through set_work_order_value (which records who set it) — or ask them to issue it",
+  ];
+
+  it.each(SOD_REFUSALS)('the server sentence survives to the rendered detail: %s', (message) => {
+    const { detail } = classifyMutationError(Object.assign(new Error(message), { code: '42501' }));
+    expect(detail).toBe(message);
+    // The specific failure this replaces: the generic copy blames the ROLE and points at an admin.
+    expect(detail).not.toMatch(/Your role does not allow/i);
+    expect(detail).not.toMatch(/Ask an administrator/i);
+  });
+
+  it('…and Postgres’s own 42501 texts are STILL replaced — the inversion did not open the leak AC-ERR-002 closed', () => {
+    for (const raw of [
+      'new row violates row-level security policy for table "work_orders"',
+      'permission denied for table work_orders',
+      'permission denied for function transition_work_order',
+      'must be owner of relation work_orders',
+    ]) {
+      const { detail, rawDetail } = classifyMutationError(Object.assign(new Error(raw), { code: '42501' }));
+      expect(detail).toBe('Your role does not allow this change. Ask an administrator if you think it should.');
+      expect(detail).not.toMatch(/table "|row-level security|permission denied|must be owner/i);
+      expect(rawDetail).toBe(raw); // diagnostics keep the real text
+    }
+  });
+});

@@ -172,6 +172,44 @@ const POSTGRES_GENERATED_DETAIL: Record<string, string> = {
 };
 
 /**
+ * ⛔ `42501` IS THE ONE CODE BOTH SIDES WRITE, and treating it as machine-generated defeats our own
+ * rule (see the module docstring: "the families WE write are already human copy and pass through
+ * unchanged"). Postgres raises 42501 for `permission denied for table …` and RLS refusals; the app
+ * ALSO raises it, deliberately, for every segregation-of-duties refusal — each carrying a
+ * hand-written remedy naming what to do next.
+ *
+ * WHAT BROKE (#577, from the #566 security review). A PM who set the value on their own draft work
+ * order clicks Issue and reads "Your role does not allow this change. Ask an administrator." Their
+ * ROLE is fine — the second pair of eyes is missing. And they are pointed at the one role that can
+ * dissolve the control by raising the ceiling or changing their role. The actual remedy — *get your
+ * supervisor to set the value* — is written by the server, in the error, and never reaches the
+ * screen. That does not leak anything; it defeats the control's usability, which for an SoD control
+ * is most of the point.
+ *
+ * ⚑ WHY THE TEST IS INVERTED rather than marking app-authored messages. The obvious fix — give the
+ * SoD refusals their own errcode — was measured and rejected: 140 assertions across 16 pgTAP files
+ * pin `42501` on exactly those RPCs, and they encode real security behaviour, so the change would
+ * churn the tests that prove the control while proving nothing itself. Postgres's own 42501 texts
+ * are instead a small, closed, stable set, so they are matched HERE and everything else — which in
+ * this codebase means every `RAISE EXCEPTION` we wrote — passes through as the human copy it is.
+ *
+ * ⚑ THE FAILURE MODE IF THIS SET IS INCOMPLETE is a technical sentence on screen, never a leak of
+ * data: these strings carry a table or relation name, which the raw-detail channel already showed
+ * users before AC-ERR-002. Weighed against silently swallowing the only actionable sentence a user
+ * gets on a blocked money action, an occasional ugly string is the better failure.
+ */
+const POSTGRES_AUTHORED_42501 = [
+  /^permission denied for /i,
+  /^permission denied to /i,
+  /^must be owner of /i,
+  /violates row-level security policy/i,
+];
+
+function isPostgresAuthored42501(message: string): boolean {
+  return POSTGRES_AUTHORED_42501.some((re) => re.test(message));
+}
+
+/**
  * The 0206 trigger's inbound-/action guard (#526 security review): a 42501 whose message is
  * exactly this string means the caller tried to link a task to a meeting they cannot read —
  * injecting an action item into someone else's minute. Belt-and-braces only: the ActionItemModal
@@ -205,7 +243,17 @@ export function classifyMutationError(
   const code = typeof (err as { code?: unknown })?.code === 'string'
     ? (err as { code: string }).code
     : undefined;
-  const detail = (code && POSTGRES_GENERATED_DETAIL[code]) || rawDetail;
+  // ⚑ 42501 is decided by the MESSAGE, not by the code alone — see POSTGRES_AUTHORED_42501. Every
+  // other code in the map is written only by Postgres, so the code is enough for those.
+  const generated =
+    code === '42501'
+      ? isPostgresAuthored42501(rawDetail ?? '')
+        ? POSTGRES_GENERATED_DETAIL['42501']
+        : undefined
+      : code
+        ? POSTGRES_GENERATED_DETAIL[code]
+        : undefined;
+  const detail = generated || rawDetail;
 
   if (import.meta.env.DEV) {
     // The dev-only affordance for the raw text (AC-ERR-002): table/constraint names and RLS
