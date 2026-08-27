@@ -78,10 +78,28 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
     <Kanban aria-label="Procurement by-stage board">
       {PR_STAGES.map((stage, i) => {
         const items = byStage[i];
-        const total = items.reduce((sum, p) => sum + p.total_value, 0);
-        // The board doesn't currency-convert; the column total is only ever meaningful when
-        // every card in the stage shares a currency, so it takes the first row's (FR-L10N-020).
-        const stageCurrency = items[0]?.currency ?? 'USD';
+        // DD-CUR-6 (#530 item 3): a mixed-currency total is a PER-CURRENCY BREAKDOWN, never a
+        // converted figure and never the first row's label on everyone's money.
+        //
+        // ⛔ What this replaces was silently wrong the moment a stage held two currencies: it summed
+        // across them and labelled the result with `items[0].currency`, so an IDR request sitting
+        // behind a USD one turned the column total into a number that is not any real quantity —
+        // rendered with the confidence of a real one, and the reader could not recover the parts.
+        //
+        // Not converted, because PMO holds no exchange rates: acquiring them is a commercial
+        // decision carrying a staleness policy and an "as of when" on every figure, and a converted
+        // total is LOSSIER than its inputs. A breakdown is exact, needs nothing we do not already
+        // hold, and degrades to exactly today's single line when a stage is single-currency —
+        // which is every stage in a single-currency org.
+        const stageTotals = (() => {
+          const byCurrency = new Map<string, number>();
+          for (const p of items) {
+            byCurrency.set(p.currency, (byCurrency.get(p.currency) ?? 0) + p.total_value);
+          }
+          // Deterministic order: a column that reshuffles its subtotals between renders reads as
+          // movement in the data.
+          return [...byCurrency.entries()].sort(([a], [b]) => a.localeCompare(b));
+        })();
         return (
           <div key={stage.key} data-testid={`prstage-${stage.key}`} className="flex min-w-0 flex-col">
             <KanbanColumn
@@ -94,7 +112,13 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
               count={items.length}
               totals={
                 items.length > 0 ? (
-                  <span className="text-[13px] font-bold tabular">{formatCurrency(total, stageCurrency)}</span>
+                  <span data-testid={`prstage-${stage.key}-totals`} className="flex flex-col items-end">
+                    {stageTotals.map(([code, sum]) => (
+                      <span key={code} className="text-[13px] font-bold tabular">
+                        {formatCurrency(sum, code)}
+                      </span>
+                    ))}
+                  </span>
                 ) : undefined
               }
               emptyMessage={`No requests at ${stage.full}`}
