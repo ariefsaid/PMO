@@ -7,6 +7,7 @@ import {
   StatusPill,
   ConfirmDialog,
   EntityFormModal,
+  type SubmitError,
   SelectField,
   TextField,
   Combobox,
@@ -127,6 +128,12 @@ const AdminUsers: React.FC = () => {
   const [pendingRole, setPendingRole] = useState<{ user: UserRow; role: UserRole } | null>(null);
   // Invite modal open/closed.
   const [inviteOpen, setInviteOpen] = useState(false);
+  // #559 / AC-ERR-001: this page's forms fire-and-forget — the PAGE owns the mutation and its
+  // rejection — so the error is held here and threaded into the dialog that caused it. One state
+  // per dialog: a failed invite must not surface inside the role dialog.
+  const [inviteError, setInviteError] = useState<SubmitError | null>(null);
+  const [roleError, setRoleError] = useState<SubmitError | null>(null);
+
   // Pending disable/re-enable awaiting the confirm step (disable only — re-enable is immediate,
   // non-destructive).
   const [pendingStatus, setPendingStatus] = useState<{ user: UserRow; status: 'disabled' } | null>(null);
@@ -311,6 +318,7 @@ const AdminUsers: React.FC = () => {
       setPendingRole(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setRoleError({ headline, detail });
       toast(headline, detail, 'warning');
       setPendingRole(null);
     }
@@ -365,6 +373,7 @@ const AdminUsers: React.FC = () => {
         INVALID_ROLE: 'Choose a valid role.',
         UNKNOWN_ORG: "That organization doesn't exist.",
       });
+      setInviteError({ headline, detail });
       toast(headline, detail, 'warning');
     }
   };
@@ -510,6 +519,7 @@ const AdminUsers: React.FC = () => {
       {editTarget?.mode === 'role' && (
         <RoleFormModal
           user={editTarget.user}
+          submitError={roleError}
           onClose={() => setEditTarget(null)}
           onSubmit={submitRole}
         />
@@ -557,6 +567,7 @@ const AdminUsers: React.FC = () => {
         <InviteFormModal
           isOperator={isOperator}
           loading={invite.isPending}
+          submitError={inviteError}
           onClose={() => setInviteOpen(false)}
           onSubmit={submitInvite}
         />
@@ -615,9 +626,11 @@ const validateInvite = (v: InviteFormValues): Partial<Record<keyof InviteFormVal
 const InviteFormModal: React.FC<{
   isOperator: boolean;
   loading: boolean;
+  /** #559: owned by the page (which owns the mutation), rendered here. */
+  submitError: SubmitError | null;
   onClose: () => void;
   onSubmit: (email: string, role: UserRole, pOrgId: string | null) => void;
-}> = ({ isOperator, loading, onClose, onSubmit }) => {
+}> = ({ isOperator, loading, submitError, onClose, onSubmit }) => {
   const form = useEntityForm<InviteFormValues>({
     initialValues: { email: '', role: 'Engineer' },
     validate: validateInvite,
@@ -652,6 +665,7 @@ const InviteFormModal: React.FC<{
       }
       submitLabel="Invite user"
       onSubmit={handleSubmit}
+      submitError={submitError}
       onClose={onClose}
       loading={loading}
       dirty={form.isDirty}
@@ -687,9 +701,11 @@ const InviteFormModal: React.FC<{
 
 const RoleFormModal: React.FC<{
   user: UserRow;
+  /** #559: owned by the page (which owns the mutation), rendered here. */
+  submitError: SubmitError | null;
   onClose: () => void;
   onSubmit: (user: UserRow, role: UserRole) => void;
-}> = ({ user, onClose, onSubmit }) => {
+}> = ({ user, submitError, onClose, onSubmit }) => {
   const form = useEntityForm<RoleFormValues>({
     initialValues: { role: user.role },
     idPrefix: 'role-form',
@@ -711,6 +727,7 @@ const RoleFormModal: React.FC<{
       subtitle={`Set the workspace role for ${user.full_name}`}
       submitLabel="Save role"
       onSubmit={handleSubmit}
+      submitError={submitError}
       onClose={onClose}
       dirty={form.isDirty}
     >
