@@ -4,6 +4,7 @@ import {
   Button,
   Icon,
   EntityFormModal,
+  type SubmitError,
   FormSection,
   TextField,
   ListState,
@@ -59,6 +60,10 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [grantOpen, setGrantOpen] = useState(false);
+  // #559: a rejected save must leave PERSISTENT evidence in the dialog. The toast auto-dismisses
+  // after 4s, ~700px from where the user is looking, after which the modal is indistinguishable
+  // from a pristine form with data in it — so the user believes the save succeeded.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const balanceQuery = useQuery({
     queryKey: ['orgCreditBalance', orgId],
@@ -78,6 +83,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
       const { headline, detail } = classifyMutationError(err, {
         '23514': 'Grant amount must be positive.',
       });
+      setSaveError({ headline, detail });
       toast(headline, detail, 'warning');
     },
   });
@@ -122,6 +128,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
       {grantOpen && (
         <GrantFormModal
           loading={grantMutation.isPending}
+          submitError={saveError}
           onClose={() => setGrantOpen(false)}
           onSubmit={(amount, note) =>
             grantMutation.mutate({ orgId, amount, note })
@@ -134,9 +141,11 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
 
 const GrantFormModal: React.FC<{
   loading: boolean;
+  /** #559: the rejected-save error, owned by the page (which owns the mutation) and rendered here. */
+  submitError: SubmitError | null;
   onClose: () => void;
   onSubmit: (amount: number, note: string) => void;
-}> = ({ loading, onClose, onSubmit }) => {
+}> = ({ loading, submitError, onClose, onSubmit }) => {
   const form = useEntityForm<GrantFormValues>({
     initialValues: { amount: '', note: '' },
     validate: validateGrant,
@@ -165,6 +174,7 @@ const GrantFormModal: React.FC<{
       subtitle="Add credits to the org pool. Takes effect immediately."
       submitLabel="Grant credits"
       onSubmit={handleSubmit}
+      submitError={submitError}
       onClose={onClose}
       loading={loading}
       dirty={form.isDirty}
