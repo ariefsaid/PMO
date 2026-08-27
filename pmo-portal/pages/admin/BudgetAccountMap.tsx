@@ -4,6 +4,7 @@ import {
   ListState,
   ConfirmDialog,
   EntityFormModal,
+  type SubmitError,
   TextField,
   FormGrid,
   FormSection,
@@ -74,6 +75,9 @@ const BudgetAccountMap: React.FC = () => {
 
   const [editTarget, setEditTarget] = useState<{ category: BudgetCategory; existing: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BudgetCategory | null>(null);
+  // #559 / AC-ERR-001: the mapping form fires and forgets — this component owns the mutation and
+  // its rejection — so the error is held here and threaded into the dialog.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['budget-category-account-map'] });
 
@@ -201,6 +205,7 @@ const BudgetAccountMap: React.FC = () => {
 
       {editTarget && (
         <MapFormModal
+          submitError={saveError}
           category={editTarget.category}
           existing={editTarget.existing}
           allRows={rows}
@@ -216,6 +221,7 @@ const BudgetAccountMap: React.FC = () => {
               setEditTarget(null);
             } catch (err) {
               const { headline, detail } = classifyMutationError(err);
+              setSaveError({ headline, detail });
               toast(headline, detail, 'warning');
             }
           }}
@@ -239,6 +245,8 @@ const BudgetAccountMap: React.FC = () => {
 // ── Create / edit form modal ────────────────────────────────────────────────
 
 interface MapFormModalProps {
+  /** #559: owned by the parent (which owns the mutation), rendered here. */
+  submitError: SubmitError | null;
   category: BudgetCategory;
   /** The category's CURRENT account, or null when it is unmapped (create vs update). */
   existing: string | null;
@@ -248,7 +256,7 @@ interface MapFormModalProps {
   onSubmit: (erpAccount: string) => Promise<void>;
 }
 
-const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows, onClose, onSubmit }) => {
+const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows, submitError, onClose, onSubmit }) => {
   const isEdit = existing !== null;
 
   const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
@@ -295,6 +303,7 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows
       subtitle={isEdit ? 'Change the ERP account this category pushes to' : 'Choose the ERP account this category pushes to'}
       submitLabel={isEdit ? 'Save mapping' : 'Save mapping'}
       onSubmit={handleSubmit}
+      submitError={submitError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}

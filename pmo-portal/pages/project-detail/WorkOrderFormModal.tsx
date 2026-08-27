@@ -1,8 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
   EntityFormModal,
+  type SubmitError,
   TextField,
   TextArea,
   NumberField,
@@ -11,6 +12,7 @@ import {
   FormGrid,
   useEntityForm,
 } from '@/src/components/ui';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseMoneyInput } from '@/src/lib/format';
 import { parseTaxFacts } from '@/src/lib/taxTreatment';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
@@ -159,6 +161,11 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
 
   const blankToNull = (s: string) => (s.trim() === '' ? null : s.trim());
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -191,6 +198,10 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           endDate: blankToNull(values.endDate),
         });
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -222,6 +233,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           : t('projectDetail.workOrderForm.create', 'Create draft')
       }
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}

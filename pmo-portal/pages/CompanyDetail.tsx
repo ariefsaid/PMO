@@ -14,6 +14,7 @@ import {
   ConfirmDialog,
   AccessDenied,
   EntityFormModal,
+  type SubmitError,
   TextField,
   TextArea,
   SelectField,
@@ -911,6 +912,11 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
   const subjectField = form.fieldProps('subject');
   const bodyField = form.fieldProps('body');
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -921,6 +927,10 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
           body: values.body.trim() || null,
         });
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -933,6 +943,7 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
       subtitle={t('companyDetail.editActivity.subtitle', 'Update this activity log entry')}
       submitLabel={t('companyDetail.editActivity.submitLabel', 'Save')}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={isPending}
       dirty={form.isDirty}
@@ -1035,6 +1046,11 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
     ? [{ fieldId: nameField.id, message: form.errors.full_name }]
     : undefined;
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -1050,6 +1066,10 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
         await create.mutateAsync(input);
         onSuccess();
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -1062,6 +1082,7 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
       subtitle={t('companyDetail.addContact.subtitle', 'Add a person at this company')}
       submitLabel={t('companyDetail.addContact.submitLabel', 'Create contact')}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
