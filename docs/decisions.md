@@ -2636,3 +2636,52 @@ FE merely stops being stricter than the server for no reason.
 
 **Unchanged:** `meeting.delete` stays `allow(ADMIN)` — hard delete is destructive and Admin-only
 everywhere (ADR-0019). The FE `archive` gate becomes the same author-or-Admin predicate as `edit`.
+
+---
+
+## DD-OPS-10 — a v16 ERPNext TEST instance exists for RIS; v16 is the target major, conditional on the dry-run (Director, 2026-09-02)
+
+**Fact:** on 2026-09-02 the owner provisioned a free-tier Oracle ARM VM (1 OCPU / 6 GB; coordinates
+owner-held, deliberately not in this repo) and the Director installed **ERPNext v16.33.0** on it —
+frappe_docker `pwd.yml`, Caddy + Let's Encrypt in front, app port bound to localhost, 4 GB swap. It
+is reachable and the Administrator login works. Owner memory holds the runbook.
+
+**What it is:** a **test instance**, not the production one `DD-OPS-2` describes. It is `pwd.yml`
+(upstream: non-production), one OCPU under the 4-vCPU floor, no offsite backups, and a stand-in
+hostname. It is enough to prove the adapter against and to let RIS's accountant shape a company.
+
+**Rulings:**
+1. **RIS targets v16, not the `v15.94.3` pin.** `DD-OPS-5` priced in "one major upgrade inside this
+   client relationship" because v15 reaches EOL end-2027; starting RIS on 16 removes that upgrade
+   and its re-proof. **Conditional:** the crossing dry-run ([#481](https://github.com/ariefsaid/PMO/issues/481))
+   run against this instance *is* the v16 re-proof of the adapter contract. A v16 break the adapter
+   cannot absorb in a small change → reinstall at `v15.94.3` (an hour) and `DD-OPS-2`'s pin stands.
+   The dev bed's pin moves with whatever this decides.
+2. **`DD-OPS-2`'s production bar is unchanged** — `compose.yaml` layout, nightly offsite dump with a
+   rehearsed restore, the rotation runbook. This box becomes RIS's production only after being rebuilt
+   that way; whether the free-tier box itself is acceptable for a client's books is the owner's ops
+   call (`DD-OPS-9`), not a route decision.
+3. ⚑ **Nothing in shipped code refuses a major.** `external_org_bindings.version_major` is stamped
+   and reported, never compared against a supported set — the "version-handshake proof" in
+   `docs/environments.md` is a *manual* test, not a runtime gate. Do not assume the seam will stop a
+   wrong version; the dry-run is the only check.
+
+**Next on the route:** make the instance Connect-ready and run the dry-run against it — ticketed on the
+RIS map. RIS's own contribution is the accountant's inputs (`DD-OPS-3`): account codes, fiscal-year
+convention, the PPN encoding, and the 2025 sheets for [#546](https://github.com/ariefsaid/PMO/issues/546).
+
+---
+
+## OD-TS-5 — the approvals queue shows only what the viewer can actually approve (owner, 2026-09-02)
+
+Raised as [#558](https://github.com/ariefsaid/PMO/issues/558): `listTimesheetsAwaitingApproval` lists
+every `Submitted` sheet except the viewer's own, while `transition_timesheet` authorises a narrower
+population — so a viewer is offered an Approve the server refuses. Owner's call: **the server is right;
+the queue filters to it.** Signing off hours is the line manager's act; an Admin reassigning
+`manager_id` covers an absent manager.
+
+⚑ **Correction to the ticket's premise, so the build does not strip a right:** the approve arm
+(`0164` §approve) is **assigned manager ∪ Admin on any sheet (the `OD-TS-4-D` break-glass) ∪ Executive
+only when the sheet's owner has no manager**, SoD first. The mismatch is therefore only an Executive
+viewing a managed sheet, and a Manager who is not the assignee. The queue predicate is exactly that
+population; `OD-TS-1`'s Admin break-glass stays. Server unchanged.
