@@ -2685,3 +2685,16 @@ the queue filters to it.** Signing off hours is the line manager's act; an Admin
 only when the sheet's owner has no manager**, SoD first. The mismatch is therefore only an Executive
 viewing a managed sheet, and a Manager who is not the assignee. The queue predicate is exactly that
 population; `OD-TS-1`'s Admin break-glass stays. Server unchanged.
+
+---
+
+## OD-TS-6 — bulk-approve returns to the main approvals view (owner, 2026-09-02)
+
+Raised as [#557](https://github.com/ariefsaid/PMO/issues/557): the split-inbox redesign of
+`pages/Approvals.tsx` approves one sheet at a time on a large screen; Select + "Approve N" survived only
+in the small-screen `ApprovalsQueue` fallback (behaviour still proven by
+`ApprovalsQueue.expand-bulk.test.tsx`). Owner's call: **it fell out of the redesign, it was not
+decided — restore it on the desktop view.** A manager's approval round is a batch job; one-at-a-time
+is the *review* path, not the default. The preview pane stays for reading a sheet; the list gains the
+same Select toggle / checkboxes / "Approve N" the fallback has. Bulk respects `OD-TS-5`: only sheets
+the viewer can approve are listed, so a bulk action never includes a row the server would refuse.
