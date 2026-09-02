@@ -2619,3 +2619,20 @@ that becomes the drawdown ceiling.
 
 ⚑ **The general rule this settles:** §2 binds wherever the row carries a treatment, and nowhere else.
 Where it does not, the honest render is nothing at all — never a value inferred from a setting.
+
+---
+
+## OD-MTG-3 — the author may archive their own minute; hard delete stays Admin-only (owner, 2026-09-02)
+
+Raised as [#572](https://github.com/ariefsaid/PMO/issues/572) from the #526 quality review: the FE gated
+archive **and** delete to Admin (`policy.ts` `meeting.archive`), while RLS (`0205` §3) already lets the
+author stamp `archived_at`. Owner's call: **option 1 — the author may archive their own minute; Admin may
+archive any.**
+
+**Why:** `FR-MTG-016` makes soft-archive *the normal path* for retiring a meeting, and `OD-MTG-1` makes
+minuting everyone's job — so the person who wrote the minute must be able to retire it without finding an
+Admin. Nothing breaks: archive is reversible (ADR-0018), RLS already permits exactly this write, and the
+FE merely stops being stricter than the server for no reason.
+
+**Unchanged:** `meeting.delete` stays `allow(ADMIN)` — hard delete is destructive and Admin-only
+everywhere (ADR-0019). The FE `archive` gate becomes the same author-or-Admin predicate as `edit`.
