@@ -384,9 +384,15 @@ const TimesheetsPage: React.FC = () => {
             'success',
           ),
         onError: (err) => {
-          // Restore the removed row so the user's data is not silently lost.
+          // Restore the removed row so the user's data is not silently lost — unless the user
+          // already re-added the project while the delete was in flight (#596): appending then
+          // yields two rows for one project, and the next Save sends two upserts for the same
+          // cell, which Postgres refuses. Their re-added row wins; the server still holds the
+          // old entries and the next diff reconciles against them.
           if (removedRow) {
-            setEditRows((rows) => [...rows, removedRow]);
+            setEditRows((rows) =>
+              rows.some((r) => r.project_id === removedRow.project_id) ? rows : [...rows, removedRow],
+            );
           }
           toast(t('timesheets.toast.deleteFailed', 'Delete failed'), err.message, 'warning');
         },
@@ -802,11 +808,14 @@ const TimesheetsPage: React.FC = () => {
                 {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
               </span>
             )}
-            {/* Save = secondary (outline): a routine reversible write, single-click + quiet toast. */}
+            {/* Save = secondary (outline): a routine reversible write, single-click + quiet toast.
+                Both commits are locked while a row delete is in flight (#596): a Save diffed against
+                the pre-delete server entries deletes cells the delete loop is about to delete, the
+                loop's 0-row assertion then fails, and the restore duplicates the row. */}
             <Button
               variant="outline"
               onClick={commitSave}
-              disabled={!editValid || saveWeek.isPending}
+              disabled={!editValid || saveWeek.isPending || deleteRow.isPending}
               loading={saveWeek.isPending}
             >
               <Icon name="check" />
@@ -817,7 +826,7 @@ const TimesheetsPage: React.FC = () => {
             <Button
               variant="primary"
               onClick={() => setConfirmSubmit(true)}
-              disabled={!canSubmit || submit.isPending}
+              disabled={!canSubmit || submit.isPending || deleteRow.isPending}
               loading={submit.isPending}
             >
               <Icon name="check" />

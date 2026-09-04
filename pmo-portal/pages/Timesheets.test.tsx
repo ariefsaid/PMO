@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -1060,5 +1060,54 @@ describe('Timesheets — the owner sees their own ERP push state (I-16/I-17)', (
     renderPage();
     await screen.findByText(/ERP push failed/i);
     expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #596 — delete-row race: a Save landing while a row delete is still in flight, and a failed
+// delete restoring a row the user had already re-added. Found by the 2026-09-02 promote gate.
+// ---------------------------------------------------------------------------
+
+describe('#596: delete-row race', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    deleteRowMutate.mockReset();
+    entryMutations.saveWeek.isPending = false;
+    entryMutations.deleteRow.isPending = false;
+    projectsState.data = ongoingProjects;
+  });
+  afterEach(() => {
+    entryMutations.deleteRow.isPending = false;
+  });
+
+  it('#596a: while a row delete is in flight, Save and Submit are disabled (no commit against a moving server state)', () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    entryMutations.deleteRow.isPending = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+  });
+
+  it('#596b: a failed delete does NOT append a second row for a project the user re-added meanwhile', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    // Capture the callbacks; the server answers later.
+    let pending: { onError?: (e: Error) => void } | undefined;
+    deleteRowMutate.mockImplementation((_vars: unknown, opts?: { onError?: (e: Error) => void }) => {
+      pending = opts;
+    });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /delete row/i }));
+    expect(screen.queryByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeNull();
+    // User re-adds the same project while the delete is still in flight.
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pP');
+    expect(screen.getAllByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveLength(1);
+    // The delete then fails on the server (entry already gone).
+    await act(async () => { pending?.onError?.(new Error('Timesheet entry not found')); });
+    // Exactly ONE row for the project — the restore must not duplicate the re-added row.
+    expect(screen.getAllByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveLength(1);
   });
 });
