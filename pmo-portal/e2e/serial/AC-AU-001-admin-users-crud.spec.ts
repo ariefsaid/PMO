@@ -150,8 +150,13 @@ test(
     // (FR-INV-004) is Admin/Operator-only — an Executive never sees it.
     await expect(page.getByRole('button', { name: /invite user/i })).not.toBeVisible();
     await expect(page.getByRole('button', { name: /row actions/i })).not.toBeVisible();
-    // and a read-only explanation is shown.
-    await expect(page.getByText(/only an Admin can/i)).toBeVisible();
+    // and the directory's read-only explanation is shown. Matched on its full sentence: since #548
+    // the org tax-default card on this page carries its own "Only an Admin can change this." note,
+    // and a loose /only an Admin can/ resolved to both (strict-mode violation at the 2026-09-02
+    // promote, #599). A locator that can resolve to N elements is not an oracle.
+    await expect(
+      page.getByText(/only an Admin can add, edit, or disable users/i),
+    ).toBeVisible();
   },
 );
 
