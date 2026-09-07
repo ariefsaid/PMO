@@ -396,6 +396,10 @@ and do not design around the restriction as this spec's first draft did.
 - **AC-MTG-020** — *Given* a role without meeting-write permission, *when* the meeting page renders,
   *then* no create/edit affordance is shown **and** a direct write is refused by RLS. Both halves — the
   FE gate is UX, the DB is the authority.
+- **AC-MTG-029** (OD-MTG-3) — *Given* a meeting author who is not Admin, *when* the FE archive gate
+  evaluates matching `currentUserId` and `created_by_id`, *then* archive is permitted; *given* a
+  non-author non-Admin or no record context, *then* archive is denied; *given* an Admin, *then*
+  archive is permitted. Hard delete remains Admin-only.
 
 **Surface**
 
@@ -432,6 +436,7 @@ and do not design around the restriction as this spec's first draft did.
 | AC-MTG-010/011/012/013/014 | Integration (pgTAP) | the projection trigger + `notes_search` |
 | AC-MTG-015/016/017/018/019/020 (DB half) | Integration (pgTAP) | RLS, the `CHECK`, the org stamp, the FK block |
 | AC-MTG-020 (FE half) | Unit (Vitest/RTL) | `can()` gating of the affordances |
+| AC-MTG-029 | Unit (Vitest) | `pmo-portal/src/auth/__tests__/policy.meeting.test.ts`; supporting context regressions in `pmo-portal/pages/MeetingDetail.test.tsx` and `pmo-portal/pages/Meetings.test.tsx` |
 | AC-MTG-021 | E2E (Playwright) | add the meeting routes to the existing no-bleed sweep — do not fork it |
 | AC-MTG-022 | E2E (Playwright, visual) | rendered measurement; the a11y tree cannot express it |
 | AC-MTG-023 | E2E (Playwright + axe) | joins `AC-PR-026-axe.spec.ts`'s pattern |

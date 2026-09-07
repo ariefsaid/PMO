@@ -6,8 +6,8 @@ import type { Role } from '../AuthContext';
  * can(*, 'meeting') — #526 (OD-MTG-1/OD-MTG-2, migrations 0205/0206).
  *
  * The FE mirror of the 0205 policies: create = every role (Engineer included — the one widening
- * OD-MTG-1 grants); edit = the AUTHOR (created_by_id, trigger-stamped) or Admin; archive/delete
- * affordances = Admin (FE deliberately stricter than RLS). can() is UX only — RLS is the
+ * OD-MTG-1 grants); edit/archive = the AUTHOR (created_by_id, trigger-stamped) or Admin;
+ * delete remains Admin-only. can() is UX only — RLS is the
  * authority (ADR-0016) — so these tests pin the FE is never LOOSER than the policy.
  */
 
@@ -71,13 +71,42 @@ describe("can(edit, 'meeting') — record-scoped author-or-Admin, mirroring meet
   });
 });
 
-describe("can(archive/delete, 'meeting') — Admin-only affordances (FE stricter than RLS)", () => {
-  it.each(ALL_ROLES.filter((r) => r !== 'Admin'))('%s may not archive or delete', (role) => {
-    expect(can('archive', 'meeting', { realRole: role })).toBe(false);
+describe("can(archive, 'meeting') — AC-MTG-029 author-or-Admin soft archive", () => {
+  it('AC-MTG-029: an author may archive their own meeting', () => {
+    expect(
+      can('archive', 'meeting', {
+        realRole: 'Engineer',
+        currentUserId: 'u1',
+        record: { created_by_id: 'u1' },
+      }),
+    ).toBe(true);
+  });
+
+  it('AC-MTG-029: a non-author non-Admin may not archive', () => {
+    expect(
+      can('archive', 'meeting', {
+        realRole: 'Project Manager',
+        currentUserId: 'u2',
+        record: { created_by_id: 'u1' },
+      }),
+    ).toBe(false);
+  });
+
+  it('AC-MTG-029: Admin may archive another author\'s meeting', () => {
+    expect(can('archive', 'meeting', { realRole: 'Admin' })).toBe(true);
+  });
+
+  it('AC-MTG-029: without record context only Admin may archive', () => {
+    expect(can('archive', 'meeting', { realRole: 'Executive', currentUserId: 'u1' })).toBe(false);
+    expect(can('archive', 'meeting', { realRole: 'Admin', currentUserId: 'u1' })).toBe(true);
+  });
+});
+
+describe("can(delete, 'meeting') — Admin-only destructive action", () => {
+  it.each(ALL_ROLES.filter((r) => r !== 'Admin'))('%s may not delete', (role) => {
     expect(can('delete', 'meeting', { realRole: role })).toBe(false);
   });
-  it('Admin may archive and delete', () => {
-    expect(can('archive', 'meeting', { realRole: 'Admin' })).toBe(true);
+  it('Admin may delete', () => {
     expect(can('delete', 'meeting', { realRole: 'Admin' })).toBe(true);
   });
 });

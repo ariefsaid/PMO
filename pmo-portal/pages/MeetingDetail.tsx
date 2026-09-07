@@ -109,7 +109,10 @@ const MeetingDetail: React.FC = () => {
     currentUserId,
     record: { created_by_id: meeting?.created_by_id ?? null },
   });
-  const canArchive = may('archive', 'meeting');
+  const canArchive = may('archive', 'meeting', {
+    currentUserId,
+    record: { created_by_id: meeting?.created_by_id ?? null },
+  });
   const canDelete = may('delete', 'meeting');
 
   // §8.5: in an org whose tasks domain is externally-owned (ClickUp), /action cannot create a
