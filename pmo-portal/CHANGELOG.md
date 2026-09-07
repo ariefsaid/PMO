@@ -10,6 +10,51 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.10.0](https://github.com/ariefsaid/PMO/compare/v0.9.0...v0.10.0) (2026-09-07)
+
+
+### Features
+
+* **approvals:** bulk-approve returns to the desktop split inbox — one shared controller (OD-TS-6, [#592](https://github.com/ariefsaid/PMO/issues/592)) ([#606](https://github.com/ariefsaid/PMO/issues/606)) ([8316b94](https://github.com/ariefsaid/PMO/commit/8316b942a889d253fc0456f8840cd2ec4e547d9e))
+* **approvals:** the awaiting-you queue lists only sheets the viewer can approve (OD-TS-5, [#591](https://github.com/ariefsaid/PMO/issues/591)) ([#605](https://github.com/ariefsaid/PMO/issues/605)) ([8d41b61](https://github.com/ariefsaid/PMO/commit/8d41b61c346db0fb907d950f6334c11655db4c43))
+* **ci:** a hand-written row type may not silently shadow the schema ([#533](https://github.com/ariefsaid/PMO/issues/533)) ([#536](https://github.com/ariefsaid/PMO/issues/536)) ([e44a341](https://github.com/ariefsaid/PMO/commit/e44a3411ec1da97847e6f4f3ec455eefe296a6e7))
+* **i18n:** the Bahasa pass ([#567](https://github.com/ariefsaid/PMO/issues/567)) — 1,055 keys, glossary-bound, and the id gate arrives green ([#570](https://github.com/ariefsaid/PMO/issues/570)) ([b06234b](https://github.com/ariefsaid/PMO/commit/b06234b4d1436605de584c7e80e27df65db564f8))
+* **i18n:** the framework ([#547](https://github.com/ariefsaid/PMO/issues/547)) — 1,055 en keys, staged gate per DD-I18N-9 ([#569](https://github.com/ariefsaid/PMO/issues/569)) ([76a2cfe](https://github.com/ariefsaid/PMO/commit/76a2cfea12c3bdfb8eb97e375506ca7b8be8b77e))
+* **m365:** three-step connection model — operator entitles, client admin approves, each user connects ([#428](https://github.com/ariefsaid/PMO/issues/428)) ([47bfab7](https://github.com/ariefsaid/PMO/commit/47bfab78b800d5f74b66c956884db78908e5bc46))
+* **meetings:** the author may archive their own minute — FE gate widened to author-or-Admin (OD-MTG-3, [#589](https://github.com/ariefsaid/PMO/issues/589)) ([#604](https://github.com/ariefsaid/PMO/issues/604)) ([7e47926](https://github.com/ariefsaid/PMO/commit/7e479266c7dc4f05e5a463e4cd8db260ecc6be49))
+* **meetings:** the meeting module ([#526](https://github.com/ariefsaid/PMO/issues/526)) — attendance-keyed reads, view-only shares, the /action seam ([#573](https://github.com/ariefsaid/PMO/issues/573)) ([effc82f](https://github.com/ariefsaid/PMO/commit/effc82fd3d315260ccc2ba963c16713f83a529aa))
+* **money:** currency on every PMO-owned money table + sales-invoice tax treatment ([#478](https://github.com/ariefsaid/PMO/issues/478)) ([#506](https://github.com/ariefsaid/PMO/issues/506)) ([338c521](https://github.com/ariefsaid/PMO/commit/338c521ea156b726b7ab5ee88ecc6b5dd1e4b3e4))
+* **skills:** port the Matt Pocock skill set with the MOS overlay convention ([#433](https://github.com/ariefsaid/PMO/issues/433)) ([df0bdb4](https://github.com/ariefsaid/PMO/commit/df0bdb40b978886152372614c97787f96cbd2984))
+* **tax:** carry each deal's own tax basis through get_sales_pipeline() ([#578](https://github.com/ariefsaid/PMO/issues/578)) ([#580](https://github.com/ariefsaid/PMO/issues/580)) ([8c9200d](https://github.com/ariefsaid/PMO/commit/8c9200df83570fd30579b728b23478fdb0e4ff91))
+* **tax:** the org-wide VAT default + a basis label on every money figure ([#548](https://github.com/ariefsaid/PMO/issues/548)) ([#579](https://github.com/ariefsaid/PMO/issues/579)) ([9fe5a42](https://github.com/ariefsaid/PMO/commit/9fe5a42f7082b8efdf74c0c4bd921776d604d6c7))
+* **work-orders:** the drawdown surface the PM manages by ([#566](https://github.com/ariefsaid/PMO/issues/566)) ([#576](https://github.com/ariefsaid/PMO/issues/576)) ([bdc632d](https://github.com/ariefsaid/PMO/commit/bdc632d9d9baa7820fa3707259390562b6e9b85a))
+
+
+### Bug Fixes
+
+* **admin:** omit self-edit role/manager affordances on the caller's own row — the SSSF trial issue ([#436](https://github.com/ariefsaid/PMO/issues/436)) ([c7adfae](https://github.com/ariefsaid/PMO/commit/c7adfaee77679f8e08aebd245aca2c82c902dded))
+* **currency:** a mixed-currency stage total breaks down, it does not convert ([#530](https://github.com/ariefsaid/PMO/issues/530) item 3, DD-CUR-6) ([#587](https://github.com/ariefsaid/PMO/issues/587)) ([0d46e8f](https://github.com/ariefsaid/PMO/commit/0d46e8fb2288568ec4b50aa8f8b98c955af47ef3))
+* **dal:** a using-denied write is a silent no-op, not success ([#534](https://github.com/ariefsaid/PMO/issues/534)) ([#540](https://github.com/ariefsaid/PMO/issues/540)) ([6100805](https://github.com/ariefsaid/PMO/commit/610080561925d435cfffb353e9ed9e8b677d5e0c))
+* **db:** a task's milestone must be a milestone of its own project ([#538](https://github.com/ariefsaid/PMO/issues/538)) ([#545](https://github.com/ariefsaid/PMO/issues/545)) ([0bc058b](https://github.com/ariefsaid/PMO/commit/0bc058b6bcd67499b0017cf9a7e1e7f6a158dc8c))
+* **deps:** bump dompurify 3.4.12 → 3.4.13 (GHSA-55q2-fjhq-7xh7) ([#472](https://github.com/ariefsaid/PMO/issues/472)) ([c0458cb](https://github.com/ariefsaid/PMO/commit/c0458cbc93f0d13bc953447b5cc63d191b91c33b))
+* **errors:** let a segregation-of-duties refusal say what the remedy is ([#577](https://github.com/ariefsaid/PMO/issues/577)) ([#583](https://github.com/ariefsaid/PMO/issues/583)) ([f7513d5](https://github.com/ariefsaid/PMO/commit/f7513d58e78afa74941a4c150d47d27487f761e3))
+* **fe:** the pipeline lens crashed on every pre-win record; and the promote gate could certify an untested commit ([#554](https://github.com/ariefsaid/PMO/issues/554)) ([270813a](https://github.com/ariefsaid/PMO/commit/270813aefb02d77c8217d7a1994d35a2f76255d5))
+* **format:** route all locale-sensitive display through format.ts + lint guard ([#477](https://github.com/ariefsaid/PMO/issues/477)) ([#483](https://github.com/ariefsaid/PMO/issues/483)) ([09ad04f](https://github.com/ariefsaid/PMO/commit/09ad04fe3fe80ebf486baf99647088e44f4ddeb3))
+* **forms:** a rejected save leaves persistent evidence in the dialog ([#559](https://github.com/ariefsaid/PMO/issues/559)) ([#584](https://github.com/ariefsaid/PMO/issues/584)) ([d5f9390](https://github.com/ariefsaid/PMO/commit/d5f9390af6cb5ad4ec764fef5ff62041a93cdc39))
+* **gate:** key the promote stamp on the TREE, which is what the gate actually tests ([#555](https://github.com/ariefsaid/PMO/issues/555)) ([#586](https://github.com/ariefsaid/PMO/issues/586)) ([45a7bad](https://github.com/ariefsaid/PMO/commit/45a7bad2b1d16e42ff20475f7f99e5cad45ce000))
+* **i18n:** close the gate's project-detail scope hole, and stop it punishing plurals ([#575](https://github.com/ariefsaid/PMO/issues/575)) ([#581](https://github.com/ariefsaid/PMO/issues/581)) ([35f2ce0](https://github.com/ariefsaid/PMO/commit/35f2ce0a1a6e1f4d91789068514990da69a7e397))
+* **m365:** restore opaque graph_proxy client envelope; keep structured upstream log ([#445](https://github.com/ariefsaid/PMO/issues/445)) ([#448](https://github.com/ariefsaid/PMO/issues/448)) ([eb4bdc6](https://github.com/ariefsaid/PMO/commit/eb4bdc68db6ac6387ef56169515d93ef13a003fc))
+* **money:** a using-denied money write is a refusal, not a save ([#541](https://github.com/ariefsaid/PMO/issues/541)) ([#544](https://github.com/ariefsaid/PMO/issues/544)) ([f590909](https://github.com/ariefsaid/PMO/commit/f590909dac6189bc61b3456d1abb9acc42385367))
+* **rls:** DD-TASK-8 rebuilt to the 3-lens review verdict — creator-scoped edit, pinned authorship, guarded external paths ([#568](https://github.com/ariefsaid/PMO/issues/568)) ([5f96dc8](https://github.com/ariefsaid/PMO/commit/5f96dc8f915a009004ae1090dbd5b6adb6cd215e)), closes [#551](https://github.com/ariefsaid/PMO/issues/551)
+* **timesheets:** lock Save/Submit during a row delete, and never restore a row the user re-added ([#596](https://github.com/ariefsaid/PMO/issues/596)) ([#597](https://github.com/ariefsaid/PMO/issues/597)) ([f320044](https://github.com/ariefsaid/PMO/commit/f3200446e49b129ec247a598821e829370a388d9))
+* **types:** resync database.types.ts, and fix the null-money bug it was hiding ([#508](https://github.com/ariefsaid/PMO/issues/508)) ([b1a9c8d](https://github.com/ariefsaid/PMO/commit/b1a9c8d6e952721a6ed3afc1c07cfee31dd1a93a))
+* **ui:** ClickUp card — no integration errors on unconnected orgs, human-only error copy ([#458](https://github.com/ariefsaid/PMO/issues/458)) ([00bfc0c](https://github.com/ariefsaid/PMO/commit/00bfc0c27256d753e46885cd6dcf5475446b23b2))
+
+
+### Refactors
+
+* **i18n:** collapse the prefix/suffix fragment keys into whole sentences ([#571](https://github.com/ariefsaid/PMO/issues/571)) ([#574](https://github.com/ariefsaid/PMO/issues/574)) ([cdd85ae](https://github.com/ariefsaid/PMO/commit/cdd85ae26f12ef97001555b3df86616ca842ccde))
+
 ## [0.9.0](https://github.com/ariefsaid/PMO/compare/v0.8.0...v0.9.0) (2026-07-31)
 
 
