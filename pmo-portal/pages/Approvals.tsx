@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
-import { TimesheetBulkControls, useTimesheetBulkApprove, type BulkController } from './timesheets/TimesheetBulkApprove';
+import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, type BulkController } from './timesheets/TimesheetBulkApprove';
 import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
@@ -841,10 +841,17 @@ const ApprovalsPage: React.FC = () => {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {activeScope !== 'procurement' && canApproveTimesheets && <TimesheetBulkControls controller={timesheetBulk} sheets={timesheetRows} />}
+                {activeScope !== 'procurement' && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
                 <Badge>{queueItems.length}</Badge>
               </div>
             </div>
+
+            {activeScope !== 'procurement' && canApproveTimesheets && (
+              <>
+                <TimesheetBulkToolbar controller={timesheetBulk} />
+                <TimesheetBulkConfirm controller={timesheetBulk} sheets={timesheetRows} />
+              </>
+            )}
 
             <div className="space-y-5">
               {activeScope !== 'timesheets' && canApproveProcurement && (

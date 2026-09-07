@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -141,14 +141,26 @@ const desktopSheets: TimesheetAwaitingApproval[] = [
 // CW-6: /approvals now splits its two modules into deep-linkable scope tabs. This file
 // tests the TIMESHEET section's behavior (approve/return), so it deep-links to that scope
 // (`?scope=timesheets`) — the timesheet panel is the surface under test here.
-const renderPage = () =>
-  render(
-    <MemoryRouter initialEntries={['/approvals?scope=timesheets']}>
-      <ToastProvider>
-        <ApprovalsPage />
-      </ToastProvider>
+const renderPage = (scope: 'all' | 'timesheets' | 'procurement' = 'timesheets', largeScreen = true) => {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
+    matches: largeScreen,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })));
+  return render(
+    <MemoryRouter initialEntries={[`/approvals?scope=${scope}`]}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ToastProvider>
+          <ApprovalsPage />
+        </ToastProvider>
+      </QueryClientProvider>
     </MemoryRouter>,
   );
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 beforeEach(() => {
   queryState.data = undefined;
@@ -286,9 +298,25 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     expect(await screen.findByText(/2 approved/i)).toBeInTheDocument();
   });
 
-  it('AC-912: empty desktop queue hides Select', () => {
+  it('AC-912: scope=all select-all selects only timesheets, never the procurement row', async () => {
+    queryState.data = desktopSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('all');
+    await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all approvable weeks' }));
+    expect(screen.getByRole('button', { name: /Approve 3/i })).toBeInTheDocument();
+  });
+
+  it('AC-912: empty and procurement-only desktop queues hide Select', () => {
     queryState.data = [];
     renderPage();
+    expect(screen.queryByRole('button', { name: /^select$/i })).not.toBeInTheDocument();
+
+    queryState.data = desktopSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('procurement');
     expect(screen.queryByRole('button', { name: /^select$/i })).not.toBeInTheDocument();
   });
 });
