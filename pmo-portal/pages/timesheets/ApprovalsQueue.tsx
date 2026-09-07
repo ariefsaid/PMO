@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ApprovalRow,
   Button,
@@ -243,6 +244,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
  * and the timesheet section of the `/approvals` inbox.
  */
 export const ApprovalsQueue: React.FC = () => {
+  const { t } = useTranslation();
   const { data: queue, isPending, isError, refetch } = useTimesheetsAwaitingApproval();
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
@@ -375,7 +377,7 @@ export const ApprovalsQueue: React.FC = () => {
                     <Checkbox
                       checked={selected.has(sheet.id)}
                       onChange={() => bulk.toggleSelected(sheet.id)}
-                      label={`Select ${name}'s ${bulkWeekLabel(sheet.week_start_date)}`}
+                      label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner: name, week: bulkWeekLabel(sheet.week_start_date, t) })}
                     />
                   )}
                   {actions.approve && !selecting && (

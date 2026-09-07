@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { AccessDenied, Badge, Card, Checkbox, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
 import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
@@ -16,12 +15,12 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
-import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, type BulkController } from './timesheets/TimesheetBulkApprove';
+import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
 import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency, formatMonthDay } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -55,11 +54,6 @@ function useIsLargeScreen(): boolean {
   return matches;
 }
 
-function weekLabel(weekStart: string, t: TFunction): string {
-  const [y, m, d] = weekStart.split('-').map(Number);
-  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-  return `${t('approvals.weekOf', 'Week of')} ${formatMonthDay(dt)}`;
-}
 
 function sumHours(sheet: TimesheetAwaitingApproval): number {
   return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
@@ -146,7 +140,7 @@ function QueueButton({
   );
   return bulk?.selecting && canSelect ? (
     <div className="flex items-center gap-2">
-      <Checkbox checked={bulk.selected.has(row.id)} onChange={() => bulk.toggleSelected(row.id)} label={`Select ${row.owner?.full_name ?? 'Unknown'}'s ${weekLabel(row.week_start_date, t)}`} />
+      <Checkbox checked={bulk.selected.has(row.id)} onChange={() => bulk.toggleSelected(row.id)} label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner: row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown'), week: weekLabel(row.week_start_date, t) })} />
       {rowButton}
     </div>
   ) : rowButton;
