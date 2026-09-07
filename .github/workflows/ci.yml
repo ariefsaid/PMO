@@ -67,7 +67,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history so the changed-lines coverage gate can diff against the
           # PR base ref.
@@ -83,7 +83,7 @@ jobs:
       - name: NUL byte check (tracked text files)
         working-directory: .
         run: bash scripts/check-nul-bytes.sh .
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -197,7 +197,7 @@ jobs:
         # supabase CLI must be run from repo root (where supabase/config.toml lives)
         working-directory: .
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Fail fast on duplicate migration prefixes — the clear one-liner version of
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
@@ -210,7 +210,7 @@ jobs:
         working-directory: .
         run: bash scripts/check-nul-bytes.sh .
 
-      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.105.0
 
@@ -246,7 +246,7 @@ jobs:
         # supabase CLI must be run from repo root (where supabase/config.toml lives)
         working-directory: .
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Fail fast on duplicate migration prefixes — the clear one-liner version of
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
@@ -259,11 +259,11 @@ jobs:
         working-directory: .
         run: bash scripts/check-nul-bytes.sh .
 
-      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.105.0
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -329,7 +329,7 @@ jobs:
       # saved on a cache hit. Keyed on the lockfile so a Playwright bump busts the cache.
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pmo-portal/package-lock.json') }}
@@ -397,7 +397,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report
           path: pmo-portal/playwright-report/
@@ -411,7 +411,7 @@ jobs:
       # `npx playwright show-trace` can reconstruct the exact failing DOM/network first-time.
       - name: Upload Playwright test-results (traces)
         if: failure()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-test-results
           path: /tmp/pmo-portal-test-results/
