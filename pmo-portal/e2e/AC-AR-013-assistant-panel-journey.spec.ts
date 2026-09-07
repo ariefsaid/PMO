@@ -77,7 +77,12 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
       // returning JSON here makes decodeSseStream yield a bogus event and the tool /
       // assistant / completed frames never arrive (the failure the integration gate
       // caught). The GET branch is defensive only; it is never exercised by the adapter.
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Hold the response long enough that the IN-FLIGHT state (composer disabled, "Stop
+      // generating" shown) is deterministically observable by step 5. At 300 ms a fast runner
+      // rendered the whole completed answer before the assertion's first poll — CI's
+      // integration lane failed on attempt 1 and passed on retry at the 2026-09-02 promote
+      // (#599). The window must be wider than Playwright's poll cadence, not "fast".
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
