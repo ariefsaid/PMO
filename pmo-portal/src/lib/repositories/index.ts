@@ -617,7 +617,8 @@ const timesheet: TimesheetRepository = {
   submit: (id) => wrap(() => submitTimesheet(id)),
   approve: (id, notes) => wrap(() => approveTimesheet(id, notes)),
   reject: (id, notes) => wrap(() => rejectTimesheet(id, notes)),
-  listAwaitingApproval: (selfId) => wrap(() => listTimesheetsAwaitingApproval(selfId)),
+  listAwaitingApproval: (selfId, viewerRole) =>
+    wrap(() => listTimesheetsAwaitingApproval(selfId, viewerRole)),
   // P3b (FR-TSP-005/006/041) — push an ALREADY-APPROVED sheet to the external system. Called AFTER
   // `transition_timesheet` has committed, never inside it: the approval must never depend on external
   // liveness (ADR-0059 §3.2), so a rejection here surfaces as durable push state, never as a failed

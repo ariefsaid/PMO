@@ -107,7 +107,7 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
     approved_by: null,
     approved_at: null,
     org_id: 'org-1',
-    owner: { full_name: 'Dave Engineer' },
+    owner: { full_name: 'Dave Engineer', manager_id: null },
     entries: [
       {
         id: 'e1',
