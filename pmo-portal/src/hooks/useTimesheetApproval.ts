@@ -49,8 +49,11 @@ const ownTimesheetsKey = (orgId: string | undefined, userId: string | undefined)
   ['timesheets', orgId, userId] as const;
 
 /** Cache key for timesheets awaiting the signed-in user's approval. */
-const awaitingApprovalKey = (orgId: string | undefined, userId: string | undefined) =>
-  ['timesheets-awaiting', orgId, userId] as const;
+const awaitingApprovalKey = (
+  orgId: string | undefined,
+  userId: string | undefined,
+  role: ReturnType<typeof useAuth>['role'],
+) => ['timesheets-awaiting', orgId, userId, role] as const;
 
 /** Cache key for the Slice-A re-openable Approved queue (AC-TSC-R3). */
 const reopenableApprovedKey = (orgId: string | undefined, userId: string | undefined) =>
@@ -72,13 +75,13 @@ const proposedLinksKey = (orgId: string | undefined) => ['erp-employee-links-pro
  * Disabled when orgId or userId are absent.
  */
 export function useTimesheetsAwaitingApproval() {
-  const { currentUser } = useAuth();
+  const { currentUser, role } = useAuth();
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
 
   return useQuery<TimesheetAwaitingApproval[]>({
-    queryKey: awaitingApprovalKey(orgId, userId),
-    queryFn: () => listTimesheetsAwaitingApproval(userId!),
+    queryKey: awaitingApprovalKey(orgId, userId, role),
+    queryFn: () => listTimesheetsAwaitingApproval(userId!, role),
     enabled: Boolean(orgId && userId),
   });
 }
@@ -123,7 +126,7 @@ export function useTimesheetMutations() {
 
   const invalidateBoth = () => {
     queryClient.invalidateQueries({ queryKey: ownTimesheetsKey(orgId, userId) });
-    queryClient.invalidateQueries({ queryKey: awaitingApprovalKey(orgId, userId) });
+    queryClient.invalidateQueries({ queryKey: ['timesheets-awaiting', orgId, userId] });
   };
 
   const submit = useMutation<void, Error, { id: string }>({

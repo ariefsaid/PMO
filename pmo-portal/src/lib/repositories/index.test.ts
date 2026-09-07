@@ -751,8 +751,8 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.timesheet.reject('t1', 'no');
     expect(tsTransitionDal.rejectTimesheet).toHaveBeenCalledWith('t1', 'no');
 
-    await repositories.timesheet.listAwaitingApproval('u1');
-    expect(tsTransitionDal.listTimesheetsAwaitingApproval).toHaveBeenCalledWith('u1');
+    await repositories.timesheet.listAwaitingApproval('u1', 'Project Manager');
+    expect(tsTransitionDal.listTimesheetsAwaitingApproval).toHaveBeenCalledWith('u1', 'Project Manager');
   });
 
   it('budget methods delegate to the budget DAL fns', async () => {

@@ -84,13 +84,14 @@ function makeWrapper() {
 describe('useTimesheetsAwaitingApproval', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("AC-911 (hook): useTimesheetsAwaitingApproval keys cache by ['timesheets-awaiting', orgId, userId] and calls the DAL with the signed-in id", async () => {
-    const { Wrapper } = makeWrapper();
+  it("AC-911 (hook): useTimesheetsAwaitingApproval keys cache by ['timesheets-awaiting', orgId, userId, role] and calls the DAL with the signed-in id and role", async () => {
+    const { qc, Wrapper } = makeWrapper();
     const { result } = renderHook(() => useTimesheetsAwaitingApproval(), { wrapper: Wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(listTimesheetsAwaitingApproval).toHaveBeenCalledWith('u1');
+    expect(listTimesheetsAwaitingApproval).toHaveBeenCalledWith('u1', 'Project Manager');
+    expect(qc.getQueryData(['timesheets-awaiting', 'org-1', 'u1', 'Project Manager'])).toBeDefined();
     expect(result.current.data).toMatchObject([
       { id: 'ts-1', owner: { full_name: 'Dave Engineer' } },
     ]);

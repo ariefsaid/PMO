@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import type { Tables } from '@/src/lib/supabase/database.types';
 import type { TimesheetRow, TimesheetWithEntries } from './timesheets';
 
 // ---------------------------------------------------------------------------
@@ -7,9 +8,12 @@ import type { TimesheetRow, TimesheetWithEntries } from './timesheets';
 
 export type TimesheetStatus = TimesheetRow['status'];
 
-/** A timesheet in the approval queue: joined to owner full_name. */
+/** Roles used by the approval authority predicate (mirrors transition_timesheet). */
+export type TimesheetApprovalViewerRole = Tables<'profiles'>['role'];
+
+/** A timesheet in the approval queue: joined to owner identity and manager. */
 export type TimesheetAwaitingApproval = TimesheetWithEntries & {
-  owner: { full_name: string } | null;
+  owner: { full_name: string; manager_id: string | null } | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -163,7 +167,7 @@ export async function attestTimesheetNoErpDocument(id: string, reason: string): 
 // ---------------------------------------------------------------------------
 
 const AWAITING_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code))';
+  '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,code))';
 
 /**
  * Returns Submitted timesheets visible to the caller (via RLS) excluding their own (SoD).
@@ -172,6 +176,7 @@ const AWAITING_SELECT =
  */
 export async function listTimesheetsAwaitingApproval(
   selfId: string,
+  viewerRole: TimesheetApprovalViewerRole | null,
 ): Promise<TimesheetAwaitingApproval[]> {
   const { data, error } = await supabase
     .from('timesheets')
@@ -180,8 +185,19 @@ export async function listTimesheetsAwaitingApproval(
     .neq('user_id', selfId)
     .order('week_start_date', { ascending: false });
   if (error) throw new Error(error.message);
+  // Mirror the RPC's approve authority locally so the queue never advertises an action the server
+  // will reject. A missing owner join fails closed rather than being treated as a null manager.
+  const approvable = ((data ?? []) as unknown as TimesheetAwaitingApproval[]).filter(sheet =>
+    sheet.user_id !== selfId &&
+    sheet.owner !== null &&
+    (
+      sheet.owner.manager_id === selfId ||
+      viewerRole === 'Admin' ||
+      (viewerRole === 'Executive' && sheet.owner.manager_id === null)
+    )
+  );
   // Normalise entry hours to number at the data boundary (mirrors listTimesheets).
-  return ((data ?? []) as unknown as TimesheetAwaitingApproval[]).map(sheet => ({
+  return approvable.map(sheet => ({
     ...sheet,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
   }));
