@@ -27,6 +27,7 @@ export type Action =
   | 'delete'
   | 'transition'
   | 'editContractValue'
+  | 'setValue'
   | 'submit_sales_invoice'
   | 'manage_external_bindings'
   | 'manage'
@@ -52,13 +53,16 @@ export type Entity =
   | 'timesheet'
   | 'approval'
   | 'milestone'
+  | 'workOrder'
   | 'contact'
   | 'contactActivity'
+  | 'meeting'
   | 'userView'
   | 'salesInvoice'
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
+  | 'orgAccounting'
   | 'employeeLink'
   | 'pushHold';
 
@@ -73,6 +77,13 @@ export interface PolicyContext {
     assignee_id?: string | null;
     /** Author id — for the document-edit author rule (A-7). */
     author_id?: string | null;
+    /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
+     *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
+     *  assigned to someone else is still yours to edit. */
+    created_by?: string | null;
+    /** Meeting author — OD-MTG-1/#526. Trigger-stamped + pinned server-side (`0205`), never
+     *  client-set, so it is safe to read as the meeting-edit right here. */
+    created_by_id?: string | null;
     /** EVERY user who has built this record's body — the sales-invoice SoD oracle (migration 0113's
      *  append-only `sales_invoice_authors` set). The `author_id` scalar is last-writer-wins and so is
      *  only a legacy member of this set, never the whole truth. */
@@ -139,6 +150,36 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       return ON_HAND_SET.has(status) ? has(MONEY_AUTHORITY, role) : has(DELIVERY, role);
     },
   },
+  /**
+   * Work orders (#566) — the client's inbound PO drawing down against a project's ceiling.
+   *
+   * Each entry MIRRORS what migrations 0193/0197 actually enforce; none of it is invented:
+   *   view       ← `work_orders_select` is org + active membership only, with no role clause, so
+   *                every role reads them. The Engineer's read is genuine, not an oversight.
+   *   create     ← `work_orders_insert`'s role list, verbatim.
+   *   edit       ← `work_orders_update`'s role list, NARROWED to Draft. The narrowing is real:
+   *                `assert_work_order_update` freezes the whole body once the row leaves Draft
+   *                (DD-WO-5), so offering an Edit on an Issued row would promise a write the
+   *                server refuses with 42501.
+   *   setValue   ← `set_work_order_value`'s `holds_pipeline_value_authority` gate (rank ≥ Project
+   *                Manager = Admin·Executive·Finance·PM, Engineer excluded), narrowed to Draft by
+   *                the same freeze.
+   *   transition ← `transition_work_order`'s coarse role gate, verbatim.
+   *
+   * ⚑ WHAT THIS TABLE DELIBERATELY DOES NOT MODEL: the issue SoD. Whether *this* person may issue
+   * *this* work order depends on who set its value, whether they are still active, and whether
+   * they outrank the issuer — three facts a pure role predicate cannot hold. The RPC decides, and
+   * its refusal messages name the remedy. Guessing here would either hide a legitimate Issue or
+   * promise a refused one; both are worse than letting the server answer. There is no `delete`
+   * because there is no DELETE grant and no DELETE policy — Cancel IS the soft-delete.
+   */
+  workOrder: {
+    view: allow(ALL),
+    create: allow(MASTER_DATA),
+    edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
+    setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
+    transition: allow(MASTER_DATA),
+  },
   company: {
     // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no
     // nav, no page). Drives the page-level Companies gate (A-5).
@@ -182,8 +223,22 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   task: {
-    create: allow(DELIVERY),
-    edit: allow(DELIVERY),
+    // DD-TASK-8 (#551, migration 0204): an Engineer may create tasks. The old exclusion had no
+    // ruling behind it — it traced to the 0002 bootstrap role list and was copied forward by four
+    // migrations, while OD-MTG-1 ruled every role may minute a meeting whose /action creates a task.
+    create: allow([...DELIVERY, 'Engineer']),
+    // Record-scoped, mirroring the RLS disjunct in 0204 §3 exactly: a write role, OR the CREATOR.
+    // ⚑ NOT the assignee — the 3-lens review removed the assignee disjunct from `tasks_update` (it
+    // was redundant with `tasks_update_own_status` and its only net effect was bypassing the ClickUp
+    // guard), so offering the assignee a full Edit form here would promise a write the server
+    // refuses. The assignee's real affordance is the status control (`taskStatus.edit`, below).
+    // `can()` is UX only — RLS is the authority (ADR-0016) — and looser-than-RLS is the one
+    // direction that is never allowed.
+    edit: (role, ctx) => {
+      if (has(DELIVERY, role)) return true;
+      if (!ctx.currentUserId) return false;
+      return ctx.record?.created_by === ctx.currentUserId;
+    },
     archive: allow(MASTER_DATA),
     delete: allow(DELIVERY),
   },
@@ -281,6 +336,28 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: allow(MASTER_DATA),
     delete: allow(MASTER_DATA),
   },
+  meeting: {
+    // #526 (OD-MTG-1, migrations 0205/0206): meetings are NOT master data — writing minutes is
+    // ordinary RBAC for EVERY role, Engineer included (the widening is meetings-only; contacts
+    // and crm_activities are untouched). READING a meeting body is attendance ∪ author ∪ grant ∪
+    // Admin — enforced by RLS row-scoping, so `view` here only says "the route/page exists for
+    // you"; an Engineer who attends meetings needs the page. RLS is the authority (ADR-0016).
+    view: allow(ALL),
+    create: allow(ALL),
+    // Record-scoped, mirroring `meetings_update` (0205 §3) exactly: the AUTHOR or Admin. Grants
+    // are VIEW-ONLY (OD-MTG-2) — a grantee or attendee reads, they never rewrite — so offering a
+    // non-author an Edit affordance would promise a write the server refuses. Deny-by-default
+    // authorship: with no record context only Admin passes.
+    edit: (role, ctx) => {
+      if (role === 'Admin') return true;
+      if (!has(ALL, role)) return false;
+      return !!ctx.currentUserId && ctx.record?.created_by_id === ctx.currentUserId;
+    },
+    // FE is deliberately STRICTER than RLS here (the allowed direction): RLS lets the author
+    // stamp archived_at via update, but the surfaced archive/delete affordances are Admin-only.
+    archive: allow(ADMIN),
+    delete: allow(ADMIN),
+  },
   userView: {
     // Any authenticated user may create, edit, and archive their OWN views.
     // RLS is the real authority (user_views_insert/update/delete, I1).
@@ -337,6 +414,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   integration: {
     // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
     // Admin OR platform Operator. FE is stricter (Admin only).
+    manage: allow(ADMIN),
+  },
+  // OD-TAX-1 (#548): org-wide ACCOUNTING configuration — currently the tax-treatment default that
+  // pre-selects every new money form. Admin-only, mirroring migration 0207's RLS policy exactly
+  // (`auth_role() = 'Admin'` + active membership) rather than approximating it: flipping an org's
+  // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
+  // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
+  orgAccounting: {
     manage: allow(ADMIN),
   },
   // P3b (OQ-TSP-10(C) — the owner ruling): the Employee-adopt link is PROPOSE-then-CONFIRM, never

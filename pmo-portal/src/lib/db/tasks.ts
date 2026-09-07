@@ -18,7 +18,9 @@ export type TaskWithRefs = TaskRow & {
 
 /** The fields a create form supplies. org_id is NEVER among them — RLS stamps it. */
 export interface TaskInput {
-  project_id: string;
+  /** Nullable since 0199 (first-class tasks): a meeting-born action item may belong to no
+   *  project (DD-TASK-1). null = project-less. */
+  project_id: string | null;
   name: string;
   status: TaskStatus;
   assignee_id: string | null;
@@ -38,6 +40,12 @@ export interface TaskInput {
   /** Optional priority (OD-INT-9). Maps to ClickUp's integer priority via the fixed 4-value map.
    *  null = no priority set (the column is nullable — "no priority" stays expressible). */
   priority?: TaskPriority | null;
+  /**
+   * Optional parent meeting (migration 0206, the /action seam): a task minuted out of a meeting
+   * carries the meeting's id. The 0206 trigger enforces org + same-project agreement server-side.
+   * PMO-native (like milestone_id) — never forwarded on the external ClickUp dispatch.
+   */
+  meeting_id?: string | null;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -95,6 +103,27 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
     .from('tasks')
     .select(SELECT)
     .eq('project_id', projectId)
+    .is('tombstoned_at', null)
+    .order('created_at', { ascending: true });
+  if (error) throwWrite(error);
+  const rows = (data ?? []) as unknown as RawTask[];
+  return rows.map((t) => ({
+    ...t,
+    assignee: t.assignee ?? null,
+    dependencies: t.dependencies ?? [],
+  }));
+}
+
+/**
+ * List the tasks minuted out of one meeting (the /action seam, migration 0206) with their
+ * assignee — the meeting detail's "Action items" list. Excludes tombstoned rows, mirrors
+ * listTasks. RLS scopes rows; ordered by created_at so items read in the order they were minuted.
+ */
+export async function listTasksByMeeting(meetingId: string): Promise<TaskWithRefs[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select(SELECT)
+    .eq('meeting_id', meetingId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true });
   if (error) throwWrite(error);
@@ -174,6 +203,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       parent_task_id: input.parent_task_id ?? null,
       description: input.description || null, // OD-INT-9: "" normalises to null
       priority: input.priority ?? null,
+      meeting_id: input.meeting_id ?? null, // 0206: the /action seam (PMO-native, like milestone_id)
     })
     .select()
     .single();

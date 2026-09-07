@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   EntityFormModal,
+  type SubmitError,
   TextField,
   FormSection,
   FormGrid,
   useEntityForm,
 } from '@/src/components/ui';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 
 // ── Form shape ─────────────────────────────────────────────────────────────────
@@ -18,19 +22,25 @@ interface FormValues {
   input_pct: string;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+const validate = (
+  v: FormValues,
+  t: TFunction,
+): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.name.trim()) {
-    errors.name = 'Milestone name is required';
+    errors.name = t('projectDetail.milestoneForm.errors.nameRequired', 'Milestone name is required');
   }
   const w = v.weight.trim() !== '' ? Number(v.weight) : 1;
   if (isNaN(w) || w < 0) {
-    errors.weight = 'Weight must be 0 or greater';
+    errors.weight = t('projectDetail.milestoneForm.errors.weight', 'Weight must be 0 or greater');
   }
   if (v.input_pct.trim() !== '') {
     const p = Number(v.input_pct);
     if (isNaN(p) || p < 0 || p > 100) {
-      errors.input_pct = 'Progress must be between 0 and 100';
+      errors.input_pct = t(
+        'projectDetail.milestoneForm.errors.progressRange',
+        'Progress must be between 0 and 100',
+      );
     }
   }
   return errors;
@@ -59,7 +69,12 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!milestone;
+
+  // Memoised on `t` so the validator keeps a stable identity between renders
+  // (useEntityForm derives its live error map from it).
+  const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -69,7 +84,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
       weight: String(milestone?.weight ?? 1),
       input_pct: milestone?.input_pct != null ? String(Math.round(milestone.input_pct)) : '',
     },
-    validate,
+    validate: validateWithT,
     idPrefix: 'milestone-form',
     module: 'projects',
     requiredFields: ['name'],
@@ -89,6 +104,11 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
     return items.length > 0 ? items : undefined;
   })();
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -107,6 +127,10 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
           await onCreate(input);
         }
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -115,32 +139,48 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit milestone' : 'New milestone'}
-      subtitle={isEdit ? 'Update this milestone' : 'Add a delivery milestone to this project'}
-      submitLabel={isEdit ? 'Save milestone' : 'Create milestone'}
+      title={
+        isEdit
+          ? t('projectDetail.milestoneForm.editTitle', 'Edit milestone')
+          : t('projectDetail.milestoneForm.newTitle', 'New milestone')
+      }
+      subtitle={
+        isEdit
+          ? t('projectDetail.milestoneForm.editSubtitle', 'Update this milestone')
+          : t(
+              'projectDetail.milestoneForm.newSubtitle',
+              'Add a delivery milestone to this project',
+            )
+      }
+      submitLabel={
+        isEdit
+          ? t('projectDetail.milestoneForm.save', 'Save milestone')
+          : t('projectDetail.milestoneForm.create', 'Create milestone')
+      }
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
-      <FormSection legend="Details">
+      <FormSection legend={t('projectDetail.milestoneForm.detailsLegend', 'Details')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Milestone name"
+            label={t('projectDetail.milestoneForm.name', 'Milestone name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Engineering design"
+            placeholder={t('projectDetail.milestoneForm.namePlaceholder', 'e.g. Engineering design')}
             fullWidth
           />
           <TextField
             id={dateField.id}
-            label="Target date"
+            label={t('projectDetail.milestoneForm.targetDate', 'Target date')}
             type="date"
             value={dateField.value}
             onChange={dateField.onChange}
@@ -148,7 +188,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
           />
           <TextField
             id={sortField.id}
-            label="Sort order"
+            label={t('projectDetail.milestoneForm.sortOrder', 'Sort order')}
             type="number"
             value={sortField.value}
             onChange={sortField.onChange}
@@ -157,7 +197,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
           />
           <TextField
             id={weightField.id}
-            label="Weight"
+            label={t('projectDetail.milestoneForm.weight', 'Weight')}
             type="number"
             value={weightField.value}
             onChange={weightField.onChange}
@@ -167,13 +207,16 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
           {isEdit && (
             <TextField
               id={pctField.id}
-              label="PM input % (optional)"
+              label={t('projectDetail.milestoneForm.inputPct', 'PM input % (optional)')}
               type="number"
               value={pctField.value}
               onChange={pctField.onChange}
               onBlur={pctField.onBlur}
               error={pctField.error}
-              placeholder="Leave blank to use calculated"
+              placeholder={t(
+                'projectDetail.milestoneForm.inputPctPlaceholder',
+                'Leave blank to use calculated',
+              )}
             />
           )}
         </FormGrid>

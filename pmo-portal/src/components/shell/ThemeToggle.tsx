@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { useTheme } from '@/src/hooks/useTheme';
 
@@ -16,10 +17,13 @@ import { useTheme } from '@/src/hooks/useTheme';
  * + `hover:bg-accent`.
  */
 export const ThemeToggle: React.FC = () => {
+  const { t } = useTranslation();
   const { theme, toggle } = useTheme();
   const isDark = theme === 'dark';
   // Label = the action clicking will perform (target state), per current state.
-  const label = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+  const label = isDark
+    ? t('shell.themeToggle.switchToLight', 'Switch to light theme')
+    : t('shell.themeToggle.switchToDark', 'Switch to dark theme');
 
   return (
     <button

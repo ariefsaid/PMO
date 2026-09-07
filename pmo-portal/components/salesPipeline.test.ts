@@ -14,6 +14,7 @@ const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
   name: 'Northwind ERP',
   client_name: 'Northwind',
   status: 'Tender Submitted',
+  tax_treatment: 'exclusive',
   contract_value: 1_200_000,
   currency: 'USD',
   win_probability: 0.5,

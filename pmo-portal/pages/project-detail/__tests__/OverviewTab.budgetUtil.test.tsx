@@ -19,6 +19,14 @@ const { budgetUtilState } = vi.hoisted(() => ({
   },
 }));
 
+// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
+// specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
+// than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
+// the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
+}));
+
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => ({ data: [] as BudgetVersionWithItems[], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => budgetUtilState,

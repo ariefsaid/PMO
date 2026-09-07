@@ -2343,7 +2343,9 @@ Checked before retracting, and nothing broke:
 
 **[DD-MTG-7] A PM gets no automatic read across their project's meetings.** The share panel **pre-suggests the project's PM** as a one-click add. A blanket project-scope grant re-opens exactly what `OD-MTG-1` closes — the peer's minute becomes readable by a PM who was not there — and project scope is a much wider net than it sounds. One-click sharing makes inclusion a decision someone made rather than a default nobody noticed. ⚑ The owner may widen this; it is the one direction that stays cheap.
 
-**[DD-CUR-7] Demo/staging rows backfill `tax_treatment` as `exclusive`.** Under `OD-TAX-1` the value is required per row with no form pre-selection, but the existing demo rows still need one. `exclusive` is the common Indonesian B2B quoting shape, so screenshots seed a plausible example rather than a claim about a real contract.
+**[DD-CUR-7] Demo/staging rows backfill `tax_treatment` as `exclusive`.** ⚑ **CORRECTED 2026-08-25 — this entry misquoted `OD-TAX-1` and the misquote was live for four days.** It said the value is required per row *"with no form pre-selection"*. `OD-TAX-1` §1 says the opposite: the org-wide `default_tax_treatment` **PRE-SELECTS ONLY** — it may fill the control when composing a NEW row, while the stored per-row value stays authoritative and is never re-derived at read time. The requirement is that a row *states* its basis, not that a human types it from scratch every time. #548 was built against this entry and the stale wording had to be corrected mid-build.
+
+The backfill itself stands: the existing demo rows needed a value, and `exclusive` is the common Indonesian B2B quoting shape, so screenshots seed a plausible example rather than a claim about a real contract.
 
 **[DD-OPS-9] #499 reduces to its documentation half.** Owner ruling: hosting spend approval and the WIB support-window staffing are **not route decisions and are not planned on this map**. The Director delivers the system requirements, the credential-rotation runbook, the backup/restore procedure and the `docs/environments.md` production section; provisioning and commercials are the owner's and are dropped from the map.
 
@@ -2482,3 +2484,217 @@ writable — then break each disjunct and confirm the matching case reddens.
 
 **Supersedes** #551's original narrow recommendation. Related: `OD-MTG-1` (the collision that surfaced
 it), `OD-W5-C3-A`, ADR-0016.
+
+---
+
+## DD-I18N-9 — the completeness gate ships in TWO stages, and the route list is additive (Director, 2026-08-24)
+
+**Owner ruled option 1**, on the SSSF planner's blocker for #547. The planner refused to build and was
+right to: `FR-L10N-042` / `AC-L10N-041` require a key present in `en` and absent from `id` to fail
+`npm run verify`, while spec §1 ships this slice with **`id` empty by design**. Every key is missing
+by construction, so "verify green" and "Bahasa out of scope" cannot both hold. **Both demands were in
+the Director's brief** — the contradiction was authored here, not discovered in the spec.
+
+### The ruling
+
+**Stage 1 — ships with #547.** The gate checks the **`en`** side only: every string the UI renders is
+extracted, and no orphaned key survives pointing at text that no longer exists. Green on day one, and
+a real check — orphan drift is the failure that makes a catalogue quietly lie about its own coverage.
+
+**Stage 2 — ships with the Bahasa content, not before.** The `id`-completeness check becomes
+merge-blocking **in the change that populates `id`**, so it is green the moment it exists. Until then
+`FR-L10N-041`'s English runtime fallback carries a missing key, which `OD-I18N-1` already permits.
+
+⚑ **Why not simply relax the gate:** `FR-L10N-042`'s own text says the forgiving runtime is affordable
+*only because* the gate makes gaps unshippable — "the two rulings work as a pair or not at all." A gate
+switched off indefinitely breaks that pair silently. Staging keeps the pair intact by making each half
+arrive with the thing it guards.
+
+### The route list — the second blocker, settled the same way
+
+`OD-I18N-1` requires the gate to read an **explicit route list**, not a glob. The launch scope on map
+#450 is a list of **features** (i18n · tasks · meetings · work orders), and the meetings and
+work-order screens **do not exist yet**, so their routes cannot be named. Picking a subset of today's
+routes would silently narrow the owner-set scope; inventing future paths would create a contract
+nobody owns.
+
+**Ruling: the list is a file a person can read, it starts as the launch-scope screens that EXIST
+today, and every new launch-scope feature ADDS its own route as it ships.** Additive and owned, never
+guessed. ⚑ The obligation lands on each feature's slice — a launch-scope screen that ships without
+adding its route has silently shrunk the gate, so its own PR must add the line.
+
+**Amends** spec §1 / `FR-L10N-042` / `AC-L10N-041` / §6 traceability / §8.2. Revisit if the Bahasa
+pass finishes before the framework, which would make staging pointless.
+
+
+---
+
+## DD-TASK-9 — Engineer-created tasks moving `delivery_pct` is accepted, on the strength of enforced attribution (Director, 2026-08-24)
+
+The #551 security audit proved an Engineer can move any project's reported completion by creating
+tasks on its milestones and marking them Done — unbounded, not scoped to their own work. **Ruling:
+accepted as the intended consequence of `DD-TASK-8`** ("a percentage that only counts tasks
+privileged roles typed measures administrative attention, not delivery"), **because the compensating
+control the ruling named is now real**: `created_by` is trigger-stamped, immutable on UPDATE for
+every actor including `service_role` (`0204` §1b), so every task that moves the number carries an
+unforgeable author. Revisit if abused in practice — the fix then is visibility (surface author on the
+rollup) or a milestone-membership bound, not a write ban.
+
+---
+
+## DD-MTG-8 · DD-MTG-9 — two rulings the #526 spec review forced into the open (Director, 2026-08-24)
+
+**[DD-MTG-8] `/action` is an informed authoring act, never a silent copy.** The review's sharpest
+find: the first build copied the minute line verbatim into `tasks.name`, and `tasks_select` is
+org-wide — so text protected by the attendance-keyed read model leaked into a column the excluded
+peer and the excluded PM can read, at write time, irreversibly. **Ruling: `/action` opens the
+standard task-create modal, prefilled from the line and fully editable.** The author consciously
+publishes exactly the text they choose into the org-visible task system — identical in kind to typing
+a task name by hand, which no ruling restricts. The alternative (placeholder-only names, FR-MTG-017
+read literally) makes My Tasks a wall of "Action item" and was rejected; FR-MTG-017's placeholder
+remains the empty-line fallback. ⚑ The privacy boundary is the HUMAN's choice at the modal, and the
+modal is what makes the choice real.
+
+**[DD-MTG-9] The v1 scope reduction is recorded HERE, not in a code comment.** Shipped v1: action
+items are discovered by `tasks.meeting_id` (the relational seam), the notes body is flat typed-text
+blocks, templates are a flag + list filter. **Structurally out of v1, spec amended to match:** the
+`actionItem` document block and everything downstream of it — FR-MTG-003/004/006's `props.taskId`
+shape, FR-MTG-018..021 (block-delete vs task-delete, tombstone rendering, paste = two refs, template
+copy-on-create with emptied `taskId`) and AC-MTG-001..008. These are not deferred polish; with no
+block in the document they are structurally moot. Revisit only if a ruling brings the in-document
+block back, and then as a fresh design — DD-MTG-2 (no task-state copies in the note) still binds it.
+Copy-on-create for templates is deferred WITH the block. ⚑ A scope cut that lives only in a code
+comment is invisible to the next spec reader; this entry plus the spec amendment is the fix for that.
+
+---
+
+## DD-TAX-2 — the contract-value SoD editor keeps its empty treatment, deliberately (Director, 2026-08-25)
+
+**Question raised by #548's build.** `OD-TAX-1` pre-selects on NEW rows and shows the stored value when
+editing an existing one. The contract-value SoD editor edits an existing project — so should it seed
+the treatment from the row? `#513` deliberately refuses to, and its test pins that.
+
+**Ruling: keep it empty. #513's reason survives `OD-TAX-1`, and this is the one surface where it
+matters most.** `0197`'s backfill wrote `'exclusive'` onto **every** existing project — so a stored
+marker on an old row may be an artifact nobody chose, not a decision anyone made. Seeding the editor
+from it would launder that artifact into a re-confirmed answer at the exact moment someone is
+changing a contract value under separation of duties.
+
+⚑ The asymmetry is the point, and it is narrow: **pre-select where there is no prior answer** (a new
+row — the org default is a genuine starting point); **re-ask where the prior answer may be an
+artifact and the write is a money-SoD act.** Everywhere else, editing shows the stored value.
+
+Revisit when the backfilled rows are gone — at that point a stored treatment is always a real choice
+and the asymmetry stops earning its keep.
+
+
+---
+
+## DD-TAX-3 — `OD-TAX-1` §2's reach, stated: a figure states its basis only where the row HAS one (Director, 2026-08-25)
+
+`OD-TAX-1` §2 says every money figure carries `incl./excl. PPN`. #548's build met that everywhere a
+row actually carries a treatment, and the spec review correctly refused to let the three exceptions
+pass as silent omissions. Recording them so the next reader does not re-derive the question:
+
+**1. Budget lines — the ruling over-reaches; no column exists.** `tax_treatment` lives on
+`sales_invoices`, `procurement_invoices`, `projects` and `work_orders`. No budget table has one, so
+there is nothing to state. **Not a gap to fill by inference** — a budget line's basis would have to
+be *recorded*, which is a schema change and a separate decision about whether budgets are even
+quoted on a tax basis. Until someone asks, budget figures stay unlabelled.
+
+**2. Work-order values — deferred with their UI, not skipped.** `work_orders.tax_treatment` is
+`not null`, so the row always has one; the surface that renders `order_value` shipped in #566 and
+already labels it. Nothing outstanding.
+
+**3. The sales-pipeline LIST — was blocked; CLOSED by #578 (migration `0208`).** `get_sales_pipeline()`
+did not project the column, so the FE had nothing to render. ⛔ Deriving the label from the org default
+there is exactly what §1 forbids — a bare number is honest; a guessed label is a confident lie about
+someone's contract — so the fix was to carry the basis in the projection, not to infer it. `0208` adds
+`tax_treatment` per row (no stage aggregate gains one: a cross-deal total has no single basis, the same
+reasoning `0201` applied to `currency`), and the list, kanban and Lost column now label from the row.
+The pipeline **lens**
+is different — its row does carry the treatment (`OPPORTUNITY_COLUMNS` includes it) — and #548
+labels it, including the "Booking … to contract value on win" sentence, because that is the figure
+that becomes the drawdown ceiling.
+
+⚑ **The general rule this settles:** §2 binds wherever the row carries a treatment, and nowhere else.
+Where it does not, the honest render is nothing at all — never a value inferred from a setting.
+
+---
+
+## OD-MTG-3 — the author may archive their own minute; hard delete stays Admin-only (owner, 2026-09-02)
+
+Raised as [#572](https://github.com/ariefsaid/PMO/issues/572) from the #526 quality review: the FE gated
+archive **and** delete to Admin (`policy.ts` `meeting.archive`), while RLS (`0205` §3) already lets the
+author stamp `archived_at`. Owner's call: **option 1 — the author may archive their own minute; Admin may
+archive any.**
+
+**Why:** `FR-MTG-016` makes soft-archive *the normal path* for retiring a meeting, and `OD-MTG-1` makes
+minuting everyone's job — so the person who wrote the minute must be able to retire it without finding an
+Admin. Nothing breaks: archive is reversible (ADR-0018), RLS already permits exactly this write, and the
+FE merely stops being stricter than the server for no reason.
+
+**Unchanged:** `meeting.delete` stays `allow(ADMIN)` — hard delete is destructive and Admin-only
+everywhere (ADR-0019). The FE `archive` gate becomes the same author-or-Admin predicate as `edit`.
+
+---
+
+## DD-OPS-10 — a v16 ERPNext TEST instance exists for RIS; v16 is the target major, conditional on the dry-run (Director, 2026-09-02)
+
+**Fact:** on 2026-09-02 the owner provisioned a free-tier Oracle ARM VM (1 OCPU / 6 GB; coordinates
+owner-held, deliberately not in this repo) and the Director installed **ERPNext v16.33.0** on it —
+frappe_docker `pwd.yml`, Caddy + Let's Encrypt in front, app port bound to localhost, 4 GB swap. It
+is reachable and the Administrator login works. Owner memory holds the runbook.
+
+**What it is:** a **test instance**, not the production one `DD-OPS-2` describes. It is `pwd.yml`
+(upstream: non-production), one OCPU under the 4-vCPU floor, no offsite backups, and a stand-in
+hostname. It is enough to prove the adapter against and to let RIS's accountant shape a company.
+
+**Rulings:**
+1. **RIS targets v16, not the `v15.94.3` pin.** `DD-OPS-5` priced in "one major upgrade inside this
+   client relationship" because v15 reaches EOL end-2027; starting RIS on 16 removes that upgrade
+   and its re-proof. **Conditional:** the crossing dry-run ([#481](https://github.com/ariefsaid/PMO/issues/481))
+   run against this instance *is* the v16 re-proof of the adapter contract. A v16 break the adapter
+   cannot absorb in a small change → reinstall at `v15.94.3` (an hour) and `DD-OPS-2`'s pin stands.
+   The dev bed's pin moves with whatever this decides.
+2. **`DD-OPS-2`'s production bar is unchanged** — `compose.yaml` layout, nightly offsite dump with a
+   rehearsed restore, the rotation runbook. This box becomes RIS's production only after being rebuilt
+   that way; whether the free-tier box itself is acceptable for a client's books is the owner's ops
+   call (`DD-OPS-9`), not a route decision.
+3. ⚑ **Nothing in shipped code refuses a major.** `external_org_bindings.version_major` is stamped
+   and reported, never compared against a supported set — the "version-handshake proof" in
+   `docs/environments.md` is a *manual* test, not a runtime gate. Do not assume the seam will stop a
+   wrong version; the dry-run is the only check.
+
+**Next on the route:** make the instance Connect-ready and run the dry-run against it — ticketed on the
+RIS map. RIS's own contribution is the accountant's inputs (`DD-OPS-3`): account codes, fiscal-year
+convention, the PPN encoding, and the 2025 sheets for [#546](https://github.com/ariefsaid/PMO/issues/546).
+
+---
+
+## OD-TS-5 — the approvals queue shows only what the viewer can actually approve (owner, 2026-09-02)
+
+Raised as [#558](https://github.com/ariefsaid/PMO/issues/558): `listTimesheetsAwaitingApproval` lists
+every `Submitted` sheet except the viewer's own, while `transition_timesheet` authorises a narrower
+population — so a viewer is offered an Approve the server refuses. Owner's call: **the server is right;
+the queue filters to it.** Signing off hours is the line manager's act; an Admin reassigning
+`manager_id` covers an absent manager.
+
+⚑ **Correction to the ticket's premise, so the build does not strip a right:** the approve arm
+(`0164` §approve) is **assigned manager ∪ Admin on any sheet (the `OD-TS-4-D` break-glass) ∪ Executive
+only when the sheet's owner has no manager**, SoD first. The mismatch is therefore only an Executive
+viewing a managed sheet, and a Manager who is not the assignee. The queue predicate is exactly that
+population; `OD-TS-1`'s Admin break-glass stays. Server unchanged.
+
+---
+
+## OD-TS-6 — bulk-approve returns to the main approvals view (owner, 2026-09-02)
+
+Raised as [#557](https://github.com/ariefsaid/PMO/issues/557): the split-inbox redesign of
+`pages/Approvals.tsx` approves one sheet at a time on a large screen; Select + "Approve N" survived only
+in the small-screen `ApprovalsQueue` fallback (behaviour still proven by
+`ApprovalsQueue.expand-bulk.test.tsx`). Owner's call: **it fell out of the redesign, it was not
+decided — restore it on the desktop view.** A manager's approval round is a batch job; one-at-a-time
+is the *review* path, not the default. The preview pane stays for reading a sheet; the list gains the
+same Select toggle / checkboxes / "Approve N" the fallback has. Bulk respects `OD-TS-5`: only sheets
+the viewer can approve are listed, so a bulk action never includes a row the server would refuse.

@@ -10,10 +10,20 @@
  * genuinely procurement-specific parts: `taxIsPmoAuthored`, `ERP_AUTHORED_TAX` and the
  * invoice-worded required hint.
  *
- * ⛔ There is deliberately NO default treatment exported from this module, and none may ever be
+ * ⛔ There is deliberately NO default treatment exported from THIS module, and none may ever be
  * added. `tax_treatment` carries no DB default precisely because a defaulted marker is a WRONG
- * value indistinguishable from a deliberate one — the user must choose, so a select starts empty
- * and submit stays blocked until they answer.
+ * value indistinguishable from a deliberate one, and a constant compiled into the bundle is the
+ * worst version of that — it would be the same marker for every org, forever, chosen by nobody.
+ *
+ * ⚑ `OD-TAX-1` (#548) changed WHERE a starting value may come from, not whether one may exist:
+ * `organizations.default_tax_treatment` (migration 0207) PRE-SELECTS the control in a form that is
+ * composing a NEW row, because an org that quotes exclusive every day should not re-answer the
+ * same question daily. It is a per-org setting an Admin chose, it is visible and changeable in the
+ * form, and — the rule that matters — it is **never consulted at read time and never used to
+ * interpret a stored row**. A stored NULL means "no value to interpret", never "inherit the
+ * current default": re-deriving an old figure's basis from today's setting silently re-writes
+ * history (#478, unrecoverable). Read it with `useOrgTaxDefault`; label a figure with the row's
+ * OWN treatment via `TaxBasisLabel`.
  */
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { parseMoneyInput } from '@/src/lib/format';
@@ -72,3 +82,13 @@ export const CONTRACT_TAX_REQUIRED_HINT =
   'State the tax treatment and the tax amount for this contract value — enter 0 if there is no ' +
   'tax. Without it the work-order drawdown compares this ceiling against order values on an ' +
   'unknown basis.';
+
+/**
+ * Narrows an unknown (a DB column typed `string | null`, an RPC field, a form draft) to the
+ * two-value domain. Anything else — null, '', a value from a future CHECK relaxation — is NOT a
+ * treatment, and the caller must render NOTHING rather than guess. Rendering "excl. PPN" for an
+ * unknown marker is precisely the confidently-wrong money statement OD-TAX-1 exists to prevent.
+ */
+export function isTaxTreatment(value: unknown): value is TaxTreatment {
+  return value === 'inclusive' || value === 'exclusive';
+}

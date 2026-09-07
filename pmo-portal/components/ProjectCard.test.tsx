@@ -37,7 +37,7 @@ const base = {
   status: 'Ongoing Project',
   client_id: 'c2',
   project_manager_id: 'u-alice',
-  contract_value: 5000000, currency: 'USD',
+  contract_value: 5000000, currency: 'USD', tax_treatment: 'exclusive',
   budget: 4700000,
   spent: 2100000,
   end_date: '2026-12-18',
@@ -125,5 +125,22 @@ describe('ProjectCard', () => {
     expect(screen.getByText('$2.0M of $3.8M budget')).toBeInTheDocument();
     // Should NOT show the old Committed/Actual bars
     expect(screen.queryByLabelText(/Committed: \d+% of contract/i)).not.toBeInTheDocument();
+  });
+});
+
+// ⚑ Bound at the spec review's insistence: removing the label from ProjectCard left the ENTIRE
+// 7,363-test suite green. Implemented is not covered. Both polarities, because a fixture where
+// every row shares one treatment cannot tell a derived label from a hardcoded one.
+describe('OD-TAX-1 §2: the contract figure states its basis', () => {
+  it('renders the row\'s own treatment, and nothing when the row has none', () => {
+    const { unmount } = render(
+      <ProjectCard project={{ ...base, tax_treatment: 'inclusive' } as typeof base} onOpen={vi.fn()} />,
+    );
+    expect(screen.getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    unmount();
+    render(
+      <ProjectCard project={{ ...base, tax_treatment: null } as unknown as typeof base} onOpen={vi.fn()} />,
+    );
+    expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
   });
 });

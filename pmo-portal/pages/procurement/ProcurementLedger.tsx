@@ -27,6 +27,7 @@ import {
   CardPad,
   DataTable,
   StatusPill,
+  TaxBasisLabel,
 } from '@/src/components/ui';
 import type { Column } from '@/src/components/ui';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
@@ -115,9 +116,15 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     key: 'amount',
     header: 'Amount',
     align: 'num',
+    // OD-TAX-1 §2: a vendor invoice's total states its basis (0196's NOT NULL marker). The other
+    // ledger types carry no treatment column at all, so `taxTreatment` is null for them and the
+    // label renders nothing — a PO amount is not silently re-labelled with the invoice's basis.
     cell: (row) =>
       row.amount != null ? (
-        <span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span>
+        <span className="inline-flex items-baseline justify-end gap-1.5">
+          <span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span>
+          <TaxBasisLabel treatment={row.taxTreatment} />
+        </span>
       ) : (
         <span className="text-[12px] text-muted-foreground">—</span>
       ),

@@ -124,13 +124,16 @@ test(
 // ── AC-TASK-001b — Engineer own-status-only gate ─────────────────────────────
 
 test(
-  'AC-TASK-001b gating: an Engineer assignee can change ONLY their own task status and sees no New task structure-write affordance',
+  'AC-TASK-001b gating: an Engineer sees the New task affordance (DD-TASK-8) and can change their own task status',
   async ({ page }) => {
     await login(page, 'engineer@acme.test');
     await gotoTasks(page);
 
-    // GOAL ORACLE 1: no structure-write affordance (New task) for the Engineer.
-    await expect(page.getByRole('button', { name: /new task/i })).not.toBeVisible({ timeout: 10_000 });
+    // GOAL ORACLE 1: the Engineer SEES the New task affordance. DD-TASK-8 (#551, migration 0204)
+    // widened task creation to Engineers — the old exclusion traced to the 0002 bootstrap role list
+    // with no ruling behind it. This oracle previously asserted `not.toBeVisible()` and encoded that
+    // unruled default; flipped deliberately to the ruling, not to the app's accidental state.
+    await expect(page.getByRole('button', { name: /new task/i })).toBeVisible({ timeout: 10_000 });
 
     // GOAL ORACLE 2: the Engineer's OWN seeded task ("Fit-out", assigned to them) exposes an
     // editable status control, and changing it persists (the own-status RLS path).

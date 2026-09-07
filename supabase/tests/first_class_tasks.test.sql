@@ -78,12 +78,15 @@ select is(
   'AC-FCT-005 timesheet_entries.project_id stays NOT NULL — logging time needs a project, and this '
   'slice does not touch the timesheet contract (DD-TASK-5)');
 
+-- ⚑ FULFILLED 2026-08-24, not violated: this asserted 0 until the second parent arrived in ITS OWN
+-- migration — which is exactly what DD-TASK-2 demanded and exactly what 0206_tasks_meeting_parent
+-- did (own diff, own review, own oracle battery in 0205_meeting_access.test.sql). The assertion now
+-- pins the fulfilled state: the column EXISTS and was delivered by 0206, not smuggled into 0199.
 select is(
   (select count(*)::int from information_schema.columns
     where table_schema='public' and table_name='tasks' and column_name='meeting_id'),
-  0,
-  'AC-FCT-006 NO second nullable parent lands here — meeting_id takes its own migration, so the '
-  'dangerous change is reviewed on its own diff (DD-TASK-2)');
+  1,
+  'AC-FCT-006 the second nullable parent (meeting_id) exists (0206 is its own migration - see git for the DD-TASK-2 sequencing proof; this oracle binds to the COLUMN, not the delivery route)');
 
 -- ── §B — THE FOUR POLICIES AGREE. ───────────────────────────────────────────────────────────────
 set local role authenticated;

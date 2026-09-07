@@ -88,6 +88,51 @@ Finance & Engineer: clean read-only index (no header CTA, no row write menu). Fi
 
 ---
 
+## B4. Work orders tab (within project detail) — #566, migrations `0193` / `0197`
+
+The client's inbound purchase orders and the **drawdown** they make against the project's contract
+ceiling. Revenue side — not procurement. Every row in this table mirrors a control that already
+exists on the server; the FE is UX only (ADR-0016) and is **stricter, never looser**.
+
+| Affordance | Admin | Executive | PM | Finance | Engineer |
+|---|:--:|:--:|:--:|:--:|:--:|
+| View the drawdown card (Overview + this tab) | ● | ● | ● | ● | ● |
+| View the work-order list | ● | ● | ● | ● | ● |
+| **New work order** (creates a Draft) | ● | ● | ● | ● | ○ |
+| **Edit** body — Draft only | ● | ● | ● | ● | ○ |
+| **Set value** + tax basis — Draft only | ● | ● | ● | ● | ○ |
+| Issue / Close / Cancel | ● | ● | ● | ● | ○ |
+| Hard delete | ○ | ○ | ○ | ○ | ○ |
+
+**Why the Engineer READS but never writes.** `work_orders_select` carries org + active membership
+and **no role clause at all**, so the read is deliberate rather than an oversight — an Engineer
+working the scope needs to see what the client actually ordered. Every write policy and both RPCs
+name the four write roles, so nothing else is offered.
+
+**Why "Draft only" is a row of its own.** `assert_work_order_update` freezes the ENTIRE body once a
+work order leaves Draft (`DD-WO-5`) — `issued_at` is the stamp a later ERP push derives its
+idempotency key from, so an edit under an unchanged stamp would be accepted here and silently
+discarded there. Offering Edit on an Issued row would promise a write the server answers with
+`42501`.
+
+**Why there is no delete row worth arguing about.** There is no DELETE grant and no DELETE policy
+on `work_orders`: **Cancel IS the soft-delete** (ADR-0018), and a money document carrying a minted
+document number is not hard-deletable by anyone, Admin included.
+
+**⚑ What this table deliberately does NOT model: the issue SoD.** Whether a given person may issue
+a given work order is not a role question — it depends on who set its value, whether that person is
+still an active member, and whether they outrank or line-manage the issuer. `transition_work_order`
+decides it and its refusal names the remedy. The Issue affordance is therefore shown to all four
+write roles and the server answers; guessing here would either hide a legitimate Issue or promise a
+refused one.
+
+**Over-commitment is allowed, warned and attributed — never blocked** (`DD-WO-2`). Issuing past the
+ceiling is refused ONCE, with the figures; the UI then offers a separate, explicitly-confirmed
+"Acknowledge and issue" that stamps who chose it. There is no auto-retry, and the acknowledgement
+is never sent unasked.
+
+---
+
 ## C. Sales Pipeline `/sales`
 Same gating as the Projects index (opportunities are projects in pre-win states). Engineer: HIDDEN nav (○). New-deal create = Admin·Exec·PM (●); Finance ◐ read-only board.
 
@@ -152,13 +197,49 @@ The richest gating surface. The shipped `allowedActions` matrix is byte-preserve
 | Affordance | Admin | Executive | PM | Finance | Engineer |
 |---|:--:|:--:|:--:|:--:|:--:|
 | View tasks (list / board) | ● | ● | ● | ○ (no nav) | ● |
-| Header **New task** | ● | ● | ● | ○ | ○ |
-| **Edit task structure** (title, assignee, due, deps) | ● | ● | ● | ○ | ○ |
+| Header **New task** | ● | ● | ● | ○ | ● (DD-TASK-8) |
+| **Edit task structure** (title, assignee, due, deps) | ● | ● | ● | ○ | ◆ tasks they CREATED (DD-TASK-8) |
 | **Change task STATUS** | ● (any) | ● (any) | ● (any) | ○ | ◆ own only |
 | Delete task | ● | ● | ● | ○ | ○ |
+
+> **DD-TASK-8 (2026-08-24, migration `0204`):** an Engineer creates tasks and edits the ones they
+> created — `created_by` is trigger-stamped and immutable, and the edit right reads it. ⚑ The
+> **assignee** gets *status only*, never structure: RLS's `tasks_update` carries no assignee
+> disjunct (a review removed it — redundant with `tasks_update_own_status`, and it bypassed the
+> ClickUp guard), so an assignee Edit affordance would promise a write the server refuses.
 | Drag on board to change status | ● | ● | ● | ○ | ◆ own only |
 
 Engineer is the key read-only-vs-editable split: on **their own assigned task**, the **status `SelectField` is the only editable control** (●◆); title/assignee/due/dependencies are ◐ read-only; on tasks assigned to others, the whole row is ◐ read-only (no status control). Requires the RLS widening for Engineer own-task status (plan). Finance has no Tasks nav (delivery, not finance).
+
+---
+
+## F2. Meetings `/meetings` (index + detail) — #526, migrations `0205`/`0206`
+
+⛔ **Meetings are NOT master data, and their read model is unique in this schema: reading a
+meeting's body is ATTENDANCE, not role** (owner ruling `OD-MTG-1`/`OD-MTG-2`, 2026-08-21). The
+`meetings` select policy admits attendee ∪ author ∪ explicit grant ∪ Admin — never a role
+shortcut, never a project-scope disjunct (`DD-MTG-7`). Every table below is therefore about
+*affordances on meetings the viewer can already read*; the row set itself is RLS-scoped.
+
+| Affordance | Admin | Executive | PM | Finance | Engineer |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Meetings nav + list (RLS-scoped rows) | ● | ● | ● | ● | ● |
+| Header **New meeting** (`OD-MTG-1`: every role minutes) | ● | ● | ● | ● | ● |
+| **Edit** minutes / header / attendees | ● | ◆ author | ◆ author | ◆ author | ◆ author |
+| **/action** — create a task from a minute line | ● | ● | ● | ● | ● (`DD-TASK-8`/`0204`) |
+| **Share** (add a view-only grant to a named user) | ● | ◆ reader | ◆ reader | ◆ reader | ◆ reader |
+| **Revoke** a grant | ● | ◆ granter/author | ◆ granter/author | ◆ granter/author | ◆ granter/author |
+| **Archive** (soft, `archived_at`) | ● | ○ | ○ | ○ | ○ |
+| **Delete** (hard) — *FK-blocked while tasks reference it* | ● | ○ | ○ | ○ | ○ |
+
+◆ notes: **Edit** is record-scoped to the AUTHOR (`created_by_id`, trigger-stamped + pinned by
+`0205`) or Admin — grants are **view-only** (`OD-MTG-2`), so an attendee or grantee reads and never
+rewrites. **Share** requires read access ("anyone who can already read a minute can share it");
+grants are audit-logged both ways. The FE archive/delete affordances are deliberately STRICTER
+than RLS (RLS lets the author stamp `archived_at`; the surfaced buttons are Admin-only). A
+project's PM gets **no automatic read** — the share panel pre-suggests them as a one-click add
+(`DD-MTG-7`/FR-MTG-034). `/action` is hidden-with-explanation when the org's tasks domain is
+externally owned (ClickUp — spec §8.5).
 
 ---
 
@@ -225,7 +306,7 @@ Executive can *open* Administration (existing `Rail` gate) but user-management i
 
 - **`view`** follows nav visibility (§A) + RLS read scope (Engineer often scoped to own/assigned).
 - **`create`** — Project: Admin·Exec·PM. Company: Admin·Exec·PM·Finance. Procurement: ALL (incl. Engineer). Task: Admin·Exec·PM. Incident: ALL. Document/procDoc: Admin·Exec·PM·Finance. User: Admin.
-- **`edit`** mirrors create, but **record-scoped**: PR header / line items / procDoc edit require `ctx.record.requested_by_id === currentUserId` while Draft/Rejected; document edit requires authorship; task structure = Admin·Exec·PM; **`taskStatus`** = managers OR (`ctx.record.assignee_id === currentUserId` for Engineer).
+- **`edit`** mirrors create, but **record-scoped**: PR header / line items / procDoc edit require `ctx.record.requested_by_id === currentUserId` while Draft/Rejected; document edit requires authorship; task structure = Admin·Exec·PM **or the row's creator** (`ctx.record.created_by === currentUserId`, DD-TASK-8); **`taskStatus`** = managers OR (`ctx.record.assignee_id === currentUserId` for Engineer).
 - **`archive`** — Project/Company: Admin·Exec. Task: Admin·Exec·PM. (Procurement has no archive → Cancel.)
 - **`delete`** (hard) — Project/Company/Document/Incident: **Admin only**; Task: Admin·Exec·PM; companies additionally **blocked-if-referenced** server-side. Procurement: never (Cancel only).
 - **`transition`** (lifecycle/approval) — defers to the existing RPCs + the SoD predicates `!isRequester` (approve), `!isApprover` (pay), `approver ≠ author` (document), `!self` (timesheet approval). The FE shows the action only when the predicate holds; the RPC is the authority.

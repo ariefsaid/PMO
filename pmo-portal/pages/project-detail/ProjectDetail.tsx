@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
@@ -22,19 +23,12 @@ import BudgetTab from './tabs/BudgetTab';
 import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
+import WorkOrdersTab from './tabs/WorkOrdersTab';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
-type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
-
-const TABS: TabItem<PTab>[] = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'budget', label: 'Budget' },
-  { value: 'procurement', label: 'Procurement' },
-  { value: 'tasks', label: 'Tasks' },
-  { value: 'documents', label: 'Documents' },
-];
+type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'documents';
 
 /**
  * Route shell for `/projects/:projectId` — the ONE canonical detail route for a project at EVERY
@@ -55,7 +49,7 @@ const TABS: TabItem<PTab>[] = [
  *  Overview but Engineer on Tasks). Engineer task entry points deep-link to `/projects/:id/tasks`
  *  explicitly (e.g. the My Tasks project headers) rather than mutating the default. An explicit
  *  :tab param always wins (every tab stays deep-linkable). */
-const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'documents'];
+const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'work-orders', 'documents'];
 function tabFromParam(param: string | undefined): PTab {
   if (param && (TAB_VALUES as string[]).includes(param)) return param as PTab;
   return 'overview';
@@ -67,10 +61,25 @@ const ProjectDetail: React.FC = () => {
   const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
   const may = usePermission();
+  const { t } = useTranslation();
   const { data, isPending } = useProjects();
   const { updateHeader } = useProjectMutations();
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
+
+  // Tab labels live here (not at module scope) so they can be translated; the tab
+  // VALUES and their order stay in TAB_VALUES above.
+  const tabItems: TabItem<PTab>[] = useMemo(
+    () => [
+      { value: 'overview', label: t('projectDetail.tabs.overview', 'Overview') },
+      { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
+      { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
+      { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
+      { value: 'work-orders', label: t('projectDetail.tabs.workOrders', 'Work orders') },
+      { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
+    ],
+    [t],
+  );
 
   const cached = useMemo(
     () => (data ?? []).find((p) => p.id === projectId),
@@ -150,7 +159,7 @@ const ProjectDetail: React.FC = () => {
 
   const saveProjectHeader = async (id: string, input: ProjectHeaderInput) => {
     await updateHeader.mutateAsync({ id, input });
-    toast('Project updated', input.name, 'success');
+    toast(t('projectDetail.toast.projectUpdated', 'Project updated'), input.name, 'success');
     closeEditProject();
   };
 
@@ -163,19 +172,22 @@ const ProjectDetail: React.FC = () => {
     if (isPending || oppPending) {
       return (
         <>
-          <BackBar label="Projects" onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
           <ListState variant="loading" rows={6} />
         </>
       );
     }
     return (
       <>
-        <BackBar label="Projects" onBack={goBack} />
+        <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
         <ListState
           variant="error"
           icon="inbox"
-          title="Project not found"
-          sub="This project does not exist or you don't have access to it. Use Back to Projects to return."
+          title={t('projectDetail.notFound.title', 'Project not found')}
+          sub={t(
+            'projectDetail.notFound.sub',
+            "This project does not exist or you don't have access to it. Use Back to Projects to return.",
+          )}
         />
       </>
     );
@@ -221,6 +233,9 @@ const ProjectDetail: React.FC = () => {
       {tab === 'budget' && <BudgetTab projectId={project.id} />}
       {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
       {tab === 'tasks' && <TasksTab projectId={project.id} />}
+      {tab === 'work-orders' && (
+        <WorkOrdersTab projectId={project.id} currency={project.currency} />
+      )}
       {tab === 'documents' && <DocumentsTab projectId={project.id} />}
     </div>
   );
@@ -231,7 +246,9 @@ const ProjectDetail: React.FC = () => {
           we surface the BackBar in-content so mobile users have an up/back escape.
           Desktop keeps the breadcrumb-only pattern (I7). Single-render: one DOM
           branch per breakpoint via useIsDesktop(), never dual-tree. */}
-      {!isDesktop && <BackBar label="Projects" onBack={goBack} />}
+      {!isDesktop && (
+        <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+      )}
       {/* I7: no in-page BackBar / Breadcrumb on the success render — the top-bar
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           Both are kept on the loading / not-found branches above. The shared header renders
@@ -266,7 +283,13 @@ const ProjectDetail: React.FC = () => {
               Guard: {!isPipeline && <ProjectSCurve …/>} per the design plan. */}
 
           {/* Delivery tabs rendered for pre-win so budget/tasks/procurement are reachable (ADR-0021). */}
-          <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+          <Tabs<PTab>
+            items={tabItems}
+            value={tab}
+            onChange={setTab}
+            ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
+            idBase="project-detail"
+          />
           {tabPanel}
         </>
       ) : (
@@ -286,7 +309,13 @@ const ProjectDetail: React.FC = () => {
             </div>
 
             {/* Delivery tabs directly after the stepper — above the S-curve (AC-IFW-RECORD-02). */}
-            <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+            <Tabs<PTab>
+              items={tabItems}
+              value={tab}
+              onChange={setTab}
+              ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
+              idBase="project-detail"
+            />
             {tabPanel}
           </div>
 

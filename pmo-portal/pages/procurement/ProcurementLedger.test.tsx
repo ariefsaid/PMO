@@ -131,6 +131,7 @@ const SAMPLE_ROWS: LedgerRow[] = [
     financial: true,
     recordId: 'pay-1',
     currency: 'USD',
+    taxTreatment: null,
   },
   {
     id: 'vi-1',
@@ -146,7 +147,10 @@ const SAMPLE_ROWS: LedgerRow[] = [
     fileCount: 0,
     financial: true,
     recordId: 'vi-1',
+    // OD-TAX-1 §2: 0196 makes this NOT NULL, so an Invoice fixture with a null basis would be a row
+    // the database cannot produce — and the label under test would never render in this suite.
     currency: 'USD',
+    taxTreatment: 'inclusive',
   },
   {
     id: 'gr-1',
@@ -163,6 +167,7 @@ const SAMPLE_ROWS: LedgerRow[] = [
     financial: false,
     recordId: 'gr-1',
     currency: 'USD',
+    taxTreatment: null,
   },
   {
     id: 'rfq-1',
@@ -179,6 +184,7 @@ const SAMPLE_ROWS: LedgerRow[] = [
     financial: false,
     recordId: 'rfq-1',
     currency: 'USD',
+    taxTreatment: null,
   },
 ];
 
@@ -332,6 +338,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       financial: false,
       recordId: 'gr-1',
     currency: 'USD',
+    taxTreatment: null,
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowWithFile]} />);
@@ -360,6 +367,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       financial: true,
       recordId: 'po-1',
     currency: 'USD',
+    taxTreatment: null,
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} canWrite rows={[rowNoFile]} />);
@@ -383,6 +391,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       financial: true,
       recordId: 'po-1',
     currency: 'USD',
+    taxTreatment: null,
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} canWrite={false} rows={[rowNoFile]} />);
@@ -407,9 +416,40 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       financial: true,
       recordId: 'vq-1',
     currency: 'USD',
+    taxTreatment: null,
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowMultiFile]} />);
     expect(screen.getByRole('button', { name: /3 files/i })).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// #548 / OD-TAX-1 §2 — the vendor invoice's total states its basis; nothing else claims one
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe('#548 (OD-TAX-1): the ledger Amount column carries the row’s tax basis', () => {
+  it('#548: the Invoice row reads "incl. PPN" — 0196 makes the marker NOT NULL, so it always exists', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} />);
+    const labels = screen.getAllByTestId('tax-basis');
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toHaveTextContent('incl. PPN');
+  });
+
+  it('#548: an EXCLUSIVE invoice reads "excl. PPN" — derived from the row, not a fixed string', () => {
+    const rows = SAMPLE_ROWS.map((r) =>
+      r.type === 'Invoice' ? { ...r, taxTreatment: 'exclusive' } : r,
+    );
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={rows} />);
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+  });
+
+  it('#548: a PAYMENT amount carries NO basis — `payments` has no treatment column to state one from', () => {
+    // The honest reading of a null: this record states no basis, NOT "assume the org default".
+    // Labelling it with the invoice's basis would put a claim on a figure nobody qualified.
+    wrap(<ProcurementLedger {...BASE_PROPS} />);
+    // Both the Payment and the Invoice render 478,500 — only ONE of them wears a basis, and the
+    // one that does is the invoice (asserted above). Four rows, one label.
+    expect(screen.getAllByText(/478,500/).length).toBeGreaterThan(1);
+    expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
   });
 });

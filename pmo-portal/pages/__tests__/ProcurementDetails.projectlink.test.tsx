@@ -172,6 +172,37 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     expect(dialogLinks.length).toBeGreaterThanOrEqual(1);
   });
 
+  // #571 — the money line is ONE translatable sentence per shape (<Trans>), no longer
+  // "amount" + " on " + ", requested by " concatenated in English word order. The link
+  // oracle above survives a money line that lost its amount or its requester, so assert the
+  // whole rendered sentence: that is the thing a translator reorders and a reader reads.
+  it('AC-JR-W1-05: the Approve confirm restates the whole money sentence', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested' as const };
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('Approve $25,000 on Bridge Alpha, requested by Eng User?');
+  });
+
+  it('AC-JR-W1-05: the money sentence drops the clauses it has no data for', async () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Requested' as const,
+      project_id: null,
+      project: null,
+      requested_by: null,
+    };
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('Approve $25,000?');
+    expect(dialog.textContent).not.toMatch(/ on |requested by/);
+  });
+
   it('AC-JR-W1-05: no project link when project is null', () => {
     detailState.data = {
       ...baseProcurement,

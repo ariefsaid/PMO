@@ -8,6 +8,7 @@ import {
   StatusPill,
   ConfirmDialog,
   EntityFormModal,
+  type SubmitError,
   TextField,
   NumberField,
   Combobox,
@@ -15,6 +16,7 @@ import {
   FormSection,
   Button,
   Icon,
+  TaxBasisLabel,
   useToast,
   type Column,
   type ComboboxOption,
@@ -172,9 +174,15 @@ const SalesInvoices: React.FC = () => {
       key: 'amount',
       header: 'Amount',
       align: 'num',
+      // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
+      // row, so no invoice total may be bare. The basis is the row's own; the org default
+      // pre-selects a form and is never read here.
       cell: (inv) => (
-        <span className="tabular text-right font-mono text-[13px]">
-          {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+        <span className="inline-flex items-baseline justify-end gap-1.5">
+          <span className="tabular text-right font-mono text-[13px]">
+            {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+          </span>
+          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} /> : null}
         </span>
       ),
       exportValue: (inv) => inv.amount?.toString() ?? '',
@@ -446,6 +454,11 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       ]
     : undefined;
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -454,6 +467,10 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         if (isEdit && invoice) await onUpdate(invoice.id, input);
         else await onCreate(input, intent);
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -483,6 +500,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       subtitle={isEdit ? 'Update this sales invoice' : 'Create a new sales invoice for a client'}
       submitLabel={isEdit ? 'Save invoice' : 'Create invoice'}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}

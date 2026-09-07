@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
+import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -52,6 +53,23 @@ export function useContactActivities(contactId: string | null | undefined) {
   return useQuery<CrmActivityRow[]>({
     queryKey: ['crm-activities', orgId, contactId],
     queryFn: () => repositories.contact.listActivities(contactId as string),
+    enabled: Boolean(orgId && contactId),
+  });
+}
+
+/**
+ * Minuted meetings this contact attended (DD-MTG-6: the contact timeline unions crm_activities
+ * with the meeting module's records). RLS filters to what the VIEWER may read (attendance ∪
+ * author ∪ grant ∪ Admin — FR-MTG-031), so an empty list is the normal state for most viewers.
+ * Lives here (not useMeetings) because it is the contact timeline's read, and the ContactDetail
+ * test suites mock this module wholesale.
+ */
+export function useContactMeetings(contactId: string | null | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ContactMeetingRef[]>({
+    queryKey: ['contact-meetings', orgId, contactId],
+    queryFn: () => repositories.meeting.listForContact(contactId as string),
     enabled: Boolean(orgId && contactId),
   });
 }

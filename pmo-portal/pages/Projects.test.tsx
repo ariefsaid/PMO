@@ -1,4 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
+// live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
+// `useTaxTreatmentPreselect` stays the real implementation, so this suite renders the shipped
+// seeding behaviour without needing a QueryClientProvider/AuthProvider it otherwise has no use for.
+// The pre-selection rule itself is owned by src/hooks/useOrgTaxDefault.test.tsx.
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, useOrgTaxDefault: () => 'exclusive' };
+});
+
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -471,5 +482,36 @@ describe('Projects table — Actual column uses live committed spend (AC-MONEY-0
     // No cell in the table body should show bare $0 for the Actual column
     // when committedSpend is non-zero
     expect(actualCells.length).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// #548 / OD-TAX-1 §2 — the Contract column states each row's basis
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basis', () => {
+  // ⚑ MIXED ON PURPOSE. The list is exactly where a government/SOE contract quoted INCLUSIVE sits
+  // one row above a commercial one quoted EXCLUSIVE — a column of bare numbers there reads as
+  // comparable when it is not. A single-treatment fixture could not tell the label apart from a
+  // hardcoded string (the DD-CUR-6 / #529 blind spot).
+  const mixed = [
+    { ...seed[0], tax_treatment: 'inclusive', tax_amount: 495000 },
+    { ...seed[1], tax_treatment: 'exclusive', tax_amount: 132000 },
+    { ...seed[2], contract_value: 0, tax_treatment: null, tax_amount: null },
+  ];
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = mixed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+  });
+
+  it('#548: each stated contract renders its OWN basis, and the unstated one renders none', () => {
+    renderPage();
+    const labels = screen.getAllByTestId('tax-basis');
+    // Two projects state a basis; the third states none, so it gets no label at all.
+    expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
+    expect(labels[0]).toHaveTextContent('incl. PPN');
+    expect(labels[1]).toHaveTextContent('excl. PPN');
   });
 });

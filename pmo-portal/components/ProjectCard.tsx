@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusPill, ProgressBar, Button, Icon } from '@/src/components/ui';
+import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
 import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from './projects';
@@ -49,6 +49,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         <div>
           <dt className="text-muted-foreground">Contract</dt>
           <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
+          {/* OD-TAX-1 §2 — the card's headline money figure states its basis, from this project's
+              own stored treatment. */}
+          <dd><TaxBasisLabel treatment={project.tax_treatment} /></dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Committed</dt>

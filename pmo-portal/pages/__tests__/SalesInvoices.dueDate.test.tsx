@@ -23,6 +23,9 @@ const hoisted = vi.hoisted(() => ({
         invoice_date: '2026-07-01',
         amount: 10000,
         currency: 'USD',
+        // #548: 0188 makes tax_treatment NOT NULL. The two fixtures below carry OPPOSITE bases so
+        // this file can tell a derived label from a hardcoded one.
+        tax_treatment: 'inclusive',
         erp_outstanding_amount: 5000,
         status: 'Submitted',
         erp_docstatus: 1,
@@ -44,6 +47,7 @@ const hoisted = vi.hoisted(() => ({
         invoice_date: '2026-07-15',
         amount: 25000,
         currency: 'USD',
+        tax_treatment: 'exclusive',
         erp_outstanding_amount: 0,
         status: 'Paid',
         erp_docstatus: 1,
@@ -191,5 +195,24 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     const tableText = screen.getByRole('table').textContent;
     // The third row should show "—" for due date when invoice_date is null
     expect(tableText).toContain('ACC-SINV-2026-00003');
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// #548 / OD-TAX-1 §2 — every invoice total states its basis
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe('#548 (OD-TAX-1): the Amount column carries the invoice’s tax basis', () => {
+  it('#548: each invoice reads its OWN basis — inclusive and exclusive side by side', () => {
+    renderAs('Project Manager');
+    const labels = screen.getAllByTestId('tax-basis');
+    expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
+    expect(labels[0]).toHaveTextContent('incl. PPN');
+    expect(labels[1]).toHaveTextContent('excl. PPN');
+  });
+
+  it('#548: an invoice with no amount yet shows neither a figure nor a basis', () => {
+    // A dash is not a money figure, so there is nothing for a basis to qualify.
+    salesInvoicesState.data = [{ ...SEED_INVOICES[0], id: 'si-noamt', amount: null }];
+    renderAs('Project Manager');
+    expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
   });
 });

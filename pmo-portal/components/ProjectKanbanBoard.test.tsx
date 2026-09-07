@@ -57,7 +57,7 @@ function mkProject(overrides: Partial<ProjectWithRefs> & { id: string; name: str
 }
 
 const projects: ProjectWithRefs[] = [
-  mkProject({ id: 'p1', name: 'Alpha Build', status: 'Won, Pending KoM', client: { name: 'Acme Corp' }, pm: { full_name: 'Alice PM' }, contract_value: 1_000_000, currency: 'USD' }),
+  mkProject({ id: 'p1', name: 'Alpha Build', status: 'Won, Pending KoM', client: { name: 'Acme Corp' }, pm: { full_name: 'Alice PM' }, contract_value: 1_000_000, currency: 'USD', tax_treatment: 'exclusive' }),
   mkProject({ id: 'p2', name: 'Beta Deploy', status: 'Ongoing Project', client: { name: 'Beta LLC' }, pm: { full_name: 'Bob PM' }, contract_value: 2_000_000, currency: 'USD' }),
   mkProject({ id: 'p3', name: 'Gamma Maintain', status: 'On Hold', client: { name: 'Gamma Inc' }, pm: { full_name: 'Alice PM' }, contract_value: 500_000, currency: 'USD' }),
   mkProject({ id: 'p4', name: 'Delta Close', status: 'Close Out', client: { name: 'Delta Co' }, pm: { full_name: 'Bob PM' }, contract_value: 3_000_000, currency: 'USD' }),
@@ -311,5 +311,13 @@ describe('ProjectKanbanBoard', () => {
       // Must surface a directional cue — some form of "swipe" or arrow/→.
       expect(hint.textContent).toMatch(/swipe|→|more/i);
     });
+  });
+});
+
+// ⚑ Bound at the spec review's insistence — removing this label left the whole suite green.
+describe('OD-TAX-1 §2: the kanban card value states its basis', () => {
+  it("renders the card's own treatment", () => {
+    render(<ProjectKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    expect(screen.getAllByTestId('tax-basis')[0]).toHaveAttribute('data-tax-basis', 'exclusive');
   });
 });

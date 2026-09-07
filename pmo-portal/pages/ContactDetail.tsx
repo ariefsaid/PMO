@@ -1,5 +1,7 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
@@ -12,6 +14,7 @@ import {
   ConfirmDialog,
   AccessDenied,
   EntityFormModal,
+  type SubmitError,
   TextField,
   TextArea,
   SelectField,
@@ -22,7 +25,8 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
-import { useContact, useContactActivities, useContactMutations } from '@/src/hooks/useContacts';
+import { useContact, useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
+import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDate } from '@/src/lib/format';
@@ -40,14 +44,15 @@ import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/li
  * the CRM activity timeline + Log-activity form on the page.
  * RLS is the enforcement authority; `can()` (via `usePermission`) gates affordances for clarity.
  */
-const KIND_OPTIONS = [
-  { value: 'Call', label: 'Call' },
-  { value: 'Email', label: 'Email' },
-  { value: 'Meeting', label: 'Meeting' },
-  { value: 'Note', label: 'Note' },
+const kindOptions = (t: TFunction) => [
+  { value: 'Call', label: t('contactDetail.activityKind.call', 'Call') },
+  { value: 'Email', label: t('contactDetail.activityKind.email', 'Email') },
+  { value: 'Meeting', label: t('contactDetail.activityKind.meeting', 'Meeting') },
+  { value: 'Note', label: t('contactDetail.activityKind.note', 'Note') },
 ];
 
 const ContactDetail: React.FC = () => {
+  const { t } = useTranslation();
   const { contactId } = useParams<{ contactId: string }>();
   const navigate = useNavigate();
   const may = usePermission();
@@ -89,8 +94,11 @@ const ContactDetail: React.FC = () => {
   if (!canView) {
     return (
       <AccessDenied
-        title="You don't have access to Contacts"
-        sub="The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks."
+        title={t('contactDetail.accessDenied.title', "You don't have access to Contacts")}
+        sub={t(
+          'contactDetail.accessDenied.sub',
+          'The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+        )}
         onBack={() => navigate('/')}
       />
     );
@@ -100,7 +108,7 @@ const ContactDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label="Contacts" onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
         <div data-testid="contact-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -112,11 +120,11 @@ const ContactDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label="Contacts" onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
         <ListState
           variant="error"
-          title="Couldn't load contact"
-          sub="Something went wrong fetching this contact."
+          title={t('contactDetail.error.title', "Couldn't load contact")}
+          sub={t('contactDetail.error.sub', 'Something went wrong fetching this contact.')}
           onRetry={() => query.refetch()}
         />
       </>
@@ -128,13 +136,16 @@ const ContactDetail: React.FC = () => {
   if (!contact) {
     return (
       <>
-        <BackBar label="Contacts" onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
         <div data-testid="contact-not-found">
           <ListState
             variant="empty"
             icon="folder"
-            title="Contact not found"
-            sub="This contact either doesn't exist or isn't visible to you. Return to the directory to find them."
+            title={t('contactDetail.notFound.title', 'Contact not found')}
+            sub={t(
+              'contactDetail.notFound.sub',
+              "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
+            )}
           />
         </div>
       </>
@@ -151,7 +162,7 @@ const ContactDetail: React.FC = () => {
   const onArchiveConfirm = async () => {
     try {
       await archive.mutateAsync(contact.id);
-      toast('Contact archived', contact.full_name, 'success');
+      toast(t('contactDetail.toast.archived', 'Contact archived'), contact.full_name, 'success');
       setArchiveOpen(false);
       navigate('/contacts');
     } catch (err) {
@@ -165,7 +176,7 @@ const ContactDetail: React.FC = () => {
     <div>
       {/* Mobile escape route (rail collapses ≤920px). */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
-        <BackBar label="Contacts" onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
       </div>
 
       {/* The ONE RecordHeader anatomy — icon + name + categorical "Contact" pill + the
@@ -173,19 +184,19 @@ const ContactDetail: React.FC = () => {
       <RecordHeader
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
-        status={<StatusPill variant="violet">Contact</StatusPill>}
+        status={<StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
         meta={contact.title ? <span>{contact.title}</span> : undefined}
         actions={
           hasActions ? (
             <>
               {canEdit && (
                 <Button variant="outline" size="sm" data-testid="contact-edit" onClick={() => setEditOpen(true)}>
-                  Edit
+                  {t('contactDetail.edit', 'Edit')}
                 </Button>
               )}
               {canArchive && (
                 <Button variant="ghost" size="sm" data-testid="contact-archive" onClick={() => setArchiveOpen(true)}>
-                  Archive
+                  {t('contactDetail.archive', 'Archive')}
                 </Button>
               )}
             </>
@@ -195,11 +206,11 @@ const ContactDetail: React.FC = () => {
 
       {/* Body — the contact's fields (read-only; edit-in-modal). */}
       <Card variant="bare" className="mb-4">
-        <CardHead>Contact detail</CardHead>
+        <CardHead>{t('contactDetail.sectionTitle', 'Contact detail')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Field
-              label="Company"
+              label={t('contactDetail.field.company', 'Company')}
               value={
                 contact.company_id ? (
                   <Link
@@ -213,9 +224,9 @@ const ContactDetail: React.FC = () => {
                 )
               }
             />
-            <Field label="Title" value={contact.title || '—'} />
+            <Field label={t('contactDetail.field.title', 'Title')} value={contact.title || '—'} />
             <Field
-              label="Email"
+              label={t('contactDetail.field.email', 'Email')}
               value={
                 contact.email ? (
                   <a
@@ -230,7 +241,7 @@ const ContactDetail: React.FC = () => {
               }
             />
             <Field
-              label="Phone"
+              label={t('contactDetail.field.phone', 'Phone')}
               value={
                 contact.phone ? (
                   <a
@@ -244,14 +255,16 @@ const ContactDetail: React.FC = () => {
                 )
               }
             />
-            {contact.notes && <Field label="Notes" value={contact.notes} />}
+            {contact.notes && (
+              <Field label={t('contactDetail.field.notes', 'Notes')} value={contact.notes} />
+            )}
           </dl>
         </CardPad>
       </Card>
 
       {/* CRM activity timeline + Log-activity form — moved here off the retired drawer. */}
       <Card variant="bare">
-        <CardHead>Activity</CardHead>
+        <CardHead>{t('contactDetail.activity.title', 'Activity')}</CardHead>
         <CardPad>
           <ContactActivityPanel contactId={contact.id} />
         </CardPad>
@@ -265,7 +278,7 @@ const ContactDetail: React.FC = () => {
           onClose={() => setEditOpen(false)}
           onUpdate={async (id, input) => {
             await update.mutateAsync({ id, input });
-            toast('Contact updated', input.full_name, 'success');
+            toast(t('contactDetail.toast.updated', 'Contact updated'), input.full_name, 'success');
             setEditOpen(false);
           }}
           onError={onMutationError}
@@ -276,9 +289,14 @@ const ContactDetail: React.FC = () => {
       <ConfirmDialog
         open={archiveOpen}
         tone="default"
-        title={`Archive ${contact.full_name}?`}
-        description="They will be hidden from the default list. Existing activity stays intact. You can restore them any time."
-        confirmLabel="Archive contact"
+        title={t('contactDetail.archiveConfirm.title', 'Archive {{name}}?', {
+          name: contact.full_name,
+        })}
+        description={t(
+          'contactDetail.archiveConfirm.description',
+          'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',
+        )}
+        confirmLabel={t('contactDetail.archiveConfirm.confirmLabel', 'Archive contact')}
         loading={archive.isPending}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveOpen(false)}
@@ -314,9 +332,14 @@ const hrefForActivity = (a: { project_id: string | null; company_id: string | nu
 };
 
 const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useContactActivities(contactId);
+  // DD-MTG-6 (second half): the timeline unions the touchpoint log with MINUTED meetings this
+  // contact attended. RLS filters the meetings to what the viewer may read (FR-MTG-031) — most
+  // viewers legitimately see none, so empty is a normal state, never an error.
+  const meetingsQuery = useContactMeetings(contactId);
   const { logActivity, updateActivity, deleteActivity } = useContactMutations();
   const canLog = may('create', 'contactActivity');
   const canEdit = may('edit', 'contactActivity');
@@ -332,6 +355,16 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   const activities = data ?? [];
+  const contactMeetings = meetingsQuery.data ?? [];
+
+  // One timeline, newest-first: touchpoints (editable) + minuted meetings (read-only links).
+  type TimelineEntry =
+    | { kind: 'activity'; occurredAt: string; activity: CrmActivityRow }
+    | { kind: 'meeting'; occurredAt: string; meeting: ContactMeetingRef };
+  const timeline: TimelineEntry[] = [
+    ...activities.map((a): TimelineEntry => ({ kind: 'activity', occurredAt: a.occurred_at, activity: a })),
+    ...contactMeetings.map((m): TimelineEntry => ({ kind: 'meeting', occurredAt: m.occurred_at, meeting: m })),
+  ].sort((x, y) => (x.occurredAt < y.occurredAt ? 1 : x.occurredAt > y.occurredAt ? -1 : 0));
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -347,7 +380,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
     };
     try {
       await logActivity.mutateAsync(input);
-      toast('Activity logged', subject.trim() || kind, 'success');
+      toast(t('contactDetail.toast.activityLogged', 'Activity logged'), subject.trim() || kind, 'success');
       setSubject('');
       setBody('');
       setKind('Call');
@@ -361,7 +394,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
     if (!deletingActivityId) return;
     try {
       await deleteActivity.mutateAsync(deletingActivityId);
-      toast('Activity deleted', '', 'success');
+      toast(t('contactDetail.toast.activityDeleted', 'Activity deleted'), '', 'success');
       setDeletingActivityId(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -375,20 +408,20 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
         <form onSubmit={onSubmit} className="mb-5 flex flex-col gap-3 rounded-md border border-border bg-card p-3">
           <FormGrid>
             <SelectField
-              label="Activity type"
+              label={t('contactDetail.activity.type', 'Activity type')}
               value={kind}
               onChange={(v) => setKind(v as CrmActivityKind)}
-              options={KIND_OPTIONS}
+              options={kindOptions(t)}
             />
-            <TextField label="Subject" value={subject} onChange={setSubject} placeholder="e.g. Kickoff call" />
+            <TextField label={t('contactDetail.activity.subject', 'Subject')} value={subject} onChange={setSubject} placeholder={t('contactDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')} />
           </FormGrid>
           <TextArea
-            label="Notes"
+            label={t('contactDetail.activity.notes', 'Notes')}
             value={body}
             onChange={setBody}
             rows={2}
             fullWidth
-            placeholder="What was discussed?"
+            placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
           />
           <div className="flex justify-end">
             <Button
@@ -398,7 +431,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
               loading={logActivity.isPending}
               disabled={!subject.trim() && !body.trim()}
             >
-              Log activity
+              {t('contactDetail.activity.logAction', 'Log activity')}
             </Button>
           </div>
         </form>
@@ -409,21 +442,57 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
       {!isPending && isError && (
         <ListState
           variant="error"
-          title="Couldn't load activity"
-          sub="The request failed. Try again."
+          title={t('contactDetail.activity.error.title', "Couldn't load activity")}
+          sub={t('contactDetail.activity.error.sub', 'The request failed. Try again.')}
           onRetry={() => refetch()}
         />
       )}
 
-      {!isPending && !isError && activities.length === 0 && (
-        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
-          No activity logged yet.
+      {/* The meetings half of the union failing must not take down the touchpoint log — a quiet
+          one-line note, never an error card (the activities query above owns the error surface). */}
+      {!isPending && !isError && meetingsQuery.isError && (
+        <p className="mb-2 text-[12px] text-muted-foreground">
+          {t('contactDetail.meetings.error', 'Minuted meetings could not be loaded.')}
         </p>
       )}
 
-      {!isPending && !isError && activities.length > 0 && (
+      {!isPending && !isError && timeline.length === 0 && (
+        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
+          {t('contactDetail.activity.empty', 'No activity logged yet.')}
+        </p>
+      )}
+
+      {!isPending && !isError && timeline.length > 0 && (
         <ol data-testid="activity-timeline" className="flex flex-col gap-3">
-          {activities.map((a) => {
+          {timeline.map((entry) => {
+            // DD-MTG-6: a minuted meeting renders READ-ONLY — its record lives in the meeting
+            // module (edit rights are the author's there), the timeline only links across.
+            if (entry.kind === 'meeting') {
+              const m = entry.meeting;
+              return (
+                <li
+                  key={`meeting-${m.id}`}
+                  data-testid="timeline-meeting"
+                  className="flex flex-col gap-1 rounded-md border border-border bg-card p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <StatusPill variant="violet">
+                      {t('contactDetail.meetings.pill', 'Minuted meeting')}
+                    </StatusPill>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatOccurred(m.occurred_at)}
+                    </span>
+                  </div>
+                  <Link
+                    to={`/meetings/${m.id}`}
+                    className="text-[13.5px] font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                  >
+                    {m.title}
+                  </Link>
+                </li>
+              );
+            }
+            const a = entry.activity;
             const relatedHref = hrefForActivity(a);
             return (
               <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
@@ -435,7 +504,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label="Edit activity"
+                        aria-label={t('contactDetail.activity.editAction', 'Edit activity')}
                         onClick={() => setEditingActivity(a)}
                       >
                         <Icon name="pencil" />
@@ -445,7 +514,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label="Delete activity"
+                        aria-label={t('contactDetail.activity.deleteAction', 'Delete activity')}
                         onClick={() => setDeletingActivityId(a.id)}
                       >
                         <Icon name="trash" />
@@ -479,7 +548,11 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
           onClose={() => setEditingActivity(null)}
           onSave={async (patch) => {
             await updateActivity.mutateAsync({ id: editingActivity.id, ...patch });
-            toast('Activity updated', patch.subject ?? editingActivity.kind, 'success');
+            toast(
+              t('contactDetail.toast.activityUpdated', 'Activity updated'),
+              patch.subject ?? editingActivity.kind,
+              'success',
+            );
             setEditingActivity(null);
           }}
           onError={(err) => {
@@ -494,9 +567,12 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
       <ConfirmDialog
         open={deletingActivityId !== null}
         tone="destructive"
-        title="Delete this activity?"
-        description="This action cannot be undone. The activity log entry will be permanently removed."
-        confirmLabel="Delete"
+        title={t('contactDetail.activity.deleteConfirm.title', 'Delete this activity?')}
+        description={t(
+          'contactDetail.activity.deleteConfirm.description',
+          'This action cannot be undone. The activity log entry will be permanently removed.',
+        )}
+        confirmLabel={t('contactDetail.activity.deleteConfirm.confirmLabel', 'Delete')}
         loading={deleteActivity.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeletingActivityId(null)}
@@ -528,6 +604,7 @@ const EditActivityModal: React.FC<EditActivityModalProps> = ({
   onError,
   isPending,
 }) => {
+  const { t } = useTranslation();
   const form = useEntityForm<ActivityFormValues>({
     initialValues: {
       kind: activity.kind,
@@ -544,6 +621,11 @@ const EditActivityModal: React.FC<EditActivityModalProps> = ({
   const subjectField = form.fieldProps('subject');
   const bodyField = form.fieldProps('body');
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -554,6 +636,10 @@ const EditActivityModal: React.FC<EditActivityModalProps> = ({
           body: values.body.trim() || null,
         });
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -562,41 +648,42 @@ const EditActivityModal: React.FC<EditActivityModalProps> = ({
   return (
     <EntityFormModal
       open
-      title="Edit activity"
-      subtitle="Update this activity log entry"
-      submitLabel="Save"
+      title={t('contactDetail.editActivity.title', 'Edit activity')}
+      subtitle={t('contactDetail.editActivity.subtitle', 'Update this activity log entry')}
+      submitLabel={t('contactDetail.editActivity.submitLabel', 'Save')}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={isPending}
       dirty={form.isDirty}
     >
-      <FormSection legend="Details">
+      <FormSection legend={t('contactDetail.editActivity.legend', 'Details')}>
         <FormGrid>
           <SelectField
             id={kindField.id}
-            label="Activity type"
+            label={t('contactDetail.activity.type', 'Activity type')}
             value={kindField.value}
             onChange={(v) => kindField.onChange(v as CrmActivityKind)}
-            options={KIND_OPTIONS}
+            options={kindOptions(t)}
           />
           <TextField
             id={subjectField.id}
-            label="Subject"
+            label={t('contactDetail.activity.subject', 'Subject')}
             value={subjectField.value}
             onChange={subjectField.onChange}
             onBlur={subjectField.onBlur}
-            placeholder="e.g. Kickoff call"
+            placeholder={t('contactDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')}
           />
         </FormGrid>
         <TextArea
           id={bodyField.id}
-          label="Notes"
+          label={t('contactDetail.activity.notes', 'Notes')}
           value={bodyField.value}
           onChange={bodyField.onChange}
           onBlur={bodyField.onBlur}
           rows={3}
           fullWidth
-          placeholder="What was discussed?"
+          placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
         />
       </FormSection>
     </EntityFormModal>
@@ -614,12 +701,16 @@ interface FormValues {
   notes: string;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.full_name.trim()) errors.full_name = 'Contact name is required.';
-  if (!v.company_id) errors.company_id = 'A company is required.';
-  return errors;
-};
+const makeValidate =
+  (t: TFunction) =>
+  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+    const errors: Partial<Record<keyof FormValues, string>> = {};
+    if (!v.full_name.trim())
+      errors.full_name = t('contactDetail.form.errors.nameRequired', 'Contact name is required.');
+    if (!v.company_id)
+      errors.company_id = t('contactDetail.form.errors.companyRequired', 'A company is required.');
+    return errors;
+  };
 
 interface ContactEditModalProps {
   contact: {
@@ -644,6 +735,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
   onUpdate,
   onError,
 }) => {
+  const { t } = useTranslation();
   const form = useEntityForm<FormValues>({
     initialValues: {
       full_name: contact.full_name,
@@ -653,7 +745,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
       phone: contact.phone ?? '',
       notes: contact.notes ?? '',
     },
-    validate,
+    validate: makeValidate(t),
     idPrefix: 'contact-form',
     requiredFields: ['full_name', 'company_id'],
     module: 'contacts',
@@ -671,6 +763,11 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
     form.errors.company_id ? { fieldId: companyField.id, message: form.errors.company_id } : null,
   ].filter(Boolean) as { fieldId: string; message: string }[];
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -685,6 +782,10 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
       try {
         await onUpdate(contact.id, input);
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -693,80 +794,87 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
   return (
     <EntityFormModal
       open
-      title="Edit contact"
-      subtitle="Update this contact record"
-      submitLabel="Save contact"
+      title={t('contactDetail.editContact.title', 'Edit contact')}
+      subtitle={t('contactDetail.editContact.subtitle', 'Update this contact record')}
+      submitLabel={t('contactDetail.editContact.submitLabel', 'Save contact')}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
-      <FormSection legend="Identity">
+      <FormSection legend={t('contactDetail.editContact.legendIdentity', 'Identity')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Full name"
+            label={t('contactDetail.field.fullName', 'Full name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Jane Doe"
+            placeholder={t('contactDetail.field.fullNamePlaceholder', 'e.g. Jane Doe')}
             autoComplete="name"
             fullWidth
           />
           <SelectField
             id={companyField.id}
-            label="Company"
+            label={t('contactDetail.field.company', 'Company')}
             required
             value={companyField.value}
             onChange={(v) => companyField.onChange(v)}
             onBlur={companyField.onBlur}
             error={companyField.error}
-            options={[{ value: '', label: 'Select a company…' }, ...companyOptions]}
+            options={[
+              { value: '', label: t('contactDetail.field.companyPlaceholder', 'Select a company…') },
+              ...companyOptions,
+            ]}
           />
           <TextField
             id={titleField.id}
-            label="Title"
+            label={t('contactDetail.field.title', 'Title')}
             value={titleField.value}
             onChange={titleField.onChange}
             onBlur={titleField.onBlur}
-            placeholder="e.g. Procurement Lead"
+            placeholder={t('contactDetail.field.titlePlaceholder', 'e.g. Procurement Lead')}
           />
         </FormGrid>
       </FormSection>
-      <FormSection legend="Contact details">
+      <FormSection legend={t('contactDetail.editContact.legendContact', 'Contact details')}>
         <FormGrid>
           <TextField
             id={emailField.id}
-            label="Email"
+            label={t('contactDetail.field.email', 'Email')}
             type="email"
             value={emailField.value}
             onChange={emailField.onChange}
             onBlur={emailField.onBlur}
-            placeholder="name@example.com"
+            placeholder={t('contactDetail.field.emailPlaceholder', 'name@example.com')}
             autoComplete="email"
           />
           <TextField
             id={phoneField.id}
-            label="Phone"
+            label={t('contactDetail.field.phone', 'Phone')}
             value={phoneField.value}
             onChange={phoneField.onChange}
             onBlur={phoneField.onBlur}
-            placeholder="e.g. +1 555 010 0000"
+            placeholder={t('contactDetail.field.phonePlaceholder', 'e.g. +1 555 010 0000')}
             autoComplete="tel"
           />
           <TextArea
             id={notesField.id}
-            label="Notes"
+            label={t('contactDetail.field.notes', 'Notes')}
             value={notesField.value}
             onChange={notesField.onChange}
             onBlur={notesField.onBlur}
             rows={3}
             fullWidth
-            placeholder="Anything worth remembering about this contact"
+            placeholder={t(
+              'contactDetail.field.notesPlaceholder',
+              'Anything worth remembering about this contact',
+            )}
           />
         </FormGrid>
       </FormSection>

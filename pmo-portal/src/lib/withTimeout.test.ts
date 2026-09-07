@@ -100,4 +100,25 @@ describe('withTimeout (UI-freeze hardening)', () => {
     expect(clearSpy).toHaveBeenCalled();
     clearSpy.mockRestore();
   });
+
+  /**
+   * #561, found by a mutation run — not by reading the file, and not by coverage, which was
+   * already 100% on this line.
+   *
+   * ⛔ The test ABOVE says "once the promise settles" but only exercises RESOLVE. Deleting
+   * `clearTimeout(timer)` from the REJECT branch left all 7 tests green: a promise that rejects
+   * before its deadline left the deadline timer armed, and with fake timers off that is a real
+   * dangling handle per failed call — in a wrapper whose entire job is not leaving work behind.
+   *
+   * ⚑ The timer count is asserted, not just the spy. `toHaveBeenCalled()` cannot tell WHICH branch
+   * cleared it, so a spy-only assertion on the reject path would have been killed by the resolve
+   * path's call and proved nothing — the same shape as the oracle it is fixing.
+   */
+  it('AC-TMO-004: clears the deadline timer when the promise REJECTS before it, leaving no armed timer', async () => {
+    const before = vi.getTimerCount();
+    await expect(withTimeout(Promise.reject(new Error('inner failed')), 10_000)).rejects.toThrow(
+      'inner failed',
+    );
+    expect(vi.getTimerCount()).toBe(before);
+  });
 });

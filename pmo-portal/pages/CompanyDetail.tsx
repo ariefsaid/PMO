@@ -1,5 +1,7 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
@@ -12,6 +14,7 @@ import {
   ConfirmDialog,
   AccessDenied,
   EntityFormModal,
+  type SubmitError,
   TextField,
   TextArea,
   SelectField,
@@ -59,20 +62,21 @@ import type { ContactInput } from '@/src/lib/db/contacts';
  * JTBD T17: Account activity timeline — aggregates crm_activities across all company contacts.
  * JTBD T18: Primary-contact link on the account card + related projects (RelatedList already renders).
  */
-const TYPE_OPTIONS = [
-  { value: 'Client', label: 'Client' },
-  { value: 'Vendor', label: 'Vendor' },
-  { value: 'Internal', label: 'Internal' },
+const typeOptions = (t: TFunction) => [
+  { value: 'Client', label: t('companyDetail.type.client', 'Client') },
+  { value: 'Vendor', label: t('companyDetail.type.vendor', 'Vendor') },
+  { value: 'Internal', label: t('companyDetail.type.internal', 'Internal') },
 ];
 
-const KIND_OPTIONS = [
-  { value: 'Call', label: 'Call' },
-  { value: 'Email', label: 'Email' },
-  { value: 'Meeting', label: 'Meeting' },
-  { value: 'Note', label: 'Note' },
+const kindOptions = (t: TFunction) => [
+  { value: 'Call', label: t('companyDetail.activityKind.call', 'Call') },
+  { value: 'Email', label: t('companyDetail.activityKind.email', 'Email') },
+  { value: 'Meeting', label: t('companyDetail.activityKind.meeting', 'Meeting') },
+  { value: 'Note', label: t('companyDetail.activityKind.note', 'Note') },
 ];
 
 const CompanyDetail: React.FC = () => {
+  const { t } = useTranslation();
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const may = usePermission();
@@ -114,8 +118,11 @@ const CompanyDetail: React.FC = () => {
   if (!canView) {
     return (
       <AccessDenied
-        title="You don't have access to Companies"
-        sub="The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks."
+        title={t('companyDetail.accessDenied.title', "You don't have access to Companies")}
+        sub={t(
+          'companyDetail.accessDenied.sub',
+          'The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+        )}
         onBack={() => navigate('/')}
       />
     );
@@ -125,7 +132,7 @@ const CompanyDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label="Companies" onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
         <div data-testid="company-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -137,11 +144,11 @@ const CompanyDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label="Companies" onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
         <ListState
           variant="error"
-          title="Couldn't load company"
-          sub="Something went wrong fetching this company."
+          title={t('companyDetail.error.title', "Couldn't load company")}
+          sub={t('companyDetail.error.sub', 'Something went wrong fetching this company.')}
           onRetry={() => query.refetch()}
         />
       </>
@@ -153,13 +160,16 @@ const CompanyDetail: React.FC = () => {
   if (!company) {
     return (
       <>
-        <BackBar label="Companies" onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
         <div data-testid="company-not-found">
           <ListState
             variant="empty"
             icon="folder"
-            title="Company not found"
-            sub="This company either doesn't exist or isn't visible to you. Return to the directory to find it."
+            title={t('companyDetail.notFound.title', 'Company not found')}
+            sub={t(
+              'companyDetail.notFound.sub',
+              "This company either doesn't exist or isn't visible to you. Return to the directory to find it.",
+            )}
           />
         </div>
       </>
@@ -174,7 +184,7 @@ const CompanyDetail: React.FC = () => {
   const onArchiveConfirm = async () => {
     try {
       await archive.mutateAsync(company.id);
-      toast('Company archived', company.name, 'success');
+      toast(t('companyDetail.toast.archived', 'Company archived'), company.name, 'success');
       setArchiveOpen(false);
       // Archived records drop out of the default directory — return there.
       navigate('/companies');
@@ -190,7 +200,7 @@ const CompanyDetail: React.FC = () => {
       {/* Mobile escape route — the top-bar breadcrumb owns desktop wayfinding, the rail
           collapses ≤920px so the BackBar is the only in-content escape there. */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
-        <BackBar label="Companies" onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
       </div>
 
       {/* The ONE RecordHeader anatomy — icon + name + categorical company-type pill (CW-2
@@ -204,12 +214,12 @@ const CompanyDetail: React.FC = () => {
             <>
               {canEdit && (
                 <Button variant="outline" size="sm" data-testid="company-edit" onClick={() => setEditOpen(true)}>
-                  Edit
+                  {t('companyDetail.edit', 'Edit')}
                 </Button>
               )}
               {canArchive && (
                 <Button variant="ghost" size="sm" data-testid="company-archive" onClick={() => setArchiveOpen(true)}>
-                  Archive
+                  {t('companyDetail.archive', 'Archive')}
                 </Button>
               )}
             </>
@@ -219,11 +229,11 @@ const CompanyDetail: React.FC = () => {
 
       {/* Body — the company's fields (read-only; edit-in-modal). */}
       <Card variant="bare" className="mb-4">
-        <CardHead>Company detail</CardHead>
+        <CardHead>{t('companyDetail.sectionTitle', 'Company detail')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label="Name" value={company.name} />
-            <Field label="Type" value={company.type} />
+            <Field label={t('companyDetail.field.name', 'Name')} value={company.name} />
+            <Field label={t('companyDetail.field.type', 'Type')} value={company.type} />
             {/* T18: Primary contact link — rendered in the account card when contacts exist. */}
             <PrimaryContactField companyId={company.id} />
           </dl>
@@ -246,7 +256,7 @@ const CompanyDetail: React.FC = () => {
           T14: "Add contact" in-context button in the CardHead (CanWrite-gated). */}
       <Card variant="bare">
         <CardHead className="flex items-center justify-between">
-          <span>Contacts</span>
+          <span>{t('companyDetail.contacts.title', 'Contacts')}</span>
           {canCreateContact && (
             <Button
               variant="outline"
@@ -254,7 +264,7 @@ const CompanyDetail: React.FC = () => {
               onClick={() => setAddContactOpen(true)}
             >
               <Icon name="plus" />
-              Add contact
+              {t('companyDetail.contacts.addContact', 'Add contact')}
             </Button>
           )}
         </CardHead>
@@ -271,7 +281,7 @@ const CompanyDetail: React.FC = () => {
           onClose={() => setAddContactOpen(false)}
           onSuccess={() => {
             setAddContactOpen(false);
-            toast('Contact created', '', 'success');
+            toast(t('companyDetail.toast.contactCreated', 'Contact created'), '', 'success');
           }}
           onError={onMutationError}
         />
@@ -284,7 +294,7 @@ const CompanyDetail: React.FC = () => {
           onClose={() => setEditOpen(false)}
           onUpdate={async (id, input) => {
             await update.mutateAsync({ id, input });
-            toast('Company updated', input.name, 'success');
+            toast(t('companyDetail.toast.updated', 'Company updated'), input.name, 'success');
             setEditOpen(false);
           }}
           onError={onMutationError}
@@ -295,9 +305,14 @@ const CompanyDetail: React.FC = () => {
       <ConfirmDialog
         open={archiveOpen}
         tone="default"
-        title={`Archive ${company.name}?`}
-        description="It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time."
-        confirmLabel="Archive company"
+        title={t('companyDetail.archiveConfirm.title', 'Archive {{name}}?', {
+          name: company.name,
+        })}
+        description={t(
+          'companyDetail.archiveConfirm.description',
+          "It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time.",
+        )}
+        confirmLabel={t('companyDetail.archiveConfirm.confirmLabel', 'Archive company')}
         loading={archive.isPending}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveOpen(false)}
@@ -324,13 +339,14 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
  * alphabetically by the DAL). Absent when there are no contacts.
  */
 const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { t } = useTranslation();
   const { data, isPending } = useContactsByCompany(companyId);
   if (isPending || !data || data.length === 0) return null;
   const primary = data[0];
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-        Primary contact
+        {t('companyDetail.field.primaryContact', 'Primary contact')}
       </dt>
       <dd className="text-[13.5px] text-foreground">
         <Link
@@ -383,7 +399,9 @@ const RelatedList: React.FC<RelatedListProps> = ({
   emptyLabel,
   listAriaLabel,
   onRetry,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <Card variant="bare" className="mb-4">
     <CardHead>{heading}</CardHead>
     <CardPad>
@@ -391,8 +409,10 @@ const RelatedList: React.FC<RelatedListProps> = ({
       {isError && !isPending && (
         <ListState
           variant="error"
-          title={`Couldn't load ${heading.toLowerCase()}`}
-          sub="Something went wrong. Try again."
+          title={t('companyDetail.related.loadError', "Couldn't load {{section}}", {
+            section: heading.toLowerCase(),
+          })}
+          sub={t('companyDetail.related.loadErrorSub', 'Something went wrong. Try again.')}
           onRetry={onRetry}
         />
       )}
@@ -421,25 +441,27 @@ const RelatedList: React.FC<RelatedListProps> = ({
       )}
     </CardPad>
   </Card>
-);
+  );
+};
 
 /**
  * AC-IFW-COMPANY-01: Related projects list (client view). Shows all projects where the
  * company is the client — clickable rows that navigate to /projects/:id. Always rendered.
  */
 const RelatedProjects: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useProjectsByClient(companyId);
   const items = (data ?? []).map((p) => ({ id: p.id, title: p.name, subtitle: p.status ?? null }));
 
   return (
     <RelatedList
-      heading="Related projects"
+      heading={t('companyDetail.relatedProjects.heading', 'Related projects')}
       items={items}
       isPending={isPending}
       isError={isError}
       hrefFor={(id) => `/projects/${id}`}
-      emptyLabel="No related projects yet"
-      listAriaLabel="Related projects"
+      emptyLabel={t('companyDetail.relatedProjects.empty', 'No related projects yet')}
+      listAriaLabel={t('companyDetail.relatedProjects.heading', 'Related projects')}
       onRetry={() => refetch()}
     />
   );
@@ -455,6 +477,7 @@ const RelatedProjects: React.FC<{ companyId: string }> = ({ companyId }) => {
  * non-Vendor companies the card is suppressed when genuinely empty (hide-when-empty).
  */
 const RelatedProcurement: React.FC<{ companyId: string; isVendor: boolean }> = ({ companyId, isVendor }) => {
+  const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useProcurementsByVendor(companyId);
   const items = (data ?? []).map((pr) => ({ id: pr.id, title: pr.title, subtitle: pr.status ?? null }));
 
@@ -464,13 +487,13 @@ const RelatedProcurement: React.FC<{ companyId: string; isVendor: boolean }> = (
 
   return (
     <RelatedList
-      heading="Procurement"
+      heading={t('companyDetail.relatedProcurement.heading', 'Procurement')}
       items={items}
       isPending={isPending}
       isError={isError}
       hrefFor={(id) => `/procurement/${id}`}
-      emptyLabel="No procurement yet"
-      listAriaLabel="Procurement list"
+      emptyLabel={t('companyDetail.relatedProcurement.empty', 'No procurement yet')}
+      listAriaLabel={t('companyDetail.relatedProcurement.listLabel', 'Procurement list')}
       onRetry={() => refetch()}
     />
   );
@@ -485,13 +508,18 @@ const RelatedProcurement: React.FC<{ companyId: string; isVendor: boolean }> = (
  * to the routable `/contacts/:id` page (CW-4b — the master-data graph is navigable).
  */
 const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data, isPending, isError, refetch } = useContactsByCompany(companyId);
 
   if (isPending) {
     return (
-      <p role="status" aria-label="Loading contacts" className="text-[13px] text-muted-foreground">
-        Loading…
+      <p
+        role="status"
+        aria-label={t('companyDetail.contacts.loadingLabel', 'Loading contacts')}
+        className="text-[13px] text-muted-foreground"
+      >
+        {t('companyDetail.contacts.loading', 'Loading…')}
       </p>
     );
   }
@@ -501,8 +529,8 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
     return (
       <ListState
         variant="error"
-        title="Couldn't load contacts"
-        sub="Something went wrong. Try again."
+        title={t('companyDetail.contacts.error.title', "Couldn't load contacts")}
+        sub={t('companyDetail.contacts.error.sub', 'Something went wrong. Try again.')}
         onRetry={() => refetch()}
       />
     );
@@ -511,18 +539,22 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
   const contacts = data ?? [];
 
   if (contacts.length === 0) {
-    return <p className="text-[13px] text-muted-foreground">No contacts yet</p>;
+    return (
+      <p className="text-[13px] text-muted-foreground">
+        {t('companyDetail.contacts.empty', 'No contacts yet')}
+      </p>
+    );
   }
 
   return (
-    <ul className="flex flex-col gap-1" aria-label="Contacts list">
+    <ul className="flex flex-col gap-1" aria-label={t('companyDetail.contacts.listLabel', 'Contacts list')}>
       {contacts.map((c) => (
         <li key={c.id}>
           <button
             type="button"
             onClick={() => navigate(`/contacts/${c.id}`)}
             className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            aria-label={`Open ${c.full_name}`}
+            aria-label={`${t('companyDetail.contacts.openRow', 'Open')} ${c.full_name}`}
           >
             <span className="text-[14px] font-medium text-foreground">{c.full_name}</span>
             {c.title && <span className="text-[12px] text-muted-foreground">{c.title}</span>}
@@ -554,6 +586,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
   companyId,
   onAddContact,
 }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { toast } = useToast();
   const { data: contacts, isPending: contactsPending } = useContactsByCompany(companyId);
@@ -608,7 +641,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
     };
     try {
       await logActivity.mutateAsync(input);
-      toast('Activity logged', subject.trim() || kind, 'success');
+      toast(t('companyDetail.toast.activityLogged', 'Activity logged'), subject.trim() || kind, 'success');
       setSubject('');
       setBody('');
       setKind('Call');
@@ -623,7 +656,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
     if (!deletingActivityId) return;
     try {
       await deleteActivity.mutateAsync(deletingActivityId);
-      toast('Activity deleted', '', 'success');
+      toast(t('companyDetail.toast.activityDeleted', 'Activity deleted'), '', 'success');
       setDeletingActivityId(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -639,16 +672,16 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
   if (contactList.length === 0 && activities.length === 0) {
     return (
       <Card variant="bare" className="mb-4">
-        <CardHead>Activity</CardHead>
+        <CardHead>{t('companyDetail.activity.title', 'Activity')}</CardHead>
         <CardPad>
           <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border px-4 py-8 text-center">
             <p className="text-[13px] text-muted-foreground">
-              Add a contact to start logging activity
+              {t('companyDetail.activity.coldStart', 'Add a contact to start logging activity')}
             </p>
             {onAddContact && (
               <Button variant="outline" size="sm" onClick={onAddContact}>
                 <Icon name="plus" />
-                Add contact
+                {t('companyDetail.contacts.addContact', 'Add contact')}
               </Button>
             )}
           </div>
@@ -659,7 +692,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
 
   return (
     <Card className="mb-4">
-      <CardHead>Activity</CardHead>
+      <CardHead>{t('companyDetail.activity.title', 'Activity')}</CardHead>
       <CardPad>
         {/* Log-activity form (gated by contactActivity create permission) */}
         {canLog && contactList.length > 0 && (
@@ -669,34 +702,40 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
           >
             <FormGrid>
               <SelectField
-                label="Activity type"
+                label={t('companyDetail.activity.type', 'Activity type')}
                 value={kind}
                 onChange={(v) => setKind(v as CrmActivityKind)}
-                options={KIND_OPTIONS}
+                options={kindOptions(t)}
               />
               {/* Contact selector: shown only when there are multiple contacts */}
               {contactList.length > 1 && (
                 <SelectField
-                  label="Contact"
+                  label={t('companyDetail.activity.contact', 'Contact')}
                   value={selectedContactId}
                   onChange={setSelectedContactId}
-                  options={[{ value: '', label: 'Select a contact…' }, ...contactOptions]}
+                  options={[
+                    {
+                      value: '',
+                      label: t('companyDetail.activity.contactPlaceholder', 'Select a contact…'),
+                    },
+                    ...contactOptions,
+                  ]}
                 />
               )}
               <TextField
-                label="Subject"
+                label={t('companyDetail.activity.subject', 'Subject')}
                 value={subject}
                 onChange={setSubject}
-                placeholder="e.g. Kickoff call"
+                placeholder={t('companyDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')}
               />
             </FormGrid>
             <TextArea
-              label="Notes"
+              label={t('companyDetail.activity.notes', 'Notes')}
               value={body}
               onChange={setBody}
               rows={2}
               fullWidth
-              placeholder="What was discussed?"
+              placeholder={t('companyDetail.activity.notesPlaceholder', 'What was discussed?')}
             />
             <div className="flex justify-end">
               <Button
@@ -706,7 +745,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
                 loading={logActivity.isPending}
                 disabled={(!subject.trim() && !body.trim()) || !effectiveContactId}
               >
-                Log activity
+                {t('companyDetail.activity.logAction', 'Log activity')}
               </Button>
             </div>
           </form>
@@ -717,15 +756,15 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
         {!isPending && isError && (
           <ListState
             variant="error"
-            title="Couldn't load activity"
-            sub="The request failed. Try again."
+            title={t('companyDetail.activity.error.title', "Couldn't load activity")}
+            sub={t('companyDetail.activity.error.sub', 'The request failed. Try again.')}
             onRetry={() => refetch()}
           />
         )}
 
         {!isPending && !isError && activities.length === 0 && (
           <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
-            No activity logged yet.
+            {t('companyDetail.activity.empty', 'No activity logged yet.')}
           </p>
         )}
 
@@ -748,7 +787,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label="Edit activity"
+                          aria-label={t('companyDetail.activity.editAction', 'Edit activity')}
                           onClick={() => setEditingActivity(a)}
                         >
                           <Icon name="pencil" />
@@ -758,7 +797,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label="Delete activity"
+                          aria-label={t('companyDetail.activity.deleteAction', 'Delete activity')}
                           onClick={() => setDeletingActivityId(a.id)}
                         >
                           <Icon name="trash" />
@@ -792,7 +831,11 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
             onClose={() => setEditingActivity(null)}
             onSave={async (patch) => {
               await updateActivity.mutateAsync({ id: editingActivity.id, ...patch });
-              toast('Activity updated', patch.subject ?? editingActivity.kind, 'success');
+              toast(
+                t('companyDetail.toast.activityUpdated', 'Activity updated'),
+                patch.subject ?? editingActivity.kind,
+                'success',
+              );
               setEditingActivity(null);
             }}
             onError={(err) => {
@@ -807,9 +850,12 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
         <ConfirmDialog
           open={deletingActivityId !== null}
           tone="destructive"
-          title="Delete this activity?"
-          description="This action cannot be undone. The activity log entry will be permanently removed."
-          confirmLabel="Delete"
+          title={t('companyDetail.activity.deleteConfirm.title', 'Delete this activity?')}
+          description={t(
+            'companyDetail.activity.deleteConfirm.description',
+            'This action cannot be undone. The activity log entry will be permanently removed.',
+          )}
+          confirmLabel={t('companyDetail.activity.deleteConfirm.confirmLabel', 'Delete')}
           loading={deleteActivity.isPending}
           onConfirm={onDeleteConfirm}
           onCancel={() => setDeletingActivityId(null)}
@@ -849,6 +895,7 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
   onError,
   isPending,
 }) => {
+  const { t } = useTranslation();
   const form = useEntityForm<AccountEditActivityModalValues>({
     initialValues: {
       kind: activity.kind,
@@ -865,6 +912,11 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
   const subjectField = form.fieldProps('subject');
   const bodyField = form.fieldProps('body');
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -875,6 +927,10 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
           body: values.body.trim() || null,
         });
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -883,41 +939,42 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
   return (
     <EntityFormModal
       open
-      title="Edit activity"
-      subtitle="Update this activity log entry"
-      submitLabel="Save"
+      title={t('companyDetail.editActivity.title', 'Edit activity')}
+      subtitle={t('companyDetail.editActivity.subtitle', 'Update this activity log entry')}
+      submitLabel={t('companyDetail.editActivity.submitLabel', 'Save')}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={isPending}
       dirty={form.isDirty}
     >
-      <FormSection legend="Details">
+      <FormSection legend={t('companyDetail.editActivity.legend', 'Details')}>
         <FormGrid>
           <SelectField
             id={kindField.id}
-            label="Activity type"
+            label={t('companyDetail.activity.type', 'Activity type')}
             value={kindField.value}
             onChange={(v) => kindField.onChange(v as CrmActivityKind)}
-            options={KIND_OPTIONS}
+            options={kindOptions(t)}
           />
           <TextField
             id={subjectField.id}
-            label="Subject"
+            label={t('companyDetail.activity.subject', 'Subject')}
             value={subjectField.value}
             onChange={subjectField.onChange}
             onBlur={subjectField.onBlur}
-            placeholder="e.g. Kickoff call"
+            placeholder={t('companyDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')}
           />
         </FormGrid>
         <TextArea
           id={bodyField.id}
-          label="Notes"
+          label={t('companyDetail.activity.notes', 'Notes')}
           value={bodyField.value}
           onChange={bodyField.onChange}
           onBlur={bodyField.onBlur}
           rows={3}
           fullWidth
-          placeholder="What was discussed?"
+          placeholder={t('companyDetail.activity.notesPlaceholder', 'What was discussed?')}
         />
       </FormSection>
     </EntityFormModal>
@@ -934,11 +991,14 @@ interface AddContactFormValues {
   notes: string;
 }
 
-const addContactValidate = (v: AddContactFormValues): Partial<Record<keyof AddContactFormValues, string>> => {
-  const errors: Partial<Record<keyof AddContactFormValues, string>> = {};
-  if (!v.full_name.trim()) errors.full_name = 'Contact name is required.';
-  return errors;
-};
+const makeAddContactValidate =
+  (t: TFunction) =>
+  (v: AddContactFormValues): Partial<Record<keyof AddContactFormValues, string>> => {
+    const errors: Partial<Record<keyof AddContactFormValues, string>> = {};
+    if (!v.full_name.trim())
+      errors.full_name = t('companyDetail.form.errors.contactNameRequired', 'Contact name is required.');
+    return errors;
+  };
 
 interface AddContactForCompanyModalProps {
   companyId: string;
@@ -960,6 +1020,7 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
   onSuccess,
   onError,
 }) => {
+  const { t } = useTranslation();
   const { create } = useContactMutations();
   const form = useEntityForm<AddContactFormValues>({
     initialValues: {
@@ -969,7 +1030,7 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
       phone: '',
       notes: '',
     },
-    validate: addContactValidate,
+    validate: makeAddContactValidate(t),
     idPrefix: 'add-contact-form',
     requiredFields: ['full_name'],
     module: 'companies',
@@ -984,6 +1045,11 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
   const errorSummary = form.errors.full_name
     ? [{ fieldId: nameField.id, message: form.errors.full_name }]
     : undefined;
+
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
+  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1000,6 +1066,10 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
         await create.mutateAsync(input);
         onSuccess();
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
+        // toast and owns the single `save_failed` event (ADR-0067).
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -1008,27 +1078,28 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
   return (
     <EntityFormModal
       open
-      title="New contact"
-      subtitle="Add a person at this company"
-      submitLabel="Create contact"
+      title={t('companyDetail.addContact.title', 'New contact')}
+      subtitle={t('companyDetail.addContact.subtitle', 'Add a person at this company')}
+      submitLabel={t('companyDetail.addContact.submitLabel', 'Create contact')}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
-      <FormSection legend="Identity">
+      <FormSection legend={t('companyDetail.addContact.legendIdentity', 'Identity')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Full name"
+            label={t('companyDetail.field.fullName', 'Full name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Jane Doe"
+            placeholder={t('companyDetail.field.fullNamePlaceholder', 'e.g. Jane Doe')}
             autoComplete="name"
             fullWidth
           />
@@ -1037,7 +1108,7 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
               cannot change it. A hidden option carries the companyId for the form value. */}
           <SelectField
             id="add-contact-form-company"
-            label="Company"
+            label={t('companyDetail.field.company', 'Company')}
             required
             value={companyId}
             onChange={() => { /* locked */ }}
@@ -1046,44 +1117,47 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
           />
           <TextField
             id={titleField.id}
-            label="Title"
+            label={t('companyDetail.field.title', 'Title')}
             value={titleField.value}
             onChange={titleField.onChange}
             onBlur={titleField.onBlur}
-            placeholder="e.g. Procurement Lead"
+            placeholder={t('companyDetail.field.titlePlaceholder', 'e.g. Procurement Lead')}
           />
         </FormGrid>
       </FormSection>
-      <FormSection legend="Contact details">
+      <FormSection legend={t('companyDetail.addContact.legendContact', 'Contact details')}>
         <FormGrid>
           <TextField
             id={emailField.id}
-            label="Email"
+            label={t('companyDetail.field.email', 'Email')}
             type="email"
             value={emailField.value}
             onChange={emailField.onChange}
             onBlur={emailField.onBlur}
-            placeholder="name@example.com"
+            placeholder={t('companyDetail.field.emailPlaceholder', 'name@example.com')}
             autoComplete="email"
           />
           <TextField
             id={phoneField.id}
-            label="Phone"
+            label={t('companyDetail.field.phone', 'Phone')}
             value={phoneField.value}
             onChange={phoneField.onChange}
             onBlur={phoneField.onBlur}
-            placeholder="e.g. +1 555 010 0000"
+            placeholder={t('companyDetail.field.phonePlaceholder', 'e.g. +1 555 010 0000')}
             autoComplete="tel"
           />
           <TextArea
             id={notesField.id}
-            label="Notes"
+            label={t('companyDetail.field.notes', 'Notes')}
             value={notesField.value}
             onChange={notesField.onChange}
             onBlur={notesField.onBlur}
             rows={3}
             fullWidth
-            placeholder="Anything worth remembering about this contact"
+            placeholder={t(
+              'companyDetail.field.notesPlaceholder',
+              'Anything worth remembering about this contact',
+            )}
           />
         </FormGrid>
       </FormSection>
@@ -1098,11 +1172,14 @@ interface FormValues {
   type: CompanyType;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.name.trim()) errors.name = 'Company name is required.';
-  return errors;
-};
+const makeValidate =
+  (t: TFunction) =>
+  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+    const errors: Partial<Record<keyof FormValues, string>> = {};
+    if (!v.name.trim())
+      errors.name = t('companyDetail.form.errors.companyNameRequired', 'Company name is required.');
+    return errors;
+  };
 
 interface CompanyEditModalProps {
   company: { id: string; name: string; type: CompanyType };
@@ -1112,9 +1189,10 @@ interface CompanyEditModalProps {
 }
 
 const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, onUpdate, onError }) => {
+  const { t } = useTranslation();
   const form = useEntityForm<FormValues>({
     initialValues: { name: company.name, type: company.type },
-    validate,
+    validate: makeValidate(t),
     idPrefix: 'company-form',
     requiredFields: ['name'],
     module: 'companies',
@@ -1142,9 +1220,9 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
   return (
     <EntityFormModal
       open
-      title="Edit company"
-      subtitle="Update this company record"
-      submitLabel="Save company"
+      title={t('companyDetail.editCompany.title', 'Edit company')}
+      subtitle={t('companyDetail.editCompany.subtitle', 'Update this company record')}
+      submitLabel={t('companyDetail.editCompany.submitLabel', 'Save company')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -1152,28 +1230,28 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
-      <FormSection legend="Identity">
+      <FormSection legend={t('companyDetail.editCompany.legendIdentity', 'Identity')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Company name"
+            label={t('companyDetail.field.companyName', 'Company name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Cascade Port Authority"
+            placeholder={t('companyDetail.field.companyNamePlaceholder', 'e.g. Cascade Port Authority')}
             autoComplete="organization"
             fullWidth
           />
           <SelectField
             id={typeField.id}
-            label="Type"
+            label={t('companyDetail.field.type', 'Type')}
             required
             value={typeField.value}
             onChange={(v) => typeField.onChange(v as CompanyType)}
             onBlur={typeField.onBlur}
-            options={TYPE_OPTIONS}
+            options={typeOptions(t)}
           />
         </FormGrid>
       </FormSection>

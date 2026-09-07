@@ -19,6 +19,14 @@ import type {
   SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
+import type {
+  WorkOrderRow,
+  WorkOrderStatus,
+  WorkOrderInput,
+  WorkOrderPatch,
+  SetWorkOrderValueInput,
+  ProjectDrawdown,
+} from '@/src/lib/db/workOrders';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -37,6 +45,7 @@ import type {
   ProcurementReceiptRow,
   ProcurementInvoiceRow,
   CreateInvoiceInput,
+  TaxTreatment,
 } from '@/src/lib/db/procurementLifecycle';
 import type {
   PurchaseRequestRow,
@@ -54,6 +63,19 @@ import type {
   ProcurementDocumentRow,
 } from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import type {
+  MeetingRow,
+  MeetingWithRefs,
+  ContactMeetingRef,
+  MeetingInput,
+  MeetingPatch,
+  MeetingListParams,
+  MeetingAttendeeRow,
+  MeetingAttendeeWithRefs,
+  MeetingAttendeeInput,
+  MeetingGrantRow,
+  MeetingGrantWithRefs,
+} from '@/src/lib/db/meetings';
 import type {
   TimesheetRow,
   TimesheetWithEntries,
@@ -189,6 +211,8 @@ export interface UsageRepository {
 export interface TaskRepository {
   /** Per-project tasks with assignee + dependency edges. */
   list(projectId: string): Promise<TaskWithRefs[]>;
+  /** Tasks minuted out of one meeting (the /action seam, migration 0206). */
+  listByMeeting(meetingId: string): Promise<TaskWithRefs[]>;
   /** A single task by id, or null when not found / not readable. */
   get(id: string): Promise<TaskWithRefs | null>;
   /** Create a task (org_id stamped by RLS, never sent). */
@@ -207,6 +231,40 @@ export interface TaskRepository {
   addDependency(taskId: string, dependsOnId: string): Promise<void>;
   /** Remove a dependency edge. */
   removeDependency(taskId: string, dependsOnId: string): Promise<void>;
+}
+
+/**
+ * Meetings repository (#526, migrations 0205/0206). Reads are RLS-scoped to attendance ∪ author ∪
+ * grant ∪ Admin (FR-MTG-031) — the repository never widens them. Grants are view-only, named
+ * users (OD-MTG-2/FR-MTG-033).
+ */
+export interface MeetingRepository {
+  /** Visible meetings, newest-first, capped; optional project filter + notes/title search. */
+  list(params?: MeetingListParams): Promise<MeetingWithRefs[]>;
+  /** Meetings a CONTACT attended, RLS-filtered to what the viewer may read (DD-MTG-6 timeline). */
+  listForContact(contactId: string): Promise<ContactMeetingRef[]>;
+  /** A single meeting by id, or null when not found / not readable (attendance-scoped). */
+  get(id: string): Promise<MeetingWithRefs | null>;
+  /** Create a meeting (org_id + created_by_id stamped server-side, never sent). */
+  create(input: MeetingInput): Promise<MeetingRow>;
+  /** Update header fields and/or the notes block array (author or Admin at RLS). */
+  update(id: string, patch: MeetingPatch): Promise<void>;
+  /** Soft-archive (stamps archived_at, ADR-0018). */
+  archive(id: string): Promise<void>;
+  /** Hard-delete (Admin-only at RLS); rejects 23503 while tasks reference the meeting. */
+  delete(id: string): Promise<void>;
+  /** A meeting's attendees with profile/contact identity. */
+  listAttendees(meetingId: string): Promise<MeetingAttendeeWithRefs[]>;
+  /** Add an attendee (exactly one of profile/contact/display_name — the table CHECK). */
+  addAttendee(meetingId: string, identity: MeetingAttendeeInput): Promise<MeetingAttendeeRow>;
+  /** Remove an attendee row. */
+  removeAttendee(id: string): Promise<void>;
+  /** A meeting's view grants (both profile embeds constraint-qualified). */
+  listGrants(meetingId: string): Promise<MeetingGrantWithRefs[]>;
+  /** Grant a named user view access (audit-logged server-side). */
+  addGrant(meetingId: string, userId: string): Promise<MeetingGrantRow>;
+  /** Revoke a grant (granter, author, or Admin; audit-logged server-side). */
+  revokeGrant(id: string): Promise<void>;
 }
 
 export interface DocumentRepository {
@@ -469,6 +527,28 @@ export interface MilestoneRepository {
   setTaskMilestone: (taskId: string, milestoneId: string | null) => Promise<void>;
 }
 
+/**
+ * Work orders (#566) — the CLIENT's inbound PO drawing down against a project's committed ceiling.
+ *
+ * ⚑ The asymmetry is the contract, not an accident: `create` and `update` are table writes over
+ * two DIFFERENT granted column lists, while the value+basis and every status move go through
+ * security-definer RPCs. A future ERP-backed implementation must preserve the same split — folding
+ * `setValue` into `update` would discard the witness the issue SoD reads.
+ */
+export interface WorkOrderRepository {
+  list(projectId: string): Promise<WorkOrderRow[]>;
+  get(id: string): Promise<WorkOrderRow | null>;
+  create(projectId: string, input: WorkOrderInput): Promise<WorkOrderRow>;
+  /** Body only — never the value or its tax basis (0197 §5(a) revoked those from the grant). */
+  update(id: string, patch: WorkOrderPatch): Promise<void>;
+  /** The value AND the basis that describes it, in one witnessed call. */
+  setValue(input: SetWorkOrderValueInput): Promise<void>;
+  /** Status moves; `overCommitAck` is sent only for an issue that actually exceeds the ceiling. */
+  transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
+  /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
+  drawdown(projectId: string): Promise<ProjectDrawdown | null>;
+}
+
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
@@ -554,16 +634,35 @@ export interface Repositories {
   task: TaskRepository;
   incident: IncidentRepository;
   milestone: MilestoneRepository;
+  workOrder: WorkOrderRepository;
   procurementFiles: ProcurementFileRepository;
   contact: ContactRepository;
+  meeting: MeetingRepository;
   userView: UserViewRepository;
   operator: OperatorRepository;
   usage: UsageRepository;
   orgFeature: OrgFeatureRepository;
+  orgSettings: OrgSettingsRepository;
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
   integrations: IntegrationsRepository;
+}
+
+/**
+ * Org accounting settings (`OD-TAX-1`, migration 0207). Read is own-org (RLS-scoped, every member
+ * needs it to pre-select a form control); the write is Admin-only, enforced by an RLS policy plus a
+ * column-scoped UPDATE grant so `default_tax_treatment` is the only column a client can move.
+ *
+ * ⛔ `getTaxDefault` returns a form-time hint and nothing else. It must never be consulted to
+ * decide what a STORED figure means — see `src/lib/db/orgs.ts` for why that inference is
+ * unrecoverable.
+ */
+export interface OrgSettingsRepository {
+  /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
+  getTaxDefault(): Promise<TaxTreatment | null>;
+  /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
+  setTaxDefault(value: TaxTreatment): Promise<void>;
 }
 
 /**

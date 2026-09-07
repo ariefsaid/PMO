@@ -34,6 +34,12 @@ export default defineConfig({
     // different current week than the UTC-seeded data, breaking the timesheet journeys (AC-911,
     // AC-TSE-021). CI is UTC end-to-end so this is a no-op there.
     timezoneId: 'UTC',
+    // AC-L10N-061: pin the browser locale too. `timezoneId` alone left the locale inherited from
+    // the host — en-US on the dev Mac and on CI — so every money/date assertion in the e2e suite
+    // was certifying a locale nobody chose, and would have silently kept passing on a host that
+    // defaults elsewhere. The language-switch journey (AC-L10N-060) changes the IN-APP locale via
+    // the profile, which is independent of this browser-level pin.
+    locale: 'en-US',
   },
   projects: [
     // #306: real form-login happens once here (per seed role), before the chromium project.

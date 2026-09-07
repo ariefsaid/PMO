@@ -94,6 +94,15 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/incidents/:incidentId', param: 'incidentId' },
     // Incidents: visible to every role (any member may file — rbac-visibility §A/§G).
   },
+  // #526: Meetings — visible to EVERY role (any member may minute a meeting, OD-MTG-1; reads are
+  // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all).
+  {
+    module: 'meetings',
+    icon: 'cal',
+    label: 'Meetings',
+    path: '/meetings',
+    detail: { pattern: '/meetings/:meetingId', param: 'meetingId' },
+  },
   // AC-W3-N4: My Tasks — the IC's primary landing. Was in PLACEHOLDER_TITLES only (no ⌘K target).
   // Adding here makes it reachable via ⌘K Navigate for roles that have the nav item.
   // Mirror Rail: Engineer·Admin (B-1, AC-W2-IXD-001, OD-W2-4).
@@ -271,6 +280,8 @@ export interface RecordLists {
   companies?: { id: string; name: string }[];
   /** CW-4b: contacts — the record name is its `full_name`. */
   contacts?: { id: string; full_name: string }[];
+  /** #526: meetings — the record name is its `title`. */
+  meetings?: { id: string; title: string }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
 }
@@ -394,6 +405,10 @@ export function recordLabelForPath(
 
   const contactId = idFrom('/contacts');
   if (contactId) return lists.contacts?.find((c) => c.id === contactId)?.full_name;
+
+  // #526: a meeting's label is its `title`.
+  const meetingId = idFrom('/meetings');
+  if (meetingId) return lists.meetings?.find((m) => m.id === meetingId)?.title;
 
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
@@ -58,6 +59,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   assistant,
   assistantOpen = false,
 }) => {
+  const { t } = useTranslation();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -188,7 +190,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         href="#main"
         className="sr-only z-[1000] rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:absolute focus:left-3 focus:top-3"
       >
-        Skip to main content
+        {t('shell.skipLink.mainContent', 'Skip to main content')}
       </a>
 
       {/* Persistent grid-area rail. Hidden ≤920px by the SAME index.css media
@@ -281,7 +283,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             ref={drawerRef}
             role="dialog"
             aria-modal="true"
-            aria-label="Navigation menu"
+            aria-label={t('shell.drawer.navigationMenu', 'Navigation menu')}
             className={cn(
               'absolute inset-y-0 left-0 w-[224px] bg-card shadow-xl',
               // C3: safe-area-inset-left/top so the drawer clears notch/home-bar.
@@ -301,7 +303,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             <div className="flex items-center justify-end px-2 py-2">
               <button
                 type="button"
-                aria-label="Close navigation menu"
+                aria-label={t('shell.drawer.close', 'Close navigation menu')}
                 onClick={handleClose}
                 className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
               >

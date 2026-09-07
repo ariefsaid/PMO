@@ -7,6 +7,17 @@
  * Gated by the SAME can() checks the detail-header uses (edit | archive project).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
+// live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
+// `useTaxTreatmentPreselect` stays the real implementation, so this suite renders the shipped
+// seeding behaviour without needing a QueryClientProvider/AuthProvider it otherwise has no use for.
+// The pre-selection rule itself is owned by src/hooks/useOrgTaxDefault.test.tsx.
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, useOrgTaxDefault: () => 'exclusive' };
+});
+
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';

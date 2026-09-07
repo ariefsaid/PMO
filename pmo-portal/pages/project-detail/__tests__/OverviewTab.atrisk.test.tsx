@@ -39,6 +39,14 @@ const budgetState = { data: [] as BudgetVersionWithItems[], isPending: false, is
 // with the derived-budget path.  Override per-test when a different budget value is needed.
 let derivedBudgetData: number = 900_000;
 
+// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
+// specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
+// than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
+// the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
+}));
+
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),

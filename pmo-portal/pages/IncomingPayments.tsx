@@ -8,6 +8,7 @@ import {
   StatusPill,
   ConfirmDialog,
   EntityFormModal,
+  type SubmitError,
   TextField,
   NumberField,
   Combobox,
@@ -409,7 +410,14 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       ]
     : undefined;
 
+  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
+  // auto-dismisses after 4s, ~700px away, after which the modal looks like a pristine form with
+  // data in it. `suppressCapture` because the page's own `onError` classifies the same rejection
+  // for the toast and owns the single `save_failed` event (ADR-0067).
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
+
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       const input = {
@@ -422,6 +430,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       try {
         await onCreate(input, intent);
       } catch (err) {
+        // `suppressCapture` only: the page's own `onError` classifies this same rejection for
+        // the toast and owns the single `save_failed` event (ADR-0067). Passing a module here
+        // would be a second, competing capture point.
+        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -434,6 +447,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       subtitle={isEdit ? 'Update this incoming payment' : 'Record a new incoming payment from a client'}
       submitLabel={isEdit ? 'Save payment' : 'Record payment'}
       onSubmit={handleSubmit}
+      submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}

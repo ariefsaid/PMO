@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { pct, formatDayMonth } from '@/src/lib/format';
 import { StatusPill } from '@/src/components/ui';
 
@@ -34,6 +35,8 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
   canEditProgress = false,
   onEditProgress,
 }) => {
+  // Above the `compact` early return — a hook after it runs conditionally.
+  const { t } = useTranslation();
   const targetLabel = formatTargetDate(targetDate);
 
   if (variant === 'compact') {
@@ -58,12 +61,14 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[12px] font-semibold text-foreground">{name}</span>
-          {isCurrent && <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">Current</span>}
-          {isOverdue && <StatusPill variant="overdue">Overdue</StatusPill>}
+          {isCurrent && <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">{t('projectDetail.milestones.current', 'Current')}</span>}
+          {isOverdue && <StatusPill variant="overdue">{t('projectDetail.milestones.overdue', 'Overdue')}</StatusPill>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
           {weightShare != null && (
-            <span className="text-[11px] text-muted-foreground">{weightShare}% of project</span>
+            <span className="text-[11px] text-muted-foreground">
+              {t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: weightShare })}
+            </span>
           )}
           {targetLabel && (
             <span className={`text-[11px] ${isOverdue ? 'text-warning-foreground font-semibold' : 'text-muted-foreground'}`}>
@@ -74,11 +79,11 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
         {canEditProgress && onEditProgress && (
           <button
             type="button"
-            aria-label={`Edit progress for ${name}`}
+            aria-label={t('projectDetail.milestones.editProgressForName', 'Edit progress for {{name}}', { name })}
             className="mt-1 text-[11px] font-semibold text-primary opacity-60 hover:underline hover:opacity-100 focus-visible:opacity-100"
             onClick={onEditProgress}
           >
-            Edit progress
+            {t('projectDetail.milestones.editProgress', 'Edit progress')}
           </button>
         )}
       </div>

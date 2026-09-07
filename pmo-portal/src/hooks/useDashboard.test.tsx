@@ -28,8 +28,24 @@ vi.mock('@/src/lib/db/dashboard', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
+// useLostDeals reads the projects repository directly (not the dashboard RPC) and hand-maps the
+// row into the PipelineProject shape — a mapping no other test exercises, because every page-level
+// test mocks this whole module and supplies the mapped result ready-made.
+vi.mock('@/src/lib/repositories', () => ({
+  repositories: {
+    project: {
+      list: vi.fn().mockResolvedValue([
+        {
+          id: 'lost-1', name: 'Lost Deal Delta', status: 'Loss Tender',
+          contract_value: 450000, currency: 'IDR', tax_treatment: 'inclusive',
+          client: { name: 'Delta Co' }, last_update: '2026-08-01T00:00:00Z', project_manager: null,
+        },
+      ]),
+    },
+  },
+}));
 
-import { useDashboard, useWinRate, useSalesPipeline } from './useDashboard';
+import { useDashboard, useWinRate, useSalesPipeline, useLostDeals } from './useDashboard';
 import { getExecutiveDashboard, getWinRate, getSalesPipeline } from '@/src/lib/db/dashboard';
 
 // Fresh QueryClient per test to avoid cross-test cache bleed.
@@ -121,5 +137,20 @@ describe('useSalesPipeline', () => {
     // Org-scoping confirmed by successful call through the org-gated enabled:Boolean(orgId) check.
     expect(getSalesPipeline).toHaveBeenCalled();
     expect(result.current.data).toEqual(mockSalesPipeline);
+  });
+});
+
+describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
+  it('AC-TAX-311: carries the lost deal’s OWN tax basis and currency through the hand-written mapping', async () => {
+    const { result } = renderHook(() => useLostDeals(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // ⚑ This is the assertion typecheck could not make. The field being PRESENT is a type
+    // guarantee; the field carrying the ROW's value is a behaviour, and only this can see it.
+    // Hardcoding `tax_treatment: null` in the mapping reddens exactly here and nowhere else.
+    expect(result.current.data?.[0]).toMatchObject({
+      name: 'Lost Deal Delta',
+      tax_treatment: 'inclusive',
+      currency: 'IDR',
+    });
   });
 });

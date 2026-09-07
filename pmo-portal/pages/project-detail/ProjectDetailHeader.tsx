@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   RecordHeader,
   StatTiles,
@@ -10,6 +11,7 @@ import {
   SelectField,
   ConfirmDialog,
   GateNotice,
+  TaxBasisLabel,
   useToast,
   type StatTile,
 } from '@/src/components/ui';
@@ -96,6 +98,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   committedSpend,
   onEditProject,
 }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
@@ -153,27 +156,41 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     project.client?.name ?? null,
     project.code ? `· ${project.code}` : null,
     project.customer_contract_ref
-      ? `· PO ${project.customer_contract_ref}${project.contract_date ? ` (${formatDate(project.contract_date)})` : ''}`
+      ? `· ${
+          project.contract_date
+            ? t('projectDetail.header.poWithDate', 'PO {{ref}} ({{date}})', {
+                ref: project.customer_contract_ref,
+                date: formatDate(project.contract_date),
+              })
+            : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
+        }`
       : null,
   ]
     .filter(Boolean)
     .join(' ');
 
   const tiles: StatTile[] = [
-    { label: 'Contract', value: formatCurrency(contract, project.currency) },
-    { label: 'Committed', value: formatCurrency(committed, project.currency) },
+    {
+      label: t('projectDetail.header.tile.contract', 'Contract'),
+      value: formatCurrency(contract, project.currency),
+      // OD-TAX-1 §2: the ceiling states its basis. From THIS project's stored `tax_treatment` —
+      // never the org default, which pre-selects a form and is never read to interpret a row. A
+      // NULL treatment (0197 pairs it with a zero contract value) renders nothing at all.
+      sub: <TaxBasisLabel treatment={project.tax_treatment} testId="contract-tile-tax-basis" />,
+    },
+    { label: t('projectDetail.header.tile.committed', 'Committed'), value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
     // Both tiles intentionally show the same number — they are the same realized-spend
     // basis (OD-BUDGET-2). "Committed" is the canonical label per glossary §Committed;
     // "Actual" is the human label per the original finance-strip design. The dead
     // projects.spent column (always 0) is NOT used here.
-    { label: 'Actual', value: formatCurrency(committed, project.currency) },
+    { label: t('projectDetail.header.tile.actual', 'Actual'), value: formatCurrency(committed, project.currency) },
     {
-      label: 'On-hand margin',
+      label: t('projectDetail.header.tile.margin', 'On-hand margin'),
       value: signedCurrency(margin, project.currency),
       tone: margin < 0 ? 'neg' : 'pos',
     },
-    { label: 'Spend', value: `${spendPct}%` },
+    { label: t('projectDetail.header.tile.spend', 'Spend'), value: `${spendPct}%` },
   ];
 
   const beginValueEdit = () => {
@@ -218,7 +235,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const commitValue = async (next: PendingContractValue) => {
     try {
       await setContractValue.mutateAsync({ id: project.id, ...next });
-      toast('Contract value updated', formatCurrency(next.value, project.currency), 'success');
+      toast(
+        t('projectDetail.header.toast.contractValueUpdated', 'Contract value updated'),
+        formatCurrency(next.value, project.currency),
+        'success',
+      );
       setValueEditing(false);
       setValueDraft('');
       setTaxTreatmentDraft('');
@@ -234,7 +255,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const onArchiveConfirm = async () => {
     try {
       await archive.mutateAsync(project.id);
-      toast('Project archived', project.name, 'success');
+      toast(t('projectDetail.header.toast.archived', 'Project archived'), project.name, 'success');
       setArchiveOpen(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -248,7 +269,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const onDeleteConfirm = async () => {
     try {
       await remove.mutateAsync(project.id);
-      toast('Project deleted', project.name, 'success');
+      toast(t('projectDetail.header.toast.deleted', 'Project deleted'), project.name, 'success');
       setDeleteOpen(false);
       navigate('/projects');
     } catch (err) {
@@ -262,12 +283,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     <>
       {canEdit && (
         <Button variant="outline" size="sm" onClick={onEditProject}>
-          Edit
+          {t('projectDetail.header.action.edit', 'Edit')}
         </Button>
       )}
       {canArchive && (
         <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(true)}>
-          Archive
+          {t('projectDetail.header.action.archive', 'Archive')}
         </Button>
       )}
       {canDelete && (
@@ -280,7 +301,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           onClick={() => setDeleteOpen(true)}
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
-          Delete
+          {t('projectDetail.header.action.delete', 'Delete')}
         </Button>
       )}
     </>
@@ -297,7 +318,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         <div className="flex flex-wrap items-end gap-2">
           <div className="w-[180px]">
             <NumberField
-              label="Contract value"
+              label={t('projectDetail.header.contractValue', 'Contract value')}
               prefix="$"
               value={valueDraft}
               onChange={(v) => setValueDraft(formatThousands(v))}
@@ -310,7 +331,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               and the vendor-invoice forms cannot drift. */}
           <div className="w-[240px]">
             <SelectField
-              label="Tax treatment"
+              label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
               value={taxTreatmentDraft}
               onChange={setTaxTreatmentDraft}
               placeholder={TAX_TREATMENT_PLACEHOLDER}
@@ -320,7 +341,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           </div>
           <div className="w-[160px]">
             <NumberField
-              label="Tax amount"
+              label={t('projectDetail.header.taxAmount', 'Tax amount')}
               prefix="$"
               value={taxAmountDraft}
               onChange={(v) => setTaxAmountDraft(formatThousands(v))}
@@ -334,10 +355,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             disabled={stagedValue === null}
             loading={setContractValue.isPending}
           >
-            Save
+            {t('projectDetail.header.action.save', 'Save')}
           </Button>
           <Button variant="ghost" size="sm" onClick={cancelValueEdit}>
-            Cancel
+            {t('projectDetail.header.action.cancel', 'Cancel')}
           </Button>
           {stagedValue === null && (
             <p
@@ -350,31 +371,47 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         </div>
       ) : (
         <span className="flex items-center gap-2.5">
-          <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
+          <span className="text-[12.5px] font-semibold text-muted-foreground">
+            {t('projectDetail.header.contractValue', 'Contract value')}
+          </span>
           <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
             {formatCurrency(contract, project.currency)}
           </span>
+          {/* OD-TAX-1 §2 — the SoD row's own copy of the figure states its basis too. Two figures
+              on one screen with one caption between them is how a reader ends up applying the
+              wrong basis to the wrong number. */}
+          <TaxBasisLabel treatment={project.tax_treatment} testId="contract-value-tax-basis" />
           {canEditValue && isFinanceForward ? (
-            <Button variant="outline" size="sm" onClick={beginValueEdit} aria-label="Edit contract value">
-              Edit
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={beginValueEdit}
+              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}
+            >
+              {t('projectDetail.header.action.edit', 'Edit')}
             </Button>
           ) : isOnHand ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
               <Icon name="lock" className="size-3" />
-              Read-only
+              {t('projectDetail.header.readOnly', 'Read-only')}
             </span>
           ) : null}
         </span>
       )}
       {isOnHand && canEditValue && isFinanceForward && !valueEditing && (
         <span className="basis-full text-[12px] text-muted-foreground">
-          Changing the value on a won project is a segregation-of-duties action and is recorded.
+          {t(
+            'projectDetail.header.sodEditableNote',
+            'Changing the value on a won project is a segregation-of-duties action and is recorded.',
+          )}
         </span>
       )}
       {isOnHand && (!canEditValue || !isFinanceForward) && (
         <span className="basis-full text-[12px] text-muted-foreground">
-          Once a project is won, the contract value is locked for your role. Only Executive or
-          Finance can change it, and the change is recorded.
+          {t(
+            'projectDetail.header.sodLockedNote',
+            'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.',
+          )}
         </span>
       )}
     </div>
@@ -412,9 +449,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={archiveOpen}
         tone="destructive"
-        title={`Archive ${project.name}?`}
-        description="It will be hidden from the default project list. Existing references stay intact. You can restore it later."
-        confirmLabel="Archive project"
+        title={t('projectDetail.header.archiveConfirm.title', 'Archive {{name}}?', {
+          name: project.name,
+        })}
+        description={t(
+          'projectDetail.header.archiveConfirm.body',
+          'It will be hidden from the default project list. Existing references stay intact. You can restore it later.',
+        )}
+        confirmLabel={t('projectDetail.header.archiveConfirm.confirm', 'Archive project')}
         loading={archive.isPending}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveOpen(false)}
@@ -425,9 +467,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={deleteOpen}
         tone="destructive"
-        title={`Delete ${project.name}?`}
-        description="This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it."
-        confirmLabel="Delete project"
+        title={t('projectDetail.header.deleteConfirm.title', 'Delete {{name}}?', {
+          name: project.name,
+        })}
+        description={t(
+          'projectDetail.header.deleteConfirm.body',
+          "This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it.",
+        )}
+        confirmLabel={t('projectDetail.header.deleteConfirm.confirm', 'Delete project')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteOpen(false)}
@@ -437,26 +484,50 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <ConfirmDialog
         open={pendingValue !== null}
         tone="default"
-        title="Change the contract value?"
+        title={t('projectDetail.header.contractValueConfirm.title', 'Change the contract value?')}
         description={
           pendingValue !== null ? (
             <>
-              You are changing the contract value of a won project from{' '}
-              <b className="tabular text-foreground">{formatCurrency(contract, project.currency)}</b> to{' '}
-              <b className="tabular text-foreground">{formatCurrency(pendingValue.value, project.currency)}</b>,
-              stated as <b className="text-foreground">{pendingValue.taxTreatment}</b> of{' '}
-              <b className="tabular text-foreground">{formatCurrency(pendingValue.taxAmount, project.currency)}</b>{' '}
-              tax.
+              {/* ⚑ The note that used to sit here said <Trans> was impossible because the unit
+                  runner never initialises i18next. The #526 review added an i18next instance to
+                  test/setup.ts, so it has been possible since — the block outlived its cause
+                  (#575). ONE sentence, never five gluable fragments: Indonesian reorders this and
+                  fragments cannot be reordered.
+                  ⚑ The basis word is a KEY, not the raw column value. `pendingValue.taxTreatment`
+                  is the English enum 'inclusive'/'exclusive'; interpolating it raw drops an
+                  untranslated English word into an Indonesian sentence. Two literal keys, never
+                  one built from the value — a computed key reads as an orphan to the gate. */}
+              {/* ⚑ The <5> slot is TaxBasisLabel ITSELF, not a copy of its ternary. That component
+                  refuses to render an unknown treatment on purpose — 0197 pairs a NULL basis with
+                  a zero contract value — and a ternary is not exhaustiveness-checked, so a third
+                  state would put a confidently WRONG basis in a segregation-of-duties confirm. */}
+              <Trans
+                i18nKey="projectDetail.header.contractValueConfirm.body"
+                defaults="You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax."
+                values={{
+                  from: formatCurrency(contract, project.currency),
+                  to: formatCurrency(pendingValue.value, project.currency),
+                  tax: formatCurrency(pendingValue.taxAmount, project.currency),
+                }}
+                components={{
+                  1: <b className="tabular text-foreground" />,
+                  3: <b className="tabular text-foreground" />,
+                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} className="text-[13px] text-foreground" />,
+                  7: <b className="tabular text-foreground" />,
+                }}
+              />
               <GateNotice variant="blocked" className="mt-3">
-                Changing the contract value on a won project is a segregation of duties action and
-                is recorded against your name, the date, and the previous value.
+                {t(
+                  'projectDetail.header.contractValueConfirm.notice',
+                  'Changing the contract value on a won project is a segregation of duties action and is recorded against your name, the date, and the previous value.',
+                )}
               </GateNotice>
             </>
           ) : (
             ''
           )
         }
-        confirmLabel="Change and record"
+        confirmLabel={t('projectDetail.header.contractValueConfirm.confirm', 'Change and record')}
         loading={setContractValue.isPending}
         onConfirm={() => pendingValue !== null && void commitValue(pendingValue)}
         onCancel={() => setPendingValue(null)}

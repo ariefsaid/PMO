@@ -17,6 +17,7 @@ const project: ProjectWithRefs = {
   code: 'A001',
   status: 'Ongoing Project',
   contract_value: 1_000_000,
+  tax_treatment: 'exclusive',
   currency: 'USD',
   budget: 900_000,
   spent: 400_000,
@@ -88,6 +89,19 @@ const budgetState: { data: BudgetVersionWithItems[] | undefined; isPending: bool
   isError: false,
   refetch: vi.fn(),
 };
+
+// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
+// specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
+// than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
+// the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectDrawdown: () => ({
+    data: {
+      committed: 400_000, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net',
+    },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
+}));
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
@@ -319,5 +333,38 @@ describe('OverviewTab D15 financial summary — Actual tile derives from committ
     // Must show the live committed-basis spend, not the dead stored $0
     expect(actualTile!.textContent).toContain('$3,700,000');
     expect(actualTile!.textContent).not.toContain('$0');
+  });
+});
+
+// ⚑ Bound at the spec review's insistence: removing the labels from BOTH OverviewTab sites (the
+// finance tile and the contract-value SoD row) left the entire 7,363-test suite green. Two
+// distinct render sites, so two assertions — one would let the other rot.
+describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
+  it('labels the finance tile and the contract-value SoD row from the row itself', () => {
+    // ⚑ The finance tile renders ONLY under the delivery-forward lens (D15 / OD-W5-C3-A), so it
+    // needs its own render with that flag on — asserting both from the default render is how this
+    // oracle would have gone quietly dead a second time.
+    const { unmount } = render(
+      <MemoryRouter>
+        <OverviewTab project={project} committedSpend={150_000} setTab={vi.fn()} showFinanceSummary />
+      </MemoryRouter>,
+    );
+    // Both sites live inside the delivery-forward financial summary, so one render covers them —
+    // but they are asserted BY NAME, because they can rot independently and a count would not tell.
+    expect(screen.getByTestId('overview-contract-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getByTestId('overview-contract-value-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    unmount();
+  });
+});
+
+// ⚑ THE MOUNT-POINT ORACLE (#566, spec review Critical). Every drawdown behaviour was covered in
+// ProjectDrawdown.test.tsx — but NOTHING asserted the card is actually MOUNTED here. Guarding the
+// render with `false &&` left 409/409 green: the card could vanish from the screen a PM lands on
+// and no test would notice. That is precisely the failure #566 was filed about — a shipped
+// `get_project_drawdown()` with zero consumers — reproduced one level up, in the tests.
+describe('OverviewTab mounts the contract drawdown (#566, OD-CR-13)', () => {
+  it('OD-CR-13: the drawdown card is on the landing screen, not only behind the Work orders tab', () => {
+    renderTab();
+    expect(screen.getByTestId('project-drawdown')).toBeInTheDocument();
   });
 });

@@ -2152,6 +2152,197 @@ export type Database = {
           },
         ]
       }
+      meeting_access_grants: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          id: string
+          meeting_id: string
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          meeting_id: string
+          org_id?: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          meeting_id?: string
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_access_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_access_grants_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_access_grants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_access_grants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_attendees: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          meeting_id: string
+          org_id: string
+          profile_id: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          meeting_id: string
+          org_id?: string
+          profile_id?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          meeting_id?: string
+          org_id?: string
+          profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attendees_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meetings: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by_id: string | null
+          id: string
+          is_template: boolean
+          location: string | null
+          notes: Json
+          notes_schema_version: number
+          notes_search: unknown
+          notes_text: string
+          occurred_at: string
+          org_id: string
+          project_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          id?: string
+          is_template?: boolean
+          location?: string | null
+          notes?: Json
+          notes_schema_version?: number
+          notes_search?: unknown
+          notes_text?: string
+          occurred_at?: string
+          org_id?: string
+          project_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          id?: string
+          is_template?: boolean
+          location?: string | null
+          notes?: Json
+          notes_schema_version?: number
+          notes_search?: unknown
+          notes_text?: string
+          occurred_at?: string
+          org_id?: string
+          project_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_created_by_id_fkey"
+            columns: ["created_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ms_graph_connections: {
         Row: {
           access_token_ciphertext: string | null
@@ -2338,6 +2529,7 @@ export type Database = {
           default_currency: string
           default_locale: string
           default_number_locale: string | null
+          default_tax_treatment: string
           default_timezone: string
           id: string
           lifecycle_state: string | null
@@ -2348,6 +2540,7 @@ export type Database = {
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
+          default_tax_treatment?: string
           default_timezone?: string
           id?: string
           lifecycle_state?: string | null
@@ -2358,6 +2551,7 @@ export type Database = {
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
+          default_tax_treatment?: string
           default_timezone?: string
           id?: string
           lifecycle_state?: string | null
@@ -4264,9 +4458,11 @@ export type Database = {
           assignee_id: string | null
           completed_at: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           end_date: string | null
           id: string
+          meeting_id: string | null
           milestone_id: string | null
           name: string
           org_id: string
@@ -4283,9 +4479,11 @@ export type Database = {
           assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           end_date?: string | null
           id?: string
+          meeting_id?: string | null
           milestone_id?: string | null
           name: string
           org_id?: string
@@ -4302,9 +4500,11 @@ export type Database = {
           assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           end_date?: string | null
           id?: string
+          meeting_id?: string | null
           milestone_id?: string | null
           name?: string
           org_id?: string
@@ -4322,6 +4522,20 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
             referencedColumns: ["id"]
           },
           {
@@ -4788,6 +5002,7 @@ export type Database = {
         Args: { p_fiscal_year: string }
         Returns: string
       }
+      can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
@@ -5303,6 +5518,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      has_meeting_grant: { Args: { p_meeting_id: string }; Returns: boolean }
       holds_pipeline_value_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
@@ -5359,6 +5575,7 @@ export type Database = {
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
+      is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       is_unattributed_authority: { Args: never; Returns: boolean }
       list_budget_fiscal_years: {

@@ -1,16 +1,64 @@
 import { parseISO, formatDistanceToNow } from 'date-fns';
+import { getDateFnsLocale, getDateLocale, getNumberLocale } from '@/src/lib/locale/activeLocale';
 
-// Currency formatters are keyed by record currency; locale remains en-US until the locale slice.
+/**
+ * The app's SINGLE display-formatting seam (#468/#477, FR-L10N-010/011). Every Intl formatter in
+ * the app is constructed here and nowhere else — `eslint.config.js` enforces that.
+ *
+ * ⚑ Locale arrives OUT-OF-BAND, from `src/lib/locale/activeLocale.ts`, not as a parameter. The
+ * formatter signatures below are unchanged by the locale slice on purpose: adding a `locale`
+ * argument would rewrite ~460 call sites in the same diff that touches money formatting.
+ * `currency` stays an argument because FR-L10N-021 makes the two independent — an id-ID user may
+ * legitimately view a USD invoice, which is `('id-ID', 'USD')`, two inputs, not one.
+ */
+
+/** Platform AI billing is denominated in USD regardless of the org currency (FR-L10N-023).
+ *  ⚑ This is a CURRENCY pin, NOT a locale pin — its digits still group per the viewer's number
+ *  locale, so do not "stabilise" its call sites by pinning them to en-US. */
 export const PLATFORM_CURRENCY = 'USD';
-const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
-function currencyFormatterFor(shape: string, currency: string, opts: Intl.NumberFormatOptions) {
-  const key = `${shape}|${currency}`;
-  let formatter = currencyFormatterCache.get(key);
+
+// ── The one formatter cache ────────────────────────────────────────────────────────────────
+// ⛔ THE LOCALE IS PART OF THE KEY. Without it the FIRST locale rendered poisons every later
+// render of the same shape+currency: a language switch then produces the old locale's output with
+// no error and nothing thrown. `format.locale.test.ts` plants exactly that mutation.
+const formatterCache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat>();
+
+function numberFormatterFor(
+  shape: string,
+  locale: string,
+  currency: string | undefined,
+  opts: Intl.NumberFormatOptions,
+): Intl.NumberFormat {
+  const key = `n|${locale}|${shape}|${currency ?? ''}`;
+  let formatter = formatterCache.get(key) as Intl.NumberFormat | undefined;
   if (!formatter) {
-    formatter = new Intl.NumberFormat('en-US', { ...opts, style: 'currency', currency });
-    currencyFormatterCache.set(key, formatter);
+    formatter = new Intl.NumberFormat(locale, opts);
+    formatterCache.set(key, formatter);
   }
   return formatter;
+}
+
+function dateFormatterFor(
+  shape: string,
+  locale: string,
+  opts: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  const key = `d|${locale}|${shape}`;
+  let formatter = formatterCache.get(key) as Intl.DateTimeFormat | undefined;
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, opts);
+    formatterCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+/** Money formatters: shape + record currency + the viewer's NUMBER locale (never the UI locale). */
+function currencyFormatterFor(shape: string, currency: string, opts: Intl.NumberFormatOptions) {
+  return numberFormatterFor(shape, getNumberLocale(), currency, {
+    ...opts,
+    style: 'currency',
+    currency,
+  });
 }
 
 export function formatCurrency(value: number, currency: string): string {
@@ -43,11 +91,15 @@ export function pct(v: number | null): string {
 // Single source of truth for human date display (CW-7 coherence sweep). Routing ALL date cells
 // through this kills the "ISO next to human-formatted" drift the audit flagged. `en-US`, "Jun 14,
 // 2026" — matches the prototype's prior `toLocaleDateString` look while staying deterministic.
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
+const DATE_OPTS: Intl.DateTimeFormatOptions = {
   year: 'numeric',
   month: 'short',
   day: 'numeric',
-});
+};
+// ⛔ No `timeZone` option, deliberately. `parseISO('2026-06-14')` yields LOCAL midnight, and
+// formatting it in the LOCAL zone is what keeps a date-only ISO from rendering as the 13th. The
+// resolved profile timezone must NEVER be threaded in here (see activeLocale.ts's closing note).
+const dateFormatter = () => dateFormatterFor('date', getDateLocale(), DATE_OPTS);
 
 /**
  * Format an ISO date string for display. Accepts ONLY ISO input: a date-only `YYYY-MM-DD`
@@ -68,7 +120,7 @@ export function formatDate(iso: string | null | undefined): string {
   // prior `new Date(iso)`. Unparseable input → Invalid Date → em-dash (no throw).
   const parsed = parseISO(iso);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return dateFormatter.format(parsed);
+  return dateFormatter().format(parsed);
 }
 
 /**
@@ -80,7 +132,7 @@ export function formatRelativeTime(iso: string | null | undefined): string {
   if (!iso || typeof iso !== 'string') return '—';
   const parsed = parseISO(iso);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return formatDistanceToNow(parsed, { addSuffix: true });
+  return formatDistanceToNow(parsed, { addSuffix: true, locale: getDateFnsLocale() });
 }
 
 /** Compact currency: "$1.5M" / "$200.0K" / "$500" — space-constrained surfaces (FR-L10N-022:
@@ -97,7 +149,7 @@ export function formatCompactCurrency(value: number, currency: string): string {
 /** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is
  *  the same weld formatCurrency had). Codes without a native symbol (IDR) honestly show the code. */
 export function currencySymbol(currency: string): string {
-  const parts = new Intl.NumberFormat('en-US', { style: 'currency', currency }).formatToParts(1);
+  const parts = currencyFormatterFor('symbol', currency, {}).formatToParts(1);
   const literal = parts.find((p) => p.type === 'currency')?.value ?? currency;
   return literal.trim() || currency;
 }
@@ -127,112 +179,127 @@ export function formatCurrencyFine(value: number, currency: string): string {
 }
 
 // Plain grouped number (counts, tokens): "1,234,567". Replaces bare n.toLocaleString().
-const numberDefaultFormatter = new Intl.NumberFormat('en-US');
 export function formatNumber(value: number): string {
-  return numberDefaultFormatter.format(value);
+  return numberFormatterFor('plain', getNumberLocale(), undefined, {}).format(value);
 }
 
 // Number with at most 2 fraction digits (credits balance): "1,234.57".
-const numberMax2Formatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 export function formatNumberMax2(value: number): string {
-  return numberMax2Formatter.format(value);
+  return numberFormatterFor('max2', getNumberLocale(), undefined, {
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 // ── Date display variants (all Date-in; construction stays at call sites) ──────────────────
 
 /** "Jun 14" — short month + day. */
-const monthDayFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 export function formatMonthDay(d: Date): string {
-  return monthDayFormatter.format(d);
+  return dateFormatterFor('monthDay', getDateLocale(), { month: 'short', day: 'numeric' }).format(d);
 }
 
 /** "Sun" — short weekday (timesheet grid columns). */
-const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
 export function formatWeekday(d: Date): string {
-  return weekdayFormatter.format(d);
+  return dateFormatterFor('weekday', getDateLocale(), { weekday: 'short' }).format(d);
 }
 
 /** "Jun 14, 2026" — Date-input twin of formatDate(iso) (same parts, local zone; shares its formatter). */
 export function formatFullDate(d: Date): string {
-  return dateFormatter.format(d);
+  return dateFormatter().format(d);
 }
 
 /** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
-const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 export function formatDateTime(d: Date): string {
-  return dateTimeFormatter.format(d);
+  return dateFormatterFor('dateTime', getDateLocale(), {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d);
 }
 
 /** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
-const dateNumericFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'numeric',
-  day: 'numeric',
-  year: 'numeric',
-});
 export function formatDateNumeric(d: Date): string {
-  return dateNumericFormatter.format(d);
+  return dateFormatterFor('dateNumeric', getDateLocale(), {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(d);
 }
 
 /** "June 2026" — long month + year (calendar header). */
-const monthYearFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
 export function formatMonthYear(d: Date): string {
-  return monthYearFormatter.format(d);
+  return dateFormatterFor('monthYear', getDateLocale(), {
+    month: 'long',
+    year: 'numeric',
+  }).format(d);
 }
 
 /** "Sun, Jun 14" — calendar agenda day heading. */
-const weekdayMonthDayFormatter = new Intl.DateTimeFormat('en-US', {
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-});
 export function formatWeekdayMonthDay(d: Date): string {
-  return weekdayMonthDayFormatter.format(d);
+  return dateFormatterFor('weekdayMonthDay', getDateLocale(), {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(d);
 }
 
 /** UTC "Jun 14, 2026" — zone-stable business dates (a 23:00Z instant must not drift a day). */
-const utcDateFormatter = new Intl.DateTimeFormat('en-US', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-  timeZone: 'UTC',
-});
 export function formatDateUtc(d: Date): string {
-  return utcDateFormatter.format(d);
+  // ⛔ `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: this formatter
+  // exists so a 23:00Z business date does not drift a day. Swap the LOCALE, keep the UTC pin.
+  return dateFormatterFor('dateUtc', getDateLocale(), {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(d);
 }
 
-/** en-GB "14 Jun" — milestone target chips. */
-const dayMonthFormatter = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' });
+/**
+ * "14 Jun" — milestone target chips.
+ *
+ * ⚑ DELIBERATELY still pinned to en-GB while every other formatter went locale-aware. The en-GB tag
+ * here is not a locale choice, it is how this surface asks for DAY-BEFORE-MONTH: under en-US the
+ * same options render "Jun 14" and the chip changes shape for English readers, which is a
+ * regression, not localisation (pinned by `format.test.ts` — `formatDayMonth: en-GB "14 Jun"`).
+ * Whether the chip should follow the viewer's locale is a design decision that has not been made;
+ * it is not made by a locale sweep. Routed through the shared cache so there is still exactly one
+ * construction site.
+ */
+const DAY_MONTH_SHAPE_LOCALE = 'en-GB';
 export function formatDayMonth(d: Date): string {
-  return dayMonthFormatter.format(d);
+  return dateFormatterFor('dayMonth', DAY_MONTH_SHAPE_LOCALE, {
+    day: '2-digit',
+    month: 'short',
+  }).format(d);
 }
 
 /** UTC "Jun 26" — monthly chart axis ticks. */
-const utcMonthYearFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  year: '2-digit',
-  timeZone: 'UTC',
-});
 export function formatUtcMonthYear(d: Date): string {
-  return utcMonthYearFormatter.format(d);
+  // `timeZone: 'UTC'` load-bearing (see formatDateUtc); locale follows the viewer.
+  return dateFormatterFor('utcMonthYear', getDateLocale(), {
+    month: 'short',
+    year: '2-digit',
+    timeZone: 'UTC',
+  }).format(d);
 }
 
 /** UTC "15 Mar '25" — S-curve axis: en-GB day-month + quoted 2-digit year (AC-SC-AXIS-004/005).
  *  formatToParts + manual join so the apostrophe is explicit; stays Intl (not date-fns format)
  *  because date-fns is LOCAL-tz and would drift the day in behind-UTC zones. */
-const utcDayMonthYearFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  year: '2-digit',
-  timeZone: 'UTC',
-});
+// ⚑ Pinned to en-GB for the same reason as formatDayMonth, and one more: the output is HAND-JOINED
+// below with a literal space and apostrophe (:`15 Mar '25`). That punctuation is an en/GB
+// typographic convention baked into this function — a locale swap does not translate it, it just
+// yields a grammatically wrong string that still renders and fails nothing. AC-SC-AXIS-004/005 pin
+// the shape. Localising the S-curve axis is its own change, with its own re-baselined snapshots.
 export function formatUtcDayMonthYear(d: Date): string {
-  const parts = utcDayMonthYearFormatter.formatToParts(d);
+  const parts = dateFormatterFor('utcDayMonthYear', DAY_MONTH_SHAPE_LOCALE, {
+    day: '2-digit',
+    month: 'short',
+    year: '2-digit',
+    timeZone: 'UTC',
+  }).formatToParts(d);
   const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${find('day')} ${find('month')} '${find('year')}`;
 }

@@ -27,6 +27,7 @@ import {
   KanbanStageIndicator,
   StatusPill,
   type KanbanStageItem,
+  TaxBasisLabel,
 } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
@@ -123,7 +124,9 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       }
       body={
         <div className="text-[12px] font-bold tabular">
-          {formatCurrency(project.contract_value, project.currency)}
+          {formatCurrency(project.contract_value, project.currency)}{' '}
+          {/* OD-TAX-1 §2 — the card's only number, so it is the one that must not be bare. */}
+          <TaxBasisLabel treatment={project.tax_treatment} />
         </div>
       }
       foot={

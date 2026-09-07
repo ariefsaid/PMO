@@ -85,7 +85,23 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 // sweep backstop (see the re-export below for why it cannot be defined in this module).
 import { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 import {
+  listMeetings,
+  listMeetingsForContact,
+  getMeeting,
+  createMeeting,
+  updateMeeting,
+  archiveMeeting,
+  deleteMeeting,
+  listMeetingAttendees,
+  addMeetingAttendee,
+  removeMeetingAttendee,
+  listMeetingGrants,
+  addMeetingGrant,
+  revokeMeetingGrant,
+} from '@/src/lib/db/meetings';
+import {
   listTasks,
+  listTasksByMeeting,
   getTask,
   createTask,
   updateTask,
@@ -173,6 +189,15 @@ import {
   updateTaskMilestone,
 } from '@/src/lib/db/milestones';
 import {
+  listProjectWorkOrders,
+  getWorkOrder,
+  createWorkOrder,
+  updateWorkOrder,
+  setWorkOrderValue,
+  transitionWorkOrder,
+  getProjectDrawdown,
+} from '@/src/lib/db/workOrders';
+import {
   listProcurementFiles,
   prepareUpload as prepareProcurementFileUpload,
   confirmUpload as confirmProcurementFileUpload,
@@ -204,6 +229,7 @@ import {
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
+import { getOrgTaxDefault, setOrgTaxDefault } from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
 import {
@@ -229,12 +255,15 @@ import type {
   TaskRepository,
   IncidentRepository,
   MilestoneRepository,
+  WorkOrderRepository,
   ProcurementFileRepository,
   ContactRepository,
+  MeetingRepository,
   UserViewRepository,
   OperatorRepository,
   UsageRepository,
   OrgFeatureRepository,
+  OrgSettingsRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
@@ -370,6 +399,7 @@ const usage: UsageRepository = {
 
 const task: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
+  listByMeeting: (meetingId) => wrap(() => listTasksByMeeting(meetingId)),
   get: (id) => wrap(() => getTask(id)),
   create: (input) => wrap(() => createTask(input)),
   update: (id, patch, projectId) =>
@@ -663,6 +693,22 @@ const milestone: MilestoneRepository = {
   setTaskMilestone: (taskId, milestoneId) => wrap(() => updateTaskMilestone(taskId, milestoneId)),
 };
 
+/**
+ * Work orders (#566). Thin wrappers, deliberately one-to-one with the DAL: `setValue` and
+ * `transition` stay SEPARATE from `update` because the server keeps them separate — the value and
+ * its tax basis move through the sole witnessed writer, and status moves through the single
+ * transition authority. Collapsing any pair here would hide a control behind a convenience.
+ */
+const workOrder: WorkOrderRepository = {
+  list: (projectId) => wrap(() => listProjectWorkOrders(projectId)),
+  get: (id) => wrap(() => getWorkOrder(id)),
+  create: (projectId, input) => wrap(() => createWorkOrder(projectId, input)),
+  update: (id, patch) => wrap(() => updateWorkOrder(id, patch)),
+  setValue: (input) => wrap(() => setWorkOrderValue(input)),
+  transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
+  drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
+};
+
 const procurementFiles: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
   prepareUpload: (phase, procurementId, fileName) =>
@@ -689,6 +735,22 @@ const contact: ContactRepository = {
   deleteActivity: (id) => wrap(() => deleteActivity(id)),
 };
 
+const meeting: MeetingRepository = {
+  list: (params) => wrap(() => listMeetings(params)),
+  listForContact: (contactId) => wrap(() => listMeetingsForContact(contactId)),
+  get: (id) => wrap(() => getMeeting(id)),
+  create: (input) => wrap(() => createMeeting(input)),
+  update: (id, patch) => wrap(() => updateMeeting(id, patch)),
+  archive: (id) => wrap(() => archiveMeeting(id)),
+  delete: (id) => wrap(() => deleteMeeting(id)),
+  listAttendees: (meetingId) => wrap(() => listMeetingAttendees(meetingId)),
+  addAttendee: (meetingId, identity) => wrap(() => addMeetingAttendee(meetingId, identity)),
+  removeAttendee: (id) => wrap(() => removeMeetingAttendee(id)),
+  listGrants: (meetingId) => wrap(() => listMeetingGrants(meetingId)),
+  addGrant: (meetingId, userId) => wrap(() => addMeetingGrant(meetingId, userId)),
+  revokeGrant: (id) => wrap(() => revokeMeetingGrant(id)),
+};
+
 const userView: UserViewRepository = {
   list: () => wrap(() => listUserViews()),
   get: (id) => wrap(() => getUserView(id)),
@@ -701,6 +763,16 @@ const userView: UserViewRepository = {
 const orgFeature: OrgFeatureRepository = {
   listOwn: () => wrap(() => listOwnOrgFeatures()),
   toggle: (args) => wrap(() => toggleOrgFeature(args)),
+};
+
+/**
+ * Org accounting settings (`OD-TAX-1`, 0207). The read is every member's — a form cannot
+ * pre-select what it cannot read; the write is Admin-only at the RLS layer, mirrored by
+ * `can('manage', 'orgAccounting')` on the affordance.
+ */
+const orgSettings: OrgSettingsRepository = {
+  getTaxDefault: () => wrap(() => getOrgTaxDefault()),
+  setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
 };
 
 const credits: CreditsRepository = {
@@ -889,12 +961,15 @@ export const repositories: Repositories = {
   task,
   incident,
   milestone,
+  workOrder,
   procurementFiles,
   contact,
+  meeting,
   userView,
   operator,
   usage,
   orgFeature,
+  orgSettings,
   credits,
   externalDomainOwnership,
   erpSnapshots,
@@ -915,12 +990,15 @@ export type {
   TaskRepository,
   IncidentRepository,
   MilestoneRepository,
+  WorkOrderRepository,
   ProcurementFileRepository,
   ContactRepository,
+  MeetingRepository,
   UserViewRepository,
   OperatorRepository,
   UsageRepository,
   OrgFeatureRepository,
+  OrgSettingsRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,

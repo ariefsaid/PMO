@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
+import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
 import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { AnalyticsProvider } from '@/src/lib/analytics';
@@ -34,6 +35,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useIncidents } from '@/src/hooks/useIncidents';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { useContacts } from '@/src/hooks/useContacts';
+import { useMeetings } from '@/src/hooks/useMeetings';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
@@ -79,6 +81,8 @@ const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
 const UserViewRenderer = React.lazy(() => import('./pages/UserViewRenderer'));
 const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
 const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
+const MeetingsPage = React.lazy(() => import('./pages/Meetings'));
+const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
@@ -135,6 +139,11 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
   // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
   { path: '/my-tasks', element: <MyTasksPage /> },
+  // #526: Meetings — minuted meetings with attendees, action items and view-only shares.
+  //   Reads are RLS-scoped (attendance ∪ author ∪ grant ∪ Admin, migration 0205), so the routes
+  //   exist for every role; the detail renders a calm not-found for an unshared meeting.
+  { path: '/meetings', element: <MeetingsPage /> },
+  { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
   { path: '/reports', element: <PlaceholderPage title="Reports" /> },
   { path: '/administration', element: <AdminUsersPage /> },
   // Finance section.
@@ -205,6 +214,9 @@ const ShellChrome: React.FC = () => {
   // read here only to resolve the crumb (no new query).
   const { data: companies, isPending: companiesPending } = useCompanies();
   const { data: contacts, isPending: contactsPending } = useContacts();
+  // #526: the meetings list backs the /meetings/:id breadcrumb's record name. RLS-scoped to the
+  // caller's readable meetings (attendance ∪ author ∪ grant ∪ Admin); read here only for the crumb.
+  const { data: meetings, isPending: meetingsPending } = useMeetings();
   const { data: userViewsList, isPending: userViewsPending } = useUserViews();
   const opportunities = useMemo(
     () => [...(pipeline?.projects ?? []), ...(lostDeals ?? [])],
@@ -269,6 +281,7 @@ const ShellChrome: React.FC = () => {
       incidents,
       companies,
       contacts,
+      meetings,
       userViews: userViewsList?.map((v) => ({ id: v.id, name: v.name })),
     });
     // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
@@ -294,6 +307,7 @@ const ShellChrome: React.FC = () => {
       (pathname.startsWith('/incidents/') && !incidentsPending) ||
       (pathname.startsWith('/companies/') && !companiesPending) ||
       (pathname.startsWith('/contacts/') && !contactsPending) ||
+      (pathname.startsWith('/meetings/') && !meetingsPending) ||
       (pathname.startsWith('/sales/') && !pipelinePending) ||
       (pathname.startsWith('/views/') && !userViewsPending);  // I3 (FR-VR-053)
     return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
@@ -314,6 +328,8 @@ const ShellChrome: React.FC = () => {
     incidentsPending,
     companiesPending,
     contactsPending,
+    meetings,
+    meetingsPending,
     userViewsPending,
   ]);
 
@@ -443,22 +459,26 @@ const App: React.FC = () => (
     <EnvBadge />
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
-          <AnalyticsProvider>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/terms" element={<TermsPage />} />
-              <Route path="/privacy" element={<PrivacyPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/update-password" element={<UpdatePasswordPage />} />
-              <Route element={<RequireAuth />}>
-                <Route element={<RequireInviteAccepted />}>
-                  <Route path="/*" element={<Shell />} />
+        {/* Locale resolution + i18next. Below AuthProvider because it needs the profile; above
+            BrowserRouter because every string-rendering subtree sits under it (FR-L10N-003). */}
+        <I18nProvider>
+          <BrowserRouter>
+            <AnalyticsProvider>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/update-password" element={<UpdatePasswordPage />} />
+                <Route element={<RequireAuth />}>
+                  <Route element={<RequireInviteAccepted />}>
+                    <Route path="/*" element={<Shell />} />
+                  </Route>
                 </Route>
-              </Route>
-            </Routes>
-          </AnalyticsProvider>
-        </BrowserRouter>
+              </Routes>
+            </AnalyticsProvider>
+          </BrowserRouter>
+        </I18nProvider>
       </AuthProvider>
     </QueryClientProvider>
   </>

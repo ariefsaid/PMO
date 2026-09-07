@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, type StatTile } from '@/src/components/ui';
+import { Trans, useTranslation } from 'react-i18next';
+import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, TaxBasisLabel, type StatTile } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -10,6 +11,7 @@ import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import ProjectDrawdown from '../ProjectDrawdown';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -49,6 +51,7 @@ function signedCurrency(value: number, currency: string): string {
  * is not rendered for them (showFinanceSummary is false/omitted).
  */
 const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setTab, showFinanceSummary = false }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const contract = project.contract_value ?? 0;
   const committed = committedSpend ?? 0;
@@ -75,12 +78,31 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
   const spendPctTile = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
   const financeTiles: StatTile[] = showFinanceSummary
     ? [
-        { label: 'Contract', value: formatCurrency(contract, project.currency) },
-        { label: 'Committed', value: formatCurrency(committed, project.currency) },
+        {
+          label: t('projectDetail.overview.finance.contract', 'Contract'),
+          value: formatCurrency(contract, project.currency),
+          // OD-TAX-1 §2 — the delivery-role lens shows the same ceiling as the header strip, so it
+          // states the same basis, read off this project's own row.
+          sub: <TaxBasisLabel treatment={project.tax_treatment} testId="overview-contract-tax-basis" />,
+        },
+        {
+          label: t('projectDetail.overview.finance.committed', 'Committed'),
+          value: formatCurrency(committed, project.currency),
+        },
         // AC-MONEY-01: "Actual" = committed-PO basis, not dead projects.spent column.
-        { label: 'Actual', value: formatCurrency(committed, project.currency) },
-        { label: 'On-hand margin', value: signedCurrency(margin, project.currency), tone: margin < 0 ? 'neg' : 'pos' },
-        { label: 'Spend', value: `${spendPctTile}%` },
+        {
+          label: t('projectDetail.overview.finance.actual', 'Actual'),
+          value: formatCurrency(committed, project.currency),
+        },
+        {
+          label: t('projectDetail.overview.finance.onHandMargin', 'On-hand margin'),
+          value: signedCurrency(margin, project.currency),
+          tone: margin < 0 ? 'neg' : 'pos',
+        },
+        {
+          label: t('projectDetail.overview.finance.spend', 'Spend'),
+          value: `${spendPctTile}%`,
+        },
       ]
     : [];
 
@@ -116,30 +138,40 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
         {showFinanceSummary && isDelivery && (
           <aside
             data-testid="financial-summary"
-            aria-label="Financial summary"
+            aria-label={t('projectDetail.overview.finance.title', 'Financial summary')}
           >
-            <h2 className="mb-3 text-[14px] font-semibold text-foreground">Financial summary</h2>
+            <h2 className="mb-3 text-[14px] font-semibold text-foreground">
+              {t('projectDetail.overview.finance.title', 'Financial summary')}
+            </h2>
             <StatTiles tiles={financeTiles} columns={5} variant="bare" className="mb-3" />
             <div
               data-testid="contract-value-sod"
               className="flex flex-wrap items-center gap-3 py-1"
             >
               <span className="flex items-center gap-2.5">
-                <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
+                <span className="text-[12.5px] font-semibold text-muted-foreground">
+                  {t('projectDetail.overview.finance.contractValue', 'Contract value')}
+                </span>
                 <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
                   {formatCurrency(contract, project.currency)}
                 </span>
+                <TaxBasisLabel
+                  treatment={project.tax_treatment}
+                  testId="overview-contract-value-tax-basis"
+                />
                 {isOnHand && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                     <Icon name="lock" className="size-3" />
-                    Read-only
+                    {t('projectDetail.overview.finance.readOnly', 'Read-only')}
                   </span>
                 )}
               </span>
               {isOnHand && (
                 <span className="basis-full text-[12px] text-muted-foreground">
-                  Once a project is won, the contract value is locked for your role. Only Executive or
-                  Finance can change it, and the change is recorded.
+                  {t(
+                    'projectDetail.overview.finance.lockedNote',
+                    'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.',
+                  )}
                 </span>
               )}
             </div>
@@ -147,7 +179,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
         )}
 
         <Card variant="bare">
-          <CardHead>Budget utilization</CardHead>
+          <CardHead>{t('projectDetail.overview.budgetUtil.title', 'Budget utilization')}</CardHead>
           {/* B-0.4: gate on useProjectBudget loading/error — mirror Budget-snapshot card.
               Pending/error must not collapse to "$0 of $0" (false-zero). */}
           {budgetUtilPending ? (
@@ -155,20 +187,21 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
           ) : budgetUtilError ? (
             <ListState
               variant="error"
-              title="Couldn't load budget"
+              title={t('projectDetail.overview.budgetUtil.error', "Couldn't load budget")}
               onRetry={() => budgetUtilRefetch()}
             />
           ) : (
             <CardPad className="flex flex-col gap-3">
               <div className="text-[12px] text-muted-foreground">
-                <span className="font-semibold tabular text-foreground">{formatCurrency(committed, project.currency)}</span> of{' '}
+                <span className="font-semibold tabular text-foreground">{formatCurrency(committed, project.currency)}</span>{' '}
+                {t('projectDetail.overview.budgetUtil.of', 'of')}{' '}
                 <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget, project.currency)}</span>{' '}
-                budget committed
+                {t('projectDetail.overview.budgetUtil.budgetCommitted', 'budget committed')}
               </div>
               <ProgressBar
                 value={budgetUtilPctValue}
                 showValue
-                aria-label={`Budget committed: ${budgetUtilPctValue}% of budget`}
+                aria-label={`${t('projectDetail.overview.budgetUtil.barLabel', 'Budget committed')}: ${budgetUtilPctValue}% ${t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}`}
               />
               {/* AC-W6-IXD-ATRISK (B-1): co-locate the budget-basis with the contract bar.
                   When at-risk, show the spent/budget figure + the "At risk" flag below the
@@ -176,9 +209,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                   The bar itself is NOT recolored — text-not-color per DESIGN.md. */}
               {budgetUtil !== null && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusPill variant="warn">At risk</StatusPill>
+                  <StatusPill variant="warn">{t('projectDetail.overview.budgetUtil.atRisk', 'At risk')}</StatusPill>
                   <span className="text-[12px] font-semibold tabular text-warning-foreground">
-                    {budgetUtil}% of budget
+                    {budgetUtil}% {t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}
                   </span>
                 </div>
               )}
@@ -188,24 +221,35 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
       </div>
 
       {/* T18: Row 2 — Procurement summary + Budget snapshot */}
+      {/* #566 / OD-CR-13: the contract drawdown, full width and above the procurement/budget
+          detail. The PM manages by this number day one, so it is on the screen they land on
+          rather than behind the Work orders tab — the tab is where they ACT on it. */}
+      <ProjectDrawdown projectId={project.id} />
+
       <div data-testid="overview-row2" className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* T14/T15 — Procurement summary card */}
         <Card variant="bare">
-          <CardHead>Procurement summary</CardHead>
+          <CardHead>{t('projectDetail.overview.procSummary.title', 'Procurement summary')}</CardHead>
           {procPending ? (
             <ListState variant="loading" rows={3} />
           ) : procError ? (
             <ListState
               variant="error"
-              title="Couldn't load procurement"
+              title={t('projectDetail.overview.procSummary.error', "Couldn't load procurement")}
               onRetry={() => procRefetch()}
             />
           ) : projectProc.length === 0 ? (
             <ListState
               variant="empty"
               icon="inbox"
-              title="No purchase requests for this project yet"
-              sub="Requests raised against this project will appear here."
+              title={t(
+                'projectDetail.overview.procSummary.empty.title',
+                'No purchase requests for this project yet',
+              )}
+              sub={t(
+                'projectDetail.overview.procSummary.empty.sub',
+                'Requests raised against this project will appear here.',
+              )}
             />
           ) : (
             <CardPad className="flex flex-col gap-4">
@@ -213,22 +257,40 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
               <div className="flex gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5">
                   {/* Freed-Blue Status Rule: "Open" is neutral grey `progress`, not the action-blue. */}
-                  <StatusPill variant="progress">{procSummary.open} Open</StatusPill>
+                  <StatusPill variant="progress">
+                    {procSummary.open} {t('projectDetail.overview.procSummary.open', 'Open')}
+                  </StatusPill>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <StatusPill variant="won">{procSummary.completed} Completed</StatusPill>
+                  <StatusPill variant="won">
+                    {procSummary.completed} {t('projectDetail.overview.procSummary.completed', 'Completed')}
+                  </StatusPill>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <StatusPill variant="neutral">{procSummary.closed} Closed</StatusPill>
+                  <StatusPill variant="neutral">
+                    {procSummary.closed} {t('projectDetail.overview.procSummary.closed', 'Closed')}
+                  </StatusPill>
                 </div>
               </div>
 
               {/* Committed total */}
               <div className="text-[12px] text-muted-foreground">
-                <span className="font-semibold tabular text-foreground text-[14px]">
-                  {formatCurrency(procSummary.committedTotal, project.currency)}
-                </span>{' '}
-                committed across {procSummary.count} {procSummary.count === 1 ? 'request' : 'requests'}
+                {/* #571 — one sentence; the styled amount is a placeholder a translator moves. */}
+                <Trans
+                  i18nKey="projectDetail.overview.procSummary.committedAcross"
+                  defaults="<amount>{{amount}}</amount> committed across {{n}} {{unit}}"
+                  values={{
+                    amount: formatCurrency(procSummary.committedTotal, project.currency),
+                    n: String(procSummary.count),
+                    unit:
+                      procSummary.count === 1
+                        ? t('projectDetail.overview.procSummary.requestOne', 'request')
+                        : t('projectDetail.overview.procSummary.requestOther', 'requests'),
+                  }}
+                  components={{
+                    amount: <span className="font-semibold tabular text-foreground text-[14px]" />,
+                  }}
+                />
               </div>
 
               {/* Top 3 recent requests */}
@@ -270,7 +332,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                   onClick={() => setTab('procurement')}
                   className="text-[12px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
                 >
-                  View all procurement
+                  {t('projectDetail.overview.procSummary.viewAll', 'View all procurement')}
                 </button>
               )}
             </CardPad>
@@ -279,36 +341,45 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
         {/* T16/T17 — Budget snapshot card */}
         <Card variant="bare">
-          <CardHead>Budget snapshot</CardHead>
+          <CardHead>{t('projectDetail.overview.budgetSnapshot.title', 'Budget snapshot')}</CardHead>
           {budgetPending ? (
             <ListState variant="loading" rows={3} />
           ) : budgetError ? (
             <ListState
               variant="error"
-              title="Couldn't load budget"
+              title={t('projectDetail.overview.budgetSnapshot.error', "Couldn't load budget")}
               onRetry={() => budgetRefetch()}
             />
           ) : !snapshot ? (
             <ListState
               variant="empty"
               icon="inbox"
-              title="No active budget"
-              sub="Activate a budget version on the Budget tab to see a snapshot here."
+              title={t('projectDetail.overview.budgetSnapshot.empty.title', 'No active budget')}
+              sub={t(
+                'projectDetail.overview.budgetSnapshot.empty.sub',
+                'Activate a budget version on the Budget tab to see a snapshot here.',
+              )}
             />
           ) : (
             <CardPad className="flex flex-col gap-3">
               {/* Budget totals */}
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Active budget</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    {t('projectDetail.overview.budgetSnapshot.activeBudget', 'Active budget')}
+                  </dt>
                   <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.activeTotal, project.currency)}</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Actual spent</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    {t('projectDetail.overview.budgetSnapshot.actualSpent', 'Actual spent')}
+                  </dt>
                   <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.spent, project.currency)}</dd>
                 </div>
                 <div className="col-span-2">
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Variance</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    {t('projectDetail.overview.budgetSnapshot.variance', 'Variance')}
+                  </dt>
                   <dd
                     data-testid="budget-variance"
                     className={`mt-0.5 text-[15px] font-bold tabular${snapshot.variance > 0 ? ' text-destructive' : ''}`}
@@ -322,9 +393,13 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
               {/* Category breakdown bars */}
               {snapshot.byCategory.length > 0 && (
-                <div role="group" aria-label="Budget by category" className="flex flex-col gap-0.5 pt-1">
+                <div
+                  role="group"
+                  aria-label={t('projectDetail.overview.budgetSnapshot.byCategoryLabel', 'Budget by category')}
+                  className="flex flex-col gap-0.5 pt-1"
+                >
                   <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">
-                    By category
+                    {t('projectDetail.overview.budgetSnapshot.byCategory', 'By category')}
                   </div>
                   {snapshot.byCategory.map((cat) => (
                     <HoursBar
@@ -348,7 +423,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                   onClick={() => setTab('budget')}
                   className="text-[12px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
                 >
-                  Open Budget tab
+                  {t('projectDetail.overview.budgetSnapshot.openBudgetTab', 'Open Budget tab')}
                 </button>
               )}
             </CardPad>
