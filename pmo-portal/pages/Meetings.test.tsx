@@ -155,12 +155,15 @@ describe('Meetings — row menu gating', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
-  it('an Engineer row menu offers Open (navigation, M13) but NO archive/delete affordance', async () => {
-    realRole = 'Engineer';
+  it('AC-MTG-029: an Engineer author may archive own row but not a non-authored row', async () => {
     renderPage('Engineer');
-    const row = screen.getByText('Supplier dispute call').closest('tr')!;
-    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
-    expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument();
+    const ownRow = screen.getByText('Kickoff with Acme').closest('tr')!;
+    await userEvent.click(within(ownRow).getByRole('button', { name: 'Row actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument();
+
+    const nonAuthoredRow = screen.getByText('Supplier dispute call').closest('tr')!;
+    await userEvent.click(within(nonAuthoredRow).getByRole('button', { name: 'Row actions' }));
     expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument();
   });

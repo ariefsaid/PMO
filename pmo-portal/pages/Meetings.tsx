@@ -22,6 +22,7 @@ import {
   type RowMenuItem,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useMeetings, useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useProjects } from '@/src/hooks/useProjects';
@@ -61,6 +62,8 @@ const Meetings: React.FC = () => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
+  const { currentUser } = useAuth();
+  const currentUserId = currentUser?.id ?? null;
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -141,7 +144,12 @@ const Meetings: React.FC = () => {
       label: t('meetings.actions.open', 'Open'),
       onClick: () => navigate(`/meetings/${m.id}`),
     });
-    if (may('archive', 'meeting'))
+    if (
+      may('archive', 'meeting', {
+        currentUserId,
+        record: { created_by_id: m.created_by_id },
+      })
+    )
       items.push({
         label: t('meetings.actions.archive', 'Archive'),
         onClick: () => setArchiveTarget(m),
