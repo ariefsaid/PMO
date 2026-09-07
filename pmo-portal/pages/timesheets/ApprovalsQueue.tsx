@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ApprovalRow,
   Button,
@@ -18,6 +19,7 @@ import { TimesheetStatus } from '../../types';
 import { usePermission } from '@/src/auth/usePermission';
 import { useTimesheetsAwaitingApproval, useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
+import { TimesheetBulkControls, useTimesheetBulkApprove, weekLabel as bulkWeekLabel } from './TimesheetBulkApprove';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -242,6 +244,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
  * and the timesheet section of the `/approvals` inbox.
  */
 export const ApprovalsQueue: React.FC = () => {
+  const { t } = useTranslation();
   const { data: queue, isPending, isError, refetch } = useTimesheetsAwaitingApproval();
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
@@ -258,46 +261,9 @@ export const ApprovalsQueue: React.FC = () => {
       return next;
     });
 
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmBulk, setConfirmBulk] = useState(false);
-  const [bulkRunning, setBulkRunning] = useState(false);
-
   const sheets = useMemo(() => queue ?? [], [queue]);
-
-  const approvableIds = useMemo(
-    () =>
-      new Set(
-        sheets
-          .filter((s) => timesheetActions(s.status as TimesheetStatus, false, isApprover).approve)
-          .map((s) => s.id),
-      ),
-    [sheets, isApprover],
-  );
-
-  const exitSelection = () => {
-    setSelecting(false);
-    setSelected(new Set());
-  };
-
-  const toggleSelected = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  const effectiveSelected = useMemo(
-    () => new Set([...selected].filter((id) => approvableIds.has(id))),
-    [selected, approvableIds],
-  );
-  const allSelected = approvableIds.size > 0 && effectiveSelected.size === approvableIds.size;
-  const someSelected = effectiveSelected.size > 0 && !allSelected;
-  const toggleSelectAll = () => {
-    if (effectiveSelected.size > 0) setSelected(new Set());
-    else setSelected(new Set(approvableIds));
-  };
+  const bulk = useTimesheetBulkApprove(sheets);
+  const { selecting, selected, approvableIds } = bulk;
 
   const commitApproval = () => {
     if (!pending) return;
@@ -323,27 +289,6 @@ export const ApprovalsQueue: React.FC = () => {
     );
   };
 
-  const commitBulk = async () => {
-    const ids = sheets.filter((s) => effectiveSelected.has(s.id)).map((s) => s.id);
-    if (ids.length === 0) {
-      setConfirmBulk(false);
-      return;
-    }
-    setBulkRunning(true);
-    const results = await Promise.allSettled(ids.map((id) => approve.mutateAsync({ id })));
-    const ok = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected').length;
-    setBulkRunning(false);
-    setConfirmBulk(false);
-    exitSelection();
-    if (failed === 0) {
-      toast('Timesheets approved', `${ok} approved`, 'success');
-    } else if (ok === 0) {
-      toast("Couldn't approve", `${failed} failed (separation of duties or stale)`, 'warning');
-    } else {
-      toast('Partially approved', `${ok} approved, ${failed} failed (separation of duties or stale)`, 'warning');
-    }
-  };
 
   if (isPending) {
     return (
@@ -374,12 +319,7 @@ export const ApprovalsQueue: React.FC = () => {
             {sheets.length} awaiting you
           </StatusPill>
         )}
-        {isApprover && approvableIds.size > 0 && !selecting && (
-          <Button variant="outline" size="sm" onClick={() => setSelecting(true)}>
-            <Icon name="check" />
-            Select
-          </Button>
-        )}
+        <TimesheetBulkControls controller={bulk} sheets={sheets} />
       </div>
 
       <GateNotice variant="blocked" className="mb-3">
@@ -387,36 +327,7 @@ export const ApprovalsQueue: React.FC = () => {
         approve, and never their own week.
       </GateNotice>
 
-      {selecting && (
-        <div
-          role="group"
-          aria-label="Bulk approve"
-          className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2.5"
-        >
-          <Checkbox
-            checked={allSelected ? true : someSelected ? 'mixed' : false}
-            onChange={toggleSelectAll}
-            label="Select all approvable weeks"
-          />
-          <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[12px] font-semibold tabular text-muted-foreground">
-            {effectiveSelected.size} selected
-          </span>
-          <span className="flex-1" />
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={effectiveSelected.size === 0 || bulkRunning}
-            loading={bulkRunning}
-            onClick={() => setConfirmBulk(true)}
-          >
-            <Icon name="check" />
-            Approve {effectiveSelected.size}
-          </Button>
-          <Button variant="outline" size="sm" onClick={exitSelection} disabled={bulkRunning}>
-            Clear
-          </Button>
-        </div>
-      )}
+
 
       {sheets.length === 0 ? (
         <div data-testid="approvals-empty">
@@ -465,8 +376,8 @@ export const ApprovalsQueue: React.FC = () => {
                   {selecting && canSelect && (
                     <Checkbox
                       checked={selected.has(sheet.id)}
-                      onChange={() => toggleSelected(sheet.id)}
-                      label={`Select ${name}'s week`}
+                      onChange={() => bulk.toggleSelected(sheet.id)}
+                      label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner: name, week: bulkWeekLabel(sheet.week_start_date, t) })}
                     />
                   )}
                   {actions.approve && !selecting && (
@@ -524,33 +435,7 @@ export const ApprovalsQueue: React.FC = () => {
         />
       )}
 
-      {confirmBulk && (
-        <ConfirmDialog
-          open
-          tone="default"
-          title={`Approve ${effectiveSelected.size} timesheet${effectiveSelected.size === 1 ? '' : 's'}?`}
-          description={
-            <span className="block">
-              This approves the selected weeks. You can&rsquo;t approve your own timesheet —
-              separation of duties is enforced.
-              <span className="mt-2 block space-y-0.5">
-                {sheets
-                  .filter((s) => effectiveSelected.has(s.id))
-                  .map((s) => (
-                    <span key={s.id} className="block text-[13px]">
-                      {s.owner?.full_name ?? 'Unknown'} · {weekLabel(s.week_start_date)} ·{' '}
-                      <span className="tabular">{sumHours(s).toFixed(1)}</span> h
-                    </span>
-                  ))}
-              </span>
-            </span>
-          }
-          confirmLabel={`Approve ${effectiveSelected.size}`}
-          loading={bulkRunning}
-          onCancel={() => setConfirmBulk(false)}
-          onConfirm={commitBulk}
-        />
-      )}
+
     </Card>
   );
 };
