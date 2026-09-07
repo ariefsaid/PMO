@@ -17,6 +17,24 @@
     }
   },
   "approvals": {
+    "bulk": {
+      "approveN": "Setujui {{count}}",
+      "clear": "Bersihkan",
+      "confirmDescription": "Ini menyetujui minggu yang dipilih. Anda tidak dapat menyetujui timesheet Anda sendiri — pemisahan tugas diberlakukan.",
+      "confirmTitleMany": "Setujui {{count}} timesheet?",
+      "confirmTitleOne": "Setujui 1 timesheet?",
+      "groupLabel": "Setujui massal",
+      "hoursUnit": "jam",
+      "rowSelect": "Pilih {{week}} milik {{owner}}",
+      "select": "Pilih",
+      "selectAll": "Pilih semua minggu yang dapat disetujui",
+      "selectedCount": "{{count}} dipilih",
+      "toast": {
+        "allOk": { "detail": "{{count}} disetujui", "headline": "Timesheet disetujui" },
+        "noneOk": { "detail": "{{count}} gagal (pemisahan tugas atau data usang)", "headline": "Tidak dapat menyetujui" },
+        "partial": { "detail": "{{ok}} disetujui, {{failed}} gagal (pemisahan tugas atau data usang)", "headline": "Disetujui sebagian" }
+      }
+    },
     "accessDenied": {
       "sub": "Persetujuan ditujukan untuk role yang menyetujui permintaan pembelian atau timesheet. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
       "title": "Anda tidak memiliki akses ke persetujuan"

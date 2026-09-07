@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -19,6 +19,7 @@ type QueryState = {
 };
 type MutationState = {
   mutate: ReturnType<typeof vi.fn>;
+  mutateAsync?: ReturnType<typeof vi.fn>;
   isPending: boolean;
 };
 
@@ -28,8 +29,8 @@ const queryState: QueryState = {
   isError: false,
   refetch: vi.fn(),
 };
-const approveMutation: MutationState = { mutate: vi.fn(), isPending: false };
-const rejectMutation: MutationState = { mutate: vi.fn(), isPending: false };
+const approveMutation: MutationState = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
+const rejectMutation: MutationState = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
 
 // P3b (FR-TSP-085, OQ-TSP-10(C)) — the "needs attention" ERP-push queue + the Employee-link confirm
 // queue. Default EMPTY (no mirror row / no proposed link — FR-TSP-173: the page must still render
@@ -107,7 +108,7 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
     approved_by: null,
     approved_at: null,
     org_id: 'org-1',
-    owner: { full_name: 'Dave Engineer' },
+    owner: { full_name: 'Dave Engineer', manager_id: null },
     entries: [
       {
         id: 'e1',
@@ -123,17 +124,43 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
   },
 ];
 
+const desktopSheets: TimesheetAwaitingApproval[] = [
+  ...submittedSheets,
+  {
+    ...submittedSheets[0], id: 'ts-2', user_id: 'u-erin', week_start_date: '2026-06-08',
+    owner: { full_name: 'Erin Analyst', manager_id: null },
+    entries: [{ ...submittedSheets[0].entries[0], id: 'e2', timesheet_id: 'ts-2', entry_date: '2026-06-08' }],
+  },
+  {
+    ...submittedSheets[0], id: 'ts-3', user_id: 'u-frank', week_start_date: '2026-06-15',
+    owner: { full_name: 'Frank Planner', manager_id: null },
+    entries: [{ ...submittedSheets[0].entries[0], id: 'e3', timesheet_id: 'ts-3', entry_date: '2026-06-15' }],
+  },
+];
+
 // CW-6: /approvals now splits its two modules into deep-linkable scope tabs. This file
 // tests the TIMESHEET section's behavior (approve/return), so it deep-links to that scope
 // (`?scope=timesheets`) — the timesheet panel is the surface under test here.
-const renderPage = () =>
-  render(
-    <MemoryRouter initialEntries={['/approvals?scope=timesheets']}>
-      <ToastProvider>
-        <ApprovalsPage />
-      </ToastProvider>
+const renderPage = (scope: 'all' | 'timesheets' | 'procurement' = 'timesheets', largeScreen = true) => {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
+    matches: largeScreen,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })));
+  return render(
+    <MemoryRouter initialEntries={[`/approvals?scope=${scope}`]}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ToastProvider>
+          <ApprovalsPage />
+        </ToastProvider>
+      </QueryClientProvider>
     </MemoryRouter>,
   );
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 beforeEach(() => {
   queryState.data = undefined;
@@ -141,7 +168,9 @@ beforeEach(() => {
   queryState.isError = false;
   queryState.refetch = vi.fn();
   approveMutation.mutate = vi.fn();
+  approveMutation.mutateAsync = vi.fn(() => Promise.resolve());
   rejectMutation.mutate = vi.fn();
+  rejectMutation.mutateAsync = vi.fn();
   procState.data = [];
   procState.isPending = false;
   procState.isError = false;
@@ -237,6 +266,58 @@ describe('Approvals page data', () => {
     );
     expect(screen.getAllByText('€1,000').length).toBeGreaterThan(0);
     expect(screen.queryByText('$1,000')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C4 — Approve/Reject buttons wired to mutations (AC-911 UI, FR-TS-005)
+// ---------------------------------------------------------------------------
+
+describe('Approvals desktop bulk actions (AC-912)', () => {
+  it('AC-912: Select reveals labelled desktop checkboxes while preserving the selected preview', async () => {
+    queryState.data = desktopSheets;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
+    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByText('Dave Engineer')).toBeInTheDocument();
+  });
+
+  it('AC-912: partial desktop selection approves exactly the selected sheets after one confirmation', async () => {
+    queryState.data = desktopSheets;
+    approveMutation.mutateAsync = vi.fn(() => Promise.resolve());
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Approve 2/i }));
+    await waitFor(() => expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'ts-1' });
+    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'ts-2' });
+    expect(await screen.findByText(/2 approved/i)).toBeInTheDocument();
+  });
+
+  it('AC-912: scope=all select-all selects only timesheets, never the procurement row', async () => {
+    queryState.data = desktopSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('all');
+    await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all approvable weeks' }));
+    expect(screen.getByRole('button', { name: /Approve 3/i })).toBeInTheDocument();
+  });
+
+  it('AC-912: empty and procurement-only desktop queues hide Select', () => {
+    queryState.data = [];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^select$/i })).not.toBeInTheDocument();
+
+    queryState.data = desktopSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('procurement');
+    expect(screen.queryByRole('button', { name: /^select$/i })).not.toBeInTheDocument();
   });
 });
 

@@ -17,6 +17,24 @@
     }
   },
   "approvals": {
+    "bulk": {
+      "approveN": "Approve {{count}}",
+      "clear": "Clear",
+      "confirmDescription": "This approves the selected weeks. You can't approve your own timesheet — separation of duties is enforced.",
+      "confirmTitleMany": "Approve {{count}} timesheets?",
+      "confirmTitleOne": "Approve 1 timesheet?",
+      "groupLabel": "Bulk approve",
+      "hoursUnit": "h",
+      "rowSelect": "Select {{owner}}'s {{week}}",
+      "select": "Select",
+      "selectAll": "Select all approvable weeks",
+      "selectedCount": "{{count}} selected",
+      "toast": {
+        "allOk": { "detail": "{{count}} approved", "headline": "Timesheets approved" },
+        "noneOk": { "detail": "{{count}} failed (separation of duties or stale)", "headline": "Couldn't approve" },
+        "partial": { "detail": "{{ok}} approved, {{failed}} failed (separation of duties or stale)", "headline": "Partially approved" }
+      }
+    },
     "accessDenied": {
       "sub": "Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.",
       "title": "You don't have access to approvals"

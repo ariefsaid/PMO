@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
-import { AccessDenied, Badge, Card, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
+import { AccessDenied, Badge, Card, Checkbox, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
 import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -16,11 +15,12 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
+import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
 import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency, formatMonthDay } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -54,11 +54,6 @@ function useIsLargeScreen(): boolean {
   return matches;
 }
 
-function weekLabel(weekStart: string, t: TFunction): string {
-  const [y, m, d] = weekStart.split('-').map(Number);
-  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-  return `${t('approvals.weekOf', 'Week of')} ${formatMonthDay(dt)}`;
-}
 
 function sumHours(sheet: TimesheetAwaitingApproval): number {
   return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
@@ -68,10 +63,12 @@ function QueueButton({
   item,
   selected,
   onSelect,
+  bulk,
 }: {
   item: QueueItem;
   selected: boolean;
   onSelect: () => void;
+  bulk?: BulkController;
 }) {
   const { t } = useTranslation();
   if (item.kind === 'procurement') {
@@ -106,13 +103,14 @@ function QueueButton({
   }
 
   const row = item.row;
-  return (
+  const canSelect = bulk?.approvableIds.has(row.id) ?? false;
+  const rowButton = (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
       className={[
-        'w-full rounded-lg border px-3 py-3 text-left transition-colors',
+        'min-w-0 flex-1 rounded-lg border px-3 py-3 text-left transition-colors',
         selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
       ].join(' ')}
     >
@@ -140,6 +138,12 @@ function QueueButton({
       </div>
     </button>
   );
+  return bulk?.selecting && canSelect ? (
+    <div className="flex items-center gap-2">
+      <Checkbox checked={bulk.selected.has(row.id)} onChange={() => bulk.toggleSelected(row.id)} label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner: row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown'), week: weekLabel(row.week_start_date, t) })} />
+      {rowButton}
+    </div>
+  ) : rowButton;
 }
 
 function QueueGroup({
@@ -153,6 +157,7 @@ function QueueGroup({
   onRetry,
   emptyTitle,
   emptySub,
+  bulk,
 }: {
   title: string;
   count: number;
@@ -164,6 +169,7 @@ function QueueGroup({
   onRetry: () => void;
   emptyTitle: string;
   emptySub: string;
+  bulk?: BulkController;
 }) {
   const { t } = useTranslation();
   return (
@@ -198,6 +204,7 @@ function QueueGroup({
               item={item}
               selected={selectedKey === item.key}
               onSelect={() => onSelect(item.key)}
+              bulk={bulk}
             />
           ))}
         </div>
@@ -626,6 +633,7 @@ const ApprovalsPage: React.FC = () => {
     [procurements, selfId],
   );
   const timesheetRows = useMemo(() => timesheets ?? [], [timesheets]);
+  const timesheetBulk = useTimesheetBulkApprove(timesheetRows);
 
   const availableScopes: Scope[] = [
     ...(canApproveProcurement && canApproveTimesheets ? (['all'] as const) : []),
@@ -826,8 +834,18 @@ const ApprovalsPage: React.FC = () => {
                   )}
                 </p>
               </div>
-              <Badge>{queueItems.length}</Badge>
+              <div className="flex items-center gap-2">
+                {activeScope !== 'procurement' && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
+                <Badge>{queueItems.length}</Badge>
+              </div>
             </div>
+
+            {activeScope !== 'procurement' && canApproveTimesheets && (
+              <>
+                <TimesheetBulkToolbar controller={timesheetBulk} />
+                <TimesheetBulkConfirm controller={timesheetBulk} sheets={timesheetRows} />
+              </>
+            )}
 
             <div className="space-y-5">
               {activeScope !== 'timesheets' && canApproveProcurement && (
@@ -869,6 +887,7 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.timesheets.emptySub',
                     'Submitted timesheets from your reports will appear here for review.',
                   )}
+                  bulk={timesheetBulk}
                 />
               )}
             </div>

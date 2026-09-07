@@ -192,6 +192,16 @@ OD-TS is silent; flag for confirmation (non-blocking for build start, pin before
   timesheets the signed-in user may approve — `status = 'Submitted' and user_id <> auth.uid()` (SoD), scoped
   by RLS (FR-TS-008 + the existing privileged-role read) — joined to the owner profile (`full_name`) and
   entries, ordered by `week_start_date`.
+- **FR-TS-012** *(OD-TS-6, 2026-09-02)* — While the approvals view renders its large-screen split inbox,
+  when the queue holds at least one approvable timesheet, the system shall offer the same **Select**
+  toggle, per-sheet checkboxes (each labelled with the owner and week) and **Approve N** action that the
+  small-screen `ApprovalsQueue` fallback offers — one shared bulk controller, not a second implementation.
+  Selection covers timesheet rows only: in the `all` scope, procurement rows are never selectable, and a
+  list with no approvable timesheet (empty, or procurement-only) shows no Select control. **Approve N**
+  keeps the existing confirmation step, calls the existing per-sheet approve mutation once per selected
+  sheet, and reports the aggregate result exactly as the fallback does. The list is already filtered to
+  the viewer's approve authority (FR-TS-011, OD-TS-5), so bulk never includes a sheet the server refuses;
+  the preview pane stays for reading a single sheet.
 
 ## NFR
 - **NFR-TS-ATOM-001** — A status transition (status update + the relevant `submitted_at` / `approved_by` /
@@ -273,6 +283,14 @@ owns 800–816; `grep -r AC-9` across the repo finds nothing). Each AC names its
   sheet shows `Submitted`; And given the owner's **line manager** signed in, When they open the approval
   view and click **Approve** on that sheet Then it shows `Approved` and leaves their queue. *(FR-TS-001/004/
   005/008/011, NFR-TS-UI-001)*
+- **AC-912** *(Unit — RTL, `pages/Approvals.test.tsx`)* — Desktop bulk-approve is the fallback's, restored.
+  Given an approver on the large-screen split inbox with three approvable timesheets, When they activate
+  **Select** Then each timesheet row shows a checkbox labelled with its owner and week and the preview pane
+  is unchanged; When they select two and confirm **Approve 2** Then the approve mutation is called exactly
+  twice with those two sheet ids and the aggregate toast reports 2; When they use select-all Then only
+  timesheet rows are selected (a procurement row in the `all` scope is not); And given a queue with no
+  approvable timesheet (empty, or procurement rows only), When the view renders Then no **Select** control
+  exists. *(FR-TS-012, OD-TS-6)*
 
 ## Traceability (FR → AC → owning layer)
 
@@ -289,10 +307,11 @@ owns 800–816; `grep -r AC-9` across the repo finds nothing). Each AC names its
 | FR-TS-009 (org_id not client-supplied + anon-revoke) | AC-910, AC-905 | pgTAP |
 | FR-TS-010 (DAL error surfacing) | AC-902 | Unit |
 | FR-TS-011 (awaiting-approval read + SoD filter) | AC-903, AC-911 | Unit (E2E end-to-end) |
+| FR-TS-012 (desktop bulk-approve, OD-TS-6) | AC-912 | Unit (RTL) |
 | NFR-TS-ATOM-001 (atomic transition) | AC-906, AC-907 | pgTAP |
 | NFR-TS-UI-001 (loading/empty/error states) | AC-904, AC-911 | Unit (E2E end-to-end) |
 
-Per-layer AC split: **Unit** AC-900/901/902/903/904 (**5**) · **pgTAP** AC-905/906/907/908/909/910 (**6**) ·
+Per-layer AC split: **Unit** AC-900/901/902/903/904/912 (**6**) · **pgTAP** AC-905/906/907/908/909/910 (**6**) ·
 **E2E** AC-911 (**1**, curated submit→approve journey). Authorization, SoD, tenancy, the manager read path,
 atomicity, and the legal-map gate all sit at **pgTAP** (the DB is the real gate); transition-map logic, the
 cosmetic action gate, DAL error surfacing, the queue-DAL shape, and UI states sit at **Unit**; one

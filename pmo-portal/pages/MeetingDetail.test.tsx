@@ -337,16 +337,16 @@ describe('MeetingDetail — states', () => {
     expect(meetingState.refetch).toHaveBeenCalled();
   });
 
-  it('Admin header carries Archive + Delete; a non-Admin author gets Edit only', () => {
+  it('Admin header carries Archive + Delete', () => {
     renderPage('Admin');
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
   });
 
-  it('a non-Admin author gets Edit but neither Archive nor Delete', () => {
+  it('AC-MTG-029: a non-Admin author gets Edit + Archive but not Delete', () => {
     renderPage('Engineer');
     expect(screen.getByTestId('meeting-edit')).toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-archive')).not.toBeInTheDocument();
+    expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-delete')).not.toBeInTheDocument();
   });
 });

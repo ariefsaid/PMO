@@ -155,11 +155,7 @@ git rev-list --count origin/main..origin/dev          # what is on dev and NOT p
 supabase migration list --linked                      # the CLOUD DB's real migration level
 ```
 
-**Snapshot 2026-08-24, for orientation only:** `production` `868ab117` (2026-08-05, the #431 merge —
-**not** the `v0.9.0` tag, which is `cd368302`) · `main` `8a4f0878` (today's promote, PR #556) · `dev`
-`270813ae` **fully merged into `main`** (`main..dev` = 0). **`production..main` = 135 commits and the
-cloud Supabase project is at `0186` while `main` carries `0203`** — so *nothing* from the last three
-weeks is deployed. An open release-please PR (#432, `v0.10.0`) is the version bump for it.
+**Snapshot 2026-09-07, for orientation only:** `main` `3f2a3ddf` (today's promote, PR #599, `--merge`, trees identical, `main..dev` = 0) · `dev` `acb0f166` · `production` **unchanged since 2026-08-05** (`868ab117`). **Nothing is deployed: the cloud Supabase project has not moved since the 2026-08-24 snapshot, and `main` now carries i18n + Bahasa, meetings, work orders, tax basis, the subtask cascade, DD-TASK-8 and the #596 timesheet fix on top of everything from 08-21.** The promote took FIVE local gate runs + an owner-authorized hook bypass (2026-09-02); the runs found one real pre-existing race (#596) and three stale/ambiguous e2e oracles (#594, #600, #602). ⚑ The local gate exits at the first red lane, so its serial/consent/smoke lanes never ran on this content until pre-run by hand — `docs/qa-portfolio.md` should say so. Open release-please PR #432 (`v0.10.0`) is the version bump.
 
 ⚑ **`main` → `production` needs an EXPLICIT, per-instance owner instruction naming production**
 (CLAUDE.md). It is never implied by a promote to `main`, a stated plan, or a prior approval.

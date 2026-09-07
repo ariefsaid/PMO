@@ -80,7 +80,10 @@ import type {
   TimesheetRow,
   TimesheetWithEntries,
 } from '@/src/lib/db/timesheets';
-import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
+import type {
+  TimesheetApprovalViewerRole,
+  TimesheetAwaitingApproval,
+} from '@/src/lib/db/timesheetTransition';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 import type {
   BudgetVersionRow,
@@ -465,7 +468,10 @@ export interface TimesheetRepository {
   submit(id: string): Promise<void>;
   approve(id: string, notes?: string): Promise<void>;
   reject(id: string, notes?: string): Promise<void>;
-  listAwaitingApproval(selfId: string): Promise<TimesheetAwaitingApproval[]>;
+  listAwaitingApproval(
+    selfId: string,
+    viewerRole: TimesheetApprovalViewerRole | null,
+  ): Promise<TimesheetAwaitingApproval[]>;
   /** P3b (FR-TSP-005/041): push an already-APPROVED sheet to the org's external system. A no-op when
    *  the org does not employ one for `timesheets` — never a rejection (the approval already committed). */
   pushApproved(timesheetId: string): Promise<void>;

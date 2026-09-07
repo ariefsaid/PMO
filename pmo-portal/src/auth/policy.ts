@@ -135,6 +135,12 @@ type Predicate = (role: Role | null, ctx: PolicyContext) => boolean;
 
 const allow = (set: Role[]): Predicate => (role) => has(set, role);
 
+const meetingAuthorOrAdmin: Predicate = (role, ctx) => {
+  if (role === 'Admin') return true;
+  if (!has(ALL, role)) return false;
+  return !!ctx.currentUserId && ctx.record?.created_by_id === ctx.currentUserId;
+};
+
 const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   project: {
     // Every role may view the active Projects index/detail (rbac-visibility §B).
@@ -348,14 +354,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // are VIEW-ONLY (OD-MTG-2) — a grantee or attendee reads, they never rewrite — so offering a
     // non-author an Edit affordance would promise a write the server refuses. Deny-by-default
     // authorship: with no record context only Admin passes.
-    edit: (role, ctx) => {
-      if (role === 'Admin') return true;
-      if (!has(ALL, role)) return false;
-      return !!ctx.currentUserId && ctx.record?.created_by_id === ctx.currentUserId;
-    },
-    // FE is deliberately STRICTER than RLS here (the allowed direction): RLS lets the author
-    // stamp archived_at via update, but the surfaced archive/delete affordances are Admin-only.
-    archive: allow(ADMIN),
+    edit: meetingAuthorOrAdmin,
+    // OD-MTG-3: soft archive mirrors the author-or-Admin meetings_update authority in RLS.
+    archive: meetingAuthorOrAdmin,
     delete: allow(ADMIN),
   },
   userView: {

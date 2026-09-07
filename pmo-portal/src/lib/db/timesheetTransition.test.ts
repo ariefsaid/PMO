@@ -196,17 +196,17 @@ describe('listTimesheetsAwaitingApproval', () => {
             project: { name: 'Project A', code: 'PA' },
           },
         ],
-        owner: { full_name: 'Dave Engineer' },
+        owner: { full_name: 'Dave Engineer', manager_id: 'self-id' },
       },
     ];
 
     makeFromBuilder({ data: rows, error: null });
 
-    const result = await listTimesheetsAwaitingApproval('self-id');
+    const result = await listTimesheetsAwaitingApproval('self-id', 'Project Manager');
 
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code))',
+      '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,code))',
     );
     expect(mockEq).toHaveBeenCalledWith('status', 'Submitted');
     expect(mockNeq).toHaveBeenCalledWith('user_id', 'self-id');
@@ -220,8 +220,46 @@ describe('listTimesheetsAwaitingApproval', () => {
     expect(result[0].entries[0].hours).toBe(8);
   });
 
+  const approvalRows = [
+    { id: 'assigned', user_id: 'worker-1', status: 'Submitted', week_start_date: '2026-06-03', owner: { full_name: 'Assigned', manager_id: 'manager-1' }, entries: [] },
+    { id: 'other-manager', user_id: 'worker-2', status: 'Submitted', week_start_date: '2026-06-02', owner: { full_name: 'Other', manager_id: 'manager-2' }, entries: [] },
+    { id: 'unassigned', user_id: 'worker-3', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Unassigned', manager_id: null }, entries: [] },
+    { id: 'self', user_id: 'manager-1', status: 'Submitted', week_start_date: '2026-05-31', owner: { full_name: 'Manager', manager_id: 'manager-9' }, entries: [] },
+    { id: 'missing-owner', user_id: 'worker-4', status: 'Submitted', week_start_date: '2026-05-30', owner: null, entries: [] },
+  ];
+
+  it('AC-903: a manager receives only sheets assigned to that manager', async () => {
+    makeFromBuilder({ data: approvalRows, error: null });
+    const result = await listTimesheetsAwaitingApproval('manager-1', 'Project Manager');
+    expect(result.map(sheet => sheet.id)).toEqual(['assigned']);
+  });
+
+  it('AC-903: an Executive receives only sheets whose owner has no manager', async () => {
+    makeFromBuilder({ data: approvalRows, error: null });
+    const result = await listTimesheetsAwaitingApproval('executive-1', 'Executive');
+    expect(result.map(sheet => sheet.id)).toEqual(['unassigned']);
+  });
+
+  it('AC-903: an Admin receives every other submitted sheet, including assigned and unassigned owners', async () => {
+    makeFromBuilder({ data: approvalRows, error: null });
+    const result = await listTimesheetsAwaitingApproval('manager-1', 'Admin');
+    expect(result.map(sheet => sheet.id)).toEqual(['assigned', 'other-manager', 'unassigned']);
+  });
+
+  it('AC-903: a non-assignee manager receives no sheets', async () => {
+    makeFromBuilder({ data: approvalRows.filter(row => row.id !== 'self'), error: null });
+    const result = await listTimesheetsAwaitingApproval('manager-9', 'Project Manager');
+    expect(result).toEqual([]);
+  });
+
+  it('AC-903: a missing joined owner is excluded rather than treated as unassigned', async () => {
+    makeFromBuilder({ data: [approvalRows[4]], error: null });
+    const result = await listTimesheetsAwaitingApproval('executive-1', 'Executive');
+    expect(result).toEqual([]);
+  });
+
   it('throws on PostgREST error (FR-TS-011)', async () => {
     makeFromBuilder({ data: null, error: { message: 'select failed' } });
-    await expect(listTimesheetsAwaitingApproval('self-id')).rejects.toThrow('select failed');
+    await expect(listTimesheetsAwaitingApproval('self-id', 'Project Manager')).rejects.toThrow('select failed');
   });
 });
