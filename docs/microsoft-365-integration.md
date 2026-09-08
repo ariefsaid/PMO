@@ -111,8 +111,8 @@ not per-feature.
 2. **Phase 1 — OneDrive doc linking (link/reference model).** Highest value, lowest risk, follows
    ADR-0055. First real M365 feature in a client's hands.
    > **Status 2026-07-29:** the *enabling runtime* (Graph token custody) is BUILT + 4-round
-   > security-hardened + MERGED to `dev`, and the Connect UI is wired — see the M365 entry in
-   > [`docs/backlog.md`](backlog.md) for the live state, TBDs and gotchas. The doc-linking feature
+   > security-hardened + MERGED to `dev`, and the Connect UI is wired — see the M365 status **table** in
+   > [`docs/backlog.md`](backlog.md) § M365 for the live state (the only current copy; everything else points there). The doc-linking feature
    > itself is **specified but NOT built**: [`docs/specs/m365-onedrive-doc-linking.spec.md`](specs/m365-onedrive-doc-linking.spec.md).
    > **Both original gates are CLOSED:** a real live Microsoft connection completed **2026-07-24**, and the
    > ADR-0060 live security-auditor pass ran the same day (finding HIGH-A1, fixed in `#365`). **One narrower

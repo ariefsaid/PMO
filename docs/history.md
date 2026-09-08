@@ -721,7 +721,7 @@ merge commit reachable from `origin/main`, `main..dev` = 0, `dev` an ancestor of
 (`dead_authenticated_write_grants`, `rls_active_member_write_composition`) ·
 `locale_preference_columns` · `budget_import_provenance`.
 
-⛔ **NOT DEPLOYED.** The cloud Supabase project stayed at `0186` and `production` stayed at
+⛔ **NOT DEPLOYED — as of 2026-08-24; superseded: deployed 2026-09-07/08, see § *2026-08-18 → 2026-09-08*.** The cloud Supabase project stayed at `0186` and `production` stayed at
 `868ab117`. `main` is the autonomous ceiling; production needs an explicit per-instance owner
 instruction.
 
@@ -948,3 +948,132 @@ GRANT migration (see the "Deferred follow-up" note above).
 - **✅ PROMOTED `dev`→`main`** (PR #261, `e4fc018`) — `main` == `dev` content; `production` UNTOUCHED (`94ce615`). All audit Criticals + gaps + supply-chain/CI + the service_role regression fix are on `main`. Integration lane (full e2e + visual) GREEN.
 - **✅ service_role grants regression FIXED** (PR #262, mig `0080` + pgTAP `0137`) — **the promote's e2e caught it**: `0075`'s auto-expose lockdown re-granted `authenticated`/`anon` per-table but **never re-granted `service_role`** → service_role lost DML on all tables → would 42501 `admin-invite-user` + agent persistence IN PRODUCTION. 0080 restores service_role's full DML + `ALTER DEFAULT PRIVILEGES`. **Op-lesson: PR→dev skips e2e, so a service_role/grant regression is invisible until the promote's `integration` lane — pgTAP runs as the superuser migration role (bypasses grants) and cannot catch it. The integration gate earned its keep.**
 - **✅ `main`→`production` DEPLOYED (owner-instructed 2026-07-07)** — holistic: prod Cloud DB migrated `0061→0080` (`db-push-prod.sh`, all additive, ✓ applied, dry-run clean) · all 6 edge fns redeployed to `prwccpsiumjzvnwjlkwq` · **`SITE_URL=https://pmo-bfb.pages.dev` set** (was MISSING — would have 500'd admin-invite-user + blocked agent-chat CORS) · FE pushed `git push origin main:production` (`94ce615..e4fc018`, CF Pages build). Smoke: health fn 200 `{ok:true}`, DB at 0080, pages.dev 200. **`production` == `e4fc018` == `main` content.** ⏭ Still to verify: a live login→agent-answer browser smoke (needs prod creds). Auth-floor dashboard config (signup-off/confirmations/Resend) remains the owner-only manual step.
+
+---
+
+## 2026-08-18 → 2026-09-08 — from the frontier drain to v0.10.0 live
+
+**Outcome:** three wayfinder maps' decision frontier drained (2026-08-18/21, ~50 `DD-` rulings); the
+i18n framework + Bahasa, tasks, meetings, work orders and the currency/tax seam built (2026-08-19 → 09-02);
+two promotes on 2026-09-07 (PR #599 after five gate runs and an owner bypass, PR #607 clean) and
+**v0.10.0 released and deployed** (cloud DB 0186 → 0209, then 0210 for the grant pin; 22 edge functions
+at `59f91bbf`; `production` == `main`). The post-deploy grant sweep found the pre-0185 hosted-grant
+residual live on the cloud and it was closed the same night (emergency revoke, then migration 0210
+asserted on the cloud). The narrative below is what `docs/backlog.md` carried during that period, moved
+here verbatim on 2026-09-08.
+
+<details><summary>The 2026-08-19/21 backlog narrative (verbatim — historical, do NOT read as current; every item in it has since shipped)</summary>
+
+### ⚑⚑⚑ CURRENT FOCUS (2026-08-21) — the build queue is DRAINED to the owner-decision floor
+
+**Everything buildable without an owner ruling is shipped to `dev`.** What is left on the board is
+either a decision (#527, #523, #518, #530 item 3), infrastructure only the owner can provision (#499),
+or work those gate (#526 meetings, the Bahasa content pass, #481). The next move is the Q&A round,
+not another build.
+
+**Shipped 2026-08-20/21 — the hardening wave.** #525 first-class tasks · #529/#530 the currency
+oracles · #533 the shadow-type gate · #532 the assignee column allowlist · #534 + #541 the
+silent-no-op class · #538 the milestone/project constraint · #530 item 2 and the export half of item 3
+· #539 the ADW diff gate.
+
+⚑ **One theme runs through the whole wave: tests that could not fail.** Mutation runs caught a dead
+oracle in nearly every one of those issues — a fixture set that was all-USD and so could not tell a
+record's currency from a literal; an assertion that landed on a post-issue freeze instead of the
+control it named; a `_set_at` comparison that cannot move inside one transaction; a control that had
+already set the value the mutation was supposed to change. **Reading the assertions caught none of
+them.** Only running the code with the rule broken did. Assume a new oracle is dead until a mutation
+says otherwise.
+
+⚑ **And the gate written to stop this could not catch either incident it was written for.** #533's
+first draft required every key of a hand-written row type to be a column of one table — but `MyTask`
+carries a joined `project_name` and `SalesInvoiceRow` carries joined payment terms, and one foreign
+field matches no table at all. Found by REPLAYING both incidents against it, not by reading it.
+
+### The 2026-08-19 frontier drain (still the standing context)
+
+**Read `git log origin/main..origin/dev` for the real state, never a paragraph here.** As of this
+edit `dev` is 52 commits ahead of `main`, and `main`→`production` remains a separate, explicit,
+per-instance owner-gated action.
+
+**What changed on 2026-08-18/19.** Three wayfinder maps (#439 multi-org, #450 RIS go-live, #459 the
+product route) had their **entire director frontier resolved** — every decision ticket across all
+three is closed. The rulings are in `docs/decisions.md` under `DD-` prefixes: `DD-I18N-1..6`
+(locale seam) · `DD-XING-1..6` (standalone→connected crossing) · `DD-ORG-1..4` · `DD-DEPLOY-1` ·
+`DD-RPT-1` · `DD-TEN-1` · `DD-OPS-1..5` · `DD-ENTRA-1` · `DD-TASK-1..5` · `DD-IMP-1` · `DD-WO-1..6` ·
+`DD-MTG-1..5` · `DD-FMT-1`.
+
+**⛔ The go-live blocker is #478 — currency + tax.** No PMO-owned money table carries a `currency`
+column (`OD-CR-5` was ruled 2026-07-22 and never built), and there is **no tax field anywhere**.
+`sales_invoices` holds a single `amount` scalar, and in standalone mode users author invoices
+straight into it — so an invoice raised before this ships **cannot be reconstructed** into an
+ERPNext one, because whether the figure is tax-inclusive or tax-exclusive is recorded nowhere. It
+also gates the budget importer (#495) and work orders (#498).
+
+**Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
+`format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
+
+**Open build queue (as of 2026-08-21 — every unblocked item on it has shipped):** ~~#525 first-class
+tasks~~ SHIPPED · #526 meeting module — **blocked on #527**, three of its nine rulings shape the RLS ·
+**the i18n framework + Bahasa content pass** — **blocked on #527**'s dependency ruling · #481 —
+**blocked on #523** (a commercial call) · #499 RIS ERPNext provisioning — **owner only**.
+
+**⚑ GO-LIVE STEP 1 IS NOW ACTUALLY DONE** (`0198` + #529). It was not before, and the status board
+said it was: `0187` shipped `organizations.default_currency` and a `currency` column on twelve money
+tables, and **not one line of frontend code read any of it** — `formatCurrency(value)` took no
+currency and USD was welded into `format.ts` in four places. A column with no consumer reads as
+"shipped" on a checklist and renders an IDR invoice as dollars. ~111 call sites now take the source
+that is actually right: the record's own, the org default for aggregates, the parent's for leaves,
+and `PLATFORM_CURRENCY` for AI billing.
+
+⛔ **What remains of step 1 is the i18n FRAMEWORK, which does not exist at all** — no `react-i18next`,
+no translation layer. Measured: **~1,940 call sites / ~1,170 distinct strings**, multi-week, and
+non-engineering work that is unblocked from step 2 onward. Leaving it in slot 6 serialises it behind
+work it does not depend on; the recommendation in `docs/specs/i18n-framework.spec.md` is to start it
+in parallel from step 2.
+
+**⚑ Shipped 2026-08-20, the tax-basis trio — and each one's review battery found something the build
+did not.** #495 budget importer · #505 vendor-invoice tax (`0196`) · #513 contract-value tax (`0197`).
+Read `docs/decisions.md` `DD-BIMP-1..8` before touching the import layer.
+
+⛔ **The finding worth carrying forward** (#513's security audit, which BUILT the attack rather than
+describing it): `0197` §4 promoted `work_orders.tax_amount` from an inert descriptive column into a
+live input to the over-commit control — and nothing was protecting it. `authenticated` held UPDATE on
+it, the value witness fired on `order_value` only, and the content freeze applies only after Draft. A
+PM could re-key a Draft order to `inclusive/50,000` after their manager set its 50,000 value, issue it
+with **no acknowledgement**, and the drawdown would report `committed = 0` — the commitment invisible
+on the exact screen meant to reveal it, permanently, because the post-issue freeze then locks it.
+
+**The general rule this produced:** *promoting a descriptive column into a control input changes its
+threat model.* Whatever was protecting it as a description has to be re-examined at the moment of
+promotion. `0197` §1 had already reasoned this out for `projects` and failed to apply its own rule one
+table over. Closed at both layers (grant + witness) because defence in depth needs a test per layer.
+
+⚑ **Mutation checks caught FIVE dead oracles across the three issues** — tests that would have stayed
+green while the feature was broken. Two were mine on #513: a fixture that over-committed under *both*
+the old and new arithmetic, and an attack assertion that was really testing the post-issue freeze
+because its row had already been issued. Reading the assertions would not have caught either. **A
+money-path test without a mutation run behind it is not evidence.**
+
+**⚑ #495 closed 2026-08-20 (`8837f691`, PR #519) — and three of its spec's premises were false
+against `dev`.** Recorded as `DD-BIMP-1..8`; the one that mattered: `0072`'s idempotency key
+includes `import_batch_id` and the wizard mints a fresh uuid per mount, so **a re-import in a new
+session misses the skip entirely** — the only cross-batch layer there is a dry-run *report*. An
+importer built to that shape passes its own tests and duplicates every budget on run two. Budgets
+are re-keyed on `import_key` alone; **the procurement path still carries the batch-scoped key**, and
+re-keying it is its own decision with its own backfill question. Two further finds: `database.types.ts`
+was stale by `0193`/`0195`, and every importer's wizard has been titled *"Import companies"* since
+the first fast-follow — caught by rendering, not by any test.
+
+**⚑ Both pi substrates were rate-capped mid-session (2026-08-20).** codex exhausted, GLM at its
+5-hour cap. The ADW planner produced a correct *refusal* and then could not even emit it — the
+`PlanOutput` schema has no `blocked` status, so a legitimate "I will not invent this" costs three
+retries and dies as a JSON parse error. #495 was finished Director-dispatched instead of waiting.
+
+**Shipped 2026-08-19/20:** #477 · #478 (go-live blocker) · #480 · #482 · #484 · #485 · #486 · #488 ·
+#489 · #491 · #493 · #494 · #498 work_orders · #500 · #501 · #504 · #508 · #510 · #511 · #515–#517.
+Plus the entire wayfinder decision layer across all three maps.
+**Owner-parked (blocking nothing):** #487 (day-1 reports) · #496 (what a real RIS client PO looks
+like) · #497 (ERPNext SLA, partner role, data locality, e-Faktur) · #466 (pricing, behind the
+parked reseller conversation).
+
+</details>

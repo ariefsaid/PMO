@@ -35,7 +35,7 @@ test.setTimeout(120_000);
 
 /** Wait for the Users directory to finish its initial fetch (ListState loading marker gone). */
 async function waitReady(page: Page) {
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 /** The directory row whose User cell shows this person's email (unique per user). */

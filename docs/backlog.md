@@ -4,117 +4,45 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS (2026-08-21) — the build queue is DRAINED to the owner-decision floor
+### ⚑⚑⚑ CURRENT STATE (2026-09-08) — v0.10.0 is LIVE; what is left is owner-held facts and the RIS test paths
 
-**Everything buildable without an owner ruling is shipped to `dev`.** What is left on the board is
-either a decision (#527, #523, #518, #530 item 3), infrastructure only the owner can provision (#499),
-or work those gate (#526 meetings, the Bahasa content pass, #481). The next move is the Q&A round,
-not another build.
+**Live in production (deployed 2026-09-07/08, owner-instructed):** release **v0.10.0** (`1cd3863c`) plus
+migration `0210` — cloud DB at **0210**, all 22 edge functions at stamp `59f91bbf`, Cloudflare `production`
+== `main` (`aa20f394`). Verified after deploy: demo login + five routes render, zero console errors, the
+prod grant sweep equals local. Run the four commands under *Deployment state* below before quoting any of
+this — it rots.
 
-**Shipped 2026-08-20/21 — the hardening wave.** #525 first-class tasks · #529/#530 the currency
-oracles · #533 the shadow-type gate · #532 the assignee column allowlist · #534 + #541 the
-silent-no-op class · #538 the milestone/project constraint · #530 item 2 and the export half of item 3
-· #539 the ADW diff gate.
+**What v0.10.0 carries beyond v0.9.0:** the i18n framework + Bahasa catalogue (#547/#567, launch-scope gate
+per `DD-I18N-9`) · first-class tasks + `DD-TASK-8` Engineer rights (#525/#568) · the meeting module (#526) ·
+work orders + the drawdown surface (#498/#566) · currency seam + tax basis on every money figure
+(#478/#495/#505/#513/#548/#578) · the three owner rulings of 2026-09-02 — author archives own minute
+(`OD-MTG-3`, #589), approvals queue filtered to the approve authority (`OD-TS-5`, #591), desktop
+bulk-approve as one shared controller (`OD-TS-6`, #592) · the timesheet delete-row race (#596) · the
+service-only definer grant pin (`0210`, #608) · the `toHaveCount(0)` skeleton-wait sweep (#610).
 
-⚑ **One theme runs through the whole wave: tests that could not fail.** Mutation runs caught a dead
-oracle in nearly every one of those issues — a fixture set that was all-USD and so could not tell a
-record's currency from a literal; an assertion that landed on a post-issue freeze instead of the
-control it named; a `_set_at` comparison that cannot move inside one transaction; a control that had
-already set the value the mutation was supposed to change. **Reading the assertions caught none of
-them.** Only running the code with the rule broken did. Assume a new oracle is dead until a mutation
-says otherwise.
+**Every wayfinder decision ticket across all three maps is closed.** Nothing on the board waits on a
+ruling. What remains is either an **owner-held fact** (below) or a **build issue** on the tracker — the
+frontier hook prints both at session start.
 
-⚑ **And the gate written to stop this could not catch either incident it was written for.** #533's
-first draft required every key of a hand-written row type to be a column of one table — but `MyTask`
-carries a joined `project_name` and `SalesInvoiceRow` carries joined payment terms, and one foreign
-field matches no table at all. Found by REPLAYING both incidents against it, not by reading it.
+**The RIS route now (map #450):** an ERPNext **v16.33 test instance** exists (`DD-OPS-10`, self-hosted on the
+owner's Oracle ARM VM — coordinates owner-held). Two test paths are ticketed and share only the deploy that
+has now happened: [#590](https://github.com/ariefsaid/PMO/issues/590) (ERPNext Connect-ready + the crossing
+dry-run, which doubles as the v16 re-proof) and [#598](https://github.com/ariefsaid/PMO/issues/598) (Entra
+Option-B registration in RIS's tenant → first user connect → AC-M1's data-200). **RIS's whole contribution:**
+the accountant's chart-of-accounts codes, fiscal-year convention, PPN encoding and the 2025 sheets
+(`DD-OPS-3`, #546); confirmation their tenant has SharePoint licences; one tenant-admin sitting; one user
+to click Connect. **Ours — DONE 2026-09-08:** the `ris-integrity` org exists on the live project (`live`, IDR, `id`/`id-ID`, Asia/Jakarta; guard proven refusing) with its first Admin invited; their Admin invites the rest. `pmo_epoch_at` has no column yet — the epoch is set at Connect (#590).
 
-### The 2026-08-19 frontier drain (still the standing context)
+**Known gaps, tracked:** a DB-only promote does not bump release-please (package path is `pmo-portal/`,
+[#611](https://github.com/ariefsaid/PMO/issues/611)) · the local promote gate exits at the first red lane,
+so serial/consent/smoke lanes only run when Chromium is clean — pre-run them by hand on a contended box
+(`docs/qa-portfolio.md`) · ERPNext follow-ups (#565) and the operational-completeness slate (#562) are
+not scheduled.
 
-**Read `git log origin/main..origin/dev` for the real state, never a paragraph here.** As of this
-edit `dev` is 52 commits ahead of `main`, and `main`→`production` remains a separate, explicit,
-per-instance owner-gated action.
-
-**What changed on 2026-08-18/19.** Three wayfinder maps (#439 multi-org, #450 RIS go-live, #459 the
-product route) had their **entire director frontier resolved** — every decision ticket across all
-three is closed. The rulings are in `docs/decisions.md` under `DD-` prefixes: `DD-I18N-1..6`
-(locale seam) · `DD-XING-1..6` (standalone→connected crossing) · `DD-ORG-1..4` · `DD-DEPLOY-1` ·
-`DD-RPT-1` · `DD-TEN-1` · `DD-OPS-1..5` · `DD-ENTRA-1` · `DD-TASK-1..5` · `DD-IMP-1` · `DD-WO-1..6` ·
-`DD-MTG-1..5` · `DD-FMT-1`.
-
-**⛔ The go-live blocker is #478 — currency + tax.** No PMO-owned money table carries a `currency`
-column (`OD-CR-5` was ruled 2026-07-22 and never built), and there is **no tax field anywhere**.
-`sales_invoices` holds a single `amount` scalar, and in standalone mode users author invoices
-straight into it — so an invoice raised before this ships **cannot be reconstructed** into an
-ERPNext one, because whether the figure is tax-inclusive or tax-exclusive is recorded nowhere. It
-also gates the budget importer (#495) and work orders (#498).
-
-**Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
-`format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
-
-**Open build queue (as of 2026-08-21 — every unblocked item on it has shipped):** ~~#525 first-class
-tasks~~ SHIPPED · #526 meeting module — **blocked on #527**, three of its nine rulings shape the RLS ·
-**the i18n framework + Bahasa content pass** — **blocked on #527**'s dependency ruling · #481 —
-**blocked on #523** (a commercial call) · #499 RIS ERPNext provisioning — **owner only**.
-
-**⚑ GO-LIVE STEP 1 IS NOW ACTUALLY DONE** (`0198` + #529). It was not before, and the status board
-said it was: `0187` shipped `organizations.default_currency` and a `currency` column on twelve money
-tables, and **not one line of frontend code read any of it** — `formatCurrency(value)` took no
-currency and USD was welded into `format.ts` in four places. A column with no consumer reads as
-"shipped" on a checklist and renders an IDR invoice as dollars. ~111 call sites now take the source
-that is actually right: the record's own, the org default for aggregates, the parent's for leaves,
-and `PLATFORM_CURRENCY` for AI billing.
-
-⛔ **What remains of step 1 is the i18n FRAMEWORK, which does not exist at all** — no `react-i18next`,
-no translation layer. Measured: **~1,940 call sites / ~1,170 distinct strings**, multi-week, and
-non-engineering work that is unblocked from step 2 onward. Leaving it in slot 6 serialises it behind
-work it does not depend on; the recommendation in `docs/specs/i18n-framework.spec.md` is to start it
-in parallel from step 2.
-
-**⚑ Shipped 2026-08-20, the tax-basis trio — and each one's review battery found something the build
-did not.** #495 budget importer · #505 vendor-invoice tax (`0196`) · #513 contract-value tax (`0197`).
-Read `docs/decisions.md` `DD-BIMP-1..8` before touching the import layer.
-
-⛔ **The finding worth carrying forward** (#513's security audit, which BUILT the attack rather than
-describing it): `0197` §4 promoted `work_orders.tax_amount` from an inert descriptive column into a
-live input to the over-commit control — and nothing was protecting it. `authenticated` held UPDATE on
-it, the value witness fired on `order_value` only, and the content freeze applies only after Draft. A
-PM could re-key a Draft order to `inclusive/50,000` after their manager set its 50,000 value, issue it
-with **no acknowledgement**, and the drawdown would report `committed = 0` — the commitment invisible
-on the exact screen meant to reveal it, permanently, because the post-issue freeze then locks it.
-
-**The general rule this produced:** *promoting a descriptive column into a control input changes its
-threat model.* Whatever was protecting it as a description has to be re-examined at the moment of
-promotion. `0197` §1 had already reasoned this out for `projects` and failed to apply its own rule one
-table over. Closed at both layers (grant + witness) because defence in depth needs a test per layer.
-
-⚑ **Mutation checks caught FIVE dead oracles across the three issues** — tests that would have stayed
-green while the feature was broken. Two were mine on #513: a fixture that over-committed under *both*
-the old and new arithmetic, and an attack assertion that was really testing the post-issue freeze
-because its row had already been issued. Reading the assertions would not have caught either. **A
-money-path test without a mutation run behind it is not evidence.**
-
-**⚑ #495 closed 2026-08-20 (`8837f691`, PR #519) — and three of its spec's premises were false
-against `dev`.** Recorded as `DD-BIMP-1..8`; the one that mattered: `0072`'s idempotency key
-includes `import_batch_id` and the wizard mints a fresh uuid per mount, so **a re-import in a new
-session misses the skip entirely** — the only cross-batch layer there is a dry-run *report*. An
-importer built to that shape passes its own tests and duplicates every budget on run two. Budgets
-are re-keyed on `import_key` alone; **the procurement path still carries the batch-scoped key**, and
-re-keying it is its own decision with its own backfill question. Two further finds: `database.types.ts`
-was stale by `0193`/`0195`, and every importer's wizard has been titled *"Import companies"* since
-the first fast-follow — caught by rendering, not by any test.
-
-**⚑ Both pi substrates were rate-capped mid-session (2026-08-20).** codex exhausted, GLM at its
-5-hour cap. The ADW planner produced a correct *refusal* and then could not even emit it — the
-`PlanOutput` schema has no `blocked` status, so a legitimate "I will not invent this" costs three
-retries and dies as a JSON parse error. #495 was finished Director-dispatched instead of waiting.
-
-**Shipped 2026-08-19/20:** #477 · #478 (go-live blocker) · #480 · #482 · #484 · #485 · #486 · #488 ·
-#489 · #491 · #493 · #494 · #498 work_orders · #500 · #501 · #504 · #508 · #510 · #511 · #515–#517.
-Plus the entire wayfinder decision layer across all three maps.
-**Owner-parked (blocking nothing):** #487 (day-1 reports) · #496 (what a real RIS client PO looks
-like) · #497 (ERPNext SLA, partner role, data locality, e-Faktur) · #466 (pricing, behind the
-parked reseller conversation).
+**The standing lesson of the last three weeks:** every defect that reached `main` was found by a step that
+had not been run — a gate lane that never executed, a proof that only ran on local Docker whose grant
+defaults differ from production, a mutation nobody made. Read `docs/decisions.md` for the rulings and
+`docs/history.md` § *2026-08-18 → 2026-09-08* for the narrative that used to sit here.
 
 **⏸ POOLED OWNER QUESTIONS — parked, blocking nothing.** These are facts only the owner holds
 (commercial terms, client relationships, or a client's own data). They are **closed on the tracker**
@@ -155,7 +83,7 @@ git rev-list --count origin/main..origin/dev          # what is on dev and NOT p
 supabase migration list --linked                      # the CLOUD DB's real migration level
 ```
 
-**Snapshot 2026-09-07 (evening), for orientation only:** **`v0.10.0` released** — tag `1cd3863c`, release-please PR #432 merged after the second promote of the day (PR #607, `--merge`, gate run 6 fully green at load 3, no bypass). `main` == `dev` == `1cd3863c` (back-merge done). `production` **unchanged since 2026-08-05** (`868ab117`) and the cloud Supabase project has not moved — **nothing is deployed.** On `main` since the morning promote: OD-MTG-3 meeting archive rights (#589), OD-TS-5 approvals authority filter (#591), OD-TS-6 desktop bulk-approve with FR-TS-012/AC-912 and en+id copy (#592), fflate/browserslist + Actions bumps. The morning promote (PR #599) took five gate runs + an owner-authorized hook bypass; it found one real race (#596) and three stale/ambiguous oracles (#594/#600/#602). ⚑ The local gate exits at the first red lane — serial/consent/smoke never ran until pre-run by hand; run 6 proved the whole gate passes on a quiet box. Next: the owner's explicit deploy (cloud DB + edge fns, then `main` → `production`).
+**Snapshot 2026-09-08, for orientation only:** **v0.10.0 is DEPLOYED** — cloud DB `0186 → 0210`, all 22 edge functions stamped `59f91bbf`, Cloudflare `production` = `aa20f394` (== `main`), live site serves v0.10.0 (demo login + five routes rendered, zero console errors). The post-deploy grant sweep found the pre-0185 residual class live on the cloud (hosted default EXECUTE grants on service-only definers, incl. the vault reader — `docs/decisions.md` / the 0210 migration header carry the account); closed by an owner-instructed emergency revoke, then **migration 0210** (PR #608 → promote #609 → applied on prod, its own assertion passing there; prod sweep now equals local). ⚑ **A DB-only promote does not bump release-please** (package path is `pmo-portal/`): 0210 is on `main` at `aa20f394` with no tag; v0.10.1 needs a `Release-As` commit under `pmo-portal/` or a root-path release config. Also on `dev`: the `toHaveCount(0)` skeleton-wait sweep (#610) that ends the #593 flake class.
 
 ⚑ **`main` → `production` needs an EXPLICIT, per-instance owner instruction naming production**
 (CLAUDE.md). It is never implied by a promote to `main`, a stated plan, or a prior approval.
@@ -184,17 +112,12 @@ does not — so `0173`'s completeness sweep was green in CI and false in prod: 2
 green every day through 2026-08-04 (verified `gh run list --workflow=posthog-quota.yml`; 8–15s runs =
 the check really executes, and it exits(2) loudly if secrets are missing).
 
-**Active work: M365 program.** Owner ruling 2026-07-30: the connection belongs to the **client's**
-Microsoft 365 and client users make it (see the M365 section below). #428 landed the three-step
-model on `dev` — operator entitles → client admin approves → each user connects. Next: promote
-`dev`→`main` when the slice is review-complete; live deploy stays owner-gated.
+**M365 program (status in the §M365 table below, nowhere else):** the three-step model (#428) is on `main` and deployed; the live use-leg waits on RIS's tenant (#598).
 
 **⚑ Route map (2026-08-18): the product's destination is now charted.** GitHub #459 — *PMO as a
 product: the route from RIS to a reseller-fed SaaS* — holds the destination, three milestones
 (first client live · standalone SaaS · reseller-fed) and the decisions from a full grill. Child maps:
-#450 (milestone 1) · #439 (milestone 2). It revises the RIS-parity sequence below and adds two slices
-in front of go-live: **first-class tasks** and a **meeting module**. Read the map for *why*; this
-file stays the live status doc.
+#450 (milestone 1) · #439 (milestone 2). It revised the RIS-parity sequence and added first-class tasks and a meeting module in front of go-live — **all shipped and live as of v0.10.0** (see *Current state* at the top). Read the map for *why*; this file stays the live status doc.
 
 **⛔ OWNER DECISIONS STILL OPEN** *(per the public-repo rule in CLAUDE.md, open items are neutral
 stubs here; full detail is held privately by the Director and restored to this doc when each ships)*
@@ -237,7 +160,7 @@ tried — which is the part an issue title cannot carry.
 
 ---
 
-### ⚑ AGENT re-query-loop regression — ✅ MERGED (#410) and now ON `main`; edge-fn DEPLOY still owner-gated
+### ⚑ AGENT re-query-loop regression — ✅ MERGED (#410), ON `main`, and DEPLOYED 2026-09-07 (all edge fns at `59f91bbf`)
 
 **Symptom (found in prod agent transcripts):** "Which of my projects are behind schedule?" answered
 cleanly on Jul 8 (`run f4b8609d`), but on Jul 16 (`run ebe98163`) it dumped raw tables into the chat,
@@ -1137,7 +1060,7 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
       standalone (a topology ADR-0055 already supports), then ERPNext lands with a two-way historical
       sync.
     - **[OD-ERP-2] We self-host ERPNext for RIS**, beside their PMO deployment — not the distribution
-      partner, not RIS. No hosted ERPNext exists today, only the local dev bed (#474).
+      partner, not RIS. ~~No hosted ERPNext exists today, only the local dev bed (#474).~~ **Superseded 2026-09-02 by `DD-OPS-10`: a v16.33 test instance is live on the owner's Oracle ARM VM.**
     - **⚑ Architecture gap surfaced (#475):** ADR-0055 models a client as either employing an external
       system or not — it has **no account of crossing between the two while live**, which is exactly
       what RIS does. The PMO rows written standalone are the only copy and cannot just become a
@@ -1152,7 +1075,7 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > |---|---|
 > | Phase 0 (SSO + entitlement) · Phase 1 (Graph token custody) | **MERGED — PR #333, 2026-07-20. On `main`.** |
 > | Operator/client separation (#428) | on `main` (`AC-M365SEP-*`, pgTAP `0178`) |
-> | Migrations | `0112`–`0117`, `0151`, `0186` on `main`; edge fn `m365-token-custody` |
+> | Migrations | `0112`–`0117`, `0151`, `0186` — on `main` and on the cloud DB (level `0210`); edge fn `m365-token-custody` deployed at `59f91bbf` |
 > | **M0** baseline verify | ✅ done 2026-08-16 |
 > | **M1** live use-leg proof | ⛔ **PARKED.** Connect leg proven live end-to-end incl. first auto-refresh — Graph accepts our token. The **vendor tenant has no SharePoint Online licence**, so a data-carrying 200 is impossible there. Owner: *"wait until RIS."* Record: `docs/spikes/2026-08-18-m365-use-leg-live-probe.md` |
 > | **M2** doc-linking spec | `docs/specs/m365-onedrive-doc-linking.spec.md` exists |
@@ -1160,12 +1083,9 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > | **M4** coverage debt + promote | not started |
 >
 > ⚑ **`graph_proxy` has never decrypted a token in anger.** Custody is built and proven; *use* is not.
-> ⚑ **CORRECTED 2026-08-24 (verified via `supabase functions list`):** the deployed
-> `m365-token-custody` is **v9 @ 2026-08-18 — post-#428**, NOT the "v5, pre-#428" this table first
-> claimed. The stale-deploy problem is real but sits elsewhere: **`adapter-dispatch`,
-> `external-connect` and `_shared` last deployed 2026-07-31**, before the currency/tax and Posture-B
-> stamp work — and the cloud DB is 17 migrations behind `main` (`0186` vs `0203`). An owner-gated
-> deploy is still the gate before any live M365 run; the reason just moved.
+> ⚑ **DEPLOY GATE SATISFIED 2026-09-07:** every edge function (incl. `m365-token-custody`, `adapter-dispatch`,
+> `external-connect`, `_shared`) is deployed at stamp `59f91bbf` and the cloud DB is at `0210`. Nothing on our
+> side blocks a live M365 run any more — M1 now waits only on RIS's tenant ([#598](https://github.com/ariefsaid/PMO/issues/598)).
 > ⚑ **M365 completion is DOWNSTREAM of RIS go-live, not a prerequisite for it.** M1's data-200 closes
 > at the first SPO-licensed tenant, which is RIS.
 >
@@ -1352,7 +1272,10 @@ client-side path to exercise in any tenant.**
   legitimate and both have been used. What remains open is *not* the tenant choice: it is `graph_proxy` (never
   exercised) and the operator/client separation the **code** does not yet express. See TBD-2/TBD-3.
 
-#### ⏸️ TBD — what is NOT done, in dependency order
+#### ⏸️ TBD — ⛔ STALE LIST (pre-2026-08-24): TBD-1 is confirmed (fns at `59f91bbf`), TBD-2/3 shipped as #428 — the table above is the only current status
+
+_Kept for the reasoning only._
+
 1. **Confirm the DEPLOYED `m365-token-custody` is at or past `#365`** (`supabase functions list`). Anything
    older still contains HIGH-A1 and will corrupt the next connect. Cheap, and it must precede everything.
 2. **⭐ Make the code express the operator/client split** — the standing intention throughout, which the shipped
@@ -1496,15 +1419,11 @@ YAGNI at single-tenant scale). Two real gaps, prioritized:
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
 
 ### Edge-function operationalization + versioning (from the agent epic + ADR-0042)
-- **Edge-function prod deploy step** [Medium, OWNER-GATED — blocks `v0.2.0` to prod]: the promote path
-  (`docs/environments.md`) deploys only DB+FE. Add `supabase functions deploy agent-chat compose-view` +
-  set the prod `ANTHROPIC_API_KEY` secret (`supabase secrets set`, once). Without it a prod with the agent
-  panel calls a missing endpoint. Runbook + local-dev already documented in `docs/environments.md` → Edge Functions.
+- ~~**Edge-function prod deploy step**~~ ✅ done: `scripts/stamp-edge-fns.sh --project-ref <ref>` deploys all functions with the git SHA baked in (verify via `/functions/v1/health`); `OPENROUTER_API_KEY` is set on the cloud project. Procedure: `docs/environments.md` § Edge Functions.
 - **Local edge-function dev enablement** [Low, done — scaffolding]: `supabase/functions/.env.example` +
   the `functions serve` runbook (`docs/environments.md`). Live end-to-end agent testing needs a **local
   session** (this container has `[edge_runtime] enabled=false` + no `deno.land`/API key). Not automatable here.
-- **`release-please` automation** [Low, ADR-0042 adoption]: GitHub Action on `main` to maintain
-  `CHANGELOG.md` + compute the next `vX.Y.Z` from Conventional Commits, so the version is never hand-argued.
+- ~~**`release-please` automation**~~ ✅ done (`.github/workflows/release-please.yml`; cut v0.10.0 via PR #432). ⚑ Package path is `pmo-portal/`, so DB-only promotes do not bump — #611.
 - ~~**`VITE_APP_VERSION` in-app surfacing**~~ — **DONE** (verified 2026-08-06: `__APP_VERSION__` via
   `vite.config.ts`, `AppVersion.tsx` renders `vX.Y.Z · <sha>`; stale-ledger sweep).
 

@@ -14,7 +14,7 @@ and everything promoted to `main`.
 State it builds on (verified 2026-08-16, `docs/backlog.md` "M365 INTEGRATION" + #428): connect leg
 proven live (2026-07-24); token custody shipped + 4-round audited; three-step model + operator/
 client split ON `main` (#428, `AC-M365SEP-*`, pgTAP `0178`); **`graph_proxy` has never decrypted a
-real token** — no Graph data has ever reached PMO.
+real token** — no Graph data has ever reached PMO. *(Updated 2026-08-18: the live probe ran and Graph accepted our token; the blocker is the vendor tenant's missing SharePoint licence — see the M1 box. 2026-09-07: the deploy gate is satisfied — all functions at `59f91bbf`, cloud DB `0210`; M1 waits only on RIS's tenant, #598.)*
 
 ## Milestones
 

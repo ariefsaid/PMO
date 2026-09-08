@@ -267,7 +267,7 @@ test.describe('AC-CUA-090: employed-ClickUp task write-through journey', () => {
       // -- Given: sign in + open the project Tasks tab -> Board view. --
       await signIn(page, ADMIN_EMAIL);
       await page.goto(`/projects/${PROJECT_ID}/tasks`);
-      await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
       await page.getByRole('tab', { name: /^board$/i }).click();
 
       const statusSelect = page.getByLabel(`Status for ${TASK_NAME}`);
@@ -295,7 +295,7 @@ test.describe('AC-CUA-090: employed-ClickUp task write-through journey', () => {
 
       // -- Then 4: a reload shows the mirrored status (read-model persisted). --
       await page.reload();
-      await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
       await expect(page.getByLabel(`Status for ${TASK_NAME}`)).toHaveValue(TO_STATUS, { timeout: 15_000 });
     },
   );

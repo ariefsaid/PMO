@@ -276,25 +276,20 @@ supabase functions serve agent-chat compose-view \
 only `OPENROUTER_API_KEY` must be supplied. `supabase/functions/.env.example` now documents
 `OPENROUTER_API_KEY` / `AGENT_MODEL_DEFAULT` / `AGENT_MODEL_COMPOSE` in place of `ANTHROPIC_API_KEY`.
 
-### Prod deploy (⚠ gap — required before `v0.2.0` can ship)
+### Prod deploy of the edge functions
 
-The promote path (below) currently deploys **only DB + frontend** — there is **no
-`supabase functions deploy` step and no prod `OPENROUTER_API_KEY` secret**. Until added, a prod that
-includes the agent panel calls a missing endpoint. The owner-gated release step is:
+Deploy **all** functions with the git SHA baked into the bundle, so each reports the version it runs:
 
 ```bash
-supabase functions deploy agent-chat compose-view          # deploy the Deno functions
-supabase secrets set OPENROUTER_API_KEY=sk-or-…            # set the prod function secret (once)
-supabase secrets set AGENT_ALLOWED_ORIGIN=https://pmo-bfb.pages.dev  # AUDIT-M4: narrow CORS to the SPA origin (unset ⇒ '*' for local dev)
+scripts/stamp-edge-fns.sh --project-ref <cloud ref>            # all functions (or name a subset)
+curl -s https://<ref>.supabase.co/functions/v1/health            # must report the SHA you just stamped
 ```
-**Migration note (this issue):** the prod Supabase Cloud project currently has NO
-`ANTHROPIC_API_KEY` secret set (never deployed — see the ⚠ gap this section already documents) —
-so there is nothing to unset/rotate on the cloud side. The only action needed at prod-deploy time
-is setting `OPENROUTER_API_KEY` (new) instead of the old name; no live-secret rotation is required
-because the old secret was never live.
 
-This runs **as part of a `v0.2.0` promote**, ordered with the DB push (below). Tracked in
-`docs/backlog.md` (edge-function operationalization).
+Function secrets (`OPENROUTER_API_KEY`, `AGENT_ALLOWED_ORIGIN`, the Telegram/BetterStack ones) are set once
+with `supabase secrets set` and survive redeploys. Order for a promote: DB (`db-push-prod.sh`) → functions →
+frontend (`git push origin <main sha>:refs/heads/production`) — DB-ahead-of-FE is safe, FE-ahead-of-DB is not.
+Then the hosted-grant sweep (§ Prod migration state). State of what is deployed: `supabase functions list`
+and the health endpoint, never this file.
 
 ### Production auth floor (cloud project — NOT in the committed `config.toml`)
 
@@ -386,6 +381,11 @@ Telegram webhook alert this paragraph used to flag as not-yet-built now exists (
 `docs/specs/observability-floor.spec.md` + `docs/plans/2026-07-04-observability-floor.md`).
 
 ## ERPNext v15 dev bed (P2)
+
+> ⚑ **2026-09-02, `DD-OPS-10`:** RIS's target major is **v16** and a v16.33 **test instance** exists (self-hosted on the
+> owner's Oracle ARM VM; coordinates owner-held, TLS via Caddy, app port localhost-only — runbook in the Director's
+> memory, ticket [#590](https://github.com/ariefsaid/PMO/issues/590)). This local v15 bed stays the adapter's
+> proving ground until the #481 dry-run passes on v16, after which the pin below moves with it.
 
 The ERPNext adapter (ADR-0055 P2 phase, `docs/plans/2026-07-11-erpnext-adapter.md`) needs a real
 ERPNext instance to build/test against — a **second Docker stack**, entirely separate from the
@@ -503,16 +503,24 @@ per-deployed-project sign-off is the control.
 
 ## Prod migration state
 
-**Prod is CURRENT at migration 0057** (pushed 2026-07-04 via owner-direct "push to prod"; migs
-0042–0057 = the never-shipped pre-agent 0042–0045 + the full agent tier 0046–0057, incl. the
-RED-3/RED-4 tenant-security fixes 0051/0052). The **`v0.2.0` agent-tier promote is LIVE**: CF Pages
-`production` = `8e4998e` → https://pmo-bfb.pages.dev with the AssistantPanel flag ON; `agent-chat` +
-`compose-view` edge functions deployed with `OPENROUTER_API_KEY` set; live end-to-end verified.
-> **Prior baseline:** migration 0041 (`fc312eb`, procurement case-folder records, migs 0035–0041) was
-> the `v0.1.0` baseline (ADR-0042), pushed 2026-06-21.
-> **History:** …0028–0033 pushed 2026-06-16 (procurement-files, calendar-milestone RPC, CRM,
-> vendor idx, top-projects spent, at-risk budget); **0035–0041 pushed 2026-06-21** (procurement
-> case-folder records). `docs/backlog.md` "Current state" is the live tracker; this section trails it.
+⛔ **Do not read a number here as current** — `docs/backlog.md` § *Deployment state* holds the four
+commands that are the answer (`git rev-parse origin/{production,main,dev}`, the two `rev-list --count`s,
+`supabase migration list --linked`). This section keeps only the rules and the last dated snapshot.
+
+**Snapshot 2026-09-08 (orientation only):** cloud DB at **`0210`** (pushed 2026-09-07/08 under an explicit
+owner deploy instruction: `0187`–`0209` with v0.10.0, then `0210`); all 22 edge functions deployed at stamp
+`59f91bbf` (`scripts/stamp-edge-fns.sh`, verified via `/functions/v1/health`); Cloudflare `production` ==
+`main` == `aa20f394`; release tag `v0.10.0` = `1cd3863c`. The earlier history (v0.1.0 at `0041`, v0.2.0 at
+`0057`, v0.7.0 …) is in `docs/history.md`.
+
+⚑ **After every prod push, run the hosted-grant sweep** — hosted Supabase grants EXECUTE to `anon` and
+`authenticated` on every `public` function by default; local Docker does not, so a local proof certifies
+nothing about production. Query `has_function_privilege('anon'|'authenticated', oid, 'EXECUTE')` over
+`prosecdef and prorettype <> 'trigger'` in `public`, diff against local, and **probe the hits with the anon
+key** (`supabase projects api-keys -o json`, into a 600 file, never echoed): a `200` is the fact, the
+catalog is the claim. 2026-09-07: the sweep found 37 vs 4 and a vault reader answering the public key;
+closed by an emergency revoke + `0210`. Expected steady state: exactly the RLS helpers (`auth_org_id`,
+`auth_role`, `is_active_member`, `org_feature_enabled`).
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus
@@ -546,9 +554,9 @@ The standard promote (owner-gated). Per ADR-0042 a promote also **cuts a version
 ```bash
 # 0. RELEASE: pick the bump (ADR-0042 §2), update CHANGELOG.md + pmo-portal/package.json
 scripts/db-push-prod.sh            # 1. DB: apply pending migrations (typed 'prod')
-supabase functions deploy agent-chat compose-view   # 1b. edge functions (v0.2.0+; secret set once)
+scripts/stamp-edge-fns.sh --project-ref <ref>   # 1b. ALL edge functions, SHA-stamped (secrets set once)
 scripts/db-seed-prod.sh            # 2. demo data (typed 'prod-seed') — demo-deploy only
-git push origin main:production    # 3. FE: Cloudflare builds the production branch
+git push origin "$(git rev-parse origin/main)":refs/heads/production   # 3. FE: push the REMOTE main tip (a stale local main pushes nothing)
 git tag -a vX.Y.Z <sha> -m "…" && git push origin vX.Y.Z   # 4. tag the release
 ```
 
@@ -654,6 +662,25 @@ curl -sS -X POST "$SUPABASE_URL/rest/v1/rpc/operator_create_org" \
 `23505` org name already taken, or that user already has a profile · `P0001` a required argument was
 blank · `23514` a malformed currency. Every one of them leaves **nothing** behind — the org and its
 Admin commit together or not at all.
+
+**Interim Operator invocation from a DB session (used 2026-09-08 for the first real org, per DD-ORG-1's
+"interim operator SQL must be written down").** When the only Operator cannot mint an access token at the
+keyboard, run the same RPC in a `psql` session on the prod URL with the Operator's identity in the JWT
+claims — the RPC's own `is_operator()` / active-member checks still run, and the audit row carries that
+Operator as actor. ⚑ Execute the create **exactly once**: put `\gset` on the SAME line as the `select`
+(no trailing `;`) — a bare `\gset` on its own line re-runs the previous query, the duplicate raises
+`org_name_taken`, and under `ON_ERROR_STOP` the whole transaction rolls back.
+
+```sql
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"<operator auth.users uuid>","role":"authenticated"}';
+select public.operator_create_org('<name>', '<admin uuid>', '<Admin full name>', 'IDR', 'id', 'id-ID', 'Asia/Jakarta') as org \gset
+select public.operator_set_org_lifecycle_state(:'org', 'live');   -- DD-RIS-1: stamp at creation
+commit;
+```
+Then prove the guard before data lands: `select public.assert_org_destroyable('<org>')` must raise
+`org_not_destroyable`. The Admin's auth user comes from `POST /auth/v1/invite` (service key) beforehand.
 
 **⛔ Still manual until their columns ship.** The RPC sets every companion that EXISTS; the rest must
 be set by hand immediately after creation, and moved INTO the RPC by the migration that adds them:

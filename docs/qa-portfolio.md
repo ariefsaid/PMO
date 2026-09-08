@@ -99,9 +99,12 @@ dependencies such as Mailpit, so those journeys still need a dedicated serial re
 
 ## `routes × oracles` denominator (Layer 2)
 
-**Routes (≈16):** `/` · `/my-tasks` · `/sales` · `/sales/:id` · `/projects` · `/projects/:id/:tab` ·
-`/procurement` · `/procurement/:id` · `/timesheets` · `/approvals` · `/companies` · `/companies/:id` ·
-`/contacts` · `/contacts/:id` · `/administration` · (`/incidents` — feature-hidden).
+**Routes (30, from `pmo-portal/App.tsx` `appRouteConfig` — 2026-09-08):** `/` · `/projects` · `/projects/:id` · `/projects/:id/:tab` ·
+`/sales` · `/sales/:id` · `/procurement` · `/procurement/:id` · `/procurement/:id/:tab` · `/timesheets` · `/approvals` ·
+`/companies` · `/companies/:id` · `/contacts` · `/contacts/:id` · `/incidents` · `/incidents/:id` (feature-hidden) ·
+`/my-tasks` · `/meetings` · `/meetings/:id` · `/reports` · `/administration` · `/sales-invoices` · `/incoming-payments` ·
+`/revenue-by-project` · `/integrations` · `/views` · `/views/new` · `/views/:id` · `/views/:id/edit`.
+⚑ This list under-counted by 14 routes for ~6 weeks (the whole meeting module included) despite the maintenance gate below — re-derive it from `appRouteConfig`, never edit it by memory.
 
 **Oracles (one specialist each):** action-completeness ("then what?") · state-coverage
 (loading/empty/error/permission) · data-correctness (numbers/dates/positions) · cross-screen

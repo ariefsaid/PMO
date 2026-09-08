@@ -11,7 +11,9 @@ collides with the legacy `NFR-I18N-001` in `docs/specs/target-architecture.spec.
 Three of the premises this work is usually briefed with are wrong against `dev`. Each is corrected
 here with the file that decides it.
 
-### 0.1 ✅ Confirmed: there is no i18n framework, at all
+### 0.1 ✅ Confirmed (as of 2026-08-19, pre-build): there was no i18n framework, at all
+
+> ⚑ **Historical survey.** The framework shipped in #547 (`react-i18next`, `src/lib/i18n/`, the `check:i18n` gate in `verify`) and the Bahasa catalogue in #567 — both live since v0.10.0. Read §0 as the starting point the spec was written against, not the current tree.
 
 - `pmo-portal/package.json:31-48` — no `i18next`, no `react-i18next`, no `lingui`, no `react-intl`,
   no `intl-messageformat`, no `typesafe-i18n`, no `paraglide`.
