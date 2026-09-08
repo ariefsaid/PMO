@@ -199,7 +199,7 @@ test.describe('AC-CUA-091: webhook-driven read-model update reflected in the UI'
       // ── Given: sign in + open the project Tasks tab -> Board view. ──
       await signIn(page, ADMIN_EMAIL);
       await page.goto(`/projects/${PROJECT_ID}/tasks`);
-      await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
       await page.getByRole('tab', { name: /^board$/i }).click();
 
       const statusSelect = page.getByLabel(`Status for ${TASK_NAME}`);
@@ -228,7 +228,7 @@ test.describe('AC-CUA-091: webhook-driven read-model update reflected in the UI'
       // ── Then (a): the board reflects the mirrored change on refresh (FR-CUA-021 — reads are the
       //    read-model; the webhook's apply is now the source of truth). ──
       await page.reload();
-      await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
       await expect(page.getByLabel(`Status for ${TASK_NAME}`)).toHaveValue(TO_STATUS, { timeout: 15_000 });
 
       // ── When (b) + Then (b): an UNSIGNED post is rejected 401 with NO read-model side effect

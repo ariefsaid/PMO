@@ -32,7 +32,7 @@ test.setTimeout(180_000);
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function waitIndexReady(page: Page) {
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 /**

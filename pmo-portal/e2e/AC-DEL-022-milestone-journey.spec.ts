@@ -62,7 +62,7 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await expect(page).toHaveURL(new RegExp(PROJECT_ID), { timeout: 15_000 });
 
   // Wait for the page to finish loading (loading skeleton clears).
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 
   // ── Step 2: milestone strip is empty — add a milestone ───────────────────────
   // The strip shows the empty state with an "Add a milestone" CTA.

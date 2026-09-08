@@ -19,7 +19,7 @@ import { login } from './helpers';
 test.setTimeout(120_000);
 
 async function waitReady(page: Page) {
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 function contactRow(page: Page, name: string) {

@@ -30,7 +30,7 @@ async function waitReady(page: Page) {
   // The loading variant renders <ListState variant="loading"> → data-testid="liststate-loading"
   // (aria-busy). Wait until that marker is gone, mirroring AC-1011/AC-401's projects-loading wait.
   // The previous `[data-slot="skeleton"]` selector matched nothing → the wait was a silent no-op.
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 /**

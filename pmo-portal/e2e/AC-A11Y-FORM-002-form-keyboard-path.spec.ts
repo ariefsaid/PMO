@@ -41,7 +41,7 @@ test(
   async ({ page }) => {
     await signIn(page, 'admin@acme.test');
     await page.goto('/contacts');
-    await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 
     await page.getByRole('button', { name: /New contact/i }).click();
     const dialog = page.getByRole('dialog');
