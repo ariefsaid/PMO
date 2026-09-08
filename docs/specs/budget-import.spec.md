@@ -151,8 +151,7 @@ cannot fail" class this repo has paid for repeatedly.
 
 For budgets the key is therefore `import_key` **alone**: `(org_id, import_key)` on `budget_versions`,
 `(budget_version_id, import_key)` on `budget_line_items`. This keeps two layers, not three, and makes
-the DB the authority for the re-run as well as the race. `0195` is amended in place — it is on `dev`
-only, never on `main` and never on prod, and `supabase db reset` is this phase's rollback (ADR-0006).
+the DB the authority for the re-run as well as the race. `0195` was amended in place while it was on `dev` only (`supabase db reset` was that phase's rollback, ADR-0006). ⚑ Since 2026-09-07 it is on `main` and on the cloud DB — immutable; further changes go in a new forward migration.
 
 ⚑ The procurement path keeps its batch-scoped key. Changing it is a separate decision about a shipped
 importer with live data, not a drive-by.

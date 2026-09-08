@@ -57,17 +57,17 @@ For each power, **Does** says what it changes or reads, **Invoke** says the supp
 
 ### Organization creation
 
-- **Does:** Creates an organization and its companion records in one transaction — the organization row, its operating currency, and the organization's first Admin membership. The Admin's email is read from the authentication record rather than supplied, so the two cannot diverge. Companion values whose columns are not built yet (locale defaults, the ERP epoch boundary, the lifecycle state) are still set by hand immediately afterwards; the current list is kept in the migration header.
+- **Does:** Creates an organization and its companion records in one transaction — the organization row, its operating currency, and the organization's first Admin membership. The Admin's email is read from the authentication record rather than supplied, so the two cannot diverge. Companion values (locale defaults — `0198`; the lifecycle state — `0191`; the ERP epoch boundary `pmo_epoch_at`) are set after creation by their own RPCs or, for the epoch, by hand at Connect time immediately afterwards; the current list is kept in the migration header.
 - **Invoke:** Call `operator_create_org(p_name, p_admin_user_id, p_admin_full_name, p_default_currency)` through the authenticated guarded RPC path. The first Admin's authentication record must already exist and must not already have a profile — a person who already has one belongs to an organization, and the answer to a wrong organization is offboard and reinvite, never a move. Full procedure: [`docs/environments.md`](environments.md) § "Creating an org (Operator)". There is no UI, and no hand-written organization-creation SQL belongs in this runbook.
 - **Who may:** An active platform Operator only; the server re-checks both the Operator grant and the caller's active standing. ⚑ It therefore cannot create the very first organization on a brand-new deployment, which has no Operator yet — that case stays with the provisioning script.
 - **Audited today:** **Not currently audited**, the same as the other direct Operator RPCs on this page.
 
-### Organization lifecycle — forthcoming
+### Organization lifecycle (shipped — `0191`, #489; on the cloud DB)
 
-- **Does:** Will provide the guarded organization lifecycle state and destructive guard described by #489. The `live` state is terminal.
-- **Invoke:** #489 is **not yet shipped**; no function name, command, or invocation is available today.
-- **Who may:** Not available until #489 ships.
-- **Audited today:** Not shipped; therefore no audit record exists today.
+- **Does:** Holds `organizations.lifecycle_state` and the default-deny wholesale-destruction guard (`DD-ORG-3`). `live` is terminal. Any org-wholesale destructive procedure must call `assert_org_destroyable(p_org_id)` first; an unmarked org is safe by default.
+- **Invoke:** `operator_set_org_lifecycle_state(p_org_id, p_state)` through the authenticated RPC path; `assert_org_destroyable(p_org_id)` raises unless the org may be destroyed. There is no direct column write — `organizations` carries no authenticated UPDATE grant on that column.
+- **Who may:** An active platform Operator only (re-checked server-side).
+- **Audited today:** The RPC is the audited write boundary (see the `0191` header); read the migration before relying on the record shape.
 
 ### Platform Operator membership
 
@@ -123,9 +123,9 @@ Complete these steps in order. Every dependency is explicit because the destruct
 
 | Order | Step | Dependency |
 |---:|---|---|
-| 1 | **#489 guard ships.** | Prerequisite for every later step. |
+| 1 | ~~#489 guard ships.~~ ✅ Shipped (`0191`) and live on the cloud DB. | — |
 | 2 | **Backfill existing organization lifecycle states.** | Depends on #489 guard shipment. |
-| 3 | **Create the RIS organization stamped `live` at creation with its #484 companions.** | Depends on the #489 backfill and #484. Do not invent the unshipped RPC signature. |
+| 3 | **Create the RIS organization stamped `live` at creation with its #484 companions.** | Depends on step 2 and #484 (`operator_create_org`, shipped `0192`). Set the lifecycle state via `operator_set_org_lifecycle_state`. |
 | 4 | **Invite the RIS Admin.** | Depends on successful organization creation. |
 | 5 | **Their Admin invites the rest.** | Depends on the first Admin accepting/accessing the organization. The Operator does not assign the remaining client roles. |
 | 6 | **Offboard demo-organization duplicates.** | Depends on RIS members existing as fresh identities; do not move profiles. |

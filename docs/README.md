@@ -10,9 +10,11 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`kanna-program.md`** | ⚠ **COMPLETED / ARCHIVED 2026-06-16 — not an active program.** Historical execution plan — wave sequencing, the parallel-build/serialized-owner operating model, per-wave cadence. The active program's playbook (backlog tracks its status). |
 | **`decisions.md`** | Every locked owner decision (`OD-*`) — the binding product/scope calls. Grep by id. |
 | **`environments.md`** | The deploy + ops runbook (Supabase Cloud + Cloudflare Pages + 1Password `op-get.sh`; branch topology; the port-5432 rule; parallel-worktree local-stack hygiene). |
+| **`factory-workflow.md`** | **The operating model** — three actors (owner · Director · factory), executor routing, decision rights, the drive loop. Read before starting any build. |
+| **`operator-runbook.md`** | Operator (platform) procedures — org creation, lifecycle, membership, the RIS provisioning sequence. |
 | **`pi-delegation.md`** | **How role-agent work is currently dispatched** — the pi CLI (GLM/codex) trial: model routing, invocation, dispatch mechanics, resource isolation, rendered-UI verification. |
-| **`adr/`** | Architecture Decision Records — **63 files, `0001`–`0062`** (no 0013; no 0026). ⚑ Do NOT enumerate them here; this row rotted badly by trying to. `ls docs/adr/` is the index and `grep -r ADR-00NN` finds citations. ⚑ Known id collisions to fix: **`0058`×2**, **`0059`×3** — `grep ADR-0059` currently resolves to three unrelated documents (tracked in `backlog.md`). The durable "why" of every architectural choice. |
-| **`pmo-portal/CHANGELOG.md`** | Per-release notes + deploy manifest (app sha · migration high-water · edge-fn state). ⚑ It is under `pmo-portal/`, NOT the repo root. Versioning convention is **ADR-0042** (SemVer, pre-1.0). Current `package.json` version: **0.7.2** — read the file, not this row. |
+| **`adr/`** | Architecture Decision Records. ⚑ Do NOT enumerate counts or ranges here — this row rotted twice by trying to; the id-collision class is gated by `scripts/check-adr-collisions.sh`. `ls docs/adr/` is the index and `grep -r ADR-00NN` finds citations. ⚑ Known id collisions to fix: **`0058`×2**, **`0059`×3** — `grep ADR-0059` currently resolves to three unrelated documents (tracked in `backlog.md`). The durable "why" of every architectural choice. |
+| **`pmo-portal/CHANGELOG.md`** | Per-release notes + deploy manifest (app sha · migration high-water · edge-fn state). ⚑ It is under `pmo-portal/`, NOT the repo root. Versioning convention is **ADR-0042** (SemVer, pre-1.0). Current version: read `pmo-portal/package.json` / the latest `v*` tag, never this row. |
 
 ## Durable reference (the contracts the code follows)
 | Path | Holds |

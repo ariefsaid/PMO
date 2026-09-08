@@ -25,8 +25,8 @@ first for current state.
 | 1 | **Commercial** | Win the work: pipeline / tenders / win-rate | ✅ built & hardened |
 | 2 | **Cost / AP** | Money OUT: budgets, procure-to-pay, timesheets | ✅ built & hardened |
 | 3 | **Delivery** | Do the work: execution phases (E→P→C), %-complete / schedule, field ops | ✅ built (#74/#79/#80 — milestones, delivery-%, committed-spend; no stage-gates per OD-DEL-6) |
-| 4 | **Revenue / AR** | Money IN: progress billing, retention, change orders, cashflow | ❌ missing (recommended next big spine) |
-| 5 | **CRM** | Contacts, activity log, follow-ups | 🟡 partial — contacts + activity log built (on `dev`, pending promote) |
+| 4 | **Revenue / AR** | Money IN: progress billing, retention, change orders, cashflow | ✅ built — sales invoices, incoming payments, revenue-by-project, work orders + drawdown, ERPNext AR read-backs (live v0.10.0) |
+| 5 | **CRM** | Contacts, activity log, follow-ups | ✅ built — contacts + activity log in production since v0.8.0 |
 | 6 | **HSE / Quality** | Incidents ✓; inspections / NCRs / permits ✗ | 🟡 partial |
 | 7 | **Documents** | Register + approval ✓; **file upload ✓ (#78)**; transmittals / RFIs ✗ | 🟡 advancing |
 | 8 | **Resources / Assets** | Capacity planning, equipment, inventory | ❌ missing |
@@ -136,6 +136,8 @@ opportunities split (ADR-0020 deferred end-state).
 ---
 
 ## 4. Sequencing recommendation
+
+> ⚑ **Dated assessment (June 2026).** T1 (delivery), T4 (companies) and most of T2 (AR) have shipped since; read the section as the reasoning that set the order, not as current gaps — `docs/backlog.md` is the status.
 
 ### Top-5 tracks
 

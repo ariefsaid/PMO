@@ -1306,7 +1306,7 @@ provisioning and a historical load to it would put the go-live out of reach.
 **[OD-ERP-2] We self-host ERPNext for RIS, alongside their PMO deployment.** Not the distribution partner
 (despite ERPNext hosting being their business), not RIS. Today no hosted ERPNext exists anywhere — only
 the local Docker dev bed (`docs/environments.md` §ERPNext v15 dev bed). Provisioning, company setup,
-credentials and the historical load are charted in #474.
+credentials and the historical load are charted in #474. *(Fact superseded 2026-09-02: `DD-OPS-10` — a v16 test instance now exists; the ruling itself stands.)*
 
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
@@ -2145,8 +2145,7 @@ session** misses the skip and inserts duplicates. The only cross-batch layer tha
 opposite ("the skip query… is what makes a re-run a no-op") and would have yielded an importer that
 passes its own tests and duplicates every budget on the second run — a green suite that cannot fail.
 
-`0195` is amended in place (on `dev` only, never `main`, never prod; `supabase db reset` is this
-phase's rollback per ADR-0006) to key on `import_key` alone: `(org_id, import_key)` on
+`0195` was amended in place while it lived on `dev` only (`supabase db reset` was that phase's rollback per ADR-0006; ⚑ it has been on `main` and on the cloud DB since 2026-09-07 — it is now IMMUTABLE, any further change is a new forward migration) to key on `import_key` alone: `(org_id, import_key)` on
 `budget_versions`, `(budget_version_id, import_key)` on `budget_line_items`. Still two layers, not
 three — the DB is now the authority for the **re-run** as well as the race.
 
