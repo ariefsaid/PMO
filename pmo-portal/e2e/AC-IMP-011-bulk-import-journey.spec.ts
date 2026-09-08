@@ -18,7 +18,7 @@ import { login } from './helpers';
 test.setTimeout(120_000);
 
 async function waitReady(page: Page) {
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 /** The DataTable activation button is the stable, exact per-row doorway (mirrors AC-CO-001).

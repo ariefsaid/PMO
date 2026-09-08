@@ -25,7 +25,7 @@ test.setTimeout(120_000);
 
 /** Wait for the Incidents page to finish its initial data fetch. */
 async function waitReady(page: Page) {
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 test.skip(

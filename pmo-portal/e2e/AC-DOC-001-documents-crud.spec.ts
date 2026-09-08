@@ -36,7 +36,7 @@ async function openDocumentsTab(page: Page) {
   await page.goto(`/projects/${PROJECT}`);
   await page.getByRole('tab', { name: 'Documents' }).click();
   // The register's loading skeleton (ListState variant="loading") must clear.
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 /** Locate the register row whose Document cell contains `title`. */

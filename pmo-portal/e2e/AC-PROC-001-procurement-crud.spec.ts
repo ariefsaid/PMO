@@ -29,7 +29,7 @@ test.setTimeout(120_000);
 
 /** Wait for the Procurement index to finish its initial fetch. */
 async function waitIndexReady(page: Page) {
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
 /** Wait for the procurement detail page to finish loading. */
