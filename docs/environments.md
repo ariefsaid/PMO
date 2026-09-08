@@ -663,6 +663,25 @@ curl -sS -X POST "$SUPABASE_URL/rest/v1/rpc/operator_create_org" \
 blank · `23514` a malformed currency. Every one of them leaves **nothing** behind — the org and its
 Admin commit together or not at all.
 
+**Interim Operator invocation from a DB session (used 2026-09-08 for the first real org, per DD-ORG-1's
+"interim operator SQL must be written down").** When the only Operator cannot mint an access token at the
+keyboard, run the same RPC in a `psql` session on the prod URL with the Operator's identity in the JWT
+claims — the RPC's own `is_operator()` / active-member checks still run, and the audit row carries that
+Operator as actor. ⚑ Execute the create **exactly once**: put `\gset` on the SAME line as the `select`
+(no trailing `;`) — a bare `\gset` on its own line re-runs the previous query, the duplicate raises
+`org_name_taken`, and under `ON_ERROR_STOP` the whole transaction rolls back.
+
+```sql
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"<operator auth.users uuid>","role":"authenticated"}';
+select public.operator_create_org('<name>', '<admin uuid>', '<Admin full name>', 'IDR', 'id', 'id-ID', 'Asia/Jakarta') as org \gset
+select public.operator_set_org_lifecycle_state(:'org', 'live');   -- DD-RIS-1: stamp at creation
+commit;
+```
+Then prove the guard before data lands: `select public.assert_org_destroyable('<org>')` must raise
+`org_not_destroyable`. The Admin's auth user comes from `POST /auth/v1/invite` (service key) beforehand.
+
 **⛔ Still manual until their columns ship.** The RPC sets every companion that EXISTS; the rest must
 be set by hand immediately after creation, and moved INTO the RPC by the migration that adds them:
 locale defaults (#468) · `pmo_epoch_at` (`DD-XING-2` — free at creation, guesswork afterwards) ·

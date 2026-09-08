@@ -125,8 +125,8 @@ Complete these steps in order. Every dependency is explicit because the destruct
 |---:|---|---|
 | 1 | ~~#489 guard ships.~~ ✅ Shipped (`0191`) and live on the cloud DB. | — |
 | 2 | **Backfill existing organization lifecycle states.** | Depends on #489 guard shipment. |
-| 3 | **Create the RIS organization stamped `live` at creation with its #484 companions.** | Depends on step 2 and #484 (`operator_create_org`, shipped `0192`). Set the lifecycle state via `operator_set_org_lifecycle_state`. |
-| 4 | **Invite the RIS Admin.** | Depends on successful organization creation. |
+| 3 | ~~Create the RIS organization stamped `live` at creation with its #484 companions.~~ ✅ Done 2026-09-08 (`ris-integrity`; procedure in `docs/environments.md` § Creating an org). |
+| 4 | ~~Invite the RIS Admin.~~ ✅ Done 2026-09-08 (GoTrue invite; first Admin active). |
 | 5 | **Their Admin invites the rest.** | Depends on the first Admin accepting/accessing the organization. The Operator does not assign the remaining client roles. |
 | 6 | **Offboard demo-organization duplicates.** | Depends on RIS members existing as fresh identities; do not move profiles. |
 | 7 | **Verify.** | Depends on all preceding steps. Before operational data is loaded, deliberately attempt the wholesale destructive procedure against the real `live` organization and prove that it refuses a wipe. A guard never observed refusing is not a guard. Also verify organization isolation, Admin access, team-invite ownership, and offboarding completion. |

@@ -31,7 +31,7 @@ dry-run, which doubles as the v16 re-proof) and [#598](https://github.com/ariefs
 Option-B registration in RIS's tenant → first user connect → AC-M1's data-200). **RIS's whole contribution:**
 the accountant's chart-of-accounts codes, fiscal-year convention, PPN encoding and the 2025 sheets
 (`DD-OPS-3`, #546); confirmation their tenant has SharePoint licences; one tenant-admin sitting; one user
-to click Connect. Ours: org creation + first Admin (#454), then their Admin invites the rest.
+to click Connect. **Ours — DONE 2026-09-08:** the `ris-integrity` org exists on the live project (`live`, IDR, `id`/`id-ID`, Asia/Jakarta; guard proven refusing) with its first Admin invited; their Admin invites the rest. `pmo_epoch_at` has no column yet — the epoch is set at Connect (#590).
 
 **Known gaps, tracked:** a DB-only promote does not bump release-please (package path is `pmo-portal/`,
 [#611](https://github.com/ariefsaid/PMO/issues/611)) · the local promote gate exits at the first red lane,
