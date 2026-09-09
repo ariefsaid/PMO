@@ -2700,7 +2700,7 @@ the viewer can approve are listed, so a bulk action never includes a row the ser
 
 ---
 
-## OD-RIS-4 — the first RIS users (owner, 2026-09-09)
+## OD-RIS-1 — the first RIS users (owner, 2026-09-09)
 
 Raised as [#624](https://github.com/ariefsaid/PMO/issues/624). Twelve people: **8 Engineer, 2 Project
 Manager, 1 line-of-business manager (Executive), 1 project admin / secretary** — the secretary maps to
@@ -2710,7 +2710,7 @@ is touched from day one** — no reduced first cut. Consequence for the readines
 second-org walk (#622) and the second-org e2e run (#621) cover the whole portfolio, not a launch subset,
 and the Engineer path (timesheets, tasks, minutes as attendee) carries the most seats.
 
-## OD-RIS-5 — invites ride Supabase's built-in relay for now (owner, 2026-09-09)
+## OD-RIS-2 — invites ride Supabase's built-in relay for now (owner, 2026-09-09)
 
 Raised as [#625](https://github.com/ariefsaid/PMO/issues/625). Owner: "ride the Supabase first." No
 custom SMTP or sender domain before RIS's users come in; the built-in relay (rate-limited, generic
