@@ -35,7 +35,7 @@
 --
 -- Reversibility (ADR-0006): no schema changes (fixtures inside begin/rollback); re-run is a no-op.
 begin;
-select plan(22);
+select plan(24);
 
 -- ── Fixtures. All inserted BEFORE any request.jwt.claims is set, so auth_org_id() is null and
 -- `profiles_stamp_org_id` is a no-op on them (it must not silently rewrite a fixture's org).
@@ -104,6 +104,14 @@ select is(
      from profiles p where p.id = '04840000-0000-0000-0000-0000000000b1'),
   (select o.id::text from organizations o where o.name = 'AC-ORG New Org') || '|Admin|active',
   'AC-ORG-005 the first Admin membership lands in the NEW org, active (stamp-trigger guard)');
+-- AC-ORG-014 (#619) — the per-org configuration companions: the new org carries the OD-SP-2 stage ramp.
+select is(
+  (select count(*)::int from pipeline_stage_config c join organizations o on o.id = c.org_id where o.name = 'AC-ORG New Org'), 5,
+  'AC-ORG-014 the new org has its five pipeline win-probability rows (seed_org_defaults)');
+select is(
+  (select win_probability::numeric from pipeline_stage_config c join organizations o on o.id = c.org_id
+    where o.name = 'AC-ORG New Org' and c.status = 'Negotiation'), 0.750,
+  'AC-ORG-014 …with the 0008 A3 values, not zeros');
 select is((select email from profiles where id = '04840000-0000-0000-0000-0000000000b1'),
   'ac-org-new-admin@example.com',
   'AC-ORG-006 the Admin profile email is read from auth.users, not supplied by the caller');

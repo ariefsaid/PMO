@@ -69,13 +69,13 @@ insert into tasks (id, org_id, project_id, name, status, parent_task_id) values
 -- It can only be INHERITED, from rows written before this migration. So the fixture manufactures
 -- the legacy shape directly, which is the only way production got it.
 alter table public.tasks disable trigger tasks_cascade_project_to_subtree;
-alter table public.tasks disable trigger tasks_check_parent_same_project;
+alter table public.tasks disable trigger tasks_zz_check_parent_same_project;  -- renamed by 0215 (fires after the org stamp)
 insert into tasks (id, org_id, project_id, name, status, parent_task_id) values
   ('09210000-0000-0000-0000-000000000031', '02090000-0000-0000-0000-000000000001',
    '09200000-0000-0000-0000-00000000000b', 'Legacy Parent In DST', 'To Do', null),
   ('09210000-0000-0000-0000-000000000032', '02090000-0000-0000-0000-000000000001',
    '09200000-0000-0000-0000-00000000000a', 'Legacy Child In SRC', 'To Do', '09210000-0000-0000-0000-000000000031');
-alter table public.tasks enable trigger tasks_check_parent_same_project;
+alter table public.tasks enable trigger tasks_zz_check_parent_same_project;  -- renamed by 0215 (fires after the org stamp)
 alter table public.tasks enable trigger tasks_cascade_project_to_subtree;
 
 -- A milestone-grouped subtask (0202's composite FK is what makes this the interesting case).

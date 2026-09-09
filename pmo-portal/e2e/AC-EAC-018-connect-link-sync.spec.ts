@@ -42,7 +42,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 
 const ADMIN_EMAIL = 'admin@acme.test';
-const ORG = '00000000-0000-0000-0000-000000000001'; // Acme (the default seed org)
+const ORG = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001'; // Acme (the default seed org)
 
 // SERIAL (repo convention, cf. AC-PR-020-capture-advance.spec.ts): both tests in this file share ONE
 // dedicated project+task seeded in beforeAll, and that seeding starts with cleanOwnedRows(). Under
@@ -151,7 +151,7 @@ test.beforeAll(async () => {
 
   const { data: task, error: taskErr } = await db
     .from('tasks')
-    .insert({ project_id: projectId, name: TASK_NAME, status: 'To Do', assignee_id: adminId })
+    .insert({ project_id: projectId, name: TASK_NAME, status: 'To Do', assignee_id: adminId, org_id: ORG })
     .select('id')
     .single();
   if (taskErr || !task) throw new Error(`Failed to seed dedicated task: ${taskErr?.message}`);

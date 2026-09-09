@@ -32,7 +32,7 @@ const ERPNEXT_BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:808
 const ERPNEXT_ADMIN_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const ERPNEXT_ADMIN_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const COMPANY = 'PMO Smoke Co';
 // The open SI's customer resolves (via external_refs) to the bench-fixture ERP Customer 'Spike Customer'
 // — the snapshot is PER-PARTY, so the report-backed row is found by `party === CUSTOMER`.

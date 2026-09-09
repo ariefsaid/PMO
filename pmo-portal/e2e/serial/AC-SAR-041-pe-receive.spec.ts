@@ -188,7 +188,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       const { data: ipRefRow } = await admin
         .from('external_refs')
         .select('external_record_id, external_tier')
-        .eq('org_id', '00000000-0000-0000-0000-000000000001')
+        .eq('org_id', process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001')
         .eq('domain', 'revenue')
         .eq('pmo_record_id', seeded.ipRecordId)
         .maybeSingle();

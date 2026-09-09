@@ -43,7 +43,7 @@ const SERVICE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ??
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const ADMIN_EMAIL = 'admin@acme.test';
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PROJECT_ID = '40000000-0000-0000-0000-000000000001'; // "Innovate Corp HQ Fit-Out"
 const TASK_ID = '80000000-0000-0000-0000-000000000002'; // "Fit-out" (seeded 'In Progress')
 const TASK_NAME = 'Fit-out';

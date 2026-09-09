@@ -18,7 +18,7 @@ test(
   async ({ page }) => {
     const email = `invitee-${Date.now()}@example.com`;
     const password = 'InvitePass1!';
-    const orgId = '00000000-0000-0000-0000-000000000001'; // seed org
+    const orgId = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001'; // seed org
 
     // --- Stand in for GTM item 1a issuance (service-role admin API) ---
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY!, { auth: { persistSession: false } });

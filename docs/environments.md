@@ -522,6 +522,15 @@ catalog is the claim. 2026-09-07: the sweep found 37 vs 4 and a vault reader ans
 closed by an emergency revoke + `0210`. Expected steady state: exactly the RLS helpers (`auth_org_id`,
 `auth_role`, `is_active_member`, `org_feature_enabled`).
 
+⚑ **Then run the two second-org probes** (2026-09-09, #618): `scripts/isolation-probe.sh` (cross-org
+reads/writes/RPCs as a tenant-B user — #490) and **`scripts/second-org-smoke.sh`** (a `lifecycle=test`
+org's Admin creates, reads back and deletes one row per core entity through REST with NO `org_id` sent,
+and every row must land in *their* org — the check that would have caught #616). Every unit / pgTAP / e2e
+suite runs inside the seed org, where the wrong default is the right value; only a second-org caller
+proves the stamp/trigger-order class (`0212`, `0213`, `0215`). Locally the same lens is
+`E2E_SECOND_ORG=1 scripts/e2e-local.sh` — it moves the seed org to another id after the reset and runs
+the portfolio as that org.
+
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus
 **0027** (dashboard at-risk `>=` boundary). **Rule going forward (binding):** once a migration is pushed to

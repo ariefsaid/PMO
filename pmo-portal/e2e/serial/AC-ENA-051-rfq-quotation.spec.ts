@@ -22,7 +22,7 @@ const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? '';
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
 const LANE_READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
 if (FUNCTIONS_URL && !LANE_READY) {

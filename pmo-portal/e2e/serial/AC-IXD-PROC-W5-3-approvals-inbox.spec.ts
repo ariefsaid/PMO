@@ -104,7 +104,7 @@ test(
 
 /** Diego Salvatierra (pm@acme.test) — the approver whose queue this journey drives. */
 const PM_ID = '00000000-0000-0000-0000-0000000000a2';
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 /** A seeded Ongoing project — REFERENCED, never mutated, so the seeded weeks carry real hours. */
 const ENTRY_PROJECT_ID = '41000000-0000-0000-0000-000000000001';
 /** Every author this spec has ever created carries this email prefix — the leftover sweep keys on it. */

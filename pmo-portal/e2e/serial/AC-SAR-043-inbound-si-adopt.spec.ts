@@ -61,7 +61,7 @@ function signErpWebhook(rawBody: string): string {
   return createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('base64');
 }
 
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET);
 if (FUNCTIONS_URL && !READY) {
