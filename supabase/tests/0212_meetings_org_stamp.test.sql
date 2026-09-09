@@ -54,8 +54,9 @@ select throws_ok(
 
 -- Mutation: remove the trigger — the guard names the table and the second-org insert dies. Proves the
 -- oracle is live (the 0131 list stayed green with this table missing).
+-- Last in the file: the transaction rollback undoes the drop (a savepoint rollback would also undo
+-- pgTAP's own test counter).
 reset role;
-savepoint mutate;
 drop trigger meetings_stamp_org_id on public.meetings;
 select is(
   (select string_agg(relname, ', ') from unstamped_seed_tables), 'meetings',
@@ -66,7 +67,5 @@ select throws_ok(
   $$ insert into meetings (title) values ('no stamp') $$,
   '42501', null,
   'MUTATION: without the stamp the second-org insert is refused — the bug this test guards');
-rollback to savepoint mutate;
-
 select * from finish();
 rollback;
