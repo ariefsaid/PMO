@@ -46,6 +46,35 @@ fi
 cd "$REPO"
 echo "[e2e-local] db reset (branch: $(git branch --show-current))"
 supabase db reset >/dev/null
+# E2E_SECOND_ORG=1 (#621): make the seed org a NON-seed org. Every business table defaults org_id to the
+# seed literal; the app never sends it; a second tenant relies on the stamp triggers to fix it up. With
+# the seed org moved to another id, every "worked only because default == org" path goes red here
+# instead of at the client. FK/trigger checks are off for the rewrite only (replica role), which is
+# what makes the id move atomic. Helpers read E2E_ORG_ID; anything else that hardcodes the literal is a
+# test assumption, not an app bug.
+if [ "${E2E_SECOND_ORG:-}" = "1" ]; then
+  export E2E_ORG_ID="b0000000-0000-0000-0000-00000000000b"
+  psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -X -v ON_ERROR_STOP=1 -q -c "
+    do \$\$ declare t record; b uuid := '${E2E_ORG_ID}'; a uuid := '00000000-0000-0000-0000-000000000001';
+    begin
+      set local session_replication_role = replica;   -- FK (system) triggers off for the move
+      -- replica role is not enough: 0190's immutability trigger is ENABLE ALWAYS. Disable ALL triggers
+      -- (user + FK) on the touched tables for the move, then re-enable.
+      for t in select c.table_name from information_schema.columns c join pg_tables p on p.tablename = c.table_name and p.schemaname = 'public'
+               where c.table_schema = 'public' and c.column_name = 'org_id' loop
+        execute format('alter table public.%I disable trigger user', t.table_name);
+        execute format('update public.%I set org_id = \$1 where org_id = \$2', t.table_name) using b, a;
+      end loop;
+      alter table public.organizations disable trigger user;
+      update public.organizations set id = b where id = a;
+      alter table public.organizations enable trigger user;
+      for t in select c.table_name from information_schema.columns c join pg_tables p on p.tablename = c.table_name and p.schemaname = 'public'
+               where c.table_schema = 'public' and c.column_name = 'org_id' loop
+        execute format('alter table public.%I enable trigger user', t.table_name);
+      end loop;
+    end \$\$;"
+  echo "[e2e-local] SECOND-ORG mode: seed org moved to ${E2E_ORG_ID}"
+fi
 
 eval "$(supabase status -o env)"
 {
