@@ -33,7 +33,7 @@ const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 // What the sweep uses as the per-org site_url when it dials ERPNext from inside Docker (host.docker.internal).
 const SITE_URL_FOR_BINDING = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
 
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const COMPANY = 'PMO Smoke Co';
 const SUPPLIER = 'Spike Supplier';
 const ITEM_CODE = 'SPIKE-ITEM-1';

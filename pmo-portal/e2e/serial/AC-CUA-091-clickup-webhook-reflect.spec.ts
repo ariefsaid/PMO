@@ -35,7 +35,7 @@ const SERVICE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ??
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const ADMIN_EMAIL = 'admin@acme.test';
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PROJECT_ID = '40000000-0000-0000-0000-000000000001'; // "Innovate Corp HQ Fit-Out"
 // DISTINCT from AC-CUA-090's "Fit-out" task so the two clickup e2e specs never double-mutate the same
 // task row (they still share the org-flip + per-project binding rows — see the serialization note below).

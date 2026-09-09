@@ -39,7 +39,7 @@ const ERPNEXT_ADMIN_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
 if (FUNCTIONS_URL && !READY) {

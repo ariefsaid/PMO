@@ -29,7 +29,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const APPROVER_EMAIL = 'finance@acme.test';
