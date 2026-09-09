@@ -2697,3 +2697,21 @@ decided — restore it on the desktop view.** A manager's approval round is a ba
 is the *review* path, not the default. The preview pane stays for reading a sheet; the list gains the
 same Select toggle / checkboxes / "Approve N" the fallback has. Bulk respects `OD-TS-5`: only sheets
 the viewer can approve are listed, so a bulk action never includes a row the server would refuse.
+
+---
+
+## OD-RIS-4 — the first RIS users (owner, 2026-09-09)
+
+Raised as [#624](https://github.com/ariefsaid/PMO/issues/624). Twelve people: **8 Engineer, 2 Project
+Manager, 1 line-of-business manager (Executive), 1 project admin / secretary** — the secretary maps to
+**Finance** in the current five-role model (the coordination + paperwork seat: timesheets, procurement
+records, meeting minutes), not Admin; the Admin seat stays with the org's first Admin. **Every workflow
+is touched from day one** — no reduced first cut. Consequence for the readiness map (#618): the
+second-org walk (#622) and the second-org e2e run (#621) cover the whole portfolio, not a launch subset,
+and the Engineer path (timesheets, tasks, minutes as attendee) carries the most seats.
+
+## OD-RIS-5 — invites ride Supabase's built-in relay for now (owner, 2026-09-09)
+
+Raised as [#625](https://github.com/ariefsaid/PMO/issues/625). Owner: "ride the Supabase first." No
+custom SMTP or sender domain before RIS's users come in; the built-in relay (rate-limited, generic
+sender) carries the twelve invites, spaced to its limit. A branded sender is a later, separate step.
