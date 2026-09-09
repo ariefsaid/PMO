@@ -8,7 +8,7 @@
 # the anon key attempts every table. Any row returned or write accepted is a LEAK and is named.
 #
 # Inputs (env): BASE (https://<ref>.supabase.co) · ANON (anon key) · JWT_B (access token of a tenant-B
-# user) · A_ORG (tenant A org id) · TABLES_JSON ([{table,has_org,pk}]) · A_ROWS_JSON ([{table,pk,id}] one
+# user) · A_ORG (tenant A org id) · B_ORG (tenant B org id — rows B legitimately owns are not leaks) · TABLES_JSON ([{table,has_org,pk}]) · A_ROWS_JSON ([{table,pk,id}] one
 # A row per table) · optional A_PROFILE / A_PROC for the RPC layer. Build the two JSON files from the
 # catalog with psql (see docs/environments.md § Prod migration state → isolation probe). Never pass
 # keys on the command line; source them from 600 files.
@@ -16,6 +16,7 @@
 # Writes: PATCH bodies set a row's pk to itself (no-op); RPC payloads are inert (status=current, amount 0).
 # A leak that accepts a write leaves evidence you must clean up — that is the point.
 set -u
+: "${BASE:?}" "${ANON:?}" "${JWT_B:?}" "${A_ORG:?}" "${B_ORG:?}" "${TABLES_JSON:?}" "${A_ROWS_JSON:?}"
 S="${TMPDIR:-/tmp}"
 hdr_b=(-H "apikey: $ANON" -H "Authorization: Bearer $JWT_B" -H "Content-Type: application/json")
 hdr_anon=(-H "apikey: $ANON" -H "Authorization: Bearer $ANON")
@@ -30,7 +31,7 @@ for t in $(jq -r '.[].table' "$TABLES_JSON"); do
   code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=*&limit=3"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1))
   if [ "$code" = "200" ] && [ "$n" -gt 0 ]; then
     # rows visible to B: allowed only if they are B's own (org_id == B) or the table has no org_id and is a justified global
-    if [ "$has_org" = "true" ]; then foreign=$(jq --arg b "b0000000-0000-4000-8000-00000000000b" '[.[]|select(.org_id!=$b)]|length' "${TMPDIR:-/tmp}/probe.body"); [ "$foreign" -gt 0 ] && flag "B reads $foreign foreign row(s) from $t (blind select)"; else say "  ℹ  $t (no org_id): B sees $n row(s) — review: $(jq -c '.[0]|keys' "${TMPDIR:-/tmp}/probe.body" | cut -c1-100)"; fi
+    if [ "$has_org" = "true" ]; then foreign=$(jq --arg b "$B_ORG" '[.[]|select(.org_id!=$b)]|length' "${TMPDIR:-/tmp}/probe.body"); [ "$foreign" -gt 0 ] && flag "B reads $foreign foreign row(s) from $t (blind select)"; else say "  ℹ  $t (no org_id): B sees $n row(s) — review: $(jq -c '.[0]|keys' "${TMPDIR:-/tmp}/probe.body" | cut -c1-100)"; fi
   elif [ "$code" != "200" ]; then say "  ℹ  $t blind select → HTTP $code"; fi
   # targeted read + no-op update on A's row
   aid=$(jq -r --arg t "$t" '.[]|select(.table==$t)|.id' "$A_ROWS_JSON"); [ -z "$aid" ] || [ "$aid" = "null" ] && continue
