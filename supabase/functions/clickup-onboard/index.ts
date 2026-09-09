@@ -139,7 +139,7 @@ serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Respons
   }
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type' } });
+    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } });
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
