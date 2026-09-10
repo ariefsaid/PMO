@@ -8,15 +8,19 @@
 
 **Live in production (deployed 2026-09-07/08 + 2026-09-09, owner-instructed):** release **v0.10.0**
 (`1cd3863c`) plus migrations `0210`–`0215` — cloud DB at **0215**, all 22 edge functions at stamp
-`59f91bbf`, Cloudflare `production` == `aa20f394` (frontend unchanged since; `main` = `9e330e11` carries
-only DB/scripts/tests on top). **2026-09-09 — the second-tenant pre-flight (map #618):** the RIS Admin could
+**`d71939c6`** (2026-09-10, owner-instructed — the CORS fixes #637/#641: the external-system functions now
+answer the browser's preflight AND every response with CORS headers; the ERPNext/ClickUp admin-connect
+flows were unreachable from the app before), Cloudflare `production` == `aa20f394` (frontend unchanged since;
+`main` = `d71939c6` carries only DB/edge/scripts/tests on top). **2026-09-09 — the second-tenant pre-flight (map #618):** the RIS Admin could
 not create a meeting (#616) because every test runs in the seed org, where the wrong `org_id` default is
 the right value; four fixes shipped and are live (`0212` meetings stamp + catalog guard, `0213`
 `seed_org_defaults` at org creation, `0214` invite probe pinned, `0215` org checks after the stamp), the
 whole e2e portfolio ran locally as a second org (`E2E_SECOND_ORG=1`), and prod now carries a
 `lifecycle=test` smoke org for `scripts/second-org-smoke.sh` + `scripts/isolation-probe.sh` after every
-push (both green on 0215; the two operator readers still answer `[]`, #612). Remaining before RIS users:
-the live walk as an empty second-org Admin (#622). Release-please did not bump (#611). Verified after deploy: demo login + five routes render, zero console errors, the
+push (both green on 0215; the two operator readers still answer `[]`, #612). The live walk as an empty
+second-org Admin (#622) found the CORS defect (fixed, deployed) and #639 (Administration fetches ERPNext
+companies with no binding — cosmetic, frontend). **Nothing on map #618 blocks inviting the RIS team.**
+Release-please opened v0.10.1 (#635), owner to merge or leave (#611). Verified after deploy: demo login + five routes render, zero console errors, the
 prod grant sweep equals local. Run the four commands under *Deployment state* below before quoting any of
 this — it rots.
 

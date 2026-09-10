@@ -509,7 +509,7 @@ commands that are the answer (`git rev-parse origin/{production,main,dev}`, the 
 
 **Snapshot 2026-09-09 (orientation only):** cloud DB at **`0215`** (`0211`–`0215` pushed 2026-09-09 under an explicit owner deploy instruction; earlier: **`0210`** (pushed 2026-09-07/08 under an explicit
 owner deploy instruction: `0187`–`0209` with v0.10.0, then `0210`); all 22 edge functions deployed at stamp
-`59f91bbf` (`scripts/stamp-edge-fns.sh`, verified via `/functions/v1/health`); Cloudflare `production` ==
+`d71939c6` (2026-09-10; before that `59f91bbf`) (`scripts/stamp-edge-fns.sh`, verified via `/functions/v1/health`); Cloudflare `production` ==
 `main` == `aa20f394`; release tag `v0.10.0` = `1cd3863c`. The earlier history (v0.1.0 at `0041`, v0.2.0 at
 `0057`, v0.7.0 …) is in `docs/history.md`.
 
