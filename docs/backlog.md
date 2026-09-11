@@ -6,12 +6,12 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-09-08) — v0.10.0 is LIVE; what is left is owner-held facts and the RIS test paths
 
-**Live in production (deployed 2026-09-07/08 + 2026-09-09, owner-instructed):** release **v0.10.0**
-(`1cd3863c`) plus migrations `0210`–`0215` — cloud DB at **0215**, all 22 edge functions at stamp
-**`d71939c6`** (2026-09-10, owner-instructed — the CORS fixes #637/#641: the external-system functions now
-answer the browser's preflight AND every response with CORS headers; the ERPNext/ClickUp admin-connect
-flows were unreachable from the app before), Cloudflare `production` == `aa20f394` (frontend unchanged since;
-`main` = `d71939c6` carries only DB/edge/scripts/tests on top). **2026-09-09 — the second-tenant pre-flight (map #618):** the RIS Admin could
+**Live in production (2026-09-11, owner-instructed):** release **v0.10.1** (`b9a84459`) — Cloudflare
+`production` == `main` == `b9a84459`; cloud DB at **0215**; all 22 edge functions at stamp **`d71939c6`**
+(2026-09-10 — the CORS fixes #637/#641: the external-system functions now answer the browser's preflight AND
+every response with CORS headers; the ERPNext/ClickUp admin-connect flows were unreachable from the app
+before). v0.10.1 = 0212–0215 + the CORS fixes + vitest 4.1.11 (Dependabot #21 closed); the FE bundle is
+otherwise v0.10.0's. Open Dependabot: `js-yaml` (dev scope, not shipped) — next promote. **2026-09-09 — the second-tenant pre-flight (map #618):** the RIS Admin could
 not create a meeting (#616) because every test runs in the seed org, where the wrong `org_id` default is
 the right value; four fixes shipped and are live (`0212` meetings stamp + catalog guard, `0213`
 `seed_org_defaults` at org creation, `0214` invite probe pinned, `0215` org checks after the stamp), the
@@ -20,7 +20,7 @@ whole e2e portfolio ran locally as a second org (`E2E_SECOND_ORG=1`), and prod n
 push (both green on 0215; the two operator readers still answer `[]`, #612). The live walk as an empty
 second-org Admin (#622) found the CORS defect (fixed, deployed) and #639 (Administration fetches ERPNext
 companies with no binding — cosmetic, frontend). **Nothing on map #618 blocks inviting the RIS team.**
-Release-please opened v0.10.1 (#635), owner to merge or leave (#611). Verified after deploy: demo login + five routes render, zero console errors, the
+v0.10.1 cut and promoted 2026-09-11 (#611 still open: DB-only promotes do not bump). Verified after deploy: demo login + five routes render, zero console errors, the
 prod grant sweep equals local. Run the four commands under *Deployment state* below before quoting any of
 this — it rots.
 
