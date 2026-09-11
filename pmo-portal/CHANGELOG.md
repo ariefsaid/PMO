@@ -10,6 +10,13 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.10.1](https://github.com/ariefsaid/PMO/compare/v0.10.0...v0.10.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **db:** 0215 — org checks fire after the org stamp; second-org e2e mode + post-deploy smoke ([#632](https://github.com/ariefsaid/PMO/issues/632) [#621](https://github.com/ariefsaid/PMO/issues/621) [#623](https://github.com/ariefsaid/PMO/issues/623)) ([#633](https://github.com/ariefsaid/PMO/issues/633)) ([624f7c3](https://github.com/ariefsaid/PMO/commit/624f7c3fa2dcfdfcba1e74537b8d1ad296f1a047))
+
 ## [0.10.0](https://github.com/ariefsaid/PMO/compare/v0.9.0...v0.10.0) (2026-09-07)
 
 

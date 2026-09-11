@@ -1,7 +1,7 @@
 {
   "name": "pmo-portal",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -86,6 +86,6 @@
     "typescript": "~5.8.2",
     "typescript-eslint": "^8.60.1",
     "vite": "^8.0.16",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   }
 }
