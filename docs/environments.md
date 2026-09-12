@@ -529,6 +529,19 @@ suite runs inside the seed org, where the wrong default is the right value; only
 proves the stamp/trigger-order class (`0212`, `0213`, `0215`). Locally the same lens is
 `E2E_SECOND_ORG=1 scripts/e2e-local.sh` — it moves the seed org to another id after the reset and runs
 the portfolio as that org.
+⚑ **Third probe, per role (2026-09-12): `scripts/second-org-roles-smoke.sh`** — RIS's day one is four non-Admin
+roles touching every workflow (`OD-RIS-1`), and the Admin-only smoke cannot see a role-gated path. It signs in
+as the test org's Admin, rotates the passwords of four standing role fixtures (`smoke-pm` / `smoke-engineer`
+/ `smoke-finance` / `smoke-executive` `@example.com`, created once through the Admin's own `profiles` insert;
+the Engineer reports to the PM), then walks each role's journeys exactly as the app does — win a deal (value
+witnessed by the Admin, won by the PM), work order → issued (value confirmed by the Admin, SoD), budget →
+activated, procurement → requested → approved by Finance + a quotation, meeting + attendee + minutes + action
+task + sub-task + dependency, document → issued, timesheet → submitted by the Engineer → approved by the PM,
+incident report, sales invoice + incoming payment, the Executive dashboards. 81 steps, every write asserted
+to land in the caller's org. Money and approval records have no DELETE grant and stay in the test org with
+the project that owns them (one project per run); the rest is deleted. Needs `SERVICE` (service role) ONLY
+for the GoTrue admin password rotation. Run it after the other two; ~10 min (the hosted project stalls a
+request now and then — the helper retries a transport stall once).
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus
