@@ -20,7 +20,12 @@ whole e2e portfolio ran locally as a second org (`E2E_SECOND_ORG=1`), and prod n
 push (both green on 0215; the two operator readers still answer `[]`, #612). The live walk as an empty
 second-org Admin (#622) found the CORS defect (fixed, deployed) and #639 (Administration fetches ERPNext
 companies with no binding — cosmetic, frontend). **Nothing on map #618 blocks inviting the RIS team.**
-v0.10.1 cut and promoted 2026-09-11 (#611 still open: DB-only promotes do not bump). Verified after deploy: demo login + five routes render, zero console errors, the
+v0.10.1 cut and promoted 2026-09-11 (#611 still open: DB-only promotes do not bump). **2026-09-12 — owner's final pre-ERPNext check:** a third after-push probe, `scripts/second-org-roles-smoke.sh` (#646),
+walks every day-1 workflow as each of the five roles inside the test org on the hosted project — 81 steps, 0 failures,
+every write in the caller's org (recipe in `docs/environments.md`). The e2e portfolio also ran locally as a second org:
+every spec passed at least once; the reds that moved between runs were 30–120 s timeouts on a box another session held
+at load 20–130, never the same spec twice in a row. Still uncovered anywhere: the 41 served-function specs
+(ClickUp/ERPNext/M365 edge flows) skip locally and have never run as a second org — #590's dry-run is that test. Verified after deploy: demo login + five routes render, zero console errors, the
 prod grant sweep equals local. Run the four commands under *Deployment state* below before quoting any of
 this — it rots.
 
