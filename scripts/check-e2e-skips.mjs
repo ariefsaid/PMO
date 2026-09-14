@@ -60,7 +60,7 @@ export const ALLOWED_SKIPS = [
   // silently absorbed and reported "explained". That made #405's un-quarantine unverifiable: with
   // its specific allowlist entry deleted, nothing was left asserting AC-IXD-TS-W5-3 still RUNS —
   // a future `test.fixme` on it would have been invisible to every gate (demonstrated, 2026-07-28).
-  ...['AC-BFY-', 'AC-BUD-', 'AC-ENA-', 'AC-SAR-', 'AC-TSP-'].map((prefix) => ({
+  ...['AC-BFY-', 'AC-BUD-', 'AC-ENA-', 'AC-SAR-', 'AC-TSP-', 'AC-XING-'].map((prefix) => ({
     file: `serial/${prefix}`,
     reason: 'ERPNext bench specs — need a live Docker ERPNext bench.',
     restore: 'Run locally against the throwaway bench (scripts/e2e-local.sh with the bench up).',
