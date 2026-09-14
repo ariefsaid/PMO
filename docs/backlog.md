@@ -49,6 +49,13 @@ Option-B registration in RIS's tenant → first user connect → AC-M1's data-20
 the accountant's chart-of-accounts codes, fiscal-year convention, PPN encoding and the 2025 sheets
 (`DD-OPS-3`, #546); confirmation their tenant has SharePoint licences; one tenant-admin sitting; one user
 to click Connect. **Ours — DONE 2026-09-08:** the `ris-integrity` org exists on the live project (`live`, IDR, `id`/`id-ID`, Asia/Jakarta; guard proven refusing) with its first Admin invited; their Admin invites the rest. `pmo_epoch_at` has no column yet — the epoch is set at Connect (#590).
+**2026-09-14 — #590 steps 1–2 done, step 3 found the shipped ERPNext connect path was never end-to-end functional:**
+the credential probe fetched a User document Frappe cannot serve (#647, fixed on `dev` — takes effect on the cloud only
+after an `external-connect` deploy); beyond it, connect leaves the binding with an empty `site_url` and no
+`activated_at`, the write paths resolve credentials from function env rather than Vault, and the version handshake has
+no call site and pins v15. Every existing binding is seed / e2e helper / operator SQL. Findings with file:line on #590;
+the #481 dry-run plan (`docs/plans/2026-09-14-erpnext-crossing-dryrun.md`) is written against a second company
+`PMO Smoke Co` on the v16 site so the client's books are never touched. Owner sequencing pending. Also shipped: #639.
 
 **Known gaps, tracked:** a DB-only promote does not bump release-please (package path is `pmo-portal/`,
 [#611](https://github.com/ariefsaid/PMO/issues/611)) · the local promote gate exits at the first red lane,
