@@ -42,14 +42,19 @@ describe('erpnext/binding', () => {
       const fetchImpl = vi.fn(hanging) as unknown as typeof fetch;
       const pending = fetchErpVersionMajor({
         fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com',
-      }).finally(() => { settled = true; });
+      });
+      // Attach BOTH handlers before the clock moves: the deadline rejects `pending` inside
+      // advanceTimersByTimeAsync, and a rejection nobody has subscribed to yet is an unhandled
+      // rejection that fails the whole vitest run even though every assertion passes.
+      pending.catch(() => undefined).finally(() => { settled = true; });
+      const rejection = expect(pending).rejects.toMatchObject({ code: 'external-unreachable' });
 
       await vi.advanceTimersByTimeAsync(5_000);
 
       // The deadline is 5_000ms — NOT the client default (120s), so the handshake must already
       // be settled here. A hung Company-selection activation cannot outwait the edge-fn budget.
       expect(settled).toBe(true);
-      await expect(pending).rejects.toMatchObject({ code: 'external-unreachable' });
+      await rejection;
       expect(fetchImpl).toHaveBeenCalledTimes(1); // maxRetries 0 — the single attempt IS the budget
     } finally {
       vi.useRealTimers();
