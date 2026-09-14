@@ -58,6 +58,18 @@ Deno.test('#651: a Vault hit is split into the api key/secret pair', async () =>
   } finally { env.restore(); }
 });
 
+Deno.test('#651: the key:secret split takes the FIRST colon — a Frappe secret may itself contain a colon', async () => {
+  // Frappe secret values may legally contain ':' (the api secret is an opaque string); api keys cannot,
+  // so the boundary is the first ':' — 'k:se:cret' must split to apiKey 'k' / apiSecret 'se:cret'.
+  const db = fakeDb({ binding: { secret_ref: 'org-a-erpnext' }, vault: 'k:se:cret' });
+  const env = stubEnv({});
+  try {
+    const pair = await resolveErpAuthPair(db.client, { orgId: ORG.orgId, secretRef: 'org-a-erpnext' });
+    assert(pair.apiKey === 'k' && pair.apiSecret === 'se:cret',
+      `expected apiKey 'k' / apiSecret 'se:cret', got ${JSON.stringify(pair)}`);
+  } finally { env.restore(); }
+});
+
 Deno.test('#651: a malformed Vault value is refused whole, never partially used', async () => {
   const db = fakeDb({ binding: { secret_ref: 'org-a-erpnext' }, vault: 'no-colon-here' });
   const env = stubEnv({ LOCAL_BENCH_KEY: 'env-k', LOCAL_BENCH_SECRET: 'env-s' });
@@ -89,6 +101,39 @@ Deno.test('FR-ENA-019: the kill-switch refuses before any store read', async () 
   } catch (e) {
     assert(e instanceof AppError && (e as AppError).code === 'config-rejected', `got ${e}`);
     assert(db.rpcCalls() === 0, 'the kill-switch must refuse BEFORE reading the secret store');
+  } finally { env.restore(); }
+});
+
+Deno.test('AC-ENA-085: the cache is keyed by org — one shared tick cache still resolves each org separately', async () => {
+  // A db whose Vault answer varies by the binding's secret_ref. Two orgs in the SAME tick cache must
+  // each get their OWN pair (2 Vault reads, different values), never one org's pair leaked to another.
+  const orgA = { orgId: '00000000-0000-4000-8000-0000000000a1', secretRef: 'org-a-erpnext' };
+  const orgB = { orgId: '00000000-0000-4000-8000-0000000000b2', secretRef: 'org-b-erpnext' };
+  let rpcCalls = 0;
+  const bindings: Record<string, string> = { [orgA.orgId]: orgA.secretRef, [orgB.orgId]: orgB.secretRef };
+  const vault: Record<string, string> = { [orgA.secretRef]: 'aaa-key:aaa-secret', [orgB.secretRef]: 'bbb-key:bbb-secret' };
+  const client = {
+    from() {
+      // deno-lint-ignore no-explicit-any
+      const b: any = { select: () => b, eq: (_k: string, v: string) => { if (_k === 'org_id') b._org = v; return b; },
+        maybeSingle: () => Promise.resolve({ data: bindings[b._org] ? { secret_ref: bindings[b._org] } : null, error: null }) };
+      return b;
+    },
+    rpc: (_fn: string, args?: { p_secret_ref?: string }) => {
+      rpcCalls += 1;
+      const ref = args?.p_secret_ref ?? '';
+      return Promise.resolve({ data: vault[ref] ?? null, error: null });
+    },
+  } as unknown as SupabaseClient;
+  const env = stubEnv({});
+  const cache = createErpAuthPairCache();
+  try {
+    const pairA = await resolveErpAuthPair(client, orgA, cache);
+    const pairB = await resolveErpAuthPair(client, orgB, cache);
+    assert(rpcCalls === 2, `two orgs in one tick must each read Vault once — got ${rpcCalls}`);
+    assert(pairA.apiSecret === 'aaa-secret' && pairB.apiSecret === 'bbb-secret',
+      `org A and org B must resolve their OWN pairs — A=${JSON.stringify(pairA)} B=${JSON.stringify(pairB)}`);
+    assert(pairA.apiSecret !== pairB.apiSecret, 'two orgs must never share a pair');
   } finally { env.restore(); }
 });
 

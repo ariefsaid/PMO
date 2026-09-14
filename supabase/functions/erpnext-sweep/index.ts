@@ -517,8 +517,14 @@ export interface ErpSweepCycleResult {
  * modified-poll sweep, (3) ledger-mirror feed, (4) accounting refresh. An org's failure is recorded
  * WITHOUT aborting the loop (sweep resilience). The reconcile pass runs FIRST so the doctype sweep
  * sees a consistent outbox (ADR-0058 §Consequences).
+ *
+ * `cache`: the optional per-tick credential cache (ADR-0072 decision 5). When supplied, each org's entry
+ * is DELETED at the end of its own iteration, so a multi-org tick holds at most ONE org's plaintext pair
+ * resident at a time while still resolving each org once (AC-ENA-085). This is the #651-review per-org
+ * cache SCOPING (the tick-level cache shared by the passes would otherwise accumulate every org's pair
+ * for the whole cycle).
  */
-export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSweepCycleResult> {
+export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthPairCache): Promise<ErpSweepCycleResult> {
   const orgs = await deps.listEmployingOrgs();
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
@@ -587,6 +593,10 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSwee
       }
     }
     perOrg.push({ orgId: org.orgId, reconcile, sweep, ledger, errors });
+    // #651 review (per-org cache scope): clear this org's entry so only the CURRENT org's pair is ever
+    // resident. One org's refusal already never aborts the loop; deleting here also guarantees a
+    // resolution failure can't leave a stale org resident for a later org's passes.
+    cache?.delete(org.orgId);
   }
   return { orgs: orgs.length, perOrg };
 }
@@ -1732,7 +1742,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
-  });
+  }, erpAuth);
   return json({ ok: true, ...cycle });
 });
 

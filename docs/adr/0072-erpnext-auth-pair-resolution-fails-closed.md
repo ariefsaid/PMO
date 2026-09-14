@@ -39,7 +39,8 @@ must refuse*).
    dependencies and recovery probe, sweep reconcile, both fiscal-calendar reads, operator onboarding. No
    call site resolves a pair any other way. It lives in `_shared/` (not inside a function) because
    `adapter-dispatch/index.ts` cannot be imported by a test — its serve call is unguarded — so a resolver
-   embedded there is untestable by construction.
+   embedded there is untestable by construction. *(Annotated 2026-09-14: “operator onboarding” is
+   **carved out** of this decision in #651 — see decision 4's annotation.)*
 2. **Vault first, env second, refuse third.** Vault answer ⇒ use it (parsed `apiKey:apiSecret`, refused
    whole if malformed). Clean "no Vault secret for this binding" ⇒ the env pair named by the org's own
    `secret_ref`. Neither ⇒ `config-rejected`.
@@ -49,8 +50,12 @@ must refuse*).
    throwing from inside the seam — so the refusal does not depend on whether `perOrgSecret.ts` propagates a
    thrown seam error. An unrecognised result kind is treated the same way.
 4. **The kill-switch is checked once, in the resolver.** `EXTERNAL_CONNECT_ENABLED` disabled ⇒
-   `config-rejected` before any store read, for every direction (this is a behaviour change for
-   `erpnext-onboard` only, which previously kept using env credentials while the switch was off).
+   `config-rejected` before any store read, for every direction of the shared resolver. *(This decision
+   originally claimed a behaviour change for `erpnext-onboard` only. **Annotated 2026-09-14 — Director
+   ruling:** onboarding keeps its current resolution path and is carved out of FR-ENA-015 in #651; the
+   switch does NOT start applying to it in this change, and a follow-up issue is to be filed to migrate it
+   onto the shared resolver. Prior text retained: “this is a behaviour change for `erpnext-onboard` only,
+   which previously kept using env credentials while the switch was off.”)*
 5. **One resolution per org per unit of work.** An explicit cache object, created per request and per sweep
    tick and passed in, memoises the pair by `org_id`. There is no module-level cache: a long-lived isolate
    must not hold another tenant's credential between requests, and a rotated credential must not survive a
@@ -77,8 +82,11 @@ must refuse*).
   stack that `read_vault_secret` answers a clean `NULL` (not an error) for the seeded `local-bench` ref** —
   if it errored, the whole local money lane would go red on the fail-closed branch, and that red would be
   correct.
-- **`erpnext-onboard` behaviour changes** while the kill-switch is off (refuses instead of using env). Named
-  in the spec addendum §A.6; reversible by dropping one task.
+- **~~`erpnext-onboard` behaviour changes~~ — deferred (annotated 2026-09-14).** This cost did NOT land in
+  #651: per the Director ruling, onboarding keeps its current resolution path (a follow-up issue is to be
+  filed), so the switch does not start applying to it here. For the record, the deferred cost was: while
+  the kill-switch is off `erpnext-onboard` keeps using env credentials instead of refusing — named in the
+  spec addendum §A.6; reversible by dropping one task.
 - **Five call sites and four function signatures change** in two money-path files. Mitigated by keeping the
   cache parameter optional (existing tests compile unchanged) and by landing correctness before
   memoisation, so the risky-diff half is separable.

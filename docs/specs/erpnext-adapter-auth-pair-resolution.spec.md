@@ -67,8 +67,12 @@ behaviour from the inbound feed onto the money path.
 - **FR-ENA-015 (one resolver, both directions)** — The system shall resolve an org's ERPNext auth pair
   through **exactly one** shared resolver, used by every ERPNext direction: the inbound doctype poll, the
   link-repair, ledger-mirror and accounting-refresh passes, the synchronous `adapter-dispatch` write, the
-  money-outbox dependency/recovery probe, the sweep's outbox reconcile, both fiscal-calendar reads, and
-  operator onboarding. No call site shall derive an auth pair by any other route. *(Ubiquitous.)*
+  money-outbox dependency/recovery probe, the sweep's outbox reconcile, and both fiscal-calendar reads.
+  No call site shall derive an auth pair by any other route. *(Ubiquitous.)*
+  - **Operator onboarding is carved out.** `erpnext-onboard` **keeps its current resolution path**
+    (`resolveErpCredentialsFromVault` + the `resolveErpCredentials` env fallback) — Director ruling
+    2026-09-14; a follow-up issue is to be filed to migrate it onto the shared resolver. It is therefore
+    deliberately excluded from this requirement and from §A.6 item 3's (deferred) onboard delta.
 
 - **FR-ENA-016 (Vault first)** — When the resolver is asked for an org's pair, it shall first ask the
   per-org secret store keyed by that org's `external_org_bindings.secret_ref` (`_shared/perOrgSecret.ts`
@@ -160,16 +164,33 @@ behaviour from the inbound feed onto the money path.
 | AC-ENA-082 | FR-ENA-018 | Deno unit | `supabase/functions/erpnext-sweep/vaultAuthPair.test.ts` |
 | AC-ENA-083 | FR-ENA-017 | Deno unit | `supabase/functions/_shared/erpAuthPair.test.ts` |
 | AC-ENA-084 | FR-ENA-015, FR-ENA-016 | Deno unit | `supabase/functions/erpnext-sweep/vaultAuthPair.test.ts` (drives shipped `buildReconcileDepsLive`) |
-| AC-ENA-085 | FR-ENA-019 | Deno unit | `supabase/functions/erpnext-sweep/vaultAuthPair.test.ts` |
+| AC-ENA-085 | FR-ENA-019 | Deno unit | `supabase/functions/erpnext-sweep/vaultAuthPair.test.ts` (drives shipped `sweepOrgDoctypesLive`) AND `supabase/functions/_shared/erpAuthPair.test.ts` (cache keyed by org — two orgs in one shared tick cache still resolve separately) |
 | AC-ENA-086 | FR-ENA-015, FR-ENA-017 | Regression gate | the unchanged served-fn money e2e lane (no new test) |
+
+> **Review-follow-up regression guards (this change, no new AC).** Two hardening tests were added during
+the #651 review follow-up and are covered by §A.4's suites: (a) `vaultAuthPair.test.ts` drives the
+shipped `runErpSweepCycle` to assert the per-tick credential cache is **cleared after each org's
+iteration** — so a multi-org tick holds at most ONE org's plaintext pair resident (ADR-0072 decision 5,
+per-org scoping) while still resolving each org once (AC-ENA-085); (b) `erpAuthPair.test.ts` asserts the
+`key:secret` split takes the **first** colon (`'k:se:cret'` → `k` / `se:cret`), because a Frappe api
+secret may legally contain `:`. Both bind shipped code (import from `index.ts`/`_shared/erpAuthPair.ts`)
+by inspection — see the binding-guard note above.
 
 > **Why no test binds `adapter-dispatch/index.ts`:** its `serveWithErrorReporting(...)` call is
 > module-level and unguarded, so importing it in a test starts an HTTP server — which is why every
 > existing `adapter-dispatch` suite tests a sibling module (`*Guard.ts`, `readModelWriters.ts`,
 > `moneyOutboxDeps.ts`) rather than the entry file. Putting the resolver in a shared module is what makes
 > the dispatch write path testable **at all**; its three call sites are then covered by that module's own
-> tests + `npm run typecheck:edge` + AC-ENA-086. `scripts/check-edge-fn-test-binding.mjs` is satisfied:
-> the tests import the SHIPPED module the function imports, and copy nothing.
+> tests + `npm run typecheck:edge` + AC-ENA-086.
+>
+> **⚠ The edge-fn test-binding guard does NOT cover these suites.** `scripts/check-edge-fn-test-binding.mjs`
+> maps only the `external-*` functions (`external-connect`, `external-companies`, `external-set-company`,
+> `external-link`, `external-lists`, `external-unlink`); `erpnext-sweep`/`_shared` are NOT in its map, so
+> nothing mechanically forces these `.test.ts` files to import the shipped module. The suites here bind to
+> the shipped code **by inspection** (they import `sweepOrgDoctypesLive`, `buildReconcileDepsLive`,
+> `runErpSweepCycle`, `resolveErpAuthPair`, `createErpAuthPairCache` from `index.ts`/`_shared/erpAuthPair.ts`,
+> never copied copies) — a reviewer change to that contract is caught by these tests, not by the guard. If
+> these functions move, extend the guard's map rather than assuming it already covers them.
 
 ---
 
@@ -196,8 +217,11 @@ serialises the whole PostgREST error object — becomes
    deliberately traded for tenancy safety — recorded in ADR-0072. Today an unreachable or absent Vault
    reader is silently survivable on the inbound side; after this it is not, anywhere. The refusal is loud
    and classified, and the sweep's per-org containment means one org's refusal never stops another's tick.
-3. **`erpnext-onboard` starts honouring the kill-switch.** It is today the one ERPNext function that keeps
-   using env credentials while `EXTERNAL_CONNECT_ENABLED` is off; the shared resolver refuses. An operator
-   running onboarding during a break-glass stop now gets `config-rejected` instead of silently reaching a
-   client's ERP — which is what the switch is for. **Flagged for the Director:** if that is unwanted, drop
-   the onboard task from the plan; nothing else depends on it.
+3. **~~`erpnext-onboard` starts honouring the kill-switch~~ — DEFERRED, not shipped in #651.** (This delta was
+   anticipated here, but per the Director ruling 2026-09-14 `erpnext-onboard` **keeps its current
+   resolution path**, so it does NOT start honouring the switch in this change; a follow-up issue is to
+   be filed to migrate it onto the shared resolver, after which this delta lands.) For the record, the
+   deferred effect was: it is today the one ERPNext function that keeps using env credentials while
+   `EXTERNAL_CONNECT_ENABLED` is off; the shared resolver would refuse. An operator running onboarding
+   during a break-glass stop would then get `config-rejected` instead of silently reaching a client's
+   ERP — which is what the switch is for.

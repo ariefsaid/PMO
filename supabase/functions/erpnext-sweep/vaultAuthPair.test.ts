@@ -127,6 +127,32 @@ Deno.test('AC-ENA-085: ONE secret resolution per org per sweep tick, not one per
   } finally { erp.restore(); env.restore(); }
 });
 
+Deno.test('#651 review: the sweep tick holds at most ONE org\'s pair — the per-org cache entry is cleared after each org', async () => {
+  // The tick-level cache that memoises by org_id (AC-ENA-085) must not accumulate every org's pair for
+  // the WHOLE cycle: an N-org tick would hold N plaintext pairs resident at once. After an org's
+  // iteration completes, its entry must be gone, so only the current org's pair is ever resident.
+  const { createErpAuthPairCache, resolveErpAuthPair } = await import('../_shared/erpAuthPair.ts');
+  const { runErpSweepCycle } = await import('./index.ts');
+  const db = fakeDb({ secretRef: 'org-a-erpnext', vault: 'vault-key:vault-secret' });
+  const env = stubEnv({});
+  const erp = stubErpFetch();
+  const cache = createErpAuthPairCache();
+  const org = orgBinding('org-a-erpnext');
+  let resolved = false;
+  try {
+    await runErpSweepCycle({
+      listEmployingOrgs: async () => [org],
+      reconcileOrgOutbox: async () => ({ reconciled: 0, errors: [] }),
+      sweepOrgDoctypes: async () => { await resolveErpAuthPair(db.client, org, cache); resolved = true; return { applied: 0 }; },
+      feedOrgLedgers: async () => ({ gl: 0, ple: 0 }),
+      refreshOrgAccounting: async () => ({}),
+    }, cache);
+    assert(resolved, 'the org must have resolved its pair through the cache during the tick');
+    assert(!cache.has(org.orgId), 'after org A\'s iteration the cache must hold no resident pair for it');
+    assert(cache.size === 0, `the per-tick cache must be empty after the tick — size=${cache.size}`);
+  } finally { erp.restore(); env.restore(); }
+});
+
 Deno.test('AC-ENA-084: a VAULT-ONLY org can build its outbox reconcile deps (the write path)', async () => {
   const { buildReconcileDepsLive } = await import('./index.ts');
   const outboxRow = {
