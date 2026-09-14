@@ -1,7 +1,7 @@
 -- erpnext_activation.test.sql — #650 / ADR-0073.
 -- AC-EAC-103, AC-EAC-109, AC-EAC-110, AC-EAC-111, AC-EAC-112, AC-EAC-113, AC-EAC-114
 begin;
-select plan(27);
+select plan(30);
 
 reset role;
 insert into organizations (id, name) values
@@ -190,7 +190,30 @@ select throws_ok(
        'e6500000-0000-0000-0000-000000000001','erpnext','e65a0000-0000-0000-0000-00000000000a') $$,
   '42501', null,
   'AC-EAC-112 authenticated is denied deactivate_external_binding');
+select throws_ok(
+  $$ select public.set_external_binding_site_url(
+       'e6500000-0000-0000-0000-000000000001','erpnext','https://erp.example.com',
+       'e65a0000-0000-0000-0000-00000000000a') $$,
+  '42501', null,
+  'AC-EAC-112 authenticated is denied set_external_binding_site_url');
+select throws_ok(
+  $$ select public.activate_external_binding(
+       'e6500000-0000-0000-0000-000000000001','erpnext',15,'ACME','{}'::jsonb,
+       'e65a0000-0000-0000-0000-00000000000a') $$,
+  '42501', null,
+  'AC-EAC-112 authenticated is denied activate_external_binding');
 reset role;
+
+-- AC-EAC-112 the in-function role guard is a REAL second layer, not a dead twin of the EXECUTE grant.
+-- The authenticated denial above cannot distinguish the grant layer from the guard (both raise 42501);
+-- this session (superuser, current_setting('role') = 'none') BYPASSES the grant entirely, so a 42501
+-- here can only come from the guard inside the function body. Mutation-tested (plan Task 1.13 #5):
+-- neutering the guard must fail this assertion.
+select throws_ok(
+  $$ select public.deactivate_external_binding(
+       'e6500000-0000-0000-0000-000000000001','erpnext','e65a0000-0000-0000-0000-00000000000a') $$,
+  '42501', null,
+  'AC-EAC-112 the in-function role guard denies a grant-bypassing (non-service_role) session');
 
 select finish();
 rollback;
