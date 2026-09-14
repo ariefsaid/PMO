@@ -292,6 +292,10 @@ describe('external-connect — ERPNext branch', () => {
           return jsonResponse('vault-ref-erp');
         }),
 
+        // FR-EAC-101 (#650): the happy path now also persists the site URL (fixture sync only —
+        // the assertions below are unchanged).
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
+
         erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
       ],
       async ({ calls }) => {
@@ -533,6 +537,62 @@ describe('external-connect — JWT validation', () => {
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'erpnext', credential: { siteUrl: 'https://erp.example.com' } }));
         assertEquals(res.status, 400);
+      },
+    );
+  });
+
+  it('AC-EAC-101 an ERPNext connect persists the submitted site URL', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('platform_operators', () => new Response('null',
+          { status: 200, headers: { 'content-type': 'application/json' } })),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user',
+          () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_site_url, 'https://erp.example.com');
+          assertEquals(body.p_external_tier, 'erpnext');
+          return jsonResponse('set');
+        }),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'k', apiSecret: 's' },
+        }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'set_external_binding_site_url').length, 1);
+      },
+    );
+  });
+
+  it('AC-EAC-102 a failed site-URL persist returns 500 SITE_URL_NOT_PERSISTED and activates nothing', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('platform_operators', () => new Response('null',
+          { status: 200, headers: { 'content-type': 'application/json' } })),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user',
+          () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () =>
+          jsonResponse({ message: 'no active binding for this org and tier', code: 'P0001' }, { status: 400 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'k', apiSecret: 's' },
+        }));
+        assertEquals(res.status, 500);
+        assertEquals((await res.json()).error, 'SITE_URL_NOT_PERSISTED');
+        // Deliberately NO compensating delete on the ERPNext branch (ADR-0073 consequences):
+        // cleanup_external_connect_attempt would DELETE the org's one live binding on a failed rotate.
+        assertEquals(rpcCall(calls, 'cleanup_external_connect_attempt').length, 0);
+        assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
       },
     );
   });
