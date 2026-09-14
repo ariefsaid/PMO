@@ -19,6 +19,8 @@
   `supabase/functions/erpnext-onboard/index.ts` (consumption pattern); Vault precedent mig `0082` + `0094`;
   `pmo-portal/src/components/integrations/IntegrationsView.tsx` (the read-only panel to extend).
 - **Plan:** `docs/plans/2026-07-14-external-admin-connect.md`. **ADR:** `docs/adr/0065-external-admin-connect.md`.
+- **Addendum (2026-09-14, #650):** §7 below — ERPNext activation at Company selection. Plan:
+  `docs/plans/2026-09-14-erpnext-activation.md`.
 
 ## 1. Overview + job stories
 
@@ -79,6 +81,12 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
   `vault.create_secret(value, name)` and persist **only** the resulting Vault `secret_ref` (the name) on
   a `external_org_bindings` row for `(org_id, external_tier='clickup'|'erpnext')`; the credential value
   SHALL never be persisted in a DB column and never returned to the client (OD-INT-3). *(Event-driven.)*
+  > ⚑ **#650 annotation (2026-09-14) — true as written, but the row it describes is INCOMPLETE for
+  > ERPNext.** The row is written by `create_vault_secret_for_org` (mig `0180`), whose `insert` supplies a
+  > literal `site_url = ''`. The `siteUrl` the admin typed — SSRF/HTTPS-validated moments earlier by
+  > `external-connect` — is then discarded. Nothing in this requirement ever promised `site_url` would be
+  > persisted, and nothing persisted it. **FR-EAC-101 adds that promise**; this line is unchanged.
+
 - **FR-EAC-004** — The connect endpoint SHALL run under the caller's JWT, verify it locally
   (`verifyCallerJwt`, ADR-0057), and re-enforce that the caller is an **Admin** of the token's org **or**
   a platform Operator (`is_operator()`) BEFORE any Vault write or binding insert — a non-Admin, non-Operator
@@ -102,6 +110,14 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
   tombstones FK-linked rows, no hard delete), (b) revoke the Vault secret (`vault.delete_secret` by name),
   and (c) emit an audit event `action='integration.disconnect'`. No further sync SHALL read that tier's
   credential (the credential-resolution seam fails closed — NFR-EAC-SEC-003). *(Event-driven.)*
+  > ⚑ **#650 annotation (2026-09-14) — the shipped disconnect does (a)(b)(c) and stops there, and the
+  > sweep does not read `status`.** `erpnext-sweep`'s `listEmployingOrgsLive` selects every `erpnext`
+  > binding and filters on `activated_at` alone; `org_has_active_erpnext_binding` (mig `0160`) likewise
+  > tests `activated_at is not null` only. A disconnected ERPNext org therefore still satisfies both
+  > employ predicates. Today it fails later and noisily (the Vault secret is gone), so the outcome is
+  > fail-closed *by accident*, not by design. **FR-EAC-108 makes disconnect clear the stamps** so the
+  > predicates go false at the moment of disconnect.
+
 - **FR-EAC-009** — Disconnect SHALL be role-gated identically to connect (FR-EAC-004) and SHALL require a
   `ConfirmDialog` confirmation in the UI (destructive-write primitive). *(State-driven.)*
 
@@ -126,6 +142,18 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
   carries `company`/`default_*`). The admin UI surfaces the **already-connected** ERPNext binding's
   Company; this spec adds only the **connect/disconnect + health** affordance for ERPNext (link CRUD is
   the merged #315 scope). *(State-driven.)*
+  > ⚑ **#650 annotation (2026-09-14) — "connecting the org binds the ERPNext instance URL + resolved
+  > Company defaults" describes an intent that no shipped code performed.** The URL was not persisted
+  > (see FR-EAC-003's annotation) and the Company defaults (`default_payable_account`,
+  > `default_cash_account`, `default_bank_account`, `default_expense_account`, `cost_center`) were resolved
+  > only by the former `activateBinding` helper, which had **no production call site** — only its own
+  > Vitest. Every binding that carried those keys was written by `supabase/seed.sql`, an e2e helper, or
+  > operator SQL, so on a real self-serve connect a Payment Entry would post with
+  > `paid_from`/`paid_to` undefined. **FR-EAC-104/106 give that intent a call site:** activation is the
+  > `activate_external_binding` RPC (migration 0216), invoked by `external-set-company` — which is also
+  > the sole consumer of the handshake/defaults helpers in
+  > `pmo-portal/src/lib/adapterSeam/erpnext/binding.ts` (the dead `activateBinding` twin was deleted in
+  > the review follow-up).
 
 ### Credential resolution (per-org Vault, refactor of the 4 edge fns)
 
@@ -356,3 +384,319 @@ this plan.
 2. **`can('manage','integration')` role set.** Spec encodes `Admin` (+ Operator via server gate). Confirm
    Executive is excluded from self-serve (Exec is money authority, not integration admin) — matches the
    Companies `delete` precedent (Admin-only). → **Plan: `integration.manage = Admin` only.**
+
+---
+
+# 7. ADDENDUM (2026-09-14, issue #650) — ERPNext activation at Company selection
+
+- **Author:** eng-planner (Design+Plan, Director-dispatched money/auth lane)
+- **Plan:** `docs/plans/2026-09-14-erpnext-activation.md` · **ADR:** `docs/adr/0073-erpnext-activation-at-company-selection.md`
+- **Binding rulings this addendum implements:** `OD-INT-6` (ERP sync is paused until a Company is
+  selected; the `connected-but-not-activated` state is deliberate and runtime, not schema),
+  `DD-OPS-10` (RIS targets ERPNext **v16**; the local dev bed is v15.94.3 — so **both** majors must be
+  supported), `DD-XING-2` (`activated_at` is an epoch other logic reads), `OD-INT-1` (Admin ∨ Operator).
+- **Out of scope, stated:** credential resolution on the write paths (issue **#651**, running in parallel —
+  nothing here touches `resolveErpCredentials` or the sweep's write paths); the **#481** crossing dry-run;
+  any UI change beyond the Company-dialog **error copy**.
+
+## 7.1 The gap in one paragraph
+
+`OD-INT-6` says Company selection is what makes an ERPNext binding usable, and `resolveErpDispatchAdapter`
++ `listEmployingOrgsLive` + `org_has_active_erpnext_binding` all gate on `external_org_bindings.activated_at`.
+**No shipped code path ever writes `activated_at`, `version_major`, or a non-empty `site_url`.** Every
+binding that has them was written by `supabase/seed.sql`, an e2e helper, or operator SQL. So a real
+self-serve ERPNext connect produces a binding that (a) has no site URL, so the Company picker and the
+Company validation both target an unparseable URL, and (b) can never activate, so no ERP sync will ever
+run for that org no matter what the admin does in the UI. The three annotations in §3 record where the
+existing prose reads as though this worked.
+
+## 7.2 Requirements (EARS)
+
+### Connect persists the site URL
+
+- **FR-EAC-101** — When an ERPNext connect credential validates, the system SHALL persist the submitted
+  `siteUrl` onto the org's `external_org_bindings` row before returning success, via a service-role-only
+  security-definer RPC that re-checks the URL is non-empty and `https://`-schemed. *(Event-driven.)*
+- **FR-EAC-102** — While an ERPNext binding already carries a non-empty `site_url`, when a connect
+  persists a **different** `site_url`, the system SHALL clear `activated_at`, `version_major` and
+  `config.company` in the same statement — a repointed connection is un-activated until it re-handshakes.
+  *(Conditional: while a site_url exists, when it changes.)*
+- **FR-EAC-103** — While an ERPNext binding's `site_url` is empty, the system SHALL refuse Company
+  selection with `422` and a message telling the admin to reconnect, and SHALL make no external call and
+  no write. *(State-driven.)*
+
+### Company selection IS activation
+
+- **FR-EAC-104** — When an Admin/Operator selects an ERPNext Company and the Company validates against the
+  site, the system SHALL perform the version handshake
+  (`GET /api/method/frappe.utils.change_log.get_versions`) against the binding's `site_url` using the
+  binding's Vault credential, **before** any database write. *(Event-driven.)*
+- **FR-EAC-105** — When the handshake's ERPNext major version is not in the supported set `{15, 16}`, the
+  system SHALL respond `422` with code `CONFIG_REJECTED` (the handler's 422 vocabulary; review #650
+  aligned the one outlier) and a message naming the observed major and the supported set, and SHALL
+  write nothing (no `config.company`, no `version_major`, no `activated_at`). *(Event-driven.)*
+- **FR-EAC-106** — When the handshake major is supported, the system SHALL, in **one** database statement,
+  set `version_major`, merge `config.company` together with the Company account defaults
+  (`default_payable_account`, `default_cash_account`, `default_bank_account`, `default_expense_account`,
+  `cost_center`) resolved from the same `GET Company/<name>` response, and stamp `activated_at`.
+  *(Event-driven.)*
+- **FR-EAC-107** — `activated_at` SHALL be set-once for the lifetime of a connection: when a Company is
+  selected on a binding whose `activated_at` is already non-NULL, the original value SHALL be preserved.
+  It is cleared only by disconnect (FR-EAC-108) or by a site-URL repoint (FR-EAC-102). *(Ubiquitous.)*
+  > **Why set-once, concretely.** `activated_at` is `DD-XING-2`'s epoch and the sweep's floor: the
+  > timesheet backstop enumerates candidates with `approved_at >= activated_at`. Moving the stamp on a
+  > re-select would silently drop every week approved between the first activation and the re-select out
+  > of the recovery scope — hours the client's ERP never hears about, with no surface saying so.
+
+### Disconnect un-activates
+
+- **FR-EAC-108** — When an admin disconnects a tier, the system SHALL clear `activated_at`,
+  `version_major` and `config.company` in the **same statement** that sets `status='disconnected'` and
+  `disconnected_at`. *(Event-driven.)*
+
+### Enforcement + surfacing
+
+- **FR-EAC-109** — `site_url`, `version_major` and `activated_at` SHALL be writable only by the
+  service-role activation path (the three new RPCs plus the service-role edge functions that call them).
+  *(Ubiquitous.)*
+- **FR-EAC-110** — The supported-major allowlist SHALL be enforced in the database as well as in the edge
+  function; **the database is the authority** and the edge function is the fast/UX gate. *(Ubiquitous.)*
+- **FR-EAC-111** — When the Company-selection endpoint answers non-2xx, the FE repository seam SHALL read
+  the endpoint's JSON error body and surface its `message` (the established
+  `FunctionsHttpError.context` pattern), so the admin sees why activation was refused rather than
+  "Edge Function returned a non-2xx status code". *(Event-driven.)*
+
+### Non-functional
+
+- **NFR-EAC-SEC-101** — The `site_url` write path SHALL keep the existing boundary SSRF/HTTPS guard in
+  `external-connect` **and** re-check non-empty + `https://` inside the database RPC. The credential value
+  stays in Vault only; nothing in this addendum widens what leaves the server.
+- **NFR-EAC-SEC-102** — The three new RPCs SHALL be `service_role`-only EXECUTE (revoked from
+  `public`, `anon`, `authenticated`), asserted **on the database that applies the migration** (the
+  `0210` idiom), because hosted Supabase's default privileges differ from local Docker.
+- **NFR-EAC-SEC-103** — No RESTRICTIVE RLS policy and no column trigger is added to
+  `external_org_bindings`. `authenticated`/`anon` hold **SELECT only** on that table (mig `0096` line
+  103; no later migration widens it), so a write policy there would be a **dead layer that reads like a
+  live control** — the exact failure recorded in `0180` §3 and in the `0203` audit. The live layer is
+  the grant surface, and it is proved by a **catalog-derived** pgTAP assertion that fails if a future
+  migration re-grants INSERT/UPDATE/DELETE.
+- **NFR-EAC-REV-101** — Reversibility (ADR-0006): `supabase db reset`; manual rollback is
+  `drop function` on the three new RPCs in reverse order. No column is added, dropped or retyped, so no
+  data migration exists to reverse.
+- **NFR-EAC-CONTRACT-101** — `supabase/seed.sql` and the e2e helpers keep writing `site_url` /
+  `activated_at` / `version_major` directly under the service role; nothing added here blocks them. An
+  org that is already activated (seed, e2e, RIS operator SQL) is byte-for-byte unchanged.
+
+## 7.3 Acceptance criteria (Given/When/Then) + owning test layer
+
+> Layers per ADR-0010. **Edge-fn behaviour → Deno unit** importing the SHIPPED handler with
+> `globalThis.fetch` mocked (`scripts/check-edge-fn-test-binding.mjs` enforces the binding).
+> **RPC gates / grants / atomicity / set-once → pgTAP.** **FE seam → Vitest.**
+> **No new Playwright journey** — the only cross-stack proof would need a live Frappe bench, which CI
+> does not have; that proof is the owner-gated **#481** dry-run checklist, not a CI e2e.
+
+### Connect persists the site URL
+
+- **AC-EAC-101 — connect persists the submitted site URL** *(Deno unit,
+  `supabase/functions/external-connect/connect.test.ts`)*
+  - **Given** an Admin JWT, the kill switch enabled, and a mocked ERPNext site whose
+    `GET /api/method/frappe.auth.get_logged_user` returns `{"message":"erp-user@example.com"}`,
+  - **When** the Admin connects `erpnext` with `siteUrl: 'https://erp.example.com'`,
+  - **Then** the handler calls `create_vault_secret_for_org` exactly once **and then**
+    `set_external_binding_site_url` exactly once with `p_site_url = 'https://erp.example.com'`, and
+    responds `200 { ok: true }`.
+
+- **AC-EAC-102 — a failed site-URL persist does not report a usable connection** *(Deno unit,
+  `supabase/functions/external-connect/connect.test.ts`)*
+  - **Given** the same setup but `set_external_binding_site_url` returns a Postgres error,
+  - **When** the Admin connects `erpnext`,
+  - **Then** the handler responds `500` with code `SITE_URL_NOT_PERSISTED` and a message telling the admin
+    to retry Connect, and makes **no** call to `activate_external_binding`. (The binding is left
+    `site_url=''`, which FR-EAC-103 and the activation RPC's own guard both refuse — the partial state is
+    safe by construction, so no destructive compensating delete runs.)
+
+- **AC-EAC-103 — repointing the site URL clears the activation stamps** *(pgTAP,
+  `supabase/tests/erpnext_activation.test.sql`)*
+  - **Given** an org with an `erpnext` binding at `https://old.example.com`, `activated_at` set,
+    `version_major = 15` and `config = {"company":"Old Co"}`,
+  - **When** `service_role` calls `set_external_binding_site_url(org,'erpnext','https://new.example.com',admin)`,
+  - **Then** `site_url` is the new URL and `activated_at`, `version_major` are NULL and `config` no longer
+    has a `company` key; and re-calling with the SAME url leaves an activated binding untouched.
+
+### Company selection IS activation
+
+- **AC-EAC-104 — an empty site URL refuses Company selection before any external call** *(Deno unit,
+  `supabase/functions/external-set-company/set-company.test.ts`)*
+  - **Given** an Admin JWT and an `active` `erpnext` binding whose `site_url` is `''`,
+  - **When** the Admin submits a Company,
+  - **Then** the handler responds `422 CONFIG_REJECTED` with a reconnect instruction, makes **zero**
+    outbound requests to any ERPNext host, and calls neither `read_vault_secret` nor
+    `activate_external_binding`.
+
+- **AC-EAC-105 — the handshake runs before any write** *(Deno unit, `set-company.test.ts` — its own
+  titled test since the review follow-up)*
+  - **Given** a valid Admin JWT, an active binding with a real `site_url`, and a mocked site where
+    `GET /api/resource/Company/ACME` returns 200 and
+    `GET /api/method/frappe.utils.change_log.get_versions` returns `{"erpnext":{"version":"15.94.3"}}`,
+  - **When** the Admin selects `ACME`,
+  - **Then** the recorded fetch order is Company-validate → version-handshake → `activate_external_binding`,
+    and there is **no** `PATCH /rest/v1/external_org_bindings` at all (the write moved into the RPC).
+
+- **AC-EAC-106 — an unsupported major refuses with a legible 422 and writes nothing** *(Deno unit,
+  `set-company.test.ts`)*
+  - **Given** the same setup but the handshake returns `{"erpnext":{"version":"14.30.1"}}`,
+  - **When** the Admin selects `ACME`,
+  - **Then** the response is `422` with `error: 'CONFIG_REJECTED'` and a message containing both `14` and
+    `15 and 16`, and `activate_external_binding` and `log_audit` are each called **zero** times.
+
+- **AC-EAC-107 — a v15 handshake activates** *(Deno unit, `set-company.test.ts`)*
+  - **Given** the handshake returns `15.94.3` and `GET Company/ACME` returns
+    `default_payable_account: 'Creditors - A'`, `default_cash_account: 'Cash - A'`,
+  - **When** the Admin selects `ACME`,
+  - **Then** `activate_external_binding` is called once with `p_version_major = 15`, `p_company = 'ACME'`
+    and a `p_config_patch` carrying those two account defaults, and the response body is
+    `{ ok: true, companyId: 'ACME', versionMajor: 15, activatedAt: <the RPC's return> }`.
+
+- **AC-EAC-108 — a v16 handshake activates** *(Deno unit, `set-company.test.ts`)*
+  - **Given** the handshake returns `16.33.0` (`DD-OPS-10`: RIS's target),
+  - **When** the Admin selects `ACME`,
+  - **Then** `activate_external_binding` is called once with `p_version_major = 16` and the response is
+    `200`.
+
+- **AC-EAC-109 — activated_at is set-once across re-selection** *(pgTAP,
+  `supabase/tests/erpnext_activation.test.sql`)*
+  - **Given** an active `erpnext` binding with a `site_url`, activated at `T0` with `company = 'A'`,
+  - **When** `service_role` calls `activate_external_binding(...,'B',...)` at a later instant,
+  - **Then** `config->>'company'` is `'B'` and `activated_at` is still exactly `T0`; and after a
+    `deactivate_external_binding` + a fresh `activate_external_binding`, `activated_at` is a NEW, later
+    instant.
+
+- **AC-EAC-110 — activation is atomic and refuses an unusable binding** *(pgTAP,
+  `erpnext_activation.test.sql`)*
+  - **Given** an `erpnext` binding that is either `status <> 'active'` or has `site_url = ''`,
+  - **When** `service_role` calls `activate_external_binding`,
+  - **Then** it raises `P0001` and the row is unchanged (`activated_at`, `version_major` and
+    `config->'company'` all still absent) — company, version and stamp are never partially written.
+
+- **AC-EAC-111 — the database rejects an unsupported major independently of the edge function** *(pgTAP,
+  `erpnext_activation.test.sql`)*
+  - **Given** a connectable `erpnext` binding,
+  - **When** `service_role` calls `activate_external_binding` with `p_version_major = 14`,
+  - **Then** it raises `P0001` and nothing is written — proving FR-EAC-110's "the database is the
+    authority" rather than trusting the edge function's check.
+
+### Enforcement
+
+- **AC-EAC-112 — the three RPCs are service-role only** *(pgTAP, `erpnext_activation.test.sql`)*
+  - **Given** an authenticated Admin session (`set local role authenticated` + JWT claims),
+  - **When** that session calls `set_external_binding_site_url`, `activate_external_binding` or
+    `deactivate_external_binding`,
+  - **Then** each raises `42501`, and `has_function_privilege('anon'|'authenticated', …, 'EXECUTE')` is
+    false for all three while `service_role` retains EXECUTE.
+
+- **AC-EAC-113 — no client write surface exists on the binding table** *(pgTAP,
+  `erpnext_activation.test.sql`)*
+  - **Given** the catalog at head,
+  - **When** `information_schema.role_table_grants` is queried for
+    `table_name = 'external_org_bindings'` and `grantee in ('anon','authenticated')`,
+  - **Then** the returned `privilege_type` set is exactly `{SELECT}` — so a future migration that
+    re-grants INSERT/UPDATE/DELETE fails this test rather than silently opening a direct path to
+    `activated_at`.
+
+- **AC-EAC-114 — disconnect un-activates, so the employ predicates go false** *(pgTAP,
+  `erpnext_activation.test.sql`)*
+  - **Given** an activated `erpnext` binding for org `O` for which
+    `org_has_active_erpnext_binding(O)` is true,
+  - **When** `service_role` calls `deactivate_external_binding(O,'erpnext',admin)`,
+  - **Then** `status='disconnected'`, `disconnected_at` is set, `activated_at` and `version_major` are
+    NULL, `config` has no `company` key, and `org_has_active_erpnext_binding(O)` is now false.
+
+### Surfacing + the shared handshake
+
+- **AC-EAC-115 — the FE seam surfaces the endpoint's own message** *(Vitest,
+  `pmo-portal/src/lib/repositories/integrations.setCompany.test.ts`)*
+  - **Given** `supabase.functions.invoke` rejects with a `FunctionsHttpError`-shaped error whose
+    `.context` Response body is
+    `{"error":"CONFIG_REJECTED","message":"ERPNext 14 is not supported (PMO supports 15 and 16)."}`
+    (the endpoint's real body — review #650 aligned the code to `CONFIG_REJECTED`),
+  - **When** `repositories.integrations.setCompany(org,'erpnext','ACME')` is awaited,
+  - **Then** it rejects with an `AppError` whose `.message` is that sentence and `.code` is
+    `CONFIG_REJECTED` (passed through verbatim by the seam), so `classifyMutationError(err).detail`
+    renders it in the Company dialog.
+
+- **AC-EAC-116 — the handshake helper is one derivation, budget-bounded, and it supports 15 and 16**
+  *(Vitest, `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts`)*
+  - **Given** `fetchErpVersionMajor` with a mocked fetch,
+  - **When** the site reports `15.94.3`, `16.33.0` and `14.30.1` in three runs,
+  - **Then** it returns `15`, `16` and `14` respectively; `SUPPORTED_VERSION_MAJORS` contains exactly
+    `[15, 16]`; a hung site aborts at the handshake's 5s deadline and a retryable response is NOT
+    retried (`timeoutMs: 5000, maxRetries: 0` — review #650); and `companyDefaultsFromDoc` keeps a
+    default only when it is a 1–140-char string (ERPNext Link limit), else `null`. *(The former
+    `activateBinding` twin was deleted with its tests — review #650: activation semantics live in the
+    `activate_external_binding` RPC, migration 0216.)*
+
+- **AC-EAC-117 — the disconnect suite binds to the shipped handler** *(Guard,
+  `scripts/check-edge-fn-test-binding.mjs` + `pmo-portal/src/lib/agent/checkEdgeFnTestBinding.test.ts`)*
+  - **Given** `external-disconnect` now performs a money-adjacent write (clearing the activation epoch),
+  - **When** `npm run check:edge-test-binding` runs,
+  - **Then** it requires `disconnect.test.ts` to import `handleDisconnectRequest` from `./index.ts` and
+    requires `index.ts` to export it behind an `import.meta.main` guard — the current suite asserts only
+    re-implemented local booleans and would pass while the shipped handler is broken.
+
+- **AC-EAC-118 — the disconnect audit event is written with the fixed `log_audit` arg shape** *(Deno
+  unit, `supabase/functions/external-disconnect/disconnect.test.ts` — owned by the AC-EAC-114/118-titled
+  test)*
+  - **Given** an Admin JWT and an existing binding,
+  - **When** the Admin disconnects,
+  - **Then** `log_audit` is called exactly once with `p_action = 'integration.disconnect'`, the REQUIRED
+    `p_actor_id`, and NO `p_entity_type` key. *(The shipped call passed `p_entity_type` — no such
+    parameter — and omitted `p_actor_id`, so no overload of `log_audit(text,uuid,uuid,uuid,jsonb)`
+    matched and the disconnect audit event was never written.)*
+
+## 7.4 Traceability — owning layer per AC
+
+| AC | Owning layer | Owning file |
+|---|---|---|
+| AC-EAC-101, 102 | Deno unit | `supabase/functions/external-connect/connect.test.ts` |
+| AC-EAC-104..108 | Deno unit | `supabase/functions/external-set-company/set-company.test.ts` |
+| AC-EAC-103, 109, 110, 111, 112, 113, 114 | pgTAP | `supabase/tests/erpnext_activation.test.sql` |
+| AC-EAC-115 | Vitest | `pmo-portal/src/lib/repositories/integrations.setCompany.test.ts` |
+| AC-EAC-116 | Vitest | `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts` |
+| AC-EAC-117 | Verify gate | `scripts/check-edge-fn-test-binding.mjs` |
+| AC-EAC-118 | Deno unit | `supabase/functions/external-disconnect/disconnect.test.ts` |
+
+## 7.5 Deliberate behaviour changes to existing green tests
+
+The BDD rule forbids bending an assertion to the app; these two are *deliberate* behaviour changes and
+the plan records the justification with each.
+
+1. **`binding.test.ts` — "a v16 handshake leaves the binding un-activated" must be inverted.** It encodes
+   the pre-`DD-OPS-10` v15-only pin. `DD-OPS-10` ruled RIS targets v16, so v16 activating is the new
+   correct behaviour. The v14 case stays as the negative oracle.
+2. **`set-company.test.ts` — four cases assert `restCall(calls,'external_org_bindings','PATCH').length`.**
+   FR-EAC-106 moves that write into `activate_external_binding` so company + version + stamp cannot land
+   partially. The **goal** oracle ("the selected Company is persisted for this org") is unchanged; only the
+   mechanism assertion moves to `rpcCall(calls,'activate_external_binding')`.
+
+## 7.6 Open questions for the Director (addendum)
+
+1. **Reconnect-rotate leaves a destructive compensating delete on the ClickUp branch.** On a rotate,
+   `cleanup_external_connect_attempt` DELETEs the `(org, tier, secret_ref)` row — which after the rotate is
+   the org's ONE live binding. A failed ClickUp finalize therefore destroys a working connection rather
+   than rolling back to it. Pre-existing, not introduced here, and deliberately not copied onto the ERPNext
+   branch (AC-EAC-102 leaves the row instead and lets the activation guard refuse it). **Worth its own
+   issue?**
+2. **SETTLED (2026-09-14, Director ruling): Company account defaults are IN scope.** The brief asked only
+   for `version_major` + `activated_at`, but `bodies/paymentEntry.ts` reads `config.default_cash_account` /
+   `default_bank_account` / `default_payable_account`, and nothing populated them on a self-serve connect —
+   activating without them would activate a binding whose first Payment Entry posts with undefined accounts.
+   FR-EAC-106 fills them from the `GET Company/<name>` the handler already makes (`companyDefaultsFromDoc`),
+   and the defaults shipped in Phase 4 with their own tests (AC-EAC-107/108).
+3. **SETTLED (2026-09-14, verified live on the v16.33 bench): the field names carry over.** An
+   Administrator-session `GET Company/PMO Smoke Co` on v16.33 confirmed `default_payable_account`,
+   `default_cash_account`, `default_expense_account` and `cost_center` under the v15 names;
+   **`default_bank_account` is ABSENT on v16** (the key is not on the doc at all, not null-valued), so the
+   mapper's absent-⇒-`null` rule fires for that one field on every v16 activation — "no default", which
+   `paymentEntry.ts`'s `??` chain treats correctly. AC-EAC-108 pins this exact shape (four keys present,
+   one missing). `frappe.utils.change_log.get_versions` was likewise confirmed `@frappe.whitelist()` on
+   v16.33 (`change_log.py:104`).

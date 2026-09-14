@@ -30,6 +30,7 @@ const REQUIRED = {
   'supabase/functions/external-link/link.test.ts': 'handleLinkRequest',
   'supabase/functions/external-lists/lists.test.ts': 'handleListsRequest',
   'supabase/functions/external-unlink/unlink.test.ts': 'handleUnlinkRequest',
+  'supabase/functions/external-disconnect/disconnect.test.ts': 'handleDisconnectRequest',
 };
 
 /** Copy anti-patterns: a test re-implementing what it should import. */
@@ -99,4 +100,4 @@ if (failed) {
   console.error('See docs/decisions.md OD-INT-8 and https://supabase.com/docs/guides/functions/unit-test');
   process.exit(1);
 }
-console.log('✓ edge-fn tests bind to shipped handlers (6/6)');
+console.log('✓ edge-fn tests bind to shipped handlers (7/7)');

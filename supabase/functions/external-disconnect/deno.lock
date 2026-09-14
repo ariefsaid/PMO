@@ -1,20 +1,36 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@1.0.0": "1.0.0",
     "jsr:@std/assert@1.0.10": "1.0.10",
+    "jsr:@std/assert@^1.0.2": "1.0.10",
+    "jsr:@std/internal@^1.0.1": "1.0.14",
     "jsr:@std/internal@^1.0.5": "1.0.14",
+    "jsr:@std/testing@1.0.0": "1.0.0",
     "npm:@supabase/supabase-js@2.110.0": "2.110.0",
     "npm:jose@6.2.3": "6.2.3"
   },
   "jsr": {
+    "@std/assert@1.0.0": {
+      "integrity": "0e4f6d873f7f35e2a1e6194ceee39686c996b9e5d134948e644d35d4c4df2008",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.1"
+      ]
+    },
     "@std/assert@1.0.10": {
       "integrity": "59b5cbac5bd55459a19045d95cc7c2ff787b4f8527c0dd195078ff6f9481fbb3",
       "dependencies": [
-        "jsr:@std/internal"
+        "jsr:@std/internal@^1.0.5"
       ]
     },
     "@std/internal@1.0.14": {
       "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@std/testing@1.0.0": {
+      "integrity": "27cfc06392c69c2acffe54e6d0bcb5f961cf193f519255372bd4fff1481bfef8",
+      "dependencies": [
+        "jsr:@std/assert@^1.0.2"
+      ]
     }
   },
   "npm": {
@@ -75,6 +91,8 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@std/assert@1.0.0",
+      "jsr:@std/testing@1.0.0",
       "npm:@supabase/supabase-js@2.110.0",
       "npm:jose@6.2.3"
     ]

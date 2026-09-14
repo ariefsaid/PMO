@@ -16,10 +16,12 @@ Written first, because a plan built on any of these would be worse than no plan.
 artefact that decides it, not against a document describing it.
 
 **P-1 — "the version handshake stamps `external_org_bindings.version_major`" is not a live code path.**
-`activateBinding` (`pmo-portal/src/lib/adapterSeam/erpnext/binding.ts:70`) is the handshake, and
-`grep -rn activateBinding` finds **no production call site** — only `binding.test.ts`. Every binding that exists
+The handshake helpers live in `pmo-portal/src/lib/adapterSeam/erpnext/binding.ts`, and at the time this
+plan was written `grep -rn activateBinding` found **no production call site** — only `binding.test.ts`.
+Every binding that exists
 today (`supabase/seed.sql`, the served-fn e2e helpers, operator SQL) writes `version_major` and `activated_at`
-**by hand**. Consequences for this run:
+**by hand**. *(Review follow-up, #650: the dead `activateBinding` twin has since been deleted;
+`activate_external_binding` is the one writer.)* Consequences for this run:
 
 - the constant is `SUPPORTED_VERSION_MAJOR = 15` (`binding.ts:11`), so if the handshake were ever wired it would
   return `activatedAt: null` against a v16 site and **refuse to activate**;

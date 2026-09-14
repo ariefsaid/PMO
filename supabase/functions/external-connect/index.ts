@@ -14,7 +14,10 @@
  *    - ERPNext: GET /api/method/frappe.auth.get_logged_user with token apiKey:apiSecret
  *    - SSRF hardening: reject private/loopback/link-local/metadata addresses for ERPNext
  * 5. On success: call create_vault_secret_for_org RPC (passes p_actor_id=sub for service-role path)
- * 6. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'employ', userId)
+ * 7. ERPNext: call set_external_binding_site_url(org, 'erpnext', siteUrl, userId) — persists the site
+ *    URL the admin submitted (create_vault_secret_for_org writes site_url = ''); a failure is a 500
+ *    SITE_URL_NOT_PERSISTED and the binding is left inert (site_url='')
+ * 8. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'employ', userId)
  * 7. Return { ok: true, binding: { secret_ref, status: 'active' } }
  *
  * Errors:
@@ -392,6 +395,28 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   if (rpcError) {
     const pgCode = (rpcError as { code?: string }).code ?? 'INTERNAL';
     return errorResponse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
+  }
+
+  // 7b. FR-EAC-101 — persist the site URL the admin submitted. `create_vault_secret_for_org` writes
+  // `site_url = ''` (mig 0180) and its signature is on production, so this is a second, additive RPC
+  // rather than a parameter change (ADR-0073 §1: a dropped 5-arg overload would PGRST202 the deployed
+  // connect path during the deploy window).
+  if (tier === 'erpnext') {
+    const { error: siteUrlError } = await serviceClient.rpc('set_external_binding_site_url', {
+      p_org_id: profile.org_id,
+      p_external_tier: 'erpnext',
+      p_site_url: credential.siteUrl!,
+      p_actor_id: userId,
+    });
+    if (siteUrlError) {
+      // No compensating delete: the binding is left with `site_url = ''`, which external-set-company
+      // (FR-EAC-103) and activate_external_binding's own guard both refuse. The partial state is inert,
+      // and a retry of Connect rotates it. See ADR-0073 "Costs and risks accepted".
+      console.error('set_external_binding_site_url failed', siteUrlError);
+      return errorResponse(
+        'The ERPNext site URL could not be saved; no connection was activated. Please try connecting again.',
+        'SITE_URL_NOT_PERSISTED', 500);
+    }
   }
 
   // 8. Readiness is exactly the valid token plus the real per-org Vault resolver. No extra

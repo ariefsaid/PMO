@@ -1,14 +1,19 @@
 /**
- * AC-ENA-073 — erpnext/binding.ts: the v15 version handshake gates activation (FR-ENA-012). A
- * matched `version_major` fills `config` from one `GET Company/<name>` (R9 §6.2); a mismatch leaves
- * `activatedAt` null (money commands are refused as config-rejected by the dispatch factory, 2.13).
+ * AC-ENA-073/AC-EAC-116 — erpnext/binding.ts: the version handshake helpers (FR-ENA-012). The
+ * ACTIVATION semantics used to live here too (`activateBinding`); they are the
+ * `activate_external_binding` RPC's job now (migration 0216) — that twin was deleted with its tests
+ * (review #650). What remains and is tested: the handshake parse + its budget, the supported-major
+ * set, and the Company-defaults mapper consumed by `external-set-company`.
  *
  * AC-ENA-084 (task 8.8) — `assertErpReadPermissions`: the integration user must have full READ perms
- * on the flipped doctypes + aging reports, or the feed silently under-syncs (R13). A probe at
- * activation; a failure refuses activation (warn). PMO RLS stays the user-facing authority.
+ * on the flipped doctypes + aging reports, or the feed silently under-syncs (R13). PMO RLS stays the
+ * user-facing authority.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { activateBinding, assertErpReadPermissions, type ReadPermScope } from './binding.ts';
+import {
+  assertErpReadPermissions, fetchErpVersionMajor, companyDefaultsFromDoc,
+  SUPPORTED_VERSION_MAJORS, type ReadPermScope,
+} from './binding.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -19,62 +24,91 @@ function fetchDeps(fetchImpl: (url: string) => Promise<Response>) {
 }
 
 describe('erpnext/binding', () => {
-  it('AC-ENA-073 a v15 handshake activates the binding and fills config from one GET Company/<name>', async () => {
-    const fetchImpl = fetchDeps(async (url) => {
-      if (url.includes('/api/method/frappe.utils.change_log.get_versions')) {
-        return jsonResponse(200, { erpnext: { version: '15.94.3' } });
-      }
-      if (url.includes('/api/resource/Company/PMO%20Smoke%20Co')) {
-        return jsonResponse(200, {
-          name: 'PMO Smoke Co',
-          default_payable_account: 'Creditors - PSC',
-          default_cash_account: 'Cash - PSC',
-          default_bank_account: null,
-          default_expense_account: 'Cost of Goods Sold - PSC',
-          cost_center: 'Main - PSC',
+  it('AC-EAC-116 SUPPORTED_VERSION_MAJORS is exactly [15, 16] (DD-OPS-10: bench v15, RIS v16)', () => {
+    expect([...SUPPORTED_VERSION_MAJORS]).toEqual([15, 16]);
+  });
+
+  it('AC-EAC-116 fetchErpVersionMajor is budget-bounded: a hung site aborts at the 5s handshake deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const hanging = (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) return; // no deadline wired → hangs forever (the RED state)
+          if (signal.aborted) reject(signal.reason ?? new Error('aborted'));
+          signal.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')));
         });
-      }
-      throw new Error(`unexpected URL ${url}`);
-    });
+      const fetchImpl = vi.fn(hanging) as unknown as typeof fetch;
+      const pending = fetchErpVersionMajor({
+        fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com',
+      });
+      // Attach BOTH handlers before the clock moves: the deadline rejects `pending` inside
+      // advanceTimersByTimeAsync, and a rejection nobody has subscribed to yet is an unhandled
+      // rejection that fails the whole vitest run even though every assertion passes.
+      pending.catch(() => undefined).finally(() => { settled = true; });
+      const rejection = expect(pending).rejects.toMatchObject({ code: 'external-unreachable' });
 
-    const result = await activateBinding(
-      { fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co' },
-      () => '2026-07-11T00:00:00.000Z',
-    );
+      await vi.advanceTimersByTimeAsync(5_000);
 
-    expect(result.versionMajor).toBe(15);
-    expect(result.activatedAt).toBe('2026-07-11T00:00:00.000Z');
-    expect(result.config).toMatchObject({
-      company: 'PMO Smoke Co',
-      default_payable_account: 'Creditors - PSC',
-      default_cash_account: 'Cash - PSC',
+      // The deadline is 5_000ms — NOT the client default (120s), so the handshake must already
+      // be settled here. A hung Company-selection activation cannot outwait the edge-fn budget.
+      expect(settled).toBe(true);
+      await rejection;
+      expect(fetchImpl).toHaveBeenCalledTimes(1); // maxRetries 0 — the single attempt IS the budget
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('AC-EAC-116 fetchErpVersionMajor does NOT retry a retryable handshake response (maxRetries 0)', async () => {
+    const fetchImpl = fetchDeps(async () => jsonResponse(500, { exc_type: 'InternalServerError' }));
+    await expect(
+      fetchErpVersionMajor({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com' }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    // The default idempotent budget is 3 retries (4 attempts); the handshake gets exactly one.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-EAC-116 fetchErpVersionMajor parses the major from the handshake', async () => {
+    for (const [version, major] of [['15.94.3', 15], ['16.33.0', 16], ['14.30.1', 14]] as const) {
+      const fetchImpl = fetchDeps(async () => jsonResponse(200, { erpnext: { version } }));
+      await expect(
+        fetchErpVersionMajor({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com' }),
+      ).resolves.toBe(major);
+    }
+  });
+
+  it('AC-EAC-116 companyDefaultsFromDoc bounds each default to a 1-140-char string — anything else maps to null', () => {
+    // ERPNext Link fields are <=140 chars; a longer, non-string, or empty value is never a usable
+    // account default — it maps to null ("no default"), never a guessed or malformed account.
+    expect(companyDefaultsFromDoc({
+      default_payable_account: 42,
+      default_cash_account: { name: 'Cash - A' },
+      default_bank_account: ['Bank - A'], // an array HAS a 1-140 .length — only typeof 'string' keeps it out
+      default_expense_account: '',
+      cost_center: 'y'.repeat(200),
+    }, 'ACME')).toEqual({
+      company: 'ACME',
+      default_payable_account: null,
+      default_cash_account: null,
       default_bank_account: null,
-      default_expense_account: 'Cost of Goods Sold - PSC',
-      cost_center: 'Main - PSC',
+      default_expense_account: null,
+      cost_center: null,
     });
+    // 140 is exactly the ERPNext Link limit — kept; 200 is over — null.
+    expect(companyDefaultsFromDoc({ cost_center: 'y'.repeat(140) }, 'ACME').cost_center).toBe('y'.repeat(140));
   });
 
-  it('AC-ENA-073 a v16 handshake leaves the binding un-activated (activatedAt stays null)', async () => {
-    const fetchImpl = fetchDeps(async () => jsonResponse(200, { erpnext: { version: '16.2.0' } }));
-    const result = await activateBinding({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co' });
-    expect(result.versionMajor).toBe(16);
-    expect(result.activatedAt).toBeNull();
-  });
-
-  it('AC-ENA-073 a v14 handshake leaves the binding un-activated (activatedAt stays null)', async () => {
-    const fetchImpl = fetchDeps(async () => jsonResponse(200, { erpnext: { version: '14.30.1' } }));
-    const result = await activateBinding({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co' });
-    expect(result.versionMajor).toBe(14);
-    expect(result.activatedAt).toBeNull();
-  });
-
-  it('AC-ENA-073 a version mismatch never fetches Company defaults (config stays empty)', async () => {
-    const fetchImpl = fetchDeps(async (url) => {
-      if (url.includes('get_versions')) return jsonResponse(200, { erpnext: { version: '16.2.0' } });
-      throw new Error(`unexpected fetch to ${url} — Company defaults must not be fetched on a version mismatch`);
+  it('AC-EAC-116 companyDefaultsFromDoc maps the five Company account defaults, null when absent', () => {
+    expect(companyDefaultsFromDoc({ default_payable_account: 'Creditors - A' }, 'ACME')).toEqual({
+      company: 'ACME',
+      default_payable_account: 'Creditors - A',
+      default_cash_account: null,
+      default_bank_account: null,
+      default_expense_account: null,
+      cost_center: null,
     });
-    const result = await activateBinding({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co' });
-    expect(result.config).toEqual({});
   });
 });
 
@@ -128,36 +162,5 @@ describe('erpnext/binding — assertErpReadPermissions (AC-ENA-084, task 8.8, R1
     const failure = await assertErpReadPermissions({ ...client, fetchImpl }, scope);
     expect(failure).not.toBeNull();
     expect(failure).toMatchObject({ kind: 'report', name: 'Accounts Payable' });
-  });
-
-  it('AC-ENA-084 activateBinding refuses activation (activatedAt null) when the read-perm probe fails', async () => {
-    const fetchImpl = fetchDeps(async (url) => {
-      if (url.includes('get_versions')) return jsonResponse(200, { erpnext: { version: '15.94.3' } });
-      if (url.includes('/api/resource/Company/PMO%20Smoke%20Co')) return jsonResponse(200, { name: 'PMO Smoke Co', default_payable_account: 'Creditors - PSC' });
-      if (url.includes('/api/resource/Purchase%20Invoice?')) return jsonResponse(403, { exc_type: 'PermissionError', message: 'Not permitted' });
-      throw new Error(`unexpected URL ${url}`);
-    });
-    const result = await activateBinding(
-      { fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co', readPermScope: { doctypes: ['Purchase Invoice'] } },
-      () => '2026-07-11T00:00:00.000Z',
-    );
-    expect(result.versionMajor).toBe(15);
-    expect(result.activatedAt).toBeNull();
-    expect(result.permissionFailure).toMatchObject({ kind: 'doctype', name: 'Purchase Invoice' });
-  });
-
-  it('AC-ENA-084 activateBinding activates when the read-perm probe passes (backward-compat: no scope ⇒ no probe)', async () => {
-    const fetchImpl = fetchDeps(async (url) => {
-      if (url.includes('get_versions')) return jsonResponse(200, { erpnext: { version: '15.94.3' } });
-      if (url.includes('/api/resource/Company/PMO%20Smoke%20Co')) return jsonResponse(200, { name: 'PMO Smoke Co', default_payable_account: 'Creditors - PSC' });
-      if (url.includes('/api/resource/Purchase%20Invoice?')) return jsonResponse(200, { data: [] });
-      throw new Error(`unexpected URL ${url}`);
-    });
-    const result = await activateBinding(
-      { fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co', readPermScope: { doctypes: ['Purchase Invoice'] } },
-      () => '2026-07-11T00:00:00.000Z',
-    );
-    expect(result.activatedAt).toBe('2026-07-11T00:00:00.000Z');
-    expect(result.permissionFailure).toBeUndefined();
   });
 });

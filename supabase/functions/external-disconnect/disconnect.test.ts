@@ -1,152 +1,144 @@
 /**
- * external-disconnect — Deno test (task 2.4 + P2 fixes)
- *
- * Tests the disconnect edge function's logic with mocked fetch.
- * AC-EAC-007
+ * external-disconnect — Deno unit tests against the SHIPPED handler.
+ * AC-EAC-114 (stamps cleared), AC-EAC-117 (binds to shipped code — enforced by the check script,
+ * not this file), AC-EAC-118 (audit args, owned by the AC-EAC-114/118-titled test here).
  */
+import { describe, it, afterAll } from '@std/testing/bdd';
+import { assertEquals } from '@std/assert';
+import { handleDisconnectRequest, setTestJwks } from './index.ts';
+import {
+  createJwtAuthority, installEdgeEnv, withFetchMock, supabaseRpc, supabaseSelect,
+  restCall, rpcCall, jsonResponse, createAuthedRequest, createTestJwksResolver,
+} from '../_shared/testing/edgeTestKit.ts';
 
-import { assert, assertEquals } from 'jsr:@std/assert@1.0.10';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+const env = installEdgeEnv();
+const auth = await createJwtAuthority(env.SUPABASE_URL);
+setTestJwks(createTestJwksResolver(auth));
+afterAll(() => env.restore());
 
-// Test the role gate logic (core authorization check)
-Deno.test('external-disconnect: role gate allows Admin', () => {
-  const isAdmin = true;
-  const isOperator = false;
-  const allowed = isAdmin || isOperator;
-  assertEquals(allowed, true);
-});
+async function authed(body: unknown, sub = 'user-1') {
+  return createAuthedRequest('http://edge.test/disconnect', body, await auth.mintJwt({ sub }));
+}
 
-Deno.test('external-disconnect: role gate allows Operator', () => {
-  const isAdmin = false;
-  const isOperator = true;
-  const allowed = isAdmin || isOperator;
-  assertEquals(allowed, true);
-});
+const adminProfile = () => supabaseSelect('profiles', () =>
+  jsonResponse({ org_id: 'org-1', role: 'Admin' },
+    { headers: { 'content-type': 'application/vnd.pgrst.object+json' } }));
+const notOperator = () => supabaseSelect('platform_operators', () =>
+  new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }));
 
-Deno.test('external-disconnect: role gate denies Engineer', () => {
-  const isAdmin = false;
-  const isOperator = false;
-  const allowed = isAdmin || isOperator;
-  assertEquals(allowed, false);
-});
+describe('external-disconnect', () => {
+  it('AC-EAC-114/AC-EAC-118 an ERPNext disconnect clears the activation stamps via the RPC and writes the fixed-shape audit event, not a PATCH', async () => {
+    await withFetchMock(
+      [
+        adminProfile(), notOperator(),
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', webhook_secret_ref: null },
+            { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
+        supabaseRpc('deactivate_external_binding', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_external_tier, 'erpnext');
+          assertEquals(body.p_actor_id, 'user-1');
+          return jsonResponse(1);
+        }),
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleDisconnectRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'deactivate_external_binding').length, 1);
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+        // AC-EAC-118: log_audit(text,uuid,uuid,uuid,jsonb) — p_actor_id is REQUIRED and there is no
+        // p_entity_type parameter. The shipped call passed p_entity_type and omitted p_actor_id, so
+        // no overload matched and the disconnect audit event was never written.
+        // ⚑ Asserted on the RECORDED call, not inside the route callback: a throw in a route callback
+        // is swallowed by supabase-js (it resolves { error } instead of throwing) and the handler
+        // treats an audit failure as non-fatal — a route-callback assert here would be a dead oracle.
+        const auditBody = rpcCall(calls, 'log_audit')[0].bodyJson as Record<string, unknown>;
+        assertEquals(auditBody.p_action, 'integration.disconnect');
+        assertEquals(auditBody.p_actor_id, 'user-1');
+        assertEquals('p_entity_type' in auditBody, false);
+      },
+    );
+  });
 
-Deno.test('external-disconnect: role gate denies Project Manager', () => {
-  const isAdmin = false;
-  const isOperator = false;
-  const allowed = isAdmin || isOperator;
-  assertEquals(allowed, false);
-});
+  it('a clickup disconnect releases domain ownership via admin_change_domain_ownership(action=release); an erpnext disconnect never calls it', async () => {
+    // ClickUp release branch (Phase 2 task 2.4): the tasks domain is freed for a re-connect. The
+    // RPC itself emits the domain-ownership audit event; a release failure is logged, not fatal.
+    await withFetchMock(
+      [
+        adminProfile(), notOperator(),
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', webhook_secret_ref: null },
+            { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
+        supabaseRpc('deactivate_external_binding', () => jsonResponse(1)),
+        supabaseRpc('admin_change_domain_ownership', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_org_id, 'org-1');
+          assertEquals(body.p_external_tier, 'clickup');
+          assertEquals(body.p_domain, 'tasks');
+          assertEquals(body.p_action, 'release');
+          assertEquals(body.p_actor_id, 'user-1');
+          return jsonResponse(null);
+        }),
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleDisconnectRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 1);
+      },
+    );
 
-// Test that the tier determines whether admin_change_domain_ownership is called
-Deno.test('external-disconnect: ClickUp tier requires ownership release', () => {
-  const tier = 'clickup';
-  const requiresRelease = tier === 'clickup';
-  assertEquals(requiresRelease, true);
-});
+    // The erpnext branch owns no ClickUp domain — the release call must not fire there.
+    await withFetchMock(
+      [
+        adminProfile(), notOperator(),
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', webhook_secret_ref: null },
+            { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
+        supabaseRpc('deactivate_external_binding', () => jsonResponse(1)),
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleDisconnectRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 0);
+      },
+    );
+  });
 
-Deno.test('external-disconnect: ERPNext tier does not require ownership release', () => {
-  const tier: string = 'erpnext';
-  const requiresRelease = tier === 'clickup';
-  assertEquals(requiresRelease, false);
-});
+  it('AC-EAC-004 an Engineer is refused with 403 and no side effect (disconnect is role-gated identically to connect, FR-EAC-009)', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Engineer' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        notOperator(),
+      ],
+      async ({ calls }) => {
+        const res = await handleDisconnectRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 403);
+        assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
+        assertEquals(rpcCall(calls, 'deactivate_external_binding').length, 0);
+      },
+    );
+  });
 
-// Test the secret_ref format for delete_vault_secret
-Deno.test('external-disconnect: secret_ref format is preserved from binding', () => {
-  const bindingSecretRef = 'clickup_token_org-1_1234567890';
-  const secretRef = bindingSecretRef;
-  assertEquals(secretRef, 'clickup_token_org-1_1234567890');
-});
-
-// Test disconnected_at timestamp logic
-Deno.test('external-disconnect: disconnected_at is set to now', () => {
-  const before = new Date().toISOString();
-  const disconnectedAt = new Date().toISOString();
-  const after = new Date().toISOString();
-  // disconnectedAt should be between before and after (or equal)
-  assert(disconnectedAt >= before && disconnectedAt <= after);
-});
-
-// Test audit log payload structure
-Deno.test('external-disconnect: audit payload contains expected fields', () => {
-  const tier = 'clickup';
-  const actor = 'user-123';
-  const orgId = 'org-1';
-  const payload = { org_id: orgId, tier, actor };
-  assertEquals(payload.tier, tier);
-  assertEquals(payload.actor, actor);
-  assertEquals(payload.org_id, orgId);
-});
-
-// Test error handling for missing binding
-Deno.test('external-disconnect: missing binding throws config-rejected', () => {
-  // Simulating the error that would be thrown when binding not found
-  const error = new AppError('No active binding found for this tier', 'config-rejected');
-  assertEquals(error.code, 'config-rejected');
-  assertEquals(error.message, 'No active binding found for this tier');
-});
-
-// Test RPC error handling
-Deno.test('external-disconnect: RPC error with 42501 returns 403', () => {
-  const rpcError = { code: '42501', message: 'insufficient privilege' };
-  const pgCode = rpcError.code ?? 'INTERNAL';
-  const status = pgCode === '42501' ? 403 : 500;
-  assertEquals(status, 403);
-});
-
-Deno.test('external-disconnect: RPC error with other code returns 500', () => {
-  const rpcError = { code: 'P0001', message: 'some error' };
-  const pgCode = rpcError.code ?? 'INTERNAL';
-  const status = pgCode === '42501' ? 403 : 500;
-  assertEquals(status, 500);
-});
-
-// Test that delete_vault_secret is called with correct secret_ref
-Deno.test('external-disconnect: delete_vault_secret called with binding.secret_ref', () => {
-  const binding = { secret_ref: 'clickup_token_org-1_1234567890' };
-  const secretRef = binding.secret_ref;
-  assertEquals(secretRef, 'clickup_token_org-1_1234567890');
-});
-
-// Test that binding update sets status to disconnected
-Deno.test('external-disconnect: binding update sets status=disconnected and disconnected_at', () => {
-  const update = { status: 'disconnected', disconnected_at: '2026-07-15T12:00:00Z' };
-  assertEquals(update.status, 'disconnected');
-  assert(update.disconnected_at !== undefined);
-});
-
-// Test that operator_set_domain_ownership is called for ClickUp with release action
-Deno.test('external-disconnect: ClickUp calls operator_set_domain_ownership with release', () => {
-  const tier = 'clickup';
-  const action = tier === 'clickup' ? 'release' : 'none';
-  assertEquals(action, 'release');
-});
-
-Deno.test('external-disconnect: ERPNext does not call operator_set_domain_ownership', () => {
-  const tier: string = 'erpnext';
-  const action = tier === 'clickup' ? 'release' : 'none';
-  assertEquals(action, 'none');
-});
-
-// Test audit event action
-Deno.test('external-disconnect: audit action is integration.disconnect', () => {
-  const action = 'integration.disconnect';
-  assertEquals(action, 'integration.disconnect');
-});
-
-// Test the p_actor_id parameter passed to admin_change_domain_ownership
-Deno.test('external-disconnect: p_actor_id passed to admin_change_domain_ownership', () => {
-  const userId = 'user-123';
-  const p_actor_id = userId;
-  assertEquals(p_actor_id, 'user-123');
-});
-
-// Test that log_audit is called with correct parameters
-Deno.test('external-disconnect: log_audit called with p_action=integration.disconnect', () => {
-  const p_action = 'integration.disconnect';
-  const p_org_id = 'org-1';
-  const p_payload = { tier: 'clickup', actor: 'user-123' };
-  assertEquals(p_action, 'integration.disconnect');
-  assertEquals(p_org_id, 'org-1');
-  assertEquals(p_payload.tier, 'clickup');
-  assertEquals(p_payload.actor, 'user-123');
+  it('AC-EAC-007 a missing binding returns 404 before any write (the disconnect flow fails closed with nothing to disconnect)', async () => {
+    await withFetchMock(
+      [
+        adminProfile(), notOperator(),
+        supabaseSelect('external_org_bindings', () =>
+          new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+      ],
+      async ({ calls }) => {
+        const res = await handleDisconnectRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 404);
+        assertEquals(rpcCall(calls, 'deactivate_external_binding').length, 0);
+      },
+    );
+  });
 });

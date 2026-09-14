@@ -8,12 +8,15 @@
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
  * 2. Load profile (role, org_id) via service-role client
  * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
- * 4. Load ERPNext binding for this org
+ * 4. Load ERPNext binding for this org; refuse an empty site_url (FR-EAC-103)
  * 5. Resolve credentials from Vault via read_vault_secret RPC
- * 6. Validate Company exists on ERPNext site (SSRF-guarded exactly like external-connect)
- * 7. Update external_org_bindings.config.company = companyId
- * 8. Audit log via log_audit('integration.set_company', ...)
- * 9. Return { ok: true, companyId }
+ * 6. Validate Company exists on ERPNext site (SSRF-guarded exactly like external-connect); returns the doc
+ * 7. Version handshake (frappe.utils.change_log.get_versions) BEFORE any write (FR-EAC-104); a major
+ *    outside {15,16} is a 422 config-rejected that writes nothing (FR-EAC-105)
+ * 8. activate_external_binding RPC — ONE statement: version_major + config (company + Company account
+ *    defaults) + the set-once activated_at (FR-EAC-106/107)
+ * 9. Audit log via log_audit('integration.set_company', ...)
+ * 10. Return { ok: true, companyId, versionMajor, activatedAt }
  *
  * Errors:
  * - 401: missing/invalid JWT
@@ -31,6 +34,11 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import {
+  fetchErpVersionMajor,
+  companyDefaultsFromDoc,
+  SUPPORTED_VERSION_MAJORS,
+} from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface SetCompanyBody {
@@ -41,6 +49,8 @@ interface SetCompanyBody {
 interface SetCompanyResponse {
   ok: true;
   companyId: string;
+  versionMajor: number;
+  activatedAt: string | null;
 }
 
 // Memoized JWKS resolver (same pattern as agent-chat, adapter-dispatch, external-connect)
@@ -136,7 +146,7 @@ interface ErpCompanyDeps {
   apiSecret: string;
 }
 
-async function validateErpNextCompany(deps: ErpCompanyDeps, companyId: string): Promise<void> {
+async function validateErpNextCompany(deps: ErpCompanyDeps, companyId: string): Promise<Record<string, unknown>> {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(deps.siteUrl);
@@ -166,6 +176,10 @@ async function validateErpNextCompany(deps: ErpCompanyDeps, companyId: string): 
       }
       throw new AppError('Failed to validate ERPNext company', 'external-unreachable');
     }
+    // FR-EAC-106: the Company doc is the source of the account defaults `bodies/paymentEntry.ts` reads.
+    // Frappe wraps a single doc as `{ data: {...} }`; tolerate an unwrapped body too.
+    const body = (await res.json()) as { data?: Record<string, unknown> } & Record<string, unknown>;
+    return (body.data ?? body) as Record<string, unknown>;
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError('Failed to validate ERPNext company', 'external-unreachable');
@@ -274,6 +288,15 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('ERPNext binding is not active', 'CONFIG_REJECTED', 422);
   }
 
+  // FR-EAC-103 — `create_vault_secret_for_org` writes `site_url = ''` (mig 0180). Without this guard the
+  // handler would build `'/api/resource/Company/…'` against an empty base and fail as `external-unreachable`,
+  // which tells the admin nothing about what to do.
+  if (!binding.site_url || String(binding.site_url).trim() === '') {
+    return errorResponse(
+      'This ERPNext connection has no site URL. Disconnect and connect again to continue.',
+      'CONFIG_REJECTED', 422);
+  }
+
   // 7. Resolve credentials from Vault
   const { data: vaultSecret, error: vaultError } = await serviceClient.rpc('read_vault_secret', {
     p_secret_ref: binding.secret_ref,
@@ -289,9 +312,11 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   }
   const [apiKey, apiSecret] = stored;
 
-  // 8. Validate Company exists in ERPNext (SSRF-guarded)
+  // 8. Validate Company exists in ERPNext (SSRF-guarded) and capture the doc — it is the source of
+  // the account defaults the activation RPC persists (FR-EAC-106).
+  let companyDoc: Record<string, unknown>;
   try {
-    await validateErpNextCompany({
+    companyDoc = await validateErpNextCompany({
       fetchImpl: fetch,
       siteUrl: binding.site_url,
       apiKey,
@@ -305,22 +330,44 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('Company validation failed', 'external-unreachable', 502);
   }
 
-  // 9. Update external_org_bindings.config.company
-  const currentConfig = (binding.config as Record<string, unknown>) ?? {};
-  const newConfig = { ...currentConfig, company: companyId };
-
-  const { error: updateError } = await serviceClient
-    .from('external_org_bindings')
-    .update({ config: newConfig })
-    .eq('org_id', profile.org_id)
-    .eq('external_tier', 'erpnext');
-
-  if (updateError) {
-    console.error('external_org_bindings config update failed', updateError);
-    return errorResponse('Failed to update ERPNext binding', 'INTERNAL', 500);
+  // 9. FR-EAC-104/105 — the version handshake, BEFORE any write. OD-INT-6 makes Company selection the
+  // activation event; DD-OPS-10 makes {15, 16} the supported set.
+  let versionMajor: number;
+  try {
+    versionMajor = await fetchErpVersionMajor({
+      fetchImpl: fetch, creds: { apiKey, apiSecret }, siteUrl: binding.site_url,
+    });
+  } catch (err) {
+    console.error('erpnext version handshake failed', err);
+    return errorResponse(
+      'Could not read the ERPNext version from that site; no connection was activated.',
+      'external-unreachable', 502);
   }
 
-  // 10. Audit log
+  if (!SUPPORTED_VERSION_MAJORS.includes(versionMajor)) {
+    return errorResponse(
+      `ERPNext ${versionMajor} is not supported (PMO supports 15 and 16). No connection was activated.`,
+      // Review #650: the handler's other 422 bodies say CONFIG_REJECTED; this one outlier said
+      // 'config-rejected'. Aligned — same status/message semantics, one vocabulary.
+      'CONFIG_REJECTED', 422);
+  }
+
+  // 10. FR-EAC-106/107 — ONE statement: version + company + Company account defaults + the set-once
+  // stamp. Replaces the direct PATCH so activation cannot land partially.
+  const { data: activatedAt, error: activateError } = await serviceClient.rpc('activate_external_binding', {
+    p_org_id: profile.org_id,
+    p_external_tier: 'erpnext',
+    p_version_major: versionMajor,
+    p_company: companyId,
+    p_config_patch: companyDefaultsFromDoc(companyDoc, companyId),
+    p_actor_id: userId,
+  });
+  if (activateError) {
+    console.error('activate_external_binding failed', activateError);
+    return errorResponse('Failed to activate the ERPNext connection', 'INTERNAL', 500);
+  }
+
+  // 11. Audit log
   const { error: auditError } = await serviceClient.rpc('log_audit', {
     p_action: 'integration.set_company',
     p_org_id: profile.org_id,
@@ -330,12 +377,15 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
       tier: 'erpnext',
       company_id: companyId,
       actor: userId,
+      version_major: versionMajor,
+      activated_at: activatedAt,
     },
   });
   if (auditError) console.error('log_audit failed', auditError);
 
-  // 11. Return success
-  return json({ ok: true, companyId });
+  // 12. Return success
+  const responseBody: SetCompanyResponse = { ok: true, companyId, versionMajor, activatedAt: activatedAt ?? null };
+  return json(responseBody);
 }
 
 // Export validation function for testing
