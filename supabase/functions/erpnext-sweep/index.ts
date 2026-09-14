@@ -685,8 +685,8 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
 }
 
 /** The per-org sweep: runSweep per doctype with the lineage-aware apply injected, per-doctype watermark. */
-export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
-  const client = await erpClientForOrg(serviceClient, org);
+export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ applied: number; error?: string }> {
+  const client = await erpClientForOrg(serviceClient, org, cache);
   let applied = 0;
   // HIGH-A: one doctype's failure is RECORDED and the loop CONTINUES. It used to `return`, so a single
   // refused/unreachable doctype abandoned every doctype after it for that org this tick — and with
@@ -862,10 +862,10 @@ const UNLINKED_RECEIPT_SCAN_LIMIT = 100;
 
 /** The live wiring of the late-link self-heal for one org. Runs ONLY for an org that owns the revenue
  *  domain (Luna BLOCK 9) — a procurement-only org has no receipts to repair. */
-async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ repaired: number; error?: string }> {
+async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
   if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
   try {
-    const client = await erpClientForOrg(serviceClient, org);
+    const client = await erpClientForOrg(serviceClient, org, cache);
     const result = await repairUnlinkedReceipts({
       listUnlinkedReceipts: async () => {
         const { data, error } = await serviceClient.from('incoming_payments')
@@ -903,9 +903,9 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
 }
 
 /** The ledger-mirror feed for one org (8.6b). */
-async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ gl: number; ple: number; error?: string }> {
+async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ gl: number; ple: number; error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org);
+    const client = await erpClientForOrg(serviceClient, org, cache);
     const r = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
       client, orgId: org.orgId, company: org.company,
     });
@@ -940,9 +940,9 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  * for the budget push and every timesheet entry (`resolveErpProjectName`) — one mapping, consumed
  * inverted, never a second one invented here.
  */
-export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ error?: string }> {
+export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org);
+    const client = await erpClientForOrg(serviceClient, org, cache);
     const reportVersion = reportVersionFromOrg(org);
     const scope: OrgAccountingScope = {
       orgId: org.orgId,
@@ -1716,14 +1716,20 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
   const serviceClient = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseClient;
 
+  // #651 / FR-ENA-019: ONE credential resolution per ORG per TICK. The cache is created HERE, inside the
+  // request/tick scope, and shared by every pass that resolves a pair — never module-level, so a shared
+  // isolate never holds one tenant's credential across ticks and a rotated credential never outlives the
+  // tick (ADR-0072 decision 5).
+  const erpAuth = createErpAuthPairCache();
+
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
-    reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row)),
-    sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org),
-    repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org),
-    feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org),
-    refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org),
+    reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row, erpAuth)),
+    sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth),
+    repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org, erpAuth),
+    feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org, erpAuth),
+    refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
   });

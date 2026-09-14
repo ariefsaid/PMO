@@ -111,6 +111,22 @@ Deno.test('AC-ENA-082: a Vault READ ERROR refuses — it never falls through to 
   } finally { erp.restore(); env.restore(); }
 });
 
+Deno.test('AC-ENA-085: ONE secret resolution per org per sweep tick, not one per pass', async () => {
+  const { createErpAuthPairCache } = await import('../_shared/erpAuthPair.ts');
+  const db = fakeDb({ secretRef: 'org-a-erpnext', vault: 'vault-key:vault-secret' });
+  const env = stubEnv({});
+  const erp = stubErpFetch();
+  const cache = createErpAuthPairCache();
+  const org = orgBinding('org-a-erpnext');
+  try {
+    // Two resolutions in the same tick against the SAME per-tick cache must collapse to one Vault read
+    // (FR-ENA-019): a thousand-org cron must not fire thousands of avoidable RPC + Vault audit lines.
+    await sweepOrgDoctypesLive(db.client, org, cache);
+    await sweepOrgDoctypesLive(db.client, org, cache);
+    assert(db.rpcCalls() === 1, `expected ONE vault read for the tick, got ${db.rpcCalls()}`);
+  } finally { erp.restore(); env.restore(); }
+});
+
 Deno.test('AC-ENA-084: a VAULT-ONLY org can build its outbox reconcile deps (the write path)', async () => {
   const { buildReconcileDepsLive } = await import('./index.ts');
   const outboxRow = {
