@@ -43,15 +43,15 @@ import {
   type BudgetVersionGateRow,
   type BudgetGateProjectRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
-import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 // BFY (FR-BFY-031/032): the canonical fiscal-year encoding + the per-year deterministic key. Both are
 // server-side ONLY — the client cannot derive either (it cannot read the client's Fiscal Year doctype).
-import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { withProbeBudget, ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
@@ -121,6 +121,9 @@ interface AdapterSelectContext {
   /** Read-only pass-through so a tier's factory can wire an in-flow fault seam (e.g. ERPNext's
    *  two-step submit, task 2.14) — factories that don't need it (P0/P1) simply ignore this field. */
   faultGate: FaultGate;
+  /** #651: the per-REQUEST auth-pair memo. Not module-level — a shared isolate must never hold one
+   *  tenant's credential across requests, and a rotated credential must not outlive a request. */
+  erpAuth: ErpAuthPairCache;
 }
 
 type AdapterFactory = (ctx: AdapterSelectContext) => Promise<Adapter>;
@@ -199,12 +202,13 @@ async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter
 // read-model-writer discipline (task 1.6) one layer up.
 //
 // Credentials (Slice 6 pre-task, NFR-ENA-SEC-002 — the flagged global placeholder is now REMOVED):
-// each org's `external_org_bindings.secret_ref` NAMES a per-org function-secret pair; `resolveErpAdapter`
-// reads that ref for the caller's org and resolves `<PREFIX>_KEY`/`<PREFIX>_SECRET` from function
-// secrets (`resolveErpCredentials`), failing CLOSED (`config-rejected`) when either is unset — no
-// single global credential, no cross-org key reuse. The binding row is authoritative for the ref; the
-// factory (`resolveErpDispatchAdapter`) re-reads the SAME row for site_url/config/activation (its
-// confinement invariant: it never reads secret_ref/env itself — the resolved creds are passed in).
+// each org's `external_org_bindings.secret_ref` NAMES a per-org credential source; `resolveErpAdapter`
+// resolves it through the ONE shared `_shared/erpAuthPair.ts` resolver (Vault first, env pair only on
+// a clean negative, refuse when a store cannot answer — FR-ENA-015..019, ADR-0072), failing CLOSED
+// (`config-rejected`) when neither store holds a pair — no single global credential, no cross-org key
+// reuse. The binding row is authoritative for the ref; the factory (`resolveErpDispatchAdapter`)
+// re-reads the SAME row for site_url/config/activation (its confinement invariant: it never reads
+// secret_ref/env itself — the resolved creds are passed in).
 const erpRateLimiter = { acquire: async () => {} };
 
 interface ErpBindingRow {
@@ -230,7 +234,7 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     throw new AppError('external integrations are disabled by the operator', 'config-rejected');
   }
   const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
-  const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
+  const { apiKey, apiSecret } = await resolveErpAuthPair(ctx.serviceClient, { orgId: ctx.orgId, secretRef: binding.secret_ref }, ctx.erpAuth);
   return resolveErpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
@@ -271,7 +275,7 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     throw new AppError('erpnext adapter does not support delete — cancel-only (OQ-8)', 'commit-rejected');
   }
   const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
-  const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
+  const { apiKey, apiSecret } = await resolveErpAuthPair(ctx.serviceClient, { orgId: ctx.orgId, secretRef: binding.secret_ref }, ctx.erpAuth);
 
   const kind = (ctx.command.record as { erp_doc_kind?: unknown }).erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
@@ -490,7 +494,7 @@ async function orgEmploysErpnext(serviceClient: SupabaseClient, orgId: string): 
 /** Wire `runBudgetGate`'s readers: the three PMO tables under the CALLER's own JWT (RLS is the org
  *  boundary — ADR-0059 §3.3), the map via the service-role reader `dispatchFactory.ts` already uses for
  *  the real push. */
-function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: SupabaseClient, orgId: string, versionId: string): BudgetGateDeps {
+function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: SupabaseClient, orgId: string, versionId: string, erpAuth: ErpAuthPairCache): BudgetGateDeps {
   return {
     orgId,
     versionId,
@@ -511,7 +515,7 @@ function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: Supaba
     // capped at PostgREST's 1000 rows and would push an UNDERSTATED Budget into the client's ERP.
     readLineItems: (id) => readBudgetLineItems(callerClient as never, id),
     readCategoryMap: () => readCategoryAccountMap(serviceClient as never, orgId),
-    readFiscalYears: () => readErpFiscalYears(serviceClient, orgId),
+    readFiscalYears: () => readErpFiscalYears(serviceClient, orgId, erpAuth),
   };
 }
 
@@ -528,9 +532,9 @@ function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: Supaba
  * being removed. Errors propagate — `runBudgetGate` fails closed on an unresolvable calendar rather
  * than falling back (the fallback IS the bug).
  */
-async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string): Promise<FiscalYearRow[]> {
+async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, cache: ErpAuthPairCache): Promise<FiscalYearRow[]> {
   const binding = await resolveErpBindingRow(serviceClient, orgId);
-  const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
+  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref }, cache);
   const url = new URL('/api/resource/Fiscal Year', binding.site_url);
   url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
   url.searchParams.set('limit_page_length', '0'); // all of them — a client may declare many years
@@ -795,6 +799,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  const erpAuth = createErpAuthPairCache();
 
   // ── P3b FR-TSP-056 — an approved sheet with NO chargeable hours is a SKIP, not a push. ERP rejects
   // an empty `time_logs` table outright (417 MandatoryError), so sending it would park a perfectly
@@ -843,7 +848,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     const targetFiscalYearRaw = (command.record as { target_fiscal_year?: unknown }).target_fiscal_year;
     const targetFiscalYear = typeof targetFiscalYearRaw === 'string' && targetFiscalYearRaw.length > 0 ? targetFiscalYearRaw : null;
     try {
-      const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId));
+      const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId, erpAuth));
       // ⚑ BFY FR-BFY-030/031/032/036 — THE FAN-OUT. The gate returns a per-year PLAN; each entry
       // becomes one command with:
       //   • `record.id` UNCHANGED — the bare `budget_version_id` UUID. It is the gate's own query key,
@@ -1185,13 +1190,13 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
   try {
-    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate, userId });
+    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate, userId, erpAuth });
     // Task 6.4 (ADR-0058): every non-read-only erpnext command routes through the money-idempotency
     // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
     // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
     // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
     if (adapter.tier === ERPNEXT_TIER && (command.operation as string) !== 'read') {
-      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate, userId });
+      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate, userId, erpAuth });
     }
   } catch (err) {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
