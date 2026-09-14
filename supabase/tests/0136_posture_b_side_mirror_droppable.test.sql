@@ -51,9 +51,12 @@ select is_empty(
       where a.n <> b.n $$,
   'AC-XING-004 dropping both side mirrors changes no PMO row count'
 );
-select is_empty(
-  $$ select external_record_id from public.external_refs where domain = 'timesheets' limit 1 $$,
-  'AC-XING-004 (context) the seed carries no timesheets external_refs, so the count check above is not vacuous'
+-- Anti-vacuity: the row-count check above is only meaningful if the PMO SoT tables HOLD rows. (The plan's
+-- original `is_empty(external_refs …)` asserted a property of a different table and stayed true on an empty
+-- seed — a dead oracle; found in review 2026-09-14.)
+select ok(
+  (select count(*) from public.timesheets) > 0 and (select count(*) from public.projects) > 0,
+  'AC-XING-004 the seed holds timesheet and project rows, so the row-count check above is not vacuous'
 );
 
 select * from finish();

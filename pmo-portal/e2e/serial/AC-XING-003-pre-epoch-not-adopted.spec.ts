@@ -57,6 +57,7 @@ async function countPmoTimesheetState(admin: SupabaseClient) {
 
 test('AC-XING-003 a Desk-created Timesheet dated BEFORE the binding activated is ack-and-skipped: nothing is minted, and an operator is told', async () => {
   const admin = createClient(AUTH_URL, SERVICE_KEY);
+  let priorActivatedAt: string | null = null;
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const seeded = await seedTsp(admin, suffix);
   let nativeName: string | null = null;
@@ -64,6 +65,10 @@ test('AC-XING-003 a Desk-created Timesheet dated BEFORE the binding activated is
   try {
     // Back-date activation by one day (same shape as AC-XING-001).
     const activatedAt = new Date(Date.now() - 24 * 3600_000).toISOString();
+    // Snapshot the org-global stamp so `finally` can put it back (e2e-parallel-conventions §3.3).
+    const { data: priorBinding } = await admin.from('external_org_bindings').select('activated_at')
+      .eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
+    priorActivatedAt = priorBinding?.activated_at ?? null;
     const { error: bindErr } = await admin.from('external_org_bindings')
       .update({ activated_at: activatedAt })
       .eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
@@ -125,12 +130,13 @@ test('AC-XING-003 a Desk-created Timesheet dated BEFORE the binding activated is
     expect(after.mirrors, 'no timesheet_erp_mirror row was minted').toBe(before.mirrors);
 
     // Nor was a mapping claimed for it (a claimed ref would make every LATER event look "already ours").
-    const { data: refRows } = await admin
+    const { data: refRows, error: refErr } = await admin
       .from('external_refs')
       .select('id')
       .eq('org_id', ORG_ID)
       .eq('domain', 'timesheets')
       .eq('external_record_id', nativeDoc.name);
+    expect(refErr, 'the external_refs query itself must succeed — a failed query is not "no rows"').toBeNull();
     expect(refRows ?? [], 'no external_refs mapping is claimed for a pre-epoch Desk-created Timesheet').toHaveLength(0);
 
     // …but it is NOT silently dropped: a human is told, and told WHICH document.
@@ -148,5 +154,9 @@ test('AC-XING-003 a Desk-created Timesheet dated BEFORE the binding activated is
     if (nativeName) await benchPut('Timesheet', nativeName, { docstatus: 2 }).catch(() => undefined);
     await admin.from('notifications').delete().eq('org_id', ORG_ID).contains('metadata', { action_required: 'timesheet-native-not-adopted' });
     await cleanupTsp(admin, seeded);
+    if (priorActivatedAt !== null) {
+      await admin.from('external_org_bindings').update({ activated_at: priorActivatedAt })
+        .eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+    }
   }
 });

@@ -48,6 +48,7 @@ test.setTimeout(240_000);
 
 test('AC-XING-001 a week approved BEFORE the binding activated is never pushed, while a week approved after it is', async () => {
   const admin = createClient(AUTH_URL, SERVICE_KEY);
+  let priorActivatedAt: string | null = null;
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const seeded = await seedTsp(admin, suffix);
   try {
@@ -55,6 +56,10 @@ test('AC-XING-001 a week approved BEFORE the binding activated is never pushed, 
     // wider than that, so `activated_at` — not the lookback — is the only thing that can exclude the
     // pre-binding sheet. That is what makes this a test of the crossing rule and not of the lookback.
     const activatedAt = new Date(Date.now() - 24 * 3600_000).toISOString();
+    // Snapshot the org-global stamp so `finally` can put it back (e2e-parallel-conventions §3.3).
+    const { data: priorBinding } = await admin.from('external_org_bindings').select('activated_at')
+      .eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
+    priorActivatedAt = priorBinding?.activated_at ?? null;
     const { error: bindErr } = await admin.from('external_org_bindings')
       .update({ activated_at: activatedAt })
       .eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
@@ -85,10 +90,15 @@ test('AC-XING-001 a week approved BEFORE the binding activated is never pushed, 
     // The pre-connect week is refused: no ERP document, no mirror row, no outbox row.
     expect(await listErpTimesheetsByAnchor(preKey), 'nothing authored before the binding may reach ERP').toHaveLength(0);
     expect(await readTsMirror(admin, preId), 'and no mirror row is minted for it').toBeNull();
-    const { data: preOutbox } = await admin.from('external_command_outbox').select('id, state')
+    const { data: preOutbox, error: preOutboxErr } = await admin.from('external_command_outbox').select('id, state')
       .eq('org_id', ORG_ID).eq('domain', 'timesheets').eq('pmo_record_id', preId);
+    expect(preOutboxErr, 'the outbox query itself must succeed — a failed query is not "no rows"').toBeNull();
     expect(preOutbox ?? [], 'and no outbox row that could later succeed').toHaveLength(0);
   } finally {
     await cleanupTsp(admin, seeded);
+    if (priorActivatedAt !== null) {
+      await admin.from('external_org_bindings').update({ activated_at: priorActivatedAt })
+        .eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+    }
   }
 });
