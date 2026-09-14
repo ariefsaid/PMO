@@ -63,6 +63,27 @@ Stated plainly so nobody inherits them as facts. Each names what I looked at and
 5. I ran **nothing** — no `supabase`, `docker`, `npm`, `deno`, `git`. Every "currently" below is read from
    source at `fix/651-erpnext-vault-writers` on 2026-09-14.
 
+### Task 0.2 verification notes (2026-09-14, implementer — corrections recorded before any code)
+
+All three files were readable to the implementer (the deny rule is on the planning session, not the repo).
+Each premise below that touches them is confirmed against the file; where a snippet in this plan
+contradicted the file, the file won and the snippet below is the corrected reading:
+
+- **`resolveErpCredentials(secretRef, getEnv)`** (credentials.ts) — signature and fail-closed `config-rejected`
+  throw exactly as Premise 1 reconstructed. Confirmed.
+- **`resolvePerOrgSecret(deps)`** (perOrgSecret.ts) — takes a **single `deps` object**, not positional args
+  (the Task 1.2 snippet already passes a deps object — no change needed). Result union is exactly the three
+  kinds the plan names (`no-binding` | `resolved` | `binding-vault-miss`). It does **NOT** call
+  `readVaultSecret` when `lookupBinding` returns `null` — it returns `{ kind: 'no-binding' }` early, so the
+  Task 1.1 fixture's binding row is required (it has it). Confirmed.
+- **`vaultCredentials.ts`** — lives at `pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts`, NOT under
+  `_shared` (the Task 0.2 brief's path was wrong). It exports `resolveErpCredentialsFromVault`; the new
+  resolver does not import it (it reads Vault through `resolvePerOrgSecret`). No consequence.
+- **`externalConnectEnabled(): boolean`** (externalConnectEnabled.ts) — default-ON, liberal disable; the
+  Task 1.1 kill-switch test's `EXTERNAL_CONNECT_ENABLED: 'false'` correctly yields `false`. Confirmed.
+- **Binding lookup filter** — the shipped `erpClientForOrg` does not filter `external_org_bindings` on
+  `status`; this plan's resolver likewise does not (Premise 3). Confirmed.
+
 ---
 
 ## Design
