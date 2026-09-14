@@ -93,6 +93,7 @@ import {
   type FiscalYearRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
@@ -654,64 +655,15 @@ async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: string)
   return ((body as { data?: Record<string, unknown> } | null)?.data ?? {}) as Record<string, unknown>;
 }
 
-// Merged: dev's admin-connect made credential resolution Vault-first (behind EXTERNAL_CONNECT_ENABLED,
-// falling back to the env resolver when off / no binding / vault-miss). Kept alongside the P3a money
-// path — the async signature propagates to every call site (all now `await erpClientForOrg(serviceClient, org)`).
-async function erpClientForOrg(serviceClient: SupabaseClient, org: OrgBinding): Promise<ErpClientDeps> {
-  const connectEnabled = externalConnectEnabled();
-  if (!connectEnabled) {
-    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
-  }
-  let apiKey: string;
-  let apiSecret: string;
-
-  if (connectEnabled) {
-    // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
-    const result = await resolvePerOrgSecret({
-      connectEnabled,
-      orgId: org.orgId,
-      tier: 'erpnext',
-      lookupBinding: async (orgId, tier) => {
-        const { data, error } = await serviceClient
-          .from('external_org_bindings')
-          .select('secret_ref')
-          .eq('org_id', orgId)
-          .eq('external_tier', tier)
-          .maybeSingle();
-        if (error) return null;
-        return data as { secret_ref?: string | null } | null;
-      },
-      readVaultSecret: async (ref) => {
-        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          return null;
-        }
-        return (data as string | null) ?? null;
-      },
-    });
-
-    if (result.kind === 'resolved') {
-      // Vault stores apiKey:apiSecret format
-      const idx = result.secret.indexOf(':');
-      if (idx > 0 && idx < result.secret.length - 1) {
-        apiKey = result.secret.slice(0, idx);
-        apiSecret = result.secret.slice(idx + 1);
-      } else {
-        throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
-      }
-    } else {
-      // kind === 'no-binding' OR 'binding-vault-miss' → fall back to env resolver
-      const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
-      apiKey = creds.apiKey;
-      apiSecret = creds.apiSecret;
-    }
-  } else {
-    const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
-    apiKey = creds.apiKey;
-    apiSecret = creds.apiSecret;
-  }
-
+// #651 / ADR-0072: ONE resolver for both directions — `_shared/erpAuthPair.ts`. The inline Vault-first
+// block that used to live here (and its env-fallback-on-vault-error) is gone: a store that cannot answer
+// now refuses (FR-ENA-018). `cache` is optional so the per-pass unit tests keep their two-arg call.
+async function erpClientForOrg(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  cache?: ErpAuthPairCache,
+): Promise<ErpClientDeps> {
+  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
   return { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
