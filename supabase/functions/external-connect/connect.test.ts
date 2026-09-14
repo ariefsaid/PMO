@@ -358,6 +358,37 @@ describe('external-connect — ERPNext branch', () => {
     );
   });
 
+  // Real Frappe shapes that are 2xx but carry no identity: an empty object and an empty message. Each must
+  // hit the `typeof message !== 'string'` / `trim() === ''` clauses, which the Guest case does not exercise.
+  for (const [label, body] of [['an empty object', {}], ['an empty message', { message: '' }]] as const) {
+    it(`probe returns 200 with ${label} → 422, no Vault write`, async () => {
+      await withFetchMock(
+        [
+          supabaseSelect('profiles', () =>
+            jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+              headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+            })),
+
+          supabaseSelect('platform_operators', () => new Response('null', {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })),
+
+          erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse(body)),
+        ],
+        async ({ calls }) => {
+          const res = await handleConnectRequest(await authed({
+            tier: 'erpnext',
+            credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'api-secret' },
+          }));
+          assertEquals(res.status, 422);
+          assertEquals((await res.json()).error, 'config-rejected');
+          assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        },
+      );
+    });
+  }
+
   it('probe returns 401 (authentication error) → 422, no Vault write', async () => {
     await withFetchMock(
       [
