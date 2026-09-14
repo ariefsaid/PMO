@@ -11,7 +11,7 @@
  * 3. Activation gate: Admin of the org OR platform Operator
  * 4. Validate credential against external system (injected fetch for testability)
  *    - ClickUp: GET /api/v2/user with Bearer token
- *    - ERPNext: GET /api/resource/User/<apiKey> with token apiKey:apiSecret
+ *    - ERPNext: GET /api/method/frappe.auth.get_logged_user with token apiKey:apiSecret
  *    - SSRF hardening: reject private/loopback/link-local/metadata addresses for ERPNext
  * 5. On success: call create_vault_secret_for_org RPC (passes p_actor_id=sub for service-role path)
  * 6. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'employ', userId)
@@ -178,13 +178,30 @@ async function validateErpNextCredentials(
   }
 
   try {
-    const url = `${siteUrl.replace(/\/$/, '')}/api/resource/User/${encodeURIComponent(apiKey)}`;
+    const url = `${siteUrl.replace(/\/$/, '')}/api/method/frappe.auth.get_logged_user`;
     const res = await deps.fetchImpl(url, {
       headers: { Authorization: `token ${apiKey}:${apiSecret}` },
       redirect: 'manual',
       signal: AbortSignal.timeout(5000),
     });
+    // Frappe names User docs by email, never by api key, so the old `/api/resource/User/<apiKey>`
+    // probe never matched a real document. `get_logged_user` returns the authenticated user's email
+    // for a valid credential, or `Guest` for the anonymous identity. Treat the credential as valid
+    // ONLY on a 2xx whose body carries a non-empty, non-`Guest` `message`.
     if (!res.ok) {
+      throw new AppError('Invalid ERPNext credentials', 'config-rejected');
+    }
+    let body: { message?: unknown };
+    try {
+      body = (await res.json()) as { message?: unknown };
+    } catch {
+      throw new AppError('Invalid ERPNext credentials', 'config-rejected');
+    }
+    if (
+      typeof body.message !== 'string' ||
+      body.message.trim() === '' ||
+      body.message === 'Guest'
+    ) {
       throw new AppError('Invalid ERPNext credentials', 'config-rejected');
     }
   } catch (err) {

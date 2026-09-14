@@ -292,7 +292,7 @@ describe('external-connect — ERPNext branch', () => {
           return jsonResponse('vault-ref-erp');
         }),
 
-        erp('erp.example.com', '/api/resource/User/api-key', () => jsonResponse({ data: { name: 'api-key' } })),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({
@@ -326,6 +326,89 @@ describe('external-connect — ERPNext branch', () => {
           credential: { siteUrl: 'http://192.168.1.100', apiKey: 'key', apiSecret: 'secret' },
         }));
         assertEquals(res.status, 422);
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  it('probe returns 200 with message Guest (anonymous) → 422, no Vault write', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'Guest' })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'api-secret' },
+        }));
+        assertEquals(res.status, 422);
+        assertEquals((await res.json()).error, 'config-rejected');
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  it('probe returns 401 (authentication error) → 422, no Vault write', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () =>
+          new Response(JSON.stringify({ exc_type: 'AuthenticationError' }), { status: 401 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'wrong-secret' },
+        }));
+        assertEquals(res.status, 422);
+        assertEquals((await res.json()).error, 'config-rejected');
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  it('probe returns 200 with a non-JSON body → 422, no Vault write', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () =>
+          new Response('<html>503 Unavailable</html>', { status: 200, headers: { 'content-type': 'text/html' } })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'api-secret' },
+        }));
+        assertEquals(res.status, 422);
+        assertEquals((await res.json()).error, 'config-rejected');
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
       },
     );
