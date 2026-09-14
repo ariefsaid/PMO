@@ -8,7 +8,10 @@
  * activation; a failure refuses activation (warn). PMO RLS stays the user-facing authority.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { activateBinding, assertErpReadPermissions, type ReadPermScope } from './binding.ts';
+import {
+  activateBinding, assertErpReadPermissions, fetchErpVersionMajor, companyDefaultsFromDoc,
+  SUPPORTED_VERSION_MAJORS, type ReadPermScope,
+} from './binding.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -54,11 +57,22 @@ describe('erpnext/binding', () => {
     });
   });
 
-  it('AC-ENA-073 a v16 handshake leaves the binding un-activated (activatedAt stays null)', async () => {
-    const fetchImpl = fetchDeps(async () => jsonResponse(200, { erpnext: { version: '16.2.0' } }));
-    const result = await activateBinding({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co' });
+  it('AC-ENA-073/AC-EAC-116 a v16 handshake ACTIVATES (DD-OPS-10 — RIS targets v16.33)', async () => {
+    const fetchImpl = fetchDeps(async (url) => {
+      if (url.includes('/api/method/frappe.utils.change_log.get_versions')) {
+        return jsonResponse(200, { erpnext: { version: '16.33.0' } });
+      }
+      if (url.includes('/api/resource/Company/PMO%20Smoke%20Co')) {
+        return jsonResponse(200, { name: 'PMO Smoke Co', default_payable_account: 'Creditors - PSC' });
+      }
+      throw new Error(`unexpected URL ${url}`);
+    });
+    const result = await activateBinding(
+      { fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co' },
+      () => '2026-09-14T00:00:00.000Z',
+    );
     expect(result.versionMajor).toBe(16);
-    expect(result.activatedAt).toBeNull();
+    expect(result.activatedAt).toBe('2026-09-14T00:00:00.000Z');
   });
 
   it('AC-ENA-073 a v14 handshake leaves the binding un-activated (activatedAt stays null)', async () => {
@@ -68,9 +82,34 @@ describe('erpnext/binding', () => {
     expect(result.activatedAt).toBeNull();
   });
 
+  it('AC-EAC-116 SUPPORTED_VERSION_MAJORS is exactly [15, 16] (DD-OPS-10: bench v15, RIS v16)', () => {
+    expect([...SUPPORTED_VERSION_MAJORS]).toEqual([15, 16]);
+  });
+
+  it('AC-EAC-116 fetchErpVersionMajor parses the major from the handshake', async () => {
+    for (const [version, major] of [['15.94.3', 15], ['16.33.0', 16], ['14.30.1', 14]] as const) {
+      const fetchImpl = fetchDeps(async () => jsonResponse(200, { erpnext: { version } }));
+      await expect(
+        fetchErpVersionMajor({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com' }),
+      ).resolves.toBe(major);
+    }
+  });
+
+  it('AC-EAC-116 companyDefaultsFromDoc maps the five Company account defaults, null when absent', () => {
+    expect(companyDefaultsFromDoc({ default_payable_account: 'Creditors - A' }, 'ACME')).toEqual({
+      company: 'ACME',
+      default_payable_account: 'Creditors - A',
+      default_cash_account: null,
+      default_bank_account: null,
+      default_expense_account: null,
+      cost_center: null,
+    });
+  });
+
   it('AC-ENA-073 a version mismatch never fetches Company defaults (config stays empty)', async () => {
     const fetchImpl = fetchDeps(async (url) => {
-      if (url.includes('get_versions')) return jsonResponse(200, { erpnext: { version: '16.2.0' } });
+      // DD-OPS-10 made v16 supported; a genuine MISMATCH is now a major OUTSIDE {15, 16} (v14 here).
+      if (url.includes('get_versions')) return jsonResponse(200, { erpnext: { version: '14.30.1' } });
       throw new Error(`unexpected fetch to ${url} — Company defaults must not be fetched on a version mismatch`);
     });
     const result = await activateBinding({ fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', company: 'PMO Smoke Co' });

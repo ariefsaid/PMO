@@ -1,14 +1,16 @@
 /**
- * Per-org ERPNext binding activation (FR-ENA-011/012, AC-ENA-073, OQ-6). Performs the v15 version
- * handshake that gates every money command and, only on a match, resolves Company account defaults
- * (one `GET Company/<name>`, R9 §6.2). Credentials are ALWAYS the resolved `{apiKey, apiSecret}` —
- * this module never reads `secret_ref`/vault/env itself (NFR-ENA-SEC-002); that resolution happens
- * at the edge-fn boundary and is passed in.
+ * Per-org ERPNext binding activation (FR-ENA-011/012, AC-ENA-073, OQ-6; #650/ADR-0073). Performs the
+ * ERPNext version handshake (supported majors {15, 16}) that gates every money command and, only on a
+ * match, resolves Company account defaults (one `GET Company/<name>`, R9 §6.2). Credentials are ALWAYS
+ * the resolved `{apiKey, apiSecret}` — this module never reads `secret_ref`/vault/env itself
+ * (NFR-ENA-SEC-002); that resolution happens at the edge-fn boundary and is passed in.
  */
 import { callMethod, erpnextRequest, getDoc, ErpError, type ErpClientDeps } from './client.ts';
 
-/** The version_major P2 activates (FR-ENA-012) — a mismatch leaves the binding un-activated. */
-export const SUPPORTED_VERSION_MAJOR = 15;
+/** The ERPNext majors PMO activates. `DD-OPS-10`: the local dev bench is v15.94.3, RIS's target is
+ *  v16.33 — both must pass. ⚑ MIRRORED IN SQL: `activate_external_binding`'s `v_supported` array
+ *  (migration 0216). The database is the authority (FR-EAC-110); this is the fast/UX gate. Change both. */
+export const SUPPORTED_VERSION_MAJORS: readonly number[] = [15, 16];
 
 export interface ErpBindingCreds {
   apiKey: string;
@@ -54,7 +56,7 @@ interface GetVersionsResponse {
   message?: { erpnext?: { version?: string } };
 }
 
-function parseVersionMajor(body: unknown): number {
+export function parseVersionMajor(body: unknown): number {
   const parsed = body as GetVersionsResponse;
   const version = parsed.erpnext?.version ?? parsed.message?.erpnext?.version;
   const major = version ? Number.parseInt(version.split('.')[0] ?? '', 10) : Number.NaN;
@@ -62,10 +64,41 @@ function parseVersionMajor(body: unknown): number {
   return major;
 }
 
+/** The ONE version handshake: `GET /api/method/frappe.utils.change_log.get_versions` → the major.
+ *  Imported by `external-set-company` across the pmo-portal/src seam (the convention `erpnext-sweep`
+ *  already uses) so there is never a second copy of this parse. */
+export async function fetchErpVersionMajor(deps: {
+  fetchImpl: typeof fetch;
+  creds: ErpBindingCreds;
+  siteUrl: string;
+}): Promise<number> {
+  const clientDeps: ErpClientDeps = {
+    fetchImpl: deps.fetchImpl, apiKey: deps.creds.apiKey, apiSecret: deps.creds.apiSecret, baseUrl: deps.siteUrl,
+  };
+  return parseVersionMajor(await callMethod(clientDeps, 'frappe.utils.change_log.get_versions'));
+}
+
+/** Map one `GET Company/<name>` response onto the `config` account defaults the money bodies read
+ *  (`bodies/paymentEntry.ts` `paid_from`/`paid_to`, `bodies/incomingPayment.ts`). Absent ⇒ `null`
+ *  ("no default"), never a guessed account. */
+export function companyDefaultsFromDoc(
+  companyDoc: Record<string, unknown>, company: string,
+): ErpBindingConfig {
+  return {
+    company,
+    default_payable_account: companyDoc.default_payable_account ?? null,
+    default_cash_account: companyDoc.default_cash_account ?? null,
+    default_bank_account: companyDoc.default_bank_account ?? null,
+    default_expense_account: companyDoc.default_expense_account ?? null,
+    cost_center: companyDoc.cost_center ?? null,
+  };
+}
+
 /**
- * Perform the version handshake (`GET /api/method/frappe.utils.change_log.get_versions`); on a
- * `version_major === 15` match, resolve Company account defaults with one `GET Company/<name>` and
- * stamp `activatedAt`. A mismatch returns immediately (no Company fetch) with `activatedAt: null`.
+ * Perform the version handshake (`GET /api/method/frappe.utils.change_log.get_versions`); on a major
+ * in `SUPPORTED_VERSION_MAJORS` ({15, 16}), resolve Company account defaults with one
+ * `GET Company/<name>` and stamp `activatedAt`. A mismatch returns immediately (no Company fetch) with
+ * `activatedAt: null`.
  */
 export async function activateBinding(
   deps: ActivateBindingDeps,
@@ -73,10 +106,9 @@ export async function activateBinding(
 ): Promise<ActivateBindingResult> {
   const clientDeps: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.creds.apiKey, apiSecret: deps.creds.apiSecret, baseUrl: deps.siteUrl };
 
-  const versionsBody = await callMethod(clientDeps, 'frappe.utils.change_log.get_versions');
-  const versionMajor = parseVersionMajor(versionsBody);
+  const versionMajor = await fetchErpVersionMajor({ fetchImpl: deps.fetchImpl, creds: deps.creds, siteUrl: deps.siteUrl });
 
-  if (versionMajor !== SUPPORTED_VERSION_MAJOR) {
+  if (!SUPPORTED_VERSION_MAJORS.includes(versionMajor)) {
     return { versionMajor, activatedAt: null, config: {} };
   }
 
@@ -90,14 +122,7 @@ export async function activateBinding(
   }
 
   const companyDoc = (await getDoc(clientDeps, 'Company', deps.company)) as Record<string, unknown>;
-  const config: ErpBindingConfig = {
-    company: deps.company,
-    default_payable_account: companyDoc.default_payable_account ?? null,
-    default_cash_account: companyDoc.default_cash_account ?? null,
-    default_bank_account: companyDoc.default_bank_account ?? null,
-    default_expense_account: companyDoc.default_expense_account ?? null,
-    cost_center: companyDoc.cost_center ?? null,
-  };
+  const config = companyDefaultsFromDoc(companyDoc, deps.company);
 
   return { versionMajor, activatedAt: now(), config };
 }
