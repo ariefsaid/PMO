@@ -11,9 +11,10 @@
  * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
  * 4. Load external_org_bindings row for (org_id, tier)
  * 5. Call delete_vault_secret RPC with secret_ref
- * 6. Update binding: status='disconnected', disconnected_at=now()
+ * 6. Call deactivate_external_binding RPC — ONE statement: status='disconnected', disconnected_at,
+ *    and CLEARS activated_at / version_major / config.company (FR-EAC-108, #650)
  * 7. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'release', p_actor_id)
- * 8. Audit is handled by the admin_change_domain_ownership RPC (integration.domain_ownership.release)
+ * 8. Emit log_audit('integration.disconnect', org, actor, null, detail) — fixed arg shape (AC-EAC-118)
  * 9. Return { ok: true }
  *
  * Errors:
@@ -48,6 +49,21 @@ function getJwks(supabaseUrl: string): JwksResolver {
   return _jwks;
 }
 
+// Test hook: allow injecting a local JWKS resolver to avoid background intervals from
+// createRemoteJWKSet during tests.
+export function setTestJwks(resolver: JwksResolver): void {
+  _jwks = resolver;
+}
+
+// Test hook: Supabase client options for tests (disable auto-refresh to prevent timer leaks).
+export const testSupabaseOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+};
+
 function bearerTokenFromHeader(authHeader: string | null): string | null {
   if (!authHeader) return null;
   const m = /^Bearer\s+(.+)$/i.exec(authHeader);
@@ -65,7 +81,7 @@ function errorResponse(message: string, code: string, status: number): Response 
   return json({ error: code, message }, status);
 }
 
-serveWithErrorReporting('external-disconnect', async (req: Request): Promise<Response> => {
+export async function handleDisconnectRequest(req: Request): Promise<Response> {
   const corsHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -102,7 +118,7 @@ serveWithErrorReporting('external-disconnect', async (req: Request): Promise<Res
   }
 
   // 2. Service-role client for admin lookups
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   // 3. Load caller profile (role + org_id)
   const { data: profile, error: profileError } = await serviceClient
@@ -169,16 +185,20 @@ serveWithErrorReporting('external-disconnect', async (req: Request): Promise<Res
     return errorResponse('Failed to delete Vault secret', 'INTERNAL', 500);
   }
 
-  // 8. Update binding to disconnected (soft-archive)
-  const { error: updateError } = await serviceClient
-    .from('external_org_bindings')
-    .update({ status: 'disconnected', disconnected_at: new Date().toISOString() })
-    .eq('org_id', profile.org_id)
-    .eq('external_tier', tier);
-
-  if (updateError) {
-    console.error('external_org_bindings update failed', updateError);
+  // 8. FR-EAC-108 — soft-archive AND un-activate in ONE statement. The sweep's employ predicates
+  // (erpnext-sweep listEmployingOrgsLive, org_has_active_erpnext_binding mig 0160) read `activated_at`
+  // and never read `status`, so leaving the stamp kept a disconnected org "employing".
+  const { data: touched, error: deactivateError } = await serviceClient.rpc('deactivate_external_binding', {
+    p_org_id: profile.org_id,
+    p_external_tier: tier,
+    p_actor_id: userId,
+  });
+  if (deactivateError) {
+    console.error('deactivate_external_binding failed', deactivateError);
     return errorResponse('Failed to update binding', 'INTERNAL', 500);
+  }
+  if (touched === 0) {
+    return errorResponse('No binding found for this tier', 'NOT_FOUND', 404);
   }
 
   // 9. For ClickUp, release domain ownership via NEW definer RPC (gates on p_actor_id)
@@ -205,12 +225,12 @@ serveWithErrorReporting('external-disconnect', async (req: Request): Promise<Res
   const { error: auditError } = await serviceClient.rpc('log_audit', {
     p_action: 'integration.disconnect',
     p_org_id: profile.org_id,
-    p_entity_type: 'external_org_bindings',
+    // ⚑ log_audit is (p_action, p_org_id, p_actor_id, p_entity_id, p_detail) — mig 0076. The previous
+    // call passed `p_entity_type` (no such parameter) and omitted `p_actor_id`, so no overload matched
+    // and this audit event was never written.
+    p_actor_id: userId,
     p_entity_id: null,
-    p_detail: {
-      tier,
-      actor: userId,
-    },
+    p_detail: { tier, actor: userId },
   });
   if (auditError) {
     console.error('log_audit failed', auditError);
@@ -218,4 +238,9 @@ serveWithErrorReporting('external-disconnect', async (req: Request): Promise<Res
 
   // 11. Return success
   return json({ ok: true });
-});
+}
+
+// Deno.serve entry point (only runs when module is main)
+if (import.meta.main) {
+  serveWithErrorReporting('external-disconnect', handleDisconnectRequest);
+}
