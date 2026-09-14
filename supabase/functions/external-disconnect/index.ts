@@ -107,7 +107,7 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   let userId: string;
   try {
     const verified = await verifyCallerJwt(jwt, getJwks(supabaseUrl), {
-      issuer: `${supabaseUrl}/auth/v1`,
+      issuer: Deno.env.get('EDGE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
       audience: 'authenticated',
       algorithms: ['ES256'],
     });
