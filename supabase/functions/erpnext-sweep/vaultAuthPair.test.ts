@@ -110,3 +110,51 @@ Deno.test('AC-ENA-082: a Vault READ ERROR refuses — it never falls through to 
     assert(erp.calls() === 0, `no ERP request may be issued — got ${JSON.stringify(erp.auth)}`);
   } finally { erp.restore(); env.restore(); }
 });
+
+Deno.test('AC-ENA-084: a VAULT-ONLY org can build its outbox reconcile deps (the write path)', async () => {
+  const { buildReconcileDepsLive } = await import('./index.ts');
+  const outboxRow = {
+    operation: 'create',
+    payload: { id: 'pmo-1', erp_doc_kind: 'purchase-invoice' },
+    actor_user_id: '00000000-0000-4000-8000-0000000000a1',
+  };
+  let rpcCalls = 0;
+  const env = stubEnv({}); // NO env pair exists for this org — Vault is the only source
+  const erp = stubErpFetch();
+  const authClient = {
+    from(table: string) {
+      // deno-lint-ignore no-explicit-any
+      const b: any = {
+        select: () => b, eq: () => b, in: () => b, is: () => b, not: () => b,
+        insert: () => b, update: () => b, upsert: () => b,
+        limit: () => Promise.resolve({ data: [], error: null }),
+        maybeSingle: () => Promise.resolve(
+          table === 'external_command_outbox' ? { data: outboxRow, error: null }
+          : table === 'external_org_bindings'
+            ? { data: { secret_ref: 'org-a-erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-01-01T00:00:00.000Z', config: { company: 'PMO Smoke Co' } }, error: null }
+          : { data: null, error: null },
+        ),
+        then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+      };
+      return b;
+    },
+    rpc: (fn: string) => {
+      // The re-authorization guard (authGuard.ts) runs BEFORE credential resolution: answer its two
+      // RPCs so the org owns the domain and its recorded actor is an active Finance member, and count
+      // ONLY the Vault reader as the credential-source proof.
+      if (fn === 'domain_owned_by_tier') return Promise.resolve({ data: true, error: null });
+      if (fn === 'org_has_active_erpnext_binding') return Promise.resolve({ data: true, error: null });
+      if (fn === 'actor_authorization_state') return Promise.resolve({ data: { role: 'Finance', active: true }, error: null });
+      rpcCalls += 1; // read_vault_secret
+      return Promise.resolve({ data: 'vault-key:vault-secret', error: null });
+    },
+  } as unknown as SupabaseClient;
+  try {
+    const deps = await buildReconcileDepsLive(authClient, orgBinding('org-a-erpnext'), {
+      id: 'outbox-1', domain: 'procurement', pmoRecordId: 'pmo-1', idempotencyKey: 'idem-1',
+      state: 'pending', externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: null,
+    } as unknown as Parameters<typeof buildReconcileDepsLive>[2]);
+    assert(!!deps, 'a Vault-only org must be able to build its reconcile deps');
+    assert(rpcCalls > 0, 'the pair must have come from the Vault reader');
+  } finally { erp.restore(); env.restore(); }
+});

@@ -75,7 +75,6 @@ import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { erpnextRequest, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
 import {
@@ -92,9 +91,7 @@ import {
   type BudgetVersionGateRow,
   type FiscalYearRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
-import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
-import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
@@ -1742,7 +1739,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
  * + its persisted `payload.erp_doc_kind`. Inert in practice until an org is flipped AND a money command
  * leaves a candidate (no employing org ⇒ no candidate ⇒ this never fires — "inert-by-empty-map").
  */
-export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow): Promise<DispatchMoneyWriteDeps> {
+export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow, cache?: ErpAuthPairCache): Promise<DispatchMoneyWriteDeps> {
   // Re-read the persisted operation + payload (the OutboxRow projection drops them) to reconstruct the command.
   // `actor_user_id` (0108): the ORIGINAL command's verified caller. Without it a sweep-finalized SI
   // mirror lands `author_user_id = NULL`, and the approver≠author SoD check then passes for everyone.
@@ -1796,7 +1793,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // write-back, and a `held` row would additionally need an Admin release even after the operator had
   // already corrected the dates. The money-critical property — never POST a body the current gate would
   // reject — is what the throw guarantees.)
-  await assertBudgetSweepGate(serviceClient, org, payload);
+  await assertBudgetSweepGate(serviceClient, org, payload, cache);
 
   const kind = payload.erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
@@ -1806,7 +1803,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     throw new AppError(`erpnext-sweep reconcile: unresolvable erp_doc_kind '${String(kind)}' for ${row.domain}/${row.pmoRecordId}`, 'commit-rejected');
   }
 
-  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
   // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
   // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
@@ -1904,6 +1901,7 @@ async function assertBudgetSweepGate(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   payload: Record<string, unknown>,
+  cache?: ErpAuthPairCache,
 ): Promise<void> {
   if (payload.erp_doc_kind !== 'budget') return;
   const versionId = String(payload.id ?? '');
@@ -1941,7 +1939,7 @@ async function assertBudgetSweepGate(
       },
       readLineItems: (id) => readBudgetLineItems(serviceClient as never, id),
       readCategoryMap: () => readCategoryAccountMap(serviceClient as never, org.orgId),
-      readFiscalYears: () => readErpFiscalYearsLive(org),
+      readFiscalYears: () => readErpFiscalYearsLive(serviceClient, org, cache),
     });
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -1960,8 +1958,12 @@ async function assertBudgetSweepGate(
 }
 
 /** The client's OWN fiscal calendar, read live (the same doctype read the foreground gate makes). */
-async function readErpFiscalYearsLive(org: OrgBinding): Promise<FiscalYearRow[]> {
-  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+async function readErpFiscalYearsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  cache?: ErpAuthPairCache,
+): Promise<FiscalYearRow[]> {
+  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
   const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
   url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
   url.searchParams.set('limit_page_length', '0');
