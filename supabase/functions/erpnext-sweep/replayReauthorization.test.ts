@@ -61,20 +61,25 @@ function fakeServiceClient(opts: {
 }) {
   const rpcCalls: RpcCall[] = [];
   const client = {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({
-            data: {
-              operation: 'create',
-              payload: { id: 'si-1', erp_doc_kind: 'sales-invoice' },
-              actor_user_id: opts.actorUserId,
-            },
-            error: null,
-          }),
+    from: () => {
+      // #651: the shipped `buildReconcileDepsLive` now resolves the pair through `resolveErpAuthPair`,
+      // whose binding lookup chains TWO `.eq()` calls before `.maybeSingle()`. The fixture keeps its own
+      // intent (the re-read row the guard/finalize path needs) but must tolerate that two-eq chain.
+      // deno-lint-ignore no-explicit-any
+      const b: any = {
+        select: () => b,
+        eq: () => b,
+        maybeSingle: async () => ({
+          data: {
+            operation: 'create',
+            payload: { id: 'si-1', erp_doc_kind: 'sales-invoice' },
+            actor_user_id: opts.actorUserId,
+          },
+          error: null,
         }),
-      }),
-    }),
+      };
+      return b;
+    },
     rpc: async (fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
       if (fn === 'domain_owned_by_tier') return { data: opts.domainOwned ?? true, error: null };

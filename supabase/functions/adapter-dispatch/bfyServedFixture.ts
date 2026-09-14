@@ -129,6 +129,11 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
         version_major: 15,
         config: { company: COMPANY, project_map: { [PROJECT_ID]: ERP_PROJECT } },
       })),
+    // #651 / ADR-0072: the gate's fiscal read resolves the pair through the ONE shared resolver
+    // (Vault first). This org (`bfy-bench`) holds NO Vault secret — the real local bench answers a
+    // clean NULL — so the resolver falls back to the `BFY_BENCH_KEY`/`BFY_BENCH_SECRET` env pair
+    // `installErpCredentials()` sets, exactly as this fixture did before the resolver existed.
+    supabaseRpc('read_vault_secret', () => jsonResponse(null)),
     supabaseSelect('budget_versions', () =>
       objectResponse({
         id: VERSION_ID,

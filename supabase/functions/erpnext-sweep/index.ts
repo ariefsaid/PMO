@@ -75,7 +75,6 @@ import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { erpnextRequest, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
 import {
@@ -92,8 +91,7 @@ import {
   type BudgetVersionGateRow,
   type FiscalYearRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
-import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
-import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
+import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
@@ -519,8 +517,14 @@ export interface ErpSweepCycleResult {
  * modified-poll sweep, (3) ledger-mirror feed, (4) accounting refresh. An org's failure is recorded
  * WITHOUT aborting the loop (sweep resilience). The reconcile pass runs FIRST so the doctype sweep
  * sees a consistent outbox (ADR-0058 §Consequences).
+ *
+ * `cache`: the optional per-tick credential cache (ADR-0072 decision 5). When supplied, each org's entry
+ * is DELETED at the end of its own iteration, so a multi-org tick holds at most ONE org's plaintext pair
+ * resident at a time while still resolving each org once (AC-ENA-085). This is the #651-review per-org
+ * cache SCOPING (the tick-level cache shared by the passes would otherwise accumulate every org's pair
+ * for the whole cycle).
  */
-export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSweepCycleResult> {
+export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthPairCache): Promise<ErpSweepCycleResult> {
   const orgs = await deps.listEmployingOrgs();
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
@@ -589,6 +593,10 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSwee
       }
     }
     perOrg.push({ orgId: org.orgId, reconcile, sweep, ledger, errors });
+    // #651 review (per-org cache scope): clear this org's entry so only the CURRENT org's pair is ever
+    // resident. One org's refusal already never aborts the loop; deleting here also guarantees a
+    // resolution failure can't leave a stale org resident for a later org's passes.
+    cache?.delete(org.orgId);
   }
   return { orgs: orgs.length, perOrg };
 }
@@ -654,64 +662,15 @@ async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: string)
   return ((body as { data?: Record<string, unknown> } | null)?.data ?? {}) as Record<string, unknown>;
 }
 
-// Merged: dev's admin-connect made credential resolution Vault-first (behind EXTERNAL_CONNECT_ENABLED,
-// falling back to the env resolver when off / no binding / vault-miss). Kept alongside the P3a money
-// path — the async signature propagates to every call site (all now `await erpClientForOrg(serviceClient, org)`).
-async function erpClientForOrg(serviceClient: SupabaseClient, org: OrgBinding): Promise<ErpClientDeps> {
-  const connectEnabled = externalConnectEnabled();
-  if (!connectEnabled) {
-    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
-  }
-  let apiKey: string;
-  let apiSecret: string;
-
-  if (connectEnabled) {
-    // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
-    const result = await resolvePerOrgSecret({
-      connectEnabled,
-      orgId: org.orgId,
-      tier: 'erpnext',
-      lookupBinding: async (orgId, tier) => {
-        const { data, error } = await serviceClient
-          .from('external_org_bindings')
-          .select('secret_ref')
-          .eq('org_id', orgId)
-          .eq('external_tier', tier)
-          .maybeSingle();
-        if (error) return null;
-        return data as { secret_ref?: string | null } | null;
-      },
-      readVaultSecret: async (ref) => {
-        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          return null;
-        }
-        return (data as string | null) ?? null;
-      },
-    });
-
-    if (result.kind === 'resolved') {
-      // Vault stores apiKey:apiSecret format
-      const idx = result.secret.indexOf(':');
-      if (idx > 0 && idx < result.secret.length - 1) {
-        apiKey = result.secret.slice(0, idx);
-        apiSecret = result.secret.slice(idx + 1);
-      } else {
-        throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
-      }
-    } else {
-      // kind === 'no-binding' OR 'binding-vault-miss' → fall back to env resolver
-      const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
-      apiKey = creds.apiKey;
-      apiSecret = creds.apiSecret;
-    }
-  } else {
-    const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
-    apiKey = creds.apiKey;
-    apiSecret = creds.apiSecret;
-  }
-
+// #651 / ADR-0072: ONE resolver for both directions — `_shared/erpAuthPair.ts`. The inline Vault-first
+// block that used to live here (and its env-fallback-on-vault-error) is gone: a store that cannot answer
+// now refuses (FR-ENA-018). `cache` is optional so the per-pass unit tests keep their two-arg call.
+async function erpClientForOrg(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  cache?: ErpAuthPairCache,
+): Promise<ErpClientDeps> {
+  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
   return { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
@@ -736,8 +695,8 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
 }
 
 /** The per-org sweep: runSweep per doctype with the lineage-aware apply injected, per-doctype watermark. */
-export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
-  const client = await erpClientForOrg(serviceClient, org);
+export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ applied: number; error?: string }> {
+  const client = await erpClientForOrg(serviceClient, org, cache);
   let applied = 0;
   // HIGH-A: one doctype's failure is RECORDED and the loop CONTINUES. It used to `return`, so a single
   // refused/unreachable doctype abandoned every doctype after it for that org this tick — and with
@@ -913,10 +872,10 @@ const UNLINKED_RECEIPT_SCAN_LIMIT = 100;
 
 /** The live wiring of the late-link self-heal for one org. Runs ONLY for an org that owns the revenue
  *  domain (Luna BLOCK 9) — a procurement-only org has no receipts to repair. */
-async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ repaired: number; error?: string }> {
+async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
   if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
   try {
-    const client = await erpClientForOrg(serviceClient, org);
+    const client = await erpClientForOrg(serviceClient, org, cache);
     const result = await repairUnlinkedReceipts({
       listUnlinkedReceipts: async () => {
         const { data, error } = await serviceClient.from('incoming_payments')
@@ -954,9 +913,9 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
 }
 
 /** The ledger-mirror feed for one org (8.6b). */
-async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ gl: number; ple: number; error?: string }> {
+async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ gl: number; ple: number; error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org);
+    const client = await erpClientForOrg(serviceClient, org, cache);
     const r = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
       client, orgId: org.orgId, company: org.company,
     });
@@ -991,9 +950,9 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  * for the budget push and every timesheet entry (`resolveErpProjectName`) — one mapping, consumed
  * inverted, never a second one invented here.
  */
-export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ error?: string }> {
+export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org);
+    const client = await erpClientForOrg(serviceClient, org, cache);
     const reportVersion = reportVersionFromOrg(org);
     const scope: OrgAccountingScope = {
       orgId: org.orgId,
@@ -1767,17 +1726,23 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
   const serviceClient = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseClient;
 
+  // #651 / FR-ENA-019: ONE credential resolution per ORG per TICK. The cache is created HERE, inside the
+  // request/tick scope, and shared by every pass that resolves a pair — never module-level, so a shared
+  // isolate never holds one tenant's credential across ticks and a rotated credential never outlives the
+  // tick (ADR-0072 decision 5).
+  const erpAuth = createErpAuthPairCache();
+
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
-    reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row)),
-    sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org),
-    repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org),
-    feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org),
-    refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org),
+    reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row, erpAuth)),
+    sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth),
+    repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org, erpAuth),
+    feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org, erpAuth),
+    refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
-  });
+  }, erpAuth);
   return json({ ok: true, ...cycle });
 });
 
@@ -1790,7 +1755,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
  * + its persisted `payload.erp_doc_kind`. Inert in practice until an org is flipped AND a money command
  * leaves a candidate (no employing org ⇒ no candidate ⇒ this never fires — "inert-by-empty-map").
  */
-export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow): Promise<DispatchMoneyWriteDeps> {
+export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow, cache?: ErpAuthPairCache): Promise<DispatchMoneyWriteDeps> {
   // Re-read the persisted operation + payload (the OutboxRow projection drops them) to reconstruct the command.
   // `actor_user_id` (0108): the ORIGINAL command's verified caller. Without it a sweep-finalized SI
   // mirror lands `author_user_id = NULL`, and the approver≠author SoD check then passes for everyone.
@@ -1844,7 +1809,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // write-back, and a `held` row would additionally need an Admin release even after the operator had
   // already corrected the dates. The money-critical property — never POST a body the current gate would
   // reject — is what the throw guarantees.)
-  await assertBudgetSweepGate(serviceClient, org, payload);
+  await assertBudgetSweepGate(serviceClient, org, payload, cache);
 
   const kind = payload.erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
@@ -1854,7 +1819,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     throw new AppError(`erpnext-sweep reconcile: unresolvable erp_doc_kind '${String(kind)}' for ${row.domain}/${row.pmoRecordId}`, 'commit-rejected');
   }
 
-  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
   // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
   // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
@@ -1952,6 +1917,7 @@ async function assertBudgetSweepGate(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   payload: Record<string, unknown>,
+  cache?: ErpAuthPairCache,
 ): Promise<void> {
   if (payload.erp_doc_kind !== 'budget') return;
   const versionId = String(payload.id ?? '');
@@ -1989,7 +1955,7 @@ async function assertBudgetSweepGate(
       },
       readLineItems: (id) => readBudgetLineItems(serviceClient as never, id),
       readCategoryMap: () => readCategoryAccountMap(serviceClient as never, org.orgId),
-      readFiscalYears: () => readErpFiscalYearsLive(org),
+      readFiscalYears: () => readErpFiscalYearsLive(serviceClient, org, cache),
     });
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -2008,8 +1974,12 @@ async function assertBudgetSweepGate(
 }
 
 /** The client's OWN fiscal calendar, read live (the same doctype read the foreground gate makes). */
-async function readErpFiscalYearsLive(org: OrgBinding): Promise<FiscalYearRow[]> {
-  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+async function readErpFiscalYearsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  cache?: ErpAuthPairCache,
+): Promise<FiscalYearRow[]> {
+  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
   const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
   url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
   url.searchParams.set('limit_page_length', '0');
