@@ -1,7 +1,7 @@
 -- erpnext_activation.test.sql — #650 / ADR-0073.
 -- AC-EAC-103, AC-EAC-109, AC-EAC-110, AC-EAC-111, AC-EAC-112, AC-EAC-113, AC-EAC-114
 begin;
-select plan(30);
+select plan(31);
 
 reset role;
 insert into organizations (id, name) values
@@ -27,6 +27,19 @@ select is(
       and grantee in ('anon', 'authenticated')),
   'SELECT',
   'AC-EAC-113 authenticated/anon hold SELECT only on external_org_bindings'
+);
+
+-- AC-EAC-113 (review #650) the COLUMN-level superset: table-level grants expand into
+-- information_schema.column_privileges per column, and a COLUMN-scoped grant (e.g.
+-- `grant update(config) on external_org_bindings to authenticated`) appears ONLY there —
+-- invisible to role_table_grants. The distinct privilege-type set must stay exactly {SELECT}.
+select is(
+  (select coalesce(string_agg(distinct privilege_type, ',' order by privilege_type), '')
+     from information_schema.column_privileges
+    where table_schema = 'public' and table_name = 'external_org_bindings'
+      and grantee in ('anon', 'authenticated')),
+  'SELECT',
+  'AC-EAC-113 no column-level grant beyond SELECT on external_org_bindings (a future grant update(config) turns this red)'
 );
 
 -- The three RPCs are service-role-only (NFR-EAC-SEC-102); run the positive cases as service_role,

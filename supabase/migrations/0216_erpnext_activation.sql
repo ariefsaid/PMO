@@ -23,8 +23,10 @@ begin
   if current_setting('role', true) <> 'service_role' then
     raise exception 'service role required' using errcode = '42501';
   end if;
-  -- The edge fn's SSRF/HTTPS guard stays where it is; this is the second layer, so a future caller
-  -- cannot skip it (NFR-EAC-SEC-101).
+  -- Review #650: this is an HTTPS-scheme check only — NOT a "second SSRF layer". The private-host
+  -- rule lives in the edge fn (external-connect / external-set-company); the database cannot resolve
+  -- hostnames, so the SSRF boundary cannot be re-enforced here. What this check CAN do is refuse a
+  -- future caller pointing the binding at a non-https:// or empty URL (NFR-EAC-SEC-101).
   if p_site_url is null or btrim(p_site_url) = '' or p_site_url !~* '^https://' then
     raise exception 'site_url must be a non-empty https:// URL' using errcode = '22023';
   end if;

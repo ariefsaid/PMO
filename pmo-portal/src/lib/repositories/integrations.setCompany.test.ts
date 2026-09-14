@@ -25,13 +25,15 @@ describe('repositories.integrations.setCompany', () => {
     invoke.mockResolvedValue({
       data: null,
       error: httpError(422, {
-        error: 'config-rejected',
+        // The EXACT body the endpoint sends on an unsupported major (review #650: CONFIG_REJECTED,
+        // aligned with the handler's other 422 bodies).
+        error: 'CONFIG_REJECTED',
         message: 'ERPNext 14 is not supported (PMO supports 15 and 16). No connection was activated.',
       }),
     });
     await expect(repositories.integrations.setCompany('org-1', 'erpnext', 'ACME')).rejects.toMatchObject({
       message: 'ERPNext 14 is not supported (PMO supports 15 and 16). No connection was activated.',
-      code: 'config-rejected',
+      code: 'CONFIG_REJECTED',
     });
   });
 

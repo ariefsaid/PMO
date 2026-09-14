@@ -446,12 +446,46 @@ describe('external-set-company — ERPNext branch', () => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 422);
         const body = await res.json();
-        assertEquals(body.error, 'config-rejected');
+        // Review #650: the 422 vocabulary is the handler's existing CONFIG_REJECTED (one outlier said
+        // 'config-rejected'); the refusal GOAL is unchanged — legible 422, nothing written.
+        assertEquals(body.error, 'CONFIG_REJECTED');
         assert(body.message.includes('14'));
         assert(body.message.includes('15 and 16'));
         assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
         assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+      },
+    );
+  });
+
+  it('AC-EAC-105 the handshake runs before any write — Company-validate → version-handshake → activation RPC, and no direct PATCH', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('platform_operators', () => new Response('null',
+          { status: 200, headers: { 'content-type': 'application/json' } })),
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' },
+            { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+        erp('erp.example.com', '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
+        erp('erp.example.com', '/api/method/frappe.utils.change_log.get_versions',
+          () => jsonResponse({ erpnext: { version: '15.94.3' } })),
+        supabaseRpc('activate_external_binding', () => jsonResponse('2026-09-14T00:00:00+00:00')),
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, 200);
+        // The write moved into the RPC — there is no direct PATCH any more.
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+        // Company validation precedes the handshake, which precedes the write.
+        const order = calls.map((c) => c.url.pathname);
+        assert(order.indexOf('/api/resource/Company/ACME')
+             < order.indexOf('/api/method/frappe.utils.change_log.get_versions'));
+        assert(order.indexOf('/api/method/frappe.utils.change_log.get_versions')
+             < order.indexOf('/rest/v1/rpc/activate_external_binding'));
       },
     );
   });
@@ -491,14 +525,6 @@ describe('external-set-company — ERPNext branch', () => {
           ok: true, companyId: 'ACME', versionMajor: 15, activatedAt: '2026-09-14T00:00:00+00:00',
         });
         assertEquals(rpcCall(calls, 'activate_external_binding').length, 1);
-        // AC-EAC-105: the write moved into the RPC — there is no direct PATCH any more.
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
-        // AC-EAC-105: Company validation precedes the handshake, which precedes the write.
-        const order = calls.map((c) => c.url.pathname);
-        assert(order.indexOf('/api/resource/Company/ACME')
-             < order.indexOf('/api/method/frappe.utils.change_log.get_versions'));
-        assert(order.indexOf('/api/method/frappe.utils.change_log.get_versions')
-             < order.indexOf('/rest/v1/rpc/activate_external_binding'));
       },
     );
   });

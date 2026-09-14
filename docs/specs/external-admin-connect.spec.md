@@ -143,15 +143,17 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
   Company; this spec adds only the **connect/disconnect + health** affordance for ERPNext (link CRUD is
   the merged #315 scope). *(State-driven.)*
   > ⚑ **#650 annotation (2026-09-14) — "connecting the org binds the ERPNext instance URL + resolved
-  > Company defaults" describes an intent that no shipped code performs.** The URL is not persisted
+  > Company defaults" describes an intent that no shipped code performed.** The URL was not persisted
   > (see FR-EAC-003's annotation) and the Company defaults (`default_payable_account`,
-  > `default_cash_account`, `default_bank_account`, `default_expense_account`, `cost_center`) are resolved
-  > only by `pmo-portal/src/lib/adapterSeam/erpnext/binding.ts` `activateBinding`, which has **no
-  > production call site** — only its own Vitest. Every binding that carries those keys today was written
-  > by `supabase/seed.sql`, an e2e helper, or operator SQL. `bodies/paymentEntry.ts` and
-  > `bodies/incomingPayment.ts` read `config.default_cash_account` / `default_bank_account` /
-  > `default_payable_account`, so on a real self-serve connect a Payment Entry would post with
-  > `paid_from`/`paid_to` undefined. **FR-EAC-104/106 give that intent a call site.**
+  > `default_cash_account`, `default_bank_account`, `default_expense_account`, `cost_center`) were resolved
+  > only by the former `activateBinding` helper, which had **no production call site** — only its own
+  > Vitest. Every binding that carried those keys was written by `supabase/seed.sql`, an e2e helper, or
+  > operator SQL, so on a real self-serve connect a Payment Entry would post with
+  > `paid_from`/`paid_to` undefined. **FR-EAC-104/106 give that intent a call site:** activation is the
+  > `activate_external_binding` RPC (migration 0216), invoked by `external-set-company` — which is also
+  > the sole consumer of the handshake/defaults helpers in
+  > `pmo-portal/src/lib/adapterSeam/erpnext/binding.ts` (the dead `activateBinding` twin was deleted in
+  > the review follow-up).
 
 ### Credential resolution (per-org Vault, refactor of the 4 edge fns)
 
@@ -430,9 +432,9 @@ existing prose reads as though this worked.
   (`GET /api/method/frappe.utils.change_log.get_versions`) against the binding's `site_url` using the
   binding's Vault credential, **before** any database write. *(Event-driven.)*
 - **FR-EAC-105** — When the handshake's ERPNext major version is not in the supported set `{15, 16}`, the
-  system SHALL respond `422` with code `config-rejected` and a message naming the observed major and the
-  supported set, and SHALL write nothing (no `config.company`, no `version_major`, no `activated_at`).
-  *(Event-driven.)*
+  system SHALL respond `422` with code `CONFIG_REJECTED` (the handler's 422 vocabulary; review #650
+  aligned the one outlier) and a message naming the observed major and the supported set, and SHALL
+  write nothing (no `config.company`, no `version_major`, no `activated_at`). *(Event-driven.)*
 - **FR-EAC-106** — When the handshake major is supported, the system SHALL, in **one** database statement,
   set `version_major`, merge `config.company` together with the Company account defaults
   (`default_payable_account`, `default_cash_account`, `default_bank_account`, `default_expense_account`,
@@ -531,7 +533,8 @@ existing prose reads as though this worked.
     outbound requests to any ERPNext host, and calls neither `read_vault_secret` nor
     `activate_external_binding`.
 
-- **AC-EAC-105 — the handshake runs before any write** *(Deno unit, `set-company.test.ts`)*
+- **AC-EAC-105 — the handshake runs before any write** *(Deno unit, `set-company.test.ts` — its own
+  titled test since the review follow-up)*
   - **Given** a valid Admin JWT, an active binding with a real `site_url`, and a mocked site where
     `GET /api/resource/Company/ACME` returns 200 and
     `GET /api/method/frappe.utils.change_log.get_versions` returns `{"erpnext":{"version":"15.94.3"}}`,
@@ -543,7 +546,7 @@ existing prose reads as though this worked.
   `set-company.test.ts`)*
   - **Given** the same setup but the handshake returns `{"erpnext":{"version":"14.30.1"}}`,
   - **When** the Admin selects `ACME`,
-  - **Then** the response is `422` with `error: 'config-rejected'` and a message containing both `14` and
+  - **Then** the response is `422` with `error: 'CONFIG_REJECTED'` and a message containing both `14` and
     `15 and 16`, and `activate_external_binding` and `log_audit` are each called **zero** times.
 
 - **AC-EAC-107 — a v15 handshake activates** *(Deno unit, `set-company.test.ts`)*
@@ -614,18 +617,23 @@ existing prose reads as though this worked.
   `pmo-portal/src/lib/repositories/integrations.setCompany.test.ts`)*
   - **Given** `supabase.functions.invoke` rejects with a `FunctionsHttpError`-shaped error whose
     `.context` Response body is
-    `{"error":"config-rejected","message":"ERPNext 14 is not supported (PMO supports 15 and 16)."}`,
+    `{"error":"CONFIG_REJECTED","message":"ERPNext 14 is not supported (PMO supports 15 and 16)."}`
+    (the endpoint's real body — review #650 aligned the code to `CONFIG_REJECTED`),
   - **When** `repositories.integrations.setCompany(org,'erpnext','ACME')` is awaited,
   - **Then** it rejects with an `AppError` whose `.message` is that sentence and `.code` is
-    `config-rejected`, so `classifyMutationError(err).detail` renders it in the Company dialog.
+    `CONFIG_REJECTED` (passed through verbatim by the seam), so `classifyMutationError(err).detail`
+    renders it in the Company dialog.
 
-- **AC-EAC-116 — the handshake helper is one derivation, and it supports 15 and 16** *(Vitest,
-  `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts`)*
+- **AC-EAC-116 — the handshake helper is one derivation, budget-bounded, and it supports 15 and 16**
+  *(Vitest, `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts`)*
   - **Given** `fetchErpVersionMajor` with a mocked fetch,
   - **When** the site reports `15.94.3`, `16.33.0` and `14.30.1` in three runs,
   - **Then** it returns `15`, `16` and `14` respectively; `SUPPORTED_VERSION_MAJORS` contains exactly
-    `[15, 16]`; and `activateBinding` — which now calls the same helper — activates on 15 and 16 and
-    leaves `activatedAt` null on 14.
+    `[15, 16]`; a hung site aborts at the handshake's 5s deadline and a retryable response is NOT
+    retried (`timeoutMs: 5000, maxRetries: 0` — review #650); and `companyDefaultsFromDoc` keeps a
+    default only when it is a 1–140-char string (ERPNext Link limit), else `null`. *(The former
+    `activateBinding` twin was deleted with its tests — review #650: activation semantics live in the
+    `activate_external_binding` RPC, migration 0216.)*
 
 - **AC-EAC-117 — the disconnect suite binds to the shipped handler** *(Guard,
   `scripts/check-edge-fn-test-binding.mjs` + `pmo-portal/src/lib/agent/checkEdgeFnTestBinding.test.ts`)*
@@ -634,6 +642,16 @@ existing prose reads as though this worked.
   - **Then** it requires `disconnect.test.ts` to import `handleDisconnectRequest` from `./index.ts` and
     requires `index.ts` to export it behind an `import.meta.main` guard — the current suite asserts only
     re-implemented local booleans and would pass while the shipped handler is broken.
+
+- **AC-EAC-118 — the disconnect audit event is written with the fixed `log_audit` arg shape** *(Deno
+  unit, `supabase/functions/external-disconnect/disconnect.test.ts` — owned by the AC-EAC-114/118-titled
+  test)*
+  - **Given** an Admin JWT and an existing binding,
+  - **When** the Admin disconnects,
+  - **Then** `log_audit` is called exactly once with `p_action = 'integration.disconnect'`, the REQUIRED
+    `p_actor_id`, and NO `p_entity_type` key. *(The shipped call passed `p_entity_type` — no such
+    parameter — and omitted `p_actor_id`, so no overload of `log_audit(text,uuid,uuid,uuid,jsonb)`
+    matched and the disconnect audit event was never written.)*
 
 ## 7.4 Traceability — owning layer per AC
 
@@ -645,6 +663,7 @@ existing prose reads as though this worked.
 | AC-EAC-115 | Vitest | `pmo-portal/src/lib/repositories/integrations.setCompany.test.ts` |
 | AC-EAC-116 | Vitest | `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts` |
 | AC-EAC-117 | Verify gate | `scripts/check-edge-fn-test-binding.mjs` |
+| AC-EAC-118 | Deno unit | `supabase/functions/external-disconnect/disconnect.test.ts` |
 
 ## 7.5 Deliberate behaviour changes to existing green tests
 
@@ -667,14 +686,17 @@ the plan records the justification with each.
    than rolling back to it. Pre-existing, not introduced here, and deliberately not copied onto the ERPNext
    branch (AC-EAC-102 leaves the row instead and lets the activation guard refuse it). **Worth its own
    issue?**
-2. **Company account defaults are in scope here by consequence, not by request.** The brief asked only for
-   `version_major` + `activated_at`. But `bodies/paymentEntry.ts` reads `config.default_cash_account` /
-   `default_bank_account` / `default_payable_account`, and nothing populates them on a self-serve connect,
-   so activating without them would activate a binding whose first Payment Entry posts with undefined
-   accounts. FR-EAC-106 therefore fills them from the `GET Company/<name>` the handler already makes.
-   **Confirm, or split into a follow-up issue** — the plan isolates it as Phase 4 so it can be cut.
-3. **The v16 field names on the Company doctype are unverified.** `companyDefaultsFromDoc` reads the five
-   v15 field names. Whether v16.33 still exposes `default_cash_account` / `cost_center` under those exact
-   names is a fact only the #481 dry-run against the live v16 bench can settle. The mapper tolerates
-   absence (writes `null`), so a rename degrades to "no default" rather than a wrong account — but it is a
-   silent degradation, and the dry-run must check it.
+2. **SETTLED (2026-09-14, Director ruling): Company account defaults are IN scope.** The brief asked only
+   for `version_major` + `activated_at`, but `bodies/paymentEntry.ts` reads `config.default_cash_account` /
+   `default_bank_account` / `default_payable_account`, and nothing populated them on a self-serve connect —
+   activating without them would activate a binding whose first Payment Entry posts with undefined accounts.
+   FR-EAC-106 fills them from the `GET Company/<name>` the handler already makes (`companyDefaultsFromDoc`),
+   and the defaults shipped in Phase 4 with their own tests (AC-EAC-107/108).
+3. **SETTLED (2026-09-14, verified live on the v16.33 bench): the field names carry over.** An
+   Administrator-session `GET Company/PMO Smoke Co` on v16.33 confirmed `default_payable_account`,
+   `default_cash_account`, `default_expense_account` and `cost_center` under the v15 names;
+   **`default_bank_account` is ABSENT on v16** (the key is not on the doc at all, not null-valued), so the
+   mapper's absent-⇒-`null` rule fires for that one field on every v16 activation — "no default", which
+   `paymentEntry.ts`'s `??` chain treats correctly. AC-EAC-108 pins this exact shape (four keys present,
+   one missing). `frappe.utils.change_log.get_versions` was likewise confirmed `@frappe.whitelist()` on
+   v16.33 (`change_log.py:104`).

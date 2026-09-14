@@ -28,11 +28,12 @@ column:
 - `org_has_active_erpnext_binding` (mig `0160`) — the Posture-B budget employ predicate the dispatch
   authGuard and the push banner both call — tests `activated_at is not null`.
 
-**Nothing in shipped code writes that column.** `activateBinding`
-(`pmo-portal/src/lib/adapterSeam/erpnext/binding.ts`) is the version handshake and the only writer-shaped
-function in the tree, and it has **no production call site** — only its own Vitest. Every binding that
-carries `activated_at` today was written by `supabase/seed.sql`, an e2e helper (`upsertTspBinding`), or
-operator SQL.
+**Nothing in shipped code wrote that column at ADR time.** The writer-shaped `activateBinding`
+(`pmo-portal/src/lib/adapterSeam/erpnext/binding.ts`) was the version handshake and had **no production
+call site** — only its own Vitest. Every binding that carries `activated_at` outside this layer was
+written by `supabase/seed.sql`, an e2e helper (`upsertTspBinding`), or operator SQL. *(Review follow-up,
+#650: that dead twin was then deleted outright — `activate_external_binding` (mig `0216`), invoked by
+`external-set-company`, is the one writer.)*
 
 The connect path has the same shape one level down. `external-connect` validates the admin's `siteUrl`
 against an SSRF/HTTPS guard, then calls `create_vault_secret_for_org` (mig `0180`), whose `insert`
@@ -102,9 +103,10 @@ The three new RPCs are `service_role`-only EXECUTE, asserted **on the applying d
 idiom, because hosted Supabase's default privileges differ from local Docker).
 
 **7. The handshake has one derivation, and it is imported, not copied.** `binding.ts` gains
-`fetchErpVersionMajor` and `companyDefaultsFromDoc`; `activateBinding` is refactored onto both (no
-behaviour change beyond the widened version set) and `external-set-company` imports them across the
+`fetchErpVersionMajor` and `companyDefaultsFromDoc`; `external-set-company` imports them across the
 established `../../../pmo-portal/src/lib/adapterSeam/...` seam that `erpnext-sweep` already uses.
+*(Review follow-up, #650: the `activateBinding` refactor this decision originally described was superseded
+by deletion — the RPC owns activation, so the FE twin had no reason to exist.)*
 
 ## Consequences
 

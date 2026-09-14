@@ -347,7 +347,9 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   if (!SUPPORTED_VERSION_MAJORS.includes(versionMajor)) {
     return errorResponse(
       `ERPNext ${versionMajor} is not supported (PMO supports 15 and 16). No connection was activated.`,
-      'config-rejected', 422);
+      // Review #650: the handler's other 422 bodies say CONFIG_REJECTED; this one outlier said
+      // 'config-rejected'. Aligned — same status/message semantics, one vocabulary.
+      'CONFIG_REJECTED', 422);
   }
 
   // 10. FR-EAC-106/107 — ONE statement: version + company + Company account defaults + the set-once

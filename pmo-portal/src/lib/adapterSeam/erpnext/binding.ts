@@ -1,11 +1,15 @@
 /**
- * Per-org ERPNext binding activation (FR-ENA-011/012, AC-ENA-073, OQ-6; #650/ADR-0073). Performs the
- * ERPNext version handshake (supported majors {15, 16}) that gates every money command and, only on a
- * match, resolves Company account defaults (one `GET Company/<name>`, R9 §6.2). Credentials are ALWAYS
- * the resolved `{apiKey, apiSecret}` — this module never reads `secret_ref`/vault/env itself
- * (NFR-ENA-SEC-002); that resolution happens at the edge-fn boundary and is passed in.
+ * ERPNext version handshake + Company-defaults helpers (FR-ENA-011/012, AC-ENA-073, OQ-6; #650/ADR-0073;
+ * review #650). `fetchErpVersionMajor` performs the ERPNext version handshake (supported majors
+ * {15, 16}) that gates every money command; `companyDefaultsFromDoc` maps one `GET Company/<name>`
+ * response onto the config account defaults. The ACTIVATION semantics these helpers used to
+ * re-implement in `activateBinding` are deleted — that twin is dead now that activation is the
+ * `activate_external_binding` RPC (migration 0216), invoked by `external-set-company`, the sole
+ * production consumer of this module. Credentials are ALWAYS the resolved `{apiKey, apiSecret}`
+ * — this module never reads `secret_ref`/vault/env itself (NFR-ENA-SEC-002); that resolution happens
+ * at the edge-fn boundary and is passed in.
  */
-import { callMethod, erpnextRequest, getDoc, ErpError, type ErpClientDeps } from './client.ts';
+import { callMethod, erpnextRequest, ErpError, type ErpClientDeps } from './client.ts';
 
 /** The ERPNext majors PMO activates. `DD-OPS-10`: the local dev bench is v15.94.3, RIS's target is
  *  v16.33 — both must pass. ⚑ MIRRORED IN SQL: `activate_external_binding`'s `v_supported` array
@@ -17,38 +21,15 @@ export interface ErpBindingCreds {
   apiSecret: string;
 }
 
-export interface ActivateBindingDeps {
-  fetchImpl: typeof fetch;
-  creds: ErpBindingCreds;
-  siteUrl: string;
-  /** `external_org_bindings.config.company` — the Company doctype name to resolve defaults from. */
-  company: string;
-  /** AC-ENA-084 (task 8.8, R13): the integration-user read-permission probe scope. When present,
-   *  activation probes a list-read + a Report fetch for each entry and REFUSES to activate if any is
-   *   unreadable (the feed would silently under-sync). Omitted ⇒ no probe (byte-for-byte, back-compat). */
-  readPermScope?: ReadPermScope;
-}
-
 /** The `external_org_bindings.config` shape this module fills (R9 §6.2) — merged with any
  *  caller-supplied config keys (aging report names etc., OQ-3) by the caller, not here. */
 export interface ErpBindingConfig {
   company?: string;
-  default_payable_account?: unknown;
-  default_cash_account?: unknown;
-  default_bank_account?: unknown;
-  default_expense_account?: unknown;
-  cost_center?: unknown;
-}
-
-export interface ActivateBindingResult {
-  versionMajor: number;
-  /** ISO timestamp when activated (version matched); `null` on a version mismatch — money commands
-   *  are refused config-rejected downstream (the dispatch factory, 2.13) until re-activated. */
-  activatedAt: string | null;
-  config: ErpBindingConfig;
-  /** AC-ENA-084: populated when the read-perm probe refused activation (the integration user lacks
-   *  read perm on a flipped doctype/report); `undefined` when the probe passed or was not requested. */
-  permissionFailure?: ReadPermFailure;
+  default_payable_account?: string | null;
+  default_cash_account?: string | null;
+  default_bank_account?: string | null;
+  default_expense_account?: string | null;
+  cost_center?: string | null;
 }
 
 interface GetVersionsResponse {
@@ -66,7 +47,11 @@ export function parseVersionMajor(body: unknown): number {
 
 /** The ONE version handshake: `GET /api/method/frappe.utils.change_log.get_versions` → the major.
  *  Imported by `external-set-company` across the pmo-portal/src seam (the convention `erpnext-sweep`
- *  already uses) so there is never a second copy of this parse. */
+ *  already uses) so there is never a second copy of this parse. Budget-bounded (review #650): a
+ *  5s per-attempt deadline and NO retries — the handshake is a pre-write refusal gate, so a slow
+ *  or flapping site must fail fast as `external-unreachable`, not stall Company selection or burn
+ *  the default 3-retry budget against an edge-fn timeout.
+ */
 export async function fetchErpVersionMajor(deps: {
   fetchImpl: typeof fetch;
   creds: ErpBindingCreds;
@@ -74,8 +59,15 @@ export async function fetchErpVersionMajor(deps: {
 }): Promise<number> {
   const clientDeps: ErpClientDeps = {
     fetchImpl: deps.fetchImpl, apiKey: deps.creds.apiKey, apiSecret: deps.creds.apiSecret, baseUrl: deps.siteUrl,
+    timeoutMs: 5_000, maxRetries: 0,
   };
   return parseVersionMajor(await callMethod(clientDeps, 'frappe.utils.change_log.get_versions'));
+}
+
+/** ERPNext Link fields are ≤140 chars; anything longer, non-string, or empty is never a usable
+ *  account default — map it to `null` ("no default") rather than persist a malformed value. */
+function boundedDefault(value: unknown): string | null {
+  return typeof value === 'string' && value.length >= 1 && value.length <= 140 ? value : null;
 }
 
 /** Map one `GET Company/<name>` response onto the `config` account defaults the money bodies read
@@ -86,52 +78,22 @@ export function companyDefaultsFromDoc(
 ): ErpBindingConfig {
   return {
     company,
-    default_payable_account: companyDoc.default_payable_account ?? null,
-    default_cash_account: companyDoc.default_cash_account ?? null,
-    default_bank_account: companyDoc.default_bank_account ?? null,
-    default_expense_account: companyDoc.default_expense_account ?? null,
-    cost_center: companyDoc.cost_center ?? null,
+    default_payable_account: boundedDefault(companyDoc.default_payable_account),
+    default_cash_account: boundedDefault(companyDoc.default_cash_account),
+    default_bank_account: boundedDefault(companyDoc.default_bank_account),
+    default_expense_account: boundedDefault(companyDoc.default_expense_account),
+    cost_center: boundedDefault(companyDoc.cost_center),
   };
-}
-
-/**
- * Perform the version handshake (`GET /api/method/frappe.utils.change_log.get_versions`); on a major
- * in `SUPPORTED_VERSION_MAJORS` ({15, 16}), resolve Company account defaults with one
- * `GET Company/<name>` and stamp `activatedAt`. A mismatch returns immediately (no Company fetch) with
- * `activatedAt: null`.
- */
-export async function activateBinding(
-  deps: ActivateBindingDeps,
-  now: () => string = () => new Date().toISOString(),
-): Promise<ActivateBindingResult> {
-  const clientDeps: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.creds.apiKey, apiSecret: deps.creds.apiSecret, baseUrl: deps.siteUrl };
-
-  const versionMajor = await fetchErpVersionMajor({ fetchImpl: deps.fetchImpl, creds: deps.creds, siteUrl: deps.siteUrl });
-
-  if (!SUPPORTED_VERSION_MAJORS.includes(versionMajor)) {
-    return { versionMajor, activatedAt: null, config: {} };
-  }
-
-  // AC-ENA-084 (task 8.8, R13): probe the integration user's READ perms on the flipped doctypes +
-  // aging reports BEFORE resolving Company defaults — a perm gap would silently under-sync the feed.
-  // A failure refuses activation (warn). PMO RLS stays the user-facing authority; this is the ERP-side
-  // integration-user perm gate (a different concern from PMO authz).
-  if (deps.readPermScope) {
-    const failure = await assertErpReadPermissions(clientDeps, deps.readPermScope);
-    if (failure) return { versionMajor, activatedAt: null, config: {}, permissionFailure: failure };
-  }
-
-  const companyDoc = (await getDoc(clientDeps, 'Company', deps.company)) as Record<string, unknown>;
-  const config = companyDefaultsFromDoc(companyDoc, deps.company);
-
-  return { versionMajor, activatedAt: now(), config };
 }
 
 // ─── AC-ENA-084 (task 8.8, R13): the read-permission probe ───────────────────────────────────────
 
 /** The probe scope: the Frappe doctypes the feed mirrors (list-read probe) + the aging report docs
  *  (Report fetch probe). The integration user must have READ perm on every entry or the feed silently
- *  under-syncs (R13). */
+ *  under-syncs (R13). Kept alongside the deleted `activateBinding` twin (review #650): the probe is
+ *  NOT activation semantics — it is the ERP-side integration-user perm gate, and nothing server-side
+ *  re-implements it.
+ */
 export interface ReadPermScope {
   /** Frappe DocType names to probe via a `GET /api/resource/<DocType>?limit_page_length=0` (list-read,
    *  no rows fetched — verifies the user can list/read the doctype). */

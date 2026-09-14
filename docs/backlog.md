@@ -61,10 +61,10 @@ service-role-only RPCs — `set_external_binding_site_url` (connect persists the
 `activate_external_binding` (Company selection IS activation: version handshake {15,16} → ONE statement writing
 `version_major` + `config.company` + Company account defaults + the SET-ONCE `activated_at`),
 `deactivate_external_binding` (disconnect un-activates) — plus the catalog-derived SELECT-only grant guard (pgTAP
-`erpnext_activation.test.sql`, AC-EAC-103..114). `external-disconnect`'s `log_audit` arg bug fixed (the disconnect
-audit event was never written) and its suite now binds the shipped handler (edge-fn guard 6/6 → 7/7). FE seam
+`erpnext_activation.test.sql`, AC-EAC-103..114). `external-disconnect`'s disconnect audit defect fixed (#650) and its
+suite now binds the shipped handler (edge-fn guard 6/6 → 7/7). FE seam
 surfaces the endpoint's refusal message (AC-EAC-115). All gates green on the branch (`fix/650-erpnext-activation`):
-pgTAP 309 files / 3710 tests, vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
+pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
 unchanged — a prod push of `0216` + the three function deploys is a separate, per-instance, owner-gated action**;
 the #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
 `cleanup_external_connect_attempt` DELETEs the one live binding on a failed finalize) — own issue, deliberately not
