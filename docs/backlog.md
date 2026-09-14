@@ -56,6 +56,22 @@ after an `external-connect` deploy); beyond it, connect leaves the binding with 
 no call site and pins v15. Every existing binding is seed / e2e helper / operator SQL. Findings with file:line on #590;
 the #481 dry-run plan (`docs/plans/2026-09-14-erpnext-crossing-dryrun.md`) is written against a second company
 `PMO Smoke Co` on the v16 site so the client's books are never touched. Owner sequencing pending. Also shipped: #639.
+**2026-09-14 — #650 built (ERPNext activation at Company selection, ADR-0073):** migration `0216` adds three
+service-role-only RPCs — `set_external_binding_site_url` (connect persists the site URL; a repoint un-activates),
+`activate_external_binding` (Company selection IS activation: version handshake {15,16} → ONE statement writing
+`version_major` + `config.company` + Company account defaults + the SET-ONCE `activated_at`),
+`deactivate_external_binding` (disconnect un-activates) — plus the catalog-derived SELECT-only grant guard (pgTAP
+`erpnext_activation.test.sql`, AC-EAC-103..114). `external-disconnect`'s `log_audit` arg bug fixed (the disconnect
+audit event was never written) and its suite now binds the shipped handler (edge-fn guard 6/6 → 7/7). FE seam
+surfaces the endpoint's refusal message (AC-EAC-115). All gates green on the branch (`fix/650-erpnext-activation`):
+pgTAP 309 files / 3707 tests, vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
+unchanged — a prod push of `0216` + the three function deploys is a separate, per-instance, owner-gated action**;
+the #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
+`cleanup_external_connect_attempt` DELETEs the one live binding on a failed finalize) — own issue, deliberately not
+copied onto the ERPNext branch; **Q2** (Company account defaults) — ruled IN scope and shipped in Phase 4 (the
+v16.33 shape — `default_bank_account` key ABSENT — maps to null "no default", and `paymentEntry.ts`'s `??` chain
+verified to treat null as no-default); Q3 (v16 field names) settled on the live v16.33 bench by the Director's
+pre-build ruling.
 
 **Known gaps, tracked:** a DB-only promote does not bump release-please (package path is `pmo-portal/`,
 [#611](https://github.com/ariefsaid/PMO/issues/611)) · the local promote gate exits at the first red lane,
