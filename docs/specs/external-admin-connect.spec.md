@@ -71,8 +71,10 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
   (OD-INT-1, OD-INT-2). *(Ubiquitous.)*
 - **FR-EAC-002** — When an admin submits the connect credential, the system SHALL **validate** it
   against the external system (ClickUp `GET /v2/user` for the personal-token tier; ERPNext
-  `GET /api/resource/User/<self>` for the `apiKey:apiSecret` tier) **before** storing anything
-  (OD-INT-2). *(Event-driven.)*
+  `GET /api/method/frappe.auth.get_logged_user` for the `apiKey:apiSecret` tier — valid only on a 2xx whose
+  `message` is a non-empty string other than `Guest`; ⚑ #647: the earlier wording `User/<self>` was implemented
+  as `User/<apiKey>`, a document Frappe never has, and rejected every live credential) **before** storing
+  anything (OD-INT-2). *(Event-driven.)*
 - **FR-EAC-003** — On successful validation, the system SHALL store the credential exactly once via
   `vault.create_secret(value, name)` and persist **only** the resulting Vault `secret_ref` (the name) on
   a `external_org_bindings` row for `(org_id, external_tier='clickup'|'erpnext')`; the credential value
