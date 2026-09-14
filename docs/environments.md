@@ -417,6 +417,29 @@ docker compose -p pmo-erpnext -f pwd.yml up -d
   in the shipped seam). Do not commit that notes file into any repo; it is a local-machine-only
   runbook.
 
+**Running the served ERPNext lane (recipe, 2026-09-14 — the whole lane went green on `dev` this way):**
+```bash
+# 1. bench pair — the bench is disposable; mint (or re-mint) a pair as Administrator, no admin password needed:
+cd ~/Coding/frappe-docker-pmo && docker compose -p pmo-erpnext -f pwd.yml exec -T backend \
+  bench --site frontend execute frappe.core.doctype.user.user.generate_keys --kwargs "{'user':'Administrator'}"
+# 2. export, in the shell that runs the lane (values never in the repo):
+#    ERPNEXT_BENCH_API_KEY / ERPNEXT_BENCH_API_SECRET  (the Playwright process talks to the bench directly)
+#    LOCAL_BENCH_KEY / LOCAL_BENCH_SECRET              (same pair, forwarded to the served functions for secret_ref 'local-bench')
+#    ERPNEXT_SWEEP_SECRET=<any test value>            (spec and served sweep must agree; serve-functions forwards it)
+#    DEMO_ERP_WEBHOOK_SECRET=local-e2e-webhook-secret  (must equal the Vault value seed.sql creates under that name)
+#    ERPNEXT_TEST_FAULTS=1
+#    ERPNEXT_TEST_FAULTS_ALLOW_HOST=localhost,127.0.0.1  # ⚑ Kong forwards the host WITHOUT the port — port-suffixed values alone never match
+#    (ERPNEXT_SITE_URL / ERPNEXT_BENCH_URL default to host.docker.internal:8080 / localhost:8080 — leave them)
+# 3. run — e2e-local exports the local Supabase URL/keys from `supabase status` and takes the DB lock itself:
+scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
+  scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-TSP- e2e/serial/AC-ENA-05 --reporter=line
+```
+Bare `npx playwright test` behind `serve-functions.sh` throws at spec load ("SUPABASE_URL … required") — always go through
+`e2e-local.sh`. The served functions log to `/tmp/functions-serve.log`: a credential miss names the env pair it looked
+for, a fault-seam refusal names the request host it compared — read that file before guessing. A sweep tick that dies
+with `WORKER_LIMIT` / "CPU time hard limit reached" under host load (40+) has reproduced and vanished on re-run and on
+`main` — treat it as a load transient, re-run when the box is quiet, and only then suspect the tick.
+
 **Shared-resource hygiene:** this is the **second** shared Docker resource on this host (the local
 Supabase stack is the first, locked by `scripts/with-db-lock.sh`). Money e2e against this bench must
 hold BOTH locks — `scripts/with-erpnext-lock.sh` (task 0.5) is the dedicated mutex for this stack,

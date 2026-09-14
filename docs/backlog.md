@@ -63,7 +63,10 @@ service-role-only RPCs — `set_external_binding_site_url` (connect persists the
 `deactivate_external_binding` (disconnect un-activates) — plus the catalog-derived SELECT-only grant guard (pgTAP
 `erpnext_activation.test.sql`, AC-EAC-103..114). `external-disconnect`'s disconnect audit defect fixed (#650) and its
 suite now binds the shipped handler (edge-fn guard 6/6 → 7/7). FE seam
-surfaces the endpoint's refusal message (AC-EAC-115). All gates green on the branch (`fix/650-erpnext-activation`):
+surfaces the endpoint's refusal message (AC-EAC-115). **Merged to `dev` 2026-09-14 as `03a8cb6d` (PR #657), after #651
+(`df6e31bc`, PR #652) — and the served ERPNext e2e lane (timesheet push/backstop/idempotency/native-not-adopted/
+cross-org + procure-to-pay, incl. the four fault-injection variants) ran green on `dev` against the local v15 bench:
+40 specs passed, 2 allowlisted skips (recipe in `docs/environments.md` § ERPNext v15 dev bed).** All gates green on the branch (`fix/650-erpnext-activation`):
 pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
 unchanged — a prod push of `0216` + the three function deploys is a separate, per-instance, owner-gated action**;
 the #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive

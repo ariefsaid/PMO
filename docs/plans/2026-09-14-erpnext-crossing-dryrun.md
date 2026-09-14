@@ -175,6 +175,13 @@ The side mirror is exactly **`timesheet_erp_mirror`** (`0136_p3b_timesheet_erp_s
 
 ## Preconditions (verify, do not assume)
 
+> **Verified on the v16.33 site 2026-09-14 (Director, Administrator session, no key file needed):**
+> **P4 FAILS** — `HR-EMP-00001` is `404 DoesNotExistError` and the site has **no Employee records at all**, so
+> **T0 and R4 are mandatory**, not conditional. P5 ✓ (`PMO Smoke Co`, `default_currency = IDR`, FY 2025 + 2026).
+> P6 ✓ (`Activity Type/Execution` → 200). P7 ✓ (`Timesheet?fields=[name,note,company,total_hours]` → 200 with
+> zero rows — the `note` anchor survives v16). P1 ✓ from this Mac at the time of writing (`ping` → 200; the
+> Fortinet block is network-dependent, re-check per session). P2/P3/P8/P9 are per-run.
+
 Every one is a hard stop. Run them from the repo root of this worktree.
 
 - **P1 — network.** The Director's office network blocks `sslip.io` (Fortinet). Run from a network that
@@ -217,9 +224,9 @@ Exported once per session, in the shell that runs everything below. Nothing here
 ```bash
 export EXTERNAL_CONNECT_ENABLED=true
 export ERPNEXT_SWEEP_SECRET=e2e-erpnext-sweep-secret
-export DEMO_ERP_WEBHOOK_SECRET=e2e-erpnext-webhook-secret
+export DEMO_ERP_WEBHOOK_SECRET=local-e2e-webhook-secret   # ⚑ must equal the Vault value seed.sql creates under that name (corrected 2026-09-14)
 export ERPNEXT_TEST_FAULTS=1
-export ERPNEXT_TEST_FAULTS_ALLOW_HOST=localhost:54321
+export ERPNEXT_TEST_FAULTS_ALLOW_HOST=localhost,127.0.0.1   # ⚑ Kong forwards the host WITHOUT the port; `localhost:54321` alone never matches (verified 2026-09-14)
 export ERPNEXT_SITE_URL="$DRYRUN_ERP_URL"     # the URL the served fn calls (public TLS ⇒ same as host-side)
 export ERPNEXT_BENCH_URL="$DRYRUN_ERP_URL"    # the URL the test process calls
 export ERPNEXT_BENCH_API_KEY="$(jq -r .apiKey "$DRYRUN_KEYS_FILE")"
