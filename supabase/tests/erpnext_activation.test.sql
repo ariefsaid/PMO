@@ -33,6 +33,7 @@ select is(
 -- information_schema.column_privileges per column, and a COLUMN-scoped grant (e.g.
 -- `grant update(config) on external_org_bindings to authenticated`) appears ONLY there —
 -- invisible to role_table_grants. The distinct privilege-type set must stay exactly {SELECT}.
+-- MUTATION (temporary): prove the column-level oracle bites.
 select is(
   (select coalesce(string_agg(distinct privilege_type, ',' order by privilege_type), '')
      from information_schema.column_privileges

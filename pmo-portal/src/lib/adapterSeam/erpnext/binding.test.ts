@@ -80,17 +80,19 @@ describe('erpnext/binding', () => {
     expect(companyDefaultsFromDoc({
       default_payable_account: 42,
       default_cash_account: { name: 'Cash - A' },
-      default_bank_account: '',
-      default_expense_account: 'x'.repeat(200),
-      cost_center: 'y'.repeat(140),
+      default_bank_account: ['Bank - A'], // an array HAS a 1-140 .length — only typeof 'string' keeps it out
+      default_expense_account: '',
+      cost_center: 'y'.repeat(200),
     }, 'ACME')).toEqual({
       company: 'ACME',
       default_payable_account: null,
       default_cash_account: null,
       default_bank_account: null,
       default_expense_account: null,
-      cost_center: 'y'.repeat(140), // the 140-char boundary is exactly the ERPNext Link limit — kept
+      cost_center: null,
     });
+    // 140 is exactly the ERPNext Link limit — kept; 200 is over — null.
+    expect(companyDefaultsFromDoc({ cost_center: 'y'.repeat(140) }, 'ACME').cost_center).toBe('y'.repeat(140));
   });
 
   it('AC-EAC-116 companyDefaultsFromDoc maps the five Company account defaults, null when absent', () => {
