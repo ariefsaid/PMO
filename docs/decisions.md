@@ -2715,3 +2715,14 @@ and the Engineer path (timesheets, tasks, minutes as attendee) carries the most 
 Raised as [#625](https://github.com/ariefsaid/PMO/issues/625). Owner: "ride the Supabase first." No
 custom SMTP or sender domain before RIS's users come in; the built-in relay (rate-limited, generic
 sender) carries the twelve invites, spaced to its limit. A branded sender is a later, separate step.
+
+## DD-OPS-11 — ERPNext v16 is confirmed for the RIS target; the adapter contract holds on v16.33 (Director, 2026-09-14)
+
+**[DD-OPS-11]** `DD-OPS-10` provisioned a v16.33 test instance and `#590` asked for the v16 re-proof of the adapter
+contract before committing to it. The proof ran 2026-09-14: the shipped connect path (`external-connect` →
+`external-set-company`, served locally from `dev`) activated a binding against the v16 site with `version_major = 16`,
+and the crossing dry-run (`#481`: `AC-TSP-022` ×5 + `AC-XING-001/002/003`, 18 served assertions) passed against it
+with no v16 break. Consequences: `SUPPORTED_VERSION_MAJORS = [15, 16]` (shipped in `#650`) is the ruling — 16 is the
+RIS target, 15 stays supported for the local dev bed until it is re-provisioned (a chore, not a gate). The v16-only
+delta observed: the Company doctype no longer carries `default_bank_account` (activation maps it to "no default";
+the payment-entry body falls back to the cash account). `DD-OPS-2`'s v15 pin is superseded for the target.

@@ -66,7 +66,11 @@ suite now binds the shipped handler (edge-fn guard 6/6 → 7/7). FE seam
 surfaces the endpoint's refusal message (AC-EAC-115). **Merged to `dev` 2026-09-14 as `03a8cb6d` (PR #657), after #651
 (`df6e31bc`, PR #652) — and the served ERPNext e2e lane (timesheet push/backstop/idempotency/native-not-adopted/
 cross-org + procure-to-pay, incl. the four fault-injection variants) ran green on `dev` against the local v15 bench:
-40 specs passed, 2 allowlisted skips (recipe in `docs/environments.md` § ERPNext v15 dev bed).** All gates green on the branch (`fix/650-erpnext-activation`):
+40 specs passed, 2 allowlisted skips (recipe in `docs/environments.md` § ERPNext v15 dev bed).** **Then the #481 dry-run ran against the v16.33 test
+instance's `PMO Smoke Co` (2026-09-14 evening): 18/18 served crossing assertions green, A4 green in pgTAP, and the
+SHIPPED connect path — served locally with the #659 issuer fix — activated a binding against v16 with
+`version_major = 16` (`DD-OPS-11`). #481 closed; #590 steps 3–4 done for the test path. ⛔ Nothing of this is on the
+hosted project yet: promote + `0216` + the function deploys are owner-gated.** All gates green on the branch (`fix/650-erpnext-activation`):
 pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
 unchanged — a prod push of `0216` + the three function deploys is a separate, per-instance, owner-gated action**;
 the #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
