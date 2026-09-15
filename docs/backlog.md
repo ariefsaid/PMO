@@ -79,7 +79,7 @@ functions took new versions (`external-connect/-set-company/-disconnect/-compani
 refuse anon (401 42501) AND an authenticated tenant-B Admin against tenant A (403 42501); every user-facing function
 answers preflight 200 / no-JWT 401; `second-org-smoke` 20/0; `second-org-roles-smoke` 81/0. #645 (js-yaml) merged to
 `main`; v0.11.0 release PR #662 pending merge + back-merge. Production FE promote NOT done (nothing FE-visible except
-#639). RIS's own ERPNext Connect now needs only RIS's real credentials.** **v0.11.0 cut as `0d97fd7b` (PR #662, squash) and back-merged into `dev`; `main..dev` = docs only.** All gates green on the branch (`fix/650-erpnext-activation`):
+#639). RIS's own ERPNext Connect now needs only RIS's real credentials.** **v0.11.0 cut as `0d97fd7b` (PR #662, squash) and back-merged into `dev`; `main..dev` = docs only.** **PRODUCTION promoted 2026-09-15 (owner-instructed, per-instance): `production == main == 0d97fd7b` (v0.11.0).** All gates green on the branch (`fix/650-erpnext-activation`):
 pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
 unchanged — a prod push of `0216` + the three function deploys is a separate, per-instance, owner-gated action**;
 the #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
