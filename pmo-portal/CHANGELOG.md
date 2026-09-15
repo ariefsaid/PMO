@@ -10,6 +10,18 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.11.0](https://github.com/ariefsaid/PMO/compare/v0.10.1...v0.11.0) (2026-09-15)
+
+
+### Features
+
+* **erpnext:** Company selection activates the binding — site_url at connect, handshake {15,16}, set-once activated_at ([#650](https://github.com/ariefsaid/PMO/issues/650)) ([#657](https://github.com/ariefsaid/PMO/issues/657)) ([03a8cb6](https://github.com/ariefsaid/PMO/commit/03a8cb6d92cf650c6b8da6ef49dd1f2452bf6d77))
+
+
+### Bug Fixes
+
+* **integrations:** gate the ERPNext company query on an active binding ([#639](https://github.com/ariefsaid/PMO/issues/639)) ([#648](https://github.com/ariefsaid/PMO/issues/648)) ([ff2f41e](https://github.com/ariefsaid/PMO/commit/ff2f41e59236d1e6cb1ab56f2483273fdb25b8fc))
+
 ## [0.10.1](https://github.com/ariefsaid/PMO/compare/v0.10.0...v0.10.1) (2026-09-11)
 
 
