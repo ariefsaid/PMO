@@ -77,7 +77,7 @@ functions took new versions (`external-connect/-set-company/-disconnect/-compani
 `m365-token-custody` v10, `erpnext-sweep` v5, `adapter-dispatch` v6; `erpnext-onboard`, `erpnext-webhook`,
 `clickup-sweep`, `clickup-webhook-worker` unchanged bundles). After-push probes green: the three activation RPCs
 refuse anon (401 42501) AND an authenticated tenant-B Admin against tenant A (403 42501); every user-facing function
-answers preflight 200 / no-JWT 401; `second-org-smoke` 20/0; `second-org-roles-smoke` 81/0. #645 (js-yaml) merged to
+answers preflight 200 / no-JWT 401; `second-org-smoke` 20/0; `second-org-roles-smoke` 81/0. **Isolation probe re-run on `0216` 2026-09-15 (later, owner-asked): 83 tables all RLS forced, 236 checks, 0 leaks; the only flags are the two operator readers answering `[]` (#612 item 3, unchanged since #490); no residue in tenant A.** #645 (js-yaml) merged to
 `main`; v0.11.0 release PR #662 pending merge + back-merge. Production FE promote NOT done (nothing FE-visible except
 #639). RIS's own ERPNext Connect now needs only RIS's real credentials.** **v0.11.0 cut as `0d97fd7b` (PR #662, squash) and back-merged into `dev`; `main..dev` = docs only.** **PRODUCTION promoted 2026-09-15 (owner-instructed, per-instance): `production == main == 0d97fd7b` (v0.11.0).** All gates green on the branch (`fix/650-erpnext-activation`):
 pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. The #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
