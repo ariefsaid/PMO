@@ -72,7 +72,14 @@ SHIPPED connect path — served locally with the #659 issuer fix — activated a
 `version_major = 16` (`DD-OPS-11`). #481 closed; #590 steps 3–4 done for the test path. ⛔ Nothing of this is on the
 hosted project yet: promote + `0216` + the function deploys are owner-gated.** **2026-09-15: PROMOTED — `dev`→`main` as `7ee157fc` (PR #661, `--merge`, `main..dev`=0, trees identical; the
 local gate was owner-bypassed after three memory-starvation failures, CI `verify` + `integration` green). Cloud DB still
-0215, functions pre-#647: the `0216` push + fourteen function deploys and any production promote remain owner-gated.** All gates green on the branch (`fix/650-erpnext-activation`):
+0215, functions pre-#647: the `0216` push + fourteen function deploys and any production promote remain owner-gated.** **2026-09-15 (owner yes, 10:30–10:40 UTC): DEPLOYED to the hosted project — cloud DB `0215 → 0216`; ten
+functions took new versions (`external-connect/-set-company/-disconnect/-companies/-lists/-link/-unlink` v6,
+`m365-token-custody` v10, `erpnext-sweep` v5, `adapter-dispatch` v6; `erpnext-onboard`, `erpnext-webhook`,
+`clickup-sweep`, `clickup-webhook-worker` unchanged bundles). After-push probes green: the three activation RPCs
+refuse anon (401 42501) AND an authenticated tenant-B Admin against tenant A (403 42501); every user-facing function
+answers preflight 200 / no-JWT 401; `second-org-smoke` 20/0; `second-org-roles-smoke` 81/0. #645 (js-yaml) merged to
+`main`; v0.11.0 release PR #662 pending merge + back-merge. Production FE promote NOT done (nothing FE-visible except
+#639). RIS's own ERPNext Connect now needs only RIS's real credentials.** All gates green on the branch (`fix/650-erpnext-activation`):
 pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
 unchanged — a prod push of `0216` + the three function deploys is a separate, per-instance, owner-gated action**;
 the #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
