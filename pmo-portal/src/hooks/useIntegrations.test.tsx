@@ -15,6 +15,7 @@ const { integrations } = vi.hoisted(() => ({
     linkProject: vi.fn(),
     unlinkProject: vi.fn(),
     listProjectBindings: vi.fn(),
+    listCompanies: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations } }));
@@ -79,6 +80,7 @@ beforeEach(() => {
   integrations.linkProject.mockResolvedValue(mockLinkResponse);
   integrations.unlinkProject.mockResolvedValue(mockUnlinkResponse);
   integrations.listProjectBindings.mockResolvedValue(mockProjectBindings);
+  integrations.listCompanies.mockResolvedValue([{ name: 'Acme Corp' }]);
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -245,5 +247,28 @@ describe('useIntegrations', () => {
     await act(async () => { await Promise.resolve(); });
 
     expect(integrations.listProjectLists).not.toHaveBeenCalled();
+  });
+
+  // --- Issue #639: gate the ERPNext companies fetch on the ACTIVE org binding ---
+
+  it('AC-639-1: does not fetch ERPNext companies when the org has no active ERPNext binding', async () => {
+    // beforeEach default: bindings = [mockBinding] (clickup only) — no erpnext row at all.
+    const client = freshClient();
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // Flush one cycle so a wrongly-enabled query would have fired by now (the red state).
+    await act(async () => { await Promise.resolve(); });
+
+    expect(integrations.listCompanies).not.toHaveBeenCalled();
+  });
+
+  it('AC-639-1: fetches ERPNext companies when an active ERPNext binding is present (existing-behaviour guard)', async () => {
+    integrations.listBindings.mockResolvedValue([{ ...mockBinding, external_tier: 'erpnext' }]);
+
+    const client = freshClient();
+    renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+
+    await waitFor(() => expect(integrations.listCompanies).toHaveBeenCalledWith('org-1', 'erpnext'));
   });
 });

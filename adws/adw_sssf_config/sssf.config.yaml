@@ -13,7 +13,7 @@ defaults:
   model: openai-codex/gpt-5.6-terra # provider/id — a bare pattern is ambiguous across providers
   # Roster-wide ladder, so an agent added later is never single-substrate by accident. Any agent may
   # override with its own `fallbacks:`; every one below does.
-  fallbacks: [zai/glm-5.3, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
+  fallbacks: [zai/glm-5.3-flash, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
   thinking: medium                 # off | minimal | low | medium | high | xhigh | max
   harness_engineering: []          # pi extensions loaded into the harness (-e)
   # Roster-wide allowlist; any agent may override with its own list.
@@ -59,7 +59,7 @@ agents:
   # the ADW's green (docs/factory-workflow.md § Executor routing).
   # ⚑ The GLOBAL default above is codex too: left on zai, any agent without an explicit `model:` would
   # silently route to the exhausted substrate. builder/fe_builder were exactly that case once already.
-  # Revert lever: set planner/reviewer (and the global default) back to `zai/glm-5.3`.
+  # Revert lever: set planner/reviewer (and the global default) back to `zai/glm-5.3-flash`.
   # ⚑ SUPERSEDED FOR BUILDERS (owner 2026-08-20): builder + fe_builder moved off luna to
   # bitdeer/deepseek-ai/DeepSeek-V4-Flash. Planner/reviewers stay codex. This restores the
   # cross-family review the 2026-08-19 all-codex roster knowingly gave up, and costs ~1/70th
@@ -74,7 +74,7 @@ agents:
   - name: planner
     model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: terra and GLM are the THINKERS; terra leads because
     # GLM-5.3 hits its 5-hour cap constantly and a capped first rung spends a retry to learn that every run.
-    fallbacks: [zai/glm-5.3, openai-codex/gpt-5.6-luna]   # GLM second, luna as the workhorse floor
+    fallbacks: [zai/glm-5.3-flash, openai-codex/gpt-5.6-luna]   # GLM second, luna as the workhorse floor
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -100,7 +100,7 @@ agents:
 
   - name: builder
     model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds; GLM reviews
-    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # owner 2026-08-20: deepseek builds; GLM is LAST so a GLM build rarely meets a GLM review
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3-flash]   # owner 2026-08-20: deepseek builds; GLM is LAST so a GLM build rarely meets a GLM review
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
     contract: .claude/agents/implementer.md
@@ -149,7 +149,7 @@ agents:
   - name: reviewer
     model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: review is THINKING. Still cross-family — the
     # builder is deepseek — so the property that mattered when GLM led this rung is unchanged.
-    fallbacks: [zai/glm-5.3, openai-codex/gpt-5.6-luna]
+    fallbacks: [zai/glm-5.3-flash, openai-codex/gpt-5.6-luna]
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -169,7 +169,7 @@ agents:
 
   - name: fe_builder
     model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds. TEXT-ONLY —
-    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # same ladder as builder; TEXT-ONLY either way — fe_reviewer owns the pixels
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3-flash]   # same ladder as builder; TEXT-ONLY either way — fe_reviewer owns the pixels
                                                  # its self-check is the a11y tree / DOM via agent-browser
                                                  # (pi-delegation §3a); pixel judgment stays with fe_reviewer
     color: "#34d399"
@@ -209,7 +209,7 @@ agents:
 
   - name: documenter
     model: bitdeer/deepseek-ai/DeepSeek-V4-Flash    # owner 2026-08-21: prose is workhorse work
-    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # prose, not judgement
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3-flash]   # prose, not judgement
     color: "#e879f9"
     purpose: Write up the change that was just made, from the diff; document only.
     prompt_engineering:

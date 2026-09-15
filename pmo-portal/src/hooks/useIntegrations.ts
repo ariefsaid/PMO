@@ -60,10 +60,14 @@ export function useIntegrations() {
   });
 
   // Query: list ERPNext companies for the org (OD-INT-6)
+  // AC-639-1 (issue #639): gate on the ACTIVE org ERPNext binding, mirroring the ClickUp lists
+  // query above — the external-companies edge fn needs the org credential, so firing it with no
+  // binding always fails: a silent failing invoke (plus retries) on every Administration mount.
+  // (Nothing consumes isCompaniesError, so the failure never rendered — it was pure wasted calls.)
   const { data: erpnextCompanies = [], isPending: isCompaniesPending, isError: isCompaniesError, error: companiesError, refetch: refetchCompanies } = useQuery<Array<{ name: string }>>({
     queryKey: ['integrations', 'erpnext-companies', orgId],
     queryFn: () => repositories.integrations.listCompanies(orgId!, 'erpnext'),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && getBinding('erpnext')?.status === 'active',
   });
 
   // Mutation: link project

@@ -66,7 +66,7 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 
 | Substrate | Use for | Analog |
 |---|---|---|
-| `zai` / `glm-5.3` | **Planning, specs, manager-grade judgment** — first rung of `orchestrate`, the step-up rung of `routine`, and the **escalation** rung of `build`. ⚑ **No longer the default builder** (owner 2026-08-20, §2a): implementation slices start on Bitdeer DeepSeek-V4-Flash and only reach GLM when that rung fails. Still the right rung for a complex or security-sensitive slice (schema, RLS, RPC) the Director pins by hand. | opus |
+| `zai` / `glm-5.3-flash` | **Planning, specs, manager-grade judgment** — first rung of `orchestrate`, the step-up rung of `routine`, and the **escalation** rung of `build`. ⚑ **No longer the default builder** (owner 2026-08-20, §2a): implementation slices start on Bitdeer DeepSeek-V4-Flash and only reach GLM when that rung fails. Still the right rung for a complex or security-sensitive slice (schema, RLS, RPC) the Director pins by hand. | opus |
 | `zai` / `glm-5.2`, `glm-5.1` | Secondary/alternate to 5.3 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode). Not on any ladder — Director picks one explicitly. | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds. First rung of `routine` and `mechanical`. | sonnet/haiku |
 |  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders. **⚑ money/security audits run at `--thinking max` (owner 2026-07-15)**; the `review-money` tier bakes that in and has **no fallback by design**. | opus reviewers |
@@ -115,12 +115,12 @@ not resident between `supabase test db` runs. Discovery is the most expensive th
 > **⚑ If a `build` dispatch falls through to the GLM rung, say so in the report** — a slice built by
 > GLM must not then be reviewed by GLM.
 >
-> **Revert lever:** `build` ladder back to `zai|glm-5.3` first; roster `builder`/`fe_builder` back to
+> **Revert lever:** `build` ladder back to `zai|glm-5.3-flash` first; roster `builder`/`fe_builder` back to
 > `openai-codex/gpt-5.6-luna`.
 
 | | |
 |---|---|
-| **`build` ladder** | `bitdeer` DeepSeek-V4-Flash → `zai` glm-5.3 → `openai-codex` gpt-5.6-luna:high → `claude` sonnet. The GLM and Luna rungs are **escalation**, not the default |
+| **`build` ladder** | `bitdeer` DeepSeek-V4-Flash → `zai` glm-5.3-flash → `openai-codex` gpt-5.6-luna:high → `claude` sonnet. The GLM and Luna rungs are **escalation**, not the default |
 | **Do NOT use for** | money-path / SoD / auth / token-custody slices (those stay Director-dispatched per the routing table) and any review that carries a gate |
 | **Verified 2026-08-20** | OpenAI-compatible Chat Completions · strict-schema tool calls · streaming usage (incl. `cacheRead`) · `developer` role · `reasoning_effort` (emits `reasoning_content`; `off` = plain) · agentic read/bash/write loop under `pi -p` at thinking `off` and `high` · a real `pi-dispatch build` slice (wrote a module + its self-check, ran it, reported the true output — 1 rung, 1 attempt, 25s, $0.00028) · every roster model resolving through `agent_pi.resolve_model` |
 | **Context** | declared `1048576` — **empirically probed, not taken on trust**: a 900,007-token prompt returns 200 with `prompt_tokens: 900007`, so Bitdeer really serves the nominal 1M window |
@@ -172,7 +172,7 @@ real failure — the opposite of what a ladder is for.
 GLM must not then be reviewed by GLM, and `reviewer` starts on GLM. Putting GLM last makes the
 collision rare; it does not make it impossible, so the §2a reporting rule still stands.
 
-⚑ **The wrapper's `build` ladder is ordered differently** — `deepseek → glm-5.3 → luna:high →
+⚑ **The wrapper's `build` ladder is ordered differently** — `deepseek → glm-5.3-flash → luna:high →
 sonnet`, per §2a. The roster puts luna before GLM. Both are the owner's, stated a few hours apart;
 they are not reconciled here because they answer different questions (the wrapper serves one-off
 Director dispatches, the roster serves chained factory phases where the reviewer's family matters).
@@ -414,7 +414,7 @@ Two tiers, and the split is about what the role DOES, not about which model is b
 | Tier | Models | Roles |
 |---|---|---|
 | **Workhorse** | `bitdeer/deepseek-ai/DeepSeek-V4-Flash`, `openai-codex/gpt-5.6-luna` | builder · fe_builder · mechanical/recon · documenter |
-| **Thinker** | `openai-codex/gpt-5.6-terra`, `zai/glm-5.3` | planner · reviewer · fe_reviewer |
+| **Thinker** | `openai-codex/gpt-5.6-terra`, `zai/glm-5.3-flash` | planner · reviewer · fe_reviewer |
 
 ⚑ **`terra` leads the thinker rungs, not GLM.** GLM-5.3 hits its 5-hour cap constantly — three of
 three factory runs on 2026-08-21 opened with `429 Usage limit reached for 5 hour`. A capped first

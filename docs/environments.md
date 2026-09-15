@@ -417,6 +417,29 @@ docker compose -p pmo-erpnext -f pwd.yml up -d
   in the shipped seam). Do not commit that notes file into any repo; it is a local-machine-only
   runbook.
 
+**Running the served ERPNext lane (recipe, 2026-09-14 — the whole lane went green on `dev` this way):**
+```bash
+# 1. bench pair — the bench is disposable; mint (or re-mint) a pair as Administrator, no admin password needed:
+cd ~/Coding/frappe-docker-pmo && docker compose -p pmo-erpnext -f pwd.yml exec -T backend \
+  bench --site frontend execute frappe.core.doctype.user.user.generate_keys --kwargs "{'user':'Administrator'}"
+# 2. export, in the shell that runs the lane (values never in the repo):
+#    ERPNEXT_BENCH_API_KEY / ERPNEXT_BENCH_API_SECRET  (the Playwright process talks to the bench directly)
+#    LOCAL_BENCH_KEY / LOCAL_BENCH_SECRET              (same pair, forwarded to the served functions for secret_ref 'local-bench')
+#    ERPNEXT_SWEEP_SECRET=<any test value>            (spec and served sweep must agree; serve-functions forwards it)
+#    DEMO_ERP_WEBHOOK_SECRET=local-e2e-webhook-secret  (must equal the Vault value seed.sql creates under that name)
+#    ERPNEXT_TEST_FAULTS=1
+#    ERPNEXT_TEST_FAULTS_ALLOW_HOST=localhost,127.0.0.1  # ⚑ Kong forwards the host WITHOUT the port — port-suffixed values alone never match
+#    (ERPNEXT_SITE_URL / ERPNEXT_BENCH_URL default to host.docker.internal:8080 / localhost:8080 — leave them)
+# 3. run — e2e-local exports the local Supabase URL/keys from `supabase status` and takes the DB lock itself:
+scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
+  scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-TSP- e2e/serial/AC-ENA-05 --reporter=line
+```
+Bare `npx playwright test` behind `serve-functions.sh` throws at spec load ("SUPABASE_URL … required") — always go through
+`e2e-local.sh`. The served functions log to `/tmp/functions-serve.log`: a credential miss names the env pair it looked
+for, a fault-seam refusal names the request host it compared — read that file before guessing. A sweep tick that dies
+with `WORKER_LIMIT` / "CPU time hard limit reached" under host load (40+) has reproduced and vanished on re-run and on
+`main` — treat it as a load transient, re-run when the box is quiet, and only then suspect the tick.
+
 **Shared-resource hygiene:** this is the **second** shared Docker resource on this host (the local
 Supabase stack is the first, locked by `scripts/with-db-lock.sh`). Money e2e against this bench must
 hold BOTH locks — `scripts/with-erpnext-lock.sh` (task 0.5) is the dedicated mutex for this stack,
@@ -507,10 +530,9 @@ per-deployed-project sign-off is the control.
 commands that are the answer (`git rev-parse origin/{production,main,dev}`, the two `rev-list --count`s,
 `supabase migration list --linked`). This section keeps only the rules and the last dated snapshot.
 
-**Snapshot 2026-09-09 (orientation only):** cloud DB at **`0215`** (`0211`–`0215` pushed 2026-09-09 under an explicit owner deploy instruction; earlier: **`0210`** (pushed 2026-09-07/08 under an explicit
+**Snapshot 2026-09-11 (orientation only):** Cloudflare `production` == `main` == `b9a84459` (**v0.10.1**, tag `v0.10.1`); cloud DB at **`0215`** (`0211`–`0215` pushed 2026-09-09 under an explicit owner deploy instruction; earlier: **`0210`** (pushed 2026-09-07/08 under an explicit
 owner deploy instruction: `0187`–`0209` with v0.10.0, then `0210`); all 22 edge functions deployed at stamp
-`59f91bbf` (`scripts/stamp-edge-fns.sh`, verified via `/functions/v1/health`); Cloudflare `production` ==
-`main` == `aa20f394`; release tag `v0.10.0` = `1cd3863c`. The earlier history (v0.1.0 at `0041`, v0.2.0 at
+`d71939c6` (2026-09-10; before that `59f91bbf`) (`scripts/stamp-edge-fns.sh`, verified via `/functions/v1/health`); (before 2026-09-11: Cloudflare `production` == `aa20f394`, release tag `v0.10.0` = `1cd3863c`.) The earlier history (v0.1.0 at `0041`, v0.2.0 at
 `0057`, v0.7.0 …) is in `docs/history.md`.
 
 ⚑ **After every prod push, run the hosted-grant sweep** — hosted Supabase grants EXECUTE to `anon` and
@@ -530,6 +552,19 @@ suite runs inside the seed org, where the wrong default is the right value; only
 proves the stamp/trigger-order class (`0212`, `0213`, `0215`). Locally the same lens is
 `E2E_SECOND_ORG=1 scripts/e2e-local.sh` — it moves the seed org to another id after the reset and runs
 the portfolio as that org.
+⚑ **Third probe, per role (2026-09-12): `scripts/second-org-roles-smoke.sh`** — RIS's day one is four non-Admin
+roles touching every workflow (`OD-RIS-1`), and the Admin-only smoke cannot see a role-gated path. It signs in
+as the test org's Admin, rotates the passwords of four standing role fixtures (`smoke-pm` / `smoke-engineer`
+/ `smoke-finance` / `smoke-executive` `@example.com`, created once through the Admin's own `profiles` insert;
+the Engineer reports to the PM), then walks each role's journeys exactly as the app does — win a deal (value
+witnessed by the Admin, won by the PM), work order → issued (value confirmed by the Admin, SoD), budget →
+activated, procurement → requested → approved by Finance + a quotation, meeting + attendee + minutes + action
+task + sub-task + dependency, document → issued, timesheet → submitted by the Engineer → approved by the PM,
+incident report, sales invoice + incoming payment, the Executive dashboards. 81 steps, every write asserted
+to land in the caller's org. Money and approval records have no DELETE grant and stay in the test org with
+the project that owns them (one project per run); the rest is deleted. Needs `SERVICE` (service role) ONLY
+for the GoTrue admin password rotation. Run it after the other two; ~10 min (the hosted project stalls a
+request now and then — the helper retries a transport stall once).
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus

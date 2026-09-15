@@ -292,7 +292,11 @@ describe('external-connect — ERPNext branch', () => {
           return jsonResponse('vault-ref-erp');
         }),
 
-        erp('erp.example.com', '/api/resource/User/api-key', () => jsonResponse({ data: { name: 'api-key' } })),
+        // FR-EAC-101 (#650): the happy path now also persists the site URL (fixture sync only —
+        // the assertions below are unchanged).
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
+
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({
@@ -326,6 +330,120 @@ describe('external-connect — ERPNext branch', () => {
           credential: { siteUrl: 'http://192.168.1.100', apiKey: 'key', apiSecret: 'secret' },
         }));
         assertEquals(res.status, 422);
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  it('probe returns 200 with message Guest (anonymous) → 422, no Vault write', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'Guest' })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'api-secret' },
+        }));
+        assertEquals(res.status, 422);
+        assertEquals((await res.json()).error, 'config-rejected');
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  // Real Frappe shapes that are 2xx but carry no identity: an empty object and an empty message. Each must
+  // hit the `typeof message !== 'string'` / `trim() === ''` clauses, which the Guest case does not exercise.
+  for (const [label, body] of [['an empty object', {}], ['an empty message', { message: '' }]] as const) {
+    it(`probe returns 200 with ${label} → 422, no Vault write`, async () => {
+      await withFetchMock(
+        [
+          supabaseSelect('profiles', () =>
+            jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+              headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+            })),
+
+          supabaseSelect('platform_operators', () => new Response('null', {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })),
+
+          erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse(body)),
+        ],
+        async ({ calls }) => {
+          const res = await handleConnectRequest(await authed({
+            tier: 'erpnext',
+            credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'api-secret' },
+          }));
+          assertEquals(res.status, 422);
+          assertEquals((await res.json()).error, 'config-rejected');
+          assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        },
+      );
+    });
+  }
+
+  it('probe returns 401 (authentication error) → 422, no Vault write', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () =>
+          new Response(JSON.stringify({ exc_type: 'AuthenticationError' }), { status: 401 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'wrong-secret' },
+        }));
+        assertEquals(res.status, 422);
+        assertEquals((await res.json()).error, 'config-rejected');
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  it('probe returns 200 with a non-JSON body → 422, no Vault write', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () =>
+          new Response('<html>503 Unavailable</html>', { status: 200, headers: { 'content-type': 'text/html' } })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'api-key', apiSecret: 'api-secret' },
+        }));
+        assertEquals(res.status, 422);
+        assertEquals((await res.json()).error, 'config-rejected');
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
       },
     );
@@ -421,5 +539,106 @@ describe('external-connect — JWT validation', () => {
         assertEquals(res.status, 400);
       },
     );
+  });
+
+  it('AC-EAC-101 an ERPNext connect persists the submitted site URL', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('platform_operators', () => new Response('null',
+          { status: 200, headers: { 'content-type': 'application/json' } })),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user',
+          () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_site_url, 'https://erp.example.com');
+          assertEquals(body.p_external_tier, 'erpnext');
+          return jsonResponse('set');
+        }),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'k', apiSecret: 's' },
+        }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'set_external_binding_site_url').length, 1);
+      },
+    );
+  });
+
+  it('AC-EAC-102 a failed site-URL persist returns 500 SITE_URL_NOT_PERSISTED and activates nothing', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('platform_operators', () => new Response('null',
+          { status: 200, headers: { 'content-type': 'application/json' } })),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user',
+          () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () =>
+          jsonResponse({ message: 'no active binding for this org and tier', code: 'P0001' }, { status: 400 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({
+          tier: 'erpnext',
+          credential: { siteUrl: 'https://erp.example.com', apiKey: 'k', apiSecret: 's' },
+        }));
+        assertEquals(res.status, 500);
+        assertEquals((await res.json()).error, 'SITE_URL_NOT_PERSISTED');
+        // Deliberately NO compensating delete on the ERPNext branch (ADR-0073 consequences):
+        // cleanup_external_connect_attempt would DELETE the org's one live binding on a failed rotate.
+        assertEquals(rpcCall(calls, 'cleanup_external_connect_attempt').length, 0);
+        assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
+      },
+    );
+  });
+});
+// #659 — the local served lane verifies caller JWTs against the GoTrue issuer (127.0.0.1:54321) while
+// SUPABASE_URL inside the edge runtime is the gateway hostname. adapter-dispatch honoured EDGE_JWT_ISSUER
+// for that; the external-* functions did not, so they were never callable locally.
+describe('external-connect — EDGE_JWT_ISSUER override (#659)', () => {
+  const profileMocks = () => [
+    supabaseSelect('profiles', () =>
+      jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+    supabaseSelect('platform_operators', () => new Response('null', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })),
+  ];
+
+  it('AC-659-1: with EDGE_JWT_ISSUER set to the token issuer, a request passes JWT verification even though SUPABASE_URL differs', async () => {
+    const original = Deno.env.get('SUPABASE_URL')!;
+    Deno.env.set('SUPABASE_URL', 'http://kong:8000');
+    Deno.env.set('EDGE_JWT_ISSUER', `${original}/auth/v1`);
+    try {
+      await withFetchMock(profileMocks(), async () => {
+        // An erpnext body with no credential is refused AFTER verification (400), never as 401.
+        const res = await handleConnectRequest(await authed({ tier: 'erpnext', credential: {} }));
+        assertEquals(res.status, 400);
+      });
+    } finally {
+      Deno.env.set('SUPABASE_URL', original);
+      Deno.env.delete('EDGE_JWT_ISSUER');
+    }
+  });
+
+  it('AC-659-2: without the override, a token from an issuer other than SUPABASE_URL is refused with 401', async () => {
+    const original = Deno.env.get('SUPABASE_URL')!;
+    Deno.env.set('SUPABASE_URL', 'http://kong:8000');
+    Deno.env.delete('EDGE_JWT_ISSUER');
+    try {
+      await withFetchMock(profileMocks(), async () => {
+        const res = await handleConnectRequest(await authed({ tier: 'erpnext', credential: {} }));
+        assertEquals(res.status, 401);
+      });
+    } finally {
+      Deno.env.set('SUPABASE_URL', original);
+    }
   });
 });

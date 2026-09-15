@@ -25,6 +25,8 @@
  * (`http://host.docker.internal:8080`, Docker-reachable FROM the served fn), ERPNEXT_BENCH_URL
  * (`http://localhost:8080`, host-reachable from the test process), ERPNEXT_SWEEP_SECRET +
  * DEMO_ERP_WEBHOOK_SECRET (forwarded into the fn env by scripts/serve-functions.sh).
+ * ERPNEXT_TSP_EMPLOYEE (optional — the Employee name to push against; defaults to the local bench's
+ * HR-EMP-00001).
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -38,7 +40,7 @@ export const WEBHOOK_SECRET = process.env.DEMO_ERP_WEBHOOK_SECRET ?? 'e2e-erpnex
 
 export const ERP_COMPANY = 'PMO Smoke Co';
 export const ERP_ACTIVITY_TYPE = 'Execution';
-export const ERP_EMPLOYEE = 'HR-EMP-00001';
+export const ERP_EMPLOYEE = process.env.ERPNEXT_TSP_EMPLOYEE ?? 'HR-EMP-00001';
 
 /** Seed actors (the AC-911 dedicated pair): Grace authors the week, Heidi is her line manager. */
 export const AUTHOR_EMAIL = 'ts-approve-eng@acme.test';
