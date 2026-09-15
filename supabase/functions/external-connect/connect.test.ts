@@ -597,3 +597,48 @@ describe('external-connect — JWT validation', () => {
     );
   });
 });
+// #659 — the local served lane verifies caller JWTs against the GoTrue issuer (127.0.0.1:54321) while
+// SUPABASE_URL inside the edge runtime is the gateway hostname. adapter-dispatch honoured EDGE_JWT_ISSUER
+// for that; the external-* functions did not, so they were never callable locally.
+describe('external-connect — EDGE_JWT_ISSUER override (#659)', () => {
+  const profileMocks = () => [
+    supabaseSelect('profiles', () =>
+      jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+    supabaseSelect('platform_operators', () => new Response('null', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })),
+  ];
+
+  it('AC-659-1: with EDGE_JWT_ISSUER set to the token issuer, a request passes JWT verification even though SUPABASE_URL differs', async () => {
+    const original = Deno.env.get('SUPABASE_URL')!;
+    Deno.env.set('SUPABASE_URL', 'http://kong:8000');
+    Deno.env.set('EDGE_JWT_ISSUER', `${original}/auth/v1`);
+    try {
+      await withFetchMock(profileMocks(), async () => {
+        // An erpnext body with no credential is refused AFTER verification (400), never as 401.
+        const res = await handleConnectRequest(await authed({ tier: 'erpnext', credential: {} }));
+        assertEquals(res.status, 400);
+      });
+    } finally {
+      Deno.env.set('SUPABASE_URL', original);
+      Deno.env.delete('EDGE_JWT_ISSUER');
+    }
+  });
+
+  it('AC-659-2: without the override, a token from an issuer other than SUPABASE_URL is refused with 401', async () => {
+    const original = Deno.env.get('SUPABASE_URL')!;
+    Deno.env.set('SUPABASE_URL', 'http://kong:8000');
+    Deno.env.delete('EDGE_JWT_ISSUER');
+    try {
+      await withFetchMock(profileMocks(), async () => {
+        const res = await handleConnectRequest(await authed({ tier: 'erpnext', credential: {} }));
+        assertEquals(res.status, 401);
+      });
+    } finally {
+      Deno.env.set('SUPABASE_URL', original);
+    }
+  });
+});

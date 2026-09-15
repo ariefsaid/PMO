@@ -67,7 +67,7 @@ function buildEnv(): M365Env {
     m365RedirectUri: cfg('M365_REDIRECT_URI'),
     m365TokenKek: cfg('M365_TOKEN_KEK'),
     supabaseUrl,
-    jwtIssuer: cfg('SUPABASE_JWT_ISSUER') || `${supabaseUrl}/auth/v1`,
+    jwtIssuer: cfg('EDGE_JWT_ISSUER') || cfg('SUPABASE_JWT_ISSUER') || `${supabaseUrl}/auth/v1`,
     siteUrl: cfg('SITE_URL'),
     allowedOrigin: cfg('AGENT_ALLOWED_ORIGIN') || cfg('SITE_URL'),
   };
