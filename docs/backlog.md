@@ -70,7 +70,9 @@ cross-org + procure-to-pay, incl. the four fault-injection variants) ran green o
 instance's `PMO Smoke Co` (2026-09-14 evening): 18/18 served crossing assertions green, A4 green in pgTAP, and the
 SHIPPED connect path — served locally with the #659 issuer fix — activated a binding against v16 with
 `version_major = 16` (`DD-OPS-11`). #481 closed; #590 steps 3–4 done for the test path. ⛔ Nothing of this is on the
-hosted project yet: promote + `0216` + the function deploys are owner-gated.** All gates green on the branch (`fix/650-erpnext-activation`):
+hosted project yet: promote + `0216` + the function deploys are owner-gated.** **2026-09-15: PROMOTED — `dev`→`main` as `7ee157fc` (PR #661, `--merge`, `main..dev`=0, trees identical; the
+local gate was owner-bypassed after three memory-starvation failures, CI `verify` + `integration` green). Cloud DB still
+0215, functions pre-#647: the `0216` push + fourteen function deploys and any production promote remain owner-gated.** All gates green on the branch (`fix/650-erpnext-activation`):
 pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. **Cloud DB
 unchanged — a prod push of `0216` + the three function deploys is a separate, per-instance, owner-gated action**;
 the #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
