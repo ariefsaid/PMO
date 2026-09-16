@@ -227,6 +227,14 @@ jobs:
       - name: Reset DB (migrations + seed)
         run: supabase db reset --yes
 
+      # Isolation-probe denominator guard (#612 item 1): the checked-in surface manifest must name
+      # every public table / SECURITY DEFINER function / edge function / storage bucket, and must not
+      # carry stale entries. Fails the DB lane when a new surface appears without a manifest entry.
+      - name: Isolation denominator guard self-test
+        run: node scripts/check-isolation-denominator.mjs --self-test
+      - name: Isolation denominator guard
+        run: node scripts/check-isolation-denominator.mjs
+
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
