@@ -55,32 +55,32 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
     const procurementId = crypto.randomUUID();
     const pmoRecordId = crypto.randomUUID();
 
-    // Seed: an ACTIVATED erpnext binding for this org (no Operator UI wires this yet in P2) + a
-    // parent `procurements` case row (purchase_requests.procurement_id FK target).
-    await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
-    const { error: bindingError } = await admin.from('external_org_bindings').insert({
-      org_id: ORG_ID,
-      external_tier: 'erpnext',
-      site_url: ERPNEXT_SITE_URL,
-      secret_ref: 'ac-ena-050-test-only',
-      version_major: 15,
-      config: { company: 'PMO Smoke Co' },
-      activated_at: new Date().toISOString(),
-    });
-    expect(bindingError).toBeNull();
-
-    const { error: ownershipError } = await admin.from('external_domain_ownership').upsert(
-      { org_id: ORG_ID, external_tier: 'erpnext', domain: 'procurement' },
-      { onConflict: 'org_id,external_tier,domain' },
-    );
-    if (ownershipError) throw new Error(`AC-ENA-050: seed external_domain_ownership failed: ${ownershipError.message}`);
-
-    const { error: procError } = await admin
-      .from('procurements')
-      .insert({ id: procurementId, org_id: ORG_ID, code: `ENA050-${suffix}`, title: 'AC-ENA-050 PR case', status: 'Draft' });
-    expect(procError).toBeNull();
-
     try {
+      // Seed: an ACTIVATED erpnext binding for this org (no Operator UI wires this yet in P2) + a
+      // parent `procurements` case row (purchase_requests.procurement_id FK target).
+      await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+      const { error: bindingError } = await admin.from('external_org_bindings').insert({
+        org_id: ORG_ID,
+        external_tier: 'erpnext',
+        site_url: ERPNEXT_SITE_URL,
+        secret_ref: 'ac-ena-050-test-only',
+        version_major: 15,
+        config: { company: 'PMO Smoke Co' },
+        activated_at: new Date().toISOString(),
+      });
+      expect(bindingError).toBeNull();
+
+      const { error: ownershipError } = await admin.from('external_domain_ownership').upsert(
+        { org_id: ORG_ID, external_tier: 'erpnext', domain: 'procurement' },
+        { onConflict: 'org_id,external_tier,domain' },
+      );
+      if (ownershipError) throw new Error(`AC-ENA-050: seed external_domain_ownership failed: ${ownershipError.message}`);
+
+      const { error: procError } = await admin
+        .from('procurements')
+        .insert({ id: procurementId, org_id: ORG_ID, code: `ENA050-${suffix}`, title: 'AC-ENA-050 PR case', status: 'Draft' });
+      expect(procError).toBeNull();
+
       const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({ email: ADMIN_EMAIL, password: SEED_PASSWORD });
       if (signInError || !signInData.session) throw new Error(`AC-ENA-050: sign-in failed: ${signInError?.message}`);
       const accessToken = signInData.session.access_token;
