@@ -22,7 +22,7 @@ export function requireLocalSupabaseUrl(rawUrl: string | undefined): string {
     // Fall through to the same fail-closed error as every other non-local target.
   }
 
-  throw new Error('AC-816 fixture cleanup requires a local Supabase URL');
+  throw new Error('destructive fixture setup requires a local Supabase URL');
 }
 
 /** Return one local origin only when the admin and browser targets are identical. */
@@ -34,7 +34,7 @@ export function requireMatchingLocalSupabaseUrls(
   const browserUrl = requireLocalSupabaseUrl(browserRawUrl);
 
   if (adminUrl !== browserUrl) {
-    throw new Error('AC-816 fixture cleanup requires the same local Supabase URL for admin and browser');
+    throw new Error('destructive fixture setup requires the same local Supabase URL for admin and browser');
   }
 
   return adminUrl;

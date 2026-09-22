@@ -23,9 +23,13 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { requireLocalSupabaseUrl, requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
-const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
-const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
+const FUNCTIONS_TARGET = process.env.SUPABASE_FUNCTIONS_URL ?? '';
+const ADMIN_SUPABASE_TARGET = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_TARGET;
+const BROWSER_SUPABASE_TARGET = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? FUNCTIONS_TARGET;
+const FUNCTIONS_URL = requireLocalSupabaseUrl(FUNCTIONS_TARGET || undefined);
+const AUTH_URL = requireMatchingLocalSupabaseUrls(ADMIN_SUPABASE_TARGET || undefined, BROWSER_SUPABASE_TARGET || undefined);
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? '';
@@ -34,8 +38,8 @@ const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
-const LANE_READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
-if (FUNCTIONS_URL && !LANE_READY) {
+const LANE_READY = Boolean(FUNCTIONS_TARGET && ADMIN_SUPABASE_TARGET && ANON_KEY);
+if (FUNCTIONS_TARGET && !LANE_READY) {
   throw new Error('AC-ENA-050: the served-fn lane vars are required whenever CI runs this spec — this spec cannot silently skip in CI');
 }
 if (LANE_READY && !SERVICE_KEY) {

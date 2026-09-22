@@ -17,13 +17,13 @@ describe('Supabase E2E URL guards', () => {
         'https://127.0.0.1:54321',
         'not-a-url',
       ]) {
-        expect(() => requireLocalSupabaseUrl(url)).toThrow('local Supabase URL');
+        expect(() => requireLocalSupabaseUrl(url)).toThrow('destructive fixture setup requires a local Supabase URL');
       }
     });
 
     it('rejects local URLs with a path or credentials', () => {
-      expect(() => requireLocalSupabaseUrl('http://127.0.0.1:54321/rest/v1')).toThrow('local Supabase URL');
-      expect(() => requireLocalSupabaseUrl('http://admin:secret@127.0.0.1:54321')).toThrow('local Supabase URL');
+      expect(() => requireLocalSupabaseUrl('http://127.0.0.1:54321/rest/v1')).toThrow('destructive fixture setup requires a local Supabase URL');
+      expect(() => requireLocalSupabaseUrl('http://admin:secret@127.0.0.1:54321')).toThrow('destructive fixture setup requires a local Supabase URL');
     });
   });
 
@@ -37,7 +37,7 @@ describe('Supabase E2E URL guards', () => {
     it('rejects split local admin and browser targets', () => {
       expect(() =>
         requireMatchingLocalSupabaseUrls('http://127.0.0.1:54321', 'http://localhost:54321'),
-      ).toThrow('same local Supabase URL');
+      ).toThrow('destructive fixture setup requires the same local Supabase URL for admin and browser');
     });
   });
 });
