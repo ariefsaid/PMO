@@ -248,6 +248,8 @@ describe('FR-L10N-020..023: currency-aware money formatters', () => {
   });
   it('AC-L10N-022: formatCompactCurrency has no welded $ or K/M — currency + Intl compact unit', () => {
     expect(formatCompactCurrency(2500000, 'IDR')).toBe('IDR\u00A02.5M'); // en-US locale ⇒ "M" tier; the $ is gone and the symbol follows the record
+    expect(formatCompactCurrency(4100000000, 'IDR')).toBe('IDR\u00A04.1B');
+    expect(formatCompactCurrency(4100000000, 'USD')).toBe('$4.1B');
     expect(formatCompactCurrency(1500, 'EUR')).toBe('€1.5K');
   });
   it('AC-L10N-021 (format layer): PLATFORM_CURRENCY is exported and is USD', () => {
