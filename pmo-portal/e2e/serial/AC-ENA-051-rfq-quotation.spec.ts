@@ -74,6 +74,12 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
     });
     expect(bindingError).toBeNull();
 
+    const { error: ownershipError } = await admin.from('external_domain_ownership').upsert(
+      { org_id: ORG_ID, external_tier: 'erpnext', domain: 'procurement' },
+      { onConflict: 'org_id,external_tier,domain' },
+    );
+    if (ownershipError) throw new Error(`AC-ENA-051: seed external_domain_ownership failed: ${ownershipError.message}`);
+
     const { error: procError } = await admin
       .from('procurements')
       .insert({ id: procurementId, org_id: ORG_ID, code: `ENA051-${suffix}`, title: 'AC-ENA-051 RFQ/SQ case', status: 'Draft' });
@@ -159,6 +165,7 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
       await admin.from('rfqs').delete().eq('id', rfqPmoId);
       await admin.from('companies').delete().eq('id', companyId);
       await admin.from('procurements').delete().eq('id', procurementId);
+      await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'procurement');
       await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
     }
   });

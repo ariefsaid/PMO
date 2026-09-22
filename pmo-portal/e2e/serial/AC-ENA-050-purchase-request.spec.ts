@@ -69,6 +69,12 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
     });
     expect(bindingError).toBeNull();
 
+    const { error: ownershipError } = await admin.from('external_domain_ownership').upsert(
+      { org_id: ORG_ID, external_tier: 'erpnext', domain: 'procurement' },
+      { onConflict: 'org_id,external_tier,domain' },
+    );
+    if (ownershipError) throw new Error(`AC-ENA-050: seed external_domain_ownership failed: ${ownershipError.message}`);
+
     const { error: procError } = await admin
       .from('procurements')
       .insert({ id: procurementId, org_id: ORG_ID, code: `ENA050-${suffix}`, title: 'AC-ENA-050 PR case', status: 'Draft' });
@@ -89,7 +95,7 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
             id: pmoRecordId,
             procurementId,
             erp_doc_kind: 'purchase-request',
-            items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 50000, schedule_date: '2026-08-01' }],
+            items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 50000, schedule_date: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }],
           },
           // Luna B1: the dispatch requires a UUID-shaped idempotency key (a short key can
           // substring-match another document's recovery anchor) — mint a real one, as the app does.
@@ -123,6 +129,7 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
       await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'procurement').eq('pmo_record_id', pmoRecordId);
       await admin.from('purchase_requests').delete().eq('id', pmoRecordId);
       await admin.from('procurements').delete().eq('id', procurementId);
+      await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'procurement');
       await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
     }
   });
