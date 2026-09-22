@@ -1,8 +1,9 @@
 // @e2e-isolation: dedicated-row — owns PROC-2026-009 (60000000-0000-0000-0000-000000000009); full Draft→Paid journey, no other spec reads it.
 import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { loadEnv } from 'vite';
 import { login, requireServiceRoleKey } from './helpers';
-import { requireLocalSupabaseUrl } from '../src/lib/e2e/localSupabaseUrl';
+import { requireMatchingLocalSupabaseUrls } from '../src/lib/e2e/localSupabaseUrl';
 // NOTE (IA-3 re-skin): the visible status pill now shows the human stage label
 // (e.g. "Purchase Request"); the raw lifecycle enum is asserted via the badge's
 // stable `data-status` attribute so this oracle survives the presentation change.
@@ -30,7 +31,11 @@ const PROC_ID = '60000000-0000-0000-0000-000000000009';
 const PROC_CODE = 'PROC-2026-009';
 const EXPECTED_ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PROC_URL = `/procurement/${PROC_ID}`;
-const SUPABASE_URL = requireLocalSupabaseUrl(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL);
+const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
+const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
+  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_URL ?? VITE_ENV.VITE_SUPABASE_URL,
+);
 
 // This is an eight-step journey across three roles with four visible record writes. The first
 // promotion-gate attempt exceeded Playwright's 30s default after reaching Paid, so keep the
