@@ -15,6 +15,36 @@ describe('formatCurrency', () => {
   });
 });
 
+describe('formatCompactCurrency — cross-runtime fraction contract', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('passes minimumFractionDigits: 1 to Intl while retaining one decimal in output', () => {
+    const NativeNumberFormat = Intl.NumberFormat;
+    let compactOptions: Intl.NumberFormatOptions | undefined;
+
+    const numberFormatSpy = vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (locales, options) {
+      if (options?.notation === 'compact') compactOptions = options;
+      return new NativeNumberFormat(locales, options);
+    });
+
+    const formatted = formatCompactCurrency(2_000_000, 'USD');
+    expect(compactOptions?.minimumFractionDigits).toBe(1);
+    expect(formatted).toBe('$2.0M');
+    expect(numberFormatSpy).toHaveBeenCalledWith(
+      'en-US',
+      expect.objectContaining({
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 1,
+        minimumFractionDigits: 1,
+      }),
+    );
+  });
+});
+
 describe('parseMoneyInput — the single parse for validation AND persistence (Wave 3 input integrity)', () => {
   it('parses plain + comma-formatted numbers', () => {
     expect(parseMoneyInput('1500')).toBe(1500);
