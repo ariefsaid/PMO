@@ -18,11 +18,12 @@
  * VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY/SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (seed +
  * cleanup — this spec seeds its own `external_org_bindings`/`procurements`/`companies` rows via the
  * service-role client, since no Operator UI wires an ERPNext binding yet in P2). Additionally requires
- * ERPNEXT_SITE_URL (the bench's site URL, e.g. http://localhost:8080) to seed the binding row — skips
+ * ERPNEXT_SITE_URL (the disposable container-facing bench origin http://host.docker.internal:8080) to seed the binding row — skips
  * (not fails) when absent, since that is the local-bench-specific piece no other served-fn spec needs.
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { requireLocalErpNextUrl } from '../../src/lib/testing/localErpNextUrl';
 import { requireLocalSupabaseUrl, requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const FUNCTIONS_TARGET = process.env.SUPABASE_FUNCTIONS_URL ?? '';
@@ -32,7 +33,7 @@ const FUNCTIONS_URL = requireLocalSupabaseUrl(FUNCTIONS_TARGET || undefined);
 const AUTH_URL = requireMatchingLocalSupabaseUrls(ADMIN_SUPABASE_TARGET || undefined, BROWSER_SUPABASE_TARGET || undefined);
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? '';
+const ERPNEXT_SITE_URL = requireLocalErpNextUrl(process.env.ERPNEXT_SITE_URL);
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';

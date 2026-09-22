@@ -8,11 +8,12 @@
  * row exists per `procurement_id` (`procurement_quotations_one_selected_idx` intact under the flip).
  *
  * LOCAL-ONLY — same lane/bench discipline as AC-ENA-050-purchase-request.spec.ts (see that file's
- * header for the full rationale). Requires the same env vars, plus ERPNEXT_SITE_URL to seed the
- * binding row.
+ * header for the full rationale). Requires the same env vars, plus ERPNEXT_SITE_URL set to the
+ * disposable container-facing bench origin http://host.docker.internal:8080 to seed the binding row.
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { requireLocalErpNextUrl } from '../../src/lib/testing/localErpNextUrl';
 import { requireLocalSupabaseUrl, requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const FUNCTIONS_TARGET = process.env.SUPABASE_FUNCTIONS_URL ?? '';
@@ -22,7 +23,7 @@ const FUNCTIONS_URL = requireLocalSupabaseUrl(FUNCTIONS_TARGET || undefined);
 const AUTH_URL = requireMatchingLocalSupabaseUrls(ADMIN_SUPABASE_TARGET || undefined, BROWSER_SUPABASE_TARGET || undefined);
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? '';
+const ERPNEXT_SITE_URL = requireLocalErpNextUrl(process.env.ERPNEXT_SITE_URL);
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
