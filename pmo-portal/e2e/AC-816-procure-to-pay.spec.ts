@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { login, requireServiceRoleKey } from './helpers';
-import { requireMatchingLocalSupabaseUrls } from '../src/lib/e2e/localSupabaseUrl';
+import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 // NOTE (IA-3 re-skin): the visible status pill now shows the human stage label
 // (e.g. "Purchase Request"); the raw lifecycle enum is asserted via the badge's
 // stable `data-status` attribute so this oracle survives the presentation change.
