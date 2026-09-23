@@ -18,24 +18,29 @@
  * VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY/SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (seed +
  * cleanup — this spec seeds its own `external_org_bindings`/`procurements`/`companies` rows via the
  * service-role client, since no Operator UI wires an ERPNext binding yet in P2). Additionally requires
- * ERPNEXT_SITE_URL (the bench's site URL, e.g. http://localhost:8080) to seed the binding row — skips
+ * ERPNEXT_SITE_URL (the disposable container-facing bench origin http://host.docker.internal:8080) to seed the binding row — skips
  * (not fails) when absent, since that is the local-bench-specific piece no other served-fn spec needs.
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { requireLocalErpNextUrl } from '../../src/lib/testing/localErpNextUrl';
+import { requireLocalSupabaseUrl, requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
-const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
-const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
+const FUNCTIONS_TARGET = process.env.SUPABASE_FUNCTIONS_URL ?? '';
+const ADMIN_SUPABASE_TARGET = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_TARGET;
+const BROWSER_SUPABASE_TARGET = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? FUNCTIONS_TARGET;
+const FUNCTIONS_URL = requireLocalSupabaseUrl(FUNCTIONS_TARGET || undefined);
+const AUTH_URL = requireMatchingLocalSupabaseUrls(ADMIN_SUPABASE_TARGET || undefined, BROWSER_SUPABASE_TARGET || undefined);
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? '';
+const ERPNEXT_SITE_URL = requireLocalErpNextUrl(process.env.ERPNEXT_SITE_URL);
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
-const LANE_READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
-if (FUNCTIONS_URL && !LANE_READY) {
+const LANE_READY = Boolean(FUNCTIONS_TARGET && ADMIN_SUPABASE_TARGET && ANON_KEY);
+if (FUNCTIONS_TARGET && !LANE_READY) {
   throw new Error('AC-ENA-050: the served-fn lane vars are required whenever CI runs this spec — this spec cannot silently skip in CI');
 }
 if (LANE_READY && !SERVICE_KEY) {
@@ -55,26 +60,32 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
     const procurementId = crypto.randomUUID();
     const pmoRecordId = crypto.randomUUID();
 
-    // Seed: an ACTIVATED erpnext binding for this org (no Operator UI wires this yet in P2) + a
-    // parent `procurements` case row (purchase_requests.procurement_id FK target).
-    await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
-    const { error: bindingError } = await admin.from('external_org_bindings').insert({
-      org_id: ORG_ID,
-      external_tier: 'erpnext',
-      site_url: ERPNEXT_SITE_URL,
-      secret_ref: 'ac-ena-050-test-only',
-      version_major: 15,
-      config: { company: 'PMO Smoke Co' },
-      activated_at: new Date().toISOString(),
-    });
-    expect(bindingError).toBeNull();
-
-    const { error: procError } = await admin
-      .from('procurements')
-      .insert({ id: procurementId, org_id: ORG_ID, code: `ENA050-${suffix}`, title: 'AC-ENA-050 PR case', status: 'Draft' });
-    expect(procError).toBeNull();
-
     try {
+      // Seed: an ACTIVATED erpnext binding for this org (no Operator UI wires this yet in P2) + a
+      // parent `procurements` case row (purchase_requests.procurement_id FK target).
+      await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+      const { error: bindingError } = await admin.from('external_org_bindings').insert({
+        org_id: ORG_ID,
+        external_tier: 'erpnext',
+        site_url: ERPNEXT_SITE_URL,
+        secret_ref: 'ac-ena-050-test-only',
+        version_major: 15,
+        config: { company: 'PMO Smoke Co' },
+        activated_at: new Date().toISOString(),
+      });
+      expect(bindingError).toBeNull();
+
+      const { error: ownershipError } = await admin.from('external_domain_ownership').upsert(
+        { org_id: ORG_ID, external_tier: 'erpnext', domain: 'procurement' },
+        { onConflict: 'org_id,external_tier,domain' },
+      );
+      if (ownershipError) throw new Error(`AC-ENA-050: seed external_domain_ownership failed: ${ownershipError.message}`);
+
+      const { error: procError } = await admin
+        .from('procurements')
+        .insert({ id: procurementId, org_id: ORG_ID, code: `ENA050-${suffix}`, title: 'AC-ENA-050 PR case', status: 'Draft' });
+      expect(procError).toBeNull();
+
       const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({ email: ADMIN_EMAIL, password: SEED_PASSWORD });
       if (signInError || !signInData.session) throw new Error(`AC-ENA-050: sign-in failed: ${signInError?.message}`);
       const accessToken = signInData.session.access_token;
@@ -89,7 +100,7 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
             id: pmoRecordId,
             procurementId,
             erp_doc_kind: 'purchase-request',
-            items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 50000, schedule_date: '2026-08-01' }],
+            items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 50000, schedule_date: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }],
           },
           // Luna B1: the dispatch requires a UUID-shaped idempotency key (a short key can
           // substring-match another document's recovery anchor) — mint a real one, as the app does.
@@ -123,6 +134,7 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
       await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'procurement').eq('pmo_record_id', pmoRecordId);
       await admin.from('purchase_requests').delete().eq('id', pmoRecordId);
       await admin.from('procurements').delete().eq('id', procurementId);
+      await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'procurement');
       await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
     }
   });

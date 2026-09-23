@@ -54,7 +54,7 @@ supabase db reset >/dev/null
 # test assumption, not an app bug.
 if [ "${E2E_SECOND_ORG:-}" = "1" ]; then
   export E2E_ORG_ID="b0000000-0000-0000-0000-00000000000b"
-  psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -X -v ON_ERROR_STOP=1 -q -c "
+  docker exec -i supabase_db_pmo-portal psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 -q -c "
     do \$\$ declare t record; b uuid := '${E2E_ORG_ID}'; a uuid := '00000000-0000-0000-0000-000000000001';
     begin
       set local session_replication_role = replica;   -- FK (system) triggers off for the move

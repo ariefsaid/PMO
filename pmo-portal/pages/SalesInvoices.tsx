@@ -340,8 +340,6 @@ const SalesInvoices: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(inv) => inv.id}
-          onActivate={(inv) => navigate(`/sales-invoices/${inv.id}`)}
-          rowLabel={(inv) => `Open ${inv.si_number ?? inv.id}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No invoices match your filters"

@@ -15,6 +15,36 @@ describe('formatCurrency', () => {
   });
 });
 
+describe('formatCompactCurrency — cross-runtime fraction contract', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('passes minimumFractionDigits: 1 to Intl while retaining one decimal in output', () => {
+    const NativeNumberFormat = Intl.NumberFormat;
+    let compactOptions: Intl.NumberFormatOptions | undefined;
+
+    const numberFormatSpy = vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (locales, options) {
+      if (options?.notation === 'compact') compactOptions = options;
+      return new NativeNumberFormat(locales, options);
+    });
+
+    const formatted = formatCompactCurrency(2_000_000, 'USD');
+    expect(compactOptions?.minimumFractionDigits).toBe(1);
+    expect(formatted).toBe('$2.0M');
+    expect(numberFormatSpy).toHaveBeenCalledWith(
+      'en-US',
+      expect.objectContaining({
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 1,
+        minimumFractionDigits: 1,
+      }),
+    );
+  });
+});
+
 describe('parseMoneyInput — the single parse for validation AND persistence (Wave 3 input integrity)', () => {
   it('parses plain + comma-formatted numbers', () => {
     expect(parseMoneyInput('1500')).toBe(1500);
@@ -218,6 +248,8 @@ describe('FR-L10N-020..023: currency-aware money formatters', () => {
   });
   it('AC-L10N-022: formatCompactCurrency has no welded $ or K/M — currency + Intl compact unit', () => {
     expect(formatCompactCurrency(2500000, 'IDR')).toBe('IDR\u00A02.5M'); // en-US locale ⇒ "M" tier; the $ is gone and the symbol follows the record
+    expect(formatCompactCurrency(4100000000, 'IDR')).toBe('IDR\u00A04.1B');
+    expect(formatCompactCurrency(4100000000, 'USD')).toBe('$4.1B');
     expect(formatCompactCurrency(1500, 'EUR')).toBe('€1.5K');
   });
   it('AC-L10N-021 (format layer): PLATFORM_CURRENCY is exported and is USD', () => {

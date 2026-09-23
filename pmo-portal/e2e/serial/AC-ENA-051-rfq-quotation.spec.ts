@@ -8,24 +8,29 @@
  * row exists per `procurement_id` (`procurement_quotations_one_selected_idx` intact under the flip).
  *
  * LOCAL-ONLY — same lane/bench discipline as AC-ENA-050-purchase-request.spec.ts (see that file's
- * header for the full rationale). Requires the same env vars, plus ERPNEXT_SITE_URL to seed the
- * binding row.
+ * header for the full rationale). Requires the same env vars, plus ERPNEXT_SITE_URL set to the
+ * disposable container-facing bench origin http://host.docker.internal:8080 to seed the binding row.
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { requireLocalErpNextUrl } from '../../src/lib/testing/localErpNextUrl';
+import { requireLocalSupabaseUrl, requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
-const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
-const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
+const FUNCTIONS_TARGET = process.env.SUPABASE_FUNCTIONS_URL ?? '';
+const ADMIN_SUPABASE_TARGET = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_TARGET;
+const BROWSER_SUPABASE_TARGET = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? FUNCTIONS_TARGET;
+const FUNCTIONS_URL = requireLocalSupabaseUrl(FUNCTIONS_TARGET || undefined);
+const AUTH_URL = requireMatchingLocalSupabaseUrls(ADMIN_SUPABASE_TARGET || undefined, BROWSER_SUPABASE_TARGET || undefined);
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? '';
+const ERPNEXT_SITE_URL = requireLocalErpNextUrl(process.env.ERPNEXT_SITE_URL);
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
-const LANE_READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
-if (FUNCTIONS_URL && !LANE_READY) {
+const LANE_READY = Boolean(FUNCTIONS_TARGET && ADMIN_SUPABASE_TARGET && ANON_KEY);
+if (FUNCTIONS_TARGET && !LANE_READY) {
   throw new Error('AC-ENA-051: the served-fn lane vars are required whenever CI runs this spec — this spec cannot silently skip in CI');
 }
 if (LANE_READY && !SERVICE_KEY) {
@@ -58,37 +63,43 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
     const quoteAPmoId = crypto.randomUUID();
     const quoteBPmoId = crypto.randomUUID();
 
-    await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
-    const { error: bindingError } = await admin.from('external_org_bindings').insert({
-      org_id: ORG_ID,
-      external_tier: 'erpnext',
-      site_url: ERPNEXT_SITE_URL,
-      secret_ref: 'ac-ena-051-test-only',
-      version_major: 15,
-      // default_warehouse/default_uom (task 6.4 fix-round, live-bench finding): RFQ does not
-      // server-default a warehouse OR a uom on its item row, unlike Material Request — rfq.ts's
-      // toBody reads both from the binding config (the same "adapter/binding supplies what ERPNext
-      // itself won't default" discipline as the R9-frozen PI/PE/PO/GR bodies).
-      config: { company: 'PMO Smoke Co', default_warehouse: 'Stores - PSC', default_uom: 'Nos' },
-      activated_at: new Date().toISOString(),
-    });
-    expect(bindingError).toBeNull();
-
-    const { error: procError } = await admin
-      .from('procurements')
-      .insert({ id: procurementId, org_id: ORG_ID, code: `ENA051-${suffix}`, title: 'AC-ENA-051 RFQ/SQ case', status: 'Draft' });
-    expect(procError).toBeNull();
-
-    // A PMO company + the external_refs mapping to the bench's pre-existing "Spike Supplier"
-    // (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md — the R9 spike's own fixture).
-    const { error: companyError } = await admin.from('companies').insert({ id: companyId, org_id: ORG_ID, name: 'Spike Supplier (AC-ENA-051)', type: 'Vendor' });
-    expect(companyError).toBeNull();
-    const { error: refError } = await admin
-      .from('external_refs')
-      .insert({ org_id: ORG_ID, domain: 'companies', pmo_record_id: companyId, external_tier: 'erpnext', external_record_id: 'Supplier:Spike Supplier' });
-    expect(refError).toBeNull();
-
     try {
+      await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+      const { error: bindingError } = await admin.from('external_org_bindings').insert({
+        org_id: ORG_ID,
+        external_tier: 'erpnext',
+        site_url: ERPNEXT_SITE_URL,
+        secret_ref: 'ac-ena-051-test-only',
+        version_major: 15,
+        // default_warehouse/default_uom (task 6.4 fix-round, live-bench finding): RFQ does not
+        // server-default a warehouse OR a uom on its item row, unlike Material Request — rfq.ts's
+        // toBody reads both from the binding config (the same "adapter/binding supplies what ERPNext
+        // itself won't default" discipline as the R9-frozen PI/PE/PO/GR bodies).
+        config: { company: 'PMO Smoke Co', default_warehouse: 'Stores - PSC', default_uom: 'Nos' },
+        activated_at: new Date().toISOString(),
+      });
+      expect(bindingError).toBeNull();
+
+      const { error: ownershipError } = await admin.from('external_domain_ownership').upsert(
+        { org_id: ORG_ID, external_tier: 'erpnext', domain: 'procurement' },
+        { onConflict: 'org_id,external_tier,domain' },
+      );
+      if (ownershipError) throw new Error(`AC-ENA-051: seed external_domain_ownership failed: ${ownershipError.message}`);
+
+      const { error: procError } = await admin
+        .from('procurements')
+        .insert({ id: procurementId, org_id: ORG_ID, code: `ENA051-${suffix}`, title: 'AC-ENA-051 RFQ/SQ case', status: 'Draft' });
+      expect(procError).toBeNull();
+
+      // A PMO company + the external_refs mapping to the bench's pre-existing "Spike Supplier"
+      // (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md — the R9 spike's own fixture).
+      const { error: companyError } = await admin.from('companies').insert({ id: companyId, org_id: ORG_ID, name: 'Spike Supplier (AC-ENA-051)', type: 'Vendor' });
+      expect(companyError).toBeNull();
+      const { error: refError } = await admin
+        .from('external_refs')
+        .insert({ org_id: ORG_ID, domain: 'companies', pmo_record_id: companyId, external_tier: 'erpnext', external_record_id: 'Supplier:Spike Supplier' });
+      expect(refError).toBeNull();
+
       const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({ email: ADMIN_EMAIL, password: SEED_PASSWORD });
       if (signInError || !signInData.session) throw new Error(`AC-ENA-051: sign-in failed: ${signInError?.message}`);
       const accessToken = signInData.session.access_token;
@@ -159,6 +170,7 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
       await admin.from('rfqs').delete().eq('id', rfqPmoId);
       await admin.from('companies').delete().eq('id', companyId);
       await admin.from('procurements').delete().eq('id', procurementId);
+      await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'procurement');
       await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
     }
   });

@@ -82,8 +82,8 @@ checks tag↔dir consistency). Runner:
 "e2e": "playwright test --project=chromium && playwright test --project=serial --workers=1"
 ```
 
-Both invocations reuse one dev server (`reuseExistingServer: true`; CI starts it once) — the serial
-phase adds only the ~5 global specs' wall-clock after the parallel batch, preserving most of the win.
+Each invocation owns fresh dev servers (`reuseExistingServer: false`) — the serial phase adds only
+the ~5 global specs' wall-clock after the parallel batch, preserving most of the win.
 
 > Why two phases, not `dependencies`-ordering in one run: Playwright's `workers` is global, so a single
 > invocation cannot pin the serial project to 1 worker while the rest use 4. Two invocations is the
