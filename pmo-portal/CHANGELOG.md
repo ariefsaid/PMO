@@ -10,6 +10,13 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.11.1](https://github.com/ariefsaid/PMO/compare/v0.11.0...v0.11.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* stabilize compact currency and finance lists ([#666](https://github.com/ariefsaid/PMO/issues/666)) ([f0fe123](https://github.com/ariefsaid/PMO/commit/f0fe123ff585c05a2a8d46e24f6fac3d79211d27))
+
 ## [0.11.0](https://github.com/ariefsaid/PMO/compare/v0.10.1...v0.11.0) (2026-09-15)
 
 
