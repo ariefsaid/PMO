@@ -16,8 +16,19 @@
 # Writes: PATCH bodies set a row's pk to itself (no-op); RPC payloads are inert (status=current, amount 0).
 # A leak that accepts a write leaves evidence you must clean up — that is the point.
 set -u
-: "${BASE:?}" "${ANON:?}" "${JWT_B:?}" "${A_ORG:?}" "${B_ORG:?}" "${TABLES_JSON:?}" "${A_ROWS_JSON:?}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${BASE:?}" "${ANON:?}" "${JWT_B:?}" "${A_ORG:?}" "${B_ORG:?}" "${A_ROWS_JSON:?}"
 S="${TMPDIR:-/tmp}"
+# TABLES_JSON belongs to the checked-in denominator (#612 item 1). An explicit env override wins;
+# otherwise it defaults to the manifest's `tables` array, in a temp file we own and clean up.
+_tables_tmp=""
+if [ -z "${TABLES_JSON:-}" ]; then
+  _tables_tmp="$(mktemp "$S/isolation-tables.XXXXXX")"
+  jq -e '.tables | arrays' "$SCRIPT_DIR/isolation-probe-denominator.json" > "$_tables_tmp" \
+    || { echo "isolation-probe: cannot read tables from $SCRIPT_DIR/isolation-probe-denominator.json — refusing to probe an empty denominator" >&2; rm -f "$_tables_tmp"; exit 2; }
+  TABLES_JSON="$_tables_tmp"
+  trap 'rm -f "$_tables_tmp"' EXIT
+fi
 hdr_b=(-H "apikey: $ANON" -H "Authorization: Bearer $JWT_B" -H "Content-Type: application/json")
 hdr_anon=(-H "apikey: $ANON" -H "Authorization: Bearer $ANON")
 leaks=0; checks=0

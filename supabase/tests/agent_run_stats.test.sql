@@ -3,7 +3,7 @@
 -- (NFR-PRIV-001) — grouped by run_id in an inner CTE. Models on 0120_usage_aggregate_columns.
 --   AC-ACD-005  org_agent_run_stats() per-run percentiles correct (cost p50/p95/max, cache_hit_pct,
 --               p50/p95 ms), own-org only.
---   AC-ACD-006  operator_agent_run_stats() operator-only + org filter; a non-operator is denied (0 rows).
+--   AC-ACD-006  operator_agent_run_stats() operator-only + org filter; a non-operator is refused (operator_only).
 begin;
 select plan(11);
 
@@ -63,9 +63,9 @@ select is((select p50_ms from org_agent_run_stats() where action='chat'),
   500, 'AC-ACD-005 chat p50_ms = 500');
 select is((select p95_ms from org_agent_run_stats() where action='chat'),
   860, 'AC-ACD-005 chat p95_ms = 860');
--- non-operator A1 calling the operator RPC → denied (0 rows).
-select is((select count(*) from operator_agent_run_stats()),
-  0::bigint, 'AC-ACD-006 non-operator gets 0 rows from operator_agent_run_stats()');
+-- non-operator A1 calling the operator RPC → refused with operator_only (0217; was 0 rows, #612).
+select throws_ok('select * from operator_agent_run_stats()', '42501', 'operator_only',
+  'AC-ACD-006 non-operator is refused by operator_agent_run_stats() (operator_only)');
 reset role;
 
 -- ── AC-ACD-006: Operator (F1) — org filter + cross-org visibility ──

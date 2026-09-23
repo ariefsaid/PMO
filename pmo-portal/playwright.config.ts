@@ -86,7 +86,7 @@ export default defineConfig({
       url: 'http://localhost:3000',
       // The authoritative CI/local-promotion lane must serve this checkout, never
       // silently attach to port 3000 from another worktree.
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
     {
@@ -95,7 +95,7 @@ export default defineConfig({
       // is trivially identifiable and is intercepted by the spec rather than actually leaving.
       command: 'npm run dev -- --port 3100 --strictPort',
       url: 'http://localhost:3100',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
       env: {
         ...process.env,

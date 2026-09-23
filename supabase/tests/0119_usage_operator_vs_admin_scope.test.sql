@@ -29,10 +29,11 @@ select is((select count(*)::int from org_usage_summary()), 1, 'AC-USE-001 org-A 
 select is((select cost from org_usage_summary() limit 1), 10::numeric, 'AC-USE-001 org-A Admin aggregate is org A''s cost');
 reset role;
 
--- (2) org-B Admin cannot call operator_usage_summary meaningfully (is_operator() false -> 0 rows).
+-- (2) org-B Admin cannot call operator_usage_summary: raises operator_only (0217 — was 0 rows, which
+--     made "denied" indistinguishable from "no usage"; #612).
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01190000-0000-0000-0000-0000000000b1","role":"authenticated"}';
-select is((select count(*)::int from operator_usage_summary()), 0, 'AC-USE-001 non-Operator org-B Admin gets 0 rows from operator_usage_summary');
+select throws_ok('select * from operator_usage_summary()', '42501', 'operator_only', 'AC-USE-001 non-Operator org-B Admin is refused by operator_usage_summary (operator_only)');
 reset role;
 
 -- (3) the Operator's operator_usage_summary() (no filter) sees BOTH orgs' aggregates.

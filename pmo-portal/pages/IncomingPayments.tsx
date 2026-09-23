@@ -294,8 +294,6 @@ const IncomingPayments: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(p) => p.id}
-          onActivate={(p) => navigate(`/incoming-payments/${p.id}`)}
-          rowLabel={(p) => `Open ${p.ip_number ?? p.id}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No payments match your filters"

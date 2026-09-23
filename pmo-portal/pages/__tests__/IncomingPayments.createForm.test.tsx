@@ -47,8 +47,9 @@ const invoice = (over: Partial<SalesInvoiceRow>): SalesInvoiceRow =>
 
 const hoisted = vi.hoisted(() => ({
   createPaymentMutate: vi.fn(async () => ({ id: 'ip-new' })),
-  paymentsState: { data: [], isPending: false, isError: false, refetch: vi.fn() },
+  paymentsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoicesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  navigateMock: vi.fn(),
   clientOptions: [
     { value: 'cust-1', label: 'Acme Energy', sub: 'Client' },
     { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' },
@@ -80,6 +81,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
+vi.mock('react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router')>();
+  return { ...actual, useNavigate: () => hoisted.navigateMock };
+});
 
 import IncomingPayments from '../IncomingPayments';
 
@@ -105,6 +110,8 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string | R
 
 beforeEach(() => {
   hoisted.createPaymentMutate.mockClear();
+  hoisted.navigateMock.mockClear();
+  hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
 });
 
@@ -191,5 +198,24 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
         receivedAmount: 750,
       }),
     );
+  });
+
+  it('does not expose a row activation that navigates to a missing payment detail route', async () => {
+    hoisted.paymentsState.data = [
+      {
+        id: 'ip-1',
+        ip_number: 'ACC-PAY-0001',
+        status: 'Scheduled',
+        amount: 410000000,
+        currency: 'USD',
+      },
+    ];
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: 'Open ACC-PAY-0001' })).not.toBeInTheDocument();
+    await user.click(screen.getByText('ACC-PAY-0001'));
+
+    expect(hoisted.navigateMock).not.toHaveBeenCalled();
   });
 });

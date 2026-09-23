@@ -69,8 +69,8 @@ npm run e2e
 
 **Why two phases, not one run:** Playwright's `workers` setting is **global** to an invocation — a
 single run cannot pin the `serial` project to 1 worker while `chromium` uses 4. Two invocations is
-the simplest way to guarantee `serial` specs never overlap the parallel batch or each other; both
-reuse the same dev server (`reuseExistingServer: true`).
+the simplest way to guarantee `serial` specs never overlap the parallel batch or each other; each
+invocation owns fresh dev servers (`reuseExistingServer: false`).
 
 ## 7. Before every PR→`main`: simulate CI locally (binding, owner directive 2026-07-24)
 

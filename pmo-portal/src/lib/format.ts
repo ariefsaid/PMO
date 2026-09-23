@@ -143,7 +143,7 @@ export function formatRelativeTime(iso: string | null | undefined): string {
  *  through to formatCurrency ("$500", not "$500.0"). */
 export function formatCompactCurrency(value: number, currency: string): string {
   if (Math.abs(value) < 1_000) return formatCurrency(value, currency);
-  return currencyFormatterFor('compact', currency, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+  return currencyFormatterFor('compact', currency, { notation: 'compact', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
 }
 
 /** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is

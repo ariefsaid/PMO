@@ -544,6 +544,8 @@ catalog is the claim. 2026-09-07: the sweep found 37 vs 4 and a vault reader ans
 closed by an emergency revoke + `0210`. Expected steady state: exactly the RLS helpers (`auth_org_id`,
 `auth_role`, `is_active_member`, `org_feature_enabled`).
 
+⚑ **The probe's table list comes from the checked-in denominator** (`scripts/isolation-probe-denominator.json`, #612 item 1): `scripts/isolation-probe.sh` reads its `tables` array itself when `TABLES_JSON` is unset; set `TABLES_JSON` only to override. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps that file equal to the catalog; `--write` regenerates it.
+
 ⚑ **Then run the two second-org probes** (2026-09-09, #618): `scripts/isolation-probe.sh` (cross-org
 reads/writes/RPCs as a tenant-B user — #490) and **`scripts/second-org-smoke.sh`** (a `lifecycle=test`
 org's Admin creates, reads back and deletes one row per core entity through REST with NO `org_id` sent,

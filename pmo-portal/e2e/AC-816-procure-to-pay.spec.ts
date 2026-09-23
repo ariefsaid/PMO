@@ -1,6 +1,9 @@
 // @e2e-isolation: dedicated-row — owns PROC-2026-009 (60000000-0000-0000-0000-000000000009); full Draft→Paid journey, no other spec reads it.
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { createClient } from '@supabase/supabase-js';
+import { loadEnv } from 'vite';
+import { login, requireServiceRoleKey } from './helpers';
+import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 // NOTE (IA-3 re-skin): the visible status pill now shows the human stage label
 // (e.g. "Purchase Request"); the raw lifecycle enum is asserted via the badge's
 // stable `data-status` attribute so this oracle survives the presentation change.
@@ -25,7 +28,75 @@ import { login } from './helpers';
 // (FR-PROC-002/005/006/008/009/010/011, NFR-PROC-UI-001)
 
 const PROC_ID = '60000000-0000-0000-0000-000000000009';
+const PROC_CODE = 'PROC-2026-009';
+const EXPECTED_ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PROC_URL = `/procurement/${PROC_ID}`;
+const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
+const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
+  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_URL ?? VITE_ENV.VITE_SUPABASE_URL,
+);
+
+// This is an eight-step journey across three roles with four visible record writes. The first
+// promotion-gate attempt exceeded Playwright's 30s default after reaching Paid, so keep the
+// goal-oracle budget explicit while the per-attempt reset below makes retries independent.
+test.setTimeout(120_000);
+
+// Retry-idempotency: the journey mutates one dedicated seed procurement all the way to Paid.
+// Playwright retries the same test without resetting the shared database, so every attempt must
+// remove the generated children and restore the parent before asserting the Draft start state.
+// This mirrors AC-DEL-022's service-role reset pattern; local runs without a service key rely on
+// the normal `supabase db reset` fixture setup and remain runnable.
+test.beforeEach(async () => {
+  const serviceKey = requireServiceRoleKey();
+  if (!serviceKey) return;
+
+  const admin = createClient(SUPABASE_URL, serviceKey, { auth: { persistSession: false } });
+  const { data: target, error: targetError } = await admin
+    .from('procurements')
+    .select('id, org_id, code')
+    .eq('id', PROC_ID)
+    .eq('org_id', EXPECTED_ORG_ID)
+    .eq('code', PROC_CODE)
+    .maybeSingle();
+  if (targetError || !target) {
+    throw new Error('AC-816 fixture cleanup target is not the expected E2E procurement');
+  }
+
+  const childTables = [
+    'payments',
+    'procurement_invoices',
+    'procurement_receipts',
+    'purchase_orders',
+    'purchase_requests',
+    'procurement_status_events',
+  ] as const;
+
+  for (const table of childTables) {
+    const { error } = await admin
+      .from(table)
+      .delete()
+      .eq('procurement_id', target.id)
+      .eq('org_id', target.org_id);
+    if (error) throw new Error(`AC-816 reset failed for ${table}: ${error.message}`);
+  }
+
+  const { error } = await admin
+    .from('procurements')
+    .update({
+      status: 'Draft',
+      pr_number: null,
+      po_number: null,
+      approval_notes: null,
+      rejection_notes: null,
+      approved_by_id: null,
+      vendor_invoiced_at: null,
+    })
+    .eq('id', target.id)
+    .eq('org_id', target.org_id)
+    .eq('code', PROC_CODE);
+  if (error) throw new Error(`AC-816 reset failed for procurement: ${error.message}`);
+});
 
 /** Click the named button inside the open ConfirmDialog (role="dialog"). */
 async function confirmVia(page: Page, confirmLabel: string) {

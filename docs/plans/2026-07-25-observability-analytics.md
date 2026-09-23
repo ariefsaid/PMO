@@ -2255,6 +2255,10 @@ project:
 Add `testIgnore: [/auth\.setup\.ts/, /e2e\/serial\//, /AC-CON-003-/]` to the `chromium` project so
 it does not also pick the spec up on port 3000.
 
+> Historical implementation snapshot (2026-07-25): the `reuseExistingServer` values in the
+> following example describe the configuration at plan authoring time. The current config owns
+> fresh servers for both lanes with `reuseExistingServer: false`.
+
 ```ts
   webServer: [
     {

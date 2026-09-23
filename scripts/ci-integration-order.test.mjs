@@ -163,9 +163,9 @@ test('gate-script-only changes still trigger CI', () => {
   assert.doesNotMatch(workflow, /paths-ignore:[\s\S]{0,240}- 'scripts\/\*\*'/);
 });
 
-test('authoritative CI-mode browser runs never reuse an unrelated Vite server', () => {
+test('authoritative browser runs own their Vite servers', () => {
   const config = readFileSync(new URL('../pmo-portal/playwright.config.ts', import.meta.url), 'utf8');
-  assert.match(config, /reuseExistingServer:\s*!process\.env\.CI/);
+  assert.equal((config.match(/reuseExistingServer:\s*false/g) ?? []).length, 2);
 });
 
 test('auth setup exposes transient login failures to Playwright flake detection', () => {
