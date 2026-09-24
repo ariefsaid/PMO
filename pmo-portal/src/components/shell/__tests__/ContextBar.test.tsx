@@ -90,6 +90,24 @@ describe('ContextBar', () => {
     expect(screen.queryByRole('button', { name: /view as role/i })).not.toBeInTheDocument();
   });
 
+  // AC-AUTH-013 (FR-AUTH-036): a NON-demo-org Admin (live org — the restricted case) gets
+  // canImpersonate=false from the provider, and with an Admin displayed role the control
+  // must be absent from BOTH surfaces. jsdom ignores the sm: breakpoint, so both clusters
+  // are in the DOM — asserting each container directly covers desktop and mobile.
+  it('AC-AUTH-013: non-demo-org Admin (denied affordance) sees NO view-as control on desktop OR mobile', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Admin'; // the Admin displayed role stays; only the control is gone
+    renderBar();
+    // Desktop cluster: no "View as role" trigger anywhere.
+    expect(screen.queryByRole('button', { name: /view as role/i })).not.toBeInTheDocument();
+    // Mobile account menu: opens fine, but holds no role menuitems.
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Engineer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Project Manager' })).not.toBeInTheDocument();
+    // The denial is specifically about the affordance, not the menu: sign-out still works.
+    expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
+  });
+
   it('sign-out calls signOut', async () => {
     canImpersonate = false;
     renderBar();

@@ -39,6 +39,7 @@ import { useMeetings } from '@/src/hooks/useMeetings';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
 import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
@@ -429,8 +430,12 @@ const Shell: React.FC = () => {
   // ADR-0056: mount exactly once in the authenticated shell — seeds/clears the module-level
   // ownership cache so routeTaskWrite() routes task writes correctly (fail-closed 'pmo').
   useOwnershipCacheSync();
+  // FR-AUTH-036 (AC-AUTH-013/014): the Admin "view as role" control exists ONLY for Admins
+  // of a demo org. The hook reads the signed-in org's lifecycle_state via RLS (never a
+  // hardcoded org id) and FAILS CLOSED to 'pending' while loading or on error.
+  const demoEligibility = useDemoEligibility();
   return (
-    <ImpersonationProvider realRole={role}>
+    <ImpersonationProvider realRole={role} demoEligibility={demoEligibility}>
       <ToastProvider>
         {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
             so the runtime + open state survive route changes. It is the SOLE

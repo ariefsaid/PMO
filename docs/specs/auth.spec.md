@@ -7,6 +7,10 @@
 >
 > **Owner is AFK.** Reasonable assumptions are made and flagged `[OWNER-DECISION]` where the owner should
 > confirm before production cutover. No requirement is blocked on the owner.
+>
+> **Amendment (demo-org restriction, post-#3):** the impersonation control is now scoped to Admins of a
+> **demo** org (`organizations.lifecycle_state = 'demo'`, migration 0191). FR-AUTH-033/034/035 + AC-AUTH-010/011
+> below carry the original (any-org Admin) contract; the restriction is FR-AUTH-036..038 + AC-AUTH-013..015.
 
 ---
 
@@ -103,15 +107,24 @@ Replace the client-side **role-simulation** auth (`OBS-AUTH-001..006`) with **re
 - **FR-AUTH-032** (ubiquitous) The system shall render sidebar/header nav items based on the **real** `role`,
   preserving the existing role→nav mapping (`OBS-NAV-001/002`): Engineer sees no Sales/Procurement/Companies/Reports
   and no Administration; Executive/Admin see Administration.
-- **FR-AUTH-033** (state-driven) While the current role is `Admin`, the system shall render an impersonation
-  ("View as role") control offering the four non-Admin roles; while the role is not `Admin`, the system shall not
-  render that control. *(D-7; replaces `OBS-AUTH-002/003`)*
+- **FR-AUTH-033** (state-driven) While the current role is `Admin` **and** the signed-in org is a demo org, the system shall render an impersonation
+  ("View as role") control offering the four non-Admin roles; otherwise the system shall not render that control.
+  The demo org signal is the caller's own `organizations.lifecycle_state = 'demo'` (migration 0191), read under
+  the org-scoped SELECT policy — never a hardcoded org id. *(D-7 as restricted by FR-AUTH-036; replaces `OBS-AUTH-002/003`)*
 - **FR-AUTH-034** (event-driven) When an Admin selects a role in the impersonation control, the system shall change
   the **client-side displayed role** (driving nav gating and any role-branched view) without changing the Supabase
   session or any server identity. *(D-7)*
 - **FR-AUTH-035** (ubiquitous) The system shall treat impersonation as **view-only**: it shall not alter `auth.uid()`,
   the JWT, or RLS evaluation, and any future server data fetch shall still execute under the Admin's real identity.
   **Limitation:** impersonation cannot preview another user's row-level data; it only previews role-gated UI. *(D-7)*
+- **FR-AUTH-036** (state-driven) While the signed-in org's `lifecycle_state` is not `'demo'` (live, test, NULL, or an
+  unrecognized value), the system shall not render the impersonation control for any Admin, on desktop and mobile
+  surfaces alike, and a role selection attempt shall not change the displayed role.
+- **FR-AUTH-037** (state-driven) While the org lifecycle read is unresolved — loading or errored — the system shall
+  treat the org as **not** demo (fail closed): the impersonation control is not rendered and no role selection applies.
+- **FR-AUTH-038** (event-driven) When demo eligibility disappears while a view-as role is selected, the system shall
+  revert the displayed role to the real role immediately and clear the stored selection, so a later re-eligibility
+  never resurrects it.
 
 ### 3.5 Seed
 - **FR-AUTH-040** (ubiquitous) The system shall seed real credentialed GoTrue users (one per seeded profile) so each
@@ -137,7 +150,8 @@ Replace the client-side **role-simulation** auth (`OBS-AUTH-001..006`) with **re
 
 ## 5. Acceptance criteria (Given/When/Then)
 
-> Each maps 1:1 to `e2e/<AC-id>.spec.ts` (Playwright) **except** AC-AUTH-007/008 which are unit-level (Vitest, mocked
+> Each maps 1:1 to `e2e/<AC-id>.spec.ts` (Playwright) **except** AC-AUTH-007/008 (session/guard plumbing) and
+> AC-AUTH-013/014/015 (demo-eligibility gating — client-side state logic) which are unit-level (Vitest, mocked
 > client) and are noted as such. e2e AC require the local Supabase stack running (`supabase start`) + `npm run dev`.
 
 **AC-AUTH-001 — Unauthenticated user is redirected to /login** (FR-AUTH-031) *(e2e)*
@@ -185,8 +199,8 @@ Given I am signed in as `engineer@acme.test` (Engineer)
 When I view the sidebar
 Then Sales Pipeline, Procurement, Companies, Reports, and Administration are hidden, and Dashboard, Projects, Timesheets, Tasks are shown.
 
-**AC-AUTH-010 — Admin sees impersonation and can view as a role (client-side)** (FR-AUTH-033, FR-AUTH-034, FR-AUTH-035) *(e2e)*
-Given I am signed in as `admin@acme.test` (Admin)
+**AC-AUTH-010 — Demo-org Admin sees impersonation and can view as a role (client-side)** (FR-AUTH-033, FR-AUTH-034, FR-AUTH-035) *(e2e; demo precondition per FR-AUTH-036 — the seeded org is `'demo'` via migration 0191)*
+Given I am signed in as `admin@acme.test` (Admin of the demo org)
 When I open the "View as role" control and select "Engineer"
 Then the sidebar updates to the Engineer nav set; the underlying session/identity is unchanged (signing out still works and the real account stays Admin).
 
@@ -200,6 +214,23 @@ Given I am signed in and on `/`
 When I reload the page
 Then I remain on `/` authenticated (no redirect to `/login`, no re-prompt).
 
+**AC-AUTH-013 — Non-demo-org Admin is denied the impersonation control everywhere** (FR-AUTH-036) *(unit, mocked client)*
+Given an Admin whose own org's `lifecycle_state` resolves to `'live'` (same denial for `'test'`/NULL/unknown)
+When the header renders on desktop and the mobile account menu opens
+Then no "View as role" control or role menu items exist on either surface, the displayed role stays the real role,
+and a role-selection attempt does not change it.
+
+**AC-AUTH-014 — Org state unresolved fails closed** (FR-AUTH-037) *(unit, mocked client)*
+Given the org lifecycle read is pending or has errored
+When an Admin's shell renders
+Then the eligibility is treated as not-demo: no control renders and no selection applies, until the read resolves to `'demo'`.
+
+**AC-AUTH-015 — Stale view-as selection reverts and never resurrects** (FR-AUTH-038) *(unit, mocked client)*
+Given a demo-org Admin viewing as Engineer
+When the org stops being demo
+Then the displayed role reverts to Admin immediately, and when eligibility later returns the displayed role is still
+Admin (the selection was cleared, not masked).
+
 ---
 
 ## 6. RLS / tenancy interaction (no schema change this issue)
@@ -212,6 +243,10 @@ Then I remain on `/` authenticated (no redirect to `/login`, no re-prompt).
 - `org_id` seam: untouched — column default (`0001`) + `WITH CHECK` (`0002`) keep `org_id` client-unspoofable.
   Seeded profiles all belong to the single default org, so tenant isolation is a structurally-present no-op (per
   `target-architecture §6.4`).
+- Demo restriction read (post-#3 amendment): the impersonation gate reads `organizations.lifecycle_state` (migration
+  0191) through the existing org-scoped SELECT policy — the caller's own org row only, `org_id` never sent from the
+  client. No RLS or schema change; `NULL` and unrecognized state values are treated as not-demo (mirroring the
+  server-side `assert_org_destroyable` allowlist posture).
 
 ---
 
@@ -249,3 +284,4 @@ Then I remain on `/` authenticated (no redirect to `/login`, no re-prompt).
 | Env-driven client, no secrets | `target-arch §2.2`, ADR-0002, `NFR-DEPLOY-001` | FR-AUTH-001..003, NFR-AUTH-SEC-001 |
 | Bare auth.users to replace | `seed.sql` NOTE | FR-AUTH-040/041 |
 | Admin role semantics (impersonation) | `target-arch §7.1` `[ASSUMPTION]`, `baseline §10` | D-7, FR-AUTH-033..035 |
+| Demo-org restriction (migration 0191 `lifecycle_state`) | DD-ORG-3 / DD-RIS demo scoping | FR-AUTH-036..038, AC-AUTH-013..015, §6 |
