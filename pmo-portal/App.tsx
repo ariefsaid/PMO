@@ -86,6 +86,7 @@ const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
+const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -163,6 +164,9 @@ export const appRouteConfig: RouteObject[] = [
   // I3: User-view renderer: /views/:viewId. Declared after /views/new and /views/:viewId/edit to
   //   avoid wildcard collision.
   { path: '/views/:viewId', element: <FeatureRoute feature="user_views" element={<UserViewRenderer />} /> },
+  // Personal profile language settings (RIS slice): every signed-in user's interface-language
+  //   override. Declared before the `*` catch-all so it resolves to a real route.
+  { path: '/settings/profile', element: <ProfileSettingsPage /> },
   { path: '*', element: <NotFoundPage /> },
 ];
 

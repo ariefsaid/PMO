@@ -48,6 +48,9 @@ interface NavItem {
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
 const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'grid', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // Personal profile language settings (RIS slice): every signed-in user's interface-language
+  //   override — visible to ALL roles from the rail (and the mobile drawer).
+  { to: '/settings/profile', text: 'Profile settings', icon: 'pencil', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // M365 connection-model (D2, FR-M365SEP-016): the personal-connect surface — reachable by ANY
   // active member of an entitled org, not only Admins. Gated by the `m365_integration`
   // entitlement (matches the card's own gate) so a non-entitled org sees no dead link. The card
@@ -163,6 +166,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   // route added here without a label.
   const navLabels: Record<string, string> = {
     '/': t('shell.nav.dashboard', 'Dashboard'),
+    '/settings/profile': t('shell.nav.profileSettings', 'Profile settings'),
     '/integrations': t('shell.nav.integrations', 'Integrations'),
     '/projects': t('shell.nav.projects', 'Projects'),
     '/sales': t('shell.nav.sales', 'Sales Pipeline'),

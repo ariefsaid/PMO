@@ -166,4 +166,27 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     await userEvent.click(screen.getByRole('link', { name: /Projects/ }));
     expect(onNavigate).toHaveBeenCalledOnce();
   });
+
+  // Profile language settings slice (supports AC-L10N-060): the rail link is visible to EVERY
+  // role and carries the `/settings/profile` href (discoverability on desktop + the mobile drawer).
+  it('AC-L10N-060 support: Profile settings link is visible to every role with href=/settings/profile', () => {
+    for (const role of ['Executive', 'Engineer']) {
+      effectiveRole = role;
+      const { unmount } = renderRail();
+      const link = screen.getByRole('link', { name: /profile settings/i });
+      expect(link).toHaveAttribute('href', '/settings/profile');
+      unmount();
+    }
+  });
+
+  it('AC-L10N-060 support: Profile settings link carries aria-current=page on /settings/profile', () => {
+    effectiveRole = 'Executive';
+    render(
+      <MemoryRouter initialEntries={['/settings/profile']}>
+        <Rail />
+      </MemoryRouter>
+    );
+    const link = screen.getByRole('link', { name: /profile settings/i });
+    expect(link).toHaveAttribute('aria-current', 'page');
+  });
 });

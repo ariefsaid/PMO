@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabase/client';
 import { trackAuthLogoutSucceeded } from '@/src/lib/analytics';
@@ -35,14 +35,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileErrorKind, setProfileErrorKind] = useState<ProfileErrorKind | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Monotonic profile-request generation (profile language settings slice). Every profile read
+  // (auth-event `apply` or a manual `refreshCurrentUser`) captures an incremented generation and
+  // applies its result ONLY if that generation is still current — so an older in-flight read can
+  // never overwrite a newer locale (or a changed session). A signed-out `apply(null)` also
+  // increments, invalidating any in-flight read from the prior user.
+  const profileGenRef = useRef(0);
+  // Session mirror updated synchronously on every auth event so a refresh callback created before
+  // the session landed still resolves the correct (latest) user id.
+  const sessionRef = useRef<Session | null>(null);
+  const mountedRef = useRef(true);
+
   useEffect(() => {
+    mountedRef.current = true;
     let active = true;
     const apply = async (s: Session | null) => {
       if (!active) return;
+      sessionRef.current = s;
+      const gen = ++profileGenRef.current;
       setSession(s);
       if (s?.user) {
         const result = await loadProfile(s.user.id);
-        if (!active) return;
+        if (!active || gen !== profileGenRef.current) return;
         if (result.error) {
           setCurrentUser(null);
           setProfileError(result.error);
@@ -70,6 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     return () => {
       active = false;
+      mountedRef.current = false;
       sub.subscription.unsubscribe();
     };
   }, []);
@@ -144,6 +159,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!error) trackAuthLogoutSucceeded();
   }, []);
 
+  const refreshCurrentUser = useCallback(async () => {
+    const userId = sessionRef.current?.user?.id;
+    if (!userId) return { error: 'Not signed in' };
+    const gen = ++profileGenRef.current;
+    try {
+      const result = await loadProfile(userId);
+      if (!mountedRef.current || gen !== profileGenRef.current) {
+        // The provider unmounted or a newer auth event/refresh superseded this read — never apply
+        // a stale profile. The overall auth flow owns the loading/error surface, so returning
+        // null-error lets the page keep its current (still usable) profile.
+        return { error: null };
+      }
+      if (result.error) {
+        // Preserve the previously usable profile; surface the read error to the caller.
+        return { error: result.error };
+      }
+      setCurrentUser(result.profile);
+      setProfileError(null);
+      setProfileErrorKind(null);
+      return { error: null };
+    } catch (e) {
+      if (!mountedRef.current || gen !== profileGenRef.current) return { error: null };
+      return { error: e instanceof Error ? e.message : 'Profile refresh failed' };
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       session,
@@ -159,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatePassword,
       resendEmailConfirmation,
       signOut,
+      refreshCurrentUser,
     }),
     [
       session,
@@ -173,6 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatePassword,
       resendEmailConfirmation,
       signOut,
+      refreshCurrentUser,
     ]
   );
 

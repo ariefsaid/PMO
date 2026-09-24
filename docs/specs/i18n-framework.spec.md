@@ -420,7 +420,7 @@ lands, and it is the part that can be done by someone who is not an engineer, in
 | AC-L10N-043 | Unit (Vitest) | lazy-load backend config assertion |
 | AC-L10N-050/051 | Unit (Vitest) | `toWorkbookBuffer` typed-cell + CSV neutrality guards |
 | AC-L10N-052 | Unit (Vitest) | mixed-currency export: per-row ISO column + bare numeric cells |
-| AC-L10N-060 | **E2E (Playwright)** | `e2e/AC-L10N-060-language-switch.spec.ts` — the one curated cross-stack journey; nothing else here is cross-stack |
+| AC-L10N-060 | **E2E (Playwright, serial)** | `e2e/serial/AC-L10N-060-language-switch.spec.ts` — the one curated cross-stack journey; nothing else here is cross-stack. It mutates the org-global shared PM seed profile, so it lives in the `serial` lane (`--workers=1`) and restores the NULL override in `afterEach` (docs/e2e-parallel-conventions.md). |
 | AC-L10N-061 | **CI gate** | runner locale pinned away from `en-US` in the verify job |
 
 ---

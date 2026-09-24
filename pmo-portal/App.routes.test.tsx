@@ -12,4 +12,14 @@ describe('Application route table', () => {
     expect(React.isValidElement(route?.element)).toBe(true);
     expect(route?.element).toMatchObject({ props: { title: 'Reports' } });
   });
+
+  // Profile language settings slice (supports AC-L10N-060): /settings/profile must resolve to a
+  // real lazy page element, never the `*` catch-all.
+  it('AC-L10N-060 support: /settings/profile resolves to the profile settings route', () => {
+    const matches = matchRoutes(appRouteConfig, '/settings/profile');
+    const route = matches?.[matches.length - 1]?.route;
+
+    expect(route?.path).toBe('/settings/profile');
+    expect(React.isValidElement(route?.element)).toBe(true);
+  });
 });
