@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -51,6 +51,13 @@ const renderRail = () =>
   );
 
 describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, AC-NAV-008/009)', () => {
+  it('places brand, navigation, and footer within one complementary landmark', () => {
+    effectiveRole = 'Executive';
+    renderRail();
+    const rail = screen.getByRole('complementary');
+    expect(within(rail).getByText('PMO Portal')).toBeInTheDocument();
+    expect(within(rail).getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument();
+  });
   it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies (Incidents hidden by flag)', () => {
     effectiveRole = 'Executive';
     renderRail();

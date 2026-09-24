@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, renderHook, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, renderHook, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { useState } from 'react';
 
 const trackAuthLogoutSucceeded = vi.hoisted(() => vi.fn());
@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   // When non-null, each profiles `.single()` call shifts the next producer off the queue;
   // the fallback below reads `state.profile`/`state.profileError` live.
   nextSingles: null as null | Array<() => Promise<{ data: unknown; error: unknown }>>,
+  authChange: null as null | ((event: string, session: unknown) => void),
+  sessionPromise: null as null | Promise<{ data: { session: unknown } }>,
 }));
 
 // A deferred promise helper so a test can control WHEN a profile read resolves.
@@ -34,11 +36,12 @@ vi.mock('@/src/lib/supabase/client', () => {
     supabase: {
       auth: {
         getSession: vi.fn().mockImplementation(() =>
-          Promise.resolve({ data: { session: state.session } })
+          state.sessionPromise ?? Promise.resolve({ data: { session: state.session } })
         ),
-        onAuthStateChange: vi.fn(() => ({
-          data: { subscription: { unsubscribe: vi.fn() } },
-        })),
+        onAuthStateChange: vi.fn((callback: (event: string, session: unknown) => void) => {
+          state.authChange = callback;
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        }),
         signInWithPassword: vi.fn(),
         signInWithOtp: vi.fn(),
         resetPasswordForEmail: mockedReset,
@@ -71,6 +74,8 @@ beforeEach(() => {
   state.profile = null;
   state.profileError = null;
   state.nextSingles = null;
+  state.authChange = null;
+  state.sessionPromise = null;
 });
 
 describe('useAuth', () => {
@@ -345,6 +350,67 @@ function profileFor(id: string, locale: string): Record<string, unknown> {
 }
 
 describe('AuthProvider refreshCurrentUser (profile language settings slice)', () => {
+  it('keeps a newer auth event when an older initial session read resolves afterward', async () => {
+    let resolveInitial!: (value: { data: { session: unknown } }) => void;
+    state.sessionPromise = new Promise((resolve) => { resolveInitial = resolve; });
+    state.profile = profileFor('u-current', 'id');
+    function IdentityProbe() {
+      const { currentUser } = useAuth();
+      return <span data-testid="identity">{currentUser?.id ?? 'none'}</span>;
+    }
+    render(<AuthProvider><IdentityProbe /></AuthProvider>);
+    await act(async () => state.authChange?.('SIGNED_IN', { user: { id: 'u-current' } }));
+    await waitFor(() => expect(screen.getByTestId('identity')).toHaveTextContent('u-current'));
+
+    state.profile = profileFor('u-old', 'en');
+    await act(async () => resolveInitial({ data: { session: { user: { id: 'u-old' } } } }));
+    expect(screen.getByTestId('identity')).toHaveTextContent('u-current');
+  });
+
+  it('suspends the previous profile while a different session profile loads', async () => {
+    state.session = { user: { id: 'u-switch-a' } };
+    state.profile = profileFor('u-switch-a', 'en');
+    function TransitionProbe() {
+      const { currentUser, loading } = useAuth();
+      return <span data-testid="transition">{currentUser?.id ?? 'none'}|{loading ? 'loading' : 'ready'}</span>;
+    }
+    render(<AuthProvider><TransitionProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('transition')).toHaveTextContent('u-switch-a|ready'));
+
+    const next = defer();
+    state.nextSingles = [() => next.promise];
+    await act(async () => state.authChange?.('SIGNED_IN', { user: { id: 'u-switch-b' } }));
+    expect(screen.getByTestId('transition')).toHaveTextContent('none|loading');
+
+    await act(async () => next.resolve({ data: profileFor('u-switch-b', 'id'), error: null }));
+    await waitFor(() => expect(screen.getByTestId('transition')).toHaveTextContent('u-switch-b|ready'));
+  });
+
+  it('lets a manual profile refresh finish across a same-user token event', async () => {
+    state.session = { user: { id: 'u-refresh-token' } };
+    state.profile = profileFor('u-refresh-token', 'en');
+    render(<AuthProvider><RefreshProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('refresh-locale')).toHaveTextContent('en'));
+
+    const refreshed = defer();
+    state.nextSingles = [() => refreshed.promise];
+    fireEvent.click(screen.getByTestId('refresh'));
+    await act(async () => state.authChange?.('TOKEN_REFRESHED', { user: { id: 'u-refresh-token' } }));
+    await act(async () => refreshed.resolve({ data: profileFor('u-refresh-token', 'id'), error: null }));
+    await waitFor(() => expect(screen.getByTestId('refresh-locale')).toHaveTextContent('id'));
+    expect(screen.getByTestId('refresh-result')).toHaveTextContent(JSON.stringify({ error: null }));
+  });
+
+  it('still reloads the profile on a same-user auth event when no manual refresh is running', async () => {
+    state.session = { user: { id: 'u-same' } };
+    state.profile = profileFor('u-same', 'en');
+    render(<AuthProvider><RefreshProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('refresh-locale')).toHaveTextContent('en'));
+    state.profile = profileFor('u-same', 'id');
+    await act(async () => state.authChange?.('USER_UPDATED', { user: { id: 'u-same' } }));
+    await waitFor(() => expect(screen.getByTestId('refresh-locale')).toHaveTextContent('id'));
+  });
+
   it('refreshCurrentUser replaces currentUser from a fresh profile read (AC-L10N-060 support)', async () => {
     state.session = { user: { id: 'u-refresh-1' } };
     state.profile = profileFor('u-refresh-1', 'en');

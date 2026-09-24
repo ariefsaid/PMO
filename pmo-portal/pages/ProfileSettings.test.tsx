@@ -4,8 +4,8 @@ import React from 'react';
 import { axeViolations } from '@/src/components/__tests__/axe';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-const { setMyLocalePreferences, refreshMock } = vi.hoisted(() => ({
-  setMyLocalePreferences: vi.fn(),
+const { setInterfaceLanguage, refreshMock } = vi.hoisted(() => ({
+  setInterfaceLanguage: vi.fn(),
   refreshMock: vi.fn(),
 }));
 
@@ -30,12 +30,14 @@ vi.mock('@/src/auth/useAuth', () => ({
   }),
 }));
 
-vi.mock('@/src/lib/db/preferences', () => ({ setMyLocalePreferences }));
+vi.mock('@/src/lib/repositories/profilePreferences', () => ({
+  profilePreferencesRepository: { setInterfaceLanguage },
+}));
 
 import ProfileSettings from './ProfileSettings';
 
 beforeEach(() => {
-  setMyLocalePreferences.mockReset();
+  setInterfaceLanguage.mockReset();
   refreshMock.mockReset();
   currentUserState = {
     id: 'user-123',
@@ -43,8 +45,7 @@ beforeEach(() => {
     role: 'Project Manager',
     email: 'pm@acme.test',
     org_id: 'org-1',
-    // ⚑ Distinctive, load-bearing values the save must pass through VERBATIM (the slice must not
-    //    reset/alter number-locale or timezone).
+    // Distinctive values ensure the page does not quietly rewrite independent preferences.
     number_locale: 'id-ID',
     timezone: 'Asia/Jakarta',
   };
@@ -85,30 +86,28 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(languageSelect()).toHaveValue('en');
   });
 
-  it('saving Organization default writes null while preserving numberLocale and timezone, then refreshes', async () => {
+  it('saving Organization default writes null to language only, then refreshes', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
-    setMyLocalePreferences.mockResolvedValue(undefined);
-    refreshMock.mockResolvedValue({ error: null });
+    setInterfaceLanguage.mockResolvedValue(undefined);
+    let resolveRefresh!: (value: { error: null }) => void;
+    refreshMock.mockReturnValue(new Promise((resolve) => { resolveRefresh = resolve; }));
 
     renderPage();
     fireEvent.change(languageSelect(), { target: { value: 'inherit' } });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() =>
-      expect(setMyLocalePreferences).toHaveBeenCalledWith('user-123', {
-        locale: null,
-        numberLocale: 'id-ID',
-        timezone: 'Asia/Jakarta',
-      })
+      expect(setInterfaceLanguage).toHaveBeenCalledWith('user-123', null)
     );
-    // Refresh must be awaited BEFORE success appears, and its { error: null } result is required.
-    expect(refreshMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+    await act(async () => resolveRefresh({ error: null }));
     expect(await screen.findByRole('status')).toHaveTextContent(/preferences saved/i);
   });
 
   it('disables the select and save button and shows a saving status while the write is pending', async () => {
     let resolveDAL!: () => void;
-    setMyLocalePreferences.mockImplementation(
+    setInterfaceLanguage.mockImplementation(
       () => new Promise<void>((res) => (resolveDAL = () => res()))
     );
     refreshMock.mockResolvedValue({ error: null });
@@ -127,13 +126,14 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
   it('shows an assertive error and no success when the database write rejects', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
-    setMyLocalePreferences.mockRejectedValue(new Error('db write failed'));
+    setInterfaceLanguage.mockRejectedValue(new Error('db write failed'));
     refreshMock.mockResolvedValue({ error: null });
 
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/db write failed/i));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/could not save your preference/i));
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/db write failed/i);
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
     expect(refreshMock).not.toHaveBeenCalled();
     // The chosen value stays retryable after an error (select re-enabled).
@@ -143,14 +143,14 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
   it('shows an assertive error and no success when the profile refresh fails after a successful write', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
-    setMyLocalePreferences.mockResolvedValue(undefined);
+    setInterfaceLanguage.mockResolvedValue(undefined);
     refreshMock.mockResolvedValue({ error: 'profile refresh failed' });
 
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/profile refresh failed/i)
+      expect(screen.getByRole('alert')).toHaveTextContent(/could not save your preference/i)
     );
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
   });

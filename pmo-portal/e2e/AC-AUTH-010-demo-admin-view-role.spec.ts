@@ -6,17 +6,18 @@ test('AC-AUTH-010: demo Admin can view the Engineer navigation without changing 
   await signIn(page, 'admin@acme.test');
   const desktop = page.getByTestId('desktop-account-cluster');
   const nav = page.getByRole('navigation', { name: 'Primary navigation' });
-  await expect(nav.getByRole('link', { name: 'Administration' })).toBeVisible();
+  const administration = page.getByRole('link', { name: 'Administration' });
+  await expect(administration).toBeVisible();
 
   await desktop.getByRole('button', { name: /view as role/i }).click();
   await desktop.getByRole('menuitem', { name: 'Engineer' }).click();
 
-  await expect(nav.getByRole('link', { name: 'Administration' })).toHaveCount(0);
+  await expect(administration).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'My Tasks' })).toBeVisible();
   await expect(desktop).toContainText('Engineer');
 
   await page.reload();
-  await expect(nav.getByRole('link', { name: 'Administration' })).toBeVisible();
+  await expect(administration).toBeVisible();
   await expect(desktop.getByRole('button', { name: /view as role/i })).toContainText('Admin');
   await desktop.getByRole('button', { name: /sign out/i }).click();
   await expect(page).toHaveURL(/\/login$/);

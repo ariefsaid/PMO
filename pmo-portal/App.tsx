@@ -1,6 +1,7 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useRoutes, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
@@ -178,6 +179,7 @@ export const AppRoutes: React.FC = () => (
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 const ShellChrome: React.FC = () => {
   const { pathname } = useLocation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
@@ -276,6 +278,9 @@ const ShellChrome: React.FC = () => {
   // a placeholder route reads its own page title; the module segment navigates
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
+    if (pathname === '/settings/profile') {
+      return [{ label: t('shell.nav.profileSettings', 'Profile settings') }];
+    }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
@@ -318,6 +323,7 @@ const ShellChrome: React.FC = () => {
     return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
   }, [
     pathname,
+    t,
     navigate,
     projects,
     procurements,

@@ -9,8 +9,8 @@
 ### Data flow and error boundary
 
 1. `ProfileSettings` reads the signed-in profile from `useAuth()`. Its select is initialized from `currentUser.locale` without resolving/copying the organization default: `inherit` is mapped to `null`, `id` maps to `'id'`, and `en` maps to `'en'`.
-2. On save it calls the existing `setMyLocalePreferences(currentUser.id, { locale, numberLocale: currentUser.number_locale, timezone: currentUser.timezone })`. The user id remains the only client-side row selector; RLS remains the authority. Passing the two existing fields through verbatim is load-bearing: this slice cannot reset, resolve, or otherwise alter formatting/timezone preferences.
-3. Only after that write resolves does it call a new `refreshCurrentUser()` Auth-context method and treats a non-null returned `error` as a save failure. The method reuses the provider’s existing `loadProfile` fetch and atomically replaces `currentUser` only when a profile is returned. It returns `{ error: string | null }` in the existing auth-method style; on a refresh error it preserves the previously usable profile. A monotonic profile-request generation guard makes the latest auth-event or manual refresh win, so an older profile read cannot overwrite a newer locale.
+2. On save it calls `profilePreferencesRepository.setInterfaceLanguage(currentUser.id, locale)`, which writes only the locale column through the DAL. The user id remains the only client-side row selector; RLS remains the authority. A locale-only update preserves number-format and timezone values even if another device changed them after this page loaded.
+3. Only after that write resolves does it call a new `refreshCurrentUser()` Auth-context method and treats a non-null returned `error` as a save failure. The method reuses the provider’s existing `loadProfile` fetch and atomically replaces `currentUser` only when a profile is returned. It returns `{ error: string | null }` in the existing auth-method style; on a refresh error it preserves the previously usable profile. A monotonic profile-request generation guard keeps the active profile and session consistent across refresh events.
 4. The changed profile drives `useResolvedLocale`; `I18nProvider` synchronously updates active format locales and then updates i18next and `<html lang>`. Thus the selector reports success only after the provider’s state is fresh, and a reload reads the persisted profile again.
 5. A rejected database write or refresh displays an assertive, translated error, leaves the selected retry value available, and never renders the success state. Pending disables the select/save action and exposes a truthful saving state. A successful save exposes a polite success status.
 
@@ -25,7 +25,7 @@
 
 | Acceptance criterion | Owning proof after this slice | Supporting proof in this plan |
 |---|---|---|
-| AC-L10N-003 | existing `pmo-portal/src/lib/db/preferences.test.ts` DAL test (writes `NULL`) | `ProfileSettings.test.tsx` verifies the inherit UI maps to the same `null` call while preserving number locale/timezone. |
+| AC-L10N-003 | existing `pmo-portal/src/lib/db/preferences.test.ts` DAL test (writes `NULL`) | `ProfileSettings.test.tsx` and the locale-only DAL test verify that inherit maps to `null` without updating number locale or timezone. |
 | AC-L10N-060 | `pmo-portal/e2e/serial/AC-L10N-060-language-switch.spec.ts`, **only when its local red→green run reaches the test body and passes** | component/Auth tests prove the lower-layer selector and refresh contract. |
 
 The page’s discoverability, current-choice rendering, pending/success/error states, responsive layout, and exact preservation of the two out-of-scope values are prompt acceptance behavior supporting AC-L10N-003/060; no new product semantics are invented. If the target e2e cannot execute in the local stack because its harness never reaches the test body, do not commit a skipped/vacuous test: retain the unit coverage, omit the e2e as the owner expressly permits, and report the failing local prerequisite.
@@ -57,7 +57,7 @@ All paths are repo-root-relative unless the command begins with `cd pmo-portal`.
 - Add `refreshCurrentUser: () => Promise<{ error: string | null }>` to `AuthContextValue`.
 - Add a `useRef` monotonic profile-request generation to `AuthProvider`. Increment/capture it before every profile read in `apply` and refresh, and apply a returned result only when the captured generation is current and the provider is active. Increment it for a signed-out `apply(null)` as well, invalidating any in-flight prior-user read. This preserves existing initial-load/auth-event behavior while preventing a stale read from overwriting a newer locale or a changed session.
 - Create a memoized refresh callback that reads the current session user id and calls `loadProfile`. It returns `{ error: 'Not signed in' }` when there is no user, returns `{ error: result.error }` without clearing the current profile when the read reports an error, and returns `{ error: null }` only after the current-generation successful profile result has replaced `currentUser` and cleared both profile-error fields. Catch a rejected profile-query promise and return its message in the same result shape; never turn an already usable authenticated profile into null for this page-level refresh.
-- Include the callback in the context value and `useMemo` dependencies. Add `refreshCurrentUser: vi.fn()` to the typed `makeAuthCtx()` fixture in `AnalyticsProvider.test.tsx`. Do not alter sign-in, sign-out, auth-event, impersonation, or analytics production code.
+- Include the callback in the context value and `useMemo` dependencies. Add `refreshCurrentUser: vi.fn()` to the typed `makeAuthCtx()` fixture in `AnalyticsProvider.test.tsx`. Preserve sign-in, sign-out, impersonation, and analytics behavior while keeping auth-event profile reads safe across identity changes and manual refreshes.
 
 **Verify GREEN:** `cd pmo-portal && npx vitest run src/auth/AuthProvider.test.tsx`.
 
@@ -65,12 +65,12 @@ All paths are repo-root-relative unless the command begins with `cd pmo-portal`.
 
 **AC coverage:** AC-L10N-003 supporting proof; AC-L10N-060 supporting proof.
 
-**Create** `pmo-portal/pages/ProfileSettings.test.tsx` before the page implementation. Mock `@/src/auth/useAuth` with a signed-in profile whose locale is alternately `null`, `'en'`, and `'id'`, including distinctive `number_locale` and `timezone`; mock `@/src/lib/db/preferences` and use the real `ToastProvider` only if the implementation requires it. Mock `react-i18next` so literal defaults remain accessible in unit assertions.
+**Create** `pmo-portal/pages/ProfileSettings.test.tsx` before the page implementation. Mock `@/src/auth/useAuth` with a signed-in profile whose locale is alternately `null`, `'en'`, and `'id'`, including distinctive `number_locale` and `timezone`; mock `@/src/lib/repositories/profilePreferences` and use the real `ToastProvider` only if the implementation requires it. Mock `react-i18next` so literal defaults remain accessible in unit assertions.
 
 Add meaningful RTL tests that:
 
 1. verify the native labelled language select exposes exactly Organization default, Bahasa Indonesia, and English and reflects `null`, `id`, and `en` as the current stored choice;
-2. select Organization default and save, then assert `setMyLocalePreferences` is called with the authenticated user id and `{ locale: null, numberLocale: <unchanged profile value>, timezone: <unchanged profile value> }`, then `refreshCurrentUser` is called before the polite success status appears and its `{ error: null }` result is required;
+2. select Organization default and save, then assert `setInterfaceLanguage` is called with the authenticated user id and `null`, and the DAL update contains only `locale`, then `refreshCurrentUser` is called before the polite success status appears and its `{ error: null }` result is required;
 3. use a deferred mutation promise to assert the select/save button are disabled and a saving status is visible while pending;
 4. reject the DAL mutation and separately return `{ error: 'profile refresh failed' }` from `refreshCurrentUser`, asserting an assertive error is shown and no success status appears in either case; and
 5. run `axe` against the rendered page, including its labelled control and live feedback, and assert no violations.
@@ -83,8 +83,8 @@ Add meaningful RTL tests that:
 
 **Create** `pmo-portal/pages/ProfileSettings.tsx`; **edit** `pmo-portal/public/locales/en/common.json`, `pmo-portal/public/locales/id/common.json`, and `pmo-portal/src/lib/i18n/launch-scope-routes.txt`.
 
-- Implement the page described in the design with `SelectField`, `useAuth`, `setMyLocalePreferences`, and local save state. Encode the select values as `'inherit' | 'id' | 'en'`; map only `'inherit'` to `null`. Initialize/reset the selection from `currentUser.locale` when that profile changes.
-- Call the DAL only for `currentUser.id` and copy `currentUser.number_locale`/`currentUser.timezone` unchanged. Await `refreshCurrentUser()` after a successful DAL write; show success only when its returned `error` is null. On a DAL rejection or a non-null refresh error, render an error state and keep the chosen value retryable. Do not add controls or writes for number locale/timezone.
+- Implement the page described in the design with `SelectField`, `useAuth`, `profilePreferencesRepository`, and local save state. Encode the select values as `'inherit' | 'id' | 'en'`; map only `'inherit'` to `null`. Initialize/reset the selection from `currentUser.locale` when that profile changes.
+- Call the repository only for `currentUser.id` and write only the locale column; do not include `number_locale` or `timezone` in the update. Await `refreshCurrentUser()` after a successful DAL write; show success only when its returned `error` is null. On a DAL rejection or a non-null refresh error, render an error state and keep the chosen value retryable. Do not add controls or writes for number locale/timezone.
 - Add literal `t('profileSettings.…', default)` calls for title, description, field label/help, three options, save/saving, saved, and failed feedback. Add the same nested key tree with English text in `en/common.json` and Bahasa translations in `id/common.json`; do not place unlocalized text in the component.
 - Add `/settings/profile  pages/ProfileSettings.tsx` to `launch-scope-routes.txt` using the existing route-list format.
 
@@ -154,7 +154,7 @@ After Tasks 1–6, rerun Task 7’s exact locked command. The journey must pass 
    ```bash
    cd pmo-portal && npx vitest run src/auth/AuthProvider.test.tsx pages/ProfileSettings.test.tsx App.routes.test.tsx src/components/shell/__tests__/Rail.test.tsx && npm run check:i18n
    ```
-2. Inspect `git diff --check` and `git status --short`; confirm the diff contains only the planned Auth context/provider, page/test, route/Rail tests and code, catalogues/scope registry, conditional E2E/spec-traceability files, and this plan’s intended docs. Do not revert concurrent changes and do not stage them.
+2. Inspect `git diff --check` and `git status --short`; confirm the diff contains only the planned Auth context/provider, page/test, preference DAL/repository, route/Rail/breadcrumb tests and code, catalogues/scope registry, conditional E2E/spec-traceability files, and this plan’s intended docs. Do not revert concurrent changes and do not stage them.
 3. Run the binding full suite (not a targeted substitute):
    ```bash
    cd pmo-portal && npm run verify:locked
@@ -169,13 +169,19 @@ After Tasks 1–6, rerun Task 7’s exact locked command. The journey must pass 
 - `pmo-portal/src/lib/analytics/AnalyticsProvider.test.tsx`
 - `pmo-portal/pages/ProfileSettings.tsx`
 - `pmo-portal/pages/ProfileSettings.test.tsx`
+- `pmo-portal/src/lib/db/preferences.ts`
+- `pmo-portal/src/lib/db/preferences.test.ts`
+- `pmo-portal/src/lib/repositories/profilePreferences.ts`
+- `pmo-portal/src/lib/repositories/profilePreferences.test.ts`
 - `pmo-portal/App.tsx`
 - `pmo-portal/App.routes.test.tsx`
 - `pmo-portal/src/components/shell/Rail.tsx`
 - `pmo-portal/src/components/shell/__tests__/Rail.test.tsx`
+- `pmo-portal/src/components/shell/routeMatch.ts`
+- `pmo-portal/src/components/shell/__tests__/breadcrumb-nav.test.ts`
 - `pmo-portal/public/locales/en/common.json`
 - `pmo-portal/public/locales/id/common.json`
 - `pmo-portal/src/lib/i18n/launch-scope-routes.txt`
 - Conditional only: `pmo-portal/e2e/serial/AC-L10N-060-language-switch.spec.ts` and the corresponding path-only traceability correction in `docs/specs/i18n-framework.spec.md`.
 
-No migration, generated type, DAL, number-format, timezone, `ContextBar.tsx`, or impersonation file changes are planned.
+No migration, generated type, number-format, timezone, `ContextBar.tsx`, or impersonation file changes are planned. The DAL gains a locale-only update helper and a typed repository seam.

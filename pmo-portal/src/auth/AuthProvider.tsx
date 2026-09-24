@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabase/client';
 import { trackAuthLogoutSucceeded } from '@/src/lib/analytics';
+import { queryClient } from '@/src/lib/queryClient';
 import { AuthContext, type Profile } from './AuthContext';
 
 type ProfileErrorKind = 'not_provisioned' | 'load_error';
@@ -44,13 +45,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Session mirror updated synchronously on every auth event so a refresh callback created before
   // the session landed still resolves the correct (latest) user id.
   const sessionRef = useRef<Session | null>(null);
+  const identityRef = useRef<string | null>(null);
+  const manualRefreshesRef = useRef(0);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
     let active = true;
+    let initialized = false;
+    let authEventReceived = false;
     const apply = async (s: Session | null) => {
       if (!active) return;
+      const nextId = s?.user?.id ?? null;
+      // Token/user metadata events for the SAME identity do not invalidate a manual profile
+      // refresh. The profile row is a separate resource and is explicitly refreshed after edits.
+      if (initialized && identityRef.current === nextId && manualRefreshesRef.current > 0) {
+        sessionRef.current = s;
+        setSession(s);
+        return;
+      }
+      initialized = true;
+      if (identityRef.current !== nextId) {
+        identityRef.current = nextId;
+        setCurrentUser(null);
+        setLoading(true);
+        queryClient.clear();
+      }
       sessionRef.current = s;
       const gen = ++profileGenRef.current;
       setSession(s);
@@ -77,9 +97,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // loading screen forever — treat it as signed-out and let the login flow take over.
     supabase.auth
       .getSession()
-      .then(({ data }) => apply(data.session))
-      .catch(() => void apply(null));
+      .then(({ data }) => { if (!authEventReceived) void apply(data.session); })
+      .catch(() => { if (!authEventReceived) void apply(null); });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      authEventReceived = true;
       void apply(s);
     });
     return () => {
@@ -163,13 +184,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userId = sessionRef.current?.user?.id;
     if (!userId) return { error: 'Not signed in' };
     const gen = ++profileGenRef.current;
+    manualRefreshesRef.current += 1;
     try {
       const result = await loadProfile(userId);
       if (!mountedRef.current || gen !== profileGenRef.current) {
-        // The provider unmounted or a newer auth event/refresh superseded this read — never apply
-        // a stale profile. The overall auth flow owns the loading/error surface, so returning
-        // null-error lets the page keep its current (still usable) profile.
-        return { error: null };
+        return { error: 'Profile refresh was superseded' };
       }
       if (result.error) {
         // Preserve the previously usable profile; surface the read error to the caller.
@@ -180,8 +199,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfileErrorKind(null);
       return { error: null };
     } catch (e) {
-      if (!mountedRef.current || gen !== profileGenRef.current) return { error: null };
+      if (!mountedRef.current || gen !== profileGenRef.current) return { error: 'Profile refresh was superseded' };
       return { error: e instanceof Error ? e.message : 'Profile refresh failed' };
+    } finally {
+      manualRefreshesRef.current -= 1;
     }
   }, []);
 

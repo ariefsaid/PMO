@@ -60,3 +60,14 @@ export async function setMyLocalePreferences(
   if (error) throw toAppError(error);
   assertWriteLanded(data, 'Profile not found or you do not have permission to update these preferences.');
 }
+
+/** Change the interface language without rewriting independently editable format/timezone values. */
+export async function setMyInterfaceLanguage(userId: string, locale: 'id' | 'en' | null): Promise<void> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ locale })
+    .eq('id', userId)
+    .select('id');
+  if (error) throw toAppError(error);
+  assertWriteLanded(data, 'Profile not found or you do not have permission to update this preference.');
+}

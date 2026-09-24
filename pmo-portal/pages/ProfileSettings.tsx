@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
-import { setMyLocalePreferences } from '@/src/lib/db/preferences';
+import { profilePreferencesRepository } from '@/src/lib/repositories/profilePreferences';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { SelectField, Button } from '@/src/components/ui';
 
 type LangChoice = 'inherit' | 'id' | 'en';
@@ -18,8 +19,8 @@ function toChoice(locale: string | null | undefined): LangChoice {
  * Personal profile language settings (RIS readiness slice). A signed-in user chooses their
  * interface-language override: inherit the organization default (stored NULL), Bahasa Indonesia
  * (`id`), or English (`en`). On save it writes ONLY the caller's own profile via the
- * RLS-authoritative `setMyLocalePreferences` DAL, passes the existing number-locale/timezone
- * values through VERBATIM (this slice must not reset or alter them), then awaits
+ * RLS-authoritative preference repository, writes only the locale column (so independent
+ * number-format and timezone edits remain untouched), then awaits
  * `refreshCurrentUser()` so the provider's `currentUser` — and therefore UI text, formatting, and
  * `<html lang>` — update in the same session. Success is claimed only after that refresh returns
  * `{ error: null }`; a rejected write or refresh renders an assertive error and keeps the chosen
@@ -65,25 +66,22 @@ export const ProfileSettings: React.FC = () => {
     setErrorMsg(null);
     // Only `inherit` maps to NULL; the explicit choices are stored as-is.
     const locale = choice === 'inherit' ? null : choice;
+    const showSaveError = (error: unknown) => {
+      classifyMutationError(error);
+      setErrorMsg(t('profileSettings.error', 'Could not save your preference. Please try again.'));
+      setStatus('error');
+    };
     try {
       // The id filter is NOT the authorization — the restrictive RLS policy
       // (`profiles_locale_self_only`) is. We only ever write the signed-in user's own profile.
-      await setMyLocalePreferences(currentUser.id, {
-        locale,
-        numberLocale: currentUser.number_locale,
-        timezone: currentUser.timezone,
-      });
+      await profilePreferencesRepository.setInterfaceLanguage(currentUser.id, locale);
     } catch (e) {
-      setErrorMsg(
-        e instanceof Error ? e.message : t('profileSettings.error', 'Could not save your preference. Please try again.')
-      );
-      setStatus('error');
+      showSaveError(e);
       return;
     }
     const { error } = await refreshCurrentUser();
     if (error) {
-      setErrorMsg(error);
-      setStatus('error');
+      showSaveError(new Error(error));
       return;
     }
     setStatus('saved');

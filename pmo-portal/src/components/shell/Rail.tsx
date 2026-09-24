@@ -244,7 +244,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   };
 
   return (
-    <div
+    <aside
       className="flex min-h-0 flex-col border-r border-border bg-card"
       style={{ gridArea: 'rail' }}
     >
@@ -350,7 +350,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       <div className="flex-shrink-0 border-t border-border px-4 py-2">
         <AppVersion />
       </div>
-    </div>
+    </aside>
   );
 };
 

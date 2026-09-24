@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -84,6 +84,41 @@ describe('useDemoEligibility — demo-org gate for the Admin view-as control (FR
     await waitFor(() => expect(h.getOrgLifecycleState).toHaveBeenCalledTimes(2));
     resolve('live');
     await waitFor(() => expect(second.result.current).toBe('ineligible'));
+  });
+
+  it('keeps a mounted demo selection during a background recheck, then denies a live result', async () => {
+    const client = freshClient();
+    h.getOrgLifecycleState.mockResolvedValueOnce('demo');
+    const { result } = renderHook(() => useDemoEligibility(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current).toBe('eligible'));
+
+    let resolve!: (value: string) => void;
+    h.getOrgLifecycleState.mockReturnValueOnce(new Promise<string>((r) => { resolve = r; }));
+    act(() => { void client.invalidateQueries({ queryKey: ['org-lifecycle-state', 'org-1'] }); });
+    await waitFor(() => expect(h.getOrgLifecycleState).toHaveBeenCalledTimes(2));
+    expect(result.current).toBe('eligible');
+    resolve('live');
+    await waitFor(() => expect(result.current).toBe('ineligible'));
+  });
+
+  it('withholds cached demo eligibility when the same org role becomes Admin again', async () => {
+    const client = freshClient();
+    h.getOrgLifecycleState.mockResolvedValueOnce('demo');
+    const { result, rerender } = renderHook(() => useDemoEligibility(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current).toBe('eligible'));
+
+    h.role = 'Engineer';
+    rerender();
+    expect(result.current).toBe('pending');
+
+    let resolve!: (value: string) => void;
+    h.getOrgLifecycleState.mockReturnValueOnce(new Promise<string>((r) => { resolve = r; }));
+    h.role = 'Admin';
+    rerender();
+    expect(result.current).toBe('pending');
+    await waitFor(() => expect(h.getOrgLifecycleState).toHaveBeenCalledTimes(2));
+    resolve('live');
+    await waitFor(() => expect(result.current).toBe('ineligible'));
   });
 
   it('is disabled without a current user — stays pending and never calls the DAL', () => {
