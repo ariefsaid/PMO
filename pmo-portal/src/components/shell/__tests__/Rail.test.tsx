@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -51,6 +51,13 @@ const renderRail = () =>
   );
 
 describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, AC-NAV-008/009)', () => {
+  it('places brand, navigation, and footer within one complementary landmark', () => {
+    effectiveRole = 'Executive';
+    renderRail();
+    const rail = screen.getByRole('complementary');
+    expect(within(rail).getByText('PMO Portal')).toBeInTheDocument();
+    expect(within(rail).getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument();
+  });
   it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies (Incidents hidden by flag)', () => {
     effectiveRole = 'Executive';
     renderRail();
@@ -165,5 +172,28 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     );
     await userEvent.click(screen.getByRole('link', { name: /Projects/ }));
     expect(onNavigate).toHaveBeenCalledOnce();
+  });
+
+  // Profile language settings slice (supports AC-L10N-060): the rail link is visible to EVERY
+  // role and carries the `/settings/profile` href (discoverability on desktop + the mobile drawer).
+  it('AC-L10N-060 support: Profile settings link is visible to every role with href=/settings/profile', () => {
+    for (const role of ['Executive', 'Engineer']) {
+      effectiveRole = role;
+      const { unmount } = renderRail();
+      const link = screen.getByRole('link', { name: /profile settings/i });
+      expect(link).toHaveAttribute('href', '/settings/profile');
+      unmount();
+    }
+  });
+
+  it('AC-L10N-060 support: Profile settings link carries aria-current=page on /settings/profile', () => {
+    effectiveRole = 'Executive';
+    render(
+      <MemoryRouter initialEntries={['/settings/profile']}>
+        <Rail />
+      </MemoryRouter>
+    );
+    const link = screen.getByRole('link', { name: /profile settings/i });
+    expect(link).toHaveAttribute('aria-current', 'page');
   });
 });

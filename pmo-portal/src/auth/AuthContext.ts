@@ -29,6 +29,14 @@ export interface AuthContextValue {
   updatePassword: (password: string) => Promise<{ error: string | null }>;
   resendEmailConfirmation: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  /**
+   * Re-reads the signed-in user's `profiles` row and atomically replaces `currentUser` when the
+   * read succeeds. Used after a locale-preference write so UI text/formatting update in-session.
+   * Returns `{ error: string | null }` in the existing auth-method style; on error the previously
+   * usable profile is preserved (never cleared to null for this page-level refresh). Resolves
+   * `{ error: 'Not signed in' }` when no session user exists.
+   */
+  refreshCurrentUser: () => Promise<{ error: string | null }>;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);

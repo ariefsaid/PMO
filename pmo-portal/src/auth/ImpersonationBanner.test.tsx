@@ -5,10 +5,14 @@ import { ImpersonationProvider, useEffectiveRole } from './impersonation';
 import { ImpersonationBanner } from './ImpersonationBanner';
 import type { Role } from './AuthContext';
 
+// The banner's impersonation scenarios run as a demo-org Admin (AC-AUTH-013): eligibility
+// must be explicit for viewAs to be live (the provider fails closed to 'pending' without it).
 const wrap =
   (realRole: Role | null) =>
   ({ children }: { children: React.ReactNode }) => (
-    <ImpersonationProvider realRole={realRole}>{children}</ImpersonationProvider>
+    <ImpersonationProvider realRole={realRole} demoEligibility="eligible">
+      {children}
+    </ImpersonationProvider>
   );
 
 describe('<ImpersonationBanner> (ADR-0016)', () => {

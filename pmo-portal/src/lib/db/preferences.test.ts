@@ -10,10 +10,19 @@ const h = vi.hoisted(() => {
   return { from, calls, result };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
-import { getMyLocalePreferences, setMyLocalePreferences } from './preferences';
+import { getMyLocalePreferences, setMyInterfaceLanguage, setMyLocalePreferences } from './preferences';
 import { AppError } from '@/src/lib/appError';
 beforeEach(() => { h.from.mockClear(); Object.values(h.calls).forEach(c => c.length = 0); h.result.value = { data: [{ id: 'u1' }], error: null }; });
 describe('FR-L10N-006 own-preference DAL', () => {
+  it('updates only interface language and preserves independently edited formatting preferences', async () => {
+    await setMyInterfaceLanguage('u1', 'id');
+    expect(h.calls.update).toEqual([{ locale: 'id' }]);
+    expect(h.calls.eq).toEqual([['id', 'u1']]);
+  });
+  it('stores NULL for Organization default without writing the other preference columns', async () => {
+    await setMyInterfaceLanguage('u1', null);
+    expect(h.calls.update).toEqual([{ locale: null }]);
+  });
   it('reads only own preference columns', async () => {
     h.result.value = { data: { locale: 'id', number_locale: null, timezone: 'Asia/Jakarta' }, error: null };
     await expect(getMyLocalePreferences('u1')).resolves.toEqual({ locale: 'id', numberLocale: null, timezone: 'Asia/Jakarta' });
