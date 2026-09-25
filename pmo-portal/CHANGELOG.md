@@ -10,6 +10,13 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.12.0](https://github.com/ariefsaid/PMO/compare/v0.11.1...v0.12.0) (2026-09-25)
+
+
+### Features
+
+* scope role preview to demo admins and add profile language choice ([bbe1ca5](https://github.com/ariefsaid/PMO/commit/bbe1ca5ab685fe0f5de45d2c47ee46e88da822a3))
+
 ## [0.11.1](https://github.com/ariefsaid/PMO/compare/v0.11.0...v0.11.1) (2026-09-23)
 
 
