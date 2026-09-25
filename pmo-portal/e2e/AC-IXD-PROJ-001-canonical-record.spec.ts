@@ -21,8 +21,9 @@ import { login, pickComboboxOption, openPipelineCard } from './helpers';
  *     this spec's READ-ONLY on-hand example. It is NEVER mutated by any spec (AC-TSE-021 / AC-IXD-TS-001
  *     only reference it as a timesheet picker option — they create timesheet_entries, never touch the
  *     project row), so this spec's on-hand half is ordering-independent in the full parallel suite.
- *     P001 was the prior choice but AC-PRJ-006 mutates P001's contract_value, coupling the two specs;
- *     repointing to P003 decouples them. (A *new* dedicated on-hand row was rejected: the dashboard
+ *     P001 was the prior choice; AC-PRJ-006 used to mutate P001's contract_value, coupling the two
+ *     specs. AC-PRJ-006 now uses a run-scoped project in the serial lane. (A *seeded* dedicated on-hand
+ *     row was rejected: the dashboard
  *     on_hand_margin formula sum(contract_value−spent)/sum(contract_value) means ANY extra on-hand
  *     project shifts on_hand_value + on_hand_margin + win-rate, so a new row could not be oracle-
  *     neutral; P003 already exists and is provably unmutated, so it adds zero pgTAP drift.)
@@ -94,7 +95,7 @@ test(
     await page.goto('/projects');
     await waitProjectsReady(page);
     // P003 "Acme Internal Platform" — a READ-ONLY on-hand seed project no spec mutates (see header
-    // note). Decoupled from P001 (which AC-PRJ-006 mutates) so this half is ordering-independent.
+    // note). Kept on P003 so this half remains independent of P001's money and locale journeys.
     const onHandName = 'Acme Internal Platform';
     await projectRow(page, onHandName).getByRole('button', { name: onHandName, exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
