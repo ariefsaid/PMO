@@ -30,9 +30,18 @@
       "selectAll": "Pilih semua minggu yang dapat disetujui",
       "selectedCount": "{{count}} dipilih",
       "toast": {
-        "allOk": { "detail": "{{count}} disetujui", "headline": "Timesheet disetujui" },
-        "noneOk": { "detail": "{{count}} gagal (pemisahan tugas atau data usang)", "headline": "Tidak dapat menyetujui" },
-        "partial": { "detail": "{{ok}} disetujui, {{failed}} gagal (pemisahan tugas atau data usang)", "headline": "Disetujui sebagian" }
+        "allOk": {
+          "detail": "{{count}} disetujui",
+          "headline": "Timesheet disetujui"
+        },
+        "noneOk": {
+          "detail": "{{count}} gagal (pemisahan tugas atau data usang)",
+          "headline": "Tidak dapat menyetujui"
+        },
+        "partial": {
+          "detail": "{{ok}} disetujui, {{failed}} gagal (pemisahan tugas atau data usang)",
+          "headline": "Disetujui sebagian"
+        }
       }
     },
     "accessDenied": {
@@ -1795,7 +1804,8 @@
       "revenueByProject": "Pendapatan per Proyek",
       "sales": "Pipeline Penjualan",
       "salesInvoices": "Invoice Penjualan",
-      "timesheets": "Timesheet"
+      "timesheets": "Timesheet",
+      "profileSettings": "Pengaturan Profil"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
@@ -1925,5 +1935,24 @@
     },
     "unknownProject": "Proyek tidak diketahui",
     "weekOf": "Minggu"
+  },
+  "profileSettings": {
+    "loading": "Memuat profil…",
+    "title": "Pengaturan Profil",
+    "description": "Pilih bahasa yang digunakan untuk tombol, label, dan pesan di portal ini.",
+    "language": {
+      "label": "Bahasa antarmuka",
+      "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
+      "options": {
+        "inherit": "Default organisasi",
+        "id": "Bahasa Indonesia",
+        "en": "English"
+      },
+      "inheritHint": "Default organisasi mengikuti pengaturan organisasi Anda. Pilih bahasa di bawah untuk menimpanya."
+    },
+    "save": "Simpan",
+    "saving": "Menyimpan preferensi Anda…",
+    "saved": "Preferensi disimpan",
+    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi."
   }
 }

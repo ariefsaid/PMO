@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabase/client';
 import { trackAuthLogoutSucceeded } from '@/src/lib/analytics';
+import { queryClient } from '@/src/lib/queryClient';
 import { AuthContext, type Profile } from './AuthContext';
 
 type ProfileErrorKind = 'not_provisioned' | 'load_error';
@@ -35,14 +36,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileErrorKind, setProfileErrorKind] = useState<ProfileErrorKind | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Monotonic profile-request generation (profile language settings slice). Every profile read
+  // (auth-event `apply` or a manual `refreshCurrentUser`) captures an incremented generation and
+  // applies its result ONLY if that generation is still current — so an older in-flight read can
+  // never overwrite a newer locale (or a changed session). A signed-out `apply(null)` also
+  // increments, invalidating any in-flight read from the prior user.
+  const profileGenRef = useRef(0);
+  // Session mirror updated synchronously on every auth event so a refresh callback created before
+  // the session landed still resolves the correct (latest) user id.
+  const sessionRef = useRef<Session | null>(null);
+  const identityRef = useRef<string | null>(null);
+  const manualRefreshesRef = useRef(0);
+  const mountedRef = useRef(true);
+
   useEffect(() => {
+    mountedRef.current = true;
     let active = true;
+    let initialized = false;
+    let authEventReceived = false;
     const apply = async (s: Session | null) => {
       if (!active) return;
+      const nextId = s?.user?.id ?? null;
+      // Token/user metadata events for the SAME identity do not invalidate a manual profile
+      // refresh. The profile row is a separate resource and is explicitly refreshed after edits.
+      if (initialized && identityRef.current === nextId && manualRefreshesRef.current > 0) {
+        sessionRef.current = s;
+        setSession(s);
+        return;
+      }
+      initialized = true;
+      if (identityRef.current !== nextId) {
+        identityRef.current = nextId;
+        setCurrentUser(null);
+        setLoading(true);
+        queryClient.clear();
+      }
+      sessionRef.current = s;
+      const gen = ++profileGenRef.current;
       setSession(s);
       if (s?.user) {
         const result = await loadProfile(s.user.id);
-        if (!active) return;
+        if (!active || gen !== profileGenRef.current) return;
         if (result.error) {
           setCurrentUser(null);
           setProfileError(result.error);
@@ -63,13 +97,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // loading screen forever — treat it as signed-out and let the login flow take over.
     supabase.auth
       .getSession()
-      .then(({ data }) => apply(data.session))
-      .catch(() => void apply(null));
+      .then(({ data }) => { if (!authEventReceived) void apply(data.session); })
+      .catch(() => { if (!authEventReceived) void apply(null); });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      authEventReceived = true;
       void apply(s);
     });
     return () => {
       active = false;
+      mountedRef.current = false;
       sub.subscription.unsubscribe();
     };
   }, []);
@@ -144,6 +180,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!error) trackAuthLogoutSucceeded();
   }, []);
 
+  const refreshCurrentUser = useCallback(async () => {
+    const userId = sessionRef.current?.user?.id;
+    if (!userId) return { error: 'Not signed in' };
+    const gen = ++profileGenRef.current;
+    manualRefreshesRef.current += 1;
+    try {
+      const result = await loadProfile(userId);
+      if (!mountedRef.current || gen !== profileGenRef.current) {
+        return { error: 'Profile refresh was superseded' };
+      }
+      if (result.error) {
+        // Preserve the previously usable profile; surface the read error to the caller.
+        return { error: result.error };
+      }
+      setCurrentUser(result.profile);
+      setProfileError(null);
+      setProfileErrorKind(null);
+      return { error: null };
+    } catch (e) {
+      if (!mountedRef.current || gen !== profileGenRef.current) return { error: 'Profile refresh was superseded' };
+      return { error: e instanceof Error ? e.message : 'Profile refresh failed' };
+    } finally {
+      manualRefreshesRef.current -= 1;
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       session,
@@ -159,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatePassword,
       resendEmailConfirmation,
       signOut,
+      refreshCurrentUser,
     }),
     [
       session,
@@ -173,6 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatePassword,
       resendEmailConfirmation,
       signOut,
+      refreshCurrentUser,
     ]
   );
 

@@ -108,3 +108,7 @@
 #    rule — a launch-scope screen shipping without its line silently shrinks this gate).
 /meetings                      pages/Meetings.tsx
 /meetings/:meetingId           pages/MeetingDetail.tsx
+
+# ── Personal profile language settings (RIS readiness slice): every signed-in user's choice of
+#    interface-language override (inherit / Bahasa Indonesia / English).
+/settings/profile             pages/ProfileSettings.tsx

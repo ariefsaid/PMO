@@ -66,7 +66,16 @@ const SSE_FRAMES = buildSseBody([
 ]);
 
 test.describe('AC-AR-013: AssistantPanel journey', () => {
-  test.beforeEach(async ({ page }) => {
+  test('AC-AR-013 open the assistant, ask a question, see the streamed answer', async ({
+    page,
+  }) => {
+    // Keep the mocked stream in flight until the UI has proved its pending state.
+    // A fixed delay can expire before a busy runner polls for the Stop button.
+    let releaseResponse!: () => void;
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+
     // Intercept agent-chat SSE calls before any navigation.
     // The mock returns the pre-scripted SSE frames; no live Anthropic call is made.
     await page.route('**/functions/v1/agent-chat', async (route) => {
@@ -77,12 +86,7 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
       // returning JSON here makes decodeSseStream yield a bogus event and the tool /
       // assistant / completed frames never arrive (the failure the integration gate
       // caught). The GET branch is defensive only; it is never exercised by the adapter.
-      // Hold the response long enough that the IN-FLIGHT state (composer disabled, "Stop
-      // generating" shown) is deterministically observable by step 5. At 300 ms a fast runner
-      // rendered the whole completed answer before the assertion's first poll — CI's
-      // integration lane failed on attempt 1 and passed on retry at the 2026-09-02 promote
-      // (#599). The window must be wider than Playwright's poll cadence, not "fast".
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      await responseGate;
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
@@ -93,11 +97,6 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
         body: SSE_FRAMES,
       });
     });
-  });
-
-  test('AC-AR-013 open the assistant, ask a question, see the streamed answer', async ({
-    page,
-  }) => {
     // ── 1. Authenticate ───────────────────────────────────────────────────────
     await signIn(page, 'admin@acme.test');
 
@@ -125,9 +124,13 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
 
     // ── 5. Composer disabled while streaming (Stop button appears) ────────────
     // The Send button becomes Stop while a run is in flight.
-    await expect(
-      panel.getByRole('button', { name: /stop generating/i }),
-    ).toBeVisible({ timeout: 10_000 });
+    try {
+      await expect(
+        panel.getByRole('button', { name: /stop generating/i }),
+      ).toBeVisible({ timeout: 10_000 });
+    } finally {
+      releaseResponse();
+    }
 
     // ── 6. Tool-call card "Looked up projects" appears ────────────────────────
     await expect(panel.getByText(/Looked up projects/i)).toBeVisible({ timeout: 15_000 });

@@ -1,6 +1,7 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useRoutes, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
@@ -39,6 +40,7 @@ import { useMeetings } from '@/src/hooks/useMeetings';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
 import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
@@ -86,6 +88,7 @@ const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
+const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -163,6 +166,9 @@ export const appRouteConfig: RouteObject[] = [
   // I3: User-view renderer: /views/:viewId. Declared after /views/new and /views/:viewId/edit to
   //   avoid wildcard collision.
   { path: '/views/:viewId', element: <FeatureRoute feature="user_views" element={<UserViewRenderer />} /> },
+  // Personal profile language settings (RIS slice): every signed-in user's interface-language
+  //   override. Declared before the `*` catch-all so it resolves to a real route.
+  { path: '/settings/profile', element: <ProfileSettingsPage /> },
   { path: '*', element: <NotFoundPage /> },
 ];
 
@@ -173,6 +179,7 @@ export const AppRoutes: React.FC = () => (
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 const ShellChrome: React.FC = () => {
   const { pathname } = useLocation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
@@ -271,6 +278,9 @@ const ShellChrome: React.FC = () => {
   // a placeholder route reads its own page title; the module segment navigates
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
+    if (pathname === '/settings/profile') {
+      return [{ label: t('shell.nav.profileSettings', 'Profile settings') }];
+    }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
@@ -313,6 +323,7 @@ const ShellChrome: React.FC = () => {
     return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
   }, [
     pathname,
+    t,
     navigate,
     projects,
     procurements,
@@ -425,8 +436,12 @@ const Shell: React.FC = () => {
   // ADR-0056: mount exactly once in the authenticated shell — seeds/clears the module-level
   // ownership cache so routeTaskWrite() routes task writes correctly (fail-closed 'pmo').
   useOwnershipCacheSync();
+  // FR-AUTH-036 (AC-AUTH-013/014): the Admin "view as role" control exists ONLY for Admins
+  // of a demo org. The hook reads the signed-in org's lifecycle_state via RLS (never a
+  // hardcoded org id) and FAILS CLOSED to 'pending' while loading or on error.
+  const demoEligibility = useDemoEligibility();
   return (
-    <ImpersonationProvider realRole={role}>
+    <ImpersonationProvider realRole={role} demoEligibility={demoEligibility}>
       <ToastProvider>
         {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
             so the runtime + open state survive route changes. It is the SOLE

@@ -3,6 +3,18 @@ import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 
 /**
+ * Explicit org lifecycle marker (DD-ORG-3, migration 0191). `NULL` and any future value are
+ * deliberately NOT members: server-side `assert_org_destroyable` treats them as protected, and
+ * client-side consumers must treat them as "not demo" — never guess a value nobody set.
+ */
+export const ORG_LIFECYCLE_STATES = ['live', 'demo', 'test'] as const;
+export type OrgLifecycleState = (typeof ORG_LIFECYCLE_STATES)[number];
+
+export function isOrgLifecycleState(value: unknown): value is OrgLifecycleState {
+  return (ORG_LIFECYCLE_STATES as readonly string[]).includes(value as string);
+}
+
+/**
  * The org's single operating currency (OD-CR-5 / migration 0187): ISO-4217 alpha-3, stamped onto
  * every money row by the `stamp_currency` trigger. Read here ONLY for figures with no money row of
  * their own (RPC aggregates, pipeline stages, cross-record sums) — those figures are
@@ -71,6 +83,28 @@ export async function getOrgTaxDefault(): Promise<TaxTreatment | null> {
   // and would pre-select it into a form as if an Admin had. Unknown stays unknown: the form's
   // select simply opens empty, exactly as it did before 0207.
   return isTaxTreatment(value) ? value : null;
+}
+
+/**
+ * The signed-in org's lifecycle marker (0191) — the demo signal for the Admin "view as role"
+ * control (FR-AUTH-036): only a resolved `'demo'` may enable the control, and only for Admins.
+ *
+ * `organizations` carries a SELECT policy scoped to the caller's own org, so this returns at most
+ * one row under RLS and `org_id` is NEVER sent (ADR-0017). Same shape as `getOrgDefaultCurrency`.
+ *
+ * ⚑ No fallback constant. A NULL lifecycle_state or a state value introduced later returns
+ * `null` — callers must treat unknown as NOT demo (fail closed), exactly as the server-side
+ * `assert_org_destroyable` allowlist does. A hardcoded org UUID here would be both a tenancy
+ * bug and a maintenance trap; the RLS-scoped row is the only signal.
+ */
+export async function getOrgLifecycleState(): Promise<OrgLifecycleState | null> {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('lifecycle_state')
+    .limit(1);
+  if (error) throw new Error(error.message);
+  const value = data?.[0]?.lifecycle_state;
+  return isOrgLifecycleState(value) ? value : null;
 }
 
 /**

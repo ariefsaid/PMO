@@ -30,9 +30,18 @@
       "selectAll": "Select all approvable weeks",
       "selectedCount": "{{count}} selected",
       "toast": {
-        "allOk": { "detail": "{{count}} approved", "headline": "Timesheets approved" },
-        "noneOk": { "detail": "{{count}} failed (separation of duties or stale)", "headline": "Couldn't approve" },
-        "partial": { "detail": "{{ok}} approved, {{failed}} failed (separation of duties or stale)", "headline": "Partially approved" }
+        "allOk": {
+          "detail": "{{count}} approved",
+          "headline": "Timesheets approved"
+        },
+        "noneOk": {
+          "detail": "{{count}} failed (separation of duties or stale)",
+          "headline": "Couldn't approve"
+        },
+        "partial": {
+          "detail": "{{ok}} approved, {{failed}} failed (separation of duties or stale)",
+          "headline": "Partially approved"
+        }
       }
     },
     "accessDenied": {
@@ -1795,7 +1804,8 @@
       "revenueByProject": "Revenue by Project",
       "sales": "Sales Pipeline",
       "salesInvoices": "Sales Invoices",
-      "timesheets": "Timesheets"
+      "timesheets": "Timesheets",
+      "profileSettings": "Profile settings"
     },
     "notifications": {
       "empty": "No notifications yet.",
@@ -1925,5 +1935,24 @@
     },
     "unknownProject": "Unknown Project",
     "weekOf": "Week of"
+  },
+  "profileSettings": {
+    "loading": "Loading profile…",
+    "title": "Profile settings",
+    "description": "Choose the language used for buttons, labels, and messages in this portal.",
+    "language": {
+      "label": "Interface language",
+      "help": "Saved to your profile and applied across devices.",
+      "options": {
+        "inherit": "Organization default",
+        "id": "Bahasa Indonesia",
+        "en": "English"
+      },
+      "inheritHint": "Organization default follows your organization’s setting. Choose a language below to override it."
+    },
+    "save": "Save",
+    "saving": "Saving your preference…",
+    "saved": "Preferences saved",
+    "error": "Could not save your preference. Please try again."
   }
 }

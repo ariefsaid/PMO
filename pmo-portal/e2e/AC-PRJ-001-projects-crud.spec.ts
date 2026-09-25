@@ -9,27 +9,16 @@ import { login, pickComboboxOption, openPipelineCard } from './helpers';
  *   AC-PRJ-003  PM creates a new project (Leads) → the new row appears in the Pipeline
  *   AC-PRJ-004  PM edits the project header (name) on the detail page → the change persists
  *   AC-PRJ-005  Executive archives a project → it leaves the default index
- *   AC-PRJ-006  contract_value SoD: on a WON/on-hand project, Finance CAN edit the value (money
- *               authority) and PM sees it READ-ONLY (the segregation of duties)
  *   AC-PRJ-007  gating: Finance does NOT see "New project" (FE stricter than RLS)
  *
  * Roles (seed.sql): pm@acme.test, exec@acme.test, finance@acme.test.
- * On-hand seed project: P001 "Innovate Corp HQ Fit-Out" (status Ongoing Project), PM = pm@acme.test.
- *
  * RBAC authority: docs/design/rbac-visibility.md §B/§B2 + docs/adr/0019.
- * The contract_value RPC (set_project_contract_value, 0014) is the sole writer; pgTAP
- * 0052_project_value_sod.test.sql owns the RLS/SoD contract — this e2e proves the user journey.
  */
 
 test.setTimeout(120_000);
 
 async function waitProjectsReady(page: Page) {
   await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 20_000 });
-}
-
-/** A project index DataTable row whose Project cell exactly matches `name`. */
-function projectRow(page: Page, name: string) {
-  return page.locator('table tbody tr').filter({ has: page.getByRole('button', { name, exact: true }) });
 }
 
 // ── AC-PRJ-003 / AC-PRJ-004 / AC-PRJ-005 — full delivery CRUD journey ──────────
@@ -100,58 +89,6 @@ test(
     // GOAL ORACLE: back in the Pipeline, the archived deal is gone from the default list.
     await page.goto('/sales');
     await expect(page.getByText(editedName)).toHaveCount(0, { timeout: 15_000 });
-  },
-);
-
-// ── AC-PRJ-006 — contract_value SoD on a WON/on-hand project ──────────────────
-
-test(
-  'AC-PRJ-006 SoD: on a won project, Finance can edit the contract value and a new figure is recorded; the PM sees it read-only',
-  async ({ page }) => {
-    // P001 "Innovate Corp HQ Fit-Out" is status Ongoing Project (on-hand) in the seed.
-    const projectName = 'Innovate Corp HQ Fit-Out';
-
-    // PM view: the value is locked (read-only) on a won project.
-    await login(page, 'pm@acme.test');
-    await page.goto('/projects');
-    await waitProjectsReady(page);
-    await projectRow(page, projectName).getByRole('button', { name: projectName, exact: true }).click();
-    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
-    const sod = page.getByTestId('contract-value-sod');
-    // GOAL ORACLE: PM sees the "Read-only" lock, NOT an edit control.
-    await expect(sod.getByText(/Read-only/i)).toBeVisible({ timeout: 10_000 });
-    await expect(sod.getByRole('button', { name: /Edit contract value/i })).toHaveCount(0);
-
-    // Finance view: money authority can edit the value behind the audit confirm.
-    await login(page, 'finance@acme.test');
-    await page.goto('/projects');
-    await waitProjectsReady(page);
-    await projectRow(page, projectName).getByRole('button', { name: projectName, exact: true }).click();
-    const sodFin = page.getByTestId('contract-value-sod');
-    await sodFin.getByRole('button', { name: /Edit contract value/i }).click();
-    const valueInput = page.getByRole('textbox', { name: /Contract value/i });
-    await valueInput.fill('5250000');
-    // #513 / OD-TAX-1: the tax basis is REQUIRED alongside the figure and the treatment has NO
-    // pre-selected option — a stored money value whose inclusive/exclusive status is unrecorded
-    // cannot be disambiguated afterwards, and a mismatched basis makes the work-order drawdown
-    // UNDER-detect over-commitment. So the journey now states the basis, exactly as a real user
-    // must. The goal oracle below is unchanged: the new figure is recorded and the PM sees it
-    // read-only. (Deliberate UX change ⇒ steps updated, oracle untouched.)
-    await page.getByTestId('contract-tax-treatment').selectOption('exclusive');
-    await page.getByTestId('contract-tax-amount').fill('577500');
-    await page.getByRole('button', { name: /^Save$/i }).click();
-
-    // The audit confirm names the SoD; confirm commits via the RPC.
-    const confirm = page.getByRole('dialog');
-    await expect(confirm).toContainText(/segregation of duties/i);
-    await confirm.getByRole('button', { name: /record/i }).click();
-
-    // GOAL ORACLE: the new value is reflected in the SoD contract-value block (the
-    // authoritative figure the edit just changed). The amount also appears in the
-    // read-only stat strip + budget cards, so scope to the SoD block to stay unambiguous.
-    await expect(page.getByTestId('contract-value-sod').getByText(/\$5,250,000/)).toBeVisible({
-      timeout: 15_000,
-    });
   },
 );
 

@@ -65,6 +65,7 @@ function makeAuthCtx(overrides: Partial<AuthContextValue> = {}): AuthContextValu
     updatePassword: vi.fn(),
     resendEmailConfirmation: vi.fn(),
     signOut: vi.fn(),
+    refreshCurrentUser: vi.fn(),
     ...overrides,
   };
 }
