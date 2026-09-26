@@ -57,7 +57,7 @@ const EN_CATALOGUE = path.join(APP, 'public/locales/en/common.json');
 const ID_CATALOGUE = path.join(APP, 'public/locales/id/common.json');
 /** Roots scanned for key REFERENCES (the orphan half). Deliberately the whole app, not just
  *  launch scope: a key pointing at text that no longer exists is dead wherever it lives. */
-const REFERENCE_ROOTS = ['pages', 'src', 'App.tsx'];
+const REFERENCE_ROOTS = ['pages', 'components', 'src', 'App.tsx'];
 
 // ── Source scanning ─────────────────────────────────────────────────────────────────────────
 
