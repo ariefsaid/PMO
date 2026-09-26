@@ -87,7 +87,7 @@ const AdministrationNavigation: React.FC<{
   const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
-      'touch-target min-w-0 rounded-md px-2.5 py-1.5 text-center text-[13px] leading-tight transition-colors',
+      'touch-target flex min-h-11 min-w-0 items-center justify-center rounded-md px-2.5 py-1.5 text-center text-[13px] leading-tight transition-colors md:min-h-0',
       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       active
         ? 'bg-background font-semibold text-nav-active-text shadow-sm'

@@ -134,6 +134,12 @@ async function driveSections(
           )}px) is below the ${height}px viewport.`,
         ).toBeLessThan(height);
       }
+      const linkBox = await link.boundingBox();
+      expect(linkBox, `${s.name} link should have a layout box at ${vw}px`).not.toBeNull();
+      expect(
+        linkBox!.height,
+        `${s.name} link must offer a 44px-tall phone touch target, without overlap from adjacent links`,
+      ).toBeGreaterThanOrEqual(44);
     }
 
     await assertNoHorizontalOverflow(page, vw);
