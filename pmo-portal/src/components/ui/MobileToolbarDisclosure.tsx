@@ -67,6 +67,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const wasOpenRef = useRef(isOpen);
 
   const idPrefix = useId();
   const panelId = `${idPrefix}-panel`;
@@ -87,6 +88,16 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
     } else {
       panel.focus();
     }
+  }, [isOpen]);
+
+  // A parent may close this controlled disclosure after an action such as Export.
+  // Its focused action then unmounts and focus falls to <body>. Return focus to the
+  // surviving trigger, but leave it alone when another disclosure has taken focus.
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen && document.activeElement === document.body) {
+      triggerRef.current?.focus();
+    }
+    wasOpenRef.current = isOpen;
   }, [isOpen]);
 
   // Escape + outside pointer-down close and restore focus to the trigger. Listeners

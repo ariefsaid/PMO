@@ -272,6 +272,16 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     expect(screen.getByRole('button', { name: /^More actions$/i })).toHaveFocus();
   });
 
+  it('AC-PRJUX-003: Export closes More actions and returns focus to its trigger', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const moreBtn = screen.getByRole('button', { name: /^More actions$/i });
+    await user.click(moreBtn);
+    await user.click(screen.getByRole('button', { name: /^Export$/i }));
+    expect(moreBtn).toHaveAttribute('aria-expanded', 'false');
+    expect(moreBtn).toHaveFocus();
+  });
+
   it('AC-PRJUX-003: an Engineer gets no Filters and a permission-gated More actions (Export only)', async () => {
     const user = userEvent.setup();
     renderPage('Engineer');
