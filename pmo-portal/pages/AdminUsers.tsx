@@ -155,7 +155,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   };
 
   const canManage = may('edit', 'user'); // Admin only (policy.ts user.edit)
-  const canView = canManage || may('view', 'user'); // Exec read-only (policy.ts user.view = Admin·Exec)
+  const canView = canManage || may('view', 'user') || isOperator; // Exec read-only; Operators may manage users without an Admin role.
   // Invite/disable affordances: Admin-in-org OR Operator (FR-INV-006, AC-OPR-003). An Operator may
   // invite/disable even if their profiles.role isn't 'Admin' — useIsOperator is the OR-clause.
   const canInvite = may('create', 'user') || isOperator;
@@ -186,11 +186,10 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         ? 'empty'
         : undefined;
 
-  // ── Non-Admin, non-Exec reaching the route: a clean Admin-only gate, not the directory. ──
-  // Executive (view-only) and Admin (full) proceed; everyone else is blocked here (Rail already
-  // hides the nav; this guards a direct deep-link). RLS is the real authority regardless.
-  const isExecReadOnly = !canManage && canView;
-  const isBlocked = !canManage && !canView;
+  // ── A direct deep-link still needs its own gate. Admin, Executive, and platform Operator
+  // proceed; RLS and the server-side Operator RPCs remain the authority for each action.
+  const isExecReadOnly = !canManage && canView && !isOperator;
+  const isBlocked = !canView;
 
   if (isBlocked) {
     return (

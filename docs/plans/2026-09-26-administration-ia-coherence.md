@@ -1,7 +1,7 @@
 # Plan — Administration information architecture coherence
 
-**Spec:** [`docs/specs/administration-ia-coherence.spec.md`](../specs/administration-ia-coherence.spec.md)  
-**Design authority:** [`DESIGN.md`](../../DESIGN.md) and [`docs/design/2026-09-26-enterprise-coherence-brief.md`](../design/2026-09-26-enterprise-coherence-brief.md)  
+**Spec:** [`docs/specs/administration-ia-coherence.spec.md`](../specs/administration-ia-coherence.spec.md)
+**Design authority:** [`DESIGN.md`](../../DESIGN.md) and [`docs/design/2026-09-26-enterprise-coherence-brief.md`](../design/2026-09-26-enterprise-coherence-brief.md)
 **Scope:** route the existing Administration capabilities into coherent, bookmarkable destinations. Preserve every existing permission, repository, server gate, data contract, and panel state. This plan does not implement the account menu, personal Microsoft 365 route, new authorization, or a new visual identity.
 
 ## Design contract
