@@ -25,18 +25,11 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsOperator } from '@/src/auth/useIsOperator';
 import { useUsers, useUserMutations } from '@/src/hooks/useUsers';
-import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
-import { AdministrationUsage } from './AdministrationUsage';
-import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
-import { AdministrationCredits } from './AdministrationCredits';
-import { AdministrationFeatures } from './AdministrationFeatures';
-import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
-import BudgetAccountMap from './admin/BudgetAccountMap';
-import OrgTaxDefault from './admin/OrgTaxDefault';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -53,7 +46,8 @@ import OrgTaxDefault from './admin/OrgTaxDefault';
  * Admin-only gate. Role pills are intentionally neutral-only: the label carries identity; no single
  * role is visually singled out as a category accent.
  *
- * The Credits/Usage/Features sections are composed onto this page in later slices (S5, S6).
+ * This component owns only the Users destination; the route-backed Administration shell composes
+ * the other destinations so unrelated queries and panels stay unmounted.
  */
 
 /** The five user_role enum values, ordered for the role <select>. */
@@ -105,20 +99,13 @@ const Avatar: React.FC<{ user: UserRow; size?: number }> = ({ user, size = 30 })
   </span>
 );
 
-const AdminUsers: React.FC = () => {
+const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const may = usePermission();
   const isOperator = useIsOperator();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useUsers();
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
-  // S6 adds the Operator org-switcher; until then every Usage read targets the caller's own org
-  // (org-Admin path) or ALL orgs (Operator path, no filter — operatorOrgId omitted).
-  const usageQuery = useUsage();
-  // Agent cost dashboard (agent-cost-dashboard) — per-run cost/latency percentiles from the same
-  // aggregates-only surface (NFR-PRIV-001); pairs with usageQuery's now-cache/reasoning-bearing rows.
-  const runStatsQuery = useAgentRunStats();
   const { currentUser } = useAuth();
-  const ownOrgId = currentUser?.org_id ?? '';
 
   const tableRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
@@ -169,7 +156,7 @@ const AdminUsers: React.FC = () => {
   };
 
   const canManage = may('edit', 'user'); // Admin only (policy.ts user.edit)
-  const canView = canManage || may('view', 'user'); // Exec read-only (policy.ts user.view = Admin·Exec)
+  const canView = canManage || may('view', 'user') || isOperator; // Exec read-only; Operators may manage users without an Admin role.
   // Invite/disable affordances: Admin-in-org OR Operator (FR-INV-006, AC-OPR-003). An Operator may
   // invite/disable even if their profiles.role isn't 'Admin' — useIsOperator is the OR-clause.
   const canInvite = may('create', 'user') || isOperator;
@@ -200,11 +187,10 @@ const AdminUsers: React.FC = () => {
         ? 'empty'
         : undefined;
 
-  // ── Non-Admin, non-Exec reaching the route: a clean Admin-only gate, not the directory. ──
-  // Executive (view-only) and Admin (full) proceed; everyone else is blocked here (Rail already
-  // hides the nav; this guards a direct deep-link). RLS is the real authority regardless.
-  const isExecReadOnly = !canManage && canView;
-  const isBlocked = !canManage && !canView;
+  // ── A direct deep-link still needs its own gate. Admin, Executive, and platform Operator
+  // proceed; RLS and the server-side Operator RPCs remain the authority for each action.
+  const isExecReadOnly = !canManage && canView && !isOperator;
+  const isBlocked = !canView;
 
   if (isBlocked) {
     return (
@@ -380,7 +366,7 @@ const AdminUsers: React.FC = () => {
 
   return (
     <div>
-      <PageHead canInvite={canInvite} onInvite={() => setInviteOpen(true)} />
+      <PageHead canInvite={canInvite} onInvite={() => setInviteOpen(true)} embedded={embedded} />
 
       {isExecReadOnly && (
         <GateNotice variant="blocked" className="mb-3.5">
@@ -443,77 +429,6 @@ const AdminUsers: React.FC = () => {
           />
         </div>
       )}
-
-      {/* Usage section (ops-admin-surface S5) — aggregates-only, sourced from the usage RPCs.
-          OPERATOR-ONLY (owner 2026-07-24): assistant cost/usage is a platform surface. An org-Admin
-          does not see it at all — not even read-only, not even their own org's rows. The hooks are
-          gated too (useUsage/useAgentRunStats `enabled: … && isOperator`) so nothing is fetched. */}
-      {isOperator && (
-      <div className="mt-6">
-        <SectionHeader title="Usage" />
-        {/* Agent cost dashboard (agent-cost-dashboard): cache hit-rate, reasoning share, cost/run
-            percentiles, p95 latency — derived in-panel from the same aggregates-only rows. */}
-        <div className="mb-4">
-          <AgentCostMetrics
-            summaryRows={usageQuery.data ?? []}
-            runStatsRows={runStatsQuery.data ?? []}
-            isPending={usageQuery.isPending || runStatsQuery.isPending}
-            isError={usageQuery.isError || runStatsQuery.isError}
-            onRetry={() => {
-              void usageQuery.refetch();
-              void runStatsQuery.refetch();
-            }}
-          />
-        </div>
-        <AdministrationUsage
-          rows={usageQuery.data ?? []}
-          isPending={usageQuery.isPending}
-          isError={usageQuery.isError}
-          onRetry={() => void usageQuery.refetch()}
-        />
-      </div>
-      )}
-
-      {/* Credits section (ops-admin-surface S6) — org-pool balance + Operator grant. */}
-      <div className="mt-6">
-        <AdministrationCredits isOperator={isOperator} orgId={ownOrgId} />
-      </div>
-
-      {/* Features section (ops-admin-surface S6) — OPERATOR-ONLY (owner 2026-07-24). Entitlements
-          are an app/plan surface, so an org-Admin does not see this panel at all — the previous
-          read-only rendering for a non-Operator is no longer reachable from here.
-          NOTE: this hides the ADMIN PANEL, not the data. `org_features` SELECT stays widened to all
-          org members (ADR-0049 §4) because `useFeature()` reads it on every render to resolve
-          hide-vs-show for the rail and routes — narrowing it would dark-screen the whole app. */}
-      {isOperator && (
-      <div className="mt-6">
-        <SectionHeader title="Features" />
-        <AdministrationFeatures isOperator={isOperator} orgId={ownOrgId} />
-      </div>
-      )}
-
-      {/* Integrations section (FR-EAS-007, OD-2) — read-only: employed external tiers + the
-          domains they own as SoT; writes are Operator-provisioned via RPC, never in-app.
-          The M365 personal-connect card moved to /integrations (m365-operator-client-separation
-          D2) so any active member can reach it — one home, not two, or they drift. */}
-      <div className="mt-6">
-        <SectionHeader title="Integrations" />
-        <IntegrationsView />
-      </div>
-
-      {/* OD-TAX-1 (#548): the org-wide tax-treatment default that pre-selects every new money form.
-          Sits beside the budget account map because it is the same kind of thing — per-org
-          accounting configuration an Admin owns. The component gates its own write affordance via
-          can('manage', 'orgAccounting', ctx); RLS (0207) is the authority. */}
-      <div className="mt-6">
-        <OrgTaxDefault />
-      </div>
-
-      {/* P3c (FR-BUD-110..113): the budget category↔ERP account bijection. The component gates its
-          own write affordances via can('manage', 'integration', ctx) — no prop threading needed. */}
-      <div className="mt-6">
-        <BudgetAccountMap />
-      </div>
 
       {/* Edit-role modal */}
       {editTarget?.mode === 'role' && (
@@ -578,29 +493,42 @@ const AdminUsers: React.FC = () => {
 
 // ── Page header ──────────────────────────────────────────────────────────────
 
-const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void }> = ({ canInvite, onInvite }) => (
-  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-    <div>
-      {/* B-8 (AC-W2-IA-003): <h1> is "Administration" — matches route /administration,
-          rail item, and breadcrumb. "Users" is the section described below (the page will
-          later hold more than just users, e.g. org settings). */}
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">Administration</h1>
-      <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-        Manage users&rsquo; role, status, and reporting line. Administration is Admin-only;
-        role changes are high-impact and recorded.
-      </p>
+const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: boolean }> = ({
+  canInvite,
+  onInvite,
+  embedded = false,
+}) => {
+  const { t } = useTranslation();
+  const inviteAction = canInvite ? (
+    /* FR-INV-004/006: a real, working invite affordance (admin-invite-user edge fn) —
+       replaces the interim "Copy invite instructions" clipboard workaround. Create-verb
+       consistency (DESIGN.md §7): button / modal title / submit all say "Invite user". */
+    <Button variant="primary" onClick={onInvite}>
+      <Icon name="plus" />
+      Invite user
+    </Button>
+  ) : undefined;
+
+  if (embedded) {
+    return <SectionHeader title={t('admin.nav.users', 'Users')} action={inviteAction} />;
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        {/* B-8 (AC-W2-IA-003): the standalone compatibility composition keeps the
+            Administration heading aligned with its route and breadcrumb. The route-backed shell
+            uses the embedded Users section header above instead. */}
+        <h1 className="text-[24px] font-bold tracking-[-0.02em]">Administration</h1>
+        <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
+          Manage users&rsquo; role, status, and reporting line. Administration is Admin-only;
+          role changes are high-impact and recorded.
+        </p>
+      </div>
+      {inviteAction}
     </div>
-    {canInvite && (
-      /* FR-INV-004/006: a real, working invite affordance (admin-invite-user edge fn) —
-         replaces the interim "Copy invite instructions" clipboard workaround. Create-verb
-         consistency (DESIGN.md §7): button / modal title / submit all say "Invite user". */
-      <Button variant="primary" onClick={onInvite}>
-        <Icon name="plus" />
-        Invite user
-      </Button>
-    )}
-  </div>
-);
+  );
+};
 
 // ── Edit-role modal ────────────────────────────────────────────────────────
 

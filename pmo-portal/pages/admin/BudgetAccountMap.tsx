@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ListState,
@@ -61,6 +62,7 @@ const BudgetAccountMap: React.FC = () => {
   const canManage = may('manage', 'integration');
   const { toast } = useToast();
   const qc = useQueryClient();
+  const sectionRef = useRef<HTMLElement>(null);
 
   const { data, isPending, isError, refetch } = useQuery<CategoryAccountMapRow[]>({
     queryKey: ['budget-category-account-map'],
@@ -80,6 +82,26 @@ const BudgetAccountMap: React.FC = () => {
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['budget-category-account-map'] });
+
+  // AC-ADMIA-004 (fragment deep-link): the accounting link targets `#budget-account-map`, and the
+  // shell preserves that fragment across the compatibility redirect. A history-API navigation that
+  // lands on a fragment (replace + async panel mount) does NOT auto-scroll the way an in-page anchor
+  // click does, so once the map has loaded we scroll/focus its own deep-link target. Focus moves to
+  // the map heading without trapping focus; the global focus ring is the only visual affordance
+  // (no new visual token). Runs only when the whole map has rendered (the pending branch returns
+  // before the section, so the ref is null until `mapLoaded` flips). Declared before the early
+  // returns so the hook order never changes across the loading → loaded transition (Rules of Hooks).
+  // ⚑ The ROUTER hash is the single source of truth (URL is the canonical route model), not
+  // `window.location.hash` — so a MemoryRouter navigation that changes the fragment re-fires this
+  // while the panel stays mounted and loaded, and is testable without mutating a global.
+  const { hash } = useLocation();
+  const mapLoaded = !isPending && !isError;
+  useEffect(() => {
+    if (!mapLoaded || !sectionRef.current) return;
+    if (hash !== '#budget-account-map') return;
+    sectionRef.current.scrollIntoView({ block: 'start' });
+    sectionRef.current.focus({ preventScroll: true });
+  }, [mapLoaded, hash]);
 
   const createMutation = useMutation({
     mutationFn: (v: { category: BudgetCategory; erpAccount: string }) =>
@@ -130,9 +152,14 @@ const BudgetAccountMap: React.FC = () => {
 
   return (
     // ⚑ I-8 (rendered Discover pass, 2026-07-22) — the budget projection's "categories need an ERP
-    // account" banner LINKS here (`/administration#budget-account-map`), so the anchor is part of the
-    // contract, not decoration.
-    <section id="budget-account-map" aria-label="Budget category to ERP account map">
+    // account" banner LINKS here (`/administration/accounting#budget-account-map`), so the anchor is
+    // part of the contract, not decoration.
+    <section
+      id="budget-account-map"
+      aria-label="Budget category to ERP account map"
+      ref={sectionRef}
+      tabIndex={-1}
+    >
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">Budget account map</h2>
       <p className="mt-1 text-[13px] text-muted-foreground">
         Every budget category must map to an ERP account before its amount can be pushed. An

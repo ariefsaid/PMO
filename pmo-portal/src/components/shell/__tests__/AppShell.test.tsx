@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
 import { AppShell } from '../AppShell';
 
@@ -30,6 +30,36 @@ describe('AppShell', () => {
     const main = screen.getByRole('main');
     expect(main).toHaveAttribute('id', 'main');
     expect(main).toHaveAttribute('tabindex', '-1');
+  });
+
+  // AC-ADMIA-004/005 — focus-on-route-change is owned by AppShell (it renders <main> and moves
+  // focus there on every pathname change, skipping the first mount). The Administration shell
+  // relies on it to land keyboard/screen-reader users on the selected panel's heading, so this
+  // behavior is asserted at its owning layer (Task 8 directive: test focus checks where they live).
+  it('route change moves focus to main (focus-on-route-change), but never on first mount', () => {
+    const NavProbe = () => {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate('/second-route')}>
+          go
+        </button>
+      );
+    };
+    const tree = render(
+      <MemoryRouter>
+        <AppShell rail={null} header={null}>
+          <div>x</div>
+        </AppShell>
+        <NavProbe />
+      </MemoryRouter>
+    );
+    const main = screen.getByRole('main');
+    // First mount is intentionally skipped (no focus yank on load).
+    expect(main).not.toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'go' }));
+    // A route change moves focus to the main landmark.
+    expect(main).toHaveFocus();
+    tree.unmount();
   });
 
   it('renders a skip-to-main link', () => {

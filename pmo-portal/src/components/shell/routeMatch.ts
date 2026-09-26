@@ -147,6 +147,23 @@ export function modulesForRole(role: UserRole): ModuleDef[] {
 }
 
 /**
+ * Like `modulesForRole`, but additionally exposes the Administration module to a REAL platform
+ * Operator regardless of their base role (AC-ADMIA-002).
+ *
+ * An authenticated Engineer who is a server-confirmed Operator can open `/administration` by URL
+ * but could not discover it in the ⌘K Navigate group. `isOperator` MUST be the settled
+ * `useIsOperator()` projection — never an effective/preview role — so a plain non-Operator
+ * Engineer still never sees it, and a role already granted Administration (Executive/Admin) is
+ * not duplicated. Keeps ⌘K aligned with the rail's real-Operator Administration footer.
+ */
+export function modulesForRoleWithOperator(role: UserRole, isOperator: boolean): ModuleDef[] {
+  const base = modulesForRole(role);
+  if (!isOperator || base.some((m) => m.module === 'administration')) return base;
+  const administration = MODULES.find((m) => m.module === 'administration');
+  return administration ? [...base, administration] : base;
+}
+
+/**
  * C5 — placeholder route titles. These routes are intentionally NOT registered
  * as modules (they have no rail entry / ⌘K target yet), so a URL-derived
  * breadcrumb has no module to resolve and would otherwise fall back to
@@ -171,8 +188,59 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/views': 'My Views',
   // M365 connection-model (D2): the personal-connect surface. Not a rail MODULE (no detail route,
   // no ⌘K record drill) but it HAS a rail entry, so register the title here so the breadcrumb
-  // resolves "Integrations" on direct deep-link rather than falling through to "Not found".
-  '/integrations': 'Integrations',
+  // resolves "My integrations" on direct deep-link rather than falling through to "Not found".
+  // The label agrees with the rail + H1 (AC-ADMIA-006) and stays distinct from the ORGANIZATION
+  // surface, whose label is ADMINISTRATION_SECTION_LABELS.integrations ("Organization integrations").
+  '/integrations': 'My integrations',
+};
+
+/** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
+export const ADMINISTRATION_SECTION_LABELS = {
+  users: 'Users',
+  integrations: 'Organization integrations',
+  accounting: 'Accounting setup',
+  credits: 'Credits',
+  usage: 'Usage',
+  features: 'Features',
+} as const;
+
+/**
+ * The ONE authoritative label mapping for the Administration sections, keyed to the shell's i18n
+ * catalogue (`admin.nav.*`). The breadcrumb carries these keys so the rendered crumb agrees with
+ * the section nav and embedded headings in every locale; `ADMINISTRATION_SECTION_LABELS` above is
+ * the English source/fallback (i18next-parser convention), never a second translation.
+ */
+export const ADMINISTRATION_SECTION_I18N_KEY: Record<
+  keyof typeof ADMINISTRATION_SECTION_LABELS,
+  string
+> = {
+  users: 'admin.nav.users',
+  integrations: 'admin.nav.integrations',
+  accounting: 'admin.nav.accounting',
+  credits: 'admin.nav.credits',
+  usage: 'admin.nav.usage',
+  features: 'admin.nav.features',
+};
+
+const administrationBreadcrumbForPath = (
+  pathname: string,
+  navigate?: (path: string) => void,
+): BreadcrumbPart[] | undefined => {
+  const prefix = '/administration/';
+  if (!pathname.startsWith(prefix)) return undefined;
+
+  const section = pathname.slice(prefix.length);
+  const label =
+    ADMINISTRATION_SECTION_LABELS[section as keyof typeof ADMINISTRATION_SECTION_LABELS];
+  const parentLabel = 'Administration';
+  const sectionLabel = label ?? 'Users';
+  const sectionKey =
+    ADMINISTRATION_SECTION_I18N_KEY[section as keyof typeof ADMINISTRATION_SECTION_I18N_KEY] ??
+    ADMINISTRATION_SECTION_I18N_KEY.users;
+  return [
+    { label: parentLabel, i18nKey: 'shell.nav.administration', onClick: () => navigate?.('/administration/users') },
+    { label: sectionLabel, i18nKey: sectionKey },
+  ];
 };
 
 /**
@@ -217,10 +285,26 @@ export function breadcrumbForPath(
   // The param is kept in the signature so App.tsx callers don't need updating.
   _recordStatusGroup?: ProjectStatusGroup,
 ): BreadcrumbPart[] {
+  const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
+  if (administrationBreadcrumb) return administrationBreadcrumb;
+
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
   const placeholderTitle = PLACEHOLDER_TITLES[pathname];
-  if (placeholderTitle) return [{ label: placeholderTitle }];
+  if (placeholderTitle) {
+    // The two shell-owned surfaces carry their i18n keys so the crumb agrees with the rail's own
+    // locally-labelled entries (`shell.nav.administration`, `shell.nav.integrations`) in every
+    // locale; all other placeholder routes keep their plain (pure) English crumb.
+    const i18nKey =
+      pathname === '/administration'
+        ? 'shell.nav.administration'
+        : pathname === '/integrations'
+          ? 'shell.nav.integrations'
+          : undefined;
+    return i18nKey
+      ? [{ label: placeholderTitle, i18nKey }]
+      : [{ label: placeholderTitle }];
+  }
 
   // User-view detail route → [My Views (link to /) > <view.name>] (OD-4, FR-VR-053)
   // OD-4 note: 'My Views' currently links to '/' (Dashboard) because there is no

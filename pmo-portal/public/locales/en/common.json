@@ -1,5 +1,25 @@
 {
   "admin": {
+    "access": {
+      "checking": "Checking your Administration access…",
+      "checkEntry": "Check Administration access",
+      "denied": "Administration is an Admin, Executive, or platform Operator area. You don't have access.",
+      "operatorOnly": "Operator-only access: Usage and Features are available to platform Operators.",
+      "verifyError": "Could not verify access",
+      "verifyErrorSub": "Try again to open Administration controls."
+    },
+    "nav": {
+      "accounting": "Accounting setup",
+      "ariaLabel": "Administration sections",
+      "credits": "Credits",
+      "description": "Organization setup and governance.",
+      "features": "Features",
+      "integrations": "Organization integrations",
+      "platform": "Platform",
+      "title": "Administration",
+      "usage": "Usage",
+      "users": "Users"
+    },
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
       "description": "The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.",
@@ -1837,7 +1857,7 @@
       "dashboard": "Dashboard",
       "incidents": "Incidents",
       "incomingPayments": "Incoming Payments",
-      "integrations": "Integrations",
+      "integrations": "My integrations",
       "meetings": "Meetings",
       "myTasks": "My Tasks",
       "procurement": "Procurement",
@@ -1972,6 +1992,15 @@
     },
     "unknownProject": "Unknown Project",
     "weekOf": "Week of"
+  },
+  "integrations": {
+    "organization": {
+      "scope": "Organization integrations connect your team’s external services. They are separate from your personal connections in My integrations — a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it."
+    },
+    "personal": {
+      "description": "Connect your personal Microsoft 365 account to bring your documents and calendar into projects. This is separate from your organization’s Administration integrations.",
+      "title": "My integrations"
+    }
   },
   "profileSettings": {
     "loading": "Loading profile…",

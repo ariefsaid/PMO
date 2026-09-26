@@ -4,7 +4,7 @@ export interface RouteAnalytics {
   tab_id?: string;
 }
 
-const stripQuery = (path: string) => path.split('?')[0] || '/';
+const stripQuery = (path: string) => path.split(/[?#]/, 1)[0] || '/';
 
 /** Known safe top-level route segments. Anything else is "unknown". */
 const KNOWN_TOP_LEVEL_SEGMENTS = new Set([
@@ -19,6 +19,15 @@ const KNOWN_TOP_LEVEL_SEGMENTS = new Set([
  * `buildEventProperties`.
  */
 export const SAFE_TAB_ID = /^[a-z][a-z0-9-]{0,62}$/;
+
+const ADMINISTRATION_SECTIONS = new Set([
+  'users',
+  'integrations',
+  'accounting',
+  'credits',
+  'usage',
+  'features',
+]);
 
 export function routeAnalyticsForPath(path: string): RouteAnalytics {
   const clean = stripQuery(path);
@@ -40,6 +49,11 @@ export function routeAnalyticsForPath(path: string): RouteAnalytics {
     return { route: '/procurement/:procurementId', module: 'procurement' };
   }
   if (parts[0] === 'procurement') return { route: '/procurement', module: 'procurement' };
+
+  if (parts[0] === 'administration' && parts.length >= 2) {
+    const section = ADMINISTRATION_SECTIONS.has(parts[1]) ? parts[1] : 'unknown_section';
+    return { route: '/administration/:section', module: 'administration', tab_id: section };
+  }
 
   if (parts[0] === 'sales' && parts.length === 2) {
     return { route: '/sales/:opportunityId', module: 'sales' };

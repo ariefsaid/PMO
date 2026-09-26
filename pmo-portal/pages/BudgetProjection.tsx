@@ -48,8 +48,13 @@ export interface BudgetProjectionProps {
   projectId: string;
 }
 
-/** Where an Admin fixes the category↔ERP-account map (a section of the Administration page). */
-const ACCOUNT_MAP_HREF = '/administration#budget-account-map';
+/**
+ * Where an Admin fixes the category↔ERP-account map. AC-ADMIA-003: the canonical Accounting route is
+ * now `/administration/accounting#budget-account-map` — the shell treats `/administration#budget-account-map`
+ * as a compatibility alias that redirects (preserving the fragment), so the banner targets the canonical URL
+ * directly rather than taking a redundant history-hop through the alias.
+ */
+const ACCOUNT_MAP_HREF = '/administration/accounting#budget-account-map';
 
 const CATEGORY_LABELS: Record<string, string> = {}; // reserved for future per-org relabeling; identity today.
 const labelFor = (c: string) => CATEGORY_LABELS[c] ?? c;

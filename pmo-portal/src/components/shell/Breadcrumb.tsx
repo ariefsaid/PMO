@@ -13,6 +13,13 @@ export interface BreadcrumbPart {
    * crumb that links to '/' (Dashboard) until a /views index route ships (OD-4, I4/I5).
    */
   ariaLabel?: string;
+  /**
+   * Optional i18n key. When present, `label` is the English source (fallback) and the
+   * rendered text is `t(i18nKey, label)` at the shell's i18n boundary — so route-derived
+   * crumbs agree with the locally-labelled rail in every locale instead of leaking an
+   * English constant. Only set on the Administration + personal-integrations crumbs.
+   */
+  i18nKey?: string;
 }
 
 export interface BreadcrumbProps {
@@ -39,6 +46,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
     >
       {parts.map((part, i) => {
         const last = i === parts.length - 1;
+        const label = part.i18nKey ? t(part.i18nKey, part.label) : part.label;
         return (
           <React.Fragment key={i}>
             {i > 0 && (
@@ -57,7 +65,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 // shows; at desktop full width allows 40ch before ellipsis.
                 className="max-w-[40ch] overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-foreground max-[921px]:max-w-[20ch]"
               >
-                {part.label}
+                {label}
               </span>
             ) : (
               // C3: parent crumb links are hidden at ≤921px — the BackBar and
@@ -68,7 +76,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 aria-label={part.ariaLabel}
                 className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[921px]:hidden"
               >
-                {part.label}
+                {label}
               </button>
             )}
           </React.Fragment>

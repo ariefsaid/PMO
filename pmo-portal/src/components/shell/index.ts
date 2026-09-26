@@ -7,6 +7,7 @@ export { BackBar, type BackBarProps } from './BackBar';
 export {
   MODULES,
   modulesForRole,
+  modulesForRoleWithOperator,
   agentEntityForPath,
   breadcrumbForPath,
   recordLabelForPath,

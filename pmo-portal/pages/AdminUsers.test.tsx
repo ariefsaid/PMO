@@ -188,6 +188,15 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     expect(screen.getByText(/Admin-only area/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /New user/i })).not.toBeInTheDocument();
   });
+
+  it('AC-OPR-003: a platform Operator with an Engineer organization role can use the Users directory', () => {
+    isOperatorState.value = true;
+    renderPage('Engineer');
+
+    expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /invite user/i })).toBeEnabled();
+    expect(screen.queryByText(/Admin-only area/i)).not.toBeInTheDocument();
+  });
 });
 
 describe('Admin Users — edit role (AC-AU-003)', () => {

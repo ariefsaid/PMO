@@ -48,6 +48,8 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin' }),
 }));
 
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+
 import { Rail } from './Rail';
 
 function renderRail() {

@@ -842,3 +842,30 @@ describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', (
     expect(screen.queryByRole('button', { name: /approve in microsoft 365/i })).not.toBeInTheDocument();
   });
 });
+
+describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)', () => {
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
+  });
+
+  it('labels the panel as organization-owned and separate from the personal route', async () => {
+    wrapWithRole('Admin', <IntegrationsView />);
+    const scope = await screen.findByTestId('integrations-owner-scope');
+    // The org surface labels its scope explicitly…
+    expect(scope).toHaveTextContent(/organization/i);
+    // …and states that a personal connection does not activate an organization integration
+    // (AC-ADMIA-006: never imply personal ⇒ org readiness).
+    expect(scope).toHaveTextContent(/does not activate an organization integration/i);
+  });
+
+  it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {
+    wrapWithRole('Admin', <IntegrationsView />);
+    const scope = await screen.findByTestId('integrations-owner-scope');
+    // The personal surface is referenced by its user-facing name "My integrations"…
+    expect(scope).toHaveTextContent(/My integrations/i);
+    // …and its raw route string must not leak into user-facing copy.
+    expect(scope.textContent).not.toContain('/integrations');
+  });
+});

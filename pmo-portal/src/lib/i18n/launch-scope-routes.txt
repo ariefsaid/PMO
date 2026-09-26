@@ -112,3 +112,15 @@
 # ── Personal profile language settings (RIS readiness slice): every signed-in user's choice of
 #    interface-language override (inherit / Bahasa Indonesia / English).
 /settings/profile             pages/ProfileSettings.tsx
+
+# ── Administration (AC-ADMIA-001/006): the organization setup & governance home (route-backed IA).
+#    The six canonical child routes and the compatibility alias /administration all render the same
+#    shell, so naming the shell (plus its /:section form) is what keeps every Administration label,
+#    description, denial and pending copy inside the gate.
+/administration               pages/Administration.tsx
+/administration/:section      pages/Administration.tsx
+
+# ── Personal (Member-owner) Microsoft 365 connect home (AC-ADMIA-006) — the OTHER ownership surface.
+#    It shares the "integrations" word with the organization surface at /administration/integrations;
+#    keeping it here means the personal-vs-organization ownership copy cannot drift.
+/integrations                 pages/Integrations.tsx
