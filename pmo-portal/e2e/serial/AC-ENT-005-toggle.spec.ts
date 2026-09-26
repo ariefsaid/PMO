@@ -63,7 +63,8 @@ test(
 
     // ── Then: an org member's next shell render hides the Incidents rail item ──
     // Sign out and back in as an org Admin (a role whose rail includes Incidents when enabled).
-    await page.getByRole('button', { name: /^sign out$/i }).click();
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /^sign out$/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await signIn(page, 'admin@acme.test');
 
@@ -76,7 +77,8 @@ test(
     await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
 
     // ── Re-enable: the Operator turns incidents back on ──
-    await page.getByRole('button', { name: /^sign out$/i }).click();
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /^sign out$/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await signIn(page, 'operator@pmo.test');
     await page.goto('/administration');
@@ -87,7 +89,8 @@ test(
     await expect(sw2).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
 
     // ── And: the rail item + route reappear for an org member ──
-    await page.getByRole('button', { name: /^sign out$/i }).click();
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /^sign out$/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await signIn(page, 'admin@acme.test');
 

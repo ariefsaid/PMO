@@ -21,7 +21,7 @@ When I am signed in and need to change how the portal appears or leave my sessio
 - **FR-ACCT-002:** When the user opens the account menu, the application shall show the signed-in identity, a link to `/settings/profile`, Light and Dark choices, and Sign out. The Profile & preferences route shall remain directly accessible by URL.
 - **FR-ACCT-003:** When the user chooses Light or Dark, the application shall apply and persist the choice through the existing `useTheme` contract and show which choice is selected.
 - **FR-ACCT-004:** When the user chooses Sign out, the application shall invoke the existing auth sign-out action and close the menu.
-- **FR-ACCT-005:** While `canImpersonate` is true, the menu shall expose view-only role choices. While it is false, those choices and their heading shall be absent.
+- **FR-ACCT-005:** While `canImpersonate` is true, the menu shall expose view-only role choices and a way to return to the real Admin role after selecting one. The account identity shall continue to name the real role while the separate preview banner names the viewed role. While `canImpersonate` is false, role-preview choices and their heading shall be absent.
 - **FR-ACCT-006:** When the user presses Escape or clicks outside an open menu, it shall close. Escape shall restore focus to the trigger. Menu actions shall be keyboard reachable and expose their names and selection state.
 - **FR-ACCT-007:** While the account menu is closed, Profile & preferences shall not occupy a primary rail slot, and personal theme/sign-out controls shall not occupy separate top-bar slots.
 
@@ -30,7 +30,7 @@ When I am signed in and need to change how the portal appears or leave my sessio
 - **AC-ACCT-001 (component):** Given any signed-in role at desktop or phone width, when the user opens the account control, then one menu exposes Profile & preferences at `/settings/profile`, Light and Dark with the current theme identified, and Sign out; the primary rail has no Profile settings item.
 - **AC-ACCT-002 (component):** Given a Light theme, when the user chooses Dark from the menu, then the document theme changes immediately and its stored preference becomes Dark; the reverse choice also works.
 - **AC-ACCT-003 (component):** Given an open account menu, when the user presses Escape, then the menu closes and focus returns to the trigger; when the user opens it again and activates Sign out, then the existing `signOut` action is called once.
-- **AC-ACCT-004 (component):** Given a sample Admin with role-preview permission, when the account menu opens, then view-only role choices appear and selecting one calls `viewAs`; given an ordinary org Admin, those choices are absent.
+- **AC-ACCT-004 (component/cross-stack):** Given a sample Admin with role-preview permission, when the account menu opens, then view-only role choices appear; selecting one changes the viewed role without changing the real account identity, and Return to Admin restores the real view without reloading. Given an ordinary org Admin, those choices and Return to Admin are absent.
 - **AC-ACCT-005 (rendered):** Given desktop and 390px phone viewports, when the account menu opens, then all actions remain visible or reachable within a scrollable menu and no horizontal page overflow appears.
 - **AC-ACCT-006 (localization):** Given English and Bahasa interface languages, when the account menu and profile route render, then their visible labels use the selected language.
 

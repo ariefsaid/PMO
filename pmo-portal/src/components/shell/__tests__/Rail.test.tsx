@@ -174,26 +174,25 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(onNavigate).toHaveBeenCalledOnce();
   });
 
-  // Profile language settings slice (supports AC-L10N-060): the rail link is visible to EVERY
-  // role and carries the `/settings/profile` href (discoverability on desktop + the mobile drawer).
-  it('AC-L10N-060 support: Profile settings link is visible to every role with href=/settings/profile', () => {
-    for (const role of ['Executive', 'Engineer']) {
+  // AC-ACCT-001 (retired placement): Profile & preferences is NO LONGER a primary rail item — the
+  // personal surface lives in the account menu. Assert it is absent from the rail for EVERY role,
+  // including while `/settings/profile` is the current route (the account-menu link owns it now).
+  it('AC-ACCT-001: Profile & preferences is absent from the rail for every role and current route', () => {
+    for (const role of ['Executive', 'Engineer', 'Finance', 'Project Manager', 'Admin']) {
       effectiveRole = role;
       const { unmount } = renderRail();
-      const link = screen.getByRole('link', { name: /profile settings/i });
-      expect(link).toHaveAttribute('href', '/settings/profile');
+      expect(screen.queryByRole('link', { name: /profile & preferences/i })).toBeNull();
+      expect(screen.queryByText(/profile settings/i)).toBeNull();
       unmount();
     }
-  });
-
-  it('AC-L10N-060 support: Profile settings link carries aria-current=page on /settings/profile', () => {
+    // Even when the profile URL is current, no rail item is marked active for it.
     effectiveRole = 'Executive';
     render(
       <MemoryRouter initialEntries={['/settings/profile']}>
         <Rail />
       </MemoryRouter>
     );
-    const link = screen.getByRole('link', { name: /profile settings/i });
-    expect(link).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('link', { name: /profile & preferences/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /profile settings/i })).toBeNull();
   });
 });

@@ -1,22 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { ContextBar } from '../ContextBar';
+import enCatalogue from '../../../../public/locales/en/common.json';
+import idCatalogue from '../../../../public/locales/id/common.json';
 
 let effectiveRole = 'Admin';
 let canImpersonate = true;
 const viewAs = vi.fn();
 const signOut = vi.fn();
 const onOpenPalette = vi.fn();
+let displayName = 'Ada Lovelace';
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole, realRole: 'Admin', canImpersonate, viewAs }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({
-    currentUser: { id: 'u1', full_name: 'Ada Lovelace', org_id: 'org-1' },
+    currentUser: { id: 'u1', full_name: displayName, org_id: 'org-1' },
     role: effectiveRole,
     signOut,
   }),
@@ -44,9 +49,13 @@ const renderBar = () =>
   );
 
 beforeEach(() => {
+  displayName = 'Ada Lovelace';
   viewAs.mockClear();
   signOut.mockClear();
   onOpenPalette.mockClear();
+  // Theme truth resets between tests (the DOM class is the source of truth).
+  document.documentElement.classList.remove('dark');
+  localStorage.removeItem('theme');
 });
 
 describe('ContextBar', () => {
@@ -65,115 +74,257 @@ describe('ContextBar', () => {
   });
 
   it('FR-AAN-038: the notification bell is absent while `agentAssistant` is off', () => {
-    // The flag defaults off in tests (vite.config.ts test env has no
-    // VITE_FEATURES_AGENT_ASSISTANT) — this is the real default state.
     renderBar();
     expect(screen.queryByRole('button', { name: /notification/i })).not.toBeInTheDocument();
   });
 
-  it('Admin sees the view-as role control wired to viewAs (view-only)', async () => {
-    effectiveRole = 'Admin';
-    canImpersonate = true;
+  it('the rail toggle (open navigation) is present', () => {
     renderBar();
-    const roleBtn = screen.getByRole('button', { name: /view as role/i });
-    await userEvent.click(roleBtn);
-    const menu = screen.getByRole('menu');
-    expect(menu).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Engineer' }));
-    expect(viewAs).toHaveBeenCalledWith('Engineer');
+    expect(screen.getByRole('button', { name: /open navigation/i })).toBeInTheDocument();
   });
+});
 
-  it('non-admin does NOT see the view-as control', () => {
+// ── The unified account menu (AC-ACCT-001/002/003/004) ──────────────────────
+// One responsive avatar/identity trigger owns the ONLY account popup at every width.
+describe('ContextBar — unified account menu', () => {
+  it('AC-ACCT-001: one account trigger opens one menu with identity, profile, theme and sign out', async () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
-    expect(screen.queryByRole('button', { name: /view as role/i })).not.toBeInTheDocument();
-  });
+    const trigger = screen.getByRole('button', { name: /account menu/i });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
 
-  // AC-AUTH-013 (FR-AUTH-036): a NON-demo-org Admin (live org — the restricted case) gets
-  // canImpersonate=false from the provider, and with an Admin displayed role the control
-  // must be absent from BOTH surfaces. jsdom ignores the sm: breakpoint, so both clusters
-  // are in the DOM — asserting each container directly covers desktop and mobile.
-  it('AC-AUTH-013: non-demo-org Admin (denied affordance) sees NO view-as control on desktop OR mobile', async () => {
-    canImpersonate = false;
-    effectiveRole = 'Admin'; // the Admin displayed role stays; only the control is gone
-    renderBar();
-    // Desktop cluster: no "View as role" trigger anywhere.
-    expect(screen.queryByRole('button', { name: /view as role/i })).not.toBeInTheDocument();
-    // Mobile account menu: opens fine, but holds no role menuitems.
-    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
-    expect(screen.queryByRole('menuitem', { name: 'Engineer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Project Manager' })).not.toBeInTheDocument();
-    // The denial is specifically about the affordance, not the menu: sign-out still works.
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+    const menu = screen.getByRole('menu');
+    expect(menu).toBeInTheDocument();
+    // Signed-in identity is shown in the popup header.
+    expect(within(menu).getByText('Ada Lovelace')).toBeInTheDocument();
+    // Profile & preferences links to the still-directly-routable profile page.
+    const profile = screen.getByRole('menuitem', { name: /profile & preferences/i });
+    expect(profile).toHaveAttribute('href', '/settings/profile');
+    // Both theme choices with the current theme identified (light by default).
+    const light = screen.getByRole('menuitemradio', { name: /^light$/i });
+    const dark = screen.getByRole('menuitemradio', { name: /^dark$/i });
+    expect(light).toHaveAttribute('aria-checked', 'true');
+    expect(dark).toHaveAttribute('aria-checked', 'false');
+    // Sign out is a separated command.
     expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
   });
 
-  it('sign-out calls signOut', async () => {
-    canImpersonate = false;
-    renderBar();
-    await userEvent.click(screen.getByRole('button', { name: /sign out/i }));
-    expect(signOut).toHaveBeenCalled();
-  });
-
-  // A-IMP-1: Sign-out button must carry touch-target class for ≥44px hit area on coarse pointers.
-  it('A-IMP-1: sign-out button has .touch-target for WCAG 2.5.5 hit area', () => {
-    canImpersonate = false;
-    renderBar();
-    const signOutBtn = screen.getByRole('button', { name: /sign out/i });
-    expect(signOutBtn.className).toContain('touch-target');
-  });
-
-  // A-IMP-1: hamburger already carries touch-target (regression guard).
-  it('A-IMP-1: hamburger (open nav) button has .touch-target', () => {
-    renderBar();
-    const hamburger = screen.getByRole('button', { name: /open navigation/i });
-    expect(hamburger.className).toContain('touch-target');
-  });
-
-  // A-IMP-1: ⌘K trigger already carries touch-target (regression guard).
-  it('A-IMP-1: command palette trigger has .touch-target', () => {
-    renderBar();
-    const trigger = screen.getByRole('button', { name: /command palette/i });
-    expect(trigger.className).toContain('touch-target');
-  });
-
-  // AC-MOBILE-OVERFLOW-001 (header): on phones the role-switcher + Sign out collapse
-  // behind an avatar "Account menu" so the desktop cluster doesn't squash the breadcrumb
-  // to "Da…". The desktop cluster is CSS-hidden (`hidden sm:flex`); the mobile menu is
-  // `sm:hidden`. Both live in the DOM (jsdom ignores the breakpoint), so we assert the
-  // menu's behavior directly.
-  it('the mobile account menu holds the role-switcher for admins', async () => {
-    effectiveRole = 'Admin';
-    canImpersonate = true;
-    renderBar();
-    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Engineer' }));
-    expect(viewAs).toHaveBeenCalledWith('Engineer');
-  });
-
-  it('the mobile account menu signs out (and omits role-switch for non-admins)', async () => {
+  it('AC-ACCT-002: choosing Light→Dark applies + persists, and the selected state flips', async () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
-    expect(screen.queryByRole('menuitem', { name: 'Engineer' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: /sign out/i }));
-    expect(signOut).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /^dark$/i }));
+
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(localStorage.getItem('theme')).toBe('dark');
+    // The menu stays open so the new selected state is announced/visible.
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: /^dark$/i })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: /^light$/i })).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('the desktop right-cluster is breakpoint-gated (hidden sm:flex) so it never squashes the breadcrumb on phones', () => {
+  it('AC-ACCT-002: choosing Dark→Light applies + persists, and the selected state flips', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('theme', 'dark');
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /^light$/i }));
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(localStorage.getItem('theme')).toBe('light');
+    expect(screen.getByRole('menuitemradio', { name: /^light$/i })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: /^dark$/i })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('AC-ACCT-004: an eligible sample Admin sees the View as role section and choices invoke viewAs', async () => {
     canImpersonate = true;
     effectiveRole = 'Admin';
-    const { container } = renderBar();
-    // The cluster wrapper holds the desktop role-switcher + user chip + Sign out.
-    const desktopSignOut = screen.getByRole('button', { name: /sign out/i });
-    const wrapper = desktopSignOut.closest('div.hidden');
-    expect(wrapper).not.toBeNull();
-    expect(wrapper!.className).toContain('sm:flex');
-    // And the mobile avatar trigger is the sm:hidden counterpart.
-    const acct = screen.getByRole('button', { name: /account menu/i });
-    expect(acct.closest('div')!.className).toContain('sm:hidden');
-    expect(container).toBeTruthy();
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.getByText('View as role')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Engineer' }));
+    expect(viewAs).toHaveBeenCalledWith('Engineer');
+  });
+
+  it('AC-ACCT-004: role preview keeps the real identity visible and can return to Admin', async () => {
+    canImpersonate = true;
+    effectiveRole = 'Finance';
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: /return to admin/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitemradio', { name: 'Finance' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(menu).getByRole('menuitemradio', { name: 'Engineer' })).toHaveAttribute('aria-checked', 'false');
+    expect(within(menu).getByText('Admin')).toBeInTheDocument();
+    await userEvent.click(within(menu).getByRole('menuitem', { name: /return to admin/i }));
+    expect(viewAs).toHaveBeenCalledWith(null);
+  });
+
+  it('FR-ACCT-006: arrow, Home, End and Tab keys navigate or leave the menu without trapping focus', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+
+    const profile = screen.getByRole('menuitem', { name: /profile & preferences/i });
+    const light = screen.getByRole('menuitemradio', { name: /^light$/i });
+    const signOutItem = screen.getByRole('menuitem', { name: /sign out/i });
+    expect(profile).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(light).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(profile).toHaveFocus();
+    await userEvent.keyboard('{End}');
+    expect(signOutItem).toHaveFocus();
+    await userEvent.keyboard('{Home}');
+    expect(profile).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole('button', { name: /command palette/i })).toHaveFocus();
+  });
+
+  it('AC-ACCT-004: an ordinary Admin (or non-admin) sees NO View as role section or choices', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Admin'; // displayed role stays Admin; only the affordance is gone
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.queryByText('View as role')).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitemradio', { name: 'Engineer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitemradio', { name: 'Project Manager' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /return to admin/i })).not.toBeInTheDocument();
+    // The denial is about the affordance only — sign out still works.
+    expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
+  });
+
+  it('AC-ACCT-003: the account trigger is a native focusable button (native Tab/Enter path)', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    renderBar();
+    const trigger = screen.getByRole('button', { name: /account menu/i });
+    expect(trigger).toHaveAttribute('type', 'button');
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(trigger).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
+  it('AC-ACCT-001: a long signed-in name is constrained within the header trigger', () => {
+    displayName = 'A very long enterprise display name that must not force the header wider than the viewport';
+    renderBar();
+    const trigger = screen.getByRole('button', { name: /account menu/i });
+    expect(trigger).toHaveClass('max-w-[220px]');
+    expect(screen.getByText(displayName)).toHaveClass('truncate');
+  });
+
+  it('AC-ACCT-003: Escape closes the menu and restores focus to the trigger', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    renderBar();
+    const trigger = screen.getByRole('button', { name: /account menu/i });
+    await userEvent.click(trigger);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('AC-ACCT-003: an outside mouse-down closes the menu', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    // Click a top-bar control outside the account menu wrapper.
+    await userEvent.click(screen.getByRole('button', { name: /command palette/i }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('AC-ACCT-003: signing out closes the menu and calls signOut exactly once', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /sign out/i }));
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('AC-ACCT-001: the personal-sign-out/theme no longer occupy separate top-bar slots', () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    renderBar();
+    // No standalone inline Sign-out, theme-toggle, or desktop/mobile placement duplicates.
+    expect(screen.queryByTestId('desktop-account-cluster')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-account-menu')).not.toBeInTheDocument();
+    // Exactly one account trigger.
+    expect(screen.getAllByRole('button', { name: /account menu/i })).toHaveLength(1);
+  });
+});
+
+// AC-ACCT-006 — the account-menu visible labels come from the SELECTED locale's catalogue,
+// not the code's English-source fallback.
+describe('ContextBar — catalogue-backed account-menu labels (AC-ACCT-006)', () => {
+  async function renderLocalized(lng: 'en' | 'id') {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    const instance = i18next.createInstance();
+    await instance.init({
+      lng,
+      fallbackLng: 'en',
+      ns: 'common',
+      defaultNS: 'common',
+      resources: {
+        en: { common: enCatalogue },
+        id: { common: idCatalogue },
+      },
+      interpolation: { escapeValue: false },
+    });
+    render(
+      <I18nextProvider i18n={instance}>
+        <MemoryRouter>
+          <ContextBar
+            breadcrumb={breadcrumb}
+            onOpenPalette={onOpenPalette}
+            onToggleRail={vi.fn()}
+          />
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /account menu|menu akun/i }));
+  }
+
+  it('English catalogue: Profile & preferences and Light/Dark labels render from the catalogue', async () => {
+    await renderLocalized('en');
+    expect(screen.getByRole('menuitem', { name: /profile & preferences/i })).toHaveAttribute(
+      'href',
+      '/settings/profile',
+    );
+    expect(screen.getByRole('menuitemradio', { name: /^light$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: /^dark$/i })).toBeInTheDocument();
+  });
+
+  it('Bahasa catalogue: Profil & preferensi and Terang/Gelap labels render from the catalogue', async () => {
+    await renderLocalized('id');
+    expect(screen.getByRole('menuitem', { name: /profil & preferensi/i })).toHaveAttribute(
+      'href',
+      '/settings/profile',
+    );
+    expect(screen.getByRole('menuitemradio', { name: /^terang$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: /^gelap$/i })).toBeInTheDocument();
   });
 });
 

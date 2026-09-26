@@ -1778,11 +1778,14 @@
       "openCommandPalette": "Buka palet perintah",
       "openNavigation": "Buka menu navigasi",
       "privacy": "Privasi",
+      "returnToAdmin": "Kembali ke Admin",
       "searchPlaceholder": "Cari atau lompat ke…",
       "signOut": "Keluar",
       "terms": "Ketentuan",
-      "viewAsRoleHeading": "Lihat sebagai role",
-      "viewAsRoleInline": "Lihat sebagai role:"
+      "themeDark": "Gelap",
+      "themeHeading": "Tema",
+      "themeLight": "Terang",
+      "viewAsRoleHeading": "Lihat sebagai role"
     },
     "drawer": {
       "close": "Tutup menu navigasi",
@@ -1805,7 +1808,7 @@
       "sales": "Pipeline Penjualan",
       "salesInvoices": "Invoice Penjualan",
       "timesheets": "Timesheet",
-      "profileSettings": "Pengaturan Profil"
+      "profileSettings": "Profil & preferensi"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
@@ -1841,10 +1844,6 @@
     },
     "skipLink": {
       "mainContent": "Langsung ke konten utama"
-    },
-    "themeToggle": {
-      "switchToDark": "Ganti ke tema gelap",
-      "switchToLight": "Ganti ke tema terang"
     }
   },
   "task": {
@@ -1938,7 +1937,7 @@
   },
   "profileSettings": {
     "loading": "Memuat profil…",
-    "title": "Pengaturan Profil",
+    "title": "Profil & preferensi",
     "description": "Pilih bahasa yang digunakan untuk tombol, label, dan pesan di portal ini.",
     "language": {
       "label": "Bahasa antarmuka",

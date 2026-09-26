@@ -234,7 +234,8 @@ test.describe('AC-AGP-023: converse, reload, transcript restored, second user ca
     await panelAfterReload.getByRole('button', { name: 'Close assistant' }).click();
     await expect(panelAfterReload).not.toBeVisible({ timeout: 5_000 });
 
-    await page.getByRole('button', { name: /sign out/i }).click();
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /sign out/i }).click();
     await expect(page).toHaveURL(/\/login$/);
 
     await signIn(page, BOB_EMAIL);

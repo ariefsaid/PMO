@@ -40,9 +40,10 @@ async function readBalance(page: Page): Promise<number> {
   return n;
 }
 
-/** Sign the current session out via the ContextBar "Sign out" button, then wait for /login. */
+/** Sign the current session out via the account-menu Sign out item, then wait for /login. */
 async function signOut(page: Page) {
-  await page.getByRole('button', { name: /^sign out$/i }).click();
+  await page.getByRole('button', { name: /account menu/i }).click();
+  await page.getByRole('menuitem', { name: /^sign out$/i }).click();
   await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
 }
 
