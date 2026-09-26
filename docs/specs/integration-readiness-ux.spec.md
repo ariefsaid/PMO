@@ -9,8 +9,8 @@ When I connect an external service for my organization, I want to tell connectio
 ## Functional requirements
 
 - **FR-IRUX-001** — When the binding read is loading, the view shall show a loading state. When it fails, the view shall label connection state unavailable, offer Retry, and keep permitted connection controls reachable; it shall not describe an unknown binding as disconnected.
-- **FR-IRUX-002** — While a binding is connected, the service card shall identify its configuration state and show the next permitted action. An ERPNext binding without a Company shall remain visibly awaiting activation.
-- **FR-IRUX-003** — While health is loading or fails for one service, the view shall label that service's data-progress read independently and offer Retry. A healthy service shall remain legible if another service's read fails.
+- **FR-IRUX-002** — While a binding is connected, the service card shall label that state Connected, identify its configuration state, and show the next permitted action. An ERPNext binding without a Company shall remain visibly awaiting activation. If connector identity is absent, the card shall omit that metadata field instead of showing a blank value.
+- **FR-IRUX-003** — While the outstanding outbound-work read is loading or fails for one service, the view shall label that service's status read independently and offer Retry. An available service shall remain legible if another service's read fails.
 - **FR-IRUX-004** — When health is available, the view shall not present the watermark row timestamp as a last successful sync or data-transfer time. It shall identify the count of outbound items that are pending or need attention without calling all of them errors, and explain that an actual transferred record must be checked to prove usable data.
 - **FR-IRUX-005** — When an Admin opens Company selection, the view shall distinguish loading, unavailable, zero Companies, and available Companies; an unavailable read shall offer Retry. If activation fails, the selected Company shall remain selected and the error shall remain in the modal.
 - **FR-IRUX-006** — While the ClickUp binding map reads its inputs, the view shall distinguish unknown from PMO-native status. If a source read fails, it shall explain which map information is unavailable and offer Retry.
@@ -30,8 +30,8 @@ When I connect an external service for my organization, I want to tell connectio
 | ID | Given / When / Then | Owner |
 |---|---|---|
 | AC-IRUX-001 | Given an unavailable binding read, when the page renders, then the connection state is unknown, Retry is offered, and the permitted Connect action remains accessible. | `IntegrationsView.test.tsx` |
-| AC-IRUX-002 | Given a connected ERPNext binding without a Company, when the page renders, then it explains activation is pending and directs an Admin to Company selection. | `IntegrationsView.test.tsx` |
-| AC-IRUX-003 | Given one service health failure and another service's recorded progress, when the page renders, then each card shows its own truthful state and the failed card offers Retry. | `IntegrationsView.test.tsx` |
+| AC-IRUX-002 | Given a connected binding, when the card renders, then it says Connected and omits an absent connector identity; given ERPNext without a Company, then it explains activation is pending and directs an Admin to Company selection. | `IntegrationsView.test.tsx` |
+| AC-IRUX-003 | Given one service's outbound-work status read fails and another service's read succeeds, when the page renders, then each card shows its own truthful state and the failed card offers Retry. | `IntegrationsView.test.tsx` |
 | AC-IRUX-004 | Given a health result with or without a watermark, when the card renders, then it makes no last-success claim, labels outstanding outbound work accurately, and names the live record check needed to prove usable data. | `IntegrationsView.test.tsx` |
 | AC-IRUX-005 | Given the Company read fails or returns zero Companies, when the picker opens, then it shows the matching recovery or empty state; if activation fails, then the selection survives. | `IntegrationsView.test.tsx` |
 | AC-IRUX-006 | Given ClickUp binding or list data is unavailable, when the map renders, then unknown states are not presented as PMO-native and Retry is available. | `IntegrationsView.test.tsx` |

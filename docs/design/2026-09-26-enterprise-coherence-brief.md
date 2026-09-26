@@ -57,6 +57,8 @@ The seven packages above fix known friction. The following contracts make the re
 
 **Confirmed list-return finding.** Projects, Sales, Procurement, Companies, Contacts, and Meetings hold search/filter choices in local page state, while their detail return links go to a bare list URL. A user who narrows a list, opens a record, and returns loses the working set. The follow-up should establish one URL-backed search/filter contract and prove that journey on each adopting module. Preserve the canonical project record URL. Its structural breadcrumb can remain under Projects on desktop; a contextual return to Sales Pipeline should appear only when the user entered from Sales, carrying that list's state. The existing desktop breadcrumb can serve as the Back affordance, while the mobile BackBar remains explicit; reconcile the literal `DESIGN.md` wording when implementing this decision.
 
+**Confirmed provenance display finding.** The organization integration card renders its connecting actor as a technical identifier. That does not help an Admin answer who connected the service. Resolve the actor to an authorized, person-readable display name where available, with a neutral fallback for an unavailable or removed identity. Preserve the audit stamp and role boundaries; prove both states without showing raw identifiers in the UI. This follows the connection-state correction.
+
 ## Exit evidence
 
 - Each work package has a focused spec, acceptance criteria, rendered desktop/phone review, and the project's code review and verification gates before its PR lands on `dev`.

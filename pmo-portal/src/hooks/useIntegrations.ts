@@ -5,6 +5,20 @@ import { useAuth } from '@/src/auth/useAuth';
 import { setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
 
 /**
+ * The single constructor for the org health cache family (AC-IRUX-009).
+ * Keys are scoped by the ACTIVE organization and one service tier, so a changed
+ * organization receives a distinct key and can never reuse another org's health result. The three
+ * integration mutations (connect, disconnect, setCompany) invalidate the org-wide prefix
+ * `['integrations', 'health', orgId]`, which reaches every exact key built by this helper.
+ */
+export function integrationHealthQueryKey(
+  orgId: string | undefined,
+  tier: ExternalTier,
+): readonly ['integrations', 'health', string | undefined, ExternalTier] {
+  return ['integrations', 'health', orgId, tier];
+}
+
+/**
  * Hook for managing integrations (connect/disconnect/status/health).
  * Wraps the IntegrationsRepository with React Query for query/mutation management.
  */
@@ -23,18 +37,18 @@ export function useIntegrations() {
   // Mutation: connect
   const connect = useMutation({
     mutationFn: (credential: ConnectCredential) => repositories.integrations.connectIntegration(orgId!, credential),
-    onSuccess: (_data, vars) => {
+    onSuccess: (_data, _vars) => {
       qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
-      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId, vars.tier] });
+      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
     },
   });
 
   // Mutation: disconnect
   const disconnect = useMutation({
     mutationFn: (tier: ExternalTier) => repositories.integrations.disconnectIntegration(orgId!, tier),
-    onSuccess: (_data, tier) => {
+    onSuccess: (_data, _tier) => {
       qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
-      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId, tier] });
+      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
     },
   });
 
@@ -56,7 +70,7 @@ export function useIntegrations() {
   const { data: clickupLists = [], isPending: isListsPending, isError: isListsError, error: listsError, refetch: refetchLists } = useQuery<ClickUpListItem[]>({
     queryKey: ['integrations', 'clickup-lists', orgId],
     queryFn: () => repositories.integrations.listProjectLists(orgId!),
-    enabled: Boolean(orgId) && getBinding('clickup')?.status === 'active',
+    enabled: Boolean(orgId) && isSuccess && !isError && getBinding('clickup')?.status === 'active',
   });
 
   // Query: list ERPNext companies for the org (OD-INT-6)
@@ -67,7 +81,7 @@ export function useIntegrations() {
   const { data: erpnextCompanies = [], isPending: isCompaniesPending, isError: isCompaniesError, error: companiesError, refetch: refetchCompanies } = useQuery<Array<{ name: string }>>({
     queryKey: ['integrations', 'erpnext-companies', orgId],
     queryFn: () => repositories.integrations.listCompanies(orgId!, 'erpnext'),
-    enabled: Boolean(orgId) && getBinding('erpnext')?.status === 'active',
+    enabled: Boolean(orgId) && isSuccess && !isError && getBinding('erpnext')?.status === 'active',
   });
 
   // Mutation: link project
@@ -93,7 +107,7 @@ export function useIntegrations() {
     mutationFn: (companyId: string) => repositories.integrations.setCompany(orgId!, 'erpnext', companyId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
-      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId, 'erpnext'] });
+      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
     },
   });
 
@@ -105,6 +119,7 @@ export function useIntegrations() {
   });
 
   return {
+    orgId,
     bindings,
     isPending,
     isError,

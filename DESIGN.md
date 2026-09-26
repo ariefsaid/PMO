@@ -465,6 +465,17 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   A background access refresh keeps a settled panel visible; pending access applies only before
   membership resolves, and an unavailable check has a recoverable error state.
 
+### Organization integration readiness
+- A connection, service activation, outbound queue state, and verified data movement are separate
+  facts. A connected binding receives a neutral **Connected** status; it never implies a successful
+  transfer. Only a trustworthy success event may be labeled as the last successful sync.
+- Read each service and each supporting map source independently. A slow or failed source shows an
+  explicit loading or unavailable state with a source-specific retry; it cannot turn known sibling
+  data into an empty or disconnected claim. The Admin's next permitted recovery action stays nearby.
+- Keep credential, Company activation, and disconnect failures in their originating dialog. Preserve
+  entered values and selections for retry, and describe the outcome conservatively until the write
+  actually succeeds. Use the same status, card, button, and dialog primitives in both languages.
+
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary`, 28px buttons, "on" = white `background` pill +
   `foreground` + 600 + a 1px lift. `role="tablist"`/`role="tab"`/`aria-selected`.
