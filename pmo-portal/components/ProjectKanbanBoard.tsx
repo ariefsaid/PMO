@@ -21,6 +21,7 @@
  * focus card + Enter → onOpen), AC-PK-009 (card shows name/customer/PM).
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Kanban,
   KanbanColumn,
@@ -31,6 +32,7 @@ import {
 } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
+import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
@@ -43,57 +45,50 @@ import ProjectCardShell from './ProjectCardShell';
 // ---------------------------------------------------------------------------
 
 interface ProjectKanbanColDef {
-  /** Display title */
-  title: string;
+  /** Stable key for the translated display title. */
+  key: 'won' | 'ongoing' | 'onHold' | 'closeOut' | 'internal';
   /** The project.status values that belong in this column. */
   statuses: string[];
   /** DESIGN.md token for the column dot (color-not-only: label also identifies the column). */
   dotColor: string;
   /** data-testid for the column wrapper (for AC-tagged RTL queries). */
   testId: string;
-  /** KanbanStageItem for the mobile indicator strip. */
-  stageItem: KanbanStageItem;
 }
 
 const PROJECT_KANBAN_COLUMNS: ProjectKanbanColDef[] = [
   {
-    title: 'Won',
+    key: 'won',
     statuses: ['Won, Pending KoM'],
     dotColor: 'hsl(var(--success))',
     testId: 'kanban-col-won',
-    stageItem: { title: 'Won', dotColor: 'hsl(var(--success))' },
   },
   {
-    title: 'Ongoing',
+    key: 'ongoing',
     statuses: ['Ongoing Project'],
     // The one interactive blue — active execution (One Blue Rule allows for status identity).
     dotColor: 'hsl(var(--primary))',
     testId: 'kanban-col-ongoing',
-    stageItem: { title: 'Ongoing', dotColor: 'hsl(var(--primary))' },
   },
   {
-    title: 'On Hold',
+    key: 'onHold',
     statuses: ['On Hold'],
     dotColor: 'hsl(var(--warning))',
     testId: 'kanban-col-onhold',
-    stageItem: { title: 'On Hold', dotColor: 'hsl(var(--warning))' },
   },
   {
-    title: 'Close Out',
+    key: 'closeOut',
     statuses: ['Close Out'],
     // violet (hsl(262 83% 58%)) is the DESIGN.md categorical accent, explicitly sanctioned
     // for "timeline/legend dots" (DESIGN.md §2 Secondary). Distinct from Won's success-green
     // so the two terminal columns are color-differentiable (color + label, not color-only).
     dotColor: 'hsl(var(--violet))',
     testId: 'kanban-col-closeout',
-    stageItem: { title: 'Close Out', dotColor: 'hsl(var(--violet))' },
   },
   {
-    title: 'Internal',
+    key: 'internal',
     statuses: ['Internal Project'],
     dotColor: 'hsl(var(--muted-foreground))',
     testId: 'kanban-col-internal',
-    stageItem: { title: 'Internal', dotColor: 'hsl(var(--muted-foreground))' },
   },
 ];
 
@@ -110,7 +105,17 @@ interface ProjectKanbanCardProps {
 }
 
 const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
+  const { t } = useTranslation();
   const initial = (project.name.trim().charAt(0) || '•').toUpperCase();
+  // FR-PRJUX-004/005: the footer label reads from the manager ID so an assigned blank-name
+  // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — the two
+  // "no name" states stay distinct across every visible Projects view (incl. Kanban).
+  const pmLabel = projectManagerLabel({
+    managerId: project.project_manager_id,
+    fullName: project.pm?.full_name,
+    unassignedLabel: t('projects.unassigned', 'Unassigned'),
+    unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+  });
   return (
     <ProjectCardShell
       variant="kanban"
@@ -130,17 +135,15 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
         </div>
       }
       foot={
-        project.pm?.full_name ? (
-          <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-            <span
-              aria-hidden
-              className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
-            >
-              {(project.pm.full_name.trim().charAt(0) ?? '?').toUpperCase()}
-            </span>
-            <span className="max-w-[14ch] truncate">{project.pm.full_name}</span>
+        <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+          <span
+            aria-hidden
+            className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+          >
+            {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
           </span>
-        ) : undefined
+          <span className="max-w-[14ch] truncate">{pmLabel}</span>
+        </span>
       }
       onOpen={onActivate}
     />
@@ -170,14 +173,26 @@ export interface ProjectKanbanBoardProps {
  * on a swipe gesture (Defect-1 precedent).
  */
 const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpen }) => {
+  const { t } = useTranslation();
   const { activeStageIndex, hasScrolled, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
+  const titles = {
+    won: t('projects.kanban.won', 'Won'),
+    ongoing: t('projects.kanban.ongoing', 'Ongoing'),
+    onHold: t('projects.kanban.onHold', 'On Hold'),
+    closeOut: t('projects.kanban.closeOut', 'Close Out'),
+    internal: t('projects.kanban.internal', 'Internal'),
+  };
+  const stages: KanbanStageItem[] = PROJECT_KANBAN_COLUMNS.map((col) => ({
+    title: titles[col.key],
+    dotColor: col.dotColor,
+  }));
 
   return (
     <div ref={scrollWrapRef} data-testid="project-kanban-board">
       {/* Mobile stage indicator — hidden on md+ (KanbanStageIndicator adds md:hidden). */}
       <KanbanStageIndicator
-        stages={PROJECT_KANBAN_COLUMNS.map((c) => c.stageItem)}
+        stages={stages}
         activeIndex={activeStageIndex}
         onStageClick={handleStageClick}
       />
@@ -185,9 +200,10 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
       {/* Board: onScroll attached directly to <Kanban> so it lands on .kanban-scroll.
           Relative wrapper needed so the absolute swipe-hint chip stays contained. */}
       <div className="relative">
-        <Kanban aria-label="Projects kanban board" onScroll={onScroll}>
+        <Kanban aria-label={t('projects.kanban.board', 'Projects kanban board')} onScroll={onScroll}>
           {PROJECT_KANBAN_COLUMNS.map((col, colIdx) => {
             const colProjects = projects.filter((p) => col.statuses.includes(p.status as string));
+            const title = titles[col.key];
             return (
               <div
                 key={col.testId}
@@ -196,10 +212,10 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
                 className="flex min-w-0 flex-col"
               >
                 <KanbanColumn
-                  title={col.title}
+                  title={title}
                   dotColor={col.dotColor}
                   count={colProjects.length}
-                  emptyMessage={`No projects in ${col.title}`}
+                  emptyMessage={t('projects.kanban.empty', 'No projects in {{stage}}', { stage: title })}
                 >
                   {colProjects.map((p) => (
                     <ProjectKanbanCard
@@ -255,7 +271,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
               strokeLinejoin="round"
             />
           </svg>
-          Swipe for more →
+          {t('projects.kanban.swipe', 'Swipe for more →')}
         </div>
       </div>
     </div>

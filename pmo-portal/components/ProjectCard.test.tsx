@@ -71,10 +71,22 @@ describe('ProjectCard', () => {
   });
 
   it('renders em-dashes for a missing customer and PM rather than blank', () => {
-    const sparse = { ...base, client: null, pm: null } as ProjectWithRefs;
+    // A genuinely unassigned project: BOTH pm:null AND project_manager_id:null.
+    const sparse = { ...base, client: null, pm: null, project_manager_id: null } as unknown as ProjectWithRefs;
     render(<ProjectCard project={sparse} onOpen={vi.fn()} />);
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('FR-PRJUX-004: an assigned profile with a blank name shows `Unnamed user · shortID`, not Unassigned', () => {
+    const blankAssigned = {
+      ...base,
+      project_manager_id: 'aaaaaaaa-bbbb-0000',
+      pm: { full_name: '   ' },
+    } as unknown as ProjectWithRefs;
+    render(<ProjectCard project={blankAssigned} onOpen={vi.fn()} />);
+    expect(screen.getByText('Unnamed user · aaaaaaaa')).toBeInTheDocument();
+    expect(screen.queryByText('Unassigned')).not.toBeInTheDocument();
   });
 
   it('calls onOpen when the card is activated, but not when the status control is used', async () => {

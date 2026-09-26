@@ -32,4 +32,19 @@ describe('ExportButton', () => {
     render(<ExportButton rows={[{ name: 'Acme' }]} columns={cols} entity="Companies" disabled />);
     expect(screen.getByRole('button', { name: /export/i })).toBeDisabled();
   });
+
+  it('AC-PRJUX-001: a custom label renders instead of the default Export', () => {
+    render(<ExportButton rows={[{ name: 'Acme' }]} columns={cols} entity="Projects" label="Ekspor" />);
+    expect(screen.getByRole('button', { name: /ekspor/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^export$/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJUX-001: onExport fires when Export dispatches', async () => {
+    const onExport = vi.fn();
+    const rows = [{ name: 'Acme' }];
+    render(<ExportButton rows={rows} columns={cols} entity="Companies" onExport={onExport} />);
+    await userEvent.click(screen.getByRole('button', { name: /export/i }));
+    expect(exportXlsx).toHaveBeenCalledWith(rows, cols, 'Companies');
+    expect(onExport).toHaveBeenCalledTimes(1);
+  });
 });
