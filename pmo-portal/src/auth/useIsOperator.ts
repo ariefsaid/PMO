@@ -26,11 +26,11 @@ export interface OperatorMembershipState {
  * affordance projection used by existing panels.
  */
 export function useOperatorMembership(): OperatorMembershipState {
-  const { data, isPending, isFetching, isError } = useQuery({
+  const { data, isPending, isError } = useQuery({
     queryKey: ['operator', 'isOperator'],
     queryFn: () => repositories.operator.isOperator(),
   });
-  return { isOperator: data === true, isPending: isPending || isFetching, isError };
+  return { isOperator: data === true, isPending, isError };
 }
 
 export function useIsOperator(): boolean {
