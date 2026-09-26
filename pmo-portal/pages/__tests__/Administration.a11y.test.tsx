@@ -1,7 +1,7 @@
 /**
  * AC-A11Y-001 — axe-clean administration surface (ops-admin-surface S6 capstone).
  *
- * Renders the FULLY-COMPOSED `/administration` page (Users + Credits + Usage + Features) for an
+ * Renders the route-backed Administration shell at its selected canonical destination for an
  * Operator AND a non-Operator org-Admin, at desktop width and at 390px (mobile), and asserts
  * axe-core reports NO `critical`/`serious` WCAG-AA violations on either persona/viewport.
  *
@@ -34,7 +34,7 @@ const { listState, mutations, isOperatorState } = vi.hoisted(() => ({
     invite: { mutateAsync: vi.fn(), isPending: false },
     setStatus: { mutateAsync: vi.fn(), isPending: false },
   },
-  isOperatorState: { value: false },
+  isOperatorState: { value: false, pending: false },
 }));
 
 vi.mock('@/src/hooks/useUsers', () => ({
@@ -44,7 +44,14 @@ vi.mock('@/src/hooks/useUsers', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));
-vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
+vi.mock('@/src/auth/useIsOperator', () => ({
+  useIsOperator: () => isOperatorState.value,
+  useOperatorMembership: () => ({
+    isOperator: isOperatorState.value,
+    isPending: isOperatorState.pending,
+    isError: false,
+  }),
+}));
 vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({
     data: [
@@ -74,16 +81,16 @@ vi.mock('@/src/lib/repositories', () => ({
   },
 }));
 
-import AdminUsers from '../AdminUsers';
+import Administration from '../Administration';
 
-const renderComposed = () => {
+const renderComposed = (path = '/administration/users') => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <ImpersonationProvider realRole="Admin">
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[path]}>
           <ToastProvider>
-            <AdminUsers />
+            <Administration />
           </ToastProvider>
         </MemoryRouter>
       </ImpersonationProvider>
@@ -102,8 +109,9 @@ beforeEach(() => {
 });
 
 async function expectNoBlockingViolations(container: HTMLElement) {
-  // Let the async balance query settle so axe audits the final DOM (avoids a post-test act warning).
-  await waitFor(() => expect(container.querySelector('[data-testid="org-credit-balance"]')).toBeInTheDocument());
+  // Let the route-backed shell settle so axe audits the selected panel's final DOM (avoids a
+  // post-test act warning without requiring an unrelated Credits query to mount).
+  await waitFor(() => expect(container.querySelector('h1')).not.toBeNull());
   const { blocking, advisory } = await axeViolations(container);
   if (advisory.length) {
     // Visibility only — advisories don't fail the gate yet.
@@ -116,34 +124,34 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
   it('AC-A11Y-001: Operator view at desktop width has no critical/serious violations', async () => {
     isOperatorState.value = true;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
   });
 
   it('AC-A11Y-001: Operator view at 390px (mobile) has no critical/serious violations', async () => {
     isOperatorState.value = true;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 390 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
   });
 
   it('AC-A11Y-001: org-Admin (non-Operator) view at desktop width has no critical/serious violations', async () => {
     isOperatorState.value = false;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
   });
 
   it('AC-A11Y-001: org-Admin (non-Operator) view at 390px (mobile) has no critical/serious violations', async () => {
     isOperatorState.value = false;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 390 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
   });
 
   it('AC-A11Y-001: the Feature toggles are real role="switch" controls (Operator)', () => {
     isOperatorState.value = true;
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/features');
     const switches = container.querySelectorAll('[role="switch"]');
     expect(switches.length).toBeGreaterThan(0);
     switches.forEach((s) => {

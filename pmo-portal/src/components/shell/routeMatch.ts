@@ -175,6 +175,31 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/integrations': 'Integrations',
 };
 
+/** Canonical Administration child routes and their route-derived breadcrumb labels. */
+export const ADMINISTRATION_SECTION_LABELS = {
+  users: 'Users',
+  integrations: 'Organization integrations',
+  accounting: 'Accounting setup',
+  credits: 'Credits',
+  usage: 'Usage',
+  features: 'Features',
+} as const;
+
+const administrationBreadcrumbForPath = (
+  pathname: string,
+  navigate?: (path: string) => void,
+): BreadcrumbPart[] | undefined => {
+  const prefix = '/administration/';
+  if (!pathname.startsWith(prefix)) return undefined;
+
+  const section = pathname.slice(prefix.length);
+  const label = ADMINISTRATION_SECTION_LABELS[section as keyof typeof ADMINISTRATION_SECTION_LABELS];
+  return [
+    { label: 'Administration', onClick: () => navigate?.('/administration/users') },
+    { label: label ?? 'Users' },
+  ];
+};
+
 /**
  * Route-derived top-bar breadcrumb (URL is the single source of truth — the
  * existing invariant, preserved without the tab-state machine).
@@ -217,6 +242,9 @@ export function breadcrumbForPath(
   // The param is kept in the signature so App.tsx callers don't need updating.
   _recordStatusGroup?: ProjectStatusGroup,
 ): BreadcrumbPart[] {
+  const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
+  if (administrationBreadcrumb) return administrationBreadcrumb;
+
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
   const placeholderTitle = PLACEHOLDER_TITLES[pathname];

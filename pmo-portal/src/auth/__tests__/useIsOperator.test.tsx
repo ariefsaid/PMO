@@ -5,7 +5,7 @@ import React from 'react';
 
 vi.mock('@/src/lib/db/operators', () => ({ isOperator: vi.fn() }));
 
-import { useIsOperator } from '../useIsOperator';
+import { useIsOperator, useOperatorMembership } from '../useIsOperator';
 import { isOperator } from '@/src/lib/db/operators';
 
 const makeWrapper = () => {
@@ -35,6 +35,12 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
     vi.mocked(isOperator).mockImplementation(() => new Promise(() => {})); // never resolves
     const { result } = renderHook(() => useIsOperator(), { wrapper: makeWrapper() });
     expect(result.current).toBe(false);
+  });
+
+  it('exposes pending membership separately so a route guard can avoid a transient denial', () => {
+    vi.mocked(isOperator).mockImplementation(() => new Promise(() => {})); // never resolves
+    const { result } = renderHook(() => useOperatorMembership(), { wrapper: makeWrapper() });
+    expect(result.current).toEqual({ isOperator: false, isPending: true, isError: false });
   });
 
   it('re-rendering the SAME hook instance does not re-call the RPC (query-key stability)', async () => {

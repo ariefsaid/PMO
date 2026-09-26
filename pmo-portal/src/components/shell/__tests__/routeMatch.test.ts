@@ -38,6 +38,22 @@ describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
   });
 });
 
+describe('breadcrumbForPath — Administration route prefix matching', () => {
+  it('AC-ADMIA-004: each canonical child keeps its own current crumb', () => {
+    expect(breadcrumbForPath('/administration/usage')[1]).toEqual({ label: 'Usage' });
+    expect(breadcrumbForPath('/administration/features')[1]).toEqual({ label: 'Features' });
+    expect(breadcrumbForPath('/administration/accounting')[1]).toEqual({ label: 'Accounting setup' });
+    expect(breadcrumbForPath('/administration/usage')[1]).not.toEqual({ label: 'Users' });
+  });
+
+  it('AC-ADMIA-003: an unknown Administration section falls back to Users', () => {
+    expect(breadcrumbForPath('/administration/unknown')).toEqual([
+      { label: 'Administration', onClick: expect.any(Function) },
+      { label: 'Users' },
+    ]);
+  });
+});
+
 describe('breadcrumbForPath — IA cleanup (B-6/B-7)', () => {
   it('AC-W2-IA-001: /approvals resolves to "Approvals", not "Dashboard"', () => {
     const crumbs = breadcrumbForPath('/approvals');

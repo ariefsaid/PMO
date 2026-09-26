@@ -11,10 +11,28 @@ import { repositories } from '@/src/lib/repositories';
  * Defaults to `false` while loading/absent (fail-closed for the affordance gate — an Operator
  * briefly sees the non-Operator variant on first paint, never the reverse).
  */
-export function useIsOperator(): boolean {
-  const { data } = useQuery({
+export interface OperatorMembershipState {
+  /** The settled platform-Operator membership projection. */
+  isOperator: boolean;
+  /** True until the membership query has settled; callers must not render a denial before then. */
+  isPending: boolean;
+  /** The membership query failed; callers still fail closed after the pending state. */
+  isError: boolean;
+}
+
+/**
+ * Exposes the full membership query state for route guards that must distinguish an unresolved
+ * Operator from a settled non-Operator. The boolean `useIsOperator` API below remains the
+ * affordance projection used by existing panels.
+ */
+export function useOperatorMembership(): OperatorMembershipState {
+  const { data, isPending, isFetching, isError } = useQuery({
     queryKey: ['operator', 'isOperator'],
     queryFn: () => repositories.operator.isOperator(),
   });
-  return data === true;
+  return { isOperator: data === true, isPending: isPending || isFetching, isError };
+}
+
+export function useIsOperator(): boolean {
+  return useOperatorMembership().isOperator;
 }

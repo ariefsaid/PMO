@@ -110,6 +110,40 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(breadcrumbForPath('/administration')).toEqual([{ label: 'Administration' }]);
   });
 
+  it('AC-ADMIA-004: Administration child routes derive a parent crumb that navigates to Users', () => {
+    const expected = [
+      ['/administration/users', 'Users'],
+      ['/administration/integrations', 'Organization integrations'],
+      ['/administration/accounting', 'Accounting setup'],
+      ['/administration/credits', 'Credits'],
+      ['/administration/usage', 'Usage'],
+      ['/administration/features', 'Features'],
+    ] as const;
+
+    for (const [path, currentLabel] of expected) {
+      const navigate = vi.fn();
+      const crumbs = breadcrumbForPath(path, undefined, navigate);
+
+      expect(crumbs).toHaveLength(2);
+      expect(crumbs[0].label).toBe('Administration');
+      expect(crumbs[0].onClick).toBeTypeOf('function');
+      crumbs[0].onClick!();
+      expect(navigate).toHaveBeenCalledWith('/administration/users');
+      expect(crumbs[1]).toEqual({ label: currentLabel });
+    }
+  });
+
+  it('AC-ADMIA-003: the unknown Administration section resolves to the Users destination', () => {
+    const navigate = vi.fn();
+    const crumbs = breadcrumbForPath('/administration/unknown', undefined, navigate);
+
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0].label).toBe('Administration');
+    crumbs[0].onClick!();
+    expect(navigate).toHaveBeenCalledWith('/administration/users');
+    expect(crumbs[1]).toEqual({ label: 'Users' });
+  });
+
   it('AC-NAV-005: every placeholder route in the title map resolves to a non-Dashboard crumb', () => {
     for (const [path, title] of Object.entries(PLACEHOLDER_TITLES)) {
       expect(breadcrumbForPath(path)).toEqual([{ label: title }]);

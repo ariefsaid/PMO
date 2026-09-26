@@ -75,7 +75,7 @@ const ContactsPage = React.lazy(() => import('./pages/Contacts'));
 const ContactDetailPage = React.lazy(() => import('./pages/ContactDetail'));
 const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
-const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
+const AdministrationPage = React.lazy(() => import('./pages/Administration'));
 const IntegrationsPage = React.lazy(() => import('./pages/Integrations'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
@@ -99,6 +99,17 @@ const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 const SalesDetailRedirect: React.FC = () => {
   const { opportunityId = '' } = useParams<{ opportunityId: string }>();
   return <Navigate to={`/projects/${opportunityId}`} replace />;
+};
+
+/** Compatibility entry for the former all-in-one Administration page. */
+const AdministrationEntryRedirect: React.FC = () => {
+  const { hash } = useLocation();
+  return (
+    <Navigate
+      to={hash === '#budget-account-map' ? '/administration/accounting#budget-account-map' : '/administration/users'}
+      replace
+    />
+  );
 };
 
 /**
@@ -148,7 +159,16 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/meetings', element: <MeetingsPage /> },
   { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
   { path: '/reports', element: <PlaceholderPage title="Reports" /> },
-  { path: '/administration', element: <AdminUsersPage /> },
+  { path: '/administration', element: <AdministrationEntryRedirect /> },
+  { path: '/administration/users', element: <AdministrationPage /> },
+  { path: '/administration/integrations', element: <AdministrationPage /> },
+  { path: '/administration/accounting', element: <AdministrationPage /> },
+  { path: '/administration/credits', element: <AdministrationPage /> },
+  { path: '/administration/usage', element: <AdministrationPage /> },
+  { path: '/administration/features', element: <AdministrationPage /> },
+  // Keep malformed/deprecated Administration section links inside the Administration shell so
+  // they can be replaced with Users instead of falling through to the global 404 route.
+  { path: '/administration/:section', element: <AdministrationPage /> },
   // Finance section.
   { path: '/sales-invoices', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },

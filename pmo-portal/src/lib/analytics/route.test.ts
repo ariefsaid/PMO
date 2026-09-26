@@ -148,5 +148,33 @@ describe('routeAnalyticsForPath', () => {
         module: 'administration',
       });
     });
+
+    it('AC-ADMIA-004: normalizes Administration child paths to a safe section route', () => {
+      expect(routeAnalyticsForPath('/administration/usage')).toEqual({
+        route: '/administration/:section',
+        module: 'administration',
+        tab_id: 'usage',
+      });
+      expect(routeAnalyticsForPath('/administration/accounting?org_id=secret#budget-account-map')).toEqual({
+        route: '/administration/:section',
+        module: 'administration',
+        tab_id: 'accounting',
+      });
+    });
+
+    it('AC-ADMIA-004: never leaks an Administration id, query value, or fragment into analytics', () => {
+      const result = routeAnalyticsForPath(
+        '/administration/features/9f3a-uuid?user_email=alice@example.com#private-fragment',
+      );
+
+      expect(result).toEqual({
+        route: '/administration/:section',
+        module: 'administration',
+        tab_id: 'features',
+      });
+      expect(JSON.stringify(result)).not.toContain('9f3a-uuid');
+      expect(JSON.stringify(result)).not.toContain('alice@example.com');
+      expect(JSON.stringify(result)).not.toContain('private-fragment');
+    });
   });
 });
