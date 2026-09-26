@@ -152,6 +152,31 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     expect(document.getElementById('budget-account-map')).not.toBeNull();
   });
 
+  // ── AC-ADMIA-004 (fragment deep-link): the canonical accounting link ships with
+  //    `#budget-account-map`, and the shell preserves that fragment across the redirect.
+  //
+  //    A reference click on an in-page anchor makes the browser scroll; a route navigation that
+  //    lands on the fragment (History API replace + async panel mount) does NOT auto-scroll. So the
+  //    route-mounted panel must scroll/focus its own deep-link target once mounted, without
+  //    trapping focus or adding a new visual token.
+  it('AC-ADMIA-004 opens via #budget-account-map: the map scrolls into view and receives focus', async () => {
+    window.location.hash = '#budget-account-map';
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    renderPage('Admin');
+    await screen.findByText('Labor');
+    const section = document.getElementById('budget-account-map')!;
+    await waitFor(() => expect(document.activeElement).toBe(section));
+    expect(scrollSpy).toHaveBeenCalled();
+    scrollSpy.mockRestore();
+    window.location.hash = '';
+  });
+
+  it('AC-ADMIA-004 without the fragment, the map does not steal focus', async () => {
+    renderPage('Admin');
+    await screen.findByText('Labor');
+    expect(document.activeElement).not.toBe(document.getElementById('budget-account-map'));
+  });
+
   it('I-8 an UNMAPPED category is marked as blocking every push, not merely "Not mapped"', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');

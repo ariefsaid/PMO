@@ -596,7 +596,9 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     ]);
     renderPage();
     const link = await screen.findByRole('link', { name: /account map/i });
-    expect(link).toHaveAttribute('href', expect.stringContaining('/administration'));
+    // AC-ADMIA-003: the banner is the canonical org-level entry point to the map — it must target
+    // the exact Accounting route + fragment, not merely any /administration path.
+    expect(link).toHaveAttribute('href', '/administration/accounting#budget-account-map');
   });
 
   it('NEW-6 renders no category list when the failure has nothing to do with the map', async () => {

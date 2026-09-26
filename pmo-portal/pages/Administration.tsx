@@ -1,4 +1,6 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -23,44 +25,66 @@ export type AdministrationSection =
   | 'usage'
   | 'features';
 
-const ORGANIZATION_SECTIONS: ReadonlyArray<{ id: AdministrationSection; label: string }> = [
-  { id: 'users', label: 'Users' },
-  { id: 'integrations', label: 'Organization integrations' },
-  { id: 'accounting', label: 'Accounting setup' },
-  { id: 'credits', label: 'Credits' },
-];
+/** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'credits'];
+const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
+const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, ...OPERATOR_SECTIONS];
 
-const OPERATOR_SECTIONS: ReadonlyArray<{ id: AdministrationSection; label: string }> = [
-  { id: 'usage', label: 'Usage' },
-  { id: 'features', label: 'Features' },
-];
+/** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
+const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
+  users: 'Users',
+  integrations: 'Organization integrations',
+  accounting: 'Accounting setup',
+  credits: 'Credits',
+  usage: 'Usage',
+  features: 'Features',
+};
 
-const ALL_SECTIONS = [...ORGANIZATION_SECTIONS, ...OPERATOR_SECTIONS];
+/**
+ * Section labels resolved through i18n. Reference every key STATICALLY: the completeness gate
+ * (scripts/check-i18n-completeness.mjs) collects only literal `t('key')` references, so a computed
+ * `t(\`admin.nav.${id}\`)` would make each key look orphaned (same documented rule as Rail.tsx).
+ */
+const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string> => ({
+  users: t('admin.nav.users', SECTION_LABEL_DEFAULTS.users),
+  integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
+  accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
+  credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
+  usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
+  features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
+});
 
 function administrationSectionForPath(pathname: string): AdministrationSection | undefined {
   const prefix = '/administration/';
   if (!pathname.startsWith(prefix)) return undefined;
   const section = pathname.slice(prefix.length);
   if (section.includes('/')) return undefined;
-  return ALL_SECTIONS.some(({ id }) => id === section) ? (section as AdministrationSection) : undefined;
+  return ALL_SECTIONS.some((id) => id === section) ? (section as AdministrationSection) : undefined;
 }
 
 const isOperatorSection = (section: AdministrationSection): boolean =>
   section === 'usage' || section === 'features';
 
-const AdministrationHeader: React.FC = () => (
-  <div className="mb-4 min-w-0">
-    <h1 className="text-[24px] font-bold tracking-[-0.02em]">Administration</h1>
-    <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-      Organization setup and governance.
-    </p>
-  </div>
-);
+const AdministrationHeader: React.FC = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="mb-4 min-w-0">
+      <h1 className="text-[24px] font-bold tracking-[-0.02em]">
+        {t('admin.nav.title', 'Administration')}
+      </h1>
+      <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
+        {t('admin.nav.description', 'Organization setup and governance.')}
+      </p>
+    </div>
+  );
+};
 
 const AdministrationNavigation: React.FC<{
   section: AdministrationSection;
   isOperator: boolean;
-}> = ({ section, isOperator }) => {
+  label: (id: AdministrationSection) => string;
+}> = ({ section, isOperator, label }) => {
+  const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
       'min-w-0 rounded-md px-2.5 py-1.5 text-center text-[13px] leading-tight transition-colors',
@@ -70,26 +94,26 @@ const AdministrationNavigation: React.FC<{
         : 'text-foreground hover:bg-accent hover:text-accent-foreground',
     );
 
-  const links = (items: ReadonlyArray<{ id: AdministrationSection; label: string }>) =>
-    items.map(({ id, label }) => (
+  const links = (items: ReadonlyArray<AdministrationSection>) =>
+    items.map((id) => (
       <Link
         key={id}
         to={`/administration/${id}`}
         aria-current={section === id ? 'page' : undefined}
         className={linkClass(section === id)}
       >
-        {label}
+        {label(id)}
       </Link>
     ));
 
   return (
-    <nav aria-label="Administration sections" className="mb-6 min-w-0">
+    <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-6 min-w-0">
       <div className="grid min-w-0 grid-cols-2 gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap">
         {links(ORGANIZATION_SECTIONS)}
         {isOperator && (
           <>
             <span className="col-span-2 px-2 pt-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:col-span-1 md:ml-1 md:self-center md:px-1 md:pt-0">
-              Platform
+              {t('admin.nav.platform', 'Platform')}
             </span>
             {links(OPERATOR_SECTIONS)}
           </>
@@ -99,16 +123,19 @@ const AdministrationNavigation: React.FC<{
   );
 };
 
-const OperatorMembershipPending: React.FC = () => (
-  <div
-    role="status"
-    aria-live="polite"
-    className="flex items-start gap-2.5 rounded-lg border border-border bg-secondary/35 px-3.5 py-3 text-[13px] text-muted-foreground"
-  >
-    <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-muted-foreground" />
-    <span>Checking your Administration access…</span>
-  </div>
-);
+const OperatorMembershipPending: React.FC = () => {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-start gap-2.5 rounded-lg border border-border bg-secondary/35 px-3.5 py-3 text-[13px] text-muted-foreground"
+    >
+      <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-muted-foreground" />
+      <span>{t('admin.access.checking', 'Checking your Administration access…')}</span>
+    </div>
+  );
+};
 
 const UsagePanel: React.FC = () => {
   const usageQuery = useUsage();
@@ -142,7 +169,8 @@ const SelectedAdministrationPanel: React.FC<{
   section: AdministrationSection;
   orgId: string;
   isOperator: boolean;
-}> = ({ section, orgId, isOperator }) => {
+  label: (id: AdministrationSection) => string;
+}> = ({ section, orgId, isOperator, label }) => {
   switch (section) {
     case 'users':
       return (
@@ -153,14 +181,14 @@ const SelectedAdministrationPanel: React.FC<{
     case 'integrations':
       return (
         <div data-testid="administration-panel-integrations" className="min-w-0">
-          <SectionHeader title="Organization integrations" />
+          <SectionHeader title={label('integrations')} />
           <IntegrationsView />
         </div>
       );
     case 'accounting':
       return (
         <div data-testid="administration-panel-accounting" className="min-w-0">
-          <SectionHeader title="Accounting setup" />
+          <SectionHeader title={label('accounting')} />
           <div className="space-y-6">
             <OrgTaxDefault />
             <BudgetAccountMap />
@@ -176,14 +204,14 @@ const SelectedAdministrationPanel: React.FC<{
     case 'usage':
       return (
         <div data-testid="administration-panel-usage" className="min-w-0">
-          <SectionHeader title="Usage" />
+          <SectionHeader title={label('usage')} />
           <UsagePanel />
         </div>
       );
     case 'features':
       return (
         <div data-testid="administration-panel-features" className="min-w-0">
-          <SectionHeader title="Features" />
+          <SectionHeader title={label('features')} />
           <AdministrationFeatures isOperator={isOperator} orgId={orgId} />
         </div>
       );
@@ -191,6 +219,7 @@ const SelectedAdministrationPanel: React.FC<{
 };
 
 const Administration: React.FC = () => {
+  const { t } = useTranslation();
   const { pathname, hash } = useLocation();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -200,6 +229,8 @@ const Administration: React.FC = () => {
   const isOperator = operatorMembership.isOperator;
   const canEnterAdministration = isAdminViewer || isOperator;
   const operatorRoute = section !== undefined && isOperatorSection(section);
+  const sectionLabels = buildSectionLabels(t);
+  const label = (id: AdministrationSection) => sectionLabels[id];
 
   if (pathname === '/administration') {
     const target = hash === '#budget-account-map'
@@ -220,22 +251,29 @@ const Administration: React.FC = () => {
         <OperatorMembershipPending />
       ) : !canEnterAdministration ? (
         <GateNotice variant="blocked">
-          Administration is an Admin, Executive, or platform Operator area. You don&rsquo;t have access.
+          {t(
+            'admin.access.denied',
+            "Administration is an Admin, Executive, or platform Operator area. You don't have access.",
+          )}
         </GateNotice>
       ) : operatorRoute && !isOperator ? (
         <>
-          <AdministrationNavigation section={section} isOperator={false} />
+          <AdministrationNavigation section={section} isOperator={false} label={label} />
           <GateNotice variant="blocked">
-            Operator-only access: Usage and Features are available to platform Operators.
+            {t(
+              'admin.access.operatorOnly',
+              'Operator-only access: Usage and Features are available to platform Operators.',
+            )}
           </GateNotice>
         </>
       ) : (
         <>
-          <AdministrationNavigation section={section} isOperator={isOperator} />
+          <AdministrationNavigation section={section} isOperator={isOperator} label={label} />
           <SelectedAdministrationPanel
             section={section}
             orgId={currentUser?.org_id ?? ''}
             isOperator={isOperator}
+            label={label}
           />
         </>
       )}

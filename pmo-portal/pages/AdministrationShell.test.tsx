@@ -248,6 +248,21 @@ describe('Administration route-backed shell', () => {
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
   });
 
+  it('AC-ADMIA-006: the shell labels the organization integrations section, distinct from the personal route', async () => {
+    renderShell('/administration/integrations');
+    await waitFor(() =>
+      expect(screen.getByTestId('administration-panel-integrations')).toBeInTheDocument(),
+    );
+    // The organization surface keeps its organization-owned label as the active destination.
+    expect(screen.getByRole('link', { name: 'Organization integrations' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('heading', { name: 'Organization integrations' })).toBeInTheDocument();
+    // It is never mislabelled as the personal "My integrations" route (that lives at /integrations).
+    expect(screen.queryByRole('heading', { name: 'My integrations' })).not.toBeInTheDocument();
+  });
+
   it('AC-ADMIA-003: an unknown section is replaced with Users', async () => {
     renderShell('/administration/unknown');
 

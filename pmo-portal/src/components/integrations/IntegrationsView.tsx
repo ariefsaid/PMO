@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
@@ -77,6 +78,7 @@ function useIntegrationsHealth(connectedTiers: ExternalTier[], getHealth: (tier:
 }
 
 export const IntegrationsView: React.FC = () => {
+  const { t } = useTranslation();
   const {
     isPending,
     isError,
@@ -229,6 +231,15 @@ export const IntegrationsView: React.FC = () => {
 
   return (
     <div>
+      {/* AC-ADMIA-006: organization-owned surface. States scope explicitly and separates it from the
+          PERSONAL route at /integrations — a personal Microsoft 365 connection never implies that the
+          organization integration is ready. The panel also names its next permitted action. */}
+      <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
+        {t(
+          'integrations.organization.scope',
+          'Organization integrations connect your external services for your whole team. They are separate from your personal Microsoft 365 connection on /integrations \u2014 connecting your personal account does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.',
+        )}
+      </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
           still render the tier cards (status falls back to "Not connected" via an empty getBinding). */}
       {isError && (
