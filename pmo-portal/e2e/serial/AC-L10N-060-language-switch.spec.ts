@@ -34,13 +34,18 @@ function saveButton(page: Page, { exact = false }: { exact?: boolean } = {}) {
 test('AC-L10N-060: switching to Bahasa Indonesia re-renders money and dates, and persists', async ({ page }) => {
   await signIn(page, 'pm@acme.test');
 
-  // 1. Open /settings/profile, choose Bahasa Indonesia, save → html[lang] flips to id + success.
-  await page.goto('/settings/profile');
+  // 1. Enter the profile page through the ONE account menu (AC-ACCT-001), then choose
+  //    Bahasa Indonesia, save → html[lang] flips to id + success.
+  await page.getByRole('button', { name: /account menu|menu akun/i }).click();
+  await page
+    .getByRole('menuitem', { name: /profile & preferences|profil & preferensi/i })
+    .click();
+  await expect(page).toHaveURL(/\/settings\/profile$/);
   await expect(languageSelect(page)).toBeVisible();
   await languageSelect(page).selectOption('id');
   await saveButton(page, { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
-  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Pengaturan Profil');
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Profil & preferensi');
   await expect(page.getByRole('status')).toHaveText(/preferences saved|preferensi disimpan/i);
 
   // 2. Persistence: reload keeps both the selection and the document language Indonesian.
@@ -59,7 +64,18 @@ test('AC-L10N-060: switching to Bahasa Indonesia re-renders money and dates, and
 test.afterEach(async ({ page }) => {
   // Restore the shared PM seed profile to its NULL (inherit) override, even after an assertion
   // failure, so the org-global state is clean for the next serial run.
-  await page.goto('/settings/profile');
+  // Enter through the account menu when the authenticated shell is present; if a mid-test
+  // failure already left the shell unavailable, fall back to the direct route rather than
+  // silently dropping the restoration goal.
+  const accountTrigger = page.getByRole('button', { name: /account menu|menu akun/i });
+  if (await accountTrigger.count()) {
+    await accountTrigger.click();
+    await page
+      .getByRole('menuitem', { name: /profile & preferences|profil & preferensi/i })
+      .click();
+  } else {
+    await page.goto('/settings/profile');
+  }
   await expect(languageSelect(page)).toBeVisible();
   await languageSelect(page).selectOption('inherit');
   await saveButton(page).click();

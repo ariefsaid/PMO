@@ -19,7 +19,7 @@ import {
  */
 describe('breadcrumbForPath (route-derived breadcrumb)', () => {
   it('resolves the profile settings route to its page label', () => {
-    expect(breadcrumbForPath('/settings/profile')).toEqual([{ label: 'Profile settings' }]);
+    expect(breadcrumbForPath('/settings/profile')).toEqual([{ label: 'Profile & preferences' }]);
   });
   it('AC-NAV-003: a module index route renders a single current crumb', () => {
     expect(breadcrumbForPath('/projects')).toEqual([{ label: 'Projects' }]);

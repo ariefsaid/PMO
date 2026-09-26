@@ -1,17 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/src/auth/useAuth';
-import { useEffectiveRole } from '@/src/auth/impersonation';
-import type { Role } from '@/src/auth/AuthContext';
-import { UserRole } from '@/types';
-import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { isFeatureEnabled } from '@/src/lib/features';
-import { HELP_URL } from '@/src/lib/legalConfig';
 import { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
 import { NotificationBell } from './NotificationBell';
-import { ThemeToggle } from './ThemeToggle';
+import { AccountMenu } from './AccountMenu';
 
 export interface ContextBarProps {
   breadcrumb: BreadcrumbPart[];
@@ -20,63 +13,15 @@ export interface ContextBarProps {
   onToggleRail: () => void;
 }
 
-const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
-
-function initials(name?: string | null): string {
-  if (!name) return 'U';
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
-/** Top context bar: hamburger (mobile), breadcrumb, ⌘K, notifications,
- *  Admin view-only impersonation, user chip, sign-out. */
+/** Top context bar: hamburger (mobile), breadcrumb, ⌘K, notifications, and the single
+ *  account menu (AC-ACCT-001). All personal/identity/theme/sign-out/legal controls live
+ *  in the one responsive AccountMenu; no inline desktop cluster or phone-only menus. */
 export const ContextBar: React.FC<ContextBarProps> = ({
   breadcrumb,
   onOpenPalette,
   onToggleRail,
 }) => {
   const { t } = useTranslation();
-  const { currentUser, signOut } = useAuth();
-  const { effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  // Mobile (<640px) account menu: collapses the role-switcher + user chip + Sign out
-  // behind the avatar so the breadcrumb isn't squashed to "Da…" at phone widths
-  // (AC-MOBILE-OVERFLOW-001 / header). Left nav is already a drawer; this is the
-  // conventional "right side → avatar menu" mobile pattern.
-  const [acctOpen, setAcctOpen] = useState(false);
-  const acctRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (!acctOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (acctRef.current && !acctRef.current.contains(e.target as Node)) setAcctOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setAcctOpen(false);
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [acctOpen]);
 
   return (
     <header
@@ -112,207 +57,14 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         </span>
       </button>
 
-      <ThemeToggle />
-
       {/* FR-AAN-034/038: the notification bell (B-5/AC-W2-IXD-008 removed it for having
           no destination — it now has one, the notifications inbox, REC-3). Gated behind
           `agentAssistant` alongside the rest of the automations + notifications layer. */}
       {isFeatureEnabled('agentAssistant') && <NotificationBell />}
 
-      {/* Desktop right-cluster (≥640px): role-switcher + user chip + Sign out, inline.
-          On phones this whole cluster collapses behind the avatar menu below. */}
-      <div data-testid="desktop-account-cluster" className="hidden items-center gap-3.5 sm:flex">
-      {/* Admin-only client-side impersonation (ADR-0008): view-only, does NOT
-          change RLS/server identity. Behavior preserved from Header.tsx. */}
-      {canImpersonate && (
-        <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
-            className="touch-target inline-flex h-8 items-center gap-[7px] rounded-lg border border-input bg-background pl-[11px] pr-2.5 text-[13px] font-medium text-foreground hover:bg-accent [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
-          >
-            <span className="text-muted-foreground max-[921px]:hidden">
-              {t('shell.contextBar.viewAsRoleInline', 'View as role:')}
-            </span>
-            <strong>{effectiveRole}</strong>
-            <Icon name="chev" className="rotate-90" />
-          </button>
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
-            >
-              {IMPERSONATION_ROLES.map((role) => (
-                <button
-                  key={role}
-                  role="menuitem"
-                  type="button"
-                  onClick={() => {
-                    viewAs(role);
-                    setMenuOpen(false);
-                  }}
-                  className={cn(
-                    'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px]',
-                    effectiveRole === role
-                      ? 'bg-primary/10 font-medium text-primary'
-                      : 'hover:bg-accent'
-                  )}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2.5 border-l border-border pl-3.5">
-        <span
-          aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary-foreground"
-          style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))' }}
-        >
-          {initials(currentUser?.full_name)}
-        </span>
-        <span className="user-meta flex flex-col max-[921px]:hidden">
-          <span className="text-[13px] font-semibold leading-tight">
-            {currentUser?.full_name}
-          </span>
-          <span className="text-[11px] leading-tight text-muted-foreground">{effectiveRole}</span>
-        </span>
-      </div>
-
-      {/* FR-LEG-028 / AC-LEG-025: ONE inline Help icon-link (wa.me) next to Sign out.
-          No new dropdown; no Terms/Privacy on desktop chrome (reachable via login
-          footer, legal cross-links, direct URL). Omitted when HELP_WHATSAPP unset. */}
-      {HELP_URL && (
-        <a
-          href={HELP_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
-          className="touch-target inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-input bg-background px-2.5 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
-        >
-          <Icon name="message" />
-        </a>
-      )}
-
-      {/* Sign out. `shrink-0` + `whitespace-nowrap` guarantee the label never
-          wraps to two lines / clips past the right edge at phone widths; ≤920px
-          the cluster compacts (tighter padding) since the user name/role hide. */}
-      {/* touch-target: extends hit area to ≥44px on coarse pointer (A-IMP-1 / WCAG 2.5.5).
-          Visual size (h-8 / 32px) is unchanged; the ::before overlay adds the touch buffer. */}
-      <button
-        type="button"
-        onClick={() => void signOut()}
-        className="touch-target inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg border border-input bg-background px-3 text-[13px] font-medium text-foreground hover:bg-accent max-[921px]:px-2.5"
-      >
-        {t('shell.contextBar.signOut', 'Sign out')}
-      </button>
-      </div>
-
-      {/* Mobile (<640px) account menu — the avatar IS the trigger; it holds the
-          role-switcher (admins) + Sign out so the desktop cluster doesn't squash
-          the breadcrumb to "Da…" at phone widths. */}
-      <div data-testid="mobile-account-menu" className="relative sm:hidden" ref={acctRef}>
-        <button
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={acctOpen}
-          aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
-          onClick={() => setAcctOpen((v) => !v)}
-          className="touch-target grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary-foreground"
-          style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))' }}
-        >
-          {initials(currentUser?.full_name)}
-        </button>
-        {acctOpen && (
-          <div
-            role="menu"
-            className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
-          >
-            <div className="px-2.5 py-2">
-              <div className="text-[13px] font-semibold leading-tight">{currentUser?.full_name}</div>
-              <div className="text-[11px] leading-tight text-muted-foreground">{effectiveRole}</div>
-            </div>
-            {canImpersonate && (
-              <>
-                <div className="my-1 border-t border-border" />
-                <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {t('shell.contextBar.viewAsRoleHeading', 'View as role')}
-                </div>
-                {IMPERSONATION_ROLES.map((role) => (
-                  <button
-                    key={role}
-                    role="menuitem"
-                    type="button"
-                    onClick={() => {
-                      viewAs(role);
-                      setAcctOpen(false);
-                    }}
-                    className={cn(
-                      'flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px]',
-                      effectiveRole === role
-                        ? 'bg-primary/10 font-medium text-primary'
-                        : 'hover:bg-accent',
-                    )}
-                  >
-                    {role}
-                  </button>
-                ))}
-              </>
-            )}
-            <div className="my-1 border-t border-border" />
-            <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {t('shell.contextBar.legalAndSupport', 'Legal & support')}
-            </div>
-            {/* FR-LEG-027 / AC-LEG-023: Terms / Privacy route links + Help (wa.me new tab). */}
-            <Link
-              to="/terms"
-              role="menuitem"
-              onClick={() => setAcctOpen(false)}
-              className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
-            >
-              {t('shell.contextBar.terms', 'Terms')}
-            </Link>
-            <Link
-              to="/privacy"
-              role="menuitem"
-              onClick={() => setAcctOpen(false)}
-              className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
-            >
-              {t('shell.contextBar.privacy', 'Privacy')}
-            </Link>
-            {HELP_URL && (
-              <a
-                href={HELP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                role="menuitem"
-                aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
-                className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
-              >
-                {t('shell.contextBar.help', 'Help')}
-              </a>
-            )}
-
-            <div className="my-1 border-t border-border" />
-            <button
-              role="menuitem"
-              type="button"
-              onClick={() => {
-                setAcctOpen(false);
-                void signOut();
-              }}
-              className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
-            >
-              {t('shell.contextBar.signOut', 'Sign out')}
-            </button>
-          </div>
-        )}
-      </div>
+      {/* The one responsive account menu owns identity, profile, theme, role-preview,
+          legal and sign-out at every width (AC-ACCT-001). */}
+      <AccountMenu />
     </header>
   );
 };

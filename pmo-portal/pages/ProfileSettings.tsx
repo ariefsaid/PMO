@@ -91,7 +91,7 @@ export const ProfileSettings: React.FC = () => {
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
       <div className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
         <h1 className="text-xl font-bold tracking-[-0.01em] text-foreground">
-          {t('profileSettings.title', 'Profile settings')}
+          {t('profileSettings.title', 'Profile & preferences')}
         </h1>
         <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
           {t(

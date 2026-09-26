@@ -154,8 +154,9 @@ export function modulesForRole(role: UserRole): ModuleDef[] {
  * with the placeholder `<Route>` titles in App.tsx.
  */
 export const PLACEHOLDER_TITLES: Record<string, string> = {
-  // Profile settings is a real page and rail entry; keep its route breadcrumb registered here.
-  '/settings/profile': 'Profile settings',
+  // Profile & preferences is a directly-routable personal page (account menu entry); keep its
+  // route breadcrumb registered here (AC-ACCT-001).
+  '/settings/profile': 'Profile & preferences',
   // /tasks + /work-orders routes removed — see App.tsx (Tasks live in the project tab).
   // /companies + /incidents promoted to MODULES (B-7, AC-W2-IA-002) — no longer placeholders.
   // /approvals promoted to MODULES (fix #7) — breadcrumb now resolves via the module, not here.

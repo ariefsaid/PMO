@@ -42,27 +42,22 @@ beforeEach(() => {
 });
 
 describe('ContextBar legal entry points', () => {
-  it('AC-LEG-025: desktop cluster has ONE inline Help icon-link, correct attrs, NO Terms/Privacy', () => {
+  it('AC-LEG-025: the ONE account menu exposes Terms, Privacy and Help with correct attrs', async () => {
     renderBar();
-    const cluster = screen.getByTestId('desktop-account-cluster');
-    const help = within(cluster).getByRole('link', { name: /contact support via whatsapp/i });
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: /^terms$/i })).toHaveAttribute('href', '/terms');
+    expect(within(menu).getByRole('menuitem', { name: /^privacy$/i })).toHaveAttribute('href', '/privacy');
+    const help = within(menu).getByRole('menuitem', { name: /contact support via whatsapp/i });
     expect(help).toHaveAttribute('href', 'https://wa.me/6281234567890');
     expect(help).toHaveAttribute('target', '_blank');
     expect(help).toHaveAttribute('rel', 'noopener noreferrer');
-    // No Terms/Privacy on the desktop chrome (FR-LEG-028).
-    expect(within(cluster).queryByRole('link', { name: /^terms$/i })).toBeNull();
-    expect(within(cluster).queryByRole('link', { name: /^privacy$/i })).toBeNull();
-    // Exactly one Help link in the desktop cluster.
-    expect(within(cluster).getAllByRole('link', { name: /contact support via whatsapp/i })).toHaveLength(1);
   });
 
-  it('AC-LEG-023: mobile account menu includes Terms, Privacy, Help', async () => {
+  it('AC-LEG-023: the shared account menu includes Terms, Privacy, Help as menuitems', async () => {
     renderBar();
-    const menu = screen.getByTestId('mobile-account-menu');
-    // Menu closed initially — open via the avatar trigger.
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
-    // Mobile menu entries carry role="menuitem" (the accessible menu contract),
-    // which supersedes the implicit `link`/`a` role — query by menuitem.
+    const menu = screen.getByRole('menu');
     expect(within(menu).getByRole('menuitem', { name: /^terms$/i })).toHaveAttribute('href', '/terms');
     expect(within(menu).getByRole('menuitem', { name: /^privacy$/i })).toHaveAttribute('href', '/privacy');
     const help = within(menu).getByRole('menuitem', { name: /contact support via whatsapp/i });
@@ -70,19 +65,14 @@ describe('ContextBar legal entry points', () => {
     expect(help).toHaveAttribute('target', '_blank');
   });
 
-  // AMENDMENT (plan review, mandatory): no vi.doMock/vi.resetModules — set the
-  // hoisted mockConfig.HELP_URL = '' and re-render via the hoisted mock (the
-  // legalConfig mock above reads mockConfig.HELP_URL live via a getter).
-  it('AC-LEG-010/FR-LEG-028: desktop Help + mobile Help omitted when HELP_URL empty', async () => {
+  it('AC-LEG-010/FR-LEG-028: Help is omitted when HELP_URL empty, Terms/Privacy remain', async () => {
     mockConfig.HELP_URL = '';
     renderBar();
     expect(screen.queryByRole('link', { name: /contact support via whatsapp/i })).toBeNull();
 
-    // Mobile menu also omits Help when empty.
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
-    const menu = screen.getByTestId('mobile-account-menu');
+    const menu = screen.getByRole('menu');
     expect(within(menu).queryByRole('menuitem', { name: /contact support via whatsapp/i })).toBeNull();
-    // Terms/Privacy still present regardless of Help.
     expect(within(menu).getByRole('menuitem', { name: /^terms$/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /^privacy$/i })).toBeInTheDocument();
   });

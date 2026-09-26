@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, act, fireEvent } from '@testing-library/react';
-import React from 'react';
+import React from 'react'
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { axeViolations } from '@/src/components/__tests__/axe';
+import enCatalogue from '../public/locales/en/common.json';
+import idCatalogue from '../public/locales/id/common.json';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 const { setInterfaceLanguage, refreshMock } = vi.hoisted(() => ({
@@ -159,9 +163,59 @@ describe('ProfileSettings (profile language settings slice)', () => {
     currentUserState = { ...currentUserState, locale: 'en' };
     const { container } = renderPage();
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /profile settings/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /profile & preferences/i })).toBeInTheDocument()
     );
     const { blocking } = await axeViolations(container);
     expect(blocking).toEqual([]);
+  });
+});
+
+describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
+  it('renders the catalogue English heading when the interface language is English', async () => {
+    currentUserState = { ...currentUserState, locale: 'en' };
+    const instance = i18next.createInstance();
+    await instance.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      ns: 'common',
+      defaultNS: 'common',
+      resources: {
+        en: { common: enCatalogue },
+        id: { common: idCatalogue },
+      },
+      interpolation: { escapeValue: false },
+    });
+    render(
+      <I18nextProvider i18n={instance}>
+        <ProfileSettings />
+      </I18nextProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Profile & preferences' })).toBeInTheDocument()
+    );
+  });
+
+  it('renders the catalogue Bahasa heading when the interface language is Bahasa Indonesia', async () => {
+    currentUserState = { ...currentUserState, locale: 'id' };
+    const instance = i18next.createInstance();
+    await instance.init({
+      lng: 'id',
+      fallbackLng: 'en',
+      ns: 'common',
+      defaultNS: 'common',
+      resources: {
+        en: { common: enCatalogue },
+        id: { common: idCatalogue },
+      },
+      interpolation: { escapeValue: false },
+    });
+    render(
+      <I18nextProvider i18n={instance}>
+        <ProfileSettings />
+      </I18nextProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Profil & preferensi' })).toBeInTheDocument()
+    );
   });
 });

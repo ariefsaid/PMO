@@ -279,7 +279,7 @@ const ShellChrome: React.FC = () => {
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
     if (pathname === '/settings/profile') {
-      return [{ label: t('shell.nav.profileSettings', 'Profile settings') }];
+      return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be

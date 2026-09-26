@@ -1,5 +1,5 @@
 /**
- * AC-W2-7-02: ContextBar impersonation trigger has ≥44px touch target (touch-target class).
+ * AC-W2-7-02: the account-menu trigger has ≥44px touch target (touch-target class).
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -24,7 +24,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 import { ContextBar } from '../ContextBar';
 
 describe('ContextBar touch target (W2-7)', () => {
-  it('AC-W2-7-02: impersonation trigger has touch-target class for ≥44px coarse-pointer hit area', () => {
+  it('AC-W2-7-02: the account-menu trigger has touch-target class for ≥44px coarse-pointer hit area', () => {
     render(
       <ContextBar
         breadcrumb={[{ label: 'Dashboard' }]}
@@ -33,8 +33,8 @@ describe('ContextBar touch target (W2-7)', () => {
       />,
     );
 
-    // The "View as role" trigger button
-    const trigger = screen.getByRole('button', { name: /view as role/i });
+    // The single account-menu trigger (the sole home of the personal command surface).
+    const trigger = screen.getByRole('button', { name: /account menu/i });
     expect(trigger.className).toContain('touch-target');
   });
 });
