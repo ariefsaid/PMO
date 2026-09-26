@@ -6,7 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import { cn } from '@/src/components/ui/cn';
-import { GateNotice, SectionHeader } from '@/src/components/ui';
+import { GateNotice, ListState, SectionHeader } from '@/src/components/ui';
 import AdminUsers from './AdminUsers';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
@@ -229,6 +229,7 @@ const Administration: React.FC = () => {
   const isOperator = operatorMembership.isOperator;
   const canEnterAdministration = isAdminViewer || isOperator;
   const operatorRoute = section !== undefined && isOperatorSection(section);
+  const needsOperatorCheck = operatorRoute || !isAdminViewer;
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
 
@@ -247,8 +248,18 @@ const Administration: React.FC = () => {
     <div className="min-w-0">
       <AdministrationHeader />
 
-      {operatorMembership.isPending && (operatorRoute || !canEnterAdministration) ? (
+      {operatorMembership.isPending && needsOperatorCheck ? (
         <OperatorMembershipPending />
+      ) : operatorMembership.isError && needsOperatorCheck ? (
+        <>
+          {isAdminViewer && <AdministrationNavigation section={section} isOperator={false} label={label} />}
+          <ListState
+            variant="error"
+            title={t('admin.access.verifyError', 'Could not verify access')}
+            sub={t('admin.access.verifyErrorSub', 'Try again to open Administration controls.')}
+            onRetry={operatorMembership.retry}
+          />
+        </>
       ) : !canEnterAdministration ? (
         <GateNotice variant="blocked">
           {t(

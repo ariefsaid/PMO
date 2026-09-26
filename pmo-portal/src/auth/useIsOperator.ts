@@ -18,6 +18,8 @@ export interface OperatorMembershipState {
   isPending: boolean;
   /** The membership query failed; callers still fail closed after the pending state. */
   isError: boolean;
+  /** Recheck after an unavailable membership response. */
+  retry: () => void;
 }
 
 /**
@@ -26,11 +28,16 @@ export interface OperatorMembershipState {
  * affordance projection used by existing panels.
  */
 export function useOperatorMembership(): OperatorMembershipState {
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['operator', 'isOperator'],
     queryFn: () => repositories.operator.isOperator(),
   });
-  return { isOperator: data === true, isPending, isError };
+  return {
+    isOperator: data === true && !isError,
+    isPending,
+    isError,
+    retry: () => { void refetch(); },
+  };
 }
 
 export function useIsOperator(): boolean {

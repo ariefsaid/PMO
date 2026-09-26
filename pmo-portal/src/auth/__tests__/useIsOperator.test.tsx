@@ -40,7 +40,8 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
   it('exposes pending membership separately so a route guard can avoid a transient denial', () => {
     vi.mocked(isOperator).mockImplementation(() => new Promise(() => {})); // never resolves
     const { result } = renderHook(() => useOperatorMembership(), { wrapper: makeWrapper() });
-    expect(result.current).toEqual({ isOperator: false, isPending: true, isError: false });
+    expect(result.current).toMatchObject({ isOperator: false, isPending: true, isError: false });
+    expect(result.current.retry).toEqual(expect.any(Function));
   });
 
   it('keeps a settled Operator route available during a background membership refresh', async () => {
@@ -52,13 +53,45 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     );
     const { result } = renderHook(() => useOperatorMembership(), { wrapper: Wrapper });
-    await waitFor(() => expect(result.current).toEqual({ isOperator: true, isPending: false, isError: false }));
+    await waitFor(() => expect(result.current).toMatchObject({ isOperator: true, isPending: false, isError: false }));
 
     await act(async () => {
       void qc.invalidateQueries({ queryKey: ['operator', 'isOperator'] });
     });
     await waitFor(() => expect(isOperator).toHaveBeenCalledTimes(2));
-    expect(result.current).toEqual({ isOperator: true, isPending: false, isError: false });
+    expect(result.current).toMatchObject({ isOperator: true, isPending: false, isError: false });
+  });
+
+  it('does not keep an Operator projection after its membership recheck fails', async () => {
+    vi.mocked(isOperator)
+      .mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new Error('membership unavailable'));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useOperatorMembership(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isOperator).toBe(true));
+
+    await act(async () => {
+      void qc.invalidateQueries({ queryKey: ['operator', 'isOperator'] });
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.isOperator).toBe(false);
+    expect(result.current.isPending).toBe(false);
+  });
+
+  it('retries an unavailable membership check and restores access after a positive response', async () => {
+    vi.mocked(isOperator)
+      .mockRejectedValueOnce(new Error('membership unavailable'))
+      .mockResolvedValueOnce(true);
+    const { result } = renderHook(() => useOperatorMembership(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.isOperator).toBe(false);
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.isOperator).toBe(true));
+    expect(isOperator).toHaveBeenCalledTimes(2);
   });
 
   it('re-rendering the SAME hook instance does not re-call the RPC (query-key stability)', async () => {

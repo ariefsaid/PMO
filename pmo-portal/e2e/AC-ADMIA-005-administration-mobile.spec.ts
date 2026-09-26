@@ -128,30 +128,19 @@ async function driveSections(page: Page, vw: number, height: number) {
   }
 }
 
-test('AC-ADMIA-005: every Admin destination stays reachable and overflow-free at desktop', async ({ page }) => {
+test('AC-ADMIA-005: Administration destinations stay reachable and overflow-free at desktop, phone, and phone dark mode', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(page, ADMIN);
   await page.goto('/administration');
 
   await driveSections(page, 1280, 800);
-});
 
-test('AC-ADMIA-005: every Admin destination stays reachable, visible and overflow-free at 390px (light)', async ({
-  page,
-}) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await signIn(page, ADMIN);
   await page.goto('/administration');
-
   await driveSections(page, 390, 844);
-});
 
-test('AC-ADMIA-005: the 390px route shell has no horizontal overflow in dark mode', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await signIn(page, ADMIN);
-  await page.evaluate(() => document.documentElement.classList.add('dark'));
+  await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.goto('/administration');
-
-  // Dark theme: same reachable, no-bleed guarantee on every organization destination.
+  await expect(page.locator('html')).toHaveClass(/dark/);
   await driveSections(page, 390, 844);
 });

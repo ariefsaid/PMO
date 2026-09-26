@@ -101,12 +101,24 @@ dependencies such as Mailpit, so those journeys still need a dedicated serial re
 
 ## `routes × oracles` denominator (Layer 2)
 
-**Routes (30, from `pmo-portal/App.tsx` `appRouteConfig` — 2026-09-08):** `/` · `/projects` · `/projects/:id` · `/projects/:id/:tab` ·
+**Routes (38 non-catch-all route entries, from `pmo-portal/App.tsx` `appRouteConfig` — 2026-09-27):** `/` · `/projects` · `/projects/:id` · `/projects/:id/:tab` ·
 `/sales` · `/sales/:id` · `/procurement` · `/procurement/:id` · `/procurement/:id/:tab` · `/timesheets` · `/approvals` ·
 `/companies` · `/companies/:id` · `/contacts` · `/contacts/:id` · `/incidents` · `/incidents/:id` (feature-hidden) ·
-`/my-tasks` · `/meetings` · `/meetings/:id` · `/reports` · `/administration` · `/sales-invoices` · `/incoming-payments` ·
-`/revenue-by-project` · `/integrations` · `/views` · `/views/new` · `/views/:id` · `/views/:id/edit`.
-⚑ This list under-counted by 14 routes for ~6 weeks (the whole meeting module included) despite the maintenance gate below — re-derive it from `appRouteConfig`, never edit it by memory.
+`/my-tasks` · `/meetings` · `/meetings/:id` · `/reports` · `/administration` (entry alias) ·
+`/administration/users` · `/administration/integrations` · `/administration/accounting` · `/administration/credits` ·
+`/administration/usage` · `/administration/features` · `/administration/:section` (unknown-section fallback) ·
+`/sales-invoices` · `/incoming-payments` · `/revenue-by-project` · `/integrations` (personal) · `/views` ·
+`/views/new` · `/views/:id` · `/views/:id/edit` · `/settings/profile`.
+⚑ A prior list under-counted by 14 routes for ~6 weeks (the whole meeting module included) despite the maintenance gate below — re-derive it from `appRouteConfig`, never edit it by memory.
+
+**Administration IA cells:** The six canonical child routes and personal `/integrations` receive
+action-completeness, state-coverage, cross-screen consistency, WCAG-AA, mobile@390, and
+job-fit-per-role checks. The `/administration` alias and `/administration/:section` fallback receive
+redirect, permission, and focus checks; they are compatibility behavior rather than new destinations.
+The org Admin and platform Operator are distinct role oracles. Route selection, breadcrumb, heading,
+and mounted panel must agree; a settled Operator panel remains stable during a background membership
+refresh. The personal integration destination must keep its rail, breadcrumb, and page title aligned
+while remaining distinct from the organization-owned section.
 
 **Oracles (one specialist each):** action-completeness ("then what?") · state-coverage
 (loading/empty/error/permission) · data-correctness (numbers/dates/positions) · cross-screen
@@ -127,6 +139,9 @@ once all three artifacts exist:
 | Gantt milestones rendered off-axis (header badge, not date diamond) — 2026-06-15 | `ganttLayout` marker-position test + render-at-`marker.left` test | data-correctness × `/projects/:id` | DESIGN.md: timeline markers placed on the axis by date | ☐ (Gantt-fix wave — vendors failed eval, fix custom) |
 | **Mobile content bleeds off-screen** (procurement row/toolbar clipped, overview cards, timesheet select) — owner, 2026-06-16 | **`e2e/AC-MOBILE-OVERFLOW-001-no-horizontal-bleed.spec.ts`** — every route × {390, 360} asserts **no element's right edge exceeds the viewport** (the shell `overflow-x-hidden` *clips* bleed, so a page-`scrollWidth` oracle is blind — element-right-edge is the correct oracle, excluding legit `overflow-x` scrollers) | **mobile@390** (now an L1 GATE, every PR) × all routes | DESIGN.md: mobile = no horizontal bleed; native `<select>`/toolbars/grid-items must `min-w-0`/cap width | ☑ (2026-06-16) |
 | Projects mobile toolbar loses the intended tap when switching disclosures, and an inert shell dialog blocks dismissal — 2026-09-26 | `e2e/AC-PRJUX-003-mobile-disclosure-switch.spec.ts` checks the switch, Escape, outside click, focus, and open-panel bounds at 360px | interaction + mobile@360 × `/projects` | DESIGN.md: switch on click; only active dialogs block dismissal; preserve the intended focus target | ☑ (2026-09-27) |
+| Personal integration rail and breadcrumb label diverged from its page heading — 2026-09-27 | `Rail.test.tsx` + `breadcrumb-nav.test.ts` assert the same personal label; `Integrations.test.tsx` checks the H1 | cross-screen consistency × `/integrations` and `/administration/integrations` | DESIGN.md Navigation: route label and heading agree; personal and organization ownership are distinct | ☑ (2026-09-27) |
+| Accounting fragment did not respond to a router hash change after the panel had mounted — 2026-09-27 | `BudgetAccountMap.test.tsx` navigates the router hash and checks target focus/scroll; `e2e/AC-ADMIA-001-administration-navigation.spec.ts` checks the compatibility URL | state-coverage + cross-screen consistency × `/administration/accounting` | DESIGN.md Navigation: async deep-link targets receive focus after route resolution | ☑ (2026-09-27) |
+| Administration access checking needed stable pending and recoverable error states — 2026-09-27 | `useIsOperator.test.tsx` and `AdministrationShell.test.tsx` assert the state transitions and retry | state-coverage + job-fit-per-role × `/administration/usage` and `/administration/features` | DESIGN.md Navigation: pending access applies to unresolved membership; an unavailable check offers recovery | ☑ (2026-09-27) |
 
 ## Vendoring backlog (Layer 0)
 

@@ -10,7 +10,7 @@ import { ToastProvider } from '@/src/components/ui';
 
 const { roleState, operatorState, listState, mutations, panelMounts } = vi.hoisted(() => ({
   roleState: { value: 'Admin' as Role },
-  operatorState: { value: false, pending: false },
+  operatorState: { value: false, pending: false, error: false, retry: vi.fn() },
   listState: {
     data: [
       {
@@ -61,9 +61,10 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/auth/useIsOperator', () => ({
   useIsOperator: () => operatorState.value,
   useOperatorMembership: () => ({
-    isOperator: operatorState.value,
+    isOperator: operatorState.value && !operatorState.error,
     isPending: operatorState.pending,
-    isError: false,
+    isError: operatorState.error,
+    retry: operatorState.retry,
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({
@@ -180,6 +181,8 @@ beforeEach(() => {
   roleState.value = 'Admin';
   operatorState.value = false;
   operatorState.pending = false;
+  operatorState.error = false;
+  operatorState.retry.mockClear();
   panelMounts.integrations = 0;
   panelMounts.accounting = 0;
   panelMounts.credits = 0;
@@ -315,6 +318,16 @@ describe('Administration route-backed shell', () => {
     // The route must become available after the membership result settles; it must not have
     // committed a transient denial that survives the positive result.
     await waitFor(() => expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument());
+  });
+
+  it('AC-ADMIA-002: an unavailable membership check hides Operator content and offers retry', async () => {
+    operatorState.error = true;
+    renderShell('/administration/usage', 'Engineer', true);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not verify.*access/i);
+    expect(screen.queryByTestId('administration-panel-usage')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(operatorState.retry).toHaveBeenCalledOnce();
   });
 });
 

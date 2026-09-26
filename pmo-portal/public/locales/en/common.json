@@ -3,7 +3,9 @@
     "access": {
       "checking": "Checking your Administration access…",
       "denied": "Administration is an Admin, Executive, or platform Operator area. You don't have access.",
-      "operatorOnly": "Operator-only access: Usage and Features are available to platform Operators."
+      "operatorOnly": "Operator-only access: Usage and Features are available to platform Operators.",
+      "verifyError": "Could not verify access",
+      "verifyErrorSub": "Try again to open Administration controls."
     },
     "nav": {
       "accounting": "Accounting setup",

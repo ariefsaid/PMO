@@ -58,9 +58,10 @@ async function expectSectionSelected(
   await expect(sectionLink(page, s.name)).toHaveAttribute('aria-current', 'page');
   await expect(panel(page, s.testid)).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: s.heading })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'))
+    .toHaveText(s.heading);
   // Exactly one destination is active and exactly one panel is mounted — no unrelated panel competes.
   await expect(sectionNav(page).locator('[aria-current="page"]')).toHaveCount(1);
-  await expect(panel(page, s.testid)).toBeVisible();
 }
 
 test('AC-ADMIA-001: an org Admin journeys through the four destinations with coherent location/heading/panel and Back restores the prior section', async ({
@@ -101,12 +102,8 @@ test('AC-ADMIA-001: an org Admin journeys through the four destinations with coh
   await expectSectionSelected(page, ORGANIZATION_SECTIONS[1]); // Organization integrations
   await page.goBack();
   await expectSectionSelected(page, ORGANIZATION_SECTIONS[0]); // Users
-});
 
-test('AC-ADMIA-003: the historical #budget-account-map deep link resolves to Accounting setup with the map reachable', async ({
-  page,
-}) => {
-  await signIn(page, ADMIN);
+  // AC-ADMIA-003 supporting proof: a historical bookmark lands on the canonical Accounting section.
   await page.goto('/administration#budget-account-map');
 
   // The alias preserves the fragment: the final URL keeps the target and Accounting becomes active.
@@ -119,4 +116,6 @@ test('AC-ADMIA-003: the historical #budget-account-map deep link resolves to Acc
   const map = page.locator('#budget-account-map');
   await expect(map).toBeVisible();
   await expect(map).toContainText(/budget account map/i);
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'))
+    .toHaveText('Accounting setup');
 });

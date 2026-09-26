@@ -458,6 +458,12 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   a `destructive` notification dot + user chip (avatar gradient + name/role, hidden on phone).
 - **Mobile:** below 920px the rail collapses (`--rail-w: 0`); hamburger appears; `cmdk` shrinks to an
   icon. (Two breakpoints: 920px rail-collapse, 768px table→card reflow.)
+- **Route-backed setup:** Administration section links are native navigation links. The selected
+  section, breadcrumb, panel heading, and URL use one label and one route; compatibility redirects
+  do not add a history stop. Personal **My integrations** remains distinct from organization setup.
+  When an async panel owns a URL fragment, focus and scroll its target after the panel mounts.
+  A background access refresh keeps a settled panel visible; pending access applies only before
+  membership resolves, and an unavailable check has a recoverable error state.
 
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary`, 28px buttons, "on" = white `background` pill +
