@@ -1634,7 +1634,8 @@
       "pm": "PM",
       "progress": "Progres",
       "project": "Proyek",
-      "status": "Status"
+      "status": "Status",
+      "committed": "Komitmen"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
@@ -1686,6 +1687,43 @@
       "calendar": "Kalender",
       "cards": "Kartu",
       "table": "Tabel"
+    },
+    "unnamedUser": "Pengguna tanpa nama",
+    "export": "Ekspor",
+    "import": "Impor",
+    "mobile": {
+      "filters": "Filter",
+      "more": "Aksi lainnya",
+      "activeCount": "Filter aktif",
+      "customer": "Klien",
+      "manager": "Manajer proyek",
+      "removeCustomer": "Hapus filter klien",
+      "removeManager": "Hapus filter manajer proyek",
+      "clearAll": "Hapus semua",
+      "loading": "Memuat opsi…",
+      "noOptions": "Tidak ada opsi",
+      "error": "Gagal memuat opsi",
+      "retry": "Coba lagi",
+      "unavailable": "Pilihan tidak tersedia"
+    },
+    "card": {
+      "delivery": "Penyelesaian",
+      "deliveryPercent": "Penyelesaian {{percent}}%",
+      "budgetUsedPercent": "Anggaran terpakai {{percent}}%",
+      "budgetSummary": "{{spent}} dari anggaran {{budget}}",
+      "committedPercent": "Komitmen: {{percent}}% dari kontrak",
+      "actualPercent": "Realisasi: {{percent}}% dari kontrak",
+      "editProject": "Edit {{name}}"
+    },
+    "kanban": {
+      "won": "Menang",
+      "ongoing": "Berjalan",
+      "onHold": "Ditunda",
+      "closeOut": "Penutupan",
+      "internal": "Internal",
+      "board": "Papan kanban proyek",
+      "empty": "Tidak ada proyek pada tahap {{stage}}",
+      "swipe": "Geser untuk melihat lainnya →"
     }
   },
   "sales": {

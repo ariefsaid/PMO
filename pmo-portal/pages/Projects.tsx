@@ -13,6 +13,7 @@ import {
   Icon,
   useToast,
   CompanyNameLink,
+  MobileToolbarDisclosure,
   type Column,
   type RowMenuItem,
   TaxBasisLabel,
@@ -48,6 +49,7 @@ import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -84,8 +86,12 @@ const Projects: React.FC = () => {
     [myTasks],
   );
   const { data, isPending, isError, refetch } = useProjects();
-  const { data: clientCompanies = [] } = useClientCompanies();
-  const { data: projectManagers = [] } = useProjectManagers();
+  const clientCompaniesResult = useClientCompanies();
+  const projectManagersResult = useProjectManagers();
+  // Stable array references so the option-list/import useMemos (which list them as deps)
+  // don't recompute every render when a query is still resolving to `undefined`.
+  const clientCompanies = useMemo(() => clientCompaniesResult.data ?? [], [clientCompaniesResult.data]);
+  const projectManagers = useMemo(() => projectManagersResult.data ?? [], [projectManagersResult.data]);
   const { create, updateHeader, archive } = useProjectMutations();
 
   const canCreate = may('create', 'project');
@@ -113,6 +119,12 @@ const Projects: React.FC = () => {
   const [filterClient, setFilterClient] = useState('All');
   const [filterPM, setFilterPM] = useState('All');
   const [search, setSearch] = useState('');
+  // Mobile disclosure state (FR-PRJUX-003): Filters closes after a selection; More actions
+  // closes after an export dispatch but is deliberately left OPEN when an Import wizard opens
+  // (the wizard must stay mounted for its own lifecycle — DD-BIMP-3). Both are controlled here
+  // so the mobile toolbar can drive them.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   // null = closed; true = the create-deal modal is open.
   const [createOpen, setCreateOpen] = useState(false);
   // null = closed; { project } = edit modal open.
@@ -163,7 +175,14 @@ const Projects: React.FC = () => {
         }
       })
       .filter((p) => filterClient === 'All' || p.client_id === filterClient)
-      .filter((p) => filterPM === 'All' || p.project_manager_id === filterPM)
+      // FR-PRJUX-005: three explicit PM branches — All bypasses; the sentinel matches
+      // ONLY `project_manager_id == null`; a real ID matches equality. An unnamed-but-
+      // ASSIGNED profile therefore never reads as unassigned.
+      .filter((p) => {
+        if (filterPM === 'All') return true;
+        if (filterPM === UNASSIGNED_PROJECT_MANAGER) return p.project_manager_id == null;
+        return p.project_manager_id === filterPM;
+      })
       .filter(
         (p) =>
           !q ||
@@ -229,19 +248,39 @@ const Projects: React.FC = () => {
     () => makeBudgetImportDescriptor(all.map((p) => ({ id: p.id, name: p.name })), budgetImportBatchId),
     [all, budgetImportBatchId],
   );
+  // FR-PRJUX-004/005: every PM option carries a nonempty visible label. A blank-name
+  // assigned profile renders `Unnamed user · <short ID>` (still filters by its real ID);
+  // the genuinely-unassigned filter is a non-ID sentinel, never a profile ID.
   const pmFilterOptions = useMemo(
     () => [
       { value: 'All', label: t('projects.filters.allManagers', 'All managers') },
-      ...projectManagers.map((u) => ({ value: u.id, label: u.full_name })),
+      {
+        value: UNASSIGNED_PROJECT_MANAGER,
+        label: t('projects.unassigned', 'Unassigned'),
+      },
+      ...projectManagers.map((u) => ({
+        value: u.id,
+        label: projectManagerLabel({
+          managerId: u.id,
+          fullName: u.full_name,
+          unassignedLabel: t('projects.unassigned', 'Unassigned'),
+          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+        }),
+      })),
     ],
     [projectManagers, t],
   );
 
   const filtersActive =
     filter !== 'All' || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
+  const hasNonDefaultFilter =
+    filter !== roleDefault || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
 
+  // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
+  // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
+  // PM, and search. Keeps the status URL/analytics inputs unchanged.
   const clearFilters = () => {
-    setFilter('All');
+    setFilter(roleDefault);
     setFilterClient('All');
     setFilterPM('All');
     setSearch('');
@@ -371,22 +410,36 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
-      exportValue: (p) => p.pm?.full_name ?? '',
+      // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
+      // and is never exported as "unassigned".
+      exportValue: (p) =>
+        projectManagerLabel({
+          managerId: p.project_manager_id,
+          fullName: p.pm?.full_name,
+          unassignedLabel: t('projects.unassigned', 'Unassigned'),
+          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+        }),
       // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
       // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
-      cell: (p) => (
-        <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
-          >
-            {(p.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase()}
+      cell: (p) => {
+        const label = projectManagerLabel({
+          managerId: p.project_manager_id,
+          fullName: p.pm?.full_name,
+          unassignedLabel: t('projects.unassigned', 'Unassigned'),
+          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+        });
+        return (
+          <span className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+            >
+              {(label.trim().charAt(0) || '?').toUpperCase()}
+            </span>
+            <span className="whitespace-normal leading-tight">{label}</span>
           </span>
-          <span className="whitespace-normal leading-tight">
-            {p.pm?.full_name ?? t('projects.unassigned', 'Unassigned')}
-          </span>
-        </span>
-      ),
+        );
+      },
     },
     {
       key: 'status',
@@ -571,11 +624,252 @@ const Projects: React.FC = () => {
     );
   }
 
+  // ── Phone-width (below md) mobile toolbar (FR-PRJUX-001) ────────────────
+  // Keeps status, search, the selected view, and New project visible while grouping the
+  // secondary filters and bulk actions behind named disclosures. Only rendered in the
+  // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
+  // it into cards.
+  const secondaryCount =
+    (filterClient !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
+  const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
+  const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
+
+  const moreActionsChildren = [
+    <ExportButton
+      key="export"
+      rows={filtered}
+      columns={columns}
+      entity="Projects"
+      label={t('projects.export', 'Export')}
+      onExport={() => setMoreOpen(false)}
+    />,
+    // ImportButton is internally permission-gated (returns null for a non-create real
+    // role). Opening its wizard must NOT close/unmount this More disclosure — the wizard
+    // stays mounted for its own lifecycle (DD-BIMP-3) — so no close is wired here.
+    <ImportButton
+      key="import"
+      entity="project"
+      descriptor={importDescriptor}
+      onImported={() => void refetch()}
+      label={t('projects.import', 'Import')}
+    />,
+    <ImportButton
+      key="importBudget"
+      entity="budgetLine"
+      label={t('projects.importBudgets', 'Import budgets')}
+      descriptor={budgetImportDescriptor}
+      onImported={() => void refetch()}
+    />,
+  ].filter((c): c is React.ReactElement => c !== null);
+
+  const mobileToolbar = (
+    <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
+      {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
+      <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+        <ViewToggle<StatusFilter>
+          options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
+          value={filter}
+          onChange={(v) => {
+            setFilter(v);
+            trackFilterApplied('status', FILTERS.length, 'projects');
+          }}
+          ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
+        />
+      </div>
+
+      {/* search + selected view */}
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchMini
+          placeholder={t('projects.search.placeholder', 'Search projects…')}
+          aria-label={t('projects.search.ariaLabel', 'Search projects')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          searchSurface="projects-list"
+          module="projects"
+          resultCount={filtered.length}
+          containerClassName="min-w-0 flex-1 basis-40"
+        />
+        {/* The 4-option view toggle can exceed a 360px row; keep it reachable within the
+            toolbar without page bleed — it scrolls inside this bounded container. */}
+        <div className="ml-auto min-w-0 max-w-full overflow-x-auto">
+          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
+            options={[
+              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
+              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
+              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
+              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
+            ]}
+            value={view}
+            onChange={setView}
+            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
+          />
+        </div>
+      </div>
+
+      {/* filters + more actions disclosures */}
+      <div className="flex flex-wrap items-center gap-2">
+        {!isEngineer && (
+          <MobileToolbarDisclosure
+            label={t('projects.mobile.filters', 'Filters')}
+            count={secondaryCount}
+            open={filtersOpen}
+            closeOnSelectChange
+            onOpenChange={(next) => {
+              setFiltersOpen(next);
+              if (next) setMoreOpen(false);
+            }}
+          >
+            <div className="w-full min-w-0 space-y-3">
+              <div className="w-full min-w-0 space-y-1">
+                <SelectField
+                  label={t('projects.filters.customerLabel', 'Filter by customer')}
+                  value={filterClient}
+                  onChange={(v) => {
+                    setFilterClient(v);
+                    trackFilterApplied('customer', customerFilterOptions.length, 'projects');
+                  }}
+                  options={customerFilterOptions}
+                  fullWidth
+                />
+                {clientCompaniesResult.isPending && (
+                  <p className="text-[12px] text-muted-foreground">
+                    {t('projects.mobile.loading', 'Loading options…')}
+                  </p>
+                )}
+                {!clientCompaniesResult.isPending && clientCompaniesResult.isError && (
+                  <div className="flex items-center gap-2">
+                    <p role="alert" className="text-[12px] text-destructive">
+                      {t('projects.mobile.error', "Couldn't load options")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => clientCompaniesResult.refetch?.()}
+                      className="text-[12px] font-semibold text-primary underline-offset-2 hover:underline"
+                    >
+                      {t('projects.mobile.retry', 'Retry')}
+                    </button>
+                  </div>
+                )}
+                {!clientCompaniesResult.isPending && !clientCompaniesResult.isError &&
+                  clientCompaniesResult.isSuccess && clientCompanies.length === 0 && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {t('projects.mobile.noOptions', 'No options available')}
+                    </p>
+                  )}
+              </div>
+
+              <div className="w-full min-w-0 space-y-1">
+                <SelectField
+                  label={t('projects.filters.pmLabel', 'Filter by project manager')}
+                  value={filterPM}
+                  onChange={(v) => {
+                    setFilterPM(v);
+                    trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
+                  }}
+                  options={pmFilterOptions}
+                  fullWidth
+                />
+                {projectManagersResult.isPending && (
+                  <p className="text-[12px] text-muted-foreground">
+                    {t('projects.mobile.loading', 'Loading options…')}
+                  </p>
+                )}
+                {!projectManagersResult.isPending && projectManagersResult.isError && (
+                  <div className="flex items-center gap-2">
+                    <p role="alert" className="text-[12px] text-destructive">
+                      {t('projects.mobile.error', "Couldn't load options")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => projectManagersResult.refetch?.()}
+                      className="text-[12px] font-semibold text-primary underline-offset-2 hover:underline"
+                    >
+                      {t('projects.mobile.retry', 'Retry')}
+                    </button>
+                  </div>
+                )}
+                {!projectManagersResult.isPending && !projectManagersResult.isError &&
+                  projectManagersResult.isSuccess && projectManagers.length === 0 && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {t('projects.mobile.noOptions', 'No options available')}
+                    </p>
+                  )}
+              </div>
+            </div>
+          </MobileToolbarDisclosure>
+        )}
+
+        {moreActionsChildren.length > 0 && (
+          <MobileToolbarDisclosure
+            label={t('projects.mobile.more', 'More actions')}
+            open={moreOpen}
+            onOpenChange={(next) => {
+              setMoreOpen(next);
+              if (next) setFiltersOpen(false);
+            }}
+          >
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+              {moreActionsChildren}
+            </div>
+          </MobileToolbarDisclosure>
+        )}
+      </div>
+
+      {/* active secondary-filter chips + Clear all (AC-PRJUX-002) */}
+      {hasNonDefaultFilter && (
+        <div
+          data-testid="active-filter-chips"
+          aria-label={t('projects.mobile.activeCount', 'Active filters')}
+          className="flex flex-wrap items-center gap-2"
+        >
+          {filterClient !== 'All' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
+              <span className="font-medium text-muted-foreground">
+                {t('projects.mobile.customer', 'Customer')}: {selectedCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
+              </span>
+              <button
+                type="button"
+                aria-label={`${t('projects.mobile.removeCustomer', 'Remove customer filter')}: ${selectedCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
+                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
+                onClick={() => setFilterClient('All')}
+              >
+                <Icon name="x" className="size-3" />
+              </button>
+            </span>
+          )}
+          {filterPM !== 'All' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
+              <span className="font-medium text-muted-foreground">
+                {t('projects.mobile.manager', 'Project manager')}: {selectedPm?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
+              </span>
+              <button
+                type="button"
+                aria-label={`${t('projects.mobile.removeManager', 'Remove project manager filter')}: ${selectedPm?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
+                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
+                onClick={() => setFilterPM('All')}
+              >
+                <Icon name="x" className="size-3" />
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-[12.5px] font-semibold text-primary underline-offset-2 hover:underline"
+          >
+            {t('projects.mobile.clearAll', 'Clear all')}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
       description={pageDescription}
       primaryAction={primaryAction}
+      mobileToolbar={mobileToolbar}
       filters={
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
@@ -640,28 +934,16 @@ const Projects: React.FC = () => {
         ) : undefined
       }
       exportAction={
-        <ExportButton rows={filtered} columns={columns} entity="Projects" />
+        <ExportButton rows={filtered} columns={columns} entity="Projects" label={t('projects.export', 'Export')} />
       }
       view={
-        /*
-          A-MIN-1 (updated, AC-MOB-VT): Wave-0 hid the entire toggle below md because Table+Cards
-          were the only options and DataTable auto-renders cards on mobile (toggle was a no-op).
-          Now that Calendar (day-agenda) and Kanban (horizontal-scroll) have real mobile renders,
-          those views need to be reachable on phones. Fix: hide only the Table option below md via
-          `wrapperClassName="hidden md:block"` on the Table ViewOption. Cards / Calendar / Kanban
-          are always visible. Desktop (≥md) shows all four unchanged.
-          NOTE: Must use wrapperClassName, NOT optionClassName. cn() is clsx-only (no tailwind-
-          merge), so `hidden` on the button itself conflicts with the button's base `inline-flex`
-          class — both land in the class string and `inline-flex` wins, leaving the option visible.
-          A wrapper <span> has no competing display value, so `hidden` takes effect correctly.
-        */
+        /* All four views remain reachable; DataTable reflows Table into cards below md. */
         <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
           options={[
             {
               value: 'table',
               label: t('projects.view.table', 'Table'),
               icon: 'table',
-              wrapperClassName: 'hidden md:block',
             },
             { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
             { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
@@ -678,6 +960,7 @@ const Projects: React.FC = () => {
             entity="project"
             descriptor={importDescriptor}
             onImported={() => void refetch()}
+            label={t('projects.import', 'Import')}
           />
           <ImportButton
             entity="budgetLine"

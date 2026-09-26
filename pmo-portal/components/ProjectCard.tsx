@@ -1,6 +1,8 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
 import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
+import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
@@ -31,6 +33,7 @@ export interface ProjectCardProps {
  * RPC), which stops propagation so it never drills.
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, onEdit }) => {
+  const { t } = useTranslation();
   // FR-L10N-020: every figure on this card belongs to THIS project, so the currency is the
   // project's own — not the org default. Two projects in different currencies render correctly
   // side by side in the same list, which is the whole point of the per-record column (0187).
@@ -40,25 +43,34 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const actual = project.spent ?? 0;
   const committedPct = contract > 0 ? (committed / contract) * 100 : 0;
   const actualPct = contract > 0 ? (actual / contract) * 100 : 0;
-  const initial = (project.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase();
+  // FR-PRJUX-004/005: the footer label reads from the manager ID, so an assigned blank-name
+  // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — never the
+  // same label for both states.
+  const pmLabel = projectManagerLabel({
+    managerId: project.project_manager_id,
+    fullName: project.pm?.full_name,
+    unassignedLabel: t('projects.unassigned', 'Unassigned'),
+    unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+  });
+  const initial = (pmLabel.trim().charAt(0) || '?').toUpperCase();
 
   const body = (
     <>
       {/* Body: money rows */}
       <dl className="grid grid-cols-3 gap-2 text-[12px]">
         <div>
-          <dt className="text-muted-foreground">Contract</dt>
+          <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
           <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
           {/* OD-TAX-1 §2 — the card's headline money figure states its basis, from this project's
               own stored treatment. */}
           <dd><TaxBasisLabel treatment={project.tax_treatment} /></dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Committed</dt>
+          <dt className="text-muted-foreground">{t('projects.columns.committed', 'Committed')}</dt>
           <dd className="font-semibold tabular text-muted-foreground">{formatCurrency(committed, currency)}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Actual</dt>
+          <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
           <dd className="font-semibold tabular">{formatCurrency(actual, currency)}</dd>
         </div>
       </dl>
@@ -69,22 +81,22 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           data-testid="project-card-bars"
           className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
         >
-          <span className="text-[12px] font-semibold text-muted-foreground">Delivery</span>
+          <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.card.delivery', 'Delivery')}</span>
           <ProgressBar
             value={Math.round(deliverySummary.deliveryPct)}
             showValue
-            aria-label={`Delivery ${Math.round(deliverySummary.deliveryPct)}%`}
+            aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: Math.round(deliverySummary.deliveryPct) })}
           />
-          <span className="text-[12px] font-semibold text-muted-foreground">Budget used</span>
+          <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</span>
           <div className="flex flex-col gap-0.5">
             <ProgressBar
               value={deliverySummary.budget > 0 ? Math.round((deliverySummary.committedSpend / deliverySummary.budget) * 100) : 0}
               showValue
               tone="warning"
-              aria-label={`Budget used ${deliverySummary.budget > 0 ? Math.round((deliverySummary.committedSpend / deliverySummary.budget) * 100) : 0}%`}
+              aria-label={t('projects.card.budgetUsedPercent', 'Budget used {{percent}}%', { percent: deliverySummary.budget > 0 ? Math.round((deliverySummary.committedSpend / deliverySummary.budget) * 100) : 0 })}
             />
             <span className="text-[11px] text-muted-foreground">
-              {`${formatCompactCurrency(deliverySummary.committedSpend, currency)} of ${formatCompactCurrency(deliverySummary.budget, currency)} budget`}
+              {t('projects.card.budgetSummary', '{{spent}} of {{budget}} budget', { spent: formatCompactCurrency(deliverySummary.committedSpend, currency), budget: formatCompactCurrency(deliverySummary.budget, currency) })}
             </span>
           </div>
         </div>
@@ -93,18 +105,18 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           data-testid="project-card-bars"
           className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
         >
-          <span className="text-[12px] font-semibold text-muted-foreground">Committed</span>
+          <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.committed', 'Committed')}</span>
           <ProgressBar
             value={Math.round(committedPct)}
             tone="warning"
             showValue
-            aria-label={`Committed: ${Math.round(committedPct)}% of contract`}
+            aria-label={t('projects.card.committedPercent', 'Committed: {{percent}}% of contract', { percent: Math.round(committedPct) })}
           />
-          <span className="text-[12px] font-semibold text-muted-foreground">Actual</span>
+          <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.actual', 'Actual')}</span>
           <ProgressBar
             value={Math.round(actualPct)}
             showValue
-            aria-label={`Actual spend: ${Math.round(actualPct)}% of contract`}
+            aria-label={t('projects.card.actualPercent', 'Actual spend: {{percent}}% of contract', { percent: Math.round(actualPct) })}
           />
         </div>
       )}
@@ -129,7 +141,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           {initial}
         </span>
         <span className="truncate text-muted-foreground">
-          {project.pm?.full_name ?? 'Unassigned'}
+          {pmLabel}
         </span>
       </span>
       <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -141,10 +153,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
               e.stopPropagation();
               onEdit(project);
             }}
-            aria-label={`Edit ${project.name}`}
+            aria-label={t('projects.card.editProject', 'Edit {{name}}', { name: project.name })}
           >
             <Icon name="pencil" />
-            Edit
+            {t('projects.actions.edit', 'Edit')}
           </Button>
         )}
         <ProjectStatusControl

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Toolbar } from './DataTable';
+import { useIsDesktop } from './useIsDesktop';
 
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
@@ -30,6 +31,15 @@ export interface ListPageProps {
   importAction?: React.ReactNode;
   /** The `ViewToggle` view-switcher — rendered right-aligned (icon segmented). */
   view?: React.ReactNode;
+
+  /**
+   * OPT-IN phone-width toolbar (FR-PRJUX-001). When supplied AND the viewport is below
+   * `md` (768px) it is rendered as the SOLE `list-page-toolbar`, replacing the desktop
+   * slots (status/filters/search/secondaryFilter/export/import/view). At `md` and wider —
+   * or when this prop is omitted — the canonical desktop toolbar renders exactly as before.
+   * Projects is the only adopter.
+   */
+  mobileToolbar?: React.ReactNode;
 
   /** Optional banner (e.g. an in-use delete `GateNotice`) above the toolbar. */
   banner?: React.ReactNode;
@@ -62,17 +72,20 @@ export const ListPage: React.FC<ListPageProps> = ({
   exportAction,
   importAction,
   view,
+  mobileToolbar,
   banner,
   children,
   className,
 }) => {
+  const isBelowMd = !useIsDesktop();
   // A slot is "present" only when it renders something. Pages gate slots with
   // `state !== 'loading' && (…)`, which yields `false` during loading — so a
   // falsy slot (false/null/undefined) means absent, and the whole toolbar is
   // omitted (matching the per-page "hide the toolbar while loading" behavior).
   const hasToolbar = Boolean(
-    filters || search || secondaryFilter || exportAction || importAction || view,
+    filters || search || secondaryFilter || exportAction || importAction || view || mobileToolbar,
   );
+  const useMobileToolbar = Boolean(mobileToolbar) && isBelowMd;
 
   return (
     <div className={className}>
@@ -101,20 +114,29 @@ export const ListPage: React.FC<ListPageProps> = ({
 
       {banner}
 
-      {hasToolbar && (
-        <Toolbar standalone data-testid="list-page-toolbar">
-          {filters}
-          {search}
-          {secondaryFilter}
-          {exportAction}
-          {importAction}
-          {view && (
-            <div data-testid="list-page-view" className="ml-auto">
-              {view}
-            </div>
-          )}
-        </Toolbar>
-      )}
+      {hasToolbar &&
+        (useMobileToolbar ? (
+          <Toolbar
+            standalone
+            data-testid="list-page-toolbar"
+            className="flex-col items-stretch gap-2.5"
+          >
+            {mobileToolbar}
+          </Toolbar>
+        ) : (
+          <Toolbar standalone data-testid="list-page-toolbar">
+            {filters}
+            {search}
+            {secondaryFilter}
+            {exportAction}
+            {importAction}
+            {view && (
+              <div data-testid="list-page-view" className="ml-auto">
+                {view}
+              </div>
+            )}
+          </Toolbar>
+        ))}
 
       {children}
     </div>

@@ -51,6 +51,7 @@ export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
 export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';
+export { MobileToolbarDisclosure, type MobileToolbarDisclosureProps } from './MobileToolbarDisclosure';
 export { tabId, tabPanelId } from './tabIds';
 export { Tabs, type TabItem, type TabsProps } from './Tabs';
 export { StatTiles, type StatTile, type StatTilesProps } from './StatTiles';

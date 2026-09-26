@@ -451,7 +451,8 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Rail:** `--rail-w: 224px`, `card`/sunken bg, right `border`. Brand block (56px). Grouped items under
   Overline labels. **Nav item:** 36px tall, `sm` radius, 13.5px/500, 17px stroke-2 icon, optional quiet
   count. Hover → `accent`; active → `primary/10%` bg + `--nav-active-text` (AA blue) + 600 +
-  `aria-current="page"`. Foot holds Settings + the non-destination Assistant toggle (`aria-pressed`).
+  `aria-current="page"`. Personal profile, language, theme, and sign out live in the account menu;
+  the non-destination Assistant toggle uses `aria-pressed`.
 - **Top bar:** `--header-h: 56px`, `background` bg, bottom `border`. Mobile menu + breadcrumb (`muted` →
   `foreground` on hover, `>` separators, bold current) + spacer + `cmdk` search (`⌘K`) + icon button with
   a `destructive` notification dot + user chip (avatar gradient + name/role, hidden on phone).
@@ -560,6 +561,13 @@ Fixed grammar: **[title + count] … [primary "New &lt;Entity&gt;"]**, then a to
 (icon segmented); status filters left as text chips — visually distinct. Implemented as `ListPage`
 (`src/components/ui/ListPage.tsx`): named slots `title / description / count / primaryAction` +
 `banner / filters / search / secondaryFilter / exportAction / importAction / view`.
+At phone width, a list may use the `mobileToolbar` slot to keep status, search, and the current view
+visible while grouping secondary controls in labelled inline disclosures. Opening one disclosure
+closes its sibling on click; an outside pointer-down must not collapse the first panel before the
+user's click reaches the second trigger. Keep the panels in document flow and their actions reachable.
+Escape and outside interaction close the active panel; a closed, inert shell dialog does not block
+dismissal. Restore focus after an action unmounts its panel, while preserving focus on another
+control the user intentionally selected.
 
 ### Approvals (one inbox)
 `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one

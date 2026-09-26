@@ -1,23 +1,17 @@
 /**
- * AC-MOB-VT-001 — Projects mobile view toggle
+ * AC-MOB-VT (round-3) — Projects phone-width view toggle.
  *
- * Wave-0 hid the entire ViewToggle below md because Table and Cards were the
- * only options and DataTable auto-renders as cards on mobile (making the toggle
- * a no-op). Now that Calendar + Kanban have real mobile renders, we need those
- * views reachable on mobile.
+ * Wave-2 hid the Table option below md because DataTable auto-rendered cards on mobile
+ * (the toggle became a no-op). The Projects mobile toolbar (AC-PRJUX-001) now exposes the
+ * full view toggle below md — Table included — because the ListPage mobile branch owns the
+ * toolbar at phone widths and DataTable still reflows Table into cards. Cards / Calendar /
+ * Board remain reachable as before.
  *
- * Fix: expose the toggle below md for Cards, Calendar, and Kanban only; hide
- * Table below md (DataTable still auto-renders cards — no regression).
- *
- * TESTS:
- * 1. (AC-MOB-VT-001) Cards / Calendar / Kanban option buttons do NOT carry
- *    `hidden` class, so they're reachable on mobile.
- * 2. (AC-MOB-VT-002) The Table option button (or its wrapper) carries `hidden`
- *    + a `md:` restore class (hides below md, visible at ≥md).
- * 3. (AC-MOB-VT-003) All four options exist in the DOM (CSS hides Table below
- *    md; the element is always present for desktop to restore).
+ * TESTS (all at <768px):
+ * 1. (AC-PRJUX-001) Table / Cards / Calendar / Board are ALL present and reachable below md.
+ * 2. (AC-PRJUX-001) None of the four options carries `hidden` (nothing is CSS-hidden on phones).
+ * 3. (AC-MOB-VT-003) All four view values exist (Table preserved as a real selectable view).
  */
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -26,27 +20,19 @@ import { ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const projectsState = {
-  data: [] as ProjectWithRefs[],
+  data: [] as unknown as ProjectWithRefs[],
   isPending: false,
   isError: false,
   refetch: vi.fn(),
 };
 
-// Mutable so each test can set the view.
 const viewBox = { value: 'table' as 'table' | 'cards' | 'calendar' | 'kanban' };
 
-// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
-// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
-// syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjectView', () => ({
   useProjectView: () => [viewBox.value, vi.fn()] as [typeof viewBox.value, () => void],
 }));
-
-vi.mock('../../components/ProjectStatusControl', () => ({
-  default: () => null,
-}));
-
+vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [] }),
@@ -59,7 +45,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   }),
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
-
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
@@ -84,8 +69,6 @@ vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => vi.fn() };
 });
-
-// Stub heavy views so tests don't need full implementations
 vi.mock('../../components/ProjectCalendarView', () => ({
   default: () => <div data-testid="project-calendar-view" />,
 }));
@@ -105,6 +88,22 @@ const seed: ProjectWithRefs[] = [
   } as unknown as ProjectWithRefs,
 ];
 
+function mockMobileViewport() {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
 const renderPage = () =>
   render(
     <MemoryRouter>
@@ -114,8 +113,9 @@ const renderPage = () =>
     </MemoryRouter>,
   );
 
-describe('AC-MOB-VT — Projects mobile view toggle (round-2 drift fix)', () => {
+describe('AC-PRJUX-001 — Projects phone-width view toggle (round-3)', () => {
   beforeEach(() => {
+    mockMobileViewport();
     sessionStorage.clear();
     projectsState.data = seed;
     projectsState.isPending = false;
@@ -123,50 +123,25 @@ describe('AC-MOB-VT — Projects mobile view toggle (round-2 drift fix)', () => 
     viewBox.value = 'table';
   });
 
-  it('AC-MOB-VT-001: Cards / Calendar / Board toggle options do NOT carry `hidden` class (reachable on mobile)', () => {
+  it('AC-PRJUX-001: Table / Cards / Calendar / Board are ALL present and reachable below md', () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
-
-    const cardsBtn = within(toggle).getByRole('tab', { name: /Cards/i });
-    const calBtn = within(toggle).getByRole('tab', { name: /Calendar/i });
-    const boardBtn = within(toggle).getByRole('tab', { name: /^Board$/i });
-
-    // None of the mobile-visible option buttons should individually carry `hidden`,
-    // and none of their closest wrapper parents (up to the tablist) should be
-    // exclusively hidden (they may sit in a wrapper that also carries a md: restore).
-    expect(cardsBtn.className).not.toContain('hidden');
-    expect(calBtn.className).not.toContain('hidden');
-    expect(boardBtn.className).not.toContain('hidden');
+    for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
+      expect(within(toggle).getByRole('tab', { name: new RegExp(`^${name}$`) })).toBeInTheDocument();
+    }
   });
 
-  it('AC-MOB-VT-002: Table toggle option is hidden via a wrapper element (not a class on the button itself)', () => {
+  it('AC-PRJUX-001: none of the four options carries `hidden` (nothing is CSS-hidden on phones)', () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
-    const tableBtn = within(toggle).getByRole('tab', { name: /Table/i });
-
-    // The Table button must NOT carry `hidden` directly on itself.
-    // Putting `hidden` on the button alongside ViewToggle's base `inline-flex` is a
-    // clsx-only cn collision: both land as classes and `inline-flex` wins at runtime,
-    // leaving the option visible @390. The only safe approach is a wrapper element.
-    expect(tableBtn.className).not.toContain('hidden');
-
-    // A parent wrapper between the button and the tablist must carry `hidden` + `md:` restore.
-    // The wrapper has no competing display utility, so `hidden` (display:none) is not overridden.
-    const wrapperEl = tableBtn.parentElement;
-    expect(wrapperEl).not.toBeNull();
-    expect(wrapperEl).not.toBe(toggle); // wrapper is between button and tablist, not the tablist itself
-    const cls = wrapperEl!.className;
-    expect(cls).toContain('hidden');
-    const hasMdRestore = cls.includes('md:inline-flex') || cls.includes('md:flex') || cls.includes('md:block');
-    expect(hasMdRestore).toBe(true);
+    for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
+      expect(within(toggle).getByRole('tab', { name: new RegExp(`^${name}$`) }).className).not.toContain('hidden');
+    }
   });
 
-  it('AC-MOB-VT-003: all four view options exist in the DOM (desktop CSS restores Table above md)', () => {
+  it('AC-MOB-VT-003: all four view values exist (Table preserved as a real selectable view)', () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
-    expect(within(toggle).getByRole('tab', { name: /Table/i })).toBeInTheDocument();
-    expect(within(toggle).getByRole('tab', { name: /Cards/i })).toBeInTheDocument();
-    expect(within(toggle).getByRole('tab', { name: /Calendar/i })).toBeInTheDocument();
-    expect(within(toggle).getByRole('tab', { name: /^Board$/i })).toBeInTheDocument();
+    expect(within(toggle).getByRole('tab', { name: /^Table$/i })).toHaveAttribute('aria-selected', 'true');
   });
 });

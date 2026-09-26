@@ -1634,7 +1634,8 @@
       "pm": "PM",
       "progress": "Progress",
       "project": "Project",
-      "status": "Status"
+      "status": "Status",
+      "committed": "Committed"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
@@ -1686,6 +1687,43 @@
       "calendar": "Calendar",
       "cards": "Cards",
       "table": "Table"
+    },
+    "unnamedUser": "Unnamed user",
+    "export": "Export",
+    "import": "Import",
+    "mobile": {
+      "filters": "Filters",
+      "more": "More actions",
+      "activeCount": "Active filters",
+      "customer": "Customer",
+      "manager": "Project manager",
+      "removeCustomer": "Remove customer filter",
+      "removeManager": "Remove project manager filter",
+      "clearAll": "Clear all",
+      "loading": "Loading options…",
+      "noOptions": "No options available",
+      "error": "Couldn't load options",
+      "retry": "Retry",
+      "unavailable": "Unavailable selection"
+    },
+    "card": {
+      "delivery": "Delivery",
+      "deliveryPercent": "Delivery {{percent}}%",
+      "budgetUsedPercent": "Budget used {{percent}}%",
+      "budgetSummary": "{{spent}} of {{budget}} budget",
+      "committedPercent": "Committed: {{percent}}% of contract",
+      "actualPercent": "Actual spend: {{percent}}% of contract",
+      "editProject": "Edit {{name}}"
+    },
+    "kanban": {
+      "won": "Won",
+      "ongoing": "Ongoing",
+      "onHold": "On Hold",
+      "closeOut": "Close Out",
+      "internal": "Internal",
+      "board": "Projects kanban board",
+      "empty": "No projects in {{stage}}",
+      "swipe": "Swipe for more →"
     }
   },
   "sales": {

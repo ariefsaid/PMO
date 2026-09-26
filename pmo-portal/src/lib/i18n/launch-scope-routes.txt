@@ -50,7 +50,7 @@
 #    (OD-TAX-1 §2): it renders on this list, on the project detail header and overview, on the
 #    procurement ledger and on the sales-invoice list, and a shared component rendered BY a
 #    launch-scope screen is not checked unless the screen's line names it.
-/projects                      pages/Projects.tsx src/components/ui/TaxBasisLabel.tsx
+/projects                      pages/Projects.tsx components/ProjectCard.tsx components/ProjectKanbanBoard.tsx src/components/ui/TaxBasisLabel.tsx
 
 # ── The daily work surface. Both routes render the same component; the `:tab` route also
 #    carries the launch-scope `tasks` strings, because TasksTab is where tasks live — there is
