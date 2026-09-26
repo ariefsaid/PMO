@@ -132,6 +132,27 @@ describe('MobileToolbarDisclosure (AC-PRJUX-003)', () => {
     }
   });
 
+  it('AC-PRJUX-003: a closed inert dialog in the app shell does not block Escape or outside dismissal', async () => {
+    const user = userEvent.setup();
+    renderOpenSubject();
+    const closedAssistant = document.createElement('section');
+    closedAssistant.setAttribute('role', 'dialog');
+    closedAssistant.setAttribute('inert', '');
+    closedAssistant.style.display = 'none';
+    document.body.appendChild(closedAssistant);
+    try {
+      const trigger = screen.getByRole('button', { name: /Filters/i });
+      await user.click(trigger);
+      await user.keyboard('{Escape}');
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      await user.click(trigger);
+      fireEvent.pointerDown(document.body);
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    } finally {
+      closedAssistant.remove();
+    }
+  });
+
   it('AC-PRJUX-003: clicking the trigger is not treated as an outside event (normal toggle)', async () => {
     const user = userEvent.setup();
     renderOpenSubject();

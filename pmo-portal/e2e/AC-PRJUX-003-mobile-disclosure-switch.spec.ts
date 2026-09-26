@@ -28,4 +28,13 @@ test('AC-PRJUX-003: switching mobile toolbar disclosures keeps the tapped action
   expect(moreBox!.x).toBeGreaterThanOrEqual(0);
   expect(moreBox!.x + moreBox!.width).toBeLessThanOrEqual(360);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+
+  await page.keyboard.press('Escape');
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(more).toBeFocused();
+
+  await filters.click();
+  await page.getByRole('heading', { name: 'Projects', exact: true }).click();
+  await expect(filters).toHaveAttribute('aria-expanded', 'false');
+  await expect(filters).toBeFocused();
 });

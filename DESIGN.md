@@ -565,6 +565,9 @@ At phone width, a list may use the `mobileToolbar` slot to keep status, search, 
 visible while grouping secondary controls in labelled inline disclosures. Opening one disclosure
 closes its sibling on click; an outside pointer-down must not collapse the first panel before the
 user's click reaches the second trigger. Keep the panels in document flow and their actions reachable.
+Escape and outside interaction close the active panel; a closed, inert shell dialog does not block
+dismissal. Restore focus after an action unmounts its panel, while preserving focus on another
+control the user intentionally selected.
 
 ### Approvals (one inbox)
 `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one

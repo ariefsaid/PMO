@@ -49,6 +49,19 @@ export interface MobileToolbarDisclosureProps {
 const FOCUSABLE =
   'button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
+function hasActiveDialog(): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).some((dialog) => {
+    // The Assistant panel stays mounted as an inert, display:none dialog while
+    // closed. A selector for role=dialog alone would block every disclosure.
+    for (let node: HTMLElement | null = dialog; node; node = node.parentElement) {
+      if (node.hasAttribute('inert') || node.hasAttribute('hidden') || node.getAttribute('aria-hidden') === 'true') return false;
+      const style = window.getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+    }
+    return true;
+  });
+}
+
 export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = ({
   label,
   children,
@@ -113,7 +126,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
       // A child portal dialog (e.g. the Import wizard) owns its own Escape handling.
       // Never let this disclosure close (unmounting the wizard mid-lifecycle) while one
       // is open on top — the wizard must stay mounted for its full lifecycle (DD-BIMP-3).
-      if (document.querySelector('[role="dialog"]:not([aria-hidden="true"])')) return;
+      if (hasActiveDialog()) return;
       e.preventDefault();
       closeAndRestoreFocus();
     };
@@ -123,12 +136,22 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
       const target = e.target as Node;
       // A portalled dialog and its scrim own pointer events until their close callback
       // completes. Unmounting the disclosure first would unmount the dialog too.
-      if (document.querySelector('[role="dialog"]:not([aria-hidden="true"])')) return;
+      if (hasActiveDialog()) return;
       // A sibling disclosure owns this click. Closing here would move its trigger
       // before click fires, so the pointer could miss the intended control.
       if (target instanceof Element && target.closest('[data-mobile-toolbar-disclosure-trigger]')) return;
       if (wrapperRef.current && !wrapperRef.current.contains(target)) {
         closeAndRestoreFocus();
+        // Browser mousedown runs after pointerdown and can move focus back to
+        // <body> when the outside target is non-interactive (for example a page
+        // heading). Restore it after that default action, without stealing focus
+        // from a real control the user clicked.
+        window.setTimeout(() => {
+          const active = document.activeElement;
+          if ((active === document.body || active?.tagName === 'MAIN') && !hasActiveDialog()) {
+            triggerRef.current?.focus();
+          }
+        }, 0);
       }
     };
     document.addEventListener('keydown', onKeyDown);
