@@ -18,6 +18,20 @@
 6. **Personal locale completion.** The existing owner decision calls for language, number format, and timezone to follow organization defaults with personal overrides. Add only the missing personal UI after confirming repository and formatting behavior; changes must be reflected in labels, dates, and money together, with safe inherited values.
 7. **Cross-route state and accessibility pass.** For the routes in this program, verify loading, empty, error, permission, pending, and success states; keyboard focus and Escape behavior; screen-reader names; English and Bahasa copy; light and dark contrast; desktop and 390px phone layout. Each confirmed finding graduates to an owning unit, pgTAP, or curated e2e test per `docs/qa-portfolio.md`.
 
+## Delivery snapshot (2026-09-27)
+
+| Work package | Status on `dev` | Next proof |
+|---|---|---|
+| Account and preferences | Shipped in PR #674 | RIS Admin checks identity, language, theme, and sign-out in the live app |
+| Mobile list tools | Projects slice shipped in PR #675; other lists still need route-specific assessment | RIS Admin uses search, views, filters, and actions on a phone |
+| Administration information architecture | Spec and plan prepared; implementation pending | Direct links, role gates, Back/Forward, and phone navigation pass |
+| Integration ownership and readiness | Assessment captured; live service readiness unproved | Personal versus organization scope is clear, then RIS service data moves end to end |
+| List-to-record journeys | Six-module return-context gap confirmed; implementation pending | Filtered list, record, and return preserve the working set |
+| Personal locale completion | Language is available; number format and timezone overrides pending | Labels, dates, and money follow the chosen settings consistently |
+| Cross-route states and accessibility | Continuous audit, with findings graduated per slice | RIS Admin route/state/viewport matrix and owning tests are complete |
+
+This snapshot tracks `dev` delivery and design evidence. It does not assert production deployment or live RIS connection readiness.
+
 ## Enterprise interaction contracts to audit across the app
 
 The seven packages above fix known friction. The following contracts make the result coherent across modules. The command palette, shared `ListPage`/`RecordHeader`, modal dirty-state handling, and many retry/empty states already exist; audit their coverage and behavior before filing new work. A failed user journey, not a stylistic preference, is the trigger for a code issue.
