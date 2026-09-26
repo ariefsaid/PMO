@@ -24,11 +24,11 @@
 |---|---|---|
 | Account and preferences | Shipped in PR #674 | RIS Admin checks identity, language, theme, and sign-out in the live app |
 | Mobile list tools | Projects slice shipped in PR #675; other lists still need route-specific assessment | RIS Admin uses search, views, filters, and actions on a phone |
-| Administration information architecture | Spec and plan prepared; implementation pending | Direct links, role gates, Back/Forward, and phone navigation pass |
-| Integration ownership and readiness | Assessment captured; live service readiness unproved | Personal versus organization scope is clear, then RIS service data moves end to end |
+| Administration information architecture | Shipped in PR #676; routes, role gates, Back/Forward, Bahasa, and 390px Admin/Operator navigation verified | RIS Admin confirms the organization setup path in the live app |
+| Integration ownership and readiness | Personal-versus-organization labels shipped in PR #676; connection health and live service readiness remain unproved | RIS Admin connects each service, recovers from failure, and verifies usable data moves end to end |
 | List-to-record journeys | Six-module return-context gap confirmed; implementation pending | Filtered list, record, and return preserve the working set |
 | Personal locale completion | Language is available; number format and timezone overrides pending | Labels, dates, and money follow the chosen settings consistently |
-| Cross-route states and accessibility | Continuous audit, with findings graduated per slice | RIS Admin route/state/viewport matrix and owning tests are complete |
+| Cross-route states and accessibility | Administration slice reviewed and tested; remaining routes are open | RIS Admin route/state/viewport matrix and owning tests are complete |
 
 This snapshot tracks `dev` delivery and design evidence. It does not assert production deployment or live RIS connection readiness.
 
