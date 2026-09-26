@@ -51,8 +51,10 @@ const ALL_ITEMS: NavItem[] = [
   // M365 connection-model (D2, FR-M365SEP-016): the personal-connect surface — reachable by ANY
   // active member of an entitled org, not only Admins. Gated by the `m365_integration`
   // entitlement (matches the card's own gate) so a non-entitled org sees no dead link. The card
-  // itself lives on /integrations; this is the rail entry to it.
-  { to: '/integrations', text: 'Integrations', icon: 'plug', group: 'Overview', feature: 'm365_integration', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // itself lives on /integrations; this is the rail entry to it. Label disambiguates it from the
+  // ORGANIZATION surface at /administration/integrations (AC-ADMIA-006) — the rail, breadcrumb,
+  // H1 and translations must agree on "My integrations" for this personal route.
+  { to: '/integrations', text: 'My integrations', icon: 'plug', group: 'Overview', feature: 'm365_integration', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'folder', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
@@ -163,7 +165,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   // route added here without a label.
   const navLabels: Record<string, string> = {
     '/': t('shell.nav.dashboard', 'Dashboard'),
-    '/integrations': t('shell.nav.integrations', 'Integrations'),
+    '/integrations': t('shell.nav.integrations', 'My integrations'),
     '/projects': t('shell.nav.projects', 'Projects'),
     '/sales': t('shell.nav.sales', 'Sales Pipeline'),
     '/procurement': t('shell.nav.procurement', 'Procurement'),

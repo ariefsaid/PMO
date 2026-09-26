@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ListState,
@@ -90,13 +91,17 @@ const BudgetAccountMap: React.FC = () => {
   // (no new visual token). Runs only when the whole map has rendered (the pending branch returns
   // before the section, so the ref is null until `mapLoaded` flips). Declared before the early
   // returns so the hook order never changes across the loading → loaded transition (Rules of Hooks).
+  // ⚑ The ROUTER hash is the single source of truth (URL is the canonical route model), not
+  // `window.location.hash` — so a MemoryRouter navigation that changes the fragment re-fires this
+  // while the panel stays mounted and loaded, and is testable without mutating a global.
+  const { hash } = useLocation();
   const mapLoaded = !isPending && !isError;
   useEffect(() => {
     if (!mapLoaded || !sectionRef.current) return;
-    if (window.location.hash !== '#budget-account-map') return;
+    if (hash !== '#budget-account-map') return;
     sectionRef.current.scrollIntoView({ block: 'start' });
     sectionRef.current.focus({ preventScroll: true });
-  }, [mapLoaded]);
+  }, [mapLoaded, hash]);
 
   const createMutation = useMutation({
     mutationFn: (v: { category: BudgetCategory; erpAccount: string }) =>

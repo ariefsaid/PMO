@@ -171,8 +171,10 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/views': 'My Views',
   // M365 connection-model (D2): the personal-connect surface. Not a rail MODULE (no detail route,
   // no ⌘K record drill) but it HAS a rail entry, so register the title here so the breadcrumb
-  // resolves "Integrations" on direct deep-link rather than falling through to "Not found".
-  '/integrations': 'Integrations',
+  // resolves "My integrations" on direct deep-link rather than falling through to "Not found".
+  // The label agrees with the rail + H1 (AC-ADMIA-006) and stays distinct from the ORGANIZATION
+  // surface, whose label is ADMINISTRATION_SECTION_LABELS.integrations ("Organization integrations").
+  '/integrations': 'My integrations',
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels. */

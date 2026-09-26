@@ -1854,7 +1854,7 @@
       "dashboard": "Dashboard",
       "incidents": "Insiden",
       "incomingPayments": "Pembayaran Masuk",
-      "integrations": "Integrasi",
+      "integrations": "Integrasi saya",
       "meetings": "Rapat",
       "myTasks": "Tugas Saya",
       "procurement": "Pengadaan",
@@ -1992,7 +1992,7 @@
   },
   "integrations": {
     "organization": {
-      "scope": "Integrasi organisasi menghubungkan layanan eksternal Anda untuk seluruh tim. Ini terpisah dari koneksi Microsoft 365 pribadi Anda di /integrations — menghubungkan akun pribadi Anda tidak mengaktifkan integrasi organisasi. Gunakan kontrol di samping setiap layanan untuk terhubung, mengaktifkan, atau memutuskan koneksi."
+      "scope": "Integrasi organisasi menghubungkan layanan eksternal untuk seluruh tim Anda. Ini terpisah dari koneksi pribadi Anda di Integrasi saya — koneksi pribadi tidak mengaktifkan integrasi organisasi. Gunakan kontrol di samping setiap layanan untuk terhubung, mengaktifkan, atau memutuskan koneksi."
     },
     "personal": {
       "description": "Hubungkan akun Microsoft 365 pribadi Anda untuk membawa dokumen dan kalender ke dalam proyek. Ini terpisah dari integrasi Administrasi organisasi Anda.",

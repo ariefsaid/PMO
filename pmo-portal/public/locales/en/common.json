@@ -1854,7 +1854,7 @@
       "dashboard": "Dashboard",
       "incidents": "Incidents",
       "incomingPayments": "Incoming Payments",
-      "integrations": "Integrations",
+      "integrations": "My integrations",
       "meetings": "Meetings",
       "myTasks": "My Tasks",
       "procurement": "Procurement",
@@ -1992,7 +1992,7 @@
   },
   "integrations": {
     "organization": {
-      "scope": "Organization integrations connect your external services for your whole team. They are separate from your personal Microsoft 365 connection on /integrations — connecting your personal account does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it."
+      "scope": "Organization integrations connect your team’s external services. They are separate from your personal connections in My integrations — a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it."
     },
     "personal": {
       "description": "Connect your personal Microsoft 365 account to bring your documents and calendar into projects. This is separate from your organization’s Administration integrations.",

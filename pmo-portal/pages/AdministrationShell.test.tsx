@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -315,5 +315,76 @@ describe('Administration route-backed shell', () => {
     // The route must become available after the membership result settles; it must not have
     // committed a transient denial that survives the positive result.
     await waitFor(() => expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument());
+  });
+});
+
+/**
+ * AC-ADMIA-005 + the cross-cutting WCAG-AA shell semantics (Plan Task 8).
+ *
+ * These lock the labelled native-nav contract: no fake `tab` roles, a real `aria-current="page"`
+ * on the active deep link, heading → nav → selected-panel DOM order, and keyboard Tab/Enter
+ * activation. They assert rendered semantics (roles/order/focus), never implementation-class names.
+ */
+describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', () => {
+  it('the section navigation is a labelled native <nav> of deep links, active one carrying aria-current=page', async () => {
+    renderShell('/administration/users');
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    const links = within(nav).getAllByRole('link');
+
+    expect(links).toHaveLength(4);
+    for (const link of links) {
+      // Native deep links: real href, keyboard-focusable (never tabindex=-1), never a button.
+      expect(link.getAttribute('href')).toMatch(/^\/administration\//);
+      expect(link.getAttribute('tabindex')).not.toBe('-1');
+      // The active destination carries aria-current="page"; no other link does.
+      const isActive = link.getAttribute('href') === '/administration/users';
+      expect(link.hasAttribute('aria-current')).toBe(isActive);
+      if (isActive) expect(link).toHaveAttribute('aria-current', 'page');
+    }
+  });
+
+  it('DOM order follows heading → section nav → selected panel heading/content', async () => {
+    renderShell('/administration/users');
+    await waitFor(() => expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument());
+    const heading = screen.getByRole('heading', { level: 1, name: 'Administration' });
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    const panel = screen.getByTestId('administration-panel-users');
+    const follows = (a: Element, b: Element) =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(heading, nav)).toBe(true);
+    expect(follows(nav, panel)).toBe(true);
+  });
+
+  it('uses no fake tab semantics — no role=tab/tablist and no aria-selected without that contract', async () => {
+    renderShell('/administration/users');
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    expect(within(nav).queryByRole('tab')).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('tablist')).not.toBeInTheDocument();
+    expect(nav.querySelector('[aria-selected]')).toBeNull();
+  });
+
+  it('AC-ADMIA-005: Tab walks the section links in order and Enter activates the destination', async () => {
+    const user = userEvent.setup();
+    renderShell('/administration/users');
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((l) => l.getAttribute('href'))).toEqual([
+      '/administration/users',
+      '/administration/integrations',
+      '/administration/accounting',
+      '/administration/credits',
+    ]);
+
+    // Focus the first section link, then Tab to each subsequent destination.
+    links[0].focus();
+    await user.keyboard('{Tab}');
+    expect(links[1]).toHaveFocus();
+    await user.keyboard('{Tab}');
+    expect(links[2]).toHaveFocus();
+
+    // Enter on the focused Accounting setup link navigates (a real route change).
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByTestId('administration-panel-accounting')).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: 'Accounting setup' })).toHaveAttribute('aria-current', 'page');
   });
 });

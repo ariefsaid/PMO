@@ -859,4 +859,13 @@ describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)
     // (AC-ADMIA-006: never imply personal ⇒ org readiness).
     expect(scope).toHaveTextContent(/does not activate an organization integration/i);
   });
+
+  it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {
+    wrapWithRole('Admin', <IntegrationsView />);
+    const scope = await screen.findByTestId('integrations-owner-scope');
+    // The personal surface is referenced by its user-facing name "My integrations"…
+    expect(scope).toHaveTextContent(/My integrations/i);
+    // …and its raw route string must not leak into user-facing copy.
+    expect(scope.textContent).not.toContain('/integrations');
+  });
 });

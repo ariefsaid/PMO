@@ -237,7 +237,7 @@ export const IntegrationsView: React.FC = () => {
       <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
         {t(
           'integrations.organization.scope',
-          'Organization integrations connect your external services for your whole team. They are separate from your personal Microsoft 365 connection on /integrations \u2014 connecting your personal account does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.',
+          'Organization integrations connect your team\u2019s external services. They are separate from your personal connections in My integrations \u2014 a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.',
         )}
       </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and

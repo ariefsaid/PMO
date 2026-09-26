@@ -4,6 +4,7 @@ import {
   breadcrumbForPath,
   recordLabelForPath,
   PLACEHOLDER_TITLES,
+  ADMINISTRATION_SECTION_LABELS,
 } from '../routeMatch';
 
 /**
@@ -149,6 +150,18 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
       expect(breadcrumbForPath(path)).toEqual([{ label: title }]);
       expect(title).not.toBe('Dashboard');
     }
+  });
+
+  it('AC-ADMIA-006: the PERSONAL route breadcrumb resolves to "My integrations", distinct from the organization section label', () => {
+    // The personal Microsoft 365 route (/integrations) is labelled "My integrations" — agreeing
+    // with the H1 and the rail — and stays distinct from the ORGANIZATION section label
+    // (ADMINISTRATION_SECTION_LABELS.integrations = "Organization integrations").
+    expect(breadcrumbForPath('/integrations')).toEqual([{ label: 'My integrations' }]);
+    expect(PLACEHOLDER_TITLES['/integrations']).toBe('My integrations');
+    expect(ADMINISTRATION_SECTION_LABELS.integrations).toBe('Organization integrations');
+    expect(PLACEHOLDER_TITLES['/integrations']).not.toBe(
+      ADMINISTRATION_SECTION_LABELS.integrations,
+    );
   });
 
   // C-MIN-4: an unknown route renders "Not found" — the `*` route is a 404, not the dashboard.

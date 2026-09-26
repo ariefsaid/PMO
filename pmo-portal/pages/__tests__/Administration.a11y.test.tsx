@@ -10,7 +10,7 @@
  * `alertdialog`, and toasts are `aria-live`. Any blocking finding here fails CI before it ships.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -106,6 +106,7 @@ afterEach(() => {
 
 beforeEach(() => {
   isOperatorState.value = false;
+  isOperatorState.pending = false;
 });
 
 async function expectNoBlockingViolations(container: HTMLElement) {
@@ -147,6 +148,30 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 390 });
     const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
+  });
+
+  it('AC-A11Y-001: the org-Admin (non-Operator) direct Usage denial is axe-clean and mounts no panel', async () => {
+    isOperatorState.value = false;
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
+    const { container } = renderComposed('/administration/usage');
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/Operator-only/i),
+    );
+    await expectNoBlockingViolations(container);
+    // The denial never mounts the Operator panel/query.
+    expect(container.querySelector('[data-testid="administration-panel-usage"]')).toBeNull();
+  });
+
+  it('AC-A11Y-001: the Operator-membership pending state is axe-clean with no premature denial', async () => {
+    isOperatorState.value = false;
+    isOperatorState.pending = true;
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
+    const { container } = renderComposed('/administration/usage');
+    await waitFor(() => expect(screen.getByText(/checking your Administration access/i)).toBeInTheDocument());
+    await expectNoBlockingViolations(container);
+    // Pending shows a status, not a denial alert and not the panel.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-testid="administration-panel-usage"]')).toBeNull();
   });
 
   it('AC-A11Y-001: the Feature toggles are real role="switch" controls (Operator)', () => {
