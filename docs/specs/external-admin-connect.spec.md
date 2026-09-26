@@ -37,7 +37,7 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
   becomes a two-way sync with that system without a platform operator doing it for me.*
 - *When I'm a PM/admin on a PMO project, I want to link it to a ClickUp List, so tasks sync both ways for
   that project (pull existing ClickUp tasks in, push PMO task changes out).*
-- *When I'm an admin, I want to see the connection's health (connected / last sync / errors) and be able
+- *When I'm an admin, I want to see the connection state and outstanding outbound work, and be able
   to unlink a project or disconnect the org — with reversibility and an audit trail.*
 
 **Scope fences (binding — Do-NOT, from the brief):**
@@ -175,9 +175,11 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
 ### Health + observability
 
 - **FR-EAC-017** — The Integrations panel SHALL surface, per employed tier: connection **status**
-  (active/disconnected), **connected_by**, **connected_at**, **last sync** (sweep/webhook last-run from
-  `external_sync_watermarks`), and a count of outbox rows in a non-confirmed terminal state
-  (`pending`/`failed`/`quarantined`/`held`) as an **errors** indicator (OD-INT-4 health card). *(Event-driven.)*
+  (connected/disconnected), available **connected_by** and **connected_at**, and a count of outbox rows
+  awaiting confirmation (`pending`/`failed`/`quarantined`/`held`) as **outstanding outbound work**.
+  It SHALL direct the Admin to verify an actual transferred record before treating the service as
+  operational. A watermark-row timestamp is not a last-success timestamp. *(Event-driven; corrected
+  by issue #677 and `integration-readiness-ux.spec.md`.)*
 - **FR-EAC-018** — The health surface SHALL be **read-only** (no write affordance) except the connect/
   disconnect/link/unlink controls already role-gated; non-Admin viewers see the card without controls
   (ADR-0016: FE may be stricter than RLS). *(State-driven.)*
@@ -320,12 +322,13 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
 
 ### Health + observability
 
-- **AC-EAC-016 — health surface shows status + last sync + errors** *(Unit (RTL),
+- **AC-EAC-016 — health surface shows connection + outstanding work + verification step** *(Unit (RTL),
   `pmo-portal/src/components/integrations/IntegrationsView.test.tsx`)*
-  - **Given** a connected ClickUp tier with a non-empty outbox error count and a recent watermark,
+  - **Given** a connected ClickUp tier with outstanding outbound work and a watermark row,
   - **When** the Integrations panel renders,
-  - **Then** the Connect/Disconnect card shows `Active`, `connected_by`, `connected_at`, `last sync`,
-    and an error count badge; a disconnected tier shows `Disconnected` with a Reconnect affordance only for
+  - **Then** the Connect/Disconnect card shows `Connected`, available `connected_by`, `connected_at`,
+    an outstanding-work count, and the live-record verification step, without a last-success claim;
+    a disconnected tier shows `Disconnected` with a Reconnect affordance only for
     Admin/Operator (`can('manage','integration')`).
 
 - **AC-EAC-017 — non-Admin sees no write controls** *(Unit (RTL), `IntegrationsView.test.tsx`)*
@@ -342,7 +345,7 @@ call, (c) link granularity (ClickUp → **List** per project · ERPNext → **Co
   - **When** the Admin connects ClickUp (mocked validate 200) → links a PMO project to a List
     (`push-seed`) → edits a PMO task status → ClickUp (mocked) fires a webhook for a counterpart change,
   - **Then** the Edit→ClickUp-List change and the webhook→PMO-read-model change both converge, the
-    Integrations card shows `Active` with an updated `last sync`, and the outbox for the task reaches
+    Integrations card shows `Connected` and directs a live-record check, and the outbox for the task reaches
     `confirmed`. (The mock stands in for the un-gated live-smoke.)
 
 ### Audit + reversibility

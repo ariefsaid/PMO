@@ -5,7 +5,7 @@
 /**
  * AC-EAC-018 — admin connects → links a PMO project to a ClickUp List → edits a PMO task status →
  * a (mocked) ClickUp webhook fires a counterpart change → BOTH directions converge, the
- * Integrations card shows `Active` with an updated `last sync`, and the outbox for the task
+ * Integrations card shows the connection state and directs a live-record check, while the outbox for the task
  * reaches `confirmed`. (The mock stands in for the un-gated live-smoke.)
  *
  * WHY EVERYTHING IS MOCKED + SEEDED (binding precedent: e2e/AC-AGP-023-thread-persistence.spec.ts).
@@ -19,7 +19,7 @@
  * outbox+watermark on dispatch, the task read-model on webhook) are seeded via a service-role
  * client (test-only, never used by the app) with rows that mirror EXACTLY what the real edge fn
  * would have written — same org, same actor, same ids. The READ legs of the journey (the card
- * showing Active/Last-sync, the task status converging, the outbox state) then exercise the REAL
+ * showing the connection state and verification guidance, the task status converging, the outbox state) then exercise the REAL
  * repository/DAL against REAL Postgres + REAL RLS — the actual goal-oracle, proven against the
  * real backend, not stubbed. The live wire contract against the REAL ClickUp API is already proven
  * separately by `scripts/clickup-roundtrip-verify.ts` (8/8) and `scripts/clickup-parent-probe.ts`;
@@ -163,7 +163,7 @@ test.afterAll(async () => {
   await cleanOwnedRows(adminClient());
 });
 
-test('AC-EAC-018: admin connects ClickUp → links project → edits task → webhook converges back; card Active + last sync; outbox confirmed', async ({ page }) => {
+test('AC-EAC-018: admin connects ClickUp → links project → edits task → webhook converges back; card names live verification; outbox confirmed', async ({ page }) => {
   const db = adminClient();
 
   // ── Mount the page.route interceptors for the disabled edge fns ──────────────────
@@ -256,7 +256,7 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   // ===========================================================================
   // WHEN-a: the Admin connects ClickUp (mocked validate 200).
   // ===========================================================================
-  await page.goto('/administration');
+  await page.goto('/administration/integrations');
   const connectCards = page.getByTestId('integrations-connect-cards');
   await expect(connectCards).toBeVisible({ timeout: 15_000 });
   const clickupCard = connectCards.locator('[data-tier="clickup"]');
@@ -330,7 +330,7 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
     { onConflict: 'org_id,domain,pmo_record_id,idempotency_key' },
   );
   if (outboxErr) throw new Error(`seed outbox failed: ${outboxErr.message}`);
-  // The dispatch updates the org's sync watermark (the "last sync" source).
+  // Seed the cursor row the dispatch would write. Its timestamp is not a last-success signal.
   const { error: wmErr } = await db.from('external_sync_watermarks').upsert(
     {
       org_id: ORG,
@@ -393,39 +393,32 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   expect(outbox?.external_record_id).toBe(CLICKUP_TASK_ID);
 
   // ===========================================================================
-  // THEN-2 (a): the Integrations card shows `Active` (the StatusPill, sourced from the org
+  // THEN-2 (a): the Integrations card shows `Connected` (the StatusPill, sourced from the org
   // binding's status — a REAL read through the repository + RLS).
   //
-  // THEN-2 (b) — "with an updated last sync" — is the COMPANION test below. It was quarantined on a
-  // real app bug this journey surfaced: getIntegrationHealth (src/lib/repositories/index.ts)
-  // selected/ordered by a `synced_at` column that does NOT exist on external_sync_watermarks
-  // (mig 0089 defines `updated_at`); PostgREST errored, useIntegrationsHealth swallowed it,
-  // health=null, and the Last-sync block never rendered for ANY connected org. Latent because the
-  // default seed connects no org. Fixed (synced_at → updated_at); the companion now runs with its
-  // original oracle, unchanged.
+  // THEN-2 (b) is the companion test below: a cursor row must not be presented as a successful
+  // sync timestamp. The transferred task and confirmed outbox above remain the data-movement proof.
   // ===========================================================================
-  await page.goto('/administration');
+  await page.goto('/administration/integrations');
   await expect(connectCards).toBeVisible({ timeout: 15_000 });
-  // "Active" — strong oracle.
-  await expect(clickupCard.getByText('Active')).toBeVisible({ timeout: 15_000 });
+  // "Connected" proves the binding; the transferred task and confirmed outbox prove movement.
+  await expect(clickupCard.getByText('Connected', { exact: true })).toBeVisible({ timeout: 15_000 });
   // The connection provenance renders (connected_by is the Admin).
   await expect(clickupCard.getByText(/Connected by:/i)).toBeVisible({ timeout: 10_000 });
 });
 
-// ===========================================================================
-// AC-EAC-018 THEN-2 (b): "the Integrations card shows ... an updated last sync".
-// Previously quarantined on an AC-EAC-016 health-surface bug: getIntegrationHealth selected and
-// ordered `external_sync_watermarks` by `synced_at`, a column that does not exist (mig 0089 defines
-// `updated_at`). PostgREST errored, useIntegrationsHealth swallowed it, health went null, and the
-// "Last sync:" block never rendered for ANY connected org. Latent because the default seed connects
-// no org, so the query never ran — this journey is the first thing to connect one. Fixed; the oracle
-// below is the one that was quarantined, unchanged.
-// ===========================================================================
+// ==========================================================================
+// AC-EAC-018 THEN-2 (b): the Integrations card must NOT claim a last-sync time. The watermark
+// timestamp (external_sync_watermarks.updated_at) is row-creation time and is not evidence of a
+// successful sync, so this regression now asserts the corrected behaviour (AC-IRUX-004): the card
+// renders NO "Last sync:"/successful-data-movement claim and instead directs the operator to
+// verify a live transferred record. A connection is not readiness proof.
+// ==========================================================================
 test(
-  'AC-EAC-018 THEN-2(b): Integrations card shows an updated last sync after a sync',
+  'AC-EAC-018 THEN-2(b): Integrations card shows no last-sync claim and directs the operator to verify a live transferred record',
   async ({ page }) => {
     const db = adminClient();
-    // A connected tier with a recent sync watermark — exactly the state THEN-2(b) assumes.
+    // A connected tier with a recent sync watermark — the state THEN-2(b) assumes.
     const syncedAt = new Date().toISOString();
     await db.from('external_org_bindings').upsert(
       { org_id: ORG, external_tier: 'clickup', site_url: 'https://api.clickup.com',
@@ -438,24 +431,17 @@ test(
         watermark_cursor: `eac018-companion-${syncedAt}`, updated_at: syncedAt },
       { onConflict: 'org_id,external_tier,domain' },
     );
-    // Assert the seed: a silently-failed upsert would surface later as a baffling '—' on the card.
+    // Assert the seed: a silently-failed upsert would surface later as a baffling blank card.
     if (wmCompanionErr) throw new Error(`Failed to seed companion watermark: ${wmCompanionErr.message}`);
 
     await signIn(page, ADMIN_EMAIL);
-    await page.goto('/administration');
+    await page.goto('/administration/integrations');
     const card = page.getByTestId('integrations-connect-cards').locator('[data-tier="clickup"]');
     await expect(card).toBeVisible({ timeout: 15_000 });
-    // The goal-oracle: the card renders a real "Last sync:" time (not absent, not the '—' empty marker).
-    await expect(card.getByText(/Last sync:/i)).toBeVisible({ timeout: 10_000 });
-    // The last-sync slot's value is a real formatted time, NOT the '—' empty marker.
-    //
-    // Scoped to the Last-sync line: the clickup card ALSO carries a permanent em-dash in its tier
-    // info note ("ClickUp is US-hosted SaaS — task-domain data resides with ClickUp",
-    // IntegrationsView.tsx), so a whole-card `getByText(/—/).toHaveCount(0)` is always ≥1 and can
-    // never pass. The goal — "the last-sync slot shows a real time, not '—'" — is preserved exactly:
-    // when last_sync is null the line reads "Last sync: —" (contains '—' → fails); when set it
-    // reads "Last sync: <date>" (no '—' → passes). The health-surface bug (synced_at→updated_at,
-    // outbox `*`→`id`) is still proven by this line — only the oracle's scope is corrected, not its strength.
-    await expect(card.getByText(/Last sync:/i)).not.toContainText('—');
+    // The corrected goal-oracle (AC-IRUX-004): the watermark row time must NOT be presented as a
+    // last successful sync, even though a recent watermark exists in the DB.
+    await expect(card.getByText(/Last sync:/i)).not.toBeVisible({ timeout: 10_000 });
+    // A live transferred record must be checked to prove usable data movement.
+    await expect(card.getByText(/check an actual transferred record/i)).toBeVisible({ timeout: 10_000 });
   },
 );
