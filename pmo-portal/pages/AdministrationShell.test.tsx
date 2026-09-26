@@ -401,3 +401,41 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     expect(screen.getByRole('link', { name: 'Accounting setup' })).toHaveAttribute('aria-current', 'page');
   });
 });
+
+/**
+ * AC-ADMIA-005 — phone-width operability: every Administration section link clears the 44px
+ * coarse-pointer touch target (via the project's `.touch-target` mechanism, WCAG 2.5.5) and the
+ * nav lets long labels wrap inside the viewport instead of forcing a horizontal page scroll
+ * (`min-w-0` on the container and every link).
+ */
+describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => {
+  it('every organization section link carries the ≥44px touch-target class', async () => {
+    renderShell('/administration/users');
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.length).toBeGreaterThanOrEqual(4);
+    for (const link of links) {
+      expect(link.className).toContain('touch-target');
+    }
+  });
+
+  it('Operator sections also carry the ≥44px touch-target class', () => {
+    renderShell('/administration/usage', 'Admin', true);
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    const links = within(nav).getAllByRole('link');
+    expect(links).toHaveLength(6);
+    for (const link of links) {
+      expect(link.className).toContain('touch-target');
+    }
+  });
+
+  it('the section nav and its links keep min-w-0 so long labels wrap instead of widening the page', async () => {
+    renderShell('/administration/users');
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    expect(nav.className).toContain('min-w-0');
+    const links = within(nav).getAllByRole('link');
+    for (const link of links) {
+      expect(link.className).toContain('min-w-0');
+    }
+  });
+});

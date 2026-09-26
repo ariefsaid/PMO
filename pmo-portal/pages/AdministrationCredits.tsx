@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   Button,
   Icon,
@@ -57,6 +58,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
   isOperator,
   orgId,
 }) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [grantOpen, setGrantOpen] = useState(false);
@@ -91,7 +93,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
   return (
     <div>
       <SectionHeader
-        title="Credits"
+        title={t('admin.nav.credits', 'Credits')}
         action={
           isOperator && (
             <Button variant="primary" onClick={() => setGrantOpen(true)}>

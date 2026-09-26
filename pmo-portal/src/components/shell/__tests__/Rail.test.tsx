@@ -3,6 +3,17 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+// useIsOperator is queried by Rail's real-Operator Administration footer; default to false
+// (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+// useIsOperator statically imports the repositories index (→ orgFeatures → FEATURE_KEYS).
+// Spread the real features module (the pattern the other Rail suites use) so that chain resolves
+// FEATURE_KEYS; without it, this suite uniquely errors on the features mock missing the export.
+vi.mock('@/src/lib/features', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/src/lib/features')>();
+  return { ...real };
+});
+
 import { Rail } from '../Rail';
 
 let effectiveRole = 'Executive';

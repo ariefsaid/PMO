@@ -2,6 +2,7 @@
   "admin": {
     "access": {
       "checking": "Memeriksa akses Administrasi Anda…",
+      "checkEntry": "Periksa akses Administrasi",
       "denied": "Administrasi adalah area Admin, Executive, atau Operator platform. Anda tidak memiliki akses.",
       "operatorOnly": "Akses khusus Operator: Pemakaian dan Fitur hanya tersedia untuk Operator platform.",
       "verifyError": "Tidak dapat memverifikasi akses",

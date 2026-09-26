@@ -2,6 +2,7 @@
   "admin": {
     "access": {
       "checking": "Checking your Administration access…",
+      "checkEntry": "Check Administration access",
       "denied": "Administration is an Admin, Executive, or platform Operator area. You don't have access.",
       "operatorOnly": "Operator-only access: Usage and Features are available to platform Operators.",
       "verifyError": "Could not verify access",

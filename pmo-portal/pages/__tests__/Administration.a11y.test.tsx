@@ -78,7 +78,14 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     credits: { getOrgBalance: vi.fn().mockResolvedValue(1250), grant: vi.fn().mockResolvedValue(undefined) },
     orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
+    orgSettings: { getTaxDefault: vi.fn().mockResolvedValue('exclusive') },
   },
+}));
+vi.mock('@/src/lib/repositories/budgetProjection', () => ({
+  listBudgetCategoryAccountMap: vi.fn().mockResolvedValue([]),
+  createBudgetCategoryAccountMapRow: vi.fn(),
+  updateBudgetCategoryAccountMapRow: vi.fn(),
+  deleteBudgetCategoryAccountMapRow: vi.fn(),
 }));
 
 import Administration from '../Administration';
@@ -122,6 +129,55 @@ async function expectNoBlockingViolations(container: HTMLElement) {
 }
 
 describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
+  const settledPanel = async (section: string, container: HTMLElement) => {
+    await waitFor(() => {
+      switch (section) {
+        case 'users':
+          expect(screen.getByText('Engineer One')).toBeInTheDocument();
+          break;
+        case 'integrations':
+          expect(screen.getByTestId('integrations-owner-scope')).toBeInTheDocument();
+          expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
+          break;
+        case 'accounting':
+          expect(screen.getByTestId('org-tax-default-select')).toBeInTheDocument();
+          expect(container.querySelector('#budget-account-map')).not.toBeNull();
+          break;
+        case 'credits':
+          expect(screen.getByTestId('org-credit-balance')).toBeInTheDocument();
+          break;
+        case 'usage':
+          expect(screen.getAllByRole('table').length).toBeGreaterThan(0);
+          break;
+        case 'features':
+          expect(screen.getAllByRole('switch').length).toBeGreaterThan(0);
+          break;
+      }
+    });
+  };
+
+  for (const [section, operator] of [
+    ['users', false],
+    ['integrations', false],
+    ['accounting', false],
+    ['credits', false],
+    ['usage', true],
+    ['features', true],
+  ] as const) {
+    for (const width of [1280, 390]) {
+      it(`AC-A11Y-001: settled ${section} panel at ${width}px has no blocking violations`, async () => {
+        isOperatorState.value = operator;
+        Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: width });
+        const { container } = renderComposed(`/administration/${section}`);
+        await waitFor(() =>
+          expect(container.querySelector(`[data-testid="administration-panel-${section}"]`)).not.toBeNull(),
+        );
+        await settledPanel(section, container);
+        await expectNoBlockingViolations(container);
+      });
+    }
+  }
+
   it('AC-A11Y-001: Operator view at desktop width has no critical/serious violations', async () => {
     isOperatorState.value = true;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });

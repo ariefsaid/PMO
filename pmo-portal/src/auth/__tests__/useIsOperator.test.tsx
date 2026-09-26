@@ -94,6 +94,31 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
     expect(isOperator).toHaveBeenCalledTimes(2);
   });
 
+  it('rechecks membership on focus or within a minute and clears Operator-only aggregates after a negative result', async () => {
+    vi.mocked(isOperator).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useOperatorMembership(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isOperator).toBe(true));
+
+    const membershipQuery = qc.getQueryCache().find({ queryKey: ['operator', 'isOperator'] });
+    expect(membershipQuery?.options).toMatchObject({
+      refetchOnWindowFocus: true,
+      refetchInterval: 60_000,
+    });
+
+    qc.setQueryData(['usage', 'org-1', true, null], [{ run_count: 1 }]);
+    qc.setQueryData(['agent-run-stats', 'org-1', true, null], [{ runs: 1 }]);
+    await act(async () => { await qc.invalidateQueries({ queryKey: ['operator', 'isOperator'] }); });
+    await waitFor(() => expect(result.current.isOperator).toBe(false));
+    await waitFor(() => {
+      expect(qc.getQueryData(['usage', 'org-1', true, null])).toBeUndefined();
+      expect(qc.getQueryData(['agent-run-stats', 'org-1', true, null])).toBeUndefined();
+    });
+  });
+
   it('re-rendering the SAME hook instance does not re-call the RPC (query-key stability)', async () => {
     vi.mocked(isOperator).mockResolvedValue(true);
     const { result, rerender } = renderHook(() => useIsOperator(), { wrapper: makeWrapper() });

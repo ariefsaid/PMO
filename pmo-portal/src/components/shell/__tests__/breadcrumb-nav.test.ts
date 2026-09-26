@@ -108,29 +108,34 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
   it('AC-NAV-005: a placeholder route reads its OWN page label, not "Dashboard"', () => {
     expect(breadcrumbForPath('/companies')).toEqual([{ label: 'Companies' }]);
     expect(breadcrumbForPath('/reports')).toEqual([{ label: 'Reports' }]);
-    expect(breadcrumbForPath('/administration')).toEqual([{ label: 'Administration' }]);
+    // The shell-owned Administration placeholder carries its i18n key so the crumb localizes.
+    expect(breadcrumbForPath('/administration')).toEqual([
+      { label: 'Administration', i18nKey: 'shell.nav.administration' },
+    ]);
   });
 
   it('AC-ADMIA-004: Administration child routes derive a parent crumb that navigates to Users', () => {
     const expected = [
-      ['/administration/users', 'Users'],
-      ['/administration/integrations', 'Organization integrations'],
-      ['/administration/accounting', 'Accounting setup'],
-      ['/administration/credits', 'Credits'],
-      ['/administration/usage', 'Usage'],
-      ['/administration/features', 'Features'],
+      ['/administration/users', 'Users', 'admin.nav.users'],
+      ['/administration/integrations', 'Organization integrations', 'admin.nav.integrations'],
+      ['/administration/accounting', 'Accounting setup', 'admin.nav.accounting'],
+      ['/administration/credits', 'Credits', 'admin.nav.credits'],
+      ['/administration/usage', 'Usage', 'admin.nav.usage'],
+      ['/administration/features', 'Features', 'admin.nav.features'],
     ] as const;
 
-    for (const [path, currentLabel] of expected) {
+    for (const [path, currentLabel, sectionKey] of expected) {
       const navigate = vi.fn();
       const crumbs = breadcrumbForPath(path, undefined, navigate);
 
       expect(crumbs).toHaveLength(2);
-      expect(crumbs[0].label).toBe('Administration');
+      // Parent crumb carries the i18n key that matches the shell's rail label (localized).
+      expect(crumbs[0]).toMatchObject({ label: 'Administration', i18nKey: 'shell.nav.administration' });
       expect(crumbs[0].onClick).toBeTypeOf('function');
       crumbs[0].onClick!();
       expect(navigate).toHaveBeenCalledWith('/administration/users');
-      expect(crumbs[1]).toEqual({ label: currentLabel });
+      // Section crumb carries the i18n key that matches the section nav (localized).
+      expect(crumbs[1]).toEqual({ label: currentLabel, i18nKey: sectionKey });
     }
   });
 
@@ -142,12 +147,12 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(crumbs[0].label).toBe('Administration');
     crumbs[0].onClick!();
     expect(navigate).toHaveBeenCalledWith('/administration/users');
-    expect(crumbs[1]).toEqual({ label: 'Users' });
+    expect(crumbs[1]).toEqual({ label: 'Users', i18nKey: 'admin.nav.users' });
   });
 
   it('AC-NAV-005: every placeholder route in the title map resolves to a non-Dashboard crumb', () => {
     for (const [path, title] of Object.entries(PLACEHOLDER_TITLES)) {
-      expect(breadcrumbForPath(path)).toEqual([{ label: title }]);
+      expect(breadcrumbForPath(path)[0].label).toBe(title);
       expect(title).not.toBe('Dashboard');
     }
   });
@@ -155,8 +160,11 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
   it('AC-ADMIA-006: the PERSONAL route breadcrumb resolves to "My integrations", distinct from the organization section label', () => {
     // The personal Microsoft 365 route (/integrations) is labelled "My integrations" — agreeing
     // with the H1 and the rail — and stays distinct from the ORGANIZATION section label
-    // (ADMINISTRATION_SECTION_LABELS.integrations = "Organization integrations").
-    expect(breadcrumbForPath('/integrations')).toEqual([{ label: 'My integrations' }]);
+    // (ADMINISTRATION_SECTION_LABELS.integrations = "Organization integrations"). It carries the
+    // shell's integrations i18n key so the crumb localizes like the rail's own entry.
+    expect(breadcrumbForPath('/integrations')).toEqual([
+      { label: 'My integrations', i18nKey: 'shell.nav.integrations' },
+    ]);
     expect(PLACEHOLDER_TITLES['/integrations']).toBe('My integrations');
     expect(ADMINISTRATION_SECTION_LABELS.integrations).toBe('Organization integrations');
     expect(PLACEHOLDER_TITLES['/integrations']).not.toBe(

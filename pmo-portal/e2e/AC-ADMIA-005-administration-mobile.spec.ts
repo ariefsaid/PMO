@@ -25,6 +25,7 @@ import { signIn } from './helpers';
  */
 
 const ADMIN = 'admin@acme.test';
+const OPERATOR = 'operator@pmo.test';
 
 // All four organization destinations an org Admin (non-Operator) can reach.
 const ORGANIZATION_SECTIONS = [
@@ -42,6 +43,12 @@ const ORGANIZATION_SECTIONS = [
     heading: 'Accounting setup',
   },
   { name: 'Credits', url: '/administration/credits', testid: 'administration-panel-credits', heading: 'Credits' },
+] as const;
+
+const OPERATOR_SECTIONS = [
+  ...ORGANIZATION_SECTIONS,
+  { name: 'Usage', url: '/administration/usage', testid: 'administration-panel-usage', heading: 'Usage' },
+  { name: 'Features', url: '/administration/features', testid: 'administration-panel-features', heading: 'Features' },
 ] as const;
 
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });
@@ -97,9 +104,14 @@ async function assertNoHorizontalOverflow(page: Page, vw: number) {
   ).toBeLessThanOrEqual(vw + 2);
 }
 
-async function driveSections(page: Page, vw: number, height: number) {
+async function driveSections(
+  page: Page,
+  vw: number,
+  height: number,
+  sections: ReadonlyArray<(typeof OPERATOR_SECTIONS)[number]> = ORGANIZATION_SECTIONS,
+) {
   // Every Admin destination link is reachable and navigates to a visible, overflow-free panel.
-  for (const s of ORGANIZATION_SECTIONS) {
+  for (const s of sections) {
     const link = sectionNav(page).getByRole('link', { name: s.name });
     await expect(link).toBeVisible();
     await link.click();
@@ -143,4 +155,11 @@ test('AC-ADMIA-005: Administration destinations stay reachable and overflow-free
   await page.goto('/administration');
   await expect(page.locator('html')).toHaveClass(/dark/);
   await driveSections(page, 390, 844);
+});
+
+test('AC-ADMIA-005: Operator can reach all six Administration sections on a 390px phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, OPERATOR);
+  await page.goto('/administration');
+  await driveSections(page, 390, 844, OPERATOR_SECTIONS);
 });

@@ -29,6 +29,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -497,6 +498,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
   onInvite,
   embedded = false,
 }) => {
+  const { t } = useTranslation();
   const inviteAction = canInvite ? (
     /* FR-INV-004/006: a real, working invite affordance (admin-invite-user edge fn) —
        replaces the interim "Copy invite instructions" clipboard workaround. Create-verb
@@ -508,7 +510,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
   ) : undefined;
 
   if (embedded) {
-    return <SectionHeader title="Users" action={inviteAction} />;
+    return <SectionHeader title={t('admin.nav.users', 'Users')} action={inviteAction} />;
   }
 
   return (

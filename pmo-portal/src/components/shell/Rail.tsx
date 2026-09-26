@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useIsOperator } from '@/src/auth/useIsOperator';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
@@ -105,6 +106,8 @@ const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
 
 export interface RailProps {
   onNavigate?: () => void;
+  /** Membership check unavailable for a role that has no ordinary Administration entry. */
+  operatorAccessError?: boolean;
   /**
    * Stage-aware active-item override for `/projects/:id` detail routes (Option A, Task D).
    *
@@ -128,7 +131,7 @@ export interface RailProps {
   assistantPanelOpen?: boolean;
 }
 
-export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen }) => {
+export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false }) => {
   const { t } = useTranslation();
   const { effectiveRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
@@ -141,6 +144,12 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   const { data: orgFeatures } = useOrgFeatures();
   const featureEnabled = (key: OrgFeatureKey): boolean =>
     orgFeatures?.[key] ?? FEATURE_ENV_DEFAULT[key];
+
+  // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach
+  // /administration by URL, so the rail's Administration footer must be discoverable for them.
+  // Sourced from the settled `useIsOperator()` projection — never the effective/preview role — so
+  // a plain Engineer stays hidden while a genuine Operator gains the entry. Fail-closed (false).
+  const isOperator = useIsOperator();
 
   if (!role) return null;
 
@@ -322,7 +331,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         </div>
       )}
 
-      {(role === UserRole.Executive || role === UserRole.Admin) && (
+      {(role === UserRole.Executive || role === UserRole.Admin || isOperator) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <NavLink
             to="/administration"
@@ -338,6 +347,18 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           >
             <Icon name="admin" />
             <span>{t('shell.nav.administration', 'Administration')}</span>
+          </NavLink>
+        </div>
+      )}
+      {operatorAccessError && role !== UserRole.Executive && role !== UserRole.Admin && !isOperator && (
+        <div className="flex-shrink-0 border-t border-border p-2.5">
+          <NavLink
+            to="/administration/users"
+            onClick={onNavigate}
+            className="touch-target flex min-h-11 items-center gap-2 rounded-md px-2.5 text-sm text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Icon name="admin" aria-hidden="true" />
+            <span>{t('admin.access.checkEntry', 'Check Administration access')}</span>
           </NavLink>
         </div>
       )}

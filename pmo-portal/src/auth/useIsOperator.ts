@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 
 /**
@@ -28,10 +29,25 @@ export interface OperatorMembershipState {
  * affordance projection used by existing panels.
  */
 export function useOperatorMembership(): OperatorMembershipState {
+  const qc = useQueryClient();
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['operator', 'isOperator'],
     queryFn: () => repositories.operator.isOperator(),
+    // This projection controls platform-only UI across the shell. Recheck when the tab regains
+    // focus and periodically while visible so a long-lived session does not keep an old view.
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
+  useEffect(() => {
+    if (isPending || (!isError && data !== false)) return;
+    // A settled negative or unavailable check clears previously loaded platform aggregates.
+    // Their query keys encode the Operator projection at index 2; preserve all other caches.
+    qc.removeQueries({
+      predicate: (query) =>
+        (query.queryKey[0] === 'usage' || query.queryKey[0] === 'agent-run-stats') &&
+        query.queryKey[2] === true,
+    });
+  }, [qc, data, isPending, isError]);
   return {
     isOperator: data === true && !isError,
     isPending,

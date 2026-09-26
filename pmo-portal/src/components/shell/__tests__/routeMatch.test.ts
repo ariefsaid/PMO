@@ -40,16 +40,29 @@ describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
 
 describe('breadcrumbForPath — Administration route prefix matching', () => {
   it('AC-ADMIA-004: each canonical child keeps its own current crumb', () => {
-    expect(breadcrumbForPath('/administration/usage')[1]).toEqual({ label: 'Usage' });
-    expect(breadcrumbForPath('/administration/features')[1]).toEqual({ label: 'Features' });
-    expect(breadcrumbForPath('/administration/accounting')[1]).toEqual({ label: 'Accounting setup' });
+    expect(breadcrumbForPath('/administration/usage')[1]).toEqual({
+      label: 'Usage',
+      i18nKey: 'admin.nav.usage',
+    });
+    expect(breadcrumbForPath('/administration/features')[1]).toEqual({
+      label: 'Features',
+      i18nKey: 'admin.nav.features',
+    });
+    expect(breadcrumbForPath('/administration/accounting')[1]).toEqual({
+      label: 'Accounting setup',
+      i18nKey: 'admin.nav.accounting',
+    });
     expect(breadcrumbForPath('/administration/usage')[1]).not.toEqual({ label: 'Users' });
   });
 
   it('AC-ADMIA-003: an unknown Administration section falls back to Users', () => {
     expect(breadcrumbForPath('/administration/unknown')).toEqual([
-      { label: 'Administration', onClick: expect.any(Function) },
-      { label: 'Users' },
+      {
+        label: 'Administration',
+        i18nKey: 'shell.nav.administration',
+        onClick: expect.any(Function),
+      },
+      { label: 'Users', i18nKey: 'admin.nav.users' },
     ]);
   });
 });

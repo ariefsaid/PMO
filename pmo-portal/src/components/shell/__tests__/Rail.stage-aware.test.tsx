@@ -55,6 +55,9 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   }),
 }));
 
+// useIsOperator is queried by Rail's real-Operator Administration footer; default to false
+// (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
 
 /** Render Rail at a /projects/:id URL so NavLink URL-based logic would otherwise pick Projects. */
