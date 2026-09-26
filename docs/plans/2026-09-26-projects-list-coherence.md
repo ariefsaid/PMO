@@ -1,9 +1,9 @@
 # Design plan — Projects list coherence
 
-**Date:** 2026-09-26  
-**Status:** ready for implementation after owner sketch-glance  
-**Spec:** [`docs/specs/projects-list-coherence.spec.md`](../specs/projects-list-coherence.spec.md)  
-**Design authority:** [`DESIGN.md`](../../DESIGN.md), especially the ListPage shell, the content-over-containers rule, the shared focus contract, and the light/dark token pairs.  
+**Date:** 2026-09-26
+**Status:** implemented; pending dev PR
+**Spec:** [`docs/specs/projects-list-coherence.spec.md`](../specs/projects-list-coherence.spec.md)
+**Design authority:** [`DESIGN.md`](../../DESIGN.md), especially the ListPage shell, the content-over-containers rule, the shared focus contract, and the light/dark token pairs.
 **Product brief:** [`docs/design/2026-09-26-enterprise-coherence-brief.md`](../design/2026-09-26-enterprise-coherence-brief.md)
 
 This plan improves the Projects index as an operator surface. It keeps the existing identity, project data, permissions, status URL values, analytics values, and desktop toolbar order. The work is structural and behavioral: the phone toolbar becomes progressive, filter choices become unambiguous, and the same project-manager meaning is used in the filter and the visible record.
