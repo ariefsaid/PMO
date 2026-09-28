@@ -12,6 +12,7 @@ import {
   type ListReturnNavigation,
 } from '@/src/lib/listReturnContext';
 import type { ListName } from '@/src/lib/listWorkingSet';
+import { MAIN_SCROLL_CLASS } from '@/src/components/shell/AppShell';
 
 export const LIST_ENTRY_SCROLL_STATE_KEY = 'pmoListEntryScroll';
 const LIST_SCROLL_CONSUMED_STATE_KEY = 'pmoListScrollConsumedFor';
@@ -19,8 +20,11 @@ const LIST_SCROLL_CONSUMED_STATE_KEY = 'pmoListScrollConsumedFor';
 export interface UseListReturnOptions {
   /** List page currently mounted; also the default record owner for an open action. */
   list: ListName;
-  /** Whether list content has settled and rendered, including an empty state. */
-  ready?: boolean;
+  /**
+   * Whether the list's rows (or its empty state) have settled and rendered. A pending scroll
+   * restore waits for this, so it never scrolls a list before its content exists. Defaults to false.
+   */
+  contentReady?: boolean;
 }
 
 export interface UseListReturnResult {
@@ -37,7 +41,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function scrollElement(): HTMLElement | null {
   return typeof document === 'undefined'
     ? null
-    : document.querySelector<HTMLElement>('.main-scroll');
+    : document.querySelector<HTMLElement>(`.${MAIN_SCROLL_CLASS}`);
 }
 
 /**
@@ -128,14 +132,25 @@ export function useReturnNavigate(): (target: string | ListReturnNavigation) => 
  * Native Back uses state on the source browser-history entry; explicit return pushes a clean entry
  * carrying the optional one-shot scroll restore.
  */
-export function useListReturn({ list, ready = false }: UseListReturnOptions): UseListReturnResult {
+export function useListReturn({
+  list,
+  contentReady = false,
+}: UseListReturnOptions): UseListReturnResult {
   const location = useLocation();
   const navigate = useNavigate();
   const path = `${location.pathname}${location.search}`;
 
   const openRecord = useCallback(
     (recordPath: string, owner: ListName = list): boolean => {
-      if (!canCaptureFromList(list, owner)) return false;
+      if (!canCaptureFromList(list, owner)) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[list-return] openRecord rejected owner "${owner}" from list "${list}": ` +
+              'a list may open only its own records (and Sales may open Projects records).',
+          );
+        }
+        return false;
+      }
       const destination = safeRecordTarget(owner, recordPath);
       if (!destination) {
         if (import.meta.env.DEV) {
@@ -171,7 +186,7 @@ export function useListReturn({ list, ready = false }: UseListReturnOptions): Us
   );
 
   useEffect(() => {
-    if (!ready || location.pathname !== listIndexPath(list)) return;
+    if (!contentReady || location.pathname !== listIndexPath(list)) return;
     const historyState = window.history.state;
     if (isRecord(historyState) && historyState[LIST_SCROLL_CONSUMED_STATE_KEY] === location.key) {
       return;
@@ -199,7 +214,7 @@ export function useListReturn({ list, ready = false }: UseListReturnOptions): Us
       markScrollConsumed(location.key);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [list, location.key, location.pathname, location.search, location.state, ready]);
+  }, [contentReady, list, location.key, location.pathname, location.search, location.state]);
 
   return { openRecord, returnToList };
 }

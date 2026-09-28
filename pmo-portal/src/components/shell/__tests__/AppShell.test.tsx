@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import React from 'react';
-import { AppShell } from '../AppShell';
+import { AppShell, MAIN_SCROLL_CLASS } from '../AppShell';
 import { Breadcrumb } from '../Breadcrumb';
 import { breadcrumbForPath } from '../routeMatch';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
@@ -34,6 +34,17 @@ describe('AppShell', () => {
     const main = screen.getByRole('main');
     expect(main).toHaveAttribute('id', 'main');
     expect(main).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('FR-LRC-005: main is the shared scroll container the list-return seam reads', () => {
+    wrap(
+      <AppShell rail={null} header={null}>
+        <div>x</div>
+      </AppShell>
+    );
+    // index.css styles this class, and useListReturn captures/restores its scrollTop.
+    expect(MAIN_SCROLL_CLASS).toBe('main-scroll');
+    expect(screen.getByRole('main')).toHaveClass(MAIN_SCROLL_CLASS);
   });
 
   // AC-ADMIA-004/005 — focus-on-route-change is owned by AppShell (it renders <main> and moves

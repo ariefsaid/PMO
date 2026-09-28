@@ -1,6 +1,10 @@
-import type { ProjectView } from '../hooks/useProjectView';
-import type { PipelineView } from '../hooks/usePipelineView';
-import type { ProcurementView } from '../hooks/useProcurementView';
+import { DEFAULT_PROJECT_VIEW, PROJECT_VIEWS, type ProjectView } from '../hooks/useProjectView';
+import { DEFAULT_PIPELINE_VIEW, PIPELINE_VIEWS, type PipelineView } from '../hooks/usePipelineView';
+import {
+  DEFAULT_PROCUREMENT_VIEW,
+  PROCUREMENT_VIEWS,
+  type ProcurementView,
+} from '../hooks/useProcurementView';
 import { ProcurementStatus } from '../../types';
 import { OPEN_FUNNEL_STAGES, type OpenFunnelStage } from '../../components/salesPipeline';
 import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
@@ -93,14 +97,6 @@ const PROCUREMENT_FILTER_STATUSES = [
   'Vendor Invoiced',
   'Paid',
 ] as const satisfies readonly ProcurementFilterStatus[];
-const PROJECT_VIEWS = [
-  'table',
-  'cards',
-  'calendar',
-  'kanban',
-] as const satisfies readonly ProjectView[];
-const SALES_VIEWS = ['kanban', 'table'] as const satisfies readonly PipelineView[];
-const PROCUREMENT_VIEWS = ['table', 'board'] as const satisfies readonly ProcurementView[];
 const COMPANY_TYPES = [
   'All',
   'Internal',
@@ -124,14 +120,15 @@ const SEGMENT_PLAIN_STATUSES: readonly string[] = [
 ];
 
 const DEFAULT_PROJECT_FILTER: ProjectFilter = 'All';
+/** View tuples and defaults come from the view hook modules, the single source of truth. */
 const DEFAULT_VIEWS = {
-  projects: 'table',
-  sales: 'kanban',
-  procurement: 'table',
+  projects: DEFAULT_PROJECT_VIEW,
+  sales: DEFAULT_PIPELINE_VIEW,
+  procurement: DEFAULT_PROCUREMENT_VIEW,
 } as const;
 const VIEWS: { [L in ViewList]: readonly string[] } = {
   projects: PROJECT_VIEWS,
-  sales: SALES_VIEWS,
+  sales: PIPELINE_VIEWS,
   procurement: PROCUREMENT_VIEWS,
 };
 

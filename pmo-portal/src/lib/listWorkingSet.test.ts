@@ -12,6 +12,9 @@ import {
   type MeetingsWorkingSet,
 } from './listWorkingSet';
 import { ProcurementStatus } from '../../types';
+import { DEFAULT_PROJECT_VIEW, PROJECT_VIEWS } from '../hooks/useProjectView';
+import { DEFAULT_PIPELINE_VIEW, PIPELINE_VIEWS } from '../hooks/usePipelineView';
+import { DEFAULT_PROCUREMENT_VIEW, PROCUREMENT_VIEWS } from '../hooks/useProcurementView';
 import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 
 // Referenced filter values are stable row IDs (UUIDs), shaped like real ones.
@@ -325,6 +328,26 @@ describe('list working-set URL codec', () => {
     const canonical = resolveListWorkingSet('projects', source);
     expect(canonical.search.get('view')).toBeNull();
     expect(canonical.search.get('campaign')).toBe('winter');
+  });
+
+  it('AC-LRC-001: each codec round-trips every view its hook module declares, defaulting to the hook default', () => {
+    const cases = [
+      { list: 'projects', views: PROJECT_VIEWS, fallback: DEFAULT_PROJECT_VIEW },
+      { list: 'sales', views: PIPELINE_VIEWS, fallback: DEFAULT_PIPELINE_VIEW },
+      { list: 'procurement', views: PROCUREMENT_VIEWS, fallback: DEFAULT_PROCUREMENT_VIEW },
+    ] as const;
+    for (const { list, views, fallback } of cases) {
+      expect(views.length, list).toBeGreaterThan(1);
+      expect(parseListWorkingSet(list, '').view, list).toBe(fallback);
+      for (const view of views) {
+        const parsed = parseListWorkingSet(list, `?view=${view}&campaign=fall`);
+        expect(parsed.view, `${list}:${view}`).toBe(view);
+        const query = serializeListWorkingSet(list, '?campaign=fall', parsed);
+        expect(query.get('view'), `${list}:${view}`).toBe(view === fallback ? null : view);
+        expect(parseListWorkingSet(list, query).view, `${list}:${view}`).toBe(view);
+        expect(query.get('campaign')).toBe('fall');
+      }
+    }
   });
 
   it('AC-LRC-001: omits default and empty values and never introduces a sort parameter', () => {

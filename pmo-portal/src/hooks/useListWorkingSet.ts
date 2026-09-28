@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
   materializeSessionView,
@@ -22,7 +22,7 @@ export interface UseListWorkingSetOptions {
    * true the hook writes nothing on its own, so no URL is rewritten against a default that has not
    * arrived. Defaults to true.
    */
-  ready?: boolean;
+  defaultsReady?: boolean;
 }
 
 export type ListWorkingSetUpdater<K extends ListName> = (
@@ -35,10 +35,15 @@ export type ListWorkingSetUpdater<K extends ListName> = (
  * query keys with history **replacement** (no browser-history entry per keystroke), preserving
  * every unrelated key.
  *
- * Its only unprompted write: once `ready`, when the URL has no explicit `view` and the session
- * view is nondefault, it adds that view with one replace (keeping router state, so a pending
- * scroll restore survives) so a copied link agrees with what is visible. It never canonicalizes
- * any other key — an explicit drill filter stays exactly as written.
+ * Search contract: React Router applies location updates inside `startTransition`, so the parsed
+ * `q` lags the keystroke that produced it. Never bind a text input's `value` to `workingSet.q`;
+ * keep the text in local state and write it to the URL with `useUrlSearchInput`. Only discrete
+ * controls (enum filters, referenced-ID selects, and views) bind directly to the working set.
+ *
+ * Its only unprompted write: once `defaultsReady`, when the URL has no explicit `view` and the
+ * session view is nondefault, it adds that view with one replace so a copied link agrees with what
+ * is visible. That replace carries the existing router state forward unchanged. It never
+ * canonicalizes any other key — an explicit drill filter stays exactly as written.
  */
 export function useListWorkingSet<K extends ListName>(
   list: K,
@@ -55,14 +60,14 @@ export function useListWorkingSet<K extends ListName>(
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { sessionView, projectsDefaultFilter, ready = true } = options;
+  const { sessionView, projectsDefaultFilter, defaultsReady = true } = options;
 
   const workingSet = useMemo(
     () => parseListWorkingSet(list, location.search, { sessionView, projectsDefaultFilter }),
     [list, location.search, sessionView, projectsDefaultFilter],
   );
 
-  const targetSearch = ready
+  const targetSearch = defaultsReady
     ? materializeSessionView(list, location.search, sessionView)
     : location.search;
   useEffect(() => {
@@ -94,4 +99,46 @@ export function useListWorkingSet<K extends ListName>(
   );
 
   return { workingSet, setWorkingSet };
+}
+
+/**
+ * A list search box over the URL working set (see the search contract on `useListWorkingSet`).
+ * Returns the input's text and its change handler. Typed text is local at once and written with
+ * `commit` (usually `q => setWorkingSet(ws => ({ ...ws, q }))`) after `delayMs` without typing. A
+ * URL change this hook did not write (Back, a drill link, Clear all) replaces the text and cancels
+ * a pending write. A Clear-all that leaves `q` unchanged should also call the returned setter with ''.
+ */
+export function useUrlSearchInput(
+  urlValue: string,
+  commit: (next: string) => void,
+  delayMs = 250,
+): [string, (next: string) => void] {
+  const [text, setText] = useState(urlValue);
+  const written = useRef(urlValue);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latestCommit = useRef(commit);
+  useEffect(() => {
+    latestCommit.current = commit;
+  });
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  useEffect(() => {
+    if (urlValue === written.current) return; // the echo of our own write
+    written.current = urlValue;
+    clearTimeout(timer.current);
+    setText(urlValue);
+  }, [urlValue]);
+
+  const onChange = useCallback(
+    (next: string) => {
+      setText(next);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        written.current = next;
+        latestCommit.current(next);
+      }, delayMs);
+    },
+    [delayMs],
+  );
+  return [text, onChange];
 }

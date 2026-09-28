@@ -39,7 +39,7 @@ function LocationProbe() {
 function CompaniesList() {
   const location = useLocation();
   const [ready, setReady] = useState(!location.state?.pmoListScrollRestore);
-  const { openRecord } = useListReturn({ list: 'companies', ready });
+  const { openRecord } = useListReturn({ list: 'companies', contentReady: ready });
   const navigate = useNavigate();
   return (
     <div>
@@ -57,6 +57,14 @@ function CompaniesList() {
       </button>
       <button type="button" onClick={() => openRecord('/companies/company-1/approvals')}>
         Open tab target
+      </button>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.currentTarget.dataset.opened = String(openRecord('/projects/project-1', 'projects'));
+        }}
+      >
+        Open another list's record
       </button>
       <button type="button" onClick={() => navigate('/companies?type=Client', { replace: true })}>
         Change list URL
@@ -89,7 +97,7 @@ function CompanyDetail() {
 function SalesPipelinePage() {
   const location = useLocation();
   const [ready, setReady] = useState(!location.state?.pmoListScrollRestore);
-  const { openRecord } = useListReturn({ list: 'sales', ready });
+  const { openRecord } = useListReturn({ list: 'sales', contentReady: ready });
   return (
     <div>
       <button
@@ -219,6 +227,20 @@ describe('useListReturn', () => {
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
 
     expect(spy).toHaveBeenCalled();
+  });
+
+  it('AC-LRC-010: a list that may not open another owner\'s record stays put and warns in development', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    renderAt('/companies?type=Client');
+
+    const button = screen.getByRole('button', { name: "Open another list's record" });
+    fireEvent.click(button);
+
+    expect(button).toHaveAttribute('data-opened', 'false');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies?type=Client');
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toContain('"companies"');
+    expect(spy.mock.calls[0][0]).toContain('"projects"');
   });
 
   it('FR-LRC-005: restores a captured source entry on native Back after the shell resets scroll to top', async () => {

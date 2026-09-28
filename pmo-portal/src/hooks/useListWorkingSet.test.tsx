@@ -3,7 +3,11 @@ import React, { useEffect } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BrowserRouter, MemoryRouter, useLocation } from 'react-router';
-import { useListWorkingSet, type UseListWorkingSetOptions } from './useListWorkingSet';
+import {
+  useListWorkingSet,
+  useUrlSearchInput,
+  type UseListWorkingSetOptions,
+} from './useListWorkingSet';
 import { readProjectView, writeProjectView } from './useProjectView';
 
 /** Every distinct router location key seen, in order: one entry per navigate/replace. */
@@ -151,13 +155,20 @@ describe('useListWorkingSet — Projects', () => {
 
   it('AC-LRC-002: writes nothing before role defaults are ready, so a late Engineer default keeps ?filter=All', async () => {
     writeProjectView('calendar');
-    const view = renderAt('/projects?filter=All', { ready: false, sessionView: readProjectView() });
+    const view = renderAt('/projects?filter=All', {
+      defaultsReady: false,
+      sessionView: readProjectView(),
+    });
     await settle();
     expect(currentPath()).toBe('/projects?filter=All');
     expect(seenKeys).toHaveLength(1);
 
     view.rerender(
-      tree({ ready: true, projectsDefaultFilter: 'My Projects', sessionView: readProjectView() }),
+      tree({
+        defaultsReady: true,
+        projectsDefaultFilter: 'My Projects',
+        sessionView: readProjectView(),
+      }),
     );
     await waitFor(() => expect(currentPath()).toContain('view=calendar'));
     await settle();
@@ -210,5 +221,76 @@ describe('useListWorkingSet — Projects', () => {
     expect(path).toContain('view=kanban');
     expect(path).not.toContain('view=calendar');
     expect(path).toContain('campaign=winter');
+  });
+});
+const SEARCH_DELAY_MS = 20;
+
+function ProjectsSearchHost() {
+  const { workingSet, setWorkingSet } = useListWorkingSet('projects');
+  const [search, setSearch] = useUrlSearchInput(
+    workingSet.q,
+    (q) => setWorkingSet((prev) => ({ ...prev, q })),
+    SEARCH_DELAY_MS,
+  );
+  return (
+    <div>
+      <input aria-label="Search projects" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <button type="button" onClick={() => setWorkingSet((prev) => ({ ...prev, q: '' }))}>
+        Clear all
+      </button>
+    </div>
+  );
+}
+
+function renderSearchAt(path: string) {
+  window.history.replaceState(null, '', path);
+  return render(
+    <BrowserRouter>
+      <ProjectsSearchHost />
+      <LocationProbe />
+    </BrowserRouter>,
+  );
+}
+
+describe('useUrlSearchInput — search text over the URL working set', () => {
+  it('FR-LRC-001: keeps typed text local and writes the URL with one replace after typing pauses', async () => {
+    renderSearchAt('/projects?campaign=spring');
+    const idx0 = (window.history.state as { idx?: number } | null)?.idx;
+    const input = screen.getByRole('textbox', { name: 'Search projects' });
+
+    for (const text of ['h', 'ha', 'har', 'harb', 'harbor']) {
+      fireEvent.change(input, { target: { value: text } });
+    }
+    // The control shows every keystroke at once; the URL waits for the pause.
+    expect(input).toHaveValue('harbor');
+    expect(currentPath()).toBe('/projects?campaign=spring');
+
+    await waitFor(() => expect(currentPath()).toBe('/projects?campaign=spring&q=harbor'));
+    await settle();
+    expect(input).toHaveValue('harbor');
+    // Initial entry + one replacing write for the whole burst; no history entry was added.
+    expect(seenKeys).toHaveLength(2);
+    expect((window.history.state as { idx?: number } | null)?.idx).toBe(idx0);
+
+    // Typing on after the URL caught up is kept, and written again after the next pause.
+    fireEvent.change(input, { target: { value: 'harbor crane' } });
+    expect(input).toHaveValue('harbor crane');
+    await waitFor(() => expect(currentPath()).toBe('/projects?campaign=spring&q=harbor+crane'));
+    expect(input).toHaveValue('harbor crane');
+  });
+
+  it('FR-LRC-001: an external URL change replaces the text and cancels a pending write', async () => {
+    renderSearchAt('/projects?q=harbor');
+    const input = screen.getByRole('textbox', { name: 'Search projects' });
+    expect(input).toHaveValue('harbor');
+
+    fireEvent.change(input, { target: { value: 'harbor crane' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+
+    await waitFor(() => expect(input).toHaveValue(''));
+    await settle();
+    // The typed text that was still waiting to be written does not come back.
+    expect(currentPath()).toBe('/projects');
+    expect(input).toHaveValue('');
   });
 });
