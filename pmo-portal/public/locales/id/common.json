@@ -2102,6 +2102,49 @@
     "personal": {
       "description": "Hubungkan akun Microsoft 365 pribadi Anda untuk membawa dokumen dan kalender ke dalam proyek. Ini terpisah dari integrasi Administrasi organisasi Anda.",
       "title": "Integrasi saya"
+    },
+    "personalM365": {
+      "state": {
+        "loading": "Memeriksa status koneksi Microsoft 365…",
+        "notConnected": "Belum terhubung. Hubungkan akun Microsoft 365 Anda sendiri agar PMO Portal dapat mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun Anda.",
+        "connected": "Terhubung. Anda dapat memutuskan koneksi kapan saja.",
+        "connectedSince": "Terhubung sejak {{date}}. Anda dapat memutuskan koneksi kapan saja.",
+        "organizationApproved": "Organisasi Anda telah menyetujui aplikasi PMO Portal di Microsoft 365. Hubungkan akun Microsoft 365 Anda sendiri untuk melanjutkan.",
+        "reconnect": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melanjutkan.",
+        "revoked": "Koneksi Microsoft 365 telah dicabut. Hubungkan kembali untuk melanjutkan.",
+        "unknown": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi."
+      },
+      "action": {
+        "connect": "Hubungkan Microsoft 365",
+        "reconnect": "Hubungkan ulang Microsoft 365",
+        "disconnect": "Putuskan koneksi"
+      },
+      "confirm": {
+        "title": "Putuskan koneksi Microsoft 365?",
+        "description": "Memutuskan koneksi akan menghapus koneksi akun Microsoft 365 ini. PMO tidak dapat lagi mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun ini sampai Anda menghubungkannya kembali. Anda dapat menghubungkannya kembali kapan saja.",
+        "cancel": "Batal",
+        "confirm": "Putuskan koneksi"
+      },
+      "errors": {
+        "notEntitled": "Organisasi Anda belum mengaktifkan integrasi Microsoft 365.",
+        "disabledMember": "Akses akun Anda telah dinonaktifkan. Hubungi administrator Anda.",
+        "bannedMember": "Akun Anda ditangguhkan. Hubungi administrator Anda.",
+        "organizationApprovalRequired": "Organisasi Anda belum menyetujui aplikasi PMO Portal. Minta administrator menyetujuinya di Microsoft 365.",
+        "forbidden": "Penyetujuan aplikasi PMO Portal di Microsoft 365 hanya dapat dilakukan oleh administrator organisasi dan operator platform.",
+        "unauthorized": "Sesi Anda telah berakhir. Muat ulang halaman lalu coba lagi.",
+        "connectionStale": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang.",
+        "connectionRevoked": "Koneksi Microsoft 365 telah dicabut. Hubungkan kembali untuk melanjutkan.",
+        "notConnected": "Microsoft 365 belum terhubung.",
+        "tokenExchangeFailed": "Microsoft menolak koneksi. Silakan coba lagi.",
+        "invalidState": "Permintaan koneksi telah kedaluwarsa. Silakan coba lagi.",
+        "scopeInsufficient": "Koneksi memerlukan izin tambahan. Hubungkan ulang untuk memberikan izin tersebut.",
+        "badRequest": "Permintaan tidak valid. Silakan coba lagi.",
+        "graphError": "Microsoft Graph sedang tidak tersedia. Silakan coba lagi sebentar lagi.",
+        "internalError": "Terjadi kesalahan di sisi kami. Silakan coba lagi.",
+        "disconnectFailure": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung. Anda dapat mencoba lagi atau membatalkan.",
+        "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.",
+        "generic": "Microsoft 365 tidak dapat dihubungkan. Silakan coba lagi."
+      }
     }
   },
   "profileSettings": {

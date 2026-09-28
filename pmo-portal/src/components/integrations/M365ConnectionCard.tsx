@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button, Card, Icon } from '@/src/components/ui';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { useFeature } from '@/src/auth/useFeature';
@@ -8,7 +10,6 @@ import {
   initiateM365Connect,
   disconnectM365,
   getM365ConnectionStatus,
-  describeM365Error,
   type ConnectionStatus,
 } from '@/src/lib/m365/connectClient';
 
@@ -31,7 +32,10 @@ import {
  *     the REAL state — Connected / Needs reconnect (stale) / Revoked / Not connected (AC-M365-022).
  *     A failed status fetch renders an honest UNKNOWN state — NEVER a false "Connected" (AC-M365-023).
  *   - Disconnect opens a destructive `ConfirmDialog`, then POSTs `disconnect` (best-effort Microsoft
- *     revoke + local delete + audit, all server-side).
+ *     revoke + local delete + audit, all server-side). A successful disconnect closes the dialog and
+ *     returns the card to not connected; a FAILED disconnect KEEPS the last confirmed connected
+ *     state and the dialog open, shows a localized recovery alert inside the dialog (originating-
+ *     dialog error rule, DESIGN.md), and leaves the confirm action available to retry.
  *
  * Source-of-truth split: the callback query-param (?m365_connected=true | ?m365_org_approved=true |
  * ?m365_error=<msg>) is the
@@ -67,14 +71,121 @@ type Phase =
   | 'disconnecting' // disconnect in flight
   | 'error'; // action error banner (initiate failed, etc.)
 
+/** Where a failure surfaced — decides the context-appropriate fallback when no stable code is known. */
+type ErrorOrigin = 'status' | 'callback' | 'connect';
+
+/** The reviewed error the card presents: only the stable code + origin are retained; the rendered
+ *  copy is DERIVED on each render (via the current locale) so an in-place locale change also
+ *  updates a visible error (FR-M365LOC-003). Never store a raw message to render. */
+interface CardError {
+  code?: string;
+  origin: ErrorOrigin;
+}
+
+/** Read a structural string `code` off an unknown thrown value (mirrors `appError.readCode`). */
+function readErrorCode(err: unknown): string | undefined {
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+/**
+ * The reviewed localized reason for a known M365 `M365ErrorCode`, or `null` for an absent/
+ * unrecognized code. LITERAL keys only (the i18n completeness gate scans `t('literal')` call sites
+ * to prove a key is referenced; a computed key would read as an orphan). English defaults match
+ * `describeM365Error`'s reviewed source.
+ */
+function knownCodeReason(t: TFunction, code: string | undefined): string | null {
+  switch (code) {
+    case 'NOT_ENTITLED':
+      return t('integrations.personalM365.errors.notEntitled');
+    case 'DISABLED_MEMBER':
+      return t('integrations.personalM365.errors.disabledMember');
+    case 'BANNED_MEMBER':
+      return t('integrations.personalM365.errors.bannedMember');
+    case 'ORG_APPROVAL_REQUIRED':
+      return t('integrations.personalM365.errors.organizationApprovalRequired');
+    case 'FORBIDDEN':
+      return t('integrations.personalM365.errors.forbidden');
+    case 'UNAUTHORIZED':
+      return t('integrations.personalM365.errors.unauthorized');
+    case 'CONNECTION_STALE':
+      return t('integrations.personalM365.errors.connectionStale');
+    case 'CONNECTION_REVOKED':
+      return t('integrations.personalM365.errors.connectionRevoked');
+    case 'NOT_CONNECTED':
+      return t('integrations.personalM365.errors.notConnected');
+    case 'TOKEN_EXCHANGE_FAILED':
+      return t('integrations.personalM365.errors.tokenExchangeFailed');
+    case 'INVALID_STATE':
+      return t('integrations.personalM365.errors.invalidState');
+    case 'SCOPE_INSUFFICIENT':
+      return t('integrations.personalM365.errors.scopeInsufficient');
+    case 'BAD_REQUEST':
+      return t('integrations.personalM365.errors.badRequest');
+    case 'GRAPH_ERROR':
+      return t('integrations.personalM365.errors.graphError');
+    case 'INTERNAL_ERROR':
+      return t('integrations.personalM365.errors.internalError');
+    default:
+      return null;
+  }
+}
+
+/**
+ * The full localized sentence the card renders for a stored `code` at a given `origin`, derived at
+ * render time so a locale change updates a visible error without re-running the action.
+ *   - known code → that code's reviewed message;
+ *   - unknown/absent code → `statusFallback` for a status fetch, `generic` for callback/connect;
+ *   - disconnect context → the recovery outcome (`disconnectFailure`) + a known code's reason when one
+ *     exists, so the user sees the outcome and the available action even when the response is ambiguous.
+ */
+function localizedError(t: TFunction, code: string | undefined, origin: ErrorOrigin | 'disconnect'): string {
+  if (origin === 'disconnect') {
+    const base = t('integrations.personalM365.errors.disconnectFailure');
+    const reason = knownCodeReason(t, code);
+    return reason ? `${base} ${reason}` : base;
+  }
+  if (origin === 'status') {
+    return knownCodeReason(t, code) ?? t('integrations.personalM365.errors.statusFallback');
+  }
+  return knownCodeReason(t, code) ?? t('integrations.personalM365.errors.generic');
+}
+
+/**
+ * The persisted localized recovery alert inside the destructive disconnect dialog. Mounts only
+ * after a disconnect failure; moves focus to itself (originating-dialog error rule) so the user's
+ * next Tab/action starts on the error, and stays focusable (tabIndex={-1}) for AT navigation. Copy
+ * is derived by the parent each render, so a locale change re-renders it in the new language.
+ */
+function DisconnectErrorAlert({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+  return (
+    <p
+      ref={ref}
+      role="alert"
+      tabIndex={-1}
+      className="mt-3 rounded-md bg-destructive/10 px-2.5 py-2 text-sm leading-[1.45] text-destructive"
+    >
+      {text}
+    </p>
+  );
+}
+
 export const M365ConnectionCard: React.FC = () => {
   const entitled = useFeature('m365_integration');
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [phase, setPhase] = useState<Phase>('loading');
-  const [errorText, setErrorText] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<CardError | null>(null);
   const [connectedAt, setConnectedAt] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Disconnect-failure recovery, shown in the originating dialog. Only the stable code is retained;
+  // copy is derived during render so a locale change updates it in place (FR-M365LOC-003).
+  const [disconnectError, setDisconnectError] = useState<{ code?: string } | null>(null);
 
   // The in-flight guard for Connect. The Button's `loading` prop disables it on re-render, but a
   // second synchronous click can land before React flushes — this ref is the hard gate (AC-M365-016).
@@ -97,17 +208,18 @@ export const M365ConnectionCard: React.FC = () => {
     const m365ErrorCode = searchParams.get('m365_error_code');
     if (connected === 'true') {
       setPhase('connected');
-      setErrorText(null);
+      setErrorState(null);
       optimisticFromCallback.current = true;
     } else if (orgApproved === 'true') {
       setPhase('org-approved');
-      setErrorText(null);
+      setErrorState(null);
       optimisticFromCallback.current = true;
-    } else if (m365Error) {
+    } else if (m365Error || m365ErrorCode) {
       setPhase('error');
       // Always use the reviewed FE taxonomy. The callback's message is untrusted transport data
-      // and must never reach the DOM, even for legacy redirects without a stable error code.
-      setErrorText(describeM365Error(m365ErrorCode ?? undefined));
+      // and must never reach the DOM, even for legacy redirects without a stable error code. Keep
+      // only the stable code + origin; derive the localized text during render.
+      setErrorState({ code: m365ErrorCode?.trim() || undefined, origin: 'callback' });
       optimisticFromCallback.current = true;
     }
     if (connected === 'true' || orgApproved === 'true' || m365Error || m365ErrorCode) {
@@ -140,7 +252,7 @@ export const M365ConnectionCard: React.FC = () => {
         if (cancelled) return;
         // Honest unknown — a failed status fetch must NOT render a false "Connected" (AC-M365-023).
         setPhase('unknown');
-        setErrorText(err instanceof Error && err.message ? err.message : null);
+        setErrorState({ code: readErrorCode(err), origin: 'status' });
         setConnectedAt(null);
       }
     })();
@@ -163,7 +275,7 @@ export const M365ConnectionCard: React.FC = () => {
   const applyStatus = useCallback((status: ConnectionStatus) => {
     if (!status.connected) {
       setPhase('idle');
-      setErrorText(null);
+      setErrorState(null);
       setConnectedAt(null);
       return;
     }
@@ -171,22 +283,22 @@ export const M365ConnectionCard: React.FC = () => {
     switch (status.status) {
       case 'active':
         setPhase('connected');
-        setErrorText(null);
+        setErrorState(null);
         break;
       case 'stale':
         setPhase('reconnect');
-        setErrorText(null);
+        setErrorState(null);
         break;
       case 'revoked':
         setPhase('revoked');
-        setErrorText(null);
+        setErrorState(null);
         break;
       default:
         // connected:true with an unrecognized/null status — the row exists, so surface connected
         // (the most common status); the backend never produces this today (connected:true ⇒ a
         // non-null active/stale/revoked status), but we do not invent a worse state.
         setPhase('connected');
-        setErrorText(null);
+        setErrorState(null);
         break;
     }
   }, []);
@@ -195,7 +307,7 @@ export const M365ConnectionCard: React.FC = () => {
     if (initiatingRef.current) return; // in-flight guard — no double initiate (AC-M365-016)
     initiatingRef.current = true;
     setPhase('connecting');
-    setErrorText(null);
+    setErrorState(null);
     try {
       const { authorizeUrl } = await initiateM365Connect();
       // Top-level redirect — Microsoft's consent page must be user-visible (FR-M365-101).
@@ -204,24 +316,32 @@ export const M365ConnectionCard: React.FC = () => {
     } catch (err) {
       initiatingRef.current = false; // allow a retry after the failure surfaces
       setPhase('error');
-      setErrorText(err instanceof Error && err.message ? err.message : 'Microsoft 365 could not be connected.');
+      setErrorState({ code: readErrorCode(err), origin: 'connect' });
     }
   }, []);
 
   const onDisconnectConfirm = useCallback(async () => {
     setPhase('disconnecting');
+    // Clear any prior dialog error before retrying (AC-M365LOC-005).
+    setDisconnectError(null);
     try {
       await disconnectM365();
       setPhase('idle');
-      setErrorText(null);
+      setErrorState(null);
       setConnectedAt(null);
-    } catch (err) {
-      // Stay connected so the user can retry; surface the mapped human message.
-      setPhase('connected');
-      setErrorText(err instanceof Error && err.message ? err.message : 'Could not disconnect Microsoft 365.');
-    } finally {
       setConfirmOpen(false);
+    } catch (err) {
+      // Keep the last confirmed connected state + keep the dialog open (originating-dialog error
+      // rule). Surface the localized recovery outcome in the dialog and leave the confirm action
+      // available to retry after the request settles. Close only on success or explicit cancel.
+      setPhase('connected');
+      setDisconnectError({ code: readErrorCode(err) });
     }
+  }, []);
+
+  const onDialogCancel = useCallback(() => {
+    setConfirmOpen(false);
+    setDisconnectError(null);
   }, []);
 
   // Entitlement gate — the only FE gate (AC-M365SEP-016). Hooks above run unconditionally
@@ -250,7 +370,9 @@ export const M365ConnectionCard: React.FC = () => {
         >
           <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
           <span>
-            Connected{connectedAt ? ` since ${formatDate(connectedAt)}` : ''}. You can disconnect any time.
+            {connectedAt
+              ? t('integrations.personalM365.state.connectedSince', { date: formatDate(connectedAt) })
+              : t('integrations.personalM365.state.connected')}
           </span>
         </p>
       ) : phase === 'org-approved' ? (
@@ -260,9 +382,7 @@ export const M365ConnectionCard: React.FC = () => {
           role="status"
         >
           <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
-          <span>
-            Your organization has approved the PMO Portal app in Microsoft 365. Connect your individual Microsoft 365 account to continue.
-          </span>
+          <span>{t('integrations.personalM365.state.organizationApproved')}</span>
         </p>
       ) : phase === 'reconnect' ? (
         <p
@@ -270,7 +390,7 @@ export const M365ConnectionCard: React.FC = () => {
           data-testid="m365-reconnect-msg"
         >
           <Icon name="alert" className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>The Microsoft 365 connection expired. Please reconnect to continue.</span>
+          <span>{t('integrations.personalM365.state.reconnect')}</span>
         </p>
       ) : phase === 'revoked' ? (
         <p
@@ -278,7 +398,7 @@ export const M365ConnectionCard: React.FC = () => {
           data-testid="m365-revoked-msg"
         >
           <Icon name="alert" className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>The Microsoft 365 connection was revoked. Connect again to continue.</span>
+          <span>{t('integrations.personalM365.state.revoked')}</span>
         </p>
       ) : phase === 'unknown' ? (
         <p
@@ -288,27 +408,27 @@ export const M365ConnectionCard: React.FC = () => {
         >
           <Icon name="alert" className="size-3.5 shrink-0" aria-hidden="true" />
           <span>
-            {errorText ||
-              "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again."}
+            {errorState
+              ? localizedError(t, errorState.code, 'status')
+              : t('integrations.personalM365.state.unknown')}
           </span>
         </p>
       ) : phase === 'loading' ? (
         <p className="mt-2 text-sm text-muted-foreground" data-testid="m365-loading-msg">
-          Checking Microsoft 365 connection status…
+          {t('integrations.personalM365.state.loading')}
         </p>
-      ) : phase === 'error' && errorText ? (
+      ) : phase === 'error' && errorState ? (
         <p
           className="mt-2 flex items-center gap-1.5 text-sm text-destructive"
           data-testid="m365-error-msg"
           role="alert"
         >
           <Icon name="alert" className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>{errorText}</span>
+          <span>{localizedError(t, errorState.code, errorState.origin)}</span>
         </p>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">
-          Not connected. Link your Microsoft 365 tenant to bring OneDrive documents, Teams, and
-          calendar into your projects.
+          {t('integrations.personalM365.state.notConnected')}
         </p>
       )}
 
@@ -320,7 +440,9 @@ export const M365ConnectionCard: React.FC = () => {
             loading={phase === 'connecting'}
             data-testid="m365-connect-btn"
           >
-            {phase === 'reconnect' || phase === 'revoked' ? 'Reconnect Microsoft 365' : 'Connect Microsoft 365'}
+            {phase === 'reconnect' || phase === 'revoked'
+              ? t('integrations.personalM365.action.reconnect')
+              : t('integrations.personalM365.action.connect')}
           </Button>
         )}
         {showDisconnect && (
@@ -330,7 +452,7 @@ export const M365ConnectionCard: React.FC = () => {
             disabled={phase === 'disconnecting'}
             data-testid="m365-disconnect-btn"
           >
-            Disconnect
+            {t('integrations.personalM365.action.disconnect')}
           </Button>
         )}
       </div>
@@ -338,12 +460,20 @@ export const M365ConnectionCard: React.FC = () => {
       <ConfirmDialog
         open={confirmOpen}
         tone="destructive"
-        title="Disconnect Microsoft 365?"
-        description="This removes the connection and stored permissions. OneDrive documents, Teams, and calendar data will no longer sync until you reconnect. You can reconnect any time."
-        confirmLabel="Disconnect"
+        title={t('integrations.personalM365.confirm.title')}
+        description={
+          <>
+            {t('integrations.personalM365.confirm.description')}
+            {disconnectError && (
+              <DisconnectErrorAlert text={localizedError(t, disconnectError.code, 'disconnect')} />
+            )}
+          </>
+        }
+        confirmLabel={t('integrations.personalM365.confirm.confirm')}
+        cancelLabel={t('integrations.personalM365.confirm.cancel')}
         loading={phase === 'disconnecting'}
         onConfirm={onDisconnectConfirm}
-        onCancel={() => setConfirmOpen(false)}
+        onCancel={onDialogCancel}
       />
     </Card>
   );
