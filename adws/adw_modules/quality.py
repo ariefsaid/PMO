@@ -59,6 +59,12 @@ def _check_dir(run, name: str) -> Path:
     return path
 
 
+def _text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
+
+
 def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
     phase = run.phases[-1]
     output_dir = _check_dir(run, spec.name)
@@ -85,8 +91,9 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
         stderr = completed.stderr
     except subprocess.TimeoutExpired as error:
         returncode = 124
-        stdout = error.stdout or ""
-        stderr = (error.stderr or "") + f"\nTimed out after {spec.timeout_seconds}s."
+        # TimeoutExpired carries bytes even under text=True (CPython quirk).
+        stdout = _text(error.stdout)
+        stderr = _text(error.stderr) + f"\nTimed out after {spec.timeout_seconds}s."
     except OSError as error:
         # A missing binary lands here as exit 127 with the real message — no
         # pre-flight probe needed, and none wanted.
