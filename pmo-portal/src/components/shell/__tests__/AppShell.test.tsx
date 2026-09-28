@@ -1,8 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, useNavigate } from 'react-router';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router';
+import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import React from 'react';
-import { AppShell } from '../AppShell';
+import { AppShell, MAIN_SCROLL_CLASS } from '../AppShell';
+import { Breadcrumb } from '../Breadcrumb';
+import { breadcrumbForPath } from '../routeMatch';
+import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -30,6 +34,17 @@ describe('AppShell', () => {
     const main = screen.getByRole('main');
     expect(main).toHaveAttribute('id', 'main');
     expect(main).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('FR-LRC-005: main is the shared scroll container the list-return seam reads', () => {
+    wrap(
+      <AppShell rail={null} header={null}>
+        <div>x</div>
+      </AppShell>
+    );
+    // index.css styles this class, and useListReturn captures/restores its scrollTop.
+    expect(MAIN_SCROLL_CLASS).toBe('main-scroll');
+    expect(screen.getByRole('main')).toHaveClass(MAIN_SCROLL_CLASS);
   });
 
   // AC-ADMIA-004/005 — focus-on-route-change is owned by AppShell (it renders <main> and moves
@@ -60,6 +75,37 @@ describe('AppShell', () => {
     // A route change moves focus to the main landmark.
     expect(main).toHaveFocus();
     tree.unmount();
+  });
+
+  it('resets the main scroll container when the pathname changes', () => {
+    const NavProbe = () => {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate('/second-route')}>
+          go
+        </button>
+      );
+    };
+    render(
+      <MemoryRouter>
+        <AppShell rail={null} header={null}>
+          <div>x</div>
+        </AppShell>
+        <NavProbe />
+      </MemoryRouter>,
+    );
+    const main = screen.getByRole('main');
+    main.scrollTop = 240;
+    const scrollTo = vi.fn((options?: ScrollToOptions) => {
+      const { top } = options ?? {};
+      main.scrollTop = top ?? 0;
+    });
+    main.scrollTo = scrollTo as unknown as typeof main.scrollTo;
+
+    fireEvent.click(screen.getByRole('button', { name: 'go' }));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(main.scrollTop).toBe(0);
   });
 
   it('renders a skip-to-main link', () => {
@@ -286,5 +332,112 @@ describe('AppShell', () => {
     expect(grid!.style.gridTemplateColumns).toBe(
       'var(--rail-w) minmax(0, 1fr) 544px'
     );
+  });
+});
+
+// ── Desktop parent-breadcrumb return seam (FR-LRC-004/005/006, AC-LRC-010) ──────────
+// Proves the rendered shell breadcrumb carries the shared return navigation: a valid context
+// navigates to the captured list URL with one-shot scroll-restore state and no pmoListReturn; a
+// tampered context falls back to the owning index with neither seam key.
+describe('AppShell — parent breadcrumb record return', () => {
+  function LocationProbe() {
+    const location = useLocation();
+    return (
+      <output
+        data-testid="loc"
+        data-path={`${location.pathname}${location.search}`}
+        data-state={JSON.stringify(location.state ?? null)}
+      />
+    );
+  }
+
+  function DetailBreadcrumbShell({ pathname, state }: { pathname: string; state: unknown }) {
+    // The real adapter App.tsx wires into the breadcrumb (not a test-local rebuild).
+    const breadcrumbNavigate = useReturnNavigate();
+    const contextual = contextualListReturnNavigation(pathname, state);
+    const parts = breadcrumbForPath(
+      pathname,
+      'Harbor Co',
+      breadcrumbNavigate,
+      true,
+      undefined,
+      contextual,
+    );
+    return (
+      <AppShell
+        rail={null}
+        header={
+          <Breadcrumb
+            parts={parts}
+          />
+        }
+      >
+        <div>detail</div>
+      </AppShell>
+    );
+  }
+
+  function renderDetailBreadcrumb(pathname: string, state: unknown) {
+    return render(
+      <MemoryRouter initialEntries={[{ pathname, state }]}>
+        <DetailBreadcrumbShell pathname={pathname} state={state} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+  }
+
+  it('FR-LRC-005: a valid return context navigates with the one-shot restore state and no pmoListReturn', () => {
+    renderDetailBreadcrumb('/companies/company-1', {
+      pmoListReturn: {
+        list: 'companies',
+        path: '/companies?type=Client&q=harbor',
+        scrollTop: 240,
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Companies' }));
+
+    const loc = screen.getByTestId('loc');
+    expect(loc).toHaveAttribute('data-path', '/companies?type=Client&q=harbor');
+    const state = JSON.parse(loc.getAttribute('data-state') ?? '{}');
+    expect(state.pmoListScrollRestore).toEqual({
+      list: 'companies',
+      path: '/companies?type=Client&q=harbor',
+      scrollTop: 240,
+    });
+    expect(state.pmoListReturn).toBeUndefined();
+  });
+
+  it('AC-LRC-010: a tampered return path falls back to the owning index with neither seam key', () => {
+    renderDetailBreadcrumb('/companies/company-1', {
+      pmoListReturn: { list: 'companies', path: '/contacts?company=evil' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Companies' }));
+
+    const loc = screen.getByTestId('loc');
+    expect(loc).toHaveAttribute('data-path', '/companies');
+    const state = JSON.parse(loc.getAttribute('data-state') ?? '{}');
+    expect(state.pmoListScrollRestore).toBeUndefined();
+    expect(state.pmoListReturn).toBeUndefined();
+  });
+
+  it('FR-LRC-006: a project opened from Sales keeps its Projects crumb pointing at /projects', () => {
+    renderDetailBreadcrumb('/projects/project-1', {
+      pmoListReturn: {
+        list: 'sales',
+        path: '/sales?scope=Needs+attention&status=Leads&view=table',
+        scrollTop: 180,
+      },
+    });
+
+    expect(screen.queryByRole('button', { name: 'Sales Pipeline' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+
+    const loc = screen.getByTestId('loc');
+    expect(loc).toHaveAttribute('data-path', '/projects');
+    const state = JSON.parse(loc.getAttribute('data-state') ?? '{}');
+    expect(state.pmoListScrollRestore).toBeUndefined();
+    expect(state.pmoListReturn).toBeUndefined();
   });
 });

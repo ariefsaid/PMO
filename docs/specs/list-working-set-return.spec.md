@@ -20,8 +20,8 @@ When I narrow a work list and open a record, I want to return to the same workin
 | List | Query keys to round-trip | Existing default / constraint |
 |---|---|---|
 | Projects | `filter`, `client`, `pm`, `q`, `view` | `filter` keeps the Engineer's My Projects default and dashboard drill-link tokens; `view` accepts the four existing body layouts. |
-| Sales Pipeline | `scope`, `status`, `q`, `view` | `status` remains the funnel/dashboard stage token; an active open stage and Lost scope cannot coexist, so stage selection uses Open scope. The record destination remains `/projects/:id`. |
-| Procurement | `status`, `q`, `view` | `status` keeps the existing finance dashboard drill-link token; `view` accepts table or board. |
+| Sales Pipeline | `scope`, `status`, `q`, `view` | `status` remains the funnel/dashboard stage token. Only a **Lost** scope conflicts with an open funnel `status`, so `scope=Lost` forces Open scope whenever an open stage is selected; `Needs attention` and an open stage are a valid combination and round-trip. The record destination remains `/projects/:id`. |
+| Procurement | `status`, `q`, `view` | `status` keeps the existing finance dashboard drill-link token; `view` accepts table or board. `group:Ordered` represents the broad Ordered segment (whose group result set differs from the exact `Ordered` lifecycle status); group Vendor Invoiced and Paid serialize as plain `status=<value>` because their group and exact result sets are identical. |
 | Companies | `type`, `q` | The current `ViewToggle` chooses the company type, so it is serialized as a filter, not a body view. |
 | Contacts | `company`, `q` | `company` is the existing company selector's stable ID. |
 | Meetings | `project`, `q` | `project` is the existing project selector's stable ID; search remains deferred before the existing server query. |
