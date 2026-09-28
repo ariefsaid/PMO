@@ -353,6 +353,27 @@ describe('Funnel', () => {
     expect(barTrack.className).not.toContain('mt-auto');
     expect(barTrack.className).toContain('bg-secondary');
   });
+
+  it('AC-SFA-007: an interactive stage draws its focus ring inward so the scroll viewport never clips it', () => {
+    // Discover finding I-1 (2026-09-28): the global 2px-outward focus-visible ring on a stage
+    // button was sliced by the funnel's own overflow-x-auto (which clips overflow-y too). Pulls
+    // the ring inward with a negative outline-offset instead of widening/removing the clip.
+    // jsdom does no real layout/outline painting, so this locks the markup contract; the
+    // rendered ring-vs-viewport geometry is proven in
+    // e2e/AC-SFA-001-sales-funnel-amount-geometry.spec.ts (AC-SFA-007).
+    render(<Funnel onSelect={() => {}} stages={[{ name: 'Leads', value: '$1M' }]} />);
+    const stage = screen.getByRole('button');
+    expect(stage.className).toContain('focus-visible:outline-offset-[-2px]');
+  });
+
+  it('a non-interactive Funnel has no focusable stage to carry the inward focus-ring fix', () => {
+    // The negative-offset class is scoped to interactive stages only — a non-interactive
+    // dashboard Funnel has no `role="button"` stage, so nothing there could be clipped by the
+    // scroll area in the first place (the wrapper carries its own outward ring, unaffected).
+    render(<Funnel stages={[{ name: 'Leads', value: '$1M' }]} />);
+    const stage = screen.getByText('Leads').closest('[data-funnel-stage]')!;
+    expect(stage.className).not.toContain('focus-visible:outline-offset-[-2px]');
+  });
 });
 
 describe('GateNotice', () => {

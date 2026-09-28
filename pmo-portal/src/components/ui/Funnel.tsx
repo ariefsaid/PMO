@@ -91,6 +91,14 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
               className={cn(
                 'relative flex flex-col border border-r-0 border-border px-3.5 pb-3 pt-[13px] first:rounded-l-lg last:rounded-r-lg last:border-r',
                 interactive && 'cursor-pointer',
+                // Discover fix I-1 (2026-09-28): the global `*:focus-visible` ring draws OUTWARD
+                // (2px width, 2px offset) from the stage, but the scroll viewport's own
+                // `overflow-x-auto` clips vertical overflow too (per the CSS overflow spec, one
+                // non-visible axis forces the other to `auto`), slicing the ring's top/bottom
+                // edge off. A negative outline-offset pulls the ring back inside the stage's own
+                // border box instead — same 2px width/color token, just drawn inward — so it
+                // never crosses into the ancestor's clip region on any side.
+                interactive && 'focus-visible:outline-offset-[-2px]',
                 selected && 'bg-primary/[0.06] shadow-[inset_0_-2px_0_hsl(var(--primary))]'
               )}
             >

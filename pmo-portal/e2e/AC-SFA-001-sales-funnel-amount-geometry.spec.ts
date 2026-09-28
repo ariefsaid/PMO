@@ -19,7 +19,11 @@
  * currency formatter (which has its own owning tests elsewhere).
  *
  * This is the browser geometry proof for FR-SFA-001 / AC-SFA-001; the component-level
- * contracts for the shared Funnel live in the RTL suite (AC-SFA-004).
+ * contracts for the shared Funnel live in the RTL suite (AC-SFA-004). The file also owns three
+ * further Discover-graduated geometry ACs at this same layer: AC-SFA-005 (keyboard focus scrolls
+ * a partly off-screen stage into the funnel viewport), AC-SFA-006 (progress bars keep an 8px gap
+ * below the weighted line with tops aligned), and AC-SFA-007 (a focused stage's visible focus
+ * ring lies inside the funnel viewport, never clipped by the scroll area's own overflow).
  */
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
@@ -99,7 +103,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     expect(pageScrollWidth).toBeLessThanOrEqual(392);
   });
 
-  test('AC-SFA-001: keyboard focus scrolls a partly off-screen stage into the funnel viewport at 390px', async ({
+  test('AC-SFA-005: keyboard focus scrolls a partly off-screen stage into the funnel viewport at 390px', async ({
     page,
   }) => {
     // Discover finding (2026-09-28): Tab to a stage past the visible edge of the 390px funnel
@@ -135,7 +139,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     ).toBeLessThanOrEqual(boxes.scrollArea.x + boxes.scrollArea.width + 1);
   });
 
-  test('AC-SFA-001: every stage progress bar keeps an 8px gap below its weighted line and all bar tops align', async ({
+  test('AC-SFA-006: every stage progress bar keeps an 8px gap below its weighted line and all bar tops align', async ({
     page,
   }) => {
     // Discover finding, round 3 (2026-09-28): `mt-auto` alone collapsed the bar's gap to 0px
@@ -180,6 +184,75 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
         Math.abs(top - firstTop),
         `stage ${i} bar top (${top.toFixed(1)}) is not aligned with stage 0's bar top (${firstTop.toFixed(1)})`,
       ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test('AC-SFA-007: a focused stage\'s visible focus ring lies inside the funnel viewport at 390px', async ({
+    page,
+  }) => {
+    // Discover finding I-1 (2026-09-28): the global `*:focus-visible` ring (2px outline, 2px
+    // offset) on a stage button drew OUTWARD from the stage, and the funnel's own
+    // `overflow-x-auto` scroll area clips vertical overflow too — per the CSS overflow spec, a
+    // non-visible overflow-x forces overflow-y to compute to `auto` as well — so the ring's
+    // top/bottom edge was sliced off and read as belonging to the neighbouring stage. Measures
+    // the ring's actual box from computed style (outline-width + outline-offset, whatever sign
+    // the fix uses) rather than hard-coding an offset value, so this stays correct if the exact
+    // fix implementation ever changes.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page, 'admin@acme.test');
+    await page.goto('/sales');
+    await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+
+    const stages = page.locator('[data-funnel-stage]');
+    const middleIndex = 2;
+
+    for (const index of [0, middleIndex]) {
+      // Native `.focus()` dispatches the same focus event a real Tab keypress produces (the
+      // same idiom used for AC-SFA-005 above) and reliably matches `:focus-visible` in Chromium
+      // since no prior pointer interaction targeted this element.
+      await stages.nth(index).focus();
+
+      const result = await page.evaluate((i) => {
+        const scrollArea = document.querySelector('[data-testid="funnel-scroll-area"]')!;
+        const stageEl = document.querySelectorAll('[data-funnel-stage]')[i] as HTMLElement;
+        const cs = getComputedStyle(stageEl);
+        const outlineWidth = parseFloat(cs.outlineWidth) || 0;
+        const outlineOffset = parseFloat(cs.outlineOffset) || 0;
+        const grow = outlineOffset + outlineWidth;
+        const stageRect = stageEl.getBoundingClientRect();
+        return {
+          outlineStyle: cs.outlineStyle,
+          outlineWidth,
+          ring: {
+            top: stageRect.top - grow,
+            bottom: stageRect.bottom + grow,
+            left: stageRect.left - grow,
+            right: stageRect.right + grow,
+          },
+          scrollRect: scrollArea.getBoundingClientRect().toJSON() as unknown as DOMRect,
+        };
+      }, index);
+
+      expect(result.outlineStyle, `stage ${index} is not showing a visible focus outline`).not.toBe('none');
+      expect(result.outlineWidth, `stage ${index} has a 0px outline width while focused`).toBeGreaterThan(0);
+
+      const { ring, scrollRect } = result;
+      expect(
+        ring.top,
+        `stage ${index} focus ring top (${ring.top.toFixed(1)}) is clipped above the funnel viewport (${scrollRect.top.toFixed(1)})`,
+      ).toBeGreaterThanOrEqual(scrollRect.top - 1);
+      expect(
+        ring.bottom,
+        `stage ${index} focus ring bottom (${ring.bottom.toFixed(1)}) is clipped below the funnel viewport (${(scrollRect.top + scrollRect.height).toFixed(1)})`,
+      ).toBeLessThanOrEqual(scrollRect.top + scrollRect.height + 1);
+      expect(
+        ring.left,
+        `stage ${index} focus ring left (${ring.left.toFixed(1)}) is clipped left of the funnel viewport (${scrollRect.left.toFixed(1)})`,
+      ).toBeGreaterThanOrEqual(scrollRect.left - 1);
+      expect(
+        ring.right,
+        `stage ${index} focus ring right (${ring.right.toFixed(1)}) is clipped right of the funnel viewport (${(scrollRect.left + scrollRect.width).toFixed(1)})`,
+      ).toBeLessThanOrEqual(scrollRect.left + scrollRect.width + 1);
     }
   });
 });
