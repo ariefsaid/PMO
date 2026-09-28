@@ -87,8 +87,9 @@ describe('ProfileSettings (profile language settings slice)', () => {
     const { unmount } = renderPage();
     const select = languageSelect();
     const options = within(select).getAllByRole('option');
+    // AC-PLC-001: the inherit option names the inherited org value (no org default → English).
     expect(options.map((o) => o.textContent)).toEqual([
-      'Organization default',
+      'Organization default — English',
       'Bahasa Indonesia',
       'English',
     ]);
@@ -219,6 +220,40 @@ describe('ProfileSettings personal locale preferences', () => {
 
     expect(await screen.findByRole('option', { name: /organization default — Asia\/Jakarta/i })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /organization default — UTC/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PLC-001: names the inherited organization language and number format on Organization default, even with explicit overrides selected', () => {
+    // The user overrides both; the organization says English + English grouping.
+    currentUserState = { ...currentUserState, locale: 'id', number_locale: 'id-ID', timezone: 'UTC' };
+    resolvedLocaleState.current = { locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' };
+    orgDefaultsState.current = { defaultLocale: 'en', defaultNumberLocale: 'en-US', defaultTimezone: 'Asia/Jakarta' };
+
+    renderPage();
+
+    expect(languageSelect()).toHaveValue('id');
+    expect(within(languageSelect()).getByRole('option', { name: 'Organization default — English' })).toHaveValue('inherit');
+    const numberSelect = screen.getByLabelText(/number format/i) as HTMLSelectElement;
+    expect(numberSelect).toHaveValue('id-ID');
+    expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1,234,567.89' })).toHaveValue('inherit');
+  });
+
+  it('AC-PLC-001: an inherited number format with no organization number default follows the language it would derive from', () => {
+    // No org number default: the inherited convention derives from the language (resolveLocale).
+    currentUserState = { ...currentUserState, locale: null, number_locale: null, timezone: null };
+    resolvedLocaleState.current = { locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' };
+    orgDefaultsState.current = { defaultLocale: 'id', defaultNumberLocale: null, defaultTimezone: 'Asia/Jakarta' };
+
+    renderPage();
+
+    expect(within(languageSelect()).getByRole('option', { name: 'Organization default — Bahasa Indonesia' })).toBeInTheDocument();
+    const numberSelect = screen.getByLabelText(/number format/i) as HTMLSelectElement;
+    expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1.234.567,89' })).toBeInTheDocument();
+    // The effective line shows the convention's example, never a bare language tag like "id".
+    expect(screen.getByText('Effective number format: 1.234.567,89')).toBeInTheDocument();
+
+    // Choosing English as the language changes what "Organization default" number format would give.
+    fireEvent.change(languageSelect(), { target: { value: 'en' } });
+    expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1,234,567.89' })).toBeInTheDocument();
   });
 
   it('AC-PLC-001: keeps explicit choices explicit when they match organization defaults', () => {

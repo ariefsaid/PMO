@@ -2115,6 +2115,7 @@
       "effective": "Bahasa aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
+        "inheritWithEffective": "Default organisasi — {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
       }
@@ -2125,6 +2126,7 @@
       "effective": "Format angka aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
+        "inheritWithEffective": "Default organisasi — {{value}}",
         "id": "Indonesia (1.234.567,89)",
         "en": "Inggris (1,234,567.89)",
         "idLabel": "Indonesia: ",

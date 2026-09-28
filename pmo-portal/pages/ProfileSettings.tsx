@@ -6,6 +6,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolvedLocale';
 import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
+import { formatMoneyInputValue } from '@/src/lib/format';
 import { Button, Combobox, SelectField, type ComboboxOption } from '@/src/components/ui';
 
 type LocaleChoice = 'inherit' | 'id' | 'en';
@@ -27,6 +28,13 @@ function toTimezoneChoice(timezone: string | null | undefined): TimezoneChoice {
   return timezone ?? 'inherit';
 }
 
+const NUMBER_EXAMPLE = 1234567.89;
+
+/** The number convention shown as its own example (`1.234.567,89`), never as a bare tag like `id`. */
+function numberExample(numberLocale: string): string {
+  return formatMoneyInputValue(NUMBER_EXAMPLE, numberLocale);
+}
+
 /**
  * Self-service display preferences for the signed-in user. NULL choices inherit organization
  * defaults; explicit choices remain explicit even when they currently match those defaults. The
@@ -37,12 +45,7 @@ export const ProfileSettings: React.FC = () => {
   const { t } = useTranslation();
   const { currentUser, refreshCurrentUser } = useAuth();
   const resolvedLocale = useResolvedLocale();
-  // What "Organization default" would give this user: the SAME resolver with the timezone
-  // preference cleared. Not `resolvedLocale.timezone`, which is the user's own override when set.
-  const inheritedTimezone = resolveLocale(
-    { locale: null, numberLocale: null, timezone: null },
-    useOrgLocaleDefaults(),
-  ).timezone;
+  const orgDefaults = useOrgLocaleDefaults();
   const [languageChoice, setLanguageChoice] = useState<LocaleChoice>(toLocaleChoice(currentUser?.locale));
   const [numberChoice, setNumberChoice] = useState<NumberLocaleChoice>(
     toNumberLocaleChoice(currentUser?.number_locale),
@@ -54,6 +57,17 @@ export const ProfileSettings: React.FC = () => {
   useEffect(() => setLanguageChoice(toLocaleChoice(currentUser?.locale)), [currentUser?.locale]);
   useEffect(() => setNumberChoice(toNumberLocaleChoice(currentUser?.number_locale)), [currentUser?.number_locale]);
   useEffect(() => setTimezoneChoice(toTimezoneChoice(currentUser?.timezone)), [currentUser?.timezone]);
+
+  // What each "Organization default" would give this user: the SAME resolver with that preference
+  // cleared — never `resolvedLocale`, which carries the user's own override when one is set. The
+  // number default derives from the language when the org sets none, so it follows the pending
+  // language choice (what saving now would actually produce).
+  const inherited = resolveLocale({ locale: null, numberLocale: null, timezone: null }, orgDefaults);
+  const inheritedTimezone = inherited.timezone;
+  const inheritedNumberLocale = resolveLocale(
+    { locale: languageChoice === 'inherit' ? null : languageChoice, numberLocale: null, timezone: null },
+    orgDefaults,
+  ).numberLocale;
 
   const timezoneOptions = useMemo<ComboboxOption[]>(() => {
     const inheritLabel = t('profileSettings.timezone.options.inherit', 'Organization default');
@@ -86,24 +100,39 @@ export const ProfileSettings: React.FC = () => {
   }
 
   const isSaving = status === 'saving';
+  const languageName = (locale: string) => (locale === 'id'
+    ? t('profileSettings.language.options.id', 'Bahasa Indonesia')
+    : locale === 'en'
+      ? t('profileSettings.language.options.en', 'English')
+      : locale);
+  const languageInheritLabel = t('profileSettings.language.options.inherit', 'Organization default');
+  const inheritedLanguageName = languageName(inherited.locale);
+  const numberInheritLabel = t('profileSettings.number.options.inherit', 'Organization default');
+  const inheritedNumberFormat = numberExample(inheritedNumberLocale);
   const languageOptions = [
-    { value: 'inherit', label: t('profileSettings.language.options.inherit', 'Organization default') },
+    {
+      value: 'inherit',
+      label: t('profileSettings.language.options.inheritWithEffective', {
+        defaultValue: `${languageInheritLabel} — ${inheritedLanguageName}`,
+        value: inheritedLanguageName,
+      }),
+    },
     { value: 'id', label: t('profileSettings.language.options.id', 'Bahasa Indonesia') },
     { value: 'en', label: t('profileSettings.language.options.en', 'English') },
   ];
   const numberOptions = [
-    { value: 'inherit', label: t('profileSettings.number.options.inherit', 'Organization default') },
+    {
+      value: 'inherit',
+      label: t('profileSettings.number.options.inheritWithEffective', {
+        defaultValue: `${numberInheritLabel} — ${inheritedNumberFormat}`,
+        value: inheritedNumberFormat,
+      }),
+    },
     { value: 'id-ID', label: t('profileSettings.number.options.id', 'Indonesian (1.234.567,89)') },
     { value: 'en-US', label: t('profileSettings.number.options.en', 'English (1,234,567.89)') },
   ];
-  const effectiveLanguage = resolvedLocale.locale === 'id'
-    ? t('profileSettings.language.options.id', 'Bahasa Indonesia')
-    : t('profileSettings.language.options.en', 'English');
-  const effectiveNumberFormat = resolvedLocale.numberLocale === 'id-ID'
-    ? '1.234.567,89'
-    : resolvedLocale.numberLocale === 'en-US'
-      ? '1,234,567.89'
-      : resolvedLocale.numberLocale;
+  const effectiveLanguage = languageName(resolvedLocale.locale);
+  const effectiveNumberFormat = numberExample(resolvedLocale.numberLocale);
 
   const resetStatus = () => {
     setStatus('idle');

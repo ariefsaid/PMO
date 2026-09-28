@@ -2115,6 +2115,7 @@
       "effective": "Effective language: {{value}}",
       "options": {
         "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
       }
@@ -2125,6 +2126,7 @@
       "effective": "Effective number format: {{value}}",
       "options": {
         "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{value}}",
         "id": "Indonesian (1.234.567,89)",
         "en": "English (1,234,567.89)",
         "idLabel": "Indonesian: ",
