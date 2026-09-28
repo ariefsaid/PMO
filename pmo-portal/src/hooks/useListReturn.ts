@@ -1,21 +1,21 @@
 import { useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
+  allowedForOwner,
   createListReturnContext,
   isCanonicalRecordPath,
-  listReturnPath,
-  readListReturnContext,
+  listIndexPath,
+  listReturnNavigation,
+  safeLocalPath,
   withListReturnContext,
-  withListScrollRestore,
   LIST_SCROLL_RESTORE_STATE_KEY,
-  type ListReturnContextOptions,
 } from '@/src/lib/listReturnContext';
 import type { ListName } from '@/src/lib/listWorkingSet';
 
 export const LIST_ENTRY_SCROLL_STATE_KEY = 'pmoListEntryScroll';
 const LIST_SCROLL_CONSUMED_STATE_KEY = 'pmoListScrollConsumedFor';
 
-export interface UseListReturnOptions extends ListReturnContextOptions {
+export interface UseListReturnOptions {
   /** List page currently mounted; also the default record owner for an open action. */
   list: ListName;
   /** Whether list content has settled and rendered, including an empty state. */
@@ -25,8 +25,8 @@ export interface UseListReturnOptions extends ListReturnContextOptions {
 export interface UseListReturnResult {
   /** Capture the active list entry and navigate to a canonical record route. */
   openRecord: (recordPath: string, owner?: ListName) => boolean;
-  /** Navigate to validated list context or the record owner's index. */
-  returnToList: (owner?: ListName, options?: ListReturnContextOptions) => string;
+  /** Navigate to validated list context or the record owner's index (pushes a new entry). */
+  returnToList: (owner?: ListName) => string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,33 +39,17 @@ function scrollElement(): HTMLElement | null {
     : document.querySelector<HTMLElement>('.main-scroll');
 }
 
+/**
+ * Accept only a canonical `/module/:id` target (optionally carrying a query). Tab / deep paths such
+ * as `/procurement/:id/approvals` are intentionally rejected — opening a record always lands on its
+ * canonical detail route, whose owning-list context this seam can faithfully restore.
+ */
 function safeRecordTarget(owner: ListName, target: string): string | undefined {
-  if (
-    !target.startsWith('/') ||
-    target.startsWith('//') ||
-    target.includes('#') ||
-    target.includes('\\') ||
-    /\p{Cc}/u.test(target)
-  ) {
-    return undefined;
-  }
-  try {
-    const url = new URL(target, window.location.origin);
-    if (
-      url.origin !== window.location.origin ||
-      url.hash !== '' ||
-      !isCanonicalRecordPath(url.pathname, owner)
-    ) {
-      return undefined;
-    }
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return undefined;
-  }
-}
-
-function listEntryPathname(list: ListName): string {
-  return listReturnPath(undefined, list);
+  const safe = safeLocalPath(target);
+  if (!safe) return undefined;
+  const url = new URL(safe, window.location.origin);
+  if (!isCanonicalRecordPath(url.pathname, owner)) return undefined;
+  return `${url.pathname}${url.search}`;
 }
 
 function saveEntryScroll(locationKey: string, path: string, scrollTop: number): void {
@@ -123,22 +107,27 @@ function markScrollConsumed(locationKey: string): void {
 
 /**
  * Captures list context when opening a record and restores it once after a return list is ready.
- * Native Back uses state on the source browser-history entry; explicit return uses route state.
+ * Native Back uses state on the source browser-history entry; explicit return pushes a clean entry
+ * carrying the optional one-shot scroll restore.
  */
-export function useListReturn({
-  list,
-  ready = false,
-  allowSalesForProject = false,
-}: UseListReturnOptions): UseListReturnResult {
+export function useListReturn({ list, ready = false }: UseListReturnOptions): UseListReturnResult {
   const location = useLocation();
   const navigate = useNavigate();
   const path = `${location.pathname}${location.search}`;
 
   const openRecord = useCallback(
     (recordPath: string, owner: ListName = list): boolean => {
-      const allowedSource = owner === list || (owner === 'projects' && list === 'sales');
-      const destination = allowedSource ? safeRecordTarget(owner, recordPath) : undefined;
-      if (!destination) return false;
+      if (!allowedForOwner(list, owner)) return false;
+      const destination = safeRecordTarget(owner, recordPath);
+      if (!destination) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[list-return] openRecord rejected target "${recordPath}" for owner "${owner}": ` +
+              'only canonical /module/:id paths are accepted (not tab/deep paths).',
+          );
+        }
+        return false;
+      }
 
       const main = scrollElement();
       const offset =
@@ -153,27 +142,18 @@ export function useListReturn({
   );
 
   const returnToList = useCallback(
-    (owner: ListName = list, options: ListReturnContextOptions = {}): string => {
-      const contextOptions = {
-        allowSalesForProject: options.allowSalesForProject ?? allowSalesForProject,
-      };
-      const context = readListReturnContext(location.state, owner, contextOptions);
-      const destination = context?.path ?? listReturnPath(undefined, owner);
-      const state = context
-        ? withListScrollRestore(location.state, context)
-        : (() => {
-            const next = isRecord(location.state) ? { ...location.state } : {};
-            delete next[LIST_SCROLL_RESTORE_STATE_KEY];
-            return next;
-          })();
-      navigate(destination, { replace: true, state });
+    (owner: ListName = list): string => {
+      const { path: destination, state } = listReturnNavigation(location.state, owner);
+      // Push (the web norm) rather than replace, so a following browser Back reaches the detail
+      // entry instead of appearing to do nothing; the clean state restores the list position.
+      navigate(destination, { state });
       return destination;
     },
-    [allowSalesForProject, list, location.state, navigate],
+    [list, location.state, navigate],
   );
 
   useEffect(() => {
-    if (!ready || location.pathname !== listEntryPathname(list)) return;
+    if (!ready || location.pathname !== listIndexPath(list)) return;
     const historyState = window.history.state;
     if (isRecord(historyState) && historyState[LIST_SCROLL_CONSUMED_STATE_KEY] === location.key) {
       return;

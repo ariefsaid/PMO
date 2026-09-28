@@ -181,10 +181,12 @@ describe('breadcrumbForPath / recordLabelForPath — company + contact detail (C
 });
 
 describe('breadcrumbForPath — contextual list return', () => {
-  it('keeps canonical Projects ancestry while navigating to the validated list URL', () => {
+  it('AC-LRC-005: keeps canonical Projects ancestry while navigating to the validated list URL with restore state', () => {
     let destination = '';
-    const navigate = (path: string) => {
+    let carriedState: unknown;
+    const navigate = (path: string, state?: unknown) => {
       destination = path;
+      carriedState = state;
     };
     const crumbs = breadcrumbForPath(
       '/projects/project-1',
@@ -192,13 +194,39 @@ describe('breadcrumbForPath — contextual list return', () => {
       navigate,
       true,
       undefined,
-      '/projects?filter=Ongoing&q=harbor',
+      {
+        path: '/projects?filter=Ongoing&q=harbor',
+        state: {
+          pmoListScrollRestore: {
+            list: 'projects',
+            path: '/projects?filter=Ongoing&q=harbor',
+            scrollTop: 88,
+          },
+        },
+      },
     );
 
     expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
     expect(destination).toBe('/projects?filter=Ongoing&q=harbor');
+    expect(carriedState).toEqual({
+      pmoListScrollRestore: {
+        list: 'projects',
+        path: '/projects?filter=Ongoing&q=harbor',
+        scrollTop: 88,
+      },
+    });
     expect(crumbs[1]).toEqual({ label: 'Example project' });
+  });
+
+  it('AC-LRC-010: a missing return descriptor falls back to the bare module path', () => {
+    let destination = '';
+    const navigate = (path: string) => {
+      destination = path;
+    };
+    const crumbs = breadcrumbForPath('/projects/project-1', 'Example project', navigate, true);
+    crumbs[0].onClick!();
+    expect(destination).toBe('/projects');
   });
 });
 

@@ -50,7 +50,7 @@ import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
-import { contextualListReturnPath } from '@/src/lib/listReturnContext';
+import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -252,9 +252,16 @@ const ShellChrome: React.FC = () => {
     () => [...(pipeline?.projects ?? []), ...(lostDeals ?? [])],
     [pipeline, lostDeals],
   );
-  const contextualParentPath = useMemo(() => {
-    return contextualListReturnPath(pathname, location.state);
+  const contextualParent = useMemo(() => {
+    return contextualListReturnNavigation(pathname, location.state);
   }, [location.state, pathname]);
+
+  // Desktop breadcrumb navigation pushes the same clean return entry the mobile BackBar uses:
+  // the validated list path plus its one-shot scroll-restore state (no pmoListReturn on the list).
+  const breadcrumbNavigate = useCallback(
+    (path: string, state?: unknown) => navigate(path, { state }),
+    [navigate],
+  );
 
   // The shell already has enough cached record data to render the detail breadcrumb before a lazy
   // page chunk mounts. Publish that same identity before paint so an immediate Assistant turn made
@@ -349,16 +356,16 @@ const ShellChrome: React.FC = () => {
     return breadcrumbForPath(
       pathname,
       recordLabel,
-      navigate,
+      breadcrumbNavigate,
       recordResolved,
       recordStatusGroup,
-      contextualParentPath,
+      contextualParent,
     );
   }, [
     pathname,
-    contextualParentPath,
+    contextualParent,
     t,
-    navigate,
+    breadcrumbNavigate,
     projects,
     procurements,
     incidents,

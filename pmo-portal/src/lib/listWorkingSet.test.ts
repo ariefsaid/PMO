@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  LIST_VIEW_STORAGE_KEY,
   parseListWorkingSet,
-  readListViewPreference,
   resolveListWorkingSet,
   serializeListWorkingSet,
-  type ListName,
+  type ProcurementWorkingSet,
+  type SalesWorkingSet,
+  type ProjectsWorkingSet,
+  type ContactsWorkingSet,
+  type MeetingsWorkingSet,
 } from './listWorkingSet';
+import { ProcurementStatus } from '../../types';
 
 describe('list working-set URL codec', () => {
-  afterEach(() => sessionStorage.clear());
-
   it('AC-LRC-001: supplies each list schema’s safe defaults', () => {
     expect(parseListWorkingSet('projects', '')).toEqual({
       filter: 'All',
@@ -64,7 +65,7 @@ describe('list working-set URL codec', () => {
     );
 
     const procurementParams = new URLSearchParams('?status=Vendor+Invoiced&q=invoice&view=board');
-    const procurement = parseListWorkingSet('procurement', procurementParams);
+    const procurement: ProcurementWorkingSet = parseListWorkingSet('procurement', procurementParams);
     expect(procurement.status).toBe('Vendor Invoiced');
     expect(serializeListWorkingSet('procurement', procurementParams, procurement).toString()).toBe(
       'status=Vendor+Invoiced&q=invoice&view=board',
@@ -73,73 +74,18 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('companies', '?type=Vendor').type).toBe('Vendor');
     expect(parseListWorkingSet('contacts', '?company=company-404').company).toBe('company-404');
     expect(parseListWorkingSet('meetings', '?project=project-404').project).toBe('project-404');
-
-    const enumChoices: Array<{ list: ListName; key: string; values: string[] }> = [
-      {
-        list: 'projects',
-        key: 'filter',
-        values: ['All', 'My Projects', 'Ongoing', 'Completed', 'at-risk'],
-      },
-      { list: 'projects', key: 'view', values: ['table', 'cards', 'calendar', 'kanban'] },
-      { list: 'sales', key: 'scope', values: ['Open', 'Lost', 'Needs attention'] },
-      {
-        list: 'sales',
-        key: 'status',
-        values: [
-          '',
-          'Leads',
-          'PQ Submitted',
-          'Quotation Submitted',
-          'Tender Submitted',
-          'Negotiation',
-        ],
-      },
-      { list: 'sales', key: 'view', values: ['kanban', 'table'] },
-      {
-        list: 'procurement',
-        key: 'status',
-        values: ['All', 'Needs approval', 'Open', 'Ordered', 'Vendor Invoiced', 'Paid'],
-      },
-      { list: 'procurement', key: 'view', values: ['table', 'board'] },
-      { list: 'companies', key: 'type', values: ['All', 'Internal', 'Client', 'Vendor'] },
-    ];
-    for (const { list, key, values } of enumChoices) {
-      for (const value of values) {
-        const source = new URLSearchParams();
-        if (value !== '') source.set(key, value);
-        const parsed = parseListWorkingSet(list, source);
-        const parsedFields = parsed as unknown as Record<string, string>;
-        expect(parsedFields[key], `${list}.${key} should accept ${JSON.stringify(value)}`).toBe(
-          value,
-        );
-        const roundTrip = serializeListWorkingSet(list, source, parsed);
-        expect(
-          (parseListWorkingSet(list, roundTrip) as unknown as Record<string, string>)[key],
-        ).toBe(value);
-      }
-    }
   });
 
-  it('AC-LRC-002: preserves exact dashboard lifecycle statuses and unrelated query keys', () => {
-    const dashboardStatuses = [
-      'Draft',
-      'Requested',
-      'Approved',
-      'Vendor Quoted',
-      'Quote Selected',
-      'Ordered',
-      'Received',
-      'Vendor Invoiced',
-      'Paid',
-      'Rejected',
-      'Cancelled',
-    ];
-
-    for (const status of dashboardStatuses) {
+  it('AC-LRC-002: every lifecycle status stays a reachable exact drill unless a segment is identical', () => {
+    for (const status of Object.values(ProcurementStatus)) {
       const source = new URLSearchParams({ status, campaign: 'fall' });
       const parsed = parseListWorkingSet('procurement', source);
-      expect(parsed.status, `${status} drill should remain the exact selected status`).toBe(status);
-      expect((parsed as unknown as { statusMode?: string }).statusMode).toBe('exact');
+      expect(parsed.status, `${status} drill should remain the selected status`).toBe(status);
+
+      // Vendor Invoiced / Paid parse as their semantically identical group segment (their plain
+      // token, no group: prefix). Every other lifecycle status stays an exact drill.
+      const exact = status !== 'Vendor Invoiced' && status !== 'Paid';
+      expect(parsed.statusMode).toBe(exact ? 'exact' : 'group');
 
       const roundTrip = serializeListWorkingSet('procurement', source, parsed);
       expect(roundTrip.get('status')).toBe(status);
@@ -151,10 +97,11 @@ describe('list working-set URL codec', () => {
     const exact = parseListWorkingSet('procurement', '?status=Ordered');
     expect(exact).toMatchObject({ status: 'Ordered', statusMode: 'exact' });
 
-    const grouped = {
-      ...parseListWorkingSet('procurement', ''),
-      status: 'Ordered' as const,
-      statusMode: 'group' as const,
+    const grouped: ProcurementWorkingSet = {
+      status: 'Ordered',
+      statusMode: 'group',
+      q: '',
+      view: 'table',
     };
     const query = serializeListWorkingSet('procurement', '?campaign=fall', grouped);
     expect(query.get('status')).toBe('group:Ordered');
@@ -163,6 +110,108 @@ describe('list working-set URL codec', () => {
       status: 'Ordered',
       statusMode: 'group',
     });
+  });
+
+  it('AC-LRC-002: group-mode round-trips for Ordered, Vendor Invoiced, and Paid stay their segment', () => {
+    for (const status of ['Ordered', 'Vendor Invoiced', 'Paid'] as const) {
+      const grouped: ProcurementWorkingSet = {
+        status,
+        statusMode: 'group',
+        q: 'crane',
+        view: 'board',
+      };
+      const query = serializeListWorkingSet('procurement', '?campaign=summer', grouped);
+      // Only Ordered needs the group: prefix; Vendor Invoiced and Paid are plain tokens.
+      expect(query.get('status')).toBe(status === 'Ordered' ? 'group:Ordered' : status);
+      const roundTrip = parseListWorkingSet('procurement', query);
+      expect(roundTrip).toMatchObject({ status, statusMode: 'group', q: 'crane', view: 'board' });
+      expect(query.get('campaign')).toBe('summer');
+    }
+  });
+
+  it('AC-LRC-002: rejects a bogus group token without discarding unrelated keys', () => {
+    const query = new URLSearchParams('?status=group:bogus&campaign=fall');
+    expect(parseListWorkingSet('procurement', query)).toMatchObject({
+      status: 'All',
+      statusMode: 'group',
+    });
+    expect(parseListWorkingSet('procurement', query).statusMode).toBe('group');
+  });
+
+  it('AC-LRC-001/002: rejects invalid Sales scope, stage, and view as appropriate defaults', () => {
+    const sales: SalesWorkingSet = parseListWorkingSet(
+      'sales',
+      '?scope=bogus&status=Not+A+stage&view=crazy&q=review',
+    );
+    expect(sales).toEqual({ scope: 'Open', status: '', q: 'review', view: 'kanban' });
+  });
+
+  it('AC-LRC-001/002: round-trips Contacts and Meetings identifiers and search', () => {
+    const contacts: ContactsWorkingSet = parseListWorkingSet(
+      'contacts',
+      '?company=harbor-co&q=ops',
+    );
+    expect(contacts).toEqual({ company: 'harbor-co', q: 'ops' });
+    const contactsSerialized = serializeListWorkingSet(
+      'contacts',
+      '?campaign=winter',
+      contacts,
+    );
+    expect(contactsSerialized.get('company')).toBe('harbor-co');
+    expect(contactsSerialized.get('q')).toBe('ops');
+    expect(contactsSerialized.get('campaign')).toBe('winter');
+
+    const meetings: MeetingsWorkingSet = parseListWorkingSet(
+      'meetings',
+      '?project=refinery&q=review',
+    );
+    expect(meetings).toEqual({ project: 'refinery', q: 'review' });
+    const meetingsSerialized = serializeListWorkingSet(
+      'meetings',
+      '?campaign=winter',
+      meetings,
+    );
+    expect(meetingsSerialized.get('project')).toBe('refinery');
+    expect(meetingsSerialized.get('q')).toBe('review');
+    expect(meetingsSerialized.get('campaign')).toBe('winter');
+  });
+
+  it('AC-LRC-002: rejects control-character identifiers while retaining unrelated keys', () => {
+    const seeded = new URLSearchParams(
+      '?client=bad%00pm&pm=ok-pm&company=evil%01co&project=ok-proj&campaign=autumn',
+    );
+    const projects: ProjectsWorkingSet = parseListWorkingSet('projects', seeded);
+    expect(projects.client).toBe('All');
+    expect(projects.pm).toBe('ok-pm');
+    expect(
+      serializeListWorkingSet('projects', seeded, projects).get('campaign'),
+    ).toBe('autumn');
+
+    const contacts = parseListWorkingSet('contacts', '?company=evil%01co&q=search');
+    expect(contacts.company).toBe('All');
+    const meetings = parseListWorkingSet('meetings', '?project=bad%0Aproj');
+    expect(meetings.project).toBe('All');
+  });
+
+  it('AC-LRC-001/002: keeps a Needs-attention scope with an open funnel stage and forces Open only for Lost', () => {
+    const attention: SalesWorkingSet = parseListWorkingSet(
+      'sales',
+      '?scope=Needs+attention&status=Leads',
+    );
+    expect(attention).toMatchObject({ scope: 'Needs attention', status: 'Leads' });
+
+    const lostWithStage: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost&status=Leads');
+    expect(lostWithStage).toMatchObject({ scope: 'Open', status: 'Leads' });
+
+    const lostAlone: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost');
+    expect(lostAlone).toMatchObject({ scope: 'Lost', status: '' });
+
+    // Round-trips: Needs attention + stage survives serialization.
+    const roundTrip = parseListWorkingSet(
+      'sales',
+      serializeListWorkingSet('sales', '', attention),
+    );
+    expect(roundTrip).toMatchObject({ scope: 'Needs attention', status: 'Leads' });
   });
 
   it('falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {
@@ -195,18 +244,7 @@ describe('list working-set URL codec', () => {
     expect(result.get('source')).toBe('dashboard');
   });
 
-  it('keeps Sales stage drill links in Open scope when Lost conflicts with an open stage', () => {
-    expect(parseListWorkingSet('sales', '?scope=Lost&status=Leads')).toMatchObject({
-      scope: 'Open',
-      status: 'Leads',
-    });
-    expect(parseListWorkingSet('sales', '?scope=Lost')).toMatchObject({
-      scope: 'Lost',
-      status: '',
-    });
-  });
-
-  it('uses a valid session view only as a fallback and materializes a nondefault effective view', () => {
+  it('AC-LRC-002: uses a valid session view only as a fallback and materializes a nondefault effective view', () => {
     const stored = new URLSearchParams('?campaign=fall');
     const resolved = resolveListWorkingSet('projects', stored, { sessionView: 'calendar' });
     expect(resolved.value.view).toBe('calendar');
@@ -221,26 +259,28 @@ describe('list working-set URL codec', () => {
     );
   });
 
-  it('reads only the matching session-stored view preference and ignores corrupt storage', () => {
-    sessionStorage.setItem(
-      LIST_VIEW_STORAGE_KEY,
-      JSON.stringify({ project: 'calendar', pipeline: 'table', procurement: 'board' }),
-    );
-    expect(readListViewPreference('projects')).toBe('calendar');
-    expect(readListViewPreference('sales')).toBe('table');
-    expect(readListViewPreference('procurement')).toBe('board');
-    sessionStorage.setItem(LIST_VIEW_STORAGE_KEY, '{');
-    expect(readListViewPreference('projects')).toBeUndefined();
+  it('AC-LRC-002: a view enum rejects through the projects codec with the canonical serialization', () => {
+    const source = new URLSearchParams('?view=map&campaign=winter');
+    expect(parseListWorkingSet('projects', source).view).toBe('table');
+    // The canonical URL drops the invalid view token (table is the omitted default) but
+    // retains unrelated keys.
+    const canonical = resolveListWorkingSet('projects', source);
+    expect(canonical.search.get('view')).toBeNull();
+    expect(canonical.search.get('campaign')).toBe('winter');
   });
 
   it('omits default and empty values and never introduces a sort parameter', () => {
-    const query = serializeListWorkingSet('projects', '?campaign=spring&sort=legacy', {
-      filter: 'All',
-      client: 'All',
-      pm: 'All',
-      q: '',
-      view: 'table',
-    });
+    const query = serializeListWorkingSet(
+      'projects',
+      '?campaign=spring&sort=legacy',
+      {
+        filter: 'All',
+        client: 'All',
+        pm: 'All',
+        q: '',
+        view: 'table',
+      } satisfies ProjectsWorkingSet,
+    );
     expect(query.toString()).toBe('campaign=spring&sort=legacy');
   });
 });

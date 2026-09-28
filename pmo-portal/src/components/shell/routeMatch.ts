@@ -3,6 +3,7 @@ import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
 import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
 import type { RunContext } from '@/src/lib/agent/runtime/port';
+import type { ListReturnNavigation } from '@/src/lib/listReturnContext';
 import { UserRole } from '../../../types';
 
 export interface ModuleDef {
@@ -278,14 +279,14 @@ const administrationBreadcrumbForPath = (
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
-  navigate?: (path: string) => void,
+  navigate?: (path: string, state?: unknown) => void,
   recordResolved = false,
   // FIX-2: the stage group is no longer used to change the breadcrumb ancestry for
   // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
   // The param is kept in the signature so App.tsx callers don't need updating.
   _recordStatusGroup?: ProjectStatusGroup,
-  /** Validated same-owner list context; callers must validate untrusted router state first. */
-  contextualParentPath?: string,
+  /** Validated same-owner return descriptor; callers must validate untrusted router state first. */
+  contextualParent?: ListReturnNavigation,
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -343,7 +344,16 @@ export function breadcrumbForPath(
         const parentLabel = m.label;
         const parentPath = m.path;
         return [
-          { label: parentLabel, onClick: () => navigate?.(contextualParentPath ?? parentPath) },
+          {
+            label: parentLabel,
+            onClick: () => {
+              const target = contextualParent?.path ?? parentPath;
+              // Forward both the path and its one-shot restore state only when a validated return
+              // descriptor exists; otherwise keep the plain single-argument navigation contract.
+              if (contextualParent) navigate?.(target, contextualParent.state);
+              else navigate?.(target);
+            },
+          },
           { label: recordCrumb },
         ];
       }

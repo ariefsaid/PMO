@@ -1,12 +1,24 @@
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BrowserRouter, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  BrowserRouter,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router';
 import { AppShell } from '@/src/components/shell/AppShell';
 import { LIST_ENTRY_SCROLL_STATE_KEY, useListReturn } from './useListReturn';
 
 beforeEach(() => {
   window.history.replaceState(null, '');
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 function LocationProbe() {
@@ -39,6 +51,12 @@ function CompaniesList() {
       <button type="button" onClick={() => openRecord('/companies/company-1#')}>
         Open target with empty fragment
       </button>
+      <button type="button" onClick={() => openRecord('/companies/bad\u0007id')}>
+        Open control-char target
+      </button>
+      <button type="button" onClick={() => openRecord('/companies/company-1/approvals')}>
+        Open tab target
+      </button>
       <button type="button" onClick={() => navigate('/companies?type=Client', { replace: true })}>
         Change list URL
       </button>
@@ -67,6 +85,36 @@ function CompanyDetail() {
   );
 }
 
+function SalesPipelinePage() {
+  const location = useLocation();
+  const [ready, setReady] = useState(!location.state?.pmoListScrollRestore);
+  const { openRecord } = useListReturn({ list: 'sales', ready });
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => openRecord('/projects/project-1', 'projects')}
+      >
+        Open project
+      </button>
+      <button type="button" onClick={() => setReady(true)}>
+        Sales ready
+      </button>
+    </div>
+  );
+}
+
+function ProjectDetailFromSales() {
+  const { returnToList } = useListReturn({ list: 'projects' });
+  return (
+    <div>
+      <button type="button" onClick={() => returnToList('projects')}>
+        Return to Sales
+      </button>
+    </div>
+  );
+}
+
 function AppRoutes({ shell = true }: { shell?: boolean }) {
   const routes = (
     <Routes>
@@ -80,6 +128,15 @@ function AppRoutes({ shell = true }: { shell?: boolean }) {
     </AppShell>
   ) : (
     routes
+  );
+}
+
+function SalesRoutes() {
+  return (
+    <Routes>
+      <Route path="/sales" element={<SalesPipelinePage />} />
+      <Route path="/projects/:id" element={<ProjectDetailFromSales />} />
+    </Routes>
   );
 }
 
@@ -104,7 +161,7 @@ function sizeMainScroll({ scrollHeight = 1000, clientHeight = 200 } = {}) {
 }
 
 describe('useListReturn', () => {
-  it('captures the list URL and scroll before opening the canonical record path', () => {
+  it('AC-LRC-003: captures the list URL and scroll before opening the canonical record path', () => {
     renderAt('/companies?type=Client&q=harbor&campaign=source');
     const main = sizeMainScroll();
     expect(main).not.toBeUndefined();
@@ -135,7 +192,20 @@ describe('useListReturn', () => {
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
   });
 
-  it('restores a captured source entry on native Back after the shell resets scroll to top', async () => {
+  it('AC-LRC-010: rejects control-character ids and tab/deep paths, warning in development', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    renderAt('/companies');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open control-char target' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open tab target' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
+
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it('AC-LRC-005: restores a captured source entry on native Back after the shell resets scroll to top', async () => {
     renderAt('/companies?type=Vendor');
     const main = sizeMainScroll();
     expect(main).not.toBeUndefined();
@@ -154,7 +224,7 @@ describe('useListReturn', () => {
     await waitFor(() => expect(main!.scrollTop).toBe(460));
   });
 
-  it('preserves the BrowserRouter history envelope while capturing and restoring native Back', async () => {
+  it('AC-LRC-009: preserves the BrowserRouter history envelope while capturing and restoring native Back', async () => {
     window.history.replaceState(null, '', '/companies?type=Vendor');
     render(
       <BrowserRouter>
@@ -183,7 +253,8 @@ describe('useListReturn', () => {
     });
   });
 
-  it('waits for list readiness, clamps an explicit return offset, and uses the validated path', async () => {
+  it('AC-LRC-005: never scrolls before the list is ready and restores exactly once once it is', () => {
+    vi.useFakeTimers();
     const state = {
       pmoListReturn: {
         list: 'companies',
@@ -203,23 +274,73 @@ describe('useListReturn', () => {
     );
     expect(main!.scrollTop).toBe(0);
 
-    fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
-    await waitFor(() => expect(main!.scrollTop).toBe(400));
+    // Still not ready: advancing the restore tick must NOT scroll — the `!ready ||` guard holds.
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(main!.scrollTop).toBe(0);
 
+    fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(main!.scrollTop).toBe(400); // 900 clamped to (650-250)
+
+    // A subsequent loading→ready cycle must not re-restore (consumed once).
     main!.scrollTop = 17;
     fireEvent.click(screen.getByRole('button', { name: 'List loading' }));
     fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
     expect(main!.scrollTop).toBe(17);
   });
 
-  it('falls back to the owning index for a direct record URL without context', () => {
+  it('AC-LRC-009: explicit return pushes a new entry so browser Back reaches the detail, with clean state', async () => {
+    window.history.replaceState(null, '', '/companies?type=Client&q=harbor');
+    render(
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>,
+    );
+    const main = sizeMainScroll();
+    expect(main).not.toBeUndefined();
+    main!.scrollTop = 320;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open company' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/companies/company-1'));
+    const idxAfterOpen = (window.history.state as { idx: number }).idx;
+
+    // Explicit return pushes (the web norm), so the index advances by exactly one.
+    fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/companies'));
+    const returnedState = window.history.state as {
+      idx: number;
+      usr: Record<string, unknown>;
+    };
+    expect(returnedState.idx).toBe(idxAfterOpen + 1);
+
+    // The returned list entry carries the one-shot restore but never pmoListReturn.
+    expect(returnedState.usr?.pmoListScrollRestore).toBeDefined();
+    expect(returnedState.usr?.pmoListReturn).toBeUndefined();
+    expect(window.location.search).toContain('q=harbor');
+
+    // Browser Back now reaches the detail entry instead of appearing to do nothing.
+    await act(async () => {
+      window.history.back();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    await waitFor(() => expect(window.location.pathname).toBe('/companies/company-1'));
+  });
+
+  it('AC-LRC-010: falls back to the owning index for a direct record URL without context', () => {
     renderAt('/companies/company-1');
     fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
   });
 
-  it('does not require a scroll element to exist for a validated explicit return', async () => {
+  it('AC-LRC-005: does not require a scroll element to exist for a validated explicit return', () => {
+    vi.useFakeTimers();
     const state = {
       pmoListReturn: {
         list: 'companies',
@@ -232,11 +353,40 @@ describe('useListReturn', () => {
     expect(document.querySelector('.main-scroll')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies?type=Client');
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
     expect(document.querySelector('.main-scroll')).toBeNull();
   });
 
-  it('ignores stale entry keys and URLs even when the list is ready', async () => {
+  it('AC-LRC-004: a project opened from Sales captures Sales context and returns to Sales', () => {
+    const parsed = new URL('/sales?scope=Open&status=Leads&view=table', 'https://local.test');
+    render(
+      <MemoryRouter
+        initialEntries={[{ pathname: parsed.pathname, search: parsed.search }]}
+      >
+        <SalesRoutes />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open project' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/projects/project-1');
+    const openedState = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(openedState.pmoListReturn).toMatchObject({
+      list: 'sales',
+      path: '/sales?scope=Open&status=Leads&view=table',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Sales' }));
+    expect(screen.getByTestId('location')).toHaveAttribute(
+      'data-path',
+      '/sales?scope=Open&status=Leads&view=table',
+    );
+  });
+
+  it('AC-LRC-005: ignores stale entry keys and URLs even when the list is ready', () => {
+    vi.useFakeTimers();
     renderAt('/companies?type=Client');
     const main = sizeMainScroll();
     expect(main).not.toBeUndefined();
@@ -255,7 +405,9 @@ describe('useListReturn', () => {
     main!.scrollTop = 0;
     fireEvent.click(screen.getByRole('button', { name: 'List loading' }));
     fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
     expect(main!.scrollTop).toBe(0);
 
     window.history.replaceState(
@@ -270,7 +422,9 @@ describe('useListReturn', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'List loading' }));
     fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
     expect(main!.scrollTop).toBe(0);
   });
 });

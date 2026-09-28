@@ -35,6 +35,21 @@ export interface SalesColumn {
   terminal?: boolean;
 }
 
+/**
+ * The five open (non-terminal) funnel stages, in staleness order, as a literal
+ * tuple. The SALES_COLUMNS board and the list-return working-set codec both draw
+ * the open-stage set from here so a new stage stays in sync across list URLs and
+ * the funnel. `satisfies` keeps it a literal rather than widening to string[].
+ */
+export const OPEN_FUNNEL_STAGES = [
+  'Leads',
+  'PQ Submitted',
+  'Quotation Submitted',
+  'Tender Submitted',
+  'Negotiation',
+] as const satisfies readonly string[];
+export type OpenFunnelStage = (typeof OPEN_FUNNEL_STAGES)[number];
+
 export const SALES_COLUMNS: readonly SalesColumn[] = [
   {
     title: 'Leads',

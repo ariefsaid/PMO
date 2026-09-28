@@ -14,9 +14,10 @@ export interface ListReturnContext {
   sourceLocationKey?: string;
 }
 
-export interface ListReturnContextOptions {
-  /** A project may be opened from Sales Pipeline while its structural home remains Projects. */
-  allowSalesForProject?: boolean;
+/** A validated explicit-return destination: the list path to navigate to plus its router state. */
+export interface ListReturnNavigation {
+  path: string;
+  state: Record<string, unknown>;
 }
 
 const RECORD_PATHS: Partial<Record<ListName, RegExp>> = {
@@ -49,7 +50,27 @@ function listName(value: unknown): value is ListName {
   return typeof value === 'string' && Object.hasOwn(LIST_PATHS, value);
 }
 
-function validatedListPath(value: unknown, list: ListName): string | undefined {
+/** The canonical local index route for a named list. */
+export function listIndexPath(list: ListName): string {
+  return LIST_PATHS[list];
+}
+
+/**
+ * The single eligibility rule for a source list returning to a record owner. A Sales source is a
+ * valid owner for a Projects record (the pipeline lens borrows the Projects structural home); no
+ * other cross-owner combination is allowed.
+ */
+export function allowedForOwner(source: ListName, owner: ListName): boolean {
+  return source === owner || (owner === 'projects' && source === 'sales');
+}
+
+/**
+ * Validate an untrusted path as a safe, same-origin, relative local URL. Rejects protocol-relative
+ * and cross-origin values, fragments, backslashes, control characters, over-long values, and
+ * non-leading-slash input. Returns the normalized `pathname?query` or undefined. Shared by list
+ * context validation and record-target validation (which additionally checks the exact path shape).
+ */
+export function safeLocalPath(value: unknown): string | undefined {
   if (
     typeof value !== 'string' ||
     value.length === 0 ||
@@ -67,7 +88,6 @@ function validatedListPath(value: unknown, list: ListName): string | undefined {
     const url = new URL(value, BASE_ORIGIN);
     if (
       url.origin !== BASE_ORIGIN ||
-      url.pathname !== LIST_PATHS[list] ||
       url.hash !== '' ||
       url.username !== '' ||
       url.password !== ''
@@ -78,6 +98,14 @@ function validatedListPath(value: unknown, list: ListName): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function validatedListPath(value: unknown, list: ListName): string | undefined {
+  const safe = safeLocalPath(value);
+  if (!safe) return undefined;
+  const url = new URL(safe, BASE_ORIGIN);
+  if (url.pathname !== LIST_PATHS[list]) return undefined;
+  return `${url.pathname}${url.search}`;
 }
 
 function validScrollTop(value: unknown): number | undefined {
@@ -91,17 +119,6 @@ function validScrollTop(value: unknown): number | undefined {
 
 function validLocationKey(value: unknown): string | undefined {
   return typeof value === 'string' && LOCATION_KEY_PATTERN.test(value) ? value : undefined;
-}
-
-function allowedForOwner(
-  source: ListName,
-  owner: ListName,
-  options: ListReturnContextOptions,
-): boolean {
-  return (
-    source === owner ||
-    (owner === 'projects' && source === 'sales' && options.allowSalesForProject === true)
-  );
 }
 
 /** Create a return context only from the named list's exact local index route. */
@@ -127,12 +144,11 @@ export function createListReturnContext(
 export function readListReturnContext(
   state: unknown,
   owner: ListName,
-  options: ListReturnContextOptions = {},
 ): ListReturnContext | undefined {
   if (!isRecord(state)) return undefined;
   const candidate = state[LIST_RETURN_CONTEXT_KEY];
   if (!isRecord(candidate) || !listName(candidate.list)) return undefined;
-  if (!allowedForOwner(candidate.list, owner, options)) return undefined;
+  if (!allowedForOwner(candidate.list, owner)) return undefined;
   return createListReturnContext(
     candidate.list,
     typeof candidate.path === 'string' ? candidate.path : '',
@@ -142,12 +158,8 @@ export function readListReturnContext(
 }
 
 /** Return a validated in-app context target or the record owner's canonical index. */
-export function listReturnPath(
-  state: unknown,
-  owner: ListName,
-  options: ListReturnContextOptions = {},
-): string {
-  return readListReturnContext(state, owner, options)?.path ?? LIST_PATHS[owner];
+export function listReturnPath(state: unknown, owner: ListName): string {
+  return readListReturnContext(state, owner)?.path ?? listIndexPath(owner);
 }
 
 /** Attach a context to existing router state without discarding unrelated state fields. */
@@ -169,14 +181,19 @@ export function withListReturnContext(
   return next;
 }
 
-/** Build explicit-return state while preserving unrelated router fields. */
+/**
+ * Build explicit-return state while preserving unrelated router fields. Always strips both seam
+ * keys (so `pmoListReturn` is never carried onto the returned list entry, and a stale restore is
+ * cleared), then adds a validated one-shot scroll restore only when the context has an offset.
+ */
 export function withListScrollRestore(
   state: unknown,
-  context: ListReturnContext,
+  context?: ListReturnContext,
 ): Record<string, unknown> {
   const next = isRecord(state) ? { ...state } : {};
+  delete next[LIST_RETURN_CONTEXT_KEY];
   delete next[LIST_SCROLL_RESTORE_STATE_KEY];
-  const validated = listName(context?.list)
+  const validated = context && listName(context.list)
     ? createListReturnContext(
         context.list,
         context.path,
@@ -192,6 +209,32 @@ export function withListScrollRestore(
     };
   }
   return next;
+}
+
+/**
+ * Resolve a validated explicit-return destination for a record owner: the captured list path (or
+ * the owner index) plus the clean return state (unrelated state preserved, no `pmoListReturn`, a
+ * one-shot restore only when an offset exists). Shared by the mobile BackBar and the desktop
+ * parent breadcrumb so both push identical clean return entries.
+ */
+export function listReturnNavigation(
+  state: unknown,
+  owner: ListName,
+): ListReturnNavigation {
+  const context = readListReturnContext(state, owner);
+  return {
+    path: context?.path ?? listIndexPath(owner),
+    state: withListScrollRestore(state, context),
+  };
+}
+
+/** Resolve the breadcrumb destination only when router state belongs to this record's owner. */
+export function contextualListReturnNavigation(
+  pathname: string,
+  state: unknown,
+): ListReturnNavigation | undefined {
+  const owner = listReturnOwnerForPathname(pathname);
+  return owner ? listReturnNavigation(state, owner) : undefined;
 }
 
 /** Resolve only the exact detail routes backed by one of the adopting list indexes. */
@@ -210,10 +253,4 @@ export function isCanonicalRecordPath(pathname: string, owner: ListName): boolea
     segments[0] === LIST_PATHS[owner].slice(1) &&
     listReturnOwnerForPathname(pathname) === owner
   );
-}
-
-/** Resolve the breadcrumb destination only when router state belongs to this record's owner. */
-export function contextualListReturnPath(pathname: string, state: unknown): string | undefined {
-  const owner = listReturnOwnerForPathname(pathname);
-  return owner ? readListReturnContext(state, owner)?.path : undefined;
 }
