@@ -18,7 +18,7 @@ import { cn } from '@/src/components/ui/cn';
 import type { RefLookup } from '@/src/lib/import';
 import type { CycleRow, ValidatedGroup, ValidatedRow } from '@/src/lib/import/procurementCycle/types';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyCents, parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import {
   useProcurementCycleImport,
   CYCLE_FIELDS,
@@ -456,6 +456,10 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
   const type = source?.type?.trim();
   const ref = source?.externalRef?.trim();
   const amount = source?.amount?.trim();
+  // #684 (AC-PLC-009): the SAME neutral scale-2 parse `validate.ts` checks and `commit.ts` writes,
+  // shown to the cent — so the preview is the value that will be committed. A cell that parse
+  // refuses is shown as typed (its row carries the error), never as a rounded figure.
+  const committedAmount = amount ? parseNeutralMoneyInputAtScale(amount, 2) : null;
   const date = source?.date?.trim();
   const status = source?.status?.trim();
 
@@ -473,9 +477,7 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
           {status && <span className="text-muted-foreground">{status}</span>}
           {amount && (
             <span className="tabular-nums text-muted-foreground">
-              {Number.isNaN(Number(amount))
-                ? amount
-                : formatCurrency(Number(amount), currency)}
+              {committedAmount === null ? amount : formatCurrencyCents(committedAmount, currency)}
             </span>
           )}
           {date && <span className="text-muted-foreground">{date}</span>}
