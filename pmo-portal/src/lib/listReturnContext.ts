@@ -14,10 +14,17 @@ export interface ListReturnContext {
   sourceLocationKey?: string;
 }
 
-/** A validated explicit-return destination: the list path to navigate to plus its router state. */
+declare const validatedReturnNavigation: unique symbol;
+
+/**
+ * A validated explicit-return destination: the list path to navigate to plus its router state.
+ * Branded so only `listReturnNavigation` / `contextualListReturnNavigation` can create one; a
+ * hand-built `{ path, state }` does not type-check where a validated return is required.
+ */
 export interface ListReturnNavigation {
-  path: string;
-  state: Record<string, unknown>;
+  readonly path: string;
+  readonly state: Record<string, unknown>;
+  readonly [validatedReturnNavigation]: true;
 }
 
 const RECORD_PATHS: Partial<Record<ListName, RegExp>> = {
@@ -68,8 +75,8 @@ export function canCaptureFromList(source: ListName, owner: ListName): boolean {
 
 /**
  * Validate an untrusted path as a safe, same-origin, relative local URL. Rejects protocol-relative
- * and cross-origin values, fragments, backslashes, control characters, over-long values, and
- * non-leading-slash input. Returns the normalized `pathname?query` or undefined. Shared by list
+ * values (as written or after dot-segment normalisation), cross-origin values, fragments,
+ * backslashes, control characters, over-long values, and non-leading-slash input. Returns the normalized `pathname?query` or undefined. Shared by list
  * context validation and record-target validation (which additionally checks the exact path shape).
  */
 export function safeLocalPath(value: unknown): string | undefined {
@@ -92,7 +99,9 @@ export function safeLocalPath(value: unknown): string | undefined {
       url.origin !== BASE_ORIGIN ||
       url.hash !== '' ||
       url.username !== '' ||
-      url.password !== ''
+      url.password !== '' ||
+      // Dot segments are resolved by URL parsing, so check the normalised path as well.
+      url.pathname.startsWith('//')
     ) {
       return undefined;
     }
@@ -228,10 +237,11 @@ export function listReturnNavigation(
   owner: ListName,
 ): ListReturnNavigation {
   const context = readListReturnContext(state, owner);
+  // The single place a validated descriptor is minted (the brand exists only at the type level).
   return {
     path: context?.path ?? listIndexPath(owner),
     state: withListScrollRestore(state, context),
-  };
+  } as ListReturnNavigation;
 }
 
 /** Resolve the breadcrumb destination only when router state belongs to this record's owner. */

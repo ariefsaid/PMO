@@ -14,6 +14,7 @@ import {
   safeLocalPath,
   withListReturnContext,
   withListScrollRestore,
+  type ListReturnNavigation,
 } from './listReturnContext';
 
 describe('validated list return context', () => {
@@ -136,9 +137,20 @@ describe('validated list return context', () => {
     expect(safeLocalPath('/\\outside.example/companies')).toBeUndefined();
     expect(safeLocalPath('/companies/record\u0007')).toBeUndefined();
     expect(safeLocalPath('companies/record')).toBeUndefined();
+    expect(safeLocalPath('/companies/./record')).toBe('/companies/record');
     expect(safeLocalPath('/companies?type=Client&q=Caf%C3%A9')).toBe(
       '/companies?type=Client&q=Caf%C3%A9',
     );
+  });
+
+  it.each([
+    '/.//outside.example',
+    '/..//outside.example',
+    '/a/..//outside.example',
+    '/.///outside.example',
+    '/companies/..//outside.example/companies',
+  ])('AC-LRC-010: safeLocalPath rejects a path whose dot segments normalise to a leading //: %s', (path) => {
+    expect(safeLocalPath(path)).toBeUndefined();
   });
 
   it('AC-LRC-010: explicit return descriptor falls back to the owner index with clean state', () => {
@@ -264,6 +276,19 @@ describe('validated list return context', () => {
     expect(contextualListReturnNavigation('/projects/project-1', undefined)?.path).toBe('/projects');
     // A pathname that is not a record detail (an index) is not a contextual-return concern.
     expect(contextualListReturnNavigation('/projects', projectContext)).toBeUndefined();
+  });
+
+  it('AC-LRC-010: only the resolvers mint a ListReturnNavigation; a hand-built descriptor does not type-check', () => {
+    // @ts-expect-error a literal {path,state} is not a validated return descriptor.
+    const forged: ListReturnNavigation = { path: '//outside.example', state: {} };
+    const minted: ListReturnNavigation = listReturnNavigation(undefined, 'companies');
+    const contextual: ListReturnNavigation | undefined = contextualListReturnNavigation(
+      '/companies/company-1',
+      undefined,
+    );
+    expect(forged.path).toBe('//outside.example');
+    expect(minted).toEqual({ path: '/companies', state: {} });
+    expect(contextual).toEqual({ path: '/companies', state: {} });
   });
 
   it('AC-LRC-010: falls back on the owner index when the history state itself is not a record', () => {

@@ -12,6 +12,13 @@ import {
   type MeetingsWorkingSet,
 } from './listWorkingSet';
 import { ProcurementStatus } from '../../types';
+import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
+
+// Referenced filter values are stable row IDs (UUIDs), shaped like real ones.
+const CLIENT_ID = '3f2b8c1e-5a6d-4e7f-9a0b-1c2d3e4f5a6b';
+const PM_ID = '7c9d0e1f-2a3b-4c5d-8e6f-7a8b9c0d1e2f';
+const COMPANY_ID = '0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d';
+const PROJECT_ID = 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e';
 
 describe('list working-set URL codec', () => {
   it('AC-LRC-001: supplies each list schema’s safe defaults', () => {
@@ -51,18 +58,18 @@ describe('list working-set URL codec', () => {
 
   it('AC-LRC-001/002: round-trips all enum choices and dashboard drill tokens', () => {
     const projectParams = new URLSearchParams(
-      '?filter=at-risk&client=client-1&pm=pm-1&q=review&view=calendar',
+      `?filter=at-risk&client=${CLIENT_ID}&pm=${PM_ID}&q=review&view=calendar`,
     );
     const projects = parseListWorkingSet('projects', projectParams);
     expect(projects).toEqual({
       filter: 'at-risk',
-      client: 'client-1',
-      pm: 'pm-1',
+      client: CLIENT_ID,
+      pm: PM_ID,
       q: 'review',
       view: 'calendar',
     });
     expect(serializeListWorkingSet('projects', projectParams, projects).toString()).toBe(
-      'filter=at-risk&client=client-1&pm=pm-1&q=review&view=calendar',
+      `filter=at-risk&client=${CLIENT_ID}&pm=${PM_ID}&q=review&view=calendar`,
     );
 
     const procurementParams = new URLSearchParams('?status=Vendor+Invoiced&q=invoice&view=board');
@@ -73,8 +80,8 @@ describe('list working-set URL codec', () => {
     );
 
     expect(parseListWorkingSet('companies', '?type=Vendor').type).toBe('Vendor');
-    expect(parseListWorkingSet('contacts', '?company=company-404').company).toBe('company-404');
-    expect(parseListWorkingSet('meetings', '?project=project-404').project).toBe('project-404');
+    expect(parseListWorkingSet('contacts', `?company=${COMPANY_ID}`).company).toBe(COMPANY_ID);
+    expect(parseListWorkingSet('meetings', `?project=${PROJECT_ID}`).project).toBe(PROJECT_ID);
   });
 
   it('AC-LRC-002: every lifecycle status stays a reachable exact drill unless a segment is identical', () => {
@@ -150,40 +157,40 @@ describe('list working-set URL codec', () => {
   it('AC-LRC-001/002: round-trips Contacts and Meetings identifiers and search', () => {
     const contacts: ContactsWorkingSet = parseListWorkingSet(
       'contacts',
-      '?company=harbor-co&q=ops',
+      `?company=${COMPANY_ID}&q=ops`,
     );
-    expect(contacts).toEqual({ company: 'harbor-co', q: 'ops' });
+    expect(contacts).toEqual({ company: COMPANY_ID, q: 'ops' });
     const contactsSerialized = serializeListWorkingSet(
       'contacts',
       '?campaign=winter',
       contacts,
     );
-    expect(contactsSerialized.get('company')).toBe('harbor-co');
+    expect(contactsSerialized.get('company')).toBe(COMPANY_ID);
     expect(contactsSerialized.get('q')).toBe('ops');
     expect(contactsSerialized.get('campaign')).toBe('winter');
 
     const meetings: MeetingsWorkingSet = parseListWorkingSet(
       'meetings',
-      '?project=refinery&q=review',
+      `?project=${PROJECT_ID}&q=review`,
     );
-    expect(meetings).toEqual({ project: 'refinery', q: 'review' });
+    expect(meetings).toEqual({ project: PROJECT_ID, q: 'review' });
     const meetingsSerialized = serializeListWorkingSet(
       'meetings',
       '?campaign=winter',
       meetings,
     );
-    expect(meetingsSerialized.get('project')).toBe('refinery');
+    expect(meetingsSerialized.get('project')).toBe(PROJECT_ID);
     expect(meetingsSerialized.get('q')).toBe('review');
     expect(meetingsSerialized.get('campaign')).toBe('winter');
   });
 
   it('AC-LRC-002: rejects control-character identifiers while retaining unrelated keys', () => {
     const seeded = new URLSearchParams(
-      '?client=bad%00pm&pm=ok-pm&company=evil%01co&project=ok-proj&campaign=autumn',
+      `?client=${CLIENT_ID}%00&pm=${PM_ID}&company=evil%01co&project=ok-proj&campaign=autumn`,
     );
     const projects: ProjectsWorkingSet = parseListWorkingSet('projects', seeded);
     expect(projects.client).toBe('All');
-    expect(projects.pm).toBe('ok-pm');
+    expect(projects.pm).toBe(PM_ID);
     expect(
       serializeListWorkingSet('projects', seeded, projects).get('campaign'),
     ).toBe('autumn');
@@ -217,12 +224,12 @@ describe('list working-set URL codec', () => {
 
   it('AC-LRC-002: falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {
     const params = new URLSearchParams(
-      '?filter=bogus&client=company-404&pm=not-a-user&view=map&q=%E2%9C%93&campaign=autumn',
+      `?filter=bogus&client=${CLIENT_ID}&pm=${PM_ID}&view=map&q=%E2%9C%93&campaign=autumn`,
     );
     expect(parseListWorkingSet('projects', params)).toEqual({
       filter: 'All',
-      client: 'company-404',
-      pm: 'not-a-user',
+      client: CLIENT_ID,
+      pm: PM_ID,
       q: '✓',
       view: 'table',
     });
@@ -232,7 +239,57 @@ describe('list working-set URL codec', () => {
         params,
         parseListWorkingSet('projects', params),
       ).toString(),
-    ).toBe('client=company-404&pm=not-a-user&q=%E2%9C%93&campaign=autumn');
+    ).toBe(`client=${CLIENT_ID}&pm=${PM_ID}&q=%E2%9C%93&campaign=autumn`);
+  });
+
+  it('AC-LRC-002: accepts only UUID references (plus the Unassigned PM sentinel), else falls back to All', () => {
+    const params = new URLSearchParams(
+      `?client=client-1&pm=${UNASSIGNED_PROJECT_MANAGER}&campaign=autumn`,
+    );
+    const projects = parseListWorkingSet('projects', params);
+    expect(projects).toMatchObject({ client: 'All', pm: UNASSIGNED_PROJECT_MANAGER });
+    expect(serializeListWorkingSet('projects', params, projects).toString()).toBe(
+      `pm=${UNASSIGNED_PROJECT_MANAGER}&campaign=autumn`,
+    );
+    // The sentinel belongs to the PM filter only.
+    expect(parseListWorkingSet('projects', `?client=${UNASSIGNED_PROJECT_MANAGER}`).client).toBe('All');
+    expect(parseListWorkingSet('contacts', `?company=${UNASSIGNED_PROJECT_MANAGER}`).company).toBe('All');
+    for (const invalid of [
+      'not-a-user',
+      '../companies',
+      '/companies',
+      'https://outside.example',
+      `${PM_ID}x`,
+      `x${PM_ID}`,
+      PM_ID.replace(/-/g, ''),
+      '<script>',
+      'All ',
+    ]) {
+      const value = encodeURIComponent(invalid);
+      expect(parseListWorkingSet('projects', `?pm=${value}&client=${value}`), invalid).toMatchObject({
+        client: 'All',
+        pm: 'All',
+      });
+      expect(parseListWorkingSet('contacts', `?company=${value}`).company, invalid).toBe('All');
+      expect(parseListWorkingSet('meetings', `?project=${value}`).project, invalid).toBe('All');
+    }
+    // A syntactically valid ID stays selected in its lowercase canonical form, even when unknown.
+    expect(parseListWorkingSet('meetings', `?project=${PROJECT_ID.toUpperCase()}`).project).toBe(
+      PROJECT_ID,
+    );
+  });
+
+  it('AC-LRC-002: strips control characters from search while keeping Unicode text', () => {
+    expect(parseListWorkingSet('companies', '?q=ab%00c%07d%0A%09%7F%C2%85e').q).toBe('abcde');
+    expect(parseListWorkingSet('projects', '?q=Caf%C3%A9+%E6%9D%B1%E4%BA%AC+%F0%9F%9A%A2').q).toBe(
+      'Café 東京 🚢',
+    );
+    const sales = parseListWorkingSet('sales', '?q=%00%01&campaign=spring');
+    expect(sales.q).toBe('');
+    // A search that was only control characters serializes as absent; unrelated keys survive.
+    expect(serializeListWorkingSet('sales', '?q=%00%01&campaign=spring', sales).toString()).toBe(
+      'campaign=spring',
+    );
   });
 
   it('AC-LRC-001: round-trips Unicode search and preserves unrelated query keys', () => {

@@ -3,6 +3,7 @@ import type { PipelineView } from '../hooks/usePipelineView';
 import type { ProcurementView } from '../hooks/useProcurementView';
 import { ProcurementStatus } from '../../types';
 import { OPEN_FUNNEL_STAGES, type OpenFunnelStage } from '../../components/salesPipeline';
+import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 
 export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings';
 
@@ -157,16 +158,23 @@ function enumValue<T extends string>(
     : fallback;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
 /**
- * Query-backed identifiers stay visible even when their row is no longer available. The list
- * decides whether they match anything; this codec only excludes empty and control-character data.
+ * Referenced filters hold a row ID. Any syntactically valid UUID stays selected (lowercased) even
+ * when its row is no longer available — the list shows that as a clearable zero-match choice.
+ * `sentinels` names the non-ID choices a filter really offers (the PM filter's Unassigned).
+ * Anything else falls back to the cleared "All" state, as an invalid enum does.
  */
-function referenceValue(value: string | null): string {
-  return value && !/\p{Cc}/u.test(value) ? value : 'All';
+function referenceValue(value: string | null, sentinels: readonly string[] = []): string {
+  if (value === null) return 'All';
+  if (sentinels.includes(value)) return value;
+  return UUID_PATTERN.test(value) ? value.toLowerCase() : 'All';
 }
 
+/** Free-text search keeps any Unicode text but drops control characters. */
 function searchValue(params: URLSearchParams): string {
-  return params.get('q') ?? '';
+  return (params.get('q') ?? '').replace(/\p{Cc}/gu, '');
 }
 
 /**
@@ -263,7 +271,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
         options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER,
       ),
       client: referenceValue(params.get('client')),
-      pm: referenceValue(params.get('pm')),
+      pm: referenceValue(params.get('pm'), [UNASSIGNED_PROJECT_MANAGER]),
       q: searchValue(params),
       view: viewValue(params, 'projects', options.sessionView),
     }),

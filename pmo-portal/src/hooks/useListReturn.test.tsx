@@ -10,7 +10,8 @@ import {
   useNavigate,
 } from 'react-router';
 import { AppShell } from '@/src/components/shell/AppShell';
-import { LIST_ENTRY_SCROLL_STATE_KEY, useListReturn } from './useListReturn';
+import { LIST_ENTRY_SCROLL_STATE_KEY, useListReturn, useReturnNavigate } from './useListReturn';
+import { listReturnNavigation } from '@/src/lib/listReturnContext';
 
 beforeEach(() => {
   window.history.replaceState(null, '');
@@ -162,6 +163,18 @@ function sizeMainScroll({ scrollHeight = 1000, clientHeight = 200 } = {}) {
   });
   return main;
 }
+
+describe('useReturnNavigate', () => {
+  type ReturnTarget = Parameters<ReturnType<typeof useReturnNavigate>>[0];
+
+  it('AC-LRC-010: accepts a plain path or a resolver-minted descriptor, never hand-built state', () => {
+    const plain: ReturnTarget = '/companies';
+    const minted: ReturnTarget = listReturnNavigation(undefined, 'companies');
+    // @ts-expect-error a hand-built {path,state} is not a validated ListReturnNavigation.
+    const forged: ReturnTarget = { path: '/companies', state: { pmoListScrollRestore: {} } };
+    expect([plain, minted, forged]).toHaveLength(3);
+  });
+});
 
 describe('useListReturn', () => {
   it('AC-LRC-009: captures the list URL and scroll before opening the canonical record path', () => {

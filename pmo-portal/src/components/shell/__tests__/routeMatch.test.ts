@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { breadcrumbForPath, recordLabelForPath, MODULES } from '../routeMatch';
+import {
+  createListReturnContext,
+  LIST_RETURN_CONTEXT_KEY,
+  listReturnNavigation,
+  type ListReturnNavigation,
+} from '@/src/lib/listReturnContext';
 
 /**
  * B-6 (AC-W2-IA-001): /approvals breadcrumb must resolve to "Approvals" not "Dashboard".
@@ -182,51 +188,65 @@ describe('breadcrumbForPath / recordLabelForPath — company + contact detail (C
 
 describe('breadcrumbForPath — contextual list return', () => {
   it('AC-LRC-005: keeps canonical Projects ancestry while navigating to the validated list URL with restore state', () => {
-    let destination = '';
-    let carriedState: unknown;
-    const navigate = (path: string, state?: unknown) => {
-      destination = path;
-      carriedState = state;
+    let target: string | ListReturnNavigation = '';
+    const navigate = (next: string | ListReturnNavigation) => {
+      target = next;
     };
+    const contextualParent = listReturnNavigation(
+      {
+        [LIST_RETURN_CONTEXT_KEY]: createListReturnContext(
+          'projects',
+          '/projects?filter=Ongoing&q=harbor',
+          88,
+        ),
+      },
+      'projects',
+    );
     const crumbs = breadcrumbForPath(
       '/projects/project-1',
       'Example project',
       navigate,
       true,
       undefined,
-      {
-        path: '/projects?filter=Ongoing&q=harbor',
-        state: {
-          pmoListScrollRestore: {
-            list: 'projects',
-            path: '/projects?filter=Ongoing&q=harbor',
-            scrollTop: 88,
-          },
-        },
-      },
+      contextualParent,
     );
 
     expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
-    expect(destination).toBe('/projects?filter=Ongoing&q=harbor');
-    expect(carriedState).toEqual({
-      pmoListScrollRestore: {
-        list: 'projects',
-        path: '/projects?filter=Ongoing&q=harbor',
-        scrollTop: 88,
+    expect(target).toEqual({
+      path: '/projects?filter=Ongoing&q=harbor',
+      state: {
+        pmoListScrollRestore: {
+          list: 'projects',
+          path: '/projects?filter=Ongoing&q=harbor',
+          scrollTop: 88,
+        },
       },
     });
     expect(crumbs[1]).toEqual({ label: 'Example project' });
   });
 
   it('AC-LRC-010: a missing return descriptor falls back to the bare module path', () => {
-    let destination = '';
-    const navigate = (path: string) => {
-      destination = path;
+    let target: string | ListReturnNavigation = '';
+    const navigate = (next: string | ListReturnNavigation) => {
+      target = next;
     };
     const crumbs = breadcrumbForPath('/projects/project-1', 'Example project', navigate, true);
     crumbs[0].onClick!();
-    expect(destination).toBe('/projects');
+    expect(target).toBe('/projects');
+  });
+
+  it('AC-LRC-010: accepts only a resolver-minted descriptor as the contextual parent', () => {
+    const crumbs = breadcrumbForPath(
+      '/projects/project-1',
+      'Example project',
+      undefined,
+      true,
+      undefined,
+      // @ts-expect-error a hand-built {path,state} is not a validated ListReturnNavigation.
+      { path: '/projects?filter=Ongoing', state: {} },
+    );
+    expect(crumbs[0].label).toBe('Projects');
   });
 });
 

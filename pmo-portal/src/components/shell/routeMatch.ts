@@ -279,13 +279,13 @@ const administrationBreadcrumbForPath = (
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
-  navigate?: (path: string, state?: unknown) => void,
+  navigate?: (target: string | ListReturnNavigation) => void,
   recordResolved = false,
   // FIX-2: the stage group is no longer used to change the breadcrumb ancestry for
   // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
   // The param is kept in the signature so App.tsx callers don't need updating.
   _recordStatusGroup?: ProjectStatusGroup,
-  /** Validated same-owner return descriptor; callers must validate untrusted router state first. */
+  /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
@@ -346,13 +346,11 @@ export function breadcrumbForPath(
         return [
           {
             label: parentLabel,
-            onClick: () => {
-              const target = contextualParent?.path ?? parentPath;
-              // Forward both the path and its one-shot restore state only when a validated return
-              // descriptor exists; otherwise keep the plain single-argument navigation contract.
-              if (contextualParent) navigate?.(target, contextualParent.state);
-              else navigate?.(target);
-            },
+            // App passes a descriptor for every adopting list's detail route: the validated source
+            // list URL, or the owning index when there is no usable context, with cleaned router
+            // state (a one-shot scroll restore only when an offset was captured). Other modules'
+            // detail routes have no descriptor and navigate to their bare index path.
+            onClick: () => navigate?.(contextualParent ?? parentPath),
           },
           { label: recordCrumb },
         ];

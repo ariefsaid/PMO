@@ -9,6 +9,7 @@ import {
   safeLocalPath,
   withListReturnContext,
   LIST_SCROLL_RESTORE_STATE_KEY,
+  type ListReturnNavigation,
 } from '@/src/lib/listReturnContext';
 import type { ListName } from '@/src/lib/listWorkingSet';
 
@@ -106,13 +107,20 @@ function markScrollConsumed(locationKey: string): void {
 }
 
 /**
- * The router adapter the desktop parent breadcrumb calls: push `path` carrying `state` (the clean
- * return entry from `contextualListReturnNavigation`), exactly as the mobile BackBar's
- * `returnToList` does. A crumb without a return descriptor calls it with the path alone.
+ * The router adapter the desktop parent breadcrumb calls. A plain path navigates with no state; a
+ * `ListReturnNavigation` (only mintable by `listReturnNavigation` /
+ * `contextualListReturnNavigation`) pushes its validated path and clean return state, exactly as
+ * the mobile BackBar's `returnToList` does. Arbitrary router state cannot be passed.
  */
-export function useReturnNavigate(): (path: string, state?: unknown) => void {
+export function useReturnNavigate(): (target: string | ListReturnNavigation) => void {
   const navigate = useNavigate();
-  return useCallback((path: string, state?: unknown) => navigate(path, { state }), [navigate]);
+  return useCallback(
+    (target: string | ListReturnNavigation) => {
+      if (typeof target === 'string') navigate(target);
+      else navigate(target.path, { state: target.state });
+    },
+    [navigate],
+  );
 }
 
 /**
