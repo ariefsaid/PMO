@@ -696,6 +696,12 @@ buttons and landmarks. **Keyboard:** tab order follows DOM; overlays add focus m
 `RecordActionZone` keeps the primary action in the keyboard path and above the fold; status pills stay
 dot+label (never color-only).
 
+**Scrollable regions (2026-09-28):** a horizontally scrolling region with no focusable children gets
+`role="group"`, a label, and `tabIndex={0}` — otherwise a keyboard user has no way to reach its overflow
+(axe `scrollable-region-focusable`). Skip this when the region already contains its own focusable
+children (e.g. `Funnel` stages rendered with `onSelect`); adding it there would only insert a redundant
+tab stop ahead of the first real control.
+
 ---
 
 ## Icons — the `<Icon name=…>` monoline facade (ADR-0068, locked look)

@@ -3,11 +3,20 @@
  * AC-SFA-001 — Sales Pipeline funnel amounts stay contained in their own stage at 390px.
  *
  * ORACLE: the Sales Pipeline's five-stage funnel is horizontally scrollable at phone width
- * (each stage keeps at least a 10rem floor so the exact formatted amount never clips or
- * overlaps its neighbour). We measure the DOM geometry directly — every stage's amount
- * bounding box must lie inside its own stage box — and assert the page itself never pans
- * sideways (documentElement.scrollWidth <= viewport), so the deliberate funnel scroller
- * owns its overflow instead of leaking it to the whole page.
+ * (each stage's column grows with its own content — an intrinsic `max-content` track floor,
+ * not a fixed one — so the exact formatted amount never clips or overlaps its neighbour). We
+ * measure the DOM geometry directly — every stage's amount bounding box must lie inside its
+ * own stage box — and assert the page itself never pans sideways (documentElement.scrollWidth
+ * <= viewport), so the deliberate funnel scroller owns its overflow instead of leaking it to
+ * the whole page.
+ *
+ * The seeded pipeline is USD, so the geometry is ALSO probed against a representative long IDR
+ * amount (trillions scale) — the org-currency worst case a real RIS tenant renders. Since
+ * there is no supported way to change the seeded org's currency from an e2e spec, the probe
+ * substitutes the rendered text of every stage amount with a deterministic
+ * `Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' })` figure via
+ * `page.evaluate` and re-measures containment — this proves the CSS geometry contract, not the
+ * currency formatter (which has its own owning tests elsewhere).
  *
  * This is the browser geometry proof for FR-SFA-001 / AC-SFA-001; the component-level
  * contracts for the shared Funnel live in the RTL suite (AC-SFA-004).
@@ -38,7 +47,23 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
       `expected a grouped long amount among stage values, got: ${amounts.join(' | ')}`,
     ).toBe(true);
 
-    // For every stage, the amount's box must lie inside the stage's own box (tolerance 1px).
+    // FR-SFA-001 (Discover follow-up, 2026-09-28): the seed data is USD, but the layout must
+    // also hold for the representative long IDR amount (trillions scale) a real org-currency
+    // tenant renders. Substitute every stage's rendered amount with a deterministic id-ID/IDR
+    // figure — the layout-only probe described in the file header — then re-measure containment.
+    const idrProbeAmounts = await page.evaluate(() => {
+      const idr = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(1_250_000_000_000);
+      const texts: string[] = [];
+      document.querySelectorAll('[data-funnel-stage-amount]').forEach((el) => {
+        el.textContent = idr;
+        texts.push(idr);
+      });
+      return texts;
+    });
+    expect(idrProbeAmounts).toHaveLength(5);
+
+    // For every stage, the (now IDR-probed) amount's box must lie inside the stage's own box
+    // (tolerance 1px).
     const containment = await page.evaluate(() => {
       const results: { i: number; stage: DOMRect | null; amount: DOMRect | null }[] = [];
       document.querySelectorAll('[data-funnel-stage]').forEach((stageEl, i) => {
@@ -72,5 +97,41 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     // The funnel scroller must contain its own overflow — the page never pans sideways.
     const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(pageScrollWidth).toBeLessThanOrEqual(392);
+  });
+
+  test('AC-SFA-001: keyboard focus scrolls a partly off-screen stage into the funnel viewport at 390px', async ({
+    page,
+  }) => {
+    // Discover finding (2026-09-28): Tab to a stage past the visible edge of the 390px funnel
+    // left it only partly shown. Focusing the LAST stage (the one most likely to sit beyond the
+    // fold at phone width) must bring its whole box inside the scroll viewport's visible bounds.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page, 'admin@acme.test');
+    await page.goto('/sales');
+    await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+
+    const lastStage = page.locator('[data-funnel-stage]').last();
+    // `.focus()` dispatches the same native `focus` event a real Tab keypress produces, without
+    // depending on how many other elements precede it in the page's tab order.
+    await lastStage.focus();
+
+    const boxes = await page.evaluate(() => {
+      const scrollArea = document.querySelector('[data-testid="funnel-scroll-area"]');
+      const stages = document.querySelectorAll('[data-funnel-stage]');
+      const lastStageEl = stages[stages.length - 1];
+      return {
+        scrollArea: scrollArea!.getBoundingClientRect().toJSON() as unknown as DOMRect,
+        stage: lastStageEl.getBoundingClientRect().toJSON() as unknown as DOMRect,
+      };
+    });
+
+    expect(
+      boxes.stage.x,
+      `focused stage starts before the scroll viewport: stage.x=${boxes.stage.x.toFixed(1)} < scrollArea.x=${boxes.scrollArea.x.toFixed(1)}`,
+    ).toBeGreaterThanOrEqual(boxes.scrollArea.x - 1);
+    expect(
+      boxes.stage.x + boxes.stage.width,
+      `focused stage extends past the scroll viewport: stage.right=${(boxes.stage.x + boxes.stage.width).toFixed(1)} > scrollArea.right=${(boxes.scrollArea.x + boxes.scrollArea.width).toFixed(1)}`,
+    ).toBeLessThanOrEqual(boxes.scrollArea.x + boxes.scrollArea.width + 1);
   });
 });

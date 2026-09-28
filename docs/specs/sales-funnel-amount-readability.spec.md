@@ -21,7 +21,7 @@ Keep exact formatted amounts. Let the existing horizontal funnel scroll provide 
 
 | ID | Given / When / Then | Owning layer |
 |---|---|---|
-| **AC-SFA-001** | Given five Sales stages with a representative long currency amount, when the funnel renders at 390px, then the full amount fits inside its own stage or wraps without losing digits, and no value overlaps another stage. | Browser geometry / visual regression |
+| **AC-SFA-001** | Given five Sales stages with a representative long IDR amount (trillions scale — the org-currency worst case), when the funnel renders at 390px, then the full amount fits inside its own stage or wraps without losing digits, and no value overlaps another stage. | Browser geometry / visual regression |
 | **AC-SFA-002** | Given a stage in a horizontally scrolled funnel, when the user clicks or presses Enter or Space on it, then the selected stage and `aria-pressed` state agree with the list filter. | Component integration |
 | **AC-SFA-003** | Given English and Bahasa Indonesia in light and dark themes, when the 390px and desktop funnel render, then amount, probability, and weighted text remain readable. | Rendered review matrix |
 | **AC-SFA-004** | Given a dashboard Funnel panel with long values, when the panel renders in a narrow container, then the funnel stays within a deliberate local scroll area rather than widening the page. | Component/layout test |
