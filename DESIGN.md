@@ -437,6 +437,9 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 White `card`, `lg` radius, ~11px padding, faint rest shadow; hover lift + `muted-foreground/35%` border;
 active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill. 26px icon,
 name + customer, ~15px/700 tabular value, win-% chip, foot row (age + owner avatar + mini status pill).
+For project cards, the title uses the text-column width beside the icon and wraps without a line clamp;
+status follows the complete title, before client/code. Grid project cards retain their two-line title
+and top-right status placement.
 Columns in a horizontal-scroll grid of `minmax(258px, 1fr)` tracks with scroll-snap (one column per
 gesture on touch) + a right-edge mask fade. **ONE `ProjectCard` + ONE `KanbanBoard`** drive every board.
 

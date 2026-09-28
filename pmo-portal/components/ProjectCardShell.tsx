@@ -47,10 +47,11 @@ export interface ProjectCardShellProps {
  * A project renders the SAME wherever it appears: the Projects cards view, the
  * Projects kanban board, and the Sales/Pipeline kanban board all compose this
  * shell. The shell owns the chrome — 1px border at rest, hover-lift on interaction
- * (Flat-By-Default Rule), the icon tile + name + client·code subtitle head with a
- * top-right status slot, then a body slot (lens-specific metrics) and a foot slot
- * (PM + optional control). Lens content (delivery committed/actual vs pipeline
- * weighted value) is passed in — the SHELL never forks.
+ * (Flat-By-Default Rule), the icon tile + name + client·code subtitle head, then a
+ * body slot (lens-specific metrics) and a foot slot (PM + optional control).
+ * Grid keeps status beside the head; Kanban places it below the full title and
+ * before client/code. Lens content (delivery committed/actual vs pipeline weighted
+ * value) is passed in — the SHELL never forks.
  *
  * Two density variants:
  *  - `grid`  — full cards-view card; the name is an inner <button> so the foot can
@@ -89,7 +90,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           // Kanban: the KanbanCard wrapper is the single role=button activation
           // target, so the name is plain text (no nested button in role=button).
           <div
-            className="block max-w-full break-words text-[13px] font-semibold text-foreground line-clamp-2 leading-5"
+            className="block max-w-full break-words text-[13px] font-semibold text-foreground leading-5"
             title={name}
           >
             {name}
@@ -104,10 +105,11 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
             {name}
           </button>
         )}
+        {isKanban && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
         <div
           className={cn(
             'mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground',
-            isKanban && 'mt-0',
+            isKanban && 'mt-1',
           )}
         >
           {/* PL-2: grid mode only — kanban card is role=button so nested Links are invalid. */}
@@ -123,7 +125,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           {code && <span className="shrink-0 font-mono text-[11px]">· {code}</span>}
         </div>
       </div>
-      {status}
+      {!isKanban && status}
     </div>
   );
 
