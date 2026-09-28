@@ -41,12 +41,14 @@ export function useMoneyInputMask(
     const nativeInput = event.nativeEvent as InputEvent;
     const group = numberSymbols(locale).group;
     const isTypedDigit = nativeInput.inputType === 'insertText' && /^\d$/.test(nativeInput.data ?? '');
+    const isDeletion = nativeInput.inputType?.startsWith('delete') ?? false;
     let draft = raw;
 
-    // Group separators are inserted by this mask. A digit typed next to one can temporarily
-    // make its group width invalid (for example `4,8200`); normalize that edit before strict
-    // validation can see it. Pasted or otherwise malformed grouping remains untouched.
-    if (isTypedDigit && group && raw.includes(group) && parseMoneyInput(value, locale) !== null) {
+    // Group separators are inserted by this mask. A digit typed or deleted next to one can
+    // temporarily make its group width invalid (`4,8200`, or `1,23` after a backspace); normalize
+    // that edit before strict validation can see it. Pasted or otherwise malformed grouping
+    // remains untouched.
+    if ((isTypedDigit || isDeletion) && group && raw.includes(group) && parseMoneyInput(value, locale) !== null) {
       const ungrouped = raw.split(group).join('');
       if (parseMoneyInput(ungrouped, locale) !== null) draft = ungrouped;
     }

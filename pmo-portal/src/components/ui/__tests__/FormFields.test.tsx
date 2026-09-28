@@ -186,6 +186,61 @@ describe('NumberField: fires onChange', () => {
     expect(input).toHaveValue('192,345');
     expect(input.selectionStart).toBe(2);
   });
+
+  it('AC-PLC-009: regroups the draft after a digit is backspaced so it stays parseable', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('1,234');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount') as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(5, 5);
+
+    await userEvent.keyboard('{Backspace}');
+
+    expect(input).toHaveValue('123');
+    expect(parseMoneyInputAtScale(input.value, 2)).toBe(123);
+    expect(input.selectionStart).toBe(3);
+  });
+
+  it('AC-PLC-009: keeps the caret beside the edit after a mid-string backspace', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('12,345,678');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount') as HTMLInputElement;
+    input.focus();
+    // Caret after the `4`: `12,34|5,678`.
+    input.setSelectionRange(5, 5);
+
+    await userEvent.keyboard('{Backspace}');
+
+    expect(input).toHaveValue('1,235,678');
+    expect(parseMoneyInputAtScale(input.value, 2)).toBe(1_235_678);
+    // Four digits precede the caret (`1,23|5,678`).
+    expect(input.selectionStart).toBe(4);
+  });
+
+  it('AC-PLC-009: regroups after a forward delete in the Indonesian convention', async () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('1.234,5');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount') as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(0, 0);
+
+    await userEvent.keyboard('{Delete}');
+
+    expect(input).toHaveValue('234,5');
+    expect(parseMoneyInputAtScale(input.value, 2)).toBe(234.5);
+  });
 });
 
 describe('formatMoneyInputDraft', () => {
