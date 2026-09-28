@@ -10,6 +10,7 @@ import {
   initiateM365Connect,
   disconnectM365,
   getM365ConnectionStatus,
+  describeM365Error,
   type ConnectionStatus,
 } from '@/src/lib/m365/connectClient';
 
@@ -97,35 +98,35 @@ function readErrorCode(err: unknown): string | undefined {
 function knownCodeReason(t: TFunction, code: string | undefined): string | null {
   switch (code) {
     case 'NOT_ENTITLED':
-      return t('integrations.personalM365.errors.notEntitled');
+      return t('integrations.personalM365.errors.notEntitled', describeM365Error(code));
     case 'DISABLED_MEMBER':
-      return t('integrations.personalM365.errors.disabledMember');
+      return t('integrations.personalM365.errors.disabledMember', describeM365Error(code));
     case 'BANNED_MEMBER':
-      return t('integrations.personalM365.errors.bannedMember');
+      return t('integrations.personalM365.errors.bannedMember', describeM365Error(code));
     case 'ORG_APPROVAL_REQUIRED':
-      return t('integrations.personalM365.errors.organizationApprovalRequired');
+      return t('integrations.personalM365.errors.organizationApprovalRequired', describeM365Error(code));
     case 'FORBIDDEN':
-      return t('integrations.personalM365.errors.forbidden');
+      return t('integrations.personalM365.errors.forbidden', describeM365Error(code));
     case 'UNAUTHORIZED':
-      return t('integrations.personalM365.errors.unauthorized');
+      return t('integrations.personalM365.errors.unauthorized', describeM365Error(code));
     case 'CONNECTION_STALE':
-      return t('integrations.personalM365.errors.connectionStale');
+      return t('integrations.personalM365.errors.connectionStale', describeM365Error(code));
     case 'CONNECTION_REVOKED':
-      return t('integrations.personalM365.errors.connectionRevoked');
+      return t('integrations.personalM365.errors.connectionRevoked', describeM365Error(code));
     case 'NOT_CONNECTED':
-      return t('integrations.personalM365.errors.notConnected');
+      return t('integrations.personalM365.errors.notConnected', describeM365Error(code));
     case 'TOKEN_EXCHANGE_FAILED':
-      return t('integrations.personalM365.errors.tokenExchangeFailed');
+      return t('integrations.personalM365.errors.tokenExchangeFailed', describeM365Error(code));
     case 'INVALID_STATE':
-      return t('integrations.personalM365.errors.invalidState');
+      return t('integrations.personalM365.errors.invalidState', describeM365Error(code));
     case 'SCOPE_INSUFFICIENT':
-      return t('integrations.personalM365.errors.scopeInsufficient');
+      return t('integrations.personalM365.errors.scopeInsufficient', describeM365Error(code));
     case 'BAD_REQUEST':
-      return t('integrations.personalM365.errors.badRequest');
+      return t('integrations.personalM365.errors.badRequest', describeM365Error(code));
     case 'GRAPH_ERROR':
-      return t('integrations.personalM365.errors.graphError');
+      return t('integrations.personalM365.errors.graphError', describeM365Error(code));
     case 'INTERNAL_ERROR':
-      return t('integrations.personalM365.errors.internalError');
+      return t('integrations.personalM365.errors.internalError', describeM365Error(code));
     default:
       return null;
   }
@@ -144,14 +145,23 @@ function localizedError(t: TFunction, code: string | undefined, origin: ErrorOri
     // The dialog headline already states the outcome (still connected) — this is the BODY only:
     // the reviewed reason (when known) followed by the retry/cancel guidance, stated once (never
     // the old back-to-back "You can retry or cancel. … Please try again." double guidance).
-    const guidance = t('integrations.personalM365.errors.disconnectFailureGuidance');
+    const guidance = t('integrations.personalM365.errors.disconnectFailureGuidance', 'You can retry or cancel.');
     const reason = knownCodeReason(t, code);
     return reason ? `${reason} ${guidance}` : guidance;
   }
   if (origin === 'status') {
-    return knownCodeReason(t, code) ?? t('integrations.personalM365.errors.statusFallback');
+    return (
+      knownCodeReason(t, code) ??
+      t(
+        'integrations.personalM365.errors.statusFallback',
+        "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+      )
+    );
   }
-  return knownCodeReason(t, code) ?? t('integrations.personalM365.errors.generic');
+  return (
+    knownCodeReason(t, code) ??
+    t('integrations.personalM365.errors.generic', 'Microsoft 365 could not be connected. Please try again.')
+  );
 }
 
 /**
@@ -394,7 +404,7 @@ export const M365ConnectionCard: React.FC = () => {
       <div className="flex items-center gap-2">
         <Icon name="plug" />
         <h3 className="text-[15px] text-foreground font-semibold">
-          {t('integrations.personalM365.heading')}
+          {t('integrations.personalM365.heading', 'Microsoft 365')}
         </h3>
       </div>
 
@@ -406,8 +416,11 @@ export const M365ConnectionCard: React.FC = () => {
           <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
           <span>
             {connectedAt
-              ? t('integrations.personalM365.state.connectedSince', { date: formatDate(connectedAt) })
-              : t('integrations.personalM365.state.connected')}
+              ? t('integrations.personalM365.state.connectedSince', {
+                  defaultValue: 'Connected since {{date}}. You can disconnect any time.',
+                  date: formatDate(connectedAt),
+                })
+              : t('integrations.personalM365.state.connected', 'Connected. You can disconnect any time.')}
           </span>
         </p>
       ) : phase === 'org-approved' ? (
@@ -417,7 +430,12 @@ export const M365ConnectionCard: React.FC = () => {
           role="status"
         >
           <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
-          <span>{t('integrations.personalM365.state.organizationApproved')}</span>
+          <span>
+            {t(
+              'integrations.personalM365.state.organizationApproved',
+              'Your organization has approved the PMO Portal app in Microsoft 365. Connect your own Microsoft 365 account to continue.',
+            )}
+          </span>
         </p>
       ) : phase === 'reconnect' ? (
         <p
@@ -425,7 +443,12 @@ export const M365ConnectionCard: React.FC = () => {
           data-testid="m365-reconnect-msg"
         >
           <Icon name="alert" className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>{t('integrations.personalM365.state.reconnect')}</span>
+          <span>
+            {t(
+              'integrations.personalM365.state.reconnect',
+              'The Microsoft 365 connection expired. Please reconnect to continue.',
+            )}
+          </span>
         </p>
       ) : phase === 'revoked' ? (
         <p
@@ -433,7 +456,12 @@ export const M365ConnectionCard: React.FC = () => {
           data-testid="m365-revoked-msg"
         >
           <Icon name="alert" className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>{t('integrations.personalM365.state.revoked')}</span>
+          <span>
+            {t(
+              'integrations.personalM365.state.revoked',
+              'The Microsoft 365 connection was revoked. Connect again to continue.',
+            )}
+          </span>
         </p>
       ) : phase === 'unknown' ? (
         <p
@@ -445,12 +473,15 @@ export const M365ConnectionCard: React.FC = () => {
           <span>
             {errorState
               ? localizedError(t, errorState.code, 'status')
-              : t('integrations.personalM365.state.unknown')}
+              : t(
+                  'integrations.personalM365.state.unknown',
+                  "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+                )}
           </span>
         </p>
       ) : phase === 'loading' ? (
         <p className="mt-2 text-sm text-muted-foreground" data-testid="m365-loading-msg">
-          {t('integrations.personalM365.state.loading')}
+          {t('integrations.personalM365.state.loading', 'Checking Microsoft 365 connection status…')}
         </p>
       ) : phase === 'error' && errorState ? (
         <p
@@ -463,7 +494,10 @@ export const M365ConnectionCard: React.FC = () => {
         </p>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">
-          {t('integrations.personalM365.state.notConnected')}
+          {t(
+            'integrations.personalM365.state.notConnected',
+            'Not connected. Connect your own Microsoft 365 account to let PMO Portal access the OneDrive files, Teams, and calendar information available through your account.',
+          )}
         </p>
       )}
 
@@ -477,8 +511,8 @@ export const M365ConnectionCard: React.FC = () => {
             data-testid="m365-connect-btn"
           >
             {phase === 'reconnect' || phase === 'revoked'
-              ? t('integrations.personalM365.action.reconnect')
-              : t('integrations.personalM365.action.connect')}
+              ? t('integrations.personalM365.action.reconnect', 'Reconnect Microsoft 365')
+              : t('integrations.personalM365.action.connect', 'Connect Microsoft 365')}
           </Button>
         )}
         {showDisconnect && (
@@ -488,7 +522,7 @@ export const M365ConnectionCard: React.FC = () => {
             disabled={phase === 'disconnecting'}
             data-testid="m365-disconnect-btn"
           >
-            {t('integrations.personalM365.action.disconnect')}
+            {t('integrations.personalM365.action.disconnect', 'Disconnect')}
           </Button>
         )}
       </div>
@@ -496,20 +530,26 @@ export const M365ConnectionCard: React.FC = () => {
       <ConfirmDialog
         open={confirmOpen}
         tone="destructive"
-        title={t('integrations.personalM365.confirm.title')}
+        title={t('integrations.personalM365.confirm.title', 'Disconnect Microsoft 365?')}
         description={
           <>
-            {t('integrations.personalM365.confirm.description')}
+            {t(
+              'integrations.personalM365.confirm.description',
+              'Disconnecting removes this Microsoft 365 account connection. PMO can no longer access the OneDrive files, Teams, and calendar information available through this account until you reconnect. You can reconnect at any time.',
+            )}
             {disconnectError && (
               <DisconnectErrorAlert
-                headline={t('integrations.personalM365.errors.disconnectFailureHeadline')}
+                headline={t(
+                  'integrations.personalM365.errors.disconnectFailureHeadline',
+                  "We couldn't confirm the disconnect. The last confirmed status is still connected.",
+                )}
                 body={localizedError(t, disconnectError.code, 'disconnect')}
               />
             )}
           </>
         }
-        confirmLabel={t('integrations.personalM365.confirm.confirm')}
-        cancelLabel={t('integrations.personalM365.confirm.cancel')}
+        confirmLabel={t('integrations.personalM365.confirm.confirm', 'Disconnect')}
+        cancelLabel={t('integrations.personalM365.confirm.cancel', 'Cancel')}
         loading={phase === 'disconnecting'}
         onConfirm={onDisconnectConfirm}
         onCancel={onDialogCancel}

@@ -53,6 +53,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatDate } from '@/src/lib/format';
+import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const { featureState, invoke } = vi.hoisted(() => ({
   featureState: { value: false },
@@ -983,5 +984,52 @@ describe('AC-M365LOC-005 — disconnect recovery keeps connected + the dialog op
     expect(hasClass(body, 'text-muted-foreground')).toBe(true);
     expect(body).toHaveTextContent('Anda dapat mencoba lagi atau membatalkan.');
     expect(document.activeElement).toBe(alert);
+  });
+});
+
+describe('AC-M365LOC-001 — every t() call carries its English default (missing-key fallback)', () => {
+  // Reproduces the app's real "catalogue fetch failed" degradation (i18n/index.ts's
+  // `parseMissingKeyHandler`, FR-L10N-041): an i18next instance with NO resources for any key. A
+  // call site that omits its English default (`t('key')` instead of `t('key', 'English text')`)
+  // renders the raw dotted key under this instance — this is the regression this suite pins.
+  async function renderWithEmptyCatalogue(initialEntry = '/integrations') {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      defaultNS: 'common',
+      resources: { en: { common: {} } },
+      parseMissingKeyHandler,
+      returnEmptyString: false,
+    });
+    const utils = render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <M365ConnectionCard />
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    return { ...utils, i18n };
+  }
+
+  it('AC-M365LOC-001: disconnected renders the English default copy + Connect label with zero catalogues loaded', async () => {
+    featureState.value = true;
+    await renderWithEmptyCatalogue();
+    const btn = await screen.findByRole('button', { name: /^connect microsoft 365$/i });
+    expect(btn).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Not connected. Connect your own Microsoft 365 account to let PMO Portal access the OneDrive files, Teams, and calendar information available through your account.',
+      ),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
+  });
+
+  it('AC-M365LOC-001: a known error code renders its English reviewed reason with zero catalogues loaded', async () => {
+    featureState.value = true;
+    await renderWithEmptyCatalogue('/integrations?m365_error=raw&m365_error_code=NOT_ENTITLED');
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent(describeM365Error('NOT_ENTITLED'));
+    expect(document.body.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
   });
 });
