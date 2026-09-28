@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   materializeSessionView,
   parseListWorkingSet,
-  resolveListWorkingSet,
   serializeListWorkingSet,
   type ProcurementWorkingSet,
   type SalesWorkingSet,
@@ -217,6 +216,22 @@ describe('list working-set URL codec', () => {
     const lostAlone: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost');
     expect(lostAlone).toMatchObject({ scope: 'Lost', status: '' });
 
+    // Serializing a contradictory Lost + open stage omits scope (Open is the default), so the URL
+    // and the controls both read Open + Leads.
+    const lostQuery = serializeListWorkingSet('sales', '?campaign=fall', {
+      scope: 'Lost',
+      status: 'Leads',
+      q: '',
+      view: 'kanban',
+    });
+    expect(lostQuery.toString()).toBe('campaign=fall&status=Leads');
+    expect(parseListWorkingSet('sales', lostQuery)).toMatchObject({ scope: 'Open', status: 'Leads' });
+    // Lost without a stage is not contradictory and is written as-is.
+    expect(
+      serializeListWorkingSet('sales', '', { scope: 'Lost', status: '', q: '', view: 'kanban' })
+        .toString(),
+    ).toBe('scope=Lost');
+
     // Round-trips: Needs attention + stage survives serialization.
     const roundTrip = parseListWorkingSet(
       'sales',
@@ -307,17 +322,15 @@ describe('list working-set URL codec', () => {
 
   it('AC-LRC-002: uses a valid session view only as a fallback and materializes a nondefault effective view', () => {
     const stored = new URLSearchParams('?campaign=fall');
-    const resolved = resolveListWorkingSet('projects', stored, { sessionView: 'calendar' });
-    expect(resolved.value.view).toBe('calendar');
-    expect(resolved.search.get('view')).toBe('calendar');
-    expect(resolved.search.get('campaign')).toBe('fall');
+    const options = { sessionView: 'calendar' };
+    const value = parseListWorkingSet('projects', stored, options);
+    expect(value.view).toBe('calendar');
+    const search = serializeListWorkingSet('projects', stored, value, options);
+    expect(search.get('view')).toBe('calendar');
+    expect(search.get('campaign')).toBe('fall');
 
-    expect(
-      resolveListWorkingSet('projects', '?view=kanban', { sessionView: 'calendar' }).value.view,
-    ).toBe('kanban');
-    expect(resolveListWorkingSet('projects', '', { sessionView: 'unknown' }).value.view).toBe(
-      'table',
-    );
+    expect(parseListWorkingSet('projects', '?view=kanban', options).view).toBe('kanban');
+    expect(parseListWorkingSet('projects', '', { sessionView: 'unknown' }).view).toBe('table');
   });
 
   it('AC-LRC-002: a view enum rejects through the projects codec with the canonical serialization', () => {
@@ -325,9 +338,13 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('projects', source).view).toBe('table');
     // The canonical URL drops the invalid view token (table is the omitted default) but
     // retains unrelated keys.
-    const canonical = resolveListWorkingSet('projects', source);
-    expect(canonical.search.get('view')).toBeNull();
-    expect(canonical.search.get('campaign')).toBe('winter');
+    const canonical = serializeListWorkingSet(
+      'projects',
+      source,
+      parseListWorkingSet('projects', source),
+    );
+    expect(canonical.get('view')).toBeNull();
+    expect(canonical.get('campaign')).toBe('winter');
   });
 
   it('AC-LRC-001: each codec round-trips every view its hook module declares, defaulting to the hook default', () => {

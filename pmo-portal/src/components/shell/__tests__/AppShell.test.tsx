@@ -392,7 +392,6 @@ describe('AppShell — parent breadcrumb record return', () => {
         list: 'companies',
         path: '/companies?type=Client&q=harbor',
         scrollTop: 240,
-        sourceLocationKey: 'e1',
       },
     });
 
@@ -429,7 +428,6 @@ describe('AppShell — parent breadcrumb record return', () => {
         list: 'sales',
         path: '/sales?scope=Needs+attention&status=Leads&view=table',
         scrollTop: 180,
-        sourceLocationKey: 's1',
       },
     });
 

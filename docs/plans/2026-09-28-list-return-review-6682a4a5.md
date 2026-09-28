@@ -81,7 +81,11 @@
 > **Correction (review round 3, 2026-09-28).** Tasks 6, 8, and 10 above tagged seam unit tests with
 > `AC-LRC-004/005/009/011`. Those acceptance criteria are owned elsewhere (the browser journeys, and
 > `ProjectDetail.lens.test.tsx` for AC-LRC-011), so the seam's supporting tests now carry the
-> functional-requirement IDs they prove. Each AC keeps exactly one owning layer.
+> functional-requirement IDs they prove. Each AC keeps exactly one owning layer. The same round
+> removed the unread `sourceLocationKey` context field and the test-only `listReturnPath` and
+> `resolveListWorkingSet` exports (task 5's hook composes `parseListWorkingSet`,
+> `serializeListWorkingSet`, and `materializeSessionView`). It also renamed the readiness options
+> to `defaultsReady` (`useListWorkingSet`) and `contentReady` (`useListReturn`).
 
 | ID | Proof in this slice | Role |
 |---|---|---|

@@ -391,19 +391,6 @@ export function serializeListWorkingSet<K extends ListName>(
   return LIST_WORKING_SET_SCHEMAS[list].serialize(paramsFrom(search), workingSet, options);
 }
 
-/** Resolve controls and their canonical URL together, including a persisted nondefault view. */
-export function resolveListWorkingSet<K extends ListName>(
-  list: K,
-  search: SearchInput,
-  options: ListWorkingSetOptions = {},
-): { value: ListWorkingSetByName[K]; search: URLSearchParams } {
-  const value = parseListWorkingSet(list, search, options);
-  return {
-    value,
-    search: serializeListWorkingSet(list, search, value, options),
-  };
-}
-
 /**
  * The only URL write a list makes without a user action. When the URL carries no explicit `view`
  * and the effective session view is valid and nondefault, return the search with that view added,

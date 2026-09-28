@@ -196,7 +196,10 @@ describe('useListWorkingSet — Projects', () => {
     expect(workingSet()).toMatchObject({ view: 'table' });
   });
 
-  it('FR-LRC-005: the materializing replace keeps router state so a pending scroll restore survives', async () => {
+  // This pins state preservation only. A restore still applies only when its path equals the
+  // list URL exactly (useListReturn), so this restore, captured before the view was added, would
+  // no longer match the materialized URL.
+  it('FR-LRC-005: the materializing replace carries the existing router state forward unchanged', async () => {
     writeProjectView('calendar');
     const restore = {
       pmoListScrollRestore: { list: 'projects', path: '/projects', scrollTop: 240 },

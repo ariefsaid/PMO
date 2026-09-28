@@ -199,7 +199,6 @@ describe('useListReturn', () => {
       list: 'companies',
       path: '/companies?type=Client&q=harbor&campaign=source',
       scrollTop: 320,
-      sourceLocationKey: expect.any(String),
     });
     expect(screen.getByRole('button', { name: 'Return to companies' })).toBeInTheDocument();
   });
@@ -298,7 +297,6 @@ describe('useListReturn', () => {
         list: 'companies',
         path: '/companies?type=Client&q=review',
         scrollTop: 900,
-        sourceLocationKey: 'source_1',
       },
     };
     renderAt('/companies/company-1', true, state);
@@ -384,7 +382,6 @@ describe('useListReturn', () => {
         list: 'companies',
         path: '/companies?type=Client',
         scrollTop: 170,
-        sourceLocationKey: 'source_1',
       },
     };
     renderAt('/companies/company-1', false, state);

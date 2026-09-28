@@ -165,7 +165,7 @@ export function useListReturn({
       const main = scrollElement();
       const offset =
         main && Number.isFinite(main.scrollTop) && main.scrollTop >= 0 ? main.scrollTop : undefined;
-      const context = createListReturnContext(list, path, offset, location.key);
+      const context = createListReturnContext(list, path, offset);
       if (!context) return false;
       if (offset !== undefined) saveEntryScroll(location.key, path, offset);
       navigate(destination, { state: withListReturnContext(location.state, context) });

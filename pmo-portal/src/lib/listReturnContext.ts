@@ -10,8 +10,6 @@ export interface ListReturnContext {
   path: string;
   /** Best-effort main-scroll offset captured from that list entry. */
   scrollTop?: number;
-  /** React Router key of the source list entry, used for native Back restoration. */
-  sourceLocationKey?: string;
 }
 
 declare const validatedReturnNavigation: unique symbol;
@@ -46,7 +44,6 @@ const LIST_PATHS: Record<ListName, string> = {
 
 const MAX_RETURN_PATH_LENGTH = 4096;
 const MAX_SCROLL_TOP = 10_000_000;
-const LOCATION_KEY_PATTERN = /^[A-Za-z0-9_-]{1,128}$/u;
 const BASE_ORIGIN = 'https://list-return.invalid';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,8 +73,9 @@ export function canCaptureFromList(source: ListName, owner: ListName): boolean {
 /**
  * Validate an untrusted path as a safe, same-origin, relative local URL. Rejects protocol-relative
  * values (as written or after dot-segment normalisation), cross-origin values, fragments,
- * backslashes, control characters, over-long values, and non-leading-slash input. Returns the normalized `pathname?query` or undefined. Shared by list
- * context validation and record-target validation (which additionally checks the exact path shape).
+ * backslashes, control characters, over-long values, and non-leading-slash input. Returns the
+ * normalized `pathname?query` or undefined. Shared by list context validation and record-target
+ * validation (which additionally checks the exact path shape).
  */
 export function safeLocalPath(value: unknown): string | undefined {
   if (
@@ -128,26 +126,19 @@ function validScrollTop(value: unknown): number | undefined {
     : undefined;
 }
 
-function validLocationKey(value: unknown): string | undefined {
-  return typeof value === 'string' && LOCATION_KEY_PATTERN.test(value) ? value : undefined;
-}
-
 /** Create a return context only from the named list's exact local index route. */
 export function createListReturnContext(
   list: ListName,
   path: string,
   scrollTop?: number,
-  sourceLocationKey?: string,
 ): ListReturnContext | undefined {
   const safePath = validatedListPath(path, list);
   if (!safePath) return undefined;
   const safeScrollTop = validScrollTop(scrollTop);
-  const safeLocationKey = validLocationKey(sourceLocationKey);
   return {
     list,
     path: safePath,
     ...(safeScrollTop === undefined ? {} : { scrollTop: safeScrollTop }),
-    ...(safeLocationKey === undefined ? {} : { sourceLocationKey: safeLocationKey }),
   };
 }
 
@@ -168,13 +159,7 @@ export function readListReturnContext(
     candidate.list,
     typeof candidate.path === 'string' ? candidate.path : '',
     candidate.scrollTop as number | undefined,
-    typeof candidate.sourceLocationKey === 'string' ? candidate.sourceLocationKey : undefined,
   );
-}
-
-/** Return a validated in-app context target or the record owner's canonical index. */
-export function listReturnPath(state: unknown, owner: ListName): string {
-  return readListReturnContext(state, owner)?.path ?? listIndexPath(owner);
 }
 
 /** Attach a context to existing router state without discarding unrelated state fields. */
@@ -185,12 +170,7 @@ export function withListReturnContext(
   const next = isRecord(state) ? { ...state } : {};
   delete next[LIST_RETURN_CONTEXT_KEY];
   const validated = listName(context?.list)
-    ? createListReturnContext(
-        context.list,
-        context.path,
-        context.scrollTop,
-        context.sourceLocationKey,
-      )
+    ? createListReturnContext(context.list, context.path, context.scrollTop)
     : undefined;
   if (validated) next[LIST_RETURN_CONTEXT_KEY] = validated;
   return next;
@@ -209,12 +189,7 @@ export function withListScrollRestore(
   delete next[LIST_RETURN_CONTEXT_KEY];
   delete next[LIST_SCROLL_RESTORE_STATE_KEY];
   const validated = context && listName(context.list)
-    ? createListReturnContext(
-        context.list,
-        context.path,
-        context.scrollTop,
-        context.sourceLocationKey,
-      )
+    ? createListReturnContext(context.list, context.path, context.scrollTop)
     : undefined;
   if (validated?.scrollTop !== undefined) {
     next[LIST_SCROLL_RESTORE_STATE_KEY] = {

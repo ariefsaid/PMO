@@ -7,7 +7,6 @@ import {
   listIndexPath,
   listReturnNavigation,
   listReturnOwnerForPathname,
-  listReturnPath,
   LIST_RETURN_CONTEXT_KEY,
   LIST_SCROLL_RESTORE_STATE_KEY,
   readListReturnContext,
@@ -18,22 +17,37 @@ import {
 } from './listReturnContext';
 
 describe('validated list return context', () => {
-  it('FR-LRC-003: accepts the owning list route and preserves its query, offset, and history key', () => {
+  it('FR-LRC-003: accepts the owning list route and preserves its query and offset', () => {
     const context = createListReturnContext(
       'companies',
       '/companies?type=Client&q=Caf%C3%A9&campaign=ref',
       840,
-      'entry_3',
     );
     expect(context).toEqual({
       list: 'companies',
       path: '/companies?type=Client&q=Caf%C3%A9&campaign=ref',
       scrollTop: 840,
-      sourceLocationKey: 'entry_3',
     });
     expect(readListReturnContext({ [LIST_RETURN_CONTEXT_KEY]: context }, 'companies')?.path).toBe(
       '/companies?type=Client&q=Caf%C3%A9&campaign=ref',
     );
+  });
+
+  it('FR-LRC-003: carries only the validated list, path, and offset, never extra state fields', () => {
+    const state = {
+      [LIST_RETURN_CONTEXT_KEY]: {
+        list: 'companies',
+        path: '/companies?type=Client',
+        scrollTop: 40,
+        sourceLocationKey: 'entry_3',
+        extra: 'ignored',
+      },
+    };
+    const context = readListReturnContext(state, 'companies');
+    expect(context).toEqual({ list: 'companies', path: '/companies?type=Client', scrollTop: 40 });
+    expect(withListReturnContext({}, state[LIST_RETURN_CONTEXT_KEY] as never)).toEqual({
+      [LIST_RETURN_CONTEXT_KEY]: { list: 'companies', path: '/companies?type=Client', scrollTop: 40 },
+    });
   });
 
   it('AC-LRC-010: reads return context only from the record\'s owning list, never a Sales source for a project', () => {
@@ -41,7 +55,6 @@ describe('validated list return context', () => {
     const state = { [LIST_RETURN_CONTEXT_KEY]: sales };
     // The project's BackBar/breadcrumb owner is Projects: a Sales source is not its owning list.
     expect(readListReturnContext(state, 'projects')).toBeUndefined();
-    expect(listReturnPath(state, 'projects')).toBe('/projects');
     expect(listReturnNavigation(state, 'projects').path).toBe('/projects');
     expect(readListReturnContext(state, 'contacts')).toBeUndefined();
     expect(
@@ -57,7 +70,6 @@ describe('validated list return context', () => {
       'sales',
       '/sales?scope=Needs+attention&status=Leads&q=harbor&view=table',
       300,
-      'entry_5',
     )!;
     const nav = listReturnNavigation({ [LIST_RETURN_CONTEXT_KEY]: sales, focusId: 'p1' }, 'sales');
     expect(nav.path).toBe('/sales?scope=Needs+attention&status=Leads&q=harbor&view=table');
@@ -95,18 +107,18 @@ describe('validated list return context', () => {
   });
 
   it('AC-LRC-010: absent, tampered, or external state falls back to the owning index', () => {
-    expect(listReturnPath(undefined, 'companies')).toBe('/companies');
+    expect(listReturnNavigation(undefined, 'companies').path).toBe('/companies');
     expect(
-      listReturnPath(
+      listReturnNavigation(
         { [LIST_RETURN_CONTEXT_KEY]: { list: 'companies', path: '/contacts' } },
         'companies',
-      ),
+      ).path,
     ).toBe('/companies');
     expect(
-      listReturnPath(
+      listReturnNavigation(
         { [LIST_RETURN_CONTEXT_KEY]: { list: 'companies', path: 'https://outside.example/path' } },
         'companies',
-      ),
+      ).path,
     ).toBe('/companies');
   });
 
@@ -120,7 +132,7 @@ describe('validated list return context', () => {
     '/\\outside.example/companies',
     '/companies/record\u0007',
   ])('AC-LRC-010: rejects a non-list or external return path: %s', (path) => {
-    expect(createListReturnContext('companies', path, 10, 'entry_1')).toBeUndefined();
+    expect(createListReturnContext('companies', path, 10)).toBeUndefined();
     expect(
       readListReturnContext(
         { [LIST_RETURN_CONTEXT_KEY]: { list: 'companies', path } },
@@ -165,12 +177,7 @@ describe('validated list return context', () => {
   });
 
   it('FR-LRC-005: explicit return descriptor keeps path and one-shot restore, never pmoListReturn', () => {
-    const context = createListReturnContext(
-      'companies',
-      '/companies?type=Client',
-      220,
-      'entry_9',
-    )!;
+    const context = createListReturnContext('companies', '/companies?type=Client', 220)!;
     const nav = listReturnNavigation(
       { [LIST_RETURN_CONTEXT_KEY]: context, modal: 'edit' },
       'companies',
@@ -201,12 +208,7 @@ describe('validated list return context', () => {
   });
 
   it('FR-LRC-003: preserves other router state when attaching a validated return context', () => {
-    const context = createListReturnContext(
-      'projects',
-      '/projects?filter=at-risk',
-      160,
-      'entry_2',
-    )!;
+    const context = createListReturnContext('projects', '/projects?filter=at-risk', 160)!;
     expect(withListReturnContext({ modal: 'edit', focusId: 'row-7' }, context)).toEqual({
       modal: 'edit',
       focusId: 'row-7',
@@ -215,7 +217,7 @@ describe('validated list return context', () => {
   });
 
   it('FR-LRC-005: builds an explicit one-time scroll restore state that strips both seam keys', () => {
-    const context = createListReturnContext('projects', '/projects?filter=at-risk', 160, 'entry_2')!;
+    const context = createListReturnContext('projects', '/projects?filter=at-risk', 160)!;
     expect(
       withListScrollRestore(
         { focusId: 'row-7', [LIST_RETURN_CONTEXT_KEY]: context },
@@ -293,7 +295,7 @@ describe('validated list return context', () => {
 
   it('AC-LRC-010: falls back on the owner index when the history state itself is not a record', () => {
     for (const state of [null, false, 3, 'path', ['unexpected']]) {
-      expect(listReturnPath(state, 'meetings')).toBe('/meetings');
+      expect(listReturnNavigation(state, 'meetings').path).toBe('/meetings');
     }
   });
 });
