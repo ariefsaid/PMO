@@ -109,7 +109,10 @@ function ProjectDetailFromSales() {
   return (
     <div>
       <button type="button" onClick={() => returnToList('projects')}>
-        Return to Sales
+        Return to Projects
+      </button>
+      <button type="button" onClick={() => returnToList('sales')}>
+        Sales Pipeline link
       </button>
     </div>
   );
@@ -161,7 +164,7 @@ function sizeMainScroll({ scrollHeight = 1000, clientHeight = 200 } = {}) {
 }
 
 describe('useListReturn', () => {
-  it('AC-LRC-003: captures the list URL and scroll before opening the canonical record path', () => {
+  it('AC-LRC-009: captures the list URL and scroll before opening the canonical record path', () => {
     renderAt('/companies?type=Client&q=harbor&campaign=source');
     const main = sizeMainScroll();
     expect(main).not.toBeUndefined();
@@ -180,13 +183,13 @@ describe('useListReturn', () => {
     expect(screen.getByRole('button', { name: 'Return to companies' })).toBeInTheDocument();
   });
 
-  it('does not navigate to an external record target', () => {
+  it('AC-LRC-010: does not navigate to an external record target', () => {
     renderAt('/companies');
     fireEvent.click(screen.getByRole('button', { name: 'Open unsafe target' }));
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
   });
 
-  it('does not normalize a record target that contains even an empty fragment', () => {
+  it('AC-LRC-010: does not normalize a record target that contains even an empty fragment', () => {
     renderAt('/companies');
     fireEvent.click(screen.getByRole('button', { name: 'Open target with empty fragment' }));
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
@@ -359,16 +362,18 @@ describe('useListReturn', () => {
     expect(document.querySelector('.main-scroll')).toBeNull();
   });
 
-  it('AC-LRC-004: a project opened from Sales captures Sales context and returns to Sales', () => {
-    const parsed = new URL('/sales?scope=Open&status=Leads&view=table', 'https://local.test');
-    render(
-      <MemoryRouter
-        initialEntries={[{ pathname: parsed.pathname, search: parsed.search }]}
-      >
+  function renderSalesAt(path: string) {
+    const parsed = new URL(path, 'https://local.test');
+    return render(
+      <MemoryRouter initialEntries={[{ pathname: parsed.pathname, search: parsed.search }]}>
         <SalesRoutes />
         <LocationProbe />
       </MemoryRouter>,
     );
+  }
+
+  it('AC-LRC-010: a project opened from Sales keeps its structural return under Projects', () => {
+    renderSalesAt('/sales?scope=Open&status=Leads&view=table');
 
     fireEvent.click(screen.getByRole('button', { name: 'Open project' }));
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/projects/project-1');
@@ -378,11 +383,47 @@ describe('useListReturn', () => {
       path: '/sales?scope=Open&status=Leads&view=table',
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Sales' }));
+    // BackBar/breadcrumb owner is Projects: Sales context is not its owning list, so it goes home.
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Projects' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/projects');
+    const returnedState = JSON.parse(
+      screen.getByTestId('location').getAttribute('data-state') ?? '{}',
+    );
+    expect(returnedState.pmoListReturn).toBeUndefined();
+    expect(returnedState.pmoListScrollRestore).toBeUndefined();
+  });
+
+  it('AC-LRC-004: the project\'s Sales Pipeline link returns to the captured Sales working set', () => {
+    renderSalesAt('/sales?scope=Needs+attention&status=Leads&q=harbor&view=table');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open project' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/projects/project-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sales Pipeline link' }));
     expect(screen.getByTestId('location')).toHaveAttribute(
       'data-path',
-      '/sales?scope=Open&status=Leads&view=table',
+      '/sales?scope=Needs+attention&status=Leads&q=harbor&view=table',
     );
+  });
+
+  it('AC-LRC-010: returnToList ignores tampered router state and falls back to the owning index', () => {
+    for (const pmoListReturn of [
+      { list: 'companies', path: 'https://outside.example/companies' },
+      { list: 'companies', path: '//outside.example/companies' },
+      { list: 'companies', path: '/contacts?company=evil' },
+      { list: 'contacts', path: '/contacts' },
+      { list: 'sales', path: '/sales?scope=Lost' },
+      { list: 'companies', path: '/companies#top' },
+      'not-a-record',
+    ]) {
+      const view = renderAt('/companies/company-1', false, { pmoListReturn, focusId: 'row-2' });
+      fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
+      const location = screen.getByTestId('location');
+      expect(location, JSON.stringify(pmoListReturn)).toHaveAttribute('data-path', '/companies');
+      const state = JSON.parse(location.getAttribute('data-state') ?? '{}');
+      expect(state).toEqual({ focusId: 'row-2' });
+      view.unmount();
+    }
   });
 
   it('AC-LRC-005: ignores stale entry keys and URLs even when the list is ready', () => {

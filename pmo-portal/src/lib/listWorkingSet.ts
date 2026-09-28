@@ -128,6 +128,18 @@ const DEFAULT_VIEWS = {
   sales: 'kanban',
   procurement: 'table',
 } as const;
+const VIEWS: { [L in ViewList]: readonly string[] } = {
+  projects: PROJECT_VIEWS,
+  sales: SALES_VIEWS,
+  procurement: PROCUREMENT_VIEWS,
+};
+
+/** The lists whose body layout is a URL-owned `view`. */
+type ViewList = keyof typeof DEFAULT_VIEWS;
+
+function isViewList(list: ListName): list is ViewList {
+  return Object.hasOwn(DEFAULT_VIEWS, list);
+}
 
 type SearchInput = string | URLSearchParams;
 
@@ -186,22 +198,36 @@ function procurementStatusValue(
   };
 }
 
+/** The effective stored view: a valid session view, else the list's default. */
+function storedView(list: ViewList, sessionView: unknown): string {
+  return enumValue(
+    typeof sessionView === 'string' ? sessionView : undefined,
+    VIEWS[list],
+    DEFAULT_VIEWS[list],
+  );
+}
+
 function viewValue<T extends string>(
   params: URLSearchParams,
-  allowed: readonly T[],
-  list: keyof typeof DEFAULT_VIEWS,
+  list: ViewList,
   sessionView: unknown,
 ): T {
   const explicit = params.get('view');
-  const fallback = enumValue(
-    typeof sessionView === 'string' ? sessionView : undefined,
-    allowed,
-    DEFAULT_VIEWS[list] as T,
-  );
   // A present but unsupported URL token is invalid input and falls to the page's actual default.
   // Session state is only a fallback when the URL does not own this control.
-  if (explicit !== null) return enumValue(explicit, allowed, DEFAULT_VIEWS[list] as T);
-  return fallback;
+  if (explicit !== null) return enumValue(explicit, VIEWS[list], DEFAULT_VIEWS[list]) as T;
+  return storedView(list, sessionView) as T;
+}
+
+/**
+ * Write `view` unless omitting it reproduces the same effective view: omit only when the value is
+ * the default AND the stored fallback is the default too. A nondefault view is always materialized
+ * (a copied link describes what is visible), and a view that differs from a nondefault stored view
+ * is written explicitly so the session fallback cannot snap it back.
+ */
+function putView(params: URLSearchParams, list: ViewList, view: string, sessionView: unknown): void {
+  const fallbackIsDefault = storedView(list, sessionView) === DEFAULT_VIEWS[list];
+  putParam(params, 'view', view, fallbackIsDefault ? DEFAULT_VIEWS[list] : undefined);
 }
 
 function putParam(params: URLSearchParams, key: string, value: string, omit?: string): void {
@@ -239,20 +265,15 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       client: referenceValue(params.get('client')),
       pm: referenceValue(params.get('pm')),
       q: searchValue(params),
-      view: viewValue(params, PROJECT_VIEWS, 'projects', options.sessionView),
+      view: viewValue(params, 'projects', options.sessionView),
     }),
     serialize: (params, value, options) => {
       const omitFilter = options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER;
       putParam(params, 'filter', value.filter, omitFilter);
-      putParam(
-        params,
-        'client',
-        referenceValue(value.client === 'All' ? null : value.client),
-        'All',
-      );
-      putParam(params, 'pm', referenceValue(value.pm === 'All' ? null : value.pm), 'All');
+      putParam(params, 'client', value.client, 'All');
+      putParam(params, 'pm', value.pm, 'All');
       putParam(params, 'q', value.q);
-      putParam(params, 'view', value.view, DEFAULT_VIEWS.projects);
+      putView(params, 'projects', value.view, options.sessionView);
       return params;
     },
   },
@@ -267,17 +288,17 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
         scope: status && requestedScope === 'Lost' ? 'Open' : requestedScope,
         status,
         q: searchValue(params),
-        view: viewValue(params, SALES_VIEWS, 'sales', options.sessionView),
+        view: viewValue(params, 'sales', options.sessionView),
       };
     },
-    serialize: (params, value) => {
+    serialize: (params, value, options) => {
       // A Lost scope cannot coexist with an open stage, so it is forced to Open only in that
       // contradictory case; Needs attention + stage round-trips as-is.
       const scope = value.scope === 'Lost' && value.status ? 'Open' : value.scope;
       putParam(params, 'scope', scope, 'Open');
       putParam(params, 'status', value.status);
       putParam(params, 'q', value.q);
-      putParam(params, 'view', value.view, DEFAULT_VIEWS.sales);
+      putView(params, 'sales', value.view, options.sessionView);
       return params;
     },
   },
@@ -287,10 +308,10 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       return {
         ...status,
         q: searchValue(params),
-        view: viewValue(params, PROCUREMENT_VIEWS, 'procurement', options.sessionView),
+        view: viewValue(params, 'procurement', options.sessionView),
       };
     },
-    serialize: (params, value) => {
+    serialize: (params, value, options) => {
       if (value.statusMode === 'exact') {
         // An exact lifecycle drill stays a bare status token (no group: prefix).
         putParam(params, 'status', value.status);
@@ -304,7 +325,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
         }
       }
       putParam(params, 'q', value.q);
-      putParam(params, 'view', value.view, DEFAULT_VIEWS.procurement);
+      putView(params, 'procurement', value.view, options.sessionView);
       return params;
     },
   },
@@ -325,12 +346,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       q: searchValue(params),
     }),
     serialize: (params, value) => {
-      putParam(
-        params,
-        'company',
-        referenceValue(value.company === 'All' ? null : value.company),
-        'All',
-      );
+      putParam(params, 'company', value.company, 'All');
       putParam(params, 'q', value.q);
       return params;
     },
@@ -341,12 +357,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       q: searchValue(params),
     }),
     serialize: (params, value) => {
-      putParam(
-        params,
-        'project',
-        referenceValue(value.project === 'All' ? null : value.project),
-        'All',
-      );
+      putParam(params, 'project', value.project, 'All');
       putParam(params, 'q', value.q);
       return params;
     },
@@ -362,12 +373,15 @@ export function parseListWorkingSet<K extends ListName>(
   return LIST_WORKING_SET_SCHEMAS[list].parse(paramsFrom(search), options);
 }
 
-/** Serialize a typed working set while retaining query keys owned by other features. */
+/**
+ * Serialize a typed working set while retaining query keys owned by other features. Pass the same
+ * `sessionView` the page parses with, so a view that differs from the stored fallback is written.
+ */
 export function serializeListWorkingSet<K extends ListName>(
   list: K,
   search: SearchInput,
   workingSet: ListWorkingSetByName[K],
-  options: Pick<ListWorkingSetOptions, 'projectsDefaultFilter'> = {},
+  options: ListWorkingSetOptions = {},
 ): URLSearchParams {
   return LIST_WORKING_SET_SCHEMAS[list].serialize(paramsFrom(search), workingSet, options);
 }
@@ -383,4 +397,21 @@ export function resolveListWorkingSet<K extends ListName>(
     value,
     search: serializeListWorkingSet(list, search, value, options),
   };
+}
+
+/**
+ * The only URL write a list makes without a user action. When the URL carries no explicit `view`
+ * and the effective session view is valid and nondefault, return the search with that view added,
+ * so a copied link reproduces what is visible. Otherwise return `search` exactly as given: no
+ * other key is canonicalized, so an explicit drill filter that equals the role default, or an
+ * explicit (even invalid) view token, is never rewritten.
+ */
+export function materializeSessionView(list: ListName, search: string, sessionView: unknown): string {
+  if (!isViewList(list)) return search;
+  const params = paramsFrom(search);
+  if (params.has('view')) return search;
+  const view = storedView(list, sessionView);
+  if (view === DEFAULT_VIEWS[list]) return search;
+  params.set('view', view);
+  return `?${params.toString()}`;
 }

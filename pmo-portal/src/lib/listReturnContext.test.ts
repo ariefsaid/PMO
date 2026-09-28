@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  allowedForOwner,
+  canCaptureFromList,
   contextualListReturnNavigation,
   createListReturnContext,
   isCanonicalRecordPath,
@@ -17,7 +17,7 @@ import {
 } from './listReturnContext';
 
 describe('validated list return context', () => {
-  it('accepts the owning list route and preserves its query, offset, and history key', () => {
+  it('AC-LRC-009: accepts the owning list route and preserves its query, offset, and history key', () => {
     const context = createListReturnContext(
       'companies',
       '/companies?type=Client&q=Caf%C3%A9&campaign=ref',
@@ -35,11 +35,13 @@ describe('validated list return context', () => {
     );
   });
 
-  it('allows Sales Pipeline as a projects source always and no other cross-owner pair', () => {
+  it('AC-LRC-010: reads return context only from the record\'s owning list, never a Sales source for a project', () => {
     const sales = createListReturnContext('sales', '/sales?scope=Open&status=Leads&view=table')!;
     const state = { [LIST_RETURN_CONTEXT_KEY]: sales };
-    expect(readListReturnContext(state, 'projects')).toEqual(sales);
-    expect(readListReturnContext(state, 'sales')).toEqual(sales);
+    // The project's BackBar/breadcrumb owner is Projects: a Sales source is not its owning list.
+    expect(readListReturnContext(state, 'projects')).toBeUndefined();
+    expect(listReturnPath(state, 'projects')).toBe('/projects');
+    expect(listReturnNavigation(state, 'projects').path).toBe('/projects');
     expect(readListReturnContext(state, 'contacts')).toBeUndefined();
     expect(
       readListReturnContext(
@@ -47,16 +49,42 @@ describe('validated list return context', () => {
         'projects',
       ),
     ).toBeUndefined();
-    expect(listReturnPath(state, 'projects')).toBe('/sales?scope=Open&status=Leads&view=table');
   });
 
-  it('exposes the single eligibility rule and the canonical index path for every list', () => {
-    expect(allowedForOwner('sales', 'projects')).toBe(true);
-    expect(allowedForOwner('projects', 'projects')).toBe(true);
-    expect(allowedForOwner('contacts', 'projects')).toBe(false);
-    expect(allowedForOwner('sales', 'contacts')).toBe(false);
-    expect(allowedForOwner('projects', 'sales')).toBe(false);
+  it('AC-LRC-011: the project\'s Sales Pipeline link reads the captured Sales URL through the sales owner', () => {
+    const sales = createListReturnContext(
+      'sales',
+      '/sales?scope=Needs+attention&status=Leads&q=harbor&view=table',
+      300,
+      'entry_5',
+    )!;
+    const nav = listReturnNavigation({ [LIST_RETURN_CONTEXT_KEY]: sales, focusId: 'p1' }, 'sales');
+    expect(nav.path).toBe('/sales?scope=Needs+attention&status=Leads&q=harbor&view=table');
+    expect(nav.state).toEqual({
+      focusId: 'p1',
+      [LIST_SCROLL_RESTORE_STATE_KEY]: {
+        list: 'sales',
+        path: '/sales?scope=Needs+attention&status=Leads&q=harbor&view=table',
+        scrollTop: 300,
+      },
+    });
+    // Without Sales context (a direct project link, or a Projects source) the link stays bare /sales.
+    expect(listReturnNavigation(undefined, 'sales').path).toBe('/sales');
+    const projects = createListReturnContext('projects', '/projects?filter=Ongoing')!;
+    expect(listReturnNavigation({ [LIST_RETURN_CONTEXT_KEY]: projects }, 'sales').path).toBe(
+      '/sales',
+    );
+  });
 
+  it('AC-LRC-004: only the capture check lets a Sales list open a Projects record', () => {
+    expect(canCaptureFromList('sales', 'projects')).toBe(true);
+    expect(canCaptureFromList('projects', 'projects')).toBe(true);
+    expect(canCaptureFromList('contacts', 'projects')).toBe(false);
+    expect(canCaptureFromList('sales', 'contacts')).toBe(false);
+    expect(canCaptureFromList('projects', 'sales')).toBe(false);
+  });
+
+  it('AC-LRC-010: exposes the canonical index path for every list', () => {
     expect(listIndexPath('projects')).toBe('/projects');
     expect(listIndexPath('sales')).toBe('/sales');
     expect(listIndexPath('procurement')).toBe('/procurement');
@@ -145,7 +173,7 @@ describe('validated list return context', () => {
     });
   });
 
-  it('drops invalid position metadata while keeping a valid list destination', () => {
+  it('AC-LRC-010: drops invalid position metadata while keeping a valid list destination', () => {
     const state = {
       [LIST_RETURN_CONTEXT_KEY]: {
         list: 'meetings',
@@ -160,7 +188,7 @@ describe('validated list return context', () => {
     });
   });
 
-  it('preserves other router state when attaching a validated return context', () => {
+  it('AC-LRC-009: preserves other router state when attaching a validated return context', () => {
     const context = createListReturnContext(
       'projects',
       '/projects?filter=at-risk',
@@ -195,7 +223,7 @@ describe('validated list return context', () => {
     );
   });
 
-  it('maps only canonical record paths to an owning list', () => {
+  it('AC-LRC-010: maps only canonical record paths to an owning list', () => {
     expect(listReturnOwnerForPathname('/projects/project-1')).toBe('projects');
     expect(listReturnOwnerForPathname('/projects/project-1/budget')).toBe('projects');
     expect(listReturnOwnerForPathname('/procurement/request-1/approvals')).toBe('procurement');
@@ -204,7 +232,7 @@ describe('validated list return context', () => {
     expect(listReturnOwnerForPathname('/projects')).toBeUndefined();
   });
 
-  it('distinguishes canonical record targets from nested detail routes', () => {
+  it('AC-LRC-010: distinguishes canonical record targets from nested detail routes', () => {
     expect(isCanonicalRecordPath('/projects/project-1', 'projects')).toBe(true);
     expect(isCanonicalRecordPath('/projects/project-1/budget', 'projects')).toBe(false);
     expect(isCanonicalRecordPath('/procurement/request-1', 'procurement')).toBe(true);
@@ -213,7 +241,7 @@ describe('validated list return context', () => {
     expect(isCanonicalRecordPath('/sales/project-1', 'projects')).toBe(false);
   });
 
-  it('uses only a validated same-owner descriptor for a record breadcrumb', () => {
+  it('AC-LRC-010: uses only a validated same-owner descriptor for a record breadcrumb', () => {
     const projectContext = {
       [LIST_RETURN_CONTEXT_KEY]: createListReturnContext('projects', '/projects?filter=Ongoing'),
     };
@@ -224,10 +252,11 @@ describe('validated list return context', () => {
     expect(contextualListReturnNavigation('/projects/project-1', projectContext)?.path).toBe(
       '/projects?filter=Ongoing',
     );
-    // Sales is a valid owner for a Projects record, so the descriptor resolves to the Sales URL.
-    expect(contextualListReturnNavigation('/projects/project-1', salesContext)?.path).toBe(
-      '/sales?scope=Lost',
-    );
+    // Sales context on a project never redirects its structural crumb: Projects stays Projects.
+    const fromSales = contextualListReturnNavigation('/projects/project-1', salesContext);
+    expect(fromSales?.path).toBe('/projects');
+    expect(fromSales?.state[LIST_RETURN_CONTEXT_KEY]).toBeUndefined();
+    expect(fromSales?.state[LIST_SCROLL_RESTORE_STATE_KEY]).toBeUndefined();
     // A recognized record without a usable context still resolves to its owning index.
     expect(contextualListReturnNavigation('/contacts/contact-1', projectContext)?.path).toBe(
       '/contacts',
@@ -237,7 +266,7 @@ describe('validated list return context', () => {
     expect(contextualListReturnNavigation('/projects', projectContext)).toBeUndefined();
   });
 
-  it('falls back on the owner index when the history state itself is not a record', () => {
+  it('AC-LRC-010: falls back on the owner index when the history state itself is not a record', () => {
     for (const state of [null, false, 3, 'path', ['unexpected']]) {
       expect(listReturnPath(state, 'meetings')).toBe('/meetings');
     }

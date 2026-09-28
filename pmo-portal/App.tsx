@@ -51,6 +51,7 @@ import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
+import { useReturnNavigate } from '@/src/hooks/useListReturn';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -258,10 +259,7 @@ const ShellChrome: React.FC = () => {
 
   // Desktop breadcrumb navigation pushes the same clean return entry the mobile BackBar uses:
   // the validated list path plus its one-shot scroll-restore state (no pmoListReturn on the list).
-  const breadcrumbNavigate = useCallback(
-    (path: string, state?: unknown) => navigate(path, { state }),
-    [navigate],
-  );
+  const breadcrumbNavigate = useReturnNavigate();
 
   // The shell already has enough cached record data to render the detail breadcrumb before a lazy
   // page chunk mounts. Publish that same identity before paint so an immediate Assistant turn made

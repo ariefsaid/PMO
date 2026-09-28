@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
-  resolveListWorkingSet,
+  materializeSessionView,
+  parseListWorkingSet,
   serializeListWorkingSet,
   type ListName,
   type ListWorkingSetByName,
@@ -10,12 +11,18 @@ import {
 
 export interface UseListWorkingSetOptions {
   /**
-   * Effective persisted view, consulted only when a URL view is absent or invalid. The adopting
-   * pages pass `readProjectView()` / `readPipelineView()` / `readProcurementView()` here.
+   * Effective persisted view, consulted only when the URL has no `view`. The adopting pages pass
+   * `readProjectView()` / `readPipelineView()` / `readProcurementView()` here.
    */
   sessionView?: unknown;
   /** Projects' role-appropriate default filter (Engineer keeps My Projects). */
   projectsDefaultFilter?: ListWorkingSetOptions['projectsDefaultFilter'];
+  /**
+   * Whether role-scoped defaults (`projectsDefaultFilter`) and `sessionView` are known yet. Until
+   * true the hook writes nothing on its own, so no URL is rewritten against a default that has not
+   * arrived. Defaults to true.
+   */
+  ready?: boolean;
 }
 
 export type ListWorkingSetUpdater<K extends ListName> = (
@@ -26,49 +33,64 @@ export type ListWorkingSetUpdater<K extends ListName> = (
  * The thin React Router adapter over the list working-set codec that adopting pages need. It
  * returns the effective parsed working set and a typed setter that writes only this list's owned
  * query keys with history **replacement** (no browser-history entry per keystroke), preserving
- * every unrelated key. On mount it materializes a nondefault session-stored view into the URL once
- * (also a replace) so a copied link agrees with what is visible.
+ * every unrelated key.
+ *
+ * Its only unprompted write: once `ready`, when the URL has no explicit `view` and the session
+ * view is nondefault, it adds that view with one replace (keeping router state, so a pending
+ * scroll restore survives) so a copied link agrees with what is visible. It never canonicalizes
+ * any other key — an explicit drill filter stays exactly as written.
  */
 export function useListWorkingSet<K extends ListName>(
   list: K,
   options: UseListWorkingSetOptions = {},
 ): {
   workingSet: ListWorkingSetByName[K];
+  /**
+   * Replace the list URL with `updater(current)`. Call it ONCE per user event: `current` is the
+   * working set of the last rendered URL, not of a replace still in flight, so a second call in
+   * the same handler would build from the same snapshot and drop the first call's change.
+   */
   setWorkingSet: (updater: ListWorkingSetUpdater<K>) => void;
 } {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const sessionView = options.sessionView;
-  const projectsDefaultFilter = options.projectsDefaultFilter;
+  const { sessionView, projectsDefaultFilter, ready = true } = options;
 
-  const resolved = useMemo(
-    () => resolveListWorkingSet(list, location.search, { sessionView, projectsDefaultFilter }),
+  const workingSet = useMemo(
+    () => parseListWorkingSet(list, location.search, { sessionView, projectsDefaultFilter }),
     [list, location.search, sessionView, projectsDefaultFilter],
   );
 
-  // Materialize the canonical serialization (a nondefault session view, or the dropped token from
-  // an invalid enum) into the URL exactly once via replace. The canonical comparison guards this:
-  // once the URL matches, the effect is a no-op, so this never turns into a replace loop.
-  const canonicalSearch = resolved.search.toString();
-  const expectedSearch = canonicalSearch ? `?${canonicalSearch}` : '';
+  const targetSearch = ready
+    ? materializeSessionView(list, location.search, sessionView)
+    : location.search;
   useEffect(() => {
-    if (location.search === expectedSearch) return;
-    navigate(`${location.pathname}${expectedSearch}`, { replace: true });
-  }, [location.pathname, location.search, expectedSearch, navigate]);
-
-  const workingSet = resolved.value;
+    // Equality guard: once the URL already carries the materialized view (or needs nothing), this
+    // is a no-op, so the replace happens at most once and never loops.
+    if (location.search === targetSearch) return;
+    navigate(`${location.pathname}${targetSearch}`, { replace: true, state: location.state });
+  }, [location.pathname, location.search, location.state, targetSearch, navigate]);
 
   const setWorkingSet = useCallback(
     (updater: ListWorkingSetUpdater<K>) => {
       const next = updater(workingSet);
       const params = serializeListWorkingSet(list, location.search, next, {
         projectsDefaultFilter,
+        sessionView,
       });
       const search = params.toString();
       navigate(`${location.pathname}${search ? `?${search}` : ''}`, { replace: true });
     },
-    [list, location.pathname, location.search, navigate, projectsDefaultFilter, workingSet],
+    [
+      list,
+      location.pathname,
+      location.search,
+      navigate,
+      projectsDefaultFilter,
+      sessionView,
+      workingSet,
+    ],
   );
 
   return { workingSet, setWorkingSet };

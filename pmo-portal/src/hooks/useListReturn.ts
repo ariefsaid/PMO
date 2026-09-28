@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
-  allowedForOwner,
+  canCaptureFromList,
   createListReturnContext,
   isCanonicalRecordPath,
   listIndexPath,
@@ -106,6 +106,16 @@ function markScrollConsumed(locationKey: string): void {
 }
 
 /**
+ * The router adapter the desktop parent breadcrumb calls: push `path` carrying `state` (the clean
+ * return entry from `contextualListReturnNavigation`), exactly as the mobile BackBar's
+ * `returnToList` does. A crumb without a return descriptor calls it with the path alone.
+ */
+export function useReturnNavigate(): (path: string, state?: unknown) => void {
+  const navigate = useNavigate();
+  return useCallback((path: string, state?: unknown) => navigate(path, { state }), [navigate]);
+}
+
+/**
  * Captures list context when opening a record and restores it once after a return list is ready.
  * Native Back uses state on the source browser-history entry; explicit return pushes a clean entry
  * carrying the optional one-shot scroll restore.
@@ -117,7 +127,7 @@ export function useListReturn({ list, ready = false }: UseListReturnOptions): Us
 
   const openRecord = useCallback(
     (recordPath: string, owner: ListName = list): boolean => {
-      if (!allowedForOwner(list, owner)) return false;
+      if (!canCaptureFromList(list, owner)) return false;
       const destination = safeRecordTarget(owner, recordPath);
       if (!destination) {
         if (import.meta.env.DEV) {

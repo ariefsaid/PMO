@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  OPEN_FUNNEL_STAGES,
   SALES_COLUMNS,
   weightedValue,
   pillVariantForStatus,
@@ -22,6 +23,18 @@ const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
 });
 
 describe('salesPipeline presentation helpers (AC-SP-204)', () => {
+  it('AC-LRC-001: the open board columns are OPEN_FUNNEL_STAGES in order, with their stable stage test ids', () => {
+    const open = SALES_COLUMNS.filter((c) => !c.terminal);
+    expect(open.map((c) => c.statuses)).toEqual(OPEN_FUNNEL_STAGES.map((stage) => [stage]));
+    expect(open.map((c) => c.testId)).toEqual([
+      'stage-Leads',
+      'stage-PQ Submitted',
+      'stage-Quotation Submitted',
+      'stage-Tender Submitted',
+      'stage-Negotiation',
+    ]);
+  });
+
   // Model B (ADR-0020, AC-IXD-PROJ-007): the terminal "Won / Lost" column is split into separate
   // "Won" and "Lost" terminal columns so a Loss Tender deal is reachable as its own column.
   it('AC-IXD-PROJ-007: SALES_COLUMNS are the five open stages + separate terminal Won and Lost columns', () => {

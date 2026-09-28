@@ -56,11 +56,13 @@ export function listIndexPath(list: ListName): string {
 }
 
 /**
- * The single eligibility rule for a source list returning to a record owner. A Sales source is a
- * valid owner for a Projects record (the pipeline lens borrows the Projects structural home); no
- * other cross-owner combination is allowed.
+ * Capture-only rule: whether a mounted source list may open (and stamp its context onto) a record
+ * owned by `owner`. Sales Pipeline opens Projects records, so that one cross-owner pair is allowed
+ * here. This is NOT a return rule — reading context is owner-only (see `readListReturnContext`),
+ * so a project's BackBar/breadcrumb never returns to Sales; only its Sales Pipeline link reads the
+ * Sales context, via `listReturnNavigation(state, 'sales')`.
  */
-export function allowedForOwner(source: ListName, owner: ListName): boolean {
+export function canCaptureFromList(source: ListName, owner: ListName): boolean {
   return source === owner || (owner === 'projects' && source === 'sales');
 }
 
@@ -140,7 +142,11 @@ export function createListReturnContext(
   };
 }
 
-/** Read and validate untrusted React Router location.state for this record's owning list. */
+/**
+ * Read and validate untrusted React Router location.state for exactly the list named by `owner`.
+ * A context captured from any other list (including Sales for a Projects record) is ignored, so
+ * the caller falls back to its owner's index.
+ */
 export function readListReturnContext(
   state: unknown,
   owner: ListName,
@@ -148,7 +154,7 @@ export function readListReturnContext(
   if (!isRecord(state)) return undefined;
   const candidate = state[LIST_RETURN_CONTEXT_KEY];
   if (!isRecord(candidate) || !listName(candidate.list)) return undefined;
-  if (!allowedForOwner(candidate.list, owner)) return undefined;
+  if (candidate.list !== owner) return undefined;
   return createListReturnContext(
     candidate.list,
     typeof candidate.path === 'string' ? candidate.path : '',

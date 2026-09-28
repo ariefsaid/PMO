@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
+import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import React from 'react';
 import { AppShell } from '../AppShell';
 import { Breadcrumb } from '../Breadcrumb';
@@ -340,12 +341,13 @@ describe('AppShell — parent breadcrumb record return', () => {
   }
 
   function DetailBreadcrumbShell({ pathname, state }: { pathname: string; state: unknown }) {
-    const navigate = useNavigate();
+    // The real adapter App.tsx wires into the breadcrumb (not a test-local rebuild).
+    const breadcrumbNavigate = useReturnNavigate();
     const contextual = contextualListReturnNavigation(pathname, state);
     const parts = breadcrumbForPath(
       pathname,
       'Harbor Co',
-      (path, configuredState) => navigate(path, { state: configuredState }),
+      breadcrumbNavigate,
       true,
       undefined,
       contextual,
@@ -405,6 +407,26 @@ describe('AppShell — parent breadcrumb record return', () => {
 
     const loc = screen.getByTestId('loc');
     expect(loc).toHaveAttribute('data-path', '/companies');
+    const state = JSON.parse(loc.getAttribute('data-state') ?? '{}');
+    expect(state.pmoListScrollRestore).toBeUndefined();
+    expect(state.pmoListReturn).toBeUndefined();
+  });
+
+  it('AC-LRC-011: a project opened from Sales keeps its Projects crumb pointing at /projects', () => {
+    renderDetailBreadcrumb('/projects/project-1', {
+      pmoListReturn: {
+        list: 'sales',
+        path: '/sales?scope=Needs+attention&status=Leads&view=table',
+        scrollTop: 180,
+        sourceLocationKey: 's1',
+      },
+    });
+
+    expect(screen.queryByRole('button', { name: 'Sales Pipeline' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+
+    const loc = screen.getByTestId('loc');
+    expect(loc).toHaveAttribute('data-path', '/projects');
     const state = JSON.parse(loc.getAttribute('data-state') ?? '{}');
     expect(state.pmoListScrollRestore).toBeUndefined();
     expect(state.pmoListReturn).toBeUndefined();

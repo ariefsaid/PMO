@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import {
+  materializeSessionView,
   parseListWorkingSet,
   resolveListWorkingSet,
   serializeListWorkingSet,
@@ -38,7 +39,7 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('meetings', '')).toEqual({ project: 'All', q: '' });
   });
 
-  it('uses the role default for Projects while preserving the Engineer’s My Projects meaning', () => {
+  it('AC-LRC-002: uses the role default for Projects while preserving the Engineer’s My Projects meaning', () => {
     expect(
       parseListWorkingSet('projects', '', { projectsDefaultFilter: 'My Projects' }).filter,
     ).toBe('My Projects');
@@ -214,7 +215,7 @@ describe('list working-set URL codec', () => {
     expect(roundTrip).toMatchObject({ scope: 'Needs attention', status: 'Leads' });
   });
 
-  it('falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {
+  it('AC-LRC-002: falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {
     const params = new URLSearchParams(
       '?filter=bogus&client=company-404&pm=not-a-user&view=map&q=%E2%9C%93&campaign=autumn',
     );
@@ -269,7 +270,7 @@ describe('list working-set URL codec', () => {
     expect(canonical.search.get('campaign')).toBe('winter');
   });
 
-  it('omits default and empty values and never introduces a sort parameter', () => {
+  it('AC-LRC-001: omits default and empty values and never introduces a sort parameter', () => {
     const query = serializeListWorkingSet(
       'projects',
       '?campaign=spring&sort=legacy',
@@ -282,5 +283,57 @@ describe('list working-set URL codec', () => {
       } satisfies ProjectsWorkingSet,
     );
     expect(query.toString()).toBe('campaign=spring&sort=legacy');
+  });
+
+  it('AC-LRC-001: writes view explicitly whenever it differs from the effective stored view', () => {
+    const base = { filter: 'All', client: 'All', pm: 'All', q: '' } as const;
+    // Default view over a nondefault session view must be explicit, or the fallback snaps back.
+    expect(
+      serializeListWorkingSet('projects', '', { ...base, view: 'table' }, { sessionView: 'calendar' })
+        .get('view'),
+    ).toBe('table');
+    // A nondefault effective view is materialized even when it equals the stored view.
+    expect(
+      serializeListWorkingSet('projects', '', { ...base, view: 'calendar' }, { sessionView: 'calendar' })
+        .get('view'),
+    ).toBe('calendar');
+    // Default over a default (or invalid) stored view stays omitted.
+    expect(
+      serializeListWorkingSet('projects', '', { ...base, view: 'table' }, { sessionView: 'bogus' })
+        .get('view'),
+    ).toBeNull();
+    expect(
+      serializeListWorkingSet(
+        'sales',
+        '',
+        { scope: 'Open', status: '', q: '', view: 'kanban' },
+        { sessionView: 'table' },
+      ).get('view'),
+    ).toBe('kanban');
+    expect(
+      serializeListWorkingSet(
+        'procurement',
+        '',
+        { status: 'All', statusMode: 'group', q: '', view: 'table' },
+        { sessionView: 'board' },
+      ).get('view'),
+    ).toBe('table');
+  });
+
+  it('AC-LRC-002: materializeSessionView adds only a missing nondefault view and leaves every other token as written', () => {
+    expect(materializeSessionView('projects', '?filter=My+Projects', 'calendar')).toBe(
+      '?filter=My+Projects&view=calendar',
+    );
+    // Nothing to write: the exact input string is returned (no re-encoding, no canonicalization).
+    expect(materializeSessionView('projects', '?filter=All&q=a%20b', 'table')).toBe(
+      '?filter=All&q=a%20b',
+    );
+    expect(materializeSessionView('projects', '?view=map', 'calendar')).toBe('?view=map');
+    expect(materializeSessionView('projects', '', 'unknown')).toBe('');
+    expect(materializeSessionView('sales', '?status=Leads', 'table')).toBe(
+      '?status=Leads&view=table',
+    );
+    expect(materializeSessionView('procurement', '', 'board')).toBe('?view=board');
+    expect(materializeSessionView('companies', '?type=Client', 'calendar')).toBe('?type=Client');
   });
 });
