@@ -2104,6 +2104,7 @@
       "title": "Integrasi saya"
     },
     "personalM365": {
+      "heading": "Microsoft 365",
       "state": {
         "loading": "Memeriksa status koneksi Microsoft 365…",
         "notConnected": "Belum terhubung. Hubungkan akun Microsoft 365 Anda sendiri agar PMO Portal dapat mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun Anda.",
@@ -2141,7 +2142,8 @@
         "badRequest": "Permintaan tidak valid. Silakan coba lagi.",
         "graphError": "Microsoft Graph sedang tidak tersedia. Silakan coba lagi sebentar lagi.",
         "internalError": "Terjadi kesalahan di sisi kami. Silakan coba lagi.",
-        "disconnectFailure": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung. Anda dapat mencoba lagi atau membatalkan.",
+        "disconnectFailureHeadline": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung.",
+        "disconnectFailureGuidance": "Anda dapat mencoba lagi atau membatalkan.",
         "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.",
         "generic": "Microsoft 365 tidak dapat dihubungkan. Silakan coba lagi."
       }

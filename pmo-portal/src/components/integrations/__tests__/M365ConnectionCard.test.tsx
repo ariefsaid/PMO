@@ -888,7 +888,11 @@ describe('AC-M365LOC-004 — reviewed error copy (no raw transport data)', () =>
 });
 
 describe('AC-M365LOC-005 — disconnect recovery keeps connected + the dialog open, then retry succeeds', () => {
-  it('AC-M365LOC-005: a failed disconnect keeps the dialog open, focuses the localized alert, and allows retry → success returns to disconnected', async () => {
+  /** A class token must be present/absent EXACTLY (not as a substring — `text-destructive-text`
+   *  contains `text-destructive` textually, so a naive `.toContain` would false-pass rule 3). */
+  const hasClass = (el: Element, cls: string) => el.className.split(/\s+/).includes(cls);
+
+  it('AC-M365LOC-005: a failed disconnect keeps the dialog open, shows a WCAG-AA split headline/body alert on the reviewed tint tokens, focuses it, and allows retry → success returns to disconnected with focus on Connect', async () => {
     featureState.value = true;
     invoke.mockResolvedValueOnce({ data: STATUS_ACTIVE, error: null }); // mount status → connected
     await renderCard();
@@ -907,28 +911,77 @@ describe('AC-M365LOC-005 — disconnect recovery keeps connected + the dialog op
     const activeDialog = await screen.findByRole('alertdialog');
     expect(screen.getByTestId('m365-connected-msg')).toBeInTheDocument();
 
-    // A localized persistent alert explains the recovery outcome + the known reason.
+    // A localized, persistent alert on the EntityFormModal-recipe tint surface — never a raw
+    // `bg-destructive/10` / `text-destructive` combination (WCAG AA, DESIGN.md Modal rule 3).
     const alert = within(activeDialog).getByRole('alert');
-    expect(alert).toHaveTextContent(
-      "We couldn't confirm the disconnect. The last confirmed status is still connected. You can retry or cancel.",
+    expect(hasClass(alert, 'border-destructive/30')).toBe(true);
+    expect(hasClass(alert, 'bg-destructive/[0.07]')).toBe(true);
+    expect(hasClass(alert, 'bg-destructive/10')).toBe(false);
+    expect(hasClass(alert, 'text-destructive')).toBe(false);
+
+    // Headline states the outcome (still connected) in `destructive-text`; body carries the
+    // reviewed reason + retry/cancel guidance ONCE in `muted-foreground` — no repeated
+    // "You can retry or cancel. … Please try again." double guidance.
+    const headline = within(alert).getByText(
+      "We couldn't confirm the disconnect. The last confirmed status is still connected.",
     );
-    expect(alert).toHaveTextContent('Something went wrong on our end. Please try again.');
-    // No raw transport text or raw code.
+    expect(hasClass(headline, 'text-destructive-text')).toBe(true);
+    expect(hasClass(headline, 'text-destructive')).toBe(false);
+
+    const body = within(alert).getByText(/Something went wrong on our end\. Please try again\./);
+    expect(hasClass(body, 'text-muted-foreground')).toBe(true);
+    expect(hasClass(body, 'text-destructive')).toBe(false);
+    expect(body).toHaveTextContent('You can retry or cancel.');
+    // The guidance appears exactly once in the body (not duplicated with the headline).
+    expect(body.textContent?.match(/retry or cancel/gi)?.length).toBe(1);
+
+    // No raw transport text or raw code anywhere in the alert.
     expect(alert.textContent).not.toContain(raw);
     expect(alert.textContent).not.toContain('INTERNAL_ERROR');
 
-    // Focus moves to the alert (originating-dialog error rule).
+    // Focus moves to the alert region as a whole (originating-dialog error rule).
     expect(document.activeElement).toBe(alert);
 
     // The confirm action is available again for retry.
     expect(within(activeDialog).getByRole('button', { name: 'Disconnect' })).not.toBeDisabled();
 
-    // A subsequent successful retry closes the dialog and returns the card to disconnected.
+    // A subsequent successful retry closes the dialog and returns the card to disconnected, with
+    // focus moved to Connect (it would otherwise drop to <body> — the Disconnect trigger unmounts).
     invoke.mockResolvedValueOnce({ data: { success: true }, error: null });
     await user.click(within(activeDialog).getByRole('button', { name: 'Disconnect' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /connect microsoft 365/i })).toBeInTheDocument();
+    const connectBtn = screen.getByRole('button', { name: /connect microsoft 365/i });
+    expect(connectBtn).toBeInTheDocument();
     expect(screen.queryByTestId('m365-connected-msg')).not.toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: { action: 'disconnect' } });
+    await waitFor(() => expect(document.activeElement).toBe(connectBtn));
+  });
+
+  it('AC-M365LOC-005: the Bahasa disconnect-failure alert renders the localized split headline + body', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: STATUS_ACTIVE, error: null });
+    await renderCard({ locale: 'id' });
+
+    const user = userEvent.setup();
+    await screen.findByTestId('m365-connected-msg');
+    await user.click(screen.getByRole('button', { name: 'Putuskan koneksi' }));
+    const dialog = await screen.findByRole('alertdialog');
+
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: httpError({ error: 'INTERNAL_ERROR', message: 'raw' }, 500),
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Putuskan koneksi' }));
+
+    const activeDialog = await screen.findByRole('alertdialog');
+    const alert = within(activeDialog).getByRole('alert');
+    const headline = within(alert).getByText(
+      'Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung.',
+    );
+    expect(hasClass(headline, 'text-destructive-text')).toBe(true);
+    const body = within(alert).getByText(/Terjadi kesalahan di sisi kami\. Silakan coba lagi\./);
+    expect(hasClass(body, 'text-muted-foreground')).toBe(true);
+    expect(body).toHaveTextContent('Anda dapat mencoba lagi atau membatalkan.');
+    expect(document.activeElement).toBe(alert);
   });
 });

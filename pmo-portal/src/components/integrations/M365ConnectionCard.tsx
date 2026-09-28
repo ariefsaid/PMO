@@ -141,9 +141,12 @@ function knownCodeReason(t: TFunction, code: string | undefined): string | null 
  */
 function localizedError(t: TFunction, code: string | undefined, origin: ErrorOrigin | 'disconnect'): string {
   if (origin === 'disconnect') {
-    const base = t('integrations.personalM365.errors.disconnectFailure');
+    // The dialog headline already states the outcome (still connected) — this is the BODY only:
+    // the reviewed reason (when known) followed by the retry/cancel guidance, stated once (never
+    // the old back-to-back "You can retry or cancel. … Please try again." double guidance).
+    const guidance = t('integrations.personalM365.errors.disconnectFailureGuidance');
     const reason = knownCodeReason(t, code);
-    return reason ? `${base} ${reason}` : base;
+    return reason ? `${reason} ${guidance}` : guidance;
   }
   if (origin === 'status') {
     return knownCodeReason(t, code) ?? t('integrations.personalM365.errors.statusFallback');
@@ -156,21 +159,30 @@ function localizedError(t: TFunction, code: string | undefined, origin: ErrorOri
  * after a disconnect failure; moves focus to itself (originating-dialog error rule) so the user's
  * next Tab/action starts on the error, and stays focusable (tabIndex={-1}) for AT navigation. Copy
  * is derived by the parent each render, so a locale change re-renders it in the new language.
+ *
+ * Reuses the EntityFormModal mutation-failure recipe verbatim (DESIGN.md Modal dialog rule 3):
+ * `border-destructive/30` + `bg-destructive/[0.07]` tint surface, an `alert` icon in
+ * `text-destructive`, a headline in `text-destructive-text` (WCAG AA on the tint — `text-destructive`
+ * itself fails AA on this surface) and body copy in `text-muted-foreground`.
  */
-function DisconnectErrorAlert({ text }: { text: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
+function DisconnectErrorAlert({ headline, body }: { headline: string; body: string }) {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.focus();
   }, []);
   return (
-    <p
+    <div
       ref={ref}
       role="alert"
       tabIndex={-1}
-      className="mt-3 rounded-md bg-destructive/10 px-2.5 py-2 text-sm leading-[1.45] text-destructive"
+      className="mt-3 flex gap-2.5 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {text}
-    </p>
+      <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" aria-hidden="true" />
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold text-destructive-text">{headline}</div>
+        <p className="text-[12.5px] text-muted-foreground">{body}</p>
+      </div>
+    </div>
   );
 }
 
@@ -190,6 +202,15 @@ export const M365ConnectionCard: React.FC = () => {
   // The in-flight guard for Connect. The Button's `loading` prop disables it on re-render, but a
   // second synchronous click can land before React flushes — this ref is the hard gate (AC-M365-016).
   const initiatingRef = useRef(false);
+
+  // Focus target for the Connect button, and a one-shot flag set right before a SUCCESSFUL
+  // disconnect returns the card to idle. Without this, focus drops to <body>: the ConfirmDialog
+  // restores focus to its trigger (the Disconnect button) on close, but that trigger has just
+  // unmounted (the card is no longer connected), so the restore is a silent no-op. The effect below
+  // runs after ConfirmDialog's own close effect (parent effects fire after child effects in the same
+  // commit) and claims focus for Connect once it is back in the DOM (AC-M365LOC-005).
+  const connectButtonRef = useRef<HTMLButtonElement>(null);
+  const focusConnectOnIdleRef = useRef(false);
   // True when a callback query-param drove this mount's initial phase (the redirect is the signal
   // for this session). Suppresses the status fetch on that mount (next load will fetch).
   const optimisticFromCallback = useRef(false);
@@ -326,6 +347,7 @@ export const M365ConnectionCard: React.FC = () => {
     setDisconnectError(null);
     try {
       await disconnectM365();
+      focusConnectOnIdleRef.current = true;
       setPhase('idle');
       setErrorState(null);
       setConnectedAt(null);
@@ -344,6 +366,17 @@ export const M365ConnectionCard: React.FC = () => {
     setDisconnectError(null);
   }, []);
 
+  // After a SUCCESSFUL disconnect the card returns to idle and the Disconnect trigger unmounts —
+  // ConfirmDialog's own close effect (a child, so it runs first in this commit) tries to restore
+  // focus to that now-gone trigger and silently no-ops. Claim focus for Connect once it is back in
+  // the DOM (AC-M365LOC-005). Never fires on the initial not-connected mount (the flag starts false).
+  useEffect(() => {
+    if (focusConnectOnIdleRef.current && phase === 'idle') {
+      focusConnectOnIdleRef.current = false;
+      connectButtonRef.current?.focus();
+    }
+  }, [phase]);
+
   // Entitlement gate — the only FE gate (AC-M365SEP-016). Hooks above run unconditionally
   // (rules-of-hooks). PMO role is no longer a gate (FR-M365SEP-011).
   if (!entitled) return null;
@@ -360,7 +393,9 @@ export const M365ConnectionCard: React.FC = () => {
     <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
       <div className="flex items-center gap-2">
         <Icon name="plug" />
-        <h3 className="text-[15px] text-foreground font-semibold">Microsoft 365</h3>
+        <h3 className="text-[15px] text-foreground font-semibold">
+          {t('integrations.personalM365.heading')}
+        </h3>
       </div>
 
       {isConnected ? (
@@ -435,6 +470,7 @@ export const M365ConnectionCard: React.FC = () => {
       <div className="mt-3 flex flex-wrap gap-2">
         {showConnect && !isConnected && (
           <Button
+            ref={connectButtonRef}
             variant="outline"
             onClick={onConnect}
             loading={phase === 'connecting'}
@@ -465,7 +501,10 @@ export const M365ConnectionCard: React.FC = () => {
           <>
             {t('integrations.personalM365.confirm.description')}
             {disconnectError && (
-              <DisconnectErrorAlert text={localizedError(t, disconnectError.code, 'disconnect')} />
+              <DisconnectErrorAlert
+                headline={t('integrations.personalM365.errors.disconnectFailureHeadline')}
+                body={localizedError(t, disconnectError.code, 'disconnect')}
+              />
             )}
           </>
         }

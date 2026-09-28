@@ -2104,6 +2104,7 @@
       "title": "My integrations"
     },
     "personalM365": {
+      "heading": "Microsoft 365",
       "state": {
         "loading": "Checking Microsoft 365 connection status…",
         "notConnected": "Not connected. Connect your own Microsoft 365 account to let PMO Portal access the OneDrive files, Teams, and calendar information available through your account.",
@@ -2141,7 +2142,8 @@
         "badRequest": "The request was invalid. Please try again.",
         "graphError": "Microsoft Graph is unavailable right now. Please try again shortly.",
         "internalError": "Something went wrong on our end. Please try again.",
-        "disconnectFailure": "We couldn't confirm the disconnect. The last confirmed status is still connected. You can retry or cancel.",
+        "disconnectFailureHeadline": "We couldn't confirm the disconnect. The last confirmed status is still connected.",
+        "disconnectFailureGuidance": "You can retry or cancel.",
         "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
         "generic": "Microsoft 365 could not be connected. Please try again."
       }
