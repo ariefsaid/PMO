@@ -28,19 +28,44 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(screen.getByTestId('status-slot')).toBeInTheDocument();
   });
 
-  it('lets long project names wrap to two lines before truncating in both grid and kanban variants', () => {
-    const { rerender } = render(<ProjectCardShell {...baseProps} />);
+  it('AC-KTR-001: shows the complete Kanban title before status and client/code', () => {
+    const longName = 'Integrated maintenance planning for regional facilities';
+    const statusLabel = 'Awaiting commercial closeout';
+    render(
+      <ProjectCardShell
+        {...baseProps}
+        name={longName}
+        client="Client Example"
+        code="PRJ-685"
+        status={<span data-testid="status-slot">{statusLabel}</span>}
+        variant="kanban"
+      />,
+    );
+
+    const card = screen.getByRole('button', { name: longName });
+    const kanbanName = within(card).getByText(longName);
+    const status = within(card).getByTestId('status-slot');
+    const textColumn = kanbanName.parentElement!;
+    const headText = textColumn.textContent!;
+
+    expect(kanbanName.className).toContain('break-words');
+    expect(kanbanName.className).not.toMatch(/line-clamp|truncate/);
+    expect(textColumn).toContainElement(status);
+    expect(headText.indexOf(longName)).toBeLessThan(headText.indexOf(statusLabel));
+    expect(headText.indexOf(statusLabel)).toBeLessThan(headText.indexOf('Client Example'));
+    expect(headText.indexOf('Client Example')).toBeLessThan(headText.indexOf('PRJ-685'));
+  });
+
+  it('AC-KTR-002: preserves the grid title button, clamp, and status placement', () => {
+    render(<ProjectCardShell {...baseProps} />);
     const gridName = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
+    const textColumn = gridName.parentElement!;
+    const status = screen.getByTestId('status-slot');
+
     expect(gridName.className).toContain('line-clamp-2');
     expect(gridName.className).toContain('break-words');
-    expect(gridName.className).not.toContain('truncate');
-
-    rerender(<ProjectCardShell {...baseProps} variant="kanban" />);
-    const kanbanCard = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
-    const kanbanName = within(kanbanCard).getByText('Innovate Corp HQ Fit-Out');
-    expect(kanbanName.className).toContain('line-clamp-2');
-    expect(kanbanName.className).toContain('break-words');
-    expect(kanbanName.className).not.toContain('truncate');
+    expect(textColumn).not.toContainElement(status);
+    expect(textColumn.parentElement).toContainElement(status);
   });
 
   it('exposes a single project-card test carrier so every surface is the same molecule', () => {
@@ -76,12 +101,19 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(within(card).getByTestId('foot-slot')).toBeInTheDocument();
   });
 
-  it('the kanban variant uses a single role=button activation target (no nested button)', () => {
+  it('AC-KTR-003: activates one Kanban card for click, Enter, and Space without nested buttons', async () => {
+    const user = userEvent.setup();
     const onOpen = vi.fn();
     render(<ProjectCardShell {...baseProps} variant="kanban" onOpen={onOpen} />);
-    // kanban variant: the whole card is the button (no inner name <button>)
     const card = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
-    expect(card).toBeInTheDocument();
+
     expect(within(card).queryByRole('button')).toBeNull();
+    await user.click(card);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    card.focus();
+    await user.keyboard('{Enter}');
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    await user.keyboard(' ');
+    expect(onOpen).toHaveBeenCalledTimes(3);
   });
 });
