@@ -32,6 +32,13 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: vi.fn(),
 }));
 
+// #680 — connector identity: the production card reads org profiles through this hook to resolve
+// `connected_by` to a readable same-org display name (or a neutral fallback). Mocked so every test
+// controls the profile-read state and none reaches the real auth/repository hook.
+vi.mock('@/src/hooks/useTasks', () => ({
+  useAssignableProfiles: vi.fn(),
+}));
+
 // M365OrgApprovalCard (rendered on this surface) imports connectClient, which imports the browser
 // supabase singleton. Mock the transport so the REAL card renders (exercising its Admin gate) without
 // a live supabase client. Existing tests never touch this — they don't drive an M365 action.
@@ -42,6 +49,7 @@ vi.mock('@/src/lib/m365/connectClient', () => ({
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
 import { useProjects } from '@/src/hooks/useProjects';
+import { useAssignableProfiles } from '@/src/hooks/useTasks';
 
 const mockBinding: IntegrationBinding = {
   org_id: 'org-1',
@@ -86,6 +94,42 @@ const baseExternalDomainReturn = {
   isRefetching: false,
   isStale: false,
 } as any;
+
+// #680 — default settled successful empty profile read so the existing suite never hits the real
+// hook. Each AC-ICI test overrides data/state explicitly.
+const emptyProfilesReturn = {
+  data: [],
+  isPending: false,
+  isError: false,
+  isSuccess: true,
+  isLoading: false,
+  isFetching: false,
+  status: 'success' as const,
+  dataUpdatedAt: 0,
+  error: null,
+  isPlaceholderData: false,
+  fetchStatus: 'idle',
+  isLoadingError: false,
+  isRefetchError: false,
+  errorUpdatedAt: 0,
+  failureCount: 0,
+  failureReason: null,
+  isPaused: false,
+  isRefetching: false,
+  isStale: false,
+  refetch: vi.fn(),
+} as any;
+
+beforeEach(() => {
+  vi.mocked(useAssignableProfiles).mockReturnValue(emptyProfilesReturn);
+});
+
+const profile = (id: string, full_name: string) => ({
+  id,
+  full_name,
+  org_id: 'org-1',
+  role: 'Admin',
+});
 
 const wrapWithRole = (role: string, ui: React.ReactElement) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -724,7 +768,10 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       wrapWithRole('Admin', <IntegrationsView />);
       const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
       expect(card.getByText('Connected')).toBeInTheDocument();
-      expect(card.queryByText(/Connected by:/i)).not.toBeInTheDocument();
+      // #680 (AC-ICI-002): an absent/blank actor now renders the translated neutral fallback on the
+      // always-present Connector line — never a blank field and never a raw actor value.
+      expect(card.getByText(/Connected by/i)).toBeInTheDocument();
+      expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
     });
 
     it('AC-IRUX-003: an unavailable health read names outbound work status as unknown', async () => {
@@ -1401,5 +1448,116 @@ describe('AC-IRUX-006 ClickUp binding map source states', () => {
     expect(row).toHaveTextContent('Unknown');
     expect(row).not.toHaveTextContent('Cached List');
     expect(row).not.toHaveTextContent('Bound');
+  });
+});
+
+// ============================================================================
+// #680 — Readable organization connector identity (AC-ICI-001..004)
+// The card resolves `connected_by` against the org-scoped profile source and shows a readable name
+// or a translated neutral fallback — never the raw actor value. Profile-read state is display-only
+// and must not change the independently derived binding/health/authorization states.
+// ============================================================================
+describe('AC-ICI readable organization connector identity (#680)', () => {
+  const activeClickUp = (player: Record<string, unknown> = {}) => ({
+    ...bindingMapIntegrations(),
+    bindings: [mockBinding],
+    getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockBinding : undefined)),
+    getHealth: vi.fn().mockResolvedValue({
+      tier: 'clickup',
+      status: 'active',
+      connected_by: mockBinding.connected_by,
+      connected_at: mockBinding.connected_at,
+      last_sync: null,
+      error_count: 0,
+    }),
+    ...player,
+  } as any);
+
+  it('AC-ICI-001 resolves a same-org profile name beside the connection date, never the raw actor', () => {
+    vi.mocked(useAssignableProfiles).mockReturnValue({ ...emptyProfilesReturn, data: [profile('u1', 'Ada Lovelace')] } as any);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+    wrapWithRole('Admin', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    // The readable display name is shown…
+    expect(card.getByText('Ada Lovelace')).toBeInTheDocument();
+    // …beside the existing formatted connection date…
+    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+    // …and the raw technical actor value is never interpolated.
+    expect(card.queryByText('u1', { exact: true })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['an unmatched actor', { connected_by: 'actor-999' }, [profile('u1', 'Ada Lovelace')]],
+    ['a whitespace-only profile name', { connected_by: 'u1' }, [profile('u1', '   ')]],
+    ['a missing actor', { connected_by: null }, []],
+  ])('AC-ICI-002 %s shows the neutral fallback, keeps the date, and hides the raw actor', (_label, bp, profiles) => {
+    const binding = { ...mockBinding, ...(bp as object) };
+    vi.mocked(useAssignableProfiles).mockReturnValue({ ...emptyProfilesReturn, data: profiles as any } as any);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp({
+      bindings: [binding],
+      getBinding: vi.fn((tier: string) => (tier === 'clickup' ? binding : undefined)),
+    }));
+    wrapWithRole('Admin', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    // The translated neutral fallback is shown…
+    expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
+    // …beside the retained connection date…
+    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+    // …and the raw actor value is never rendered.
+    const actor = (bp as { connected_by: string | null }).connected_by;
+    if (actor) expect(card.queryByText(actor, { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('AC-ICI-002 shows the translated fallback in Bahasa and never the English string', async () => {
+    vi.mocked(useAssignableProfiles).mockReturnValue(emptyProfilesReturn);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+    await wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    expect(card.getByText('Pengguna sebelumnya atau tidak tersedia')).toBeInTheDocument();
+    expect(card.queryByText('Former or unavailable user')).not.toBeInTheDocument();
+    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['pending', { data: undefined, isPending: true, isError: false, isSuccess: false }],
+    ['errored', { data: undefined, isPending: false, isError: true, isSuccess: false }],
+  ])('AC-ICI-003 a %s profile read keeps binding, health, and allowed actions truthful', async (_state, qs) => {
+    vi.mocked(useAssignableProfiles).mockReturnValue({ ...emptyProfilesReturn, ...(qs as object) } as any);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+    wrapWithRole('Admin', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    // …the separately derived health read stays truthful (await the async read)…
+    await waitFor(() => expect(card.getByText(/0 outbound items pending or need attention/i)).toBeInTheDocument());
+    // The identity display has a safe fallback…
+    expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
+    // …while the independent binding state stays Connected…
+    expect(card.getByText('Connected')).toBeInTheDocument();
+    // …and the Admin's already-permitted control remains available.
+    expect(card.getByRole('button', { name: /^disconnect clickup$/i })).toBeInTheDocument();
+    // Neither case relabels the binding as unavailable/disconnected.
+    expect(card.queryByText('Connection state unavailable')).not.toBeInTheDocument();
+    expect(card.queryByText('Disconnected')).not.toBeInTheDocument();
+  });
+
+  it('AC-ICI-004 a read-only Engineer at 390px in Bahasa sees fallback + date and no management controls', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    try {
+      vi.mocked(useAssignableProfiles).mockReturnValue(emptyProfilesReturn);
+      vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+      await wrapWithRoleAndLocale('Engineer', 'id', <IntegrationsView />);
+      const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+      // Translated fallback + retained date sit inside the card's metadata container…
+      const fallback = card.getByText('Pengguna sebelumnya atau tidak tersedia');
+      const metadata = fallback.closest('.flex.flex-wrap')!;
+      expect(metadata).toHaveTextContent(/Jan 1, 2026/);
+      expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+      // …and the read-only viewer gets no management controls.
+      expect(card.queryByRole('button', { name: /^hubungkan clickup$/i })).not.toBeInTheDocument();
+      expect(card.queryByRole('button', { name: /^putuskan koneksi clickup$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^pilih perusahaan$/i })).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
   });
 });
