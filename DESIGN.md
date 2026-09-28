@@ -702,6 +702,16 @@ dot+label (never color-only).
 children (e.g. `Funnel` stages rendered with `onSelect`); adding it there would only insert a redundant
 tab stop ahead of the first real control.
 
+**Bottom-aligned row indicators (2026-09-28, `Funnel` bars):** a fixed top margin and a bare
+`margin-top: auto` each solve only half of "pin an indicator to the bottom of every card in a
+stretched row, with a guaranteed minimum gap above it": a fixed margin loses cross-row alignment the
+moment one sibling's content wraps taller, and `margin-top: auto` alone collapses to a 0px gap
+whenever every sibling's natural height is already equal (the common case, since a flex column with
+no imposed extra height gives an auto margin nothing to consume). Use both together — a fixed
+padding-floor (e.g. `pt-2`) on a transparent wrapper for the minimum gap, plus `mt-auto` on that same
+wrapper for the cross-row alignment — and never put the padding on the indicator's own visible/filled
+element, or the fill color paints through the gap.
+
 ---
 
 ## Icons — the `<Icon name=…>` monoline facade (ADR-0068, locked look)

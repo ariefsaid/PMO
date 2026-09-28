@@ -313,7 +313,7 @@ describe('Funnel', () => {
     // Discover finding (2026-09-28): stages stretch to the tallest row member (grid default);
     // a stage whose weighted text wraps sits taller, but its bar previously followed right
     // after that text instead of the box's bottom edge, so bars visibly misaligned across a
-    // row. `mt-auto` on a flex-column stage pins the bar to the bottom of every stage box.
+    // row. `mt-auto` on the bar's wrapper pins it to the bottom of every stage box.
     render(
       <Funnel
         stages={[{ name: 'Leads', value: '$1M', weighted: '$200K weighted', barPct: 40 }]}
@@ -322,9 +322,36 @@ describe('Funnel', () => {
     const stage = screen.getByText('Leads').closest('[data-funnel-stage]')!;
     expect(stage.className).toContain('flex');
     expect(stage.className).toContain('flex-col');
-    const bar = stage.querySelector('.bg-secondary')!;
-    expect(bar.className).toContain('mt-auto');
-    expect(bar.className).not.toContain('mt-2');
+    const barWrapper = stage.querySelector('.bg-secondary')!.parentElement!;
+    expect(barWrapper.className).toContain('mt-auto');
+    expect(barWrapper.className).not.toContain('mt-2');
+  });
+
+  it('Discover fix round 3: the bar keeps an unconditional 8px floor gap even when mt-auto has no free space to consume', () => {
+    // Round-3 finding (2026-09-28): `mt-auto` alone resolved to a 0px gap whenever a stage's
+    // natural content height already matched the row height (the common case — nothing wraps),
+    // because a flex column with no imposed extra height gives `margin-top: auto` nothing to
+    // consume. `pt-2` on the bar's OUTER (transparent) wrapper enforces the floor
+    // unconditionally; it must NOT be on the visible track itself, which would paint
+    // `bg-secondary` through the padding instead of leaving a transparent gap. jsdom does no
+    // real layout, so this locks the markup contract; the real px gap + cross-stage alignment
+    // are proven in e2e/AC-SFA-001-sales-funnel-amount-geometry.spec.ts.
+    render(
+      <Funnel
+        stages={[{ name: 'Leads', value: '$1M', weighted: '$200K weighted', barPct: 40 }]}
+      />
+    );
+    const stage = screen.getByText('Leads').closest('[data-funnel-stage]')!;
+    const weightedEl = stage.querySelector('[data-funnel-stage-weighted]')!;
+    const barTrack = stage.querySelector('[data-funnel-stage-bar]')!;
+    expect(weightedEl.textContent).toBe('$200K weighted');
+    const barWrapper = barTrack.parentElement!;
+    expect(barWrapper.className).toContain('mt-auto');
+    expect(barWrapper.className).toContain('pt-2');
+    // The floor lives on the transparent wrapper, never on the visible bg-secondary track.
+    expect(barTrack.className).not.toContain('pt-2');
+    expect(barTrack.className).not.toContain('mt-auto');
+    expect(barTrack.className).toContain('bg-secondary');
   });
 });
 

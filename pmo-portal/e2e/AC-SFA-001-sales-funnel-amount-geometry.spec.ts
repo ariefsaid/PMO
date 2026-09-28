@@ -134,4 +134,52 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
       `focused stage extends past the scroll viewport: stage.right=${(boxes.stage.x + boxes.stage.width).toFixed(1)} > scrollArea.right=${(boxes.scrollArea.x + boxes.scrollArea.width).toFixed(1)}`,
     ).toBeLessThanOrEqual(boxes.scrollArea.x + boxes.scrollArea.width + 1);
   });
+
+  test('AC-SFA-001: every stage progress bar keeps an 8px gap below its weighted line and all bar tops align', async ({
+    page,
+  }) => {
+    // Discover finding, round 3 (2026-09-28): `mt-auto` alone collapsed the bar's gap to 0px
+    // whenever every stage's natural content height was already equal (the common case — no
+    // stage's weighted text wraps), because a flex column with no imposed extra height gives
+    // `margin-top: auto` nothing to consume. The fix must keep BOTH properties: a floor gap
+    // (>= 8px, the design's existing spacing unit) AND every bar's top edge aligned across the
+    // row (so a wrapped stage elsewhere doesn't leave the others' bars sitting higher).
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page, 'admin@acme.test');
+    await page.goto('/sales');
+    await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+
+    const bars = await page.evaluate(() => {
+      const results: { i: number; weightedBottom: number; barTop: number }[] = [];
+      document.querySelectorAll('[data-funnel-stage]').forEach((stageEl, i) => {
+        const weighted = stageEl.querySelector('[data-funnel-stage-weighted]');
+        const bar = stageEl.querySelector('[data-funnel-stage-bar]');
+        if (!weighted || !bar) return;
+        results.push({
+          i,
+          weightedBottom: weighted.getBoundingClientRect().bottom,
+          barTop: bar.getBoundingClientRect().top,
+        });
+      });
+      return results;
+    });
+
+    expect(bars, 'expected a weighted line + progress bar on every one of the 5 stages').toHaveLength(5);
+
+    for (const { i, weightedBottom, barTop } of bars) {
+      expect(
+        barTop - weightedBottom,
+        `stage ${i} bar sits closer than 8px below its weighted line: gap=${(barTop - weightedBottom).toFixed(1)}px`,
+      ).toBeGreaterThanOrEqual(7); // 1px rendering tolerance under the 8px design floor
+    }
+
+    const barTops = bars.map((b) => b.barTop);
+    const firstTop = barTops[0];
+    for (const [i, top] of barTops.entries()) {
+      expect(
+        Math.abs(top - firstTop),
+        `stage ${i} bar top (${top.toFixed(1)}) is not aligned with stage 0's bar top (${firstTop.toFixed(1)})`,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
 });

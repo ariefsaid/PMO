@@ -109,22 +109,30 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 {s.value}
               </div>
               {s.weighted && (
-                <div className="mt-[7px] text-[11px] text-muted-foreground">{s.weighted}</div>
+                <div data-funnel-stage-weighted className="mt-[7px] text-[11px] text-muted-foreground">
+                  {s.weighted}
+                </div>
               )}
               {s.barPct !== undefined && (
-                // Discover fix: `mt-auto` (not `mt-2`) pins the bar to the bottom of every stage
-                // box. Stages in the same grid row stretch to the tallest row member by default,
-                // so a stage whose weighted text wraps to two lines is taller than its neighbours;
-                // a fixed top margin left its bar following the wrapped text instead of sitting
-                // flush with the other stages' bars, visibly misaligning the row.
-                <div className="mt-auto h-[5px] overflow-hidden rounded-full bg-secondary">
-                  <span
-                    className="block h-full rounded-full"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, s.barPct))}%`,
-                      background: s.barColor ?? 'hsl(var(--primary))',
-                    }}
-                  />
+                // Discover fix (round 3): `mt-auto` alone aligns bars across a stretched grid row,
+                // but resolves to a 0px gap whenever every stage's natural content height is
+                // already equal (the common case — nothing wraps), since a flex column with no
+                // imposed extra height gives `margin-top: auto` no free space to consume. `pt-2`
+                // on this OUTER (transparent) wrapper enforces the design's 8px floor
+                // unconditionally, while the inner track div keeps its own background/height
+                // unchanged — padding on the track itself would have painted `bg-secondary`
+                // through the gap. `mt-auto` still does the cross-stage alignment: every stage's
+                // wrapper contributes the same fixed pt-2, so the alignment math is unaffected.
+                <div className="mt-auto pt-2">
+                  <div data-funnel-stage-bar className="h-[5px] overflow-hidden rounded-full bg-secondary">
+                    <span
+                      className="block h-full rounded-full"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, s.barPct))}%`,
+                        background: s.barColor ?? 'hsl(var(--primary))',
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
