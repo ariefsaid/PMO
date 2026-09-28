@@ -504,6 +504,9 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
      `text-destructive`, headline in `text-destructive-text`, body in `muted-foreground`; `role="alert"`,
      `tabIndex={-1}`, and focus returns to the region (never to the submit button — that risks an
      accidental re-submit). It states that nothing was saved and that the entries are intact.
+     **Text on a destructive tint always uses `destructive-text`, never `destructive`** — `destructive`
+     is reviewed only against `canvas`/`raised` backgrounds and fails WCAG AA on the `destructive/[0.07]`
+     tint (found live on the M365 disconnect-failure alert, issue #689, fixed by this same rule).
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
 - **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
