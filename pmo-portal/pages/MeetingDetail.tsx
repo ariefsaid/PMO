@@ -37,7 +37,7 @@ import {
 import { useProjects } from '@/src/hooks/useProjects';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
-import { formatDateTime, formatDate } from '@/src/lib/format';
+import { formatDateTime, formatDateOnly } from '@/src/lib/format';
 import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
@@ -468,7 +468,7 @@ const MeetingDetail: React.FC = () => {
                     <span className="text-muted-foreground">{task.assignee.full_name}</span>
                   )}
                   {task.end_date && (
-                    <span className="text-muted-foreground">{formatDate(task.end_date)}</span>
+                    <span className="text-muted-foreground">{formatDateOnly(task.end_date)}</span>
                   )}
                 </li>
               ))}

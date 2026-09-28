@@ -11,7 +11,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
-import { parseMoneyInput } from '@/src/lib/format';
+import { parseMoneyInput, parseMoneyInputAtScale } from '@/src/lib/format';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -98,14 +98,14 @@ const ORIGINATION_OPTIONS = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s,
 
 /**
  * "Estimated value" is OPTIONAL (a pre-win estimate may be unset). Blank → valid (unset).
- * Non-blank must parse (via the SAME `parseMoneyInput` used to persist — Wave 3 input integrity)
- * to a finite, non-negative number; otherwise an inline error blocks the submit.
+ * Non-blank must parse (via the same locale-aware scale-2 parser used to persist — Wave 3 input
+ * integrity) to a finite, non-negative number; otherwise an inline error blocks the submit.
  */
 function moneyError(raw: string): string | undefined {
   if (!raw.trim()) return undefined; // optional — blank is fine
-  const n = parseMoneyInput(raw);
+  const n = parseMoneyInputAtScale(raw, 2);
   return n === null || n < 0
-    ? 'Enter a valid non-negative number (e.g. 1,500,000).'
+    ? 'Enter a valid non-negative amount with no more than 2 decimal places.'
     : undefined;
 }
 
@@ -259,7 +259,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             start_date: values.startDate || null,
             end_date: values.endDate || null,
           };
-          const contractValue = parseMoneyInput(values.value) ?? 0;
+          const contractValue = parseMoneyInputAtScale(values.value, 2) ?? 0;
           // #513: the basis travels WITH the value or the value is 0. `CreateProjectInput` is a
           // union on exactly this rule, so the branch below is not defensive style — it is the only
           // shape that compiles, and a non-zero value with no basis cannot be built here.
@@ -386,6 +386,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 onChange={valueField.onChange}
                 onBlur={valueField.onBlur}
                 error={valueField.error}
+                localeAware
                 placeholder="0"
                 helper="Estimate, pre-win. Editable by Admin, Executive, and PM."
               />
@@ -414,6 +415,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                     value={taxAmountField.value}
                     onChange={taxAmountField.onChange}
                     onBlur={taxAmountField.onBlur}
+                    localeAware
                     placeholder="0"
                     data-testid="project-tax-amount"
                   />

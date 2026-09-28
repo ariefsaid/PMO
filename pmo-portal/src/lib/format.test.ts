@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
   formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
   formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
 } from './format';
+
+afterEach(() => resetActiveLocale());
 
 describe('formatCurrency', () => {
   it('formats USD with no fraction digits (AC-410)', () => {
@@ -201,9 +204,10 @@ describe('#477 date variants — all deterministic, TZ-stable (local or UTC-pinn
   it('formatFullDate: "Jun 14, 2026" — same parts as formatDate(iso)', () => {
     expect(formatFullDate(new Date(2026, 5, 14))).toBe('Jun 14, 2026');
   });
-  it('formatDateTime: "Jun 14, 2026, 03:45 PM" / midnight "12:00 AM" (hour is 2-digit)', () => {
-    expect(formatDateTime(new Date(2026, 5, 14, 15, 45))).toBe('Jun 14, 2026, 03:45 PM');
-    expect(formatDateTime(new Date(2026, 5, 14, 0, 0))).toBe('Jun 14, 2026, 12:00 AM');
+  it('formatDateTime follows the explicitly selected timezone (hour is 2-digit)', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    expect(formatDateTime(new Date('2026-06-14T15:45:00.000Z'))).toBe('Jun 14, 2026, 03:45 PM');
+    expect(formatDateTime(new Date('2026-06-14T00:00:00.000Z'))).toBe('Jun 14, 2026, 12:00 AM');
   });
   it('formatDateNumeric: "6/14/2026" / "7/4/2026" — byte-identical to bare toLocaleDateString in en-US', () => {
     expect(formatDateNumeric(new Date(2026, 5, 14))).toBe('6/14/2026');

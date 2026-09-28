@@ -13,7 +13,7 @@
  * assert the two-sided contract for each AC.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -30,6 +30,10 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectFormModal from './ProjectFormModal';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 // ── Stubs for the two FK-fetching hooks ────────────────────────────────────
 vi.mock('@/src/hooks/useProjects', () => ({
@@ -77,7 +81,11 @@ async function fillRequired() {
   await userEvent.click(option);
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  setActiveLocale(EN_LOCALE);
+});
+afterEach(() => resetActiveLocale());
 
 // ── AC-W3-NUM-001 ────────────────────────────────────────────────────────────
 
@@ -151,5 +159,31 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 4820000 });
+  });
+
+  it('AC-PLC-009: rejects an en-US amount with three decimal places before the project write', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234');
+    await stateTaxBasis();
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/valid non-negative amount with no more than 2 decimal places/i, {
+      selector: 'span[role="alert"]',
+    })).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: parses id-ID grouping as 1234 before the project write', async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234');
+    await stateTaxBasis();
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 1234 });
   });
 });

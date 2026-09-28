@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { formatMoneyInputDraft, parseMoneyInputAtScale } from '@/src/lib/format';
 import {
   TextField,
   NumberField,
@@ -13,6 +15,8 @@ import {
   FormSection,
   FormActions,
 } from '../FormFields';
+
+afterEach(() => resetActiveLocale());
 
 // ---------------------------------------------------------------------------
 // Shared form field primitives (crud-components §2.1, §2.2). Each is built on
@@ -108,6 +112,92 @@ describe('NumberField: fires onChange', () => {
     render(<NumberField label="Value" value="" onChange={onChange} />);
     await userEvent.type(screen.getByLabelText('Value'), '5');
     expect(onChange).toHaveBeenCalledWith('5');
+  });
+
+  it('AC-PLC-009: groups locale-aware amount drafts and preserves an unfinished decimal', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount');
+    fireEvent.change(input, { target: { value: '1234.' } });
+    expect(input).toHaveValue('1,234.');
+  });
+
+  it('AC-PLC-009: keeps sequentially typed digits parseable after the first grouping separator', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount');
+
+    await userEvent.type(input, '4820000');
+
+    expect(input).toHaveValue('4,820,000');
+    expect(parseMoneyInputAtScale(input.getAttribute('value') ?? '', 2)).toBe(4_820_000);
+  });
+
+  it('AC-W3-NUM-001: keeps a sequentially typed exponent draft parseable', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount');
+
+    await userEvent.type(input, '1e5');
+
+    expect(input).toHaveValue('1e5');
+    expect(parseMoneyInputAtScale(input.getAttribute('value') ?? '', 2)).toBe(100_000);
+  });
+
+  it('AC-PLC-009: leaves malformed grouping pasted by the user for validation', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount');
+    input.focus();
+
+    await userEvent.paste('12,34');
+
+    expect(input).toHaveValue('12,34');
+    expect(parseMoneyInputAtScale(input.getAttribute('value') ?? '', 2)).toBeNull();
+  });
+
+  it('AC-PLC-009: preserves digits and caret position during a mid-string locale-aware edit', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const Wrapper = () => {
+      const [value, setValue] = React.useState('12,345');
+      return <NumberField label="Amount" value={value} onChange={setValue} localeAware />;
+    };
+    render(<Wrapper />);
+    const input = screen.getByLabelText('Amount') as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(1, 1);
+    await userEvent.keyboard('9');
+    expect(input).toHaveValue('192,345');
+    expect(input.selectionStart).toBe(2);
+  });
+});
+
+describe('formatMoneyInputDraft', () => {
+  it('formats grouping and decimal separators for Indonesian and English input', () => {
+    expect(formatMoneyInputDraft('1234567,89', 'id-ID')).toBe('1.234.567,89');
+    expect(formatMoneyInputDraft('1234567.89', 'en-US')).toBe('1,234,567.89');
+    expect(formatMoneyInputDraft('1234,', 'id-ID')).toBe('1.234,');
+    expect(formatMoneyInputDraft('1234.', 'en-US')).toBe('1,234.');
+  });
+
+  it('leaves an invalid draft available to validation without dropping digits', () => {
+    expect(formatMoneyInputDraft('12x34', 'en-US')).toBe('12x34');
   });
 });
 

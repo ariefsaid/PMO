@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -118,5 +119,21 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     // Confirming inside the dialog fires the terminal transition.
     await userEvent.click(within(dialog).getByRole('button', { name: /Mark lost/i }));
     await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Loss Tender'));
+  });
+});
+
+describe('AC-PLC-005: the decision date follows the profile timezone', () => {
+  afterEach(() => resetActiveLocale());
+
+  it('shows decided_at on the calendar day of the viewer timezone', () => {
+    const decided = { ...dealRow, decided_at: '2026-06-14T23:30:00Z' } as ProjectWithRefs;
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const { unmount } = renderLens(decided);
+    expect(screen.getByText('6/14/2026')).toBeInTheDocument();
+    unmount();
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    renderLens(decided);
+    expect(screen.getByText('6/15/2026')).toBeInTheDocument();
   });
 });

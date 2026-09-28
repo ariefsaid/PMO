@@ -1182,6 +1182,7 @@
         "title": "Archive {{name}}?"
       },
       "contractValue": "Contract value",
+      "invalidContractValue": "Enter a valid non-negative amount with no more than 2 decimal places.",
       "contractValueConfirm": {
         "body": "You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax.",
         "confirm": "Change and record",
@@ -2106,20 +2107,44 @@
   "profileSettings": {
     "loading": "Loading profile…",
     "title": "Profile & preferences",
-    "description": "Choose the language used for buttons, labels, and messages in this portal.",
+    "description": "Choose your language, number format, and timezone for this portal.",
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
+      "effective": "Effective language: {{value}}",
       "options": {
         "inherit": "Organization default",
         "id": "Bahasa Indonesia",
         "en": "English"
-      },
-      "inheritHint": "Organization default follows your organization’s setting. Choose a language below to override it."
+      }
+    },
+    "number": {
+      "label": "Number format",
+      "help": "Preview: {{value}}",
+      "effective": "Effective number format: {{value}}",
+      "options": {
+        "inherit": "Organization default",
+        "id": "Indonesian (1.234.567,89)",
+        "en": "English (1,234,567.89)",
+        "idLabel": "Indonesian: ",
+        "enLabel": "English: "
+      }
+    },
+    "timezone": {
+      "label": "Timezone",
+      "placeholder": "Select a timezone",
+      "search": "Search timezones…",
+      "noun": "timezone",
+      "effective": "Effective timezone: {{value}}",
+      "options": {
+        "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{timezone}}"
+      }
     },
     "save": "Save",
     "saving": "Saving your preference…",
     "saved": "Preferences saved",
-    "error": "Could not save your preference. Please try again."
+    "error": "Could not save your preferences. Please try again.",
+    "invalidTimezone": "Choose a valid timezone before saving."
   }
 }

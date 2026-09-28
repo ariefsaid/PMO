@@ -87,11 +87,13 @@ export function getDateFnsLocale(): DateFnsLocale {
 }
 
 /**
- * ⛔ The resolved TIMEZONE is deliberately NOT exposed to the date formatters.
+ * ⛔ The resolved TIMEZONE applies to INSTANTS only (#684, FR-PLC-006).
  *
- * `formatDate` has no `timeZone` option on purpose: `parseISO('2026-06-14')` yields LOCAL midnight,
- * and formatting it in the LOCAL zone is what stops a date-only value rendering as the 13th. Feeding
- * a profile timezone in would shift the calendar day for every date-only value whenever it differs
- * from the runtime zone (CI is UTC; the org default is Asia/Jakarta, +7). Read it from
- * `getActiveLocale().timezone` where a timezone is genuinely the subject; never inside `format.ts`.
+ * `format.ts` reads `getActiveLocale().timezone` in exactly its instant formatters —
+ * `formatDateTime`, `formatInstantDate`, `formatInstantDateNumeric` — so a meeting time or a
+ * connection date lands on the viewer's wall clock and calendar day. Date-only values
+ * (`formatDateOnly` / `formatDateOnlyNumeric`, and the legacy `formatDate`) never take a
+ * `timeZone` option: `parseISO('2026-06-14')` yields LOCAL midnight, and formatting it in the
+ * LOCAL zone is what stops a date-only value rendering as the 13th. Feeding a profile timezone into
+ * that path would shift the calendar day whenever it differs from the runtime zone.
  */

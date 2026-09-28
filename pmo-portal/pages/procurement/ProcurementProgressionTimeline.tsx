@@ -21,7 +21,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
-import { formatDateUtc } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -31,10 +31,11 @@ import { formatDateUtc } from '@/src/lib/format';
 const DEFAULT_CAP = 6;
 
 // ---------------------------------------------------------------------------
-// Date formatting — UTC-safe (avoids a 1-day shift in behind-UTC zones)
+// Date formatting — an event `at` is an INSTANT, so its calendar day is the one in the viewer's
+// resolved profile timezone (#684, FR-PLC-006), not UTC's and not the browser's.
 // ---------------------------------------------------------------------------
 function formatEventTime(iso: string): string {
-  return formatDateUtc(new Date(iso));
+  return formatInstantDate(iso);
 }
 
 export interface ProcurementProgressionTimelineProps {

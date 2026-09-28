@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -189,5 +190,21 @@ describe('Meetings — states', () => {
     listState.isPending = true;
     renderPage();
     expect(screen.queryByText('Kickoff with Acme')).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005: meeting occurrence follows the profile timezone', () => {
+  afterEach(() => resetActiveLocale());
+
+  it('shows the occurrence wall time and day in the viewer timezone', () => {
+    listState.data = [{ ...seed[0], occurred_at: '2026-06-14T23:30:00Z' }];
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const { unmount } = renderPage();
+    expect(screen.getByText(/Jun 14, 2026, 11:30\sPM/)).toBeInTheDocument();
+    unmount();
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    renderPage();
+    expect(screen.getByText(/Jun 15, 2026, 06:30\sAM/)).toBeInTheDocument();
   });
 });

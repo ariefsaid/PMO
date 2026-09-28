@@ -22,7 +22,7 @@ import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnersh
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { tierLabel, domainLabel } from './integrationLabels';
 import { CanWrite } from '@/src/auth/usePermission';
-import { formatDate } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/types';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 
@@ -363,7 +363,7 @@ export const IntegrationsView: React.FC = () => {
                     {t('integrations.organization.readiness.connectedAt', 'Connected')}:{' '}
                     <span className="font-medium text-foreground">
                       {binding.connected_at
-                        ? formatDate(binding.connected_at)
+                        ? formatInstantDate(binding.connected_at)
                         : '—'}
                     </span>
                   </span>
@@ -371,7 +371,7 @@ export const IntegrationsView: React.FC = () => {
                     <span>
                       {t('integrations.organization.readiness.disconnectedAt', 'Disconnected')}:{' '}
                       <span className="font-medium text-foreground">
-                        {formatDate(binding.disconnected_at)}
+                        {formatInstantDate(binding.disconnected_at)}
                       </span>
                     </span>
                   )}

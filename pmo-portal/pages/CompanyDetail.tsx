@@ -38,7 +38,7 @@ import {
   useContactMutations,
 } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDate } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { companyTypeVariant, workflowVariant, crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
@@ -570,7 +570,7 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
 const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatDate(iso);
+  return formatInstantDate(iso);
 };
 
 /**

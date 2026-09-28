@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { makeRefLookup } from '@/src/lib/import/refLookup';
 import type { ValidatedGroup } from '../types';
 
@@ -33,6 +33,9 @@ import { createInvoice } from '@/src/lib/db/procurementLifecycle';
 import { groupRows } from '../group';
 import { validateGroups } from '../validate';
 import type { CycleRow } from '../types';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+afterEach(() => resetActiveLocale());
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -782,6 +785,21 @@ describe('commitGroups — #505: a VI row with no tax treatment is rejected befo
       taxTreatment: 'exclusive',
       taxAmount: 0,
     });
+  });
+
+  it('AC-PLC-009: a neutral comma-grouped invoice amount commits as a number under id-ID', async () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    await commitFromSheet([viRow({ amount: '1,234.56', taxTreatment: 'exclusive', taxAmount: '1.23' })]);
+
+    expect(createInvoice).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createInvoice).mock.calls[0][0]).toMatchObject({ amount: 1234.56, taxAmount: 1.23 });
+  });
+
+  it('AC-PLC-009: a three-decimal invoice amount is rejected before the import commit writes', async () => {
+    await commitFromSheet([viRow({ amount: '1.234', taxTreatment: 'exclusive', taxAmount: '0' })]);
+
+    expect(createProcurement).not.toHaveBeenCalled();
+    expect(createInvoice).not.toHaveBeenCalled();
   });
 
   // The three cases above all use SINGLE-ROW groups: the invalid VI row is the group's only row,

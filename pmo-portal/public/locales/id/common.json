@@ -1182,6 +1182,7 @@
         "title": "Arsipkan {{name}}?"
       },
       "contractValue": "Nilai kontrak",
+      "invalidContractValue": "Masukkan jumlah non-negatif yang valid dengan maksimal 2 angka desimal.",
       "contractValueConfirm": {
         "body": "Anda mengubah nilai kontrak proyek yang sudah menang dari <1>{{from}}</1> menjadi <3>{{to}}</3>, dinyatakan sebagai <5></5> dengan pajak <7>{{tax}}</7>.",
         "confirm": "Ubah dan catat",
@@ -2106,20 +2107,44 @@
   "profileSettings": {
     "loading": "Memuat profil…",
     "title": "Profil & preferensi",
-    "description": "Pilih bahasa yang digunakan untuk tombol, label, dan pesan di portal ini.",
+    "description": "Pilih bahasa, format angka, dan zona waktu untuk portal ini.",
     "language": {
       "label": "Bahasa antarmuka",
       "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
+      "effective": "Bahasa aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
         "id": "Bahasa Indonesia",
         "en": "English"
-      },
-      "inheritHint": "Default organisasi mengikuti pengaturan organisasi Anda. Pilih bahasa di bawah untuk menimpanya."
+      }
+    },
+    "number": {
+      "label": "Format angka",
+      "help": "Pratinjau: {{value}}",
+      "effective": "Format angka aktif: {{value}}",
+      "options": {
+        "inherit": "Default organisasi",
+        "id": "Indonesia (1.234.567,89)",
+        "en": "Inggris (1,234,567.89)",
+        "idLabel": "Indonesia: ",
+        "enLabel": "Inggris: "
+      }
+    },
+    "timezone": {
+      "label": "Zona waktu",
+      "placeholder": "Pilih zona waktu",
+      "search": "Cari zona waktu…",
+      "noun": "zona waktu",
+      "effective": "Zona waktu aktif: {{value}}",
+      "options": {
+        "inherit": "Default organisasi",
+        "inheritWithEffective": "Default organisasi — {{timezone}}"
+      }
     },
     "save": "Simpan",
     "saving": "Menyimpan preferensi Anda…",
     "saved": "Preferensi disimpan",
-    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi."
+    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
+    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
   }
 }

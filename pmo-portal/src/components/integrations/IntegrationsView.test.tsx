@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import React from 'react';
 import { IntegrationsView } from './IntegrationsView';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { IntegrationBinding, IntegrationHealth } from '@/src/lib/repositories/types';
 
@@ -374,6 +375,31 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       expect(screen.getByText('Disconnected')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^connect clickup$/i })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^disconnect clickup$/i })).not.toBeInTheDocument();
+    });
+
+    it('AC-PLC-005: dates connection instants on the viewer-timezone calendar day', async () => {
+      const current = vi.mocked(useIntegrations)();
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...current,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup'
+          ? { ...mockBinding, status: 'disconnected', connected_at: '2026-06-14T23:30:00Z', disconnected_at: '2026-06-15T23:30:00Z' }
+          : undefined)),
+      } as any);
+      try {
+        setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+        const { unmount } = wrapWithRole('Admin', <IntegrationsView />);
+        await waitFor(() => expect(screen.getByText('Jun 15, 2026')).toBeInTheDocument());
+        expect(screen.getByText('Jun 14, 2026')).toBeInTheDocument();
+        unmount();
+
+        setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+        wrapWithRole('Admin', <IntegrationsView />);
+        await waitFor(() => expect(screen.getByText('Jun 16, 2026')).toBeInTheDocument());
+        expect(screen.getByText('Jun 15, 2026')).toBeInTheDocument();
+        expect(screen.queryByText('Jun 14, 2026')).not.toBeInTheDocument();
+      } finally {
+        resetActiveLocale();
+      }
     });
 
     it('opens Connect modal with tier-specific fields when Connect is clicked', async () => {

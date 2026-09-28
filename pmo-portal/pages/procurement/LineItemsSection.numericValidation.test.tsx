@@ -11,13 +11,17 @@
  * was not called.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { LineItemsSection } from './LineItemsSection';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const oneItem: ProcurementItemRow[] = [
   {
@@ -56,7 +60,11 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
   return { onAdd, onUpdate, onDelete, onError };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  setActiveLocale(EN_LOCALE);
+});
+afterEach(() => resetActiveLocale());
 
 // ── AC-W3-NUM-002 ─────────────────────────────────────────────────────────────
 
@@ -156,6 +164,31 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.5 });
   });
 
+  it('AC-PLC-009: rejects an en-US line-item rate with excess precision before adding', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onAdd } = renderSection();
+    const row = screen.getByTestId('line-item-add-row');
+    await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
+    await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
+    await userEvent.type(within(row).getByLabelText(/new item unit price/i), '1.234');
+    await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/unit price|decimal/i);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: persists id-ID grouped line-item rate as 1234', async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onAdd } = renderSection();
+    const row = screen.getByTestId('line-item-add-row');
+    await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
+    await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
+    await userEvent.type(within(row).getByLabelText(/new item unit price/i), '1.234');
+    await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 5, rate: 1234 });
+  });
+
   // ── Edit row: Save gated on valid qty + rate ──────────────────────────────
 
   it('AC-W3-NUM-002: invalid quantity in edit-row blocks onUpdate', async () => {
@@ -180,6 +213,15 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: an id-ID viewer re-saves an existing fractional line unchanged', async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onUpdate } = renderSection({ items: [{ ...oneItem[0], quantity: 2.5, rate: 1234.5 }] });
+    await userEvent.click(screen.getByRole('button', { name: /edit mig welding wire/i }));
+    expect(screen.getByLabelText(/edit unit price for mig welding wire/i)).toHaveValue('1.234,5');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onUpdate).toHaveBeenCalledWith('it1', { name: 'MIG welding wire', quantity: 2.5, rate: 1234.5 });
   });
 
   it('AC-W3-NUM-002: invalid rate in edit-row blocks onUpdate', async () => {
