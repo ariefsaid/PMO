@@ -55,7 +55,8 @@ Use static keys under `integrations.personalM365`; retain the English source tex
 | `confirm.description` | Disconnecting removes this Microsoft 365 account connection. PMO can no longer access the OneDrive files, Teams, and calendar information available through this account until you reconnect. You can reconnect at any time. | Memutuskan koneksi akan menghapus koneksi akun Microsoft 365 ini. PMO tidak dapat lagi mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun ini sampai Anda menghubungkannya kembali. Anda dapat menghubungkannya kembali kapan saja. |
 | `confirm.cancel` | Cancel | Batal |
 | `confirm.confirm` | Disconnect | Putuskan koneksi |
-| `errors.disconnectFailure` | We couldn't confirm the disconnect. The last confirmed status is still connected. You can retry or cancel. | Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung. Anda dapat mencoba lagi atau membatalkan. |
+| `errors.disconnectFailureHeadline` | We couldn't confirm the disconnect. The last confirmed status is still connected. | Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung. |
+| `errors.disconnectFailureGuidance` | You can retry or cancel. | Anda dapat mencoba lagi atau membatalkan. |
 | `errors.statusFallback` | We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again. | Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi. |
 | `errors.generic` | Microsoft 365 could not be connected. Please try again. | Microsoft 365 tidak dapat dihubungkan. Silakan coba lagi. |
 
@@ -79,7 +80,7 @@ For known M365 errors, retain the English source owned by `describeM365Error(cod
 | `GRAPH_ERROR` | `graphError` | Microsoft Graph sedang tidak tersedia. Silakan coba lagi sebentar lagi. |
 | `INTERNAL_ERROR` | `internalError` | Terjadi kesalahan di sisi kami. Silakan coba lagi. |
 
-Unknown or missing codes use `errors.generic`; status-fetch errors without a stable code use `errors.statusFallback`. The disconnect dialog uses `errors.disconnectFailure` so the user sees the recovery outcome and available action even when the service response is ambiguous; when a known code exists, append its localized reviewed reason.
+Unknown or missing codes use `errors.generic`; status-fetch errors without a stable code use `errors.statusFallback`. The disconnect dialog shows `errors.disconnectFailureHeadline` as the alert headline so the user sees the recovery outcome even when the service response is ambiguous; when a known code exists, its localized reviewed reason follows, and `errors.disconnectFailureGuidance` states the available action once (headline/body split per the `DESIGN.md` destructive-alert recipe).
 
 ## Acceptance criteria
 
