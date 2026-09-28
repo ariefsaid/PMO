@@ -78,12 +78,19 @@
 
 ## Traceability
 
-| Acceptance criterion | Owning/review proof in this slice |
-|---|---|
-| AC-LRC-001 | `src/lib/listWorkingSet.test.ts`; `src/hooks/useListWorkingSet.test.tsx` verifies replacement URL writing. |
-| AC-LRC-002 | `src/lib/listWorkingSet.test.ts`; `src/hooks/useListWorkingSet.test.tsx` verifies URL precedence and session-view materialization. |
-| AC-LRC-005 | `src/lib/listReturnContext.test.ts`, `src/hooks/useListReturn.test.tsx`, and rendered `src/components/shell/__tests__/AppShell.test.tsx` checks. |
-| AC-LRC-009 | `src/hooks/useListReturn.test.tsx` explicit-push/native-Back checks. |
-| AC-LRC-010 | `src/lib/listReturnContext.test.ts`, `src/hooks/useListReturn.test.tsx`, and rendered breadcrumb fallback check. |
+> **Correction (review round 3, 2026-09-28).** Tasks 6, 8, and 10 above tagged seam unit tests with
+> `AC-LRC-004/005/009/011`. Those acceptance criteria are owned elsewhere (the browser journeys, and
+> `ProjectDetail.lens.test.tsx` for AC-LRC-011), so the seam's supporting tests now carry the
+> functional-requirement IDs they prove. Each AC keeps exactly one owning layer.
 
-The browser owners for AC-LRC-003/004/006/007/008 and their page adoption remain #682/#683; this plan neither changes nor weakens those proofs.
+| ID | Proof in this slice | Role |
+|---|---|---|
+| AC-LRC-001 | `src/lib/listWorkingSet.test.ts` (codec round-trip semantics); `src/hooks/useListWorkingSet.test.tsx` verifies replacement URL writing. | Owner: codec round trip. Page route cases land with #682/#683. |
+| AC-LRC-002 | `src/lib/listWorkingSet.test.ts`; `src/hooks/useListWorkingSet.test.tsx` verifies URL precedence and session-view materialization. | Owner: codec. Page drill cases land with #682/#683. |
+| AC-LRC-010 | `src/lib/listReturnContext.test.ts`; also referenced by the `useListReturn`, `routeMatch`, and rendered `AppShell` breadcrumb fallback checks at the same unit/component layer. | Owner. |
+| FR-LRC-003 | `src/lib/listReturnContext.test.ts` and `src/hooks/useListReturn.test.tsx` capture checks. | Supporting. |
+| FR-LRC-004 | `src/hooks/useListReturn.test.tsx` explicit-return push check. | Supporting. |
+| FR-LRC-005 | Scroll-restore checks in `src/lib/listReturnContext.test.ts`, `src/hooks/useListReturn.test.tsx`, `src/hooks/useListWorkingSet.test.tsx`, `src/components/shell/__tests__/routeMatch.test.ts`, and rendered `AppShell.test.tsx`. | Supporting. |
+| FR-LRC-006 | Sales-link resolution in `src/lib/listReturnContext.test.ts` and `src/hooks/useListReturn.test.tsx`; the Projects-crumb check in rendered `AppShell.test.tsx`. | Supporting. |
+
+The browser owners for AC-LRC-003 to AC-LRC-009 (e2e journeys), the AC-LRC-011 owner (`ProjectDetail.lens.test.tsx`), and their page adoption remain #682/#683. This plan neither changes nor weakens those proofs.

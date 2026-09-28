@@ -187,7 +187,7 @@ describe('breadcrumbForPath / recordLabelForPath — company + contact detail (C
 });
 
 describe('breadcrumbForPath — contextual list return', () => {
-  it('AC-LRC-005: keeps canonical Projects ancestry while navigating to the validated list URL with restore state', () => {
+  it('FR-LRC-005: keeps canonical Projects ancestry while navigating to the validated list URL with restore state', () => {
     let target: string | ListReturnNavigation = '';
     const navigate = (next: string | ListReturnNavigation) => {
       target = next;

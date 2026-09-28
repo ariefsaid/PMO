@@ -185,7 +185,7 @@ describe('useListWorkingSet — Projects', () => {
     expect(workingSet()).toMatchObject({ view: 'table' });
   });
 
-  it('AC-LRC-005: the materializing replace keeps router state so a pending scroll restore survives', async () => {
+  it('FR-LRC-005: the materializing replace keeps router state so a pending scroll restore survives', async () => {
     writeProjectView('calendar');
     const restore = {
       pmoListScrollRestore: { list: 'projects', path: '/projects', scrollTop: 240 },

@@ -177,7 +177,7 @@ describe('useReturnNavigate', () => {
 });
 
 describe('useListReturn', () => {
-  it('AC-LRC-009: captures the list URL and scroll before opening the canonical record path', () => {
+  it('FR-LRC-003: captures the list URL and scroll before opening the canonical record path', () => {
     renderAt('/companies?type=Client&q=harbor&campaign=source');
     const main = sizeMainScroll();
     expect(main).not.toBeUndefined();
@@ -221,7 +221,7 @@ describe('useListReturn', () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  it('AC-LRC-005: restores a captured source entry on native Back after the shell resets scroll to top', async () => {
+  it('FR-LRC-005: restores a captured source entry on native Back after the shell resets scroll to top', async () => {
     renderAt('/companies?type=Vendor');
     const main = sizeMainScroll();
     expect(main).not.toBeUndefined();
@@ -240,7 +240,7 @@ describe('useListReturn', () => {
     await waitFor(() => expect(main!.scrollTop).toBe(460));
   });
 
-  it('AC-LRC-009: preserves the BrowserRouter history envelope while capturing and restoring native Back', async () => {
+  it('FR-LRC-005: preserves the BrowserRouter history envelope while capturing and restoring native Back', async () => {
     window.history.replaceState(null, '', '/companies?type=Vendor');
     render(
       <BrowserRouter>
@@ -269,7 +269,7 @@ describe('useListReturn', () => {
     });
   });
 
-  it('AC-LRC-005: never scrolls before the list is ready and restores exactly once once it is', () => {
+  it('FR-LRC-005: never scrolls before the list is ready and restores exactly once once it is', () => {
     vi.useFakeTimers();
     const state = {
       pmoListReturn: {
@@ -312,7 +312,7 @@ describe('useListReturn', () => {
     expect(main!.scrollTop).toBe(17);
   });
 
-  it('AC-LRC-009: explicit return pushes a new entry so browser Back reaches the detail, with clean state', async () => {
+  it('FR-LRC-004: explicit return pushes a new entry so browser Back reaches the detail, with clean state', async () => {
     window.history.replaceState(null, '', '/companies?type=Client&q=harbor');
     render(
       <BrowserRouter>
@@ -355,7 +355,7 @@ describe('useListReturn', () => {
     expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies');
   });
 
-  it('AC-LRC-005: does not require a scroll element to exist for a validated explicit return', () => {
+  it('FR-LRC-005: does not require a scroll element to exist for a validated explicit return', () => {
     vi.useFakeTimers();
     const state = {
       pmoListReturn: {
@@ -406,7 +406,7 @@ describe('useListReturn', () => {
     expect(returnedState.pmoListScrollRestore).toBeUndefined();
   });
 
-  it('AC-LRC-004: the project\'s Sales Pipeline link returns to the captured Sales working set', () => {
+  it('FR-LRC-006: the project\'s Sales Pipeline link returns to the captured Sales working set', () => {
     renderSalesAt('/sales?scope=Needs+attention&status=Leads&q=harbor&view=table');
 
     fireEvent.click(screen.getByRole('button', { name: 'Open project' }));
@@ -439,7 +439,7 @@ describe('useListReturn', () => {
     }
   });
 
-  it('AC-LRC-005: ignores stale entry keys and URLs even when the list is ready', () => {
+  it('FR-LRC-005: ignores stale entry keys and URLs even when the list is ready', () => {
     vi.useFakeTimers();
     renderAt('/companies?type=Client');
     const main = sizeMainScroll();

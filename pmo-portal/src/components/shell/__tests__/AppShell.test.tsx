@@ -324,7 +324,7 @@ describe('AppShell', () => {
   });
 });
 
-// ── Desktop parent-breadcrumb return seam (AC-LRC-005 / AC-LRC-010) ──────────
+// ── Desktop parent-breadcrumb return seam (FR-LRC-004/005/006, AC-LRC-010) ──────────
 // Proves the rendered shell breadcrumb carries the shared return navigation: a valid context
 // navigates to the captured list URL with one-shot scroll-restore state and no pmoListReturn; a
 // tampered context falls back to the owning index with neither seam key.
@@ -375,7 +375,7 @@ describe('AppShell — parent breadcrumb record return', () => {
     );
   }
 
-  it('AC-LRC-005: a valid return context navigates with the one-shot restore state and no pmoListReturn', () => {
+  it('FR-LRC-005: a valid return context navigates with the one-shot restore state and no pmoListReturn', () => {
     renderDetailBreadcrumb('/companies/company-1', {
       pmoListReturn: {
         list: 'companies',
@@ -412,7 +412,7 @@ describe('AppShell — parent breadcrumb record return', () => {
     expect(state.pmoListReturn).toBeUndefined();
   });
 
-  it('AC-LRC-011: a project opened from Sales keeps its Projects crumb pointing at /projects', () => {
+  it('FR-LRC-006: a project opened from Sales keeps its Projects crumb pointing at /projects', () => {
     renderDetailBreadcrumb('/projects/project-1', {
       pmoListReturn: {
         list: 'sales',

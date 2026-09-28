@@ -18,7 +18,7 @@ import {
 } from './listReturnContext';
 
 describe('validated list return context', () => {
-  it('AC-LRC-009: accepts the owning list route and preserves its query, offset, and history key', () => {
+  it('FR-LRC-003: accepts the owning list route and preserves its query, offset, and history key', () => {
     const context = createListReturnContext(
       'companies',
       '/companies?type=Client&q=Caf%C3%A9&campaign=ref',
@@ -52,7 +52,7 @@ describe('validated list return context', () => {
     ).toBeUndefined();
   });
 
-  it('AC-LRC-011: the project\'s Sales Pipeline link reads the captured Sales URL through the sales owner', () => {
+  it('FR-LRC-006: the project\'s Sales Pipeline link reads the captured Sales URL through the sales owner', () => {
     const sales = createListReturnContext(
       'sales',
       '/sales?scope=Needs+attention&status=Leads&q=harbor&view=table',
@@ -77,7 +77,7 @@ describe('validated list return context', () => {
     );
   });
 
-  it('AC-LRC-004: only the capture check lets a Sales list open a Projects record', () => {
+  it('FR-LRC-003: only the capture check lets a Sales list open a Projects record', () => {
     expect(canCaptureFromList('sales', 'projects')).toBe(true);
     expect(canCaptureFromList('projects', 'projects')).toBe(true);
     expect(canCaptureFromList('contacts', 'projects')).toBe(false);
@@ -164,7 +164,7 @@ describe('validated list return context', () => {
     expect(nav.state[LIST_SCROLL_RESTORE_STATE_KEY]).toBeUndefined();
   });
 
-  it('AC-LRC-005: explicit return descriptor keeps path and one-shot restore, never pmoListReturn', () => {
+  it('FR-LRC-005: explicit return descriptor keeps path and one-shot restore, never pmoListReturn', () => {
     const context = createListReturnContext(
       'companies',
       '/companies?type=Client',
@@ -200,7 +200,7 @@ describe('validated list return context', () => {
     });
   });
 
-  it('AC-LRC-009: preserves other router state when attaching a validated return context', () => {
+  it('FR-LRC-003: preserves other router state when attaching a validated return context', () => {
     const context = createListReturnContext(
       'projects',
       '/projects?filter=at-risk',
@@ -214,7 +214,7 @@ describe('validated list return context', () => {
     });
   });
 
-  it('AC-LRC-005: builds an explicit one-time scroll restore state that strips both seam keys', () => {
+  it('FR-LRC-005: builds an explicit one-time scroll restore state that strips both seam keys', () => {
     const context = createListReturnContext('projects', '/projects?filter=at-risk', 160, 'entry_2')!;
     expect(
       withListScrollRestore(

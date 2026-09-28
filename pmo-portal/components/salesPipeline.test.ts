@@ -23,7 +23,7 @@ const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
 });
 
 describe('salesPipeline presentation helpers (AC-SP-204)', () => {
-  it('AC-LRC-001: the open board columns are OPEN_FUNNEL_STAGES in order, with their stable stage test ids', () => {
+  it('the open board columns are OPEN_FUNNEL_STAGES in order, with their stable stage test ids', () => {
     const open = SALES_COLUMNS.filter((c) => !c.terminal);
     expect(open.map((c) => c.statuses)).toEqual(OPEN_FUNNEL_STAGES.map((stage) => [stage]));
     expect(open.map((c) => c.testId)).toEqual([
