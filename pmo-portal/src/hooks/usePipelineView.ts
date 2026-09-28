@@ -2,12 +2,13 @@ import { useCallback, useState } from 'react';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 /** The two Sales Pipeline body layouts (ViewToggle options). */
-export type PipelineView = 'kanban' | 'table';
+export const PIPELINE_VIEWS = ['kanban', 'table'] as const;
+export type PipelineView = (typeof PIPELINE_VIEWS)[number];
 
-const DEFAULT_VIEW: PipelineView = 'kanban';
+export const DEFAULT_PIPELINE_VIEW: PipelineView = 'kanban';
 
 function isPipelineView(v: unknown): v is PipelineView {
-  return v === 'kanban' || v === 'table';
+  return (PIPELINE_VIEWS as readonly unknown[]).includes(v);
 }
 
 /**
@@ -17,14 +18,14 @@ function isPipelineView(v: unknown): v is PipelineView {
  * is shared with other surfaces — only the `pipeline` key is read.
  */
 export function readPipelineView(): PipelineView {
-  if (typeof sessionStorage === 'undefined') return DEFAULT_VIEW;
+  if (typeof sessionStorage === 'undefined') return DEFAULT_PIPELINE_VIEW;
   try {
     const raw = sessionStorage.getItem(VIEWS_STORAGE_KEY);
-    if (!raw) return DEFAULT_VIEW;
+    if (!raw) return DEFAULT_PIPELINE_VIEW;
     const map = JSON.parse(raw) as Record<string, unknown>;
-    return isPipelineView(map.pipeline) ? map.pipeline : DEFAULT_VIEW;
+    return isPipelineView(map.pipeline) ? map.pipeline : DEFAULT_PIPELINE_VIEW;
   } catch {
-    return DEFAULT_VIEW;
+    return DEFAULT_PIPELINE_VIEW;
   }
 }
 
