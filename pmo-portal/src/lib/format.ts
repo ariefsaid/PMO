@@ -195,11 +195,38 @@ export function parseNeutralMoneyInput(raw: string): number | null {
   return parseNeutralMoneyDraft(raw)?.value ?? null;
 }
 
-/** Locale-independent import parser with a target fractional-scale guard. */
+/**
+ * DD-I18N-10 — binary float noise from a spreadsheet formula cell is not user precision.
+ * `=1234.5+0.06` reaches the importer as `1234.5600000000002` (the double's shortest round-trip
+ * string). A value within max(ABS, REL × |value|) of a value at the target scale snaps to it.
+ * ABS covers small amounts generously; REL (≈2.25 machine epsilons, i.e. 2–4.5 ULPs) covers large
+ * ones, where one formula's noise already exceeds any flat bound (`=10000000.1*3` is 3.7e-9 off).
+ * At the numeric(14,2) ceiling (|value| < 1e12) REL × |value| < 5e-4, well under the ~0.001 a
+ * genuine third decimal sits from its nearest cent — so `1234.567` is still rejected.
+ */
+const IMPORT_FLOAT_NOISE_ABS = 1e-9;
+const IMPORT_FLOAT_NOISE_REL = 5e-16;
+
+function snapImportFloatNoise(value: number, scale: number): number | null {
+  if (!Number.isInteger(scale) || scale < 0) return null;
+  const factor = 10 ** scale;
+  const snapped = Math.round(value * factor) / factor;
+  const tolerance = Math.max(IMPORT_FLOAT_NOISE_ABS, Math.abs(value) * IMPORT_FLOAT_NOISE_REL);
+  if (!Number.isFinite(snapped) || Math.abs(value - snapped) > tolerance) return null;
+  // `+ 0` folds a negative-zero snap (a tiny negative residue) to a clean 0.
+  return snapped + 0;
+}
+
+/**
+ * Locale-independent import parser with a target fractional-scale guard. A value that fits the
+ * scale exactly is returned as parsed; otherwise only float noise (DD-I18N-10) is accepted,
+ * normalised to the scale value. On-screen entry never gets this tolerance.
+ */
 export function parseNeutralMoneyInputAtScale(raw: string, scale = 2): number | null {
   const parsed = parseNeutralMoneyDraft(raw);
-  if (!parsed || !fitsMoneyScale(parsed.normalized, scale)) return null;
-  return parsed.value;
+  if (!parsed) return null;
+  if (fitsMoneyScale(parsed.normalized, scale)) return parsed.value;
+  return snapImportFloatNoise(parsed.value, scale);
 }
 
 /**

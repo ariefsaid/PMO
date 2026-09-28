@@ -193,6 +193,21 @@ describe('makeBudgetImportDescriptor', () => {
     }
   });
 
+  it('DD-I18N-10: a formula cell\'s float noise imports as its cent value; genuine extra precision writes nothing', async () => {
+    const d = make();
+    const field = d.fields.find((f) => f.key === 'budgetedAmount')!;
+    for (const locale of [EN_LOCALE, ID_LOCALE]) {
+      setActiveLocale(locale);
+      expect(field.validate('1234.5600000000002')).toBeNull();
+      expect(d.toInput(cells({ budgetedAmount: '1234.5600000000002' })).budgetedAmount).toBe(1234.56);
+      expect(field.validate('1234.567')).toMatch(/2 decimal|two decimal/i);
+      expect(() => d.toInput(cells({ budgetedAmount: '1234.567' }))).toThrow();
+    }
+    await d.create(d.toInput(cells({ budgetedAmount: '1234.5600000000002' })));
+    expect(budget.createLineItem).toHaveBeenCalledTimes(1);
+    expect(budget.createLineItem.mock.calls[0][1]).toMatchObject({ budgeted_amount: 1234.56 });
+  });
+
   it('an omitted fiscal year stays NULL — PMO never invents another system’s calendar name', async () => {
     const d = make();
     await d.create(d.toInput(cells({ fiscalYear: '  ' })));

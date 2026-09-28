@@ -52,3 +52,50 @@ describe('money target precision', () => {
     expect(parseMoneyInputAtScale(formatMoneyInputValue(1234.56), 2)).toBe(1234.56);
   });
 });
+
+// DD-I18N-10: a spreadsheet formula cell reaches the neutral parser as the shortest round-trip
+// string of a binary double (`String(cell.text)`), so `=1234.5+0.06` arrives as
+// `1234.5600000000002`. That tail is float noise, not user precision: within
+// max(1e-9, 5e-16 × |value|) of a scale-2 value it snaps to that value. Genuine extra precision
+// is still rejected — at |value| < 1e12 (the whole numeric(14,2) range) the tolerance stays
+// below the 0.001 a real third decimal is away from its nearest cent.
+describe('DD-I18N-10: neutral import float-noise tolerance', () => {
+  it('AC-PLC-009: snaps binary float noise to the nearest scale-2 value under either viewer locale', () => {
+    for (const locale of [ID, EN]) {
+      setActiveLocale(locale);
+      expect(parseNeutralMoneyInputAtScale('1234.5600000000002', 2)).toBe(1234.56);
+      expect(parseNeutralMoneyInputAtScale(String(1234.5 + 0.06 + 1e-13), 2)).toBe(1234.56);
+      expect(parseNeutralMoneyInputAtScale('0.30000000000000004', 2)).toBe(0.3);
+      expect(parseNeutralMoneyInputAtScale('-1234.5600000000002', 2)).toBe(-1234.56);
+      expect(parseNeutralMoneyInputAtScale('1,234.5600000000002', 2)).toBe(1234.56);
+      expect(parseNeutralMoneyInputAtScale('12.000000000000002', 0)).toBe(12);
+      // Noise that never goes negative-zero: a tiny negative residue lands on a clean 0.
+      expect(Object.is(parseNeutralMoneyInputAtScale('-0.0000000000000001', 2), 0)).toBe(true);
+    }
+  });
+
+  it('scales the tolerance with magnitude, so large-amount formula noise is still recognised', () => {
+    setActiveLocale(EN);
+    // `=10000000.1*3` — 3.7e-9 away from 30000000.30, beyond a flat 1e-9 but a handful of ULPs.
+    const formula = String(10000000.1 * 3);
+    expect(formula).toBe('30000000.299999997');
+    expect(parseNeutralMoneyInputAtScale(formula, 2)).toBe(30000000.3);
+  });
+
+  it('still rejects genuine extra precision (no write) at every magnitude of a numeric(14,2) column', () => {
+    for (const locale of [ID, EN]) {
+      setActiveLocale(locale);
+      expect(parseNeutralMoneyInputAtScale('1234.567', 2)).toBeNull();
+      expect(parseNeutralMoneyInputAtScale('1234.561', 2)).toBeNull();
+      expect(parseNeutralMoneyInputAtScale('1234.5600001', 2)).toBeNull();
+      expect(parseNeutralMoneyInputAtScale('30000000.301', 2)).toBeNull();
+      expect(parseNeutralMoneyInputAtScale('999999999999.991', 2)).toBeNull();
+      expect(parseNeutralMoneyInputAtScale('999999999999.999', 2)).toBeNull();
+    }
+  });
+
+  it('never extends the tolerance to on-screen entry, where every typed digit is the user\'s', () => {
+    setActiveLocale(EN);
+    expect(parseMoneyInputAtScale('1234.5600000000002', 2)).toBeNull();
+  });
+});
