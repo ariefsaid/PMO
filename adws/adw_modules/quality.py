@@ -154,7 +154,10 @@ def test(run) -> QualityCheckResult:
         area="frontend",
         operation="build",
         argv=["scripts/with-test-lock.sh", "bash", "-c", "cd pmo-portal && npm test"],
-        timeout_seconds=1200,
+        # ponytail: the budget includes waiting for the shared test lock (#704); a queue of
+        # two or three full suites on a busy machine exceeds 20 min before this suite starts.
+        # Upgrade path: time only the suite by acquiring the lock outside the timeout.
+        timeout_seconds=5400,
     ), run)
 
 
