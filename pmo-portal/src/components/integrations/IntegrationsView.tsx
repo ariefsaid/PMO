@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -17,6 +17,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { useIntegrations, integrationHealthQueryKey } from '@/src/hooks/useIntegrations';
+import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
@@ -145,6 +146,23 @@ export const IntegrationsView: React.FC = () => {
 
   // Fetch each connected tier independently under an organization-scoped key.
   const healthQueries = useIntegrationsHealth(orgId, connectedTiers, getHealth);
+
+  // #680 (AC-ICI-001..004): organization connector identity — resolve `connected_by` (a stored
+  // audit actor) against the org-scoped profile source and show a readable same-org name, or a
+  // translated neutral fallback. The read is DISPLAY-ONLY: it reuses the existing org-scoped
+  // `useAssignableProfiles` hook; its pending/error state must never feed binding status, health
+  // queries, or authorization. A literal `connected_by` value is never interpolated into the DOM.
+  const profilesQuery = useAssignableProfiles();
+  const connectorNamesById = useMemo(() => {
+    const map = new Map<string, string>();
+    if (profilesQuery.isSuccess && !profilesQuery.isError && profilesQuery.data) {
+      for (const profileRow of profilesQuery.data) {
+        const name = profileRow.full_name?.trim();
+        if (name) map.set(profileRow.id, name);
+      }
+    }
+    return map;
+  }, [profilesQuery.isSuccess, profilesQuery.isError, profilesQuery.data]);
 
   // UI state
   const [connectTier, setConnectTier] = useState<ExternalTier | null>(null);
@@ -354,11 +372,15 @@ export const IntegrationsView: React.FC = () => {
               {/* Metadata when connected */}
               {!isError && (isConnected || isDisconnected) && binding && (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  {binding.connected_by && (
-                    <span>
-                      {t('integrations.organization.readiness.connectedBy', 'Connected by')}: <span className="font-medium text-foreground">{binding.connected_by}</span>
+                  {/* AC-ICI-001/002 — always-present connector identity line: readable same-org
+                      profile name or a translated neutral fallback, never the raw actor value. */}
+                  <span className="min-w-0 break-words">
+                    {t('integrations.organization.readiness.connectedBy', 'Connected by')}:{' '}
+                    <span className="font-medium text-foreground">
+                      {connectorNamesById.get(binding.connected_by ?? '') ??
+                        t('integrations.organization.readiness.connectedByUnavailable', 'Former or unavailable user')}
                     </span>
-                  )}
+                  </span>
                   <span>
                     {t('integrations.organization.readiness.connectedAt', 'Connected')}:{' '}
                     <span className="font-medium text-foreground">

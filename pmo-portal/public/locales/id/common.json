@@ -2003,6 +2003,7 @@
         "notConnected": "Belum terhubung",
         "connectedBy": "Dihubungkan oleh",
         "connectedAt": "Terhubung",
+        "connectedByUnavailable": "Pengguna sebelumnya atau tidak tersedia",
         "disconnectedAt": "Terputus",
         "connectAction": "Hubungkan {{service}}",
         "disconnectAction": "Putuskan {{service}}",

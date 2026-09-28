@@ -2003,6 +2003,7 @@
         "notConnected": "Not connected",
         "connectedBy": "Connected by",
         "connectedAt": "Connected",
+        "connectedByUnavailable": "Former or unavailable user",
         "disconnectedAt": "Disconnected",
         "connectAction": "Connect {{service}}",
         "disconnectAction": "Disconnect {{service}}",
