@@ -366,6 +366,17 @@ const SalesPipeline: React.FC = () => {
     );
   }, [kanbanProjects, search]);
 
+  // AC-LRC-012: this DataTable's `empty` branch only renders when the collection has data (the
+  // genuine collection-empty case is `state === 'empty'` below), so a zero-match here is a
+  // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
+  // nothing is active (e.g. no open deals but lost ones exist) would be a no-op, so no action then.
+  const filtersActive = search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
+  const clearTableFilters = () => {
+    setSearch('');
+    setScope('Open');
+    setStageIndex(null);
+  };
+
   // ── States ────────────────────────────────────────────────────────────────
   // Empty only when there are no open AND no lost deals (a lost-only org still has a Pipeline).
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
@@ -559,6 +570,11 @@ const SalesPipeline: React.FC = () => {
                     { days: String(ATTENTION_THRESHOLD_DAYS) },
                   )
                 : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')
+          }
+          emptyAction={
+            filtersActive
+              ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearTableFilters }
+              : undefined
           }
         />
       )}

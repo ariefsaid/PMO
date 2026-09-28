@@ -114,6 +114,18 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText(/No requests match/i)).toBeInTheDocument();
   });
 
+  // AC-LRC-012 (list-working-set-return, #683): the zero-match table state offers a Clear
+  // filters action that restores the rows — distinct from the genuine collection-empty state
+  // (see pages/__tests__/listWorkingSet.emptyStates.test.tsx for the full six-list sweep).
+  it('AC-LRC-012: a zero-match search offers Clear filters, which restores the rows', async () => {
+    renderPage();
+    await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'zzz');
+    expect(await screen.findByText(/No requests match/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+  });
+
   it('status filter narrows the list (Paid only)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Paid$/ }));

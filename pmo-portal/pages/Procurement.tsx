@@ -284,6 +284,14 @@ const ProcurementPage: React.FC = () => {
         ? 'empty'
         : undefined;
 
+  // AC-LRC-012: both zero-match branches below only render when `all.length > 0` (the genuine
+  // collection-empty case is `state === 'empty'` above), so a zero-match result here is always a
+  // filtered zero-match — clearing status + search is always safe.
+  const clearListFilters = () => {
+    setSearch('');
+    setFilter('All');
+  };
+
   return (
     <ListPage
       title={
@@ -443,6 +451,7 @@ const ProcurementPage: React.FC = () => {
               'procurement.noMatch.sub',
               'Try a different status, search term, or clear the filters.',
             )}
+            action={{ label: t('procurement.noMatch.clearFilters', 'Clear filters'), onClick: clearListFilters }}
           />
         ) : (
           <ProcurementBoard procurements={filtered} onOpen={onOpen} />
@@ -461,6 +470,7 @@ const ProcurementPage: React.FC = () => {
               'procurement.noMatch.sub',
               'Try a different status, search term, or clear the filters.',
             )}
+            action={{ label: t('procurement.noMatch.clearFilters', 'Clear filters'), onClick: clearListFilters }}
           />
         ) : (
           <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement requests')}>

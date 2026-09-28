@@ -218,6 +218,7 @@
       "errorTitle": "Gagal memuat perusahaan"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba tipe lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada perusahaan yang cocok dengan filter"
     },
@@ -545,6 +546,7 @@
       "errorTitle": "Gagal memuat kontak"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba perusahaan lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada kontak yang cocok dengan filter"
     },
@@ -822,6 +824,7 @@
       "errorTitle": "Gagal memuat rapat"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba proyek lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada rapat yang cocok",
       "rowLabel": "Buka {{title}}"
@@ -889,6 +892,7 @@
     "lifecycleLabel": "Siklus",
     "listLabel": "Permintaan pengadaan",
     "noMatch": {
+      "clearFilters": "Hapus filter",
       "sub": "Coba status atau kata kunci lain, atau hapus filter.",
       "title": "Tidak ada permintaan yang cocok dengan filter"
     },
@@ -1799,6 +1803,7 @@
     },
     "summaryLabel": "Ringkasan pipeline",
     "tableEmpty": {
+      "clearFilters": "Hapus filter",
       "lost": {
         "sub": "Proyek yang ditandai kalah akan muncul di sini.",
         "title": "Tidak ada proyek yang kalah"

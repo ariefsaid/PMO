@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -65,6 +65,18 @@ const contact = {
   created_at: '2026-01-01T00:00:00Z',
 };
 
+// list-working-set-return (#683): reads the URL + router state a Contacts/Companies-index Route
+// landed on. `data-state` (not visible text) so existing exact-text assertions stay unaffected.
+const IndexProbe: React.FC<{ label: string }> = ({ label }) => {
+  const location = useLocation();
+  return (
+    <div data-testid={`${label}-probe`} data-state={JSON.stringify(location.state ?? null)}>
+      {label}
+      {location.search}
+    </div>
+  );
+};
+
 const renderPage = (role: Role = 'Admin') => {
   realRole = role;
   return render(
@@ -72,7 +84,36 @@ const renderPage = (role: Role = 'Admin') => {
       <MemoryRouter initialEntries={['/contacts/ct1']}>
         <Routes>
           <Route path="/contacts/:contactId" element={<ContactDetail />} />
-          <Route path="/contacts" element={<div>Contacts index</div>} />
+          <Route path="/contacts" element={<IndexProbe label="Contacts index" />} />
+          <Route path="/companies/:companyId" element={<IndexProbe label="Company record" />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
+  );
+};
+
+// AC-LRC-007: the record was opened FROM a narrowed Contacts list (captured in router state).
+const renderPageWithReturnContext = (role: Role = 'Admin') => {
+  realRole = role;
+  return render(
+    <ToastProvider>
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/contacts/ct1',
+            state: {
+              pmoListReturn: {
+                list: 'contacts',
+                path: '/contacts?company=22222222-2222-4222-8222-222222222222',
+              },
+            },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/contacts/:contactId" element={<ContactDetail />} />
+          <Route path="/contacts" element={<IndexProbe label="Contacts index" />} />
+          <Route path="/companies/:companyId" element={<IndexProbe label="Company record" />} />
         </Routes>
       </MemoryRouter>
     </ToastProvider>,
@@ -200,5 +241,37 @@ describe('ContactDetail', () => {
     renderPage('Engineer');
     expect(screen.getByText(/don't have access to contacts/i)).toBeInTheDocument();
     expect(screen.queryByTestId('record-header')).toBeNull();
+  });
+});
+
+// list-working-set-return (#683, AC-LRC-007): the mobile BackBar honours a validated captured
+// Contacts context and falls back to the bare index for a direct/copied link.
+describe('ContactDetail — list-return context (AC-LRC-007)', () => {
+  it('a record opened from a narrowed Contacts list returns to that SAME filtered URL', async () => {
+    renderPageWithReturnContext();
+    await userEvent.click(screen.getByRole('button', { name: /back to contacts/i }));
+    expect(screen.getByTestId('Contacts index-probe')).toHaveTextContent(
+      'Contacts index?company=22222222-2222-4222-8222-222222222222',
+    );
+  });
+
+  it('archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
+    renderPageWithReturnContext();
+    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
+    await screen.findByTestId('Contacts index-probe');
+    expect(screen.getByTestId('Contacts index-probe')).toHaveTextContent(
+      'Contacts index?company=22222222-2222-4222-8222-222222222222',
+    );
+  });
+
+  it('the Contact→Company related link is a plain Link: it never carries the Contacts return context', async () => {
+    renderPageWithReturnContext();
+    await userEvent.click(screen.getByRole('link', { name: /Cascade Port Authority/i }));
+    // Lands on the company record with NO location.state carrying the Contacts return context.
+    const probe = screen.getByTestId('Company record-probe');
+    const state = JSON.parse(probe.dataset.state || 'null');
+    expect(state?.pmoListReturn?.list).not.toBe('contacts');
   });
 });

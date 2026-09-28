@@ -26,6 +26,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import {
   useCompany,
   useCompanyMutations,
@@ -111,7 +112,12 @@ const CompanyDetail: React.FC = () => {
   const canArchive = may('archive', 'company');
   const canCreateContact = may('create', 'contact');
 
-  const goBack = () => navigate('/companies');
+  // list-working-set-return (#683, AC-LRC-006): the mobile BackBar returns to the validated
+  // Companies list context (filter + search + scroll) when the record was opened from that list,
+  // and falls back to the bare index for a direct/copied link. The desktop parent breadcrumb reads
+  // the same context via App.tsx's `contextualListReturnNavigation`.
+  const { returnToList } = useListReturn({ list: 'companies' });
+  const goBack = () => returnToList();
 
   // A-5 page view-gate (before the hooks-dependent branches; the hooks above already ran so
   // Rules of Hooks hold) — a denied role gets the shared access-denied surface.
@@ -186,8 +192,10 @@ const CompanyDetail: React.FC = () => {
       await archive.mutateAsync(company.id);
       toast(t('companyDetail.toast.archived', 'Company archived'), company.name, 'success');
       setArchiveOpen(false);
-      // Archived records drop out of the default directory — return there.
-      navigate('/companies');
+      // Archived records drop out of the default directory. AC-LRC-006: return to the SAME
+      // filtered/searched list context (not a bare index reset) — the archived row simply drops
+      // out of the resulting set, shown truthfully.
+      returnToList();
     } catch (err) {
       onMutationError(err);
     }

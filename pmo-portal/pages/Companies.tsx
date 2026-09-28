@@ -33,13 +33,18 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
+import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
+import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 
-/** Type filter segments: All + the three company_type enum values (Internal / Client / Vendor). */
-type TypeFilter = 'All' | CompanyType;
+/** Type filter segments: All + the three company_type enum values (Internal / Client / Vendor).
+ *  Reuses the URL codec's own `CompanyTypeFilter` type so the toolbar and the `type`/`q` URL
+ *  working set (list-working-set-return, #683) never drift into two shapes for the same filter. */
+type TypeFilter = CompanyTypeFilter;
 const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
 
 // Company-type pill comes from the single status registry's CATEGORY family
@@ -94,8 +99,15 @@ const Companies: React.FC = () => {
   // is the authority for the rows; this is FE clarity.
   const canView = may('view', 'company');
 
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<TypeFilter>('All');
+  // list-working-set-return (#683): `type`/`q` are URL-owned (AC-LRC-006) — a copied link and a
+  // refresh reproduce the same filtered set. Search stays LOCAL text, written to the URL after a
+  // pause (never bound straight to `workingSet.q` — see useUrlSearchInput's search contract).
+  const { workingSet, setWorkingSet } = useListWorkingSet('companies');
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
+    setWorkingSet((ws) => ({ ...ws, q })),
+  );
+  const filter = workingSet.type;
+  const { openRecord } = useListReturn({ list: 'companies' });
 
   // Modal: null = closed; { company: null } = create; { company } = edit.
   const [formTarget, setFormTarget] = useState<{ company: CompanyRow | null } | null>(null);
@@ -123,6 +135,14 @@ const Companies: React.FC = () => {
       .filter((c) => filter === 'All' || c.type === filter)
       .filter((c) => !q || c.name.toLowerCase().includes(q));
   }, [all, search, filter]);
+
+  // AC-LRC-012: this DataTable's `empty` branch below only ever renders when `all.length > 0`
+  // (the collection-empty case is handled separately as the page-level `state === 'empty'`), so a
+  // zero-match result here is always a filtered zero-match — clearing both controls is always safe.
+  const clearFilters = () => {
+    setSearch('');
+    setWorkingSet((ws) => ({ ...ws, type: 'All', q: '' }));
+  };
 
   // ── States ──────────────────────────────────────────────────────────────
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
@@ -287,7 +307,7 @@ const Companies: React.FC = () => {
             options={TYPE_FILTERS.map((f) => ({ value: f, label: filterLabel(f) }))}
             value={filter}
             onChange={(v) => {
-              setFilter(v);
+              setWorkingSet((ws) => ({ ...ws, type: v }));
               trackFilterApplied('type', TYPE_FILTERS.length, 'companies');
             }}
             ariaLabel={t('companies.filters.ariaLabel', 'Filter by type')}
@@ -376,13 +396,16 @@ const Companies: React.FC = () => {
           rowKey={(c) => c.id}
           // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
           // drawer-as-record is retired). Create/edit-in-modal are unchanged.
-          onActivate={(c) => navigate(`/companies/${c.id}`)}
+          // list-working-set-return (#683): capture the current filtered/searched Companies URL
+          // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
+          onActivate={(c) => openRecord(`/companies/${c.id}`)}
           // ⚑ Not extracted — embeds a value; see the interpolation note above.
           rowLabel={(c) => `Open ${c.name}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
           emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
+          emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
         />
       )}
 

@@ -28,6 +28,8 @@ import { useMeetings, useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useProjects } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
+import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { formatDateTime } from '@/src/lib/format';
 import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
 import type { MeetingWithRefs, MeetingInput } from '@/src/lib/db/meetings';
@@ -67,10 +69,18 @@ const Meetings: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [search, setSearch] = useState('');
-  const [projectFilter, setProjectFilter] = useState('All');
-  // Defer the search term so keystrokes don't thrash the server query.
+  // list-working-set-return (#683): `project`/`q` are URL-owned (AC-LRC-008). Search stays LOCAL
+  // text (`search`, updated immediately per keystroke — see useUrlSearchInput's search contract)
+  // and is written to the URL only after a pause, so a copied link reproduces the same query.
+  // The SERVER query still derives from the LOCAL text deferred via useDeferredValue — exactly the
+  // prior timing — never from the debounced URL value, which would double the query's lag.
+  const { workingSet, setWorkingSet } = useListWorkingSet('meetings');
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
+    setWorkingSet((ws) => ({ ...ws, q })),
+  );
+  const projectFilter = workingSet.project;
   const deferredSearch = useDeferredValue(search);
+  const { openRecord } = useListReturn({ list: 'meetings' });
 
   const { data, isPending, isError, refetch } = useMeetings({
     projectId: projectFilter === 'All' ? undefined : projectFilter,
@@ -104,6 +114,14 @@ const Meetings: React.FC = () => {
       : rows.length === 0 && !search.trim() && projectFilter === 'All'
         ? 'empty'
         : undefined;
+
+  // AC-LRC-012: this DataTable's `empty` branch only renders when `state === undefined` (the
+  // collection-empty case is the `state === 'empty'` branch above), so a zero-match result here is
+  // always a filtered zero-match.
+  const clearFilters = () => {
+    setSearch('');
+    setWorkingSet((ws) => ({ ...ws, project: 'All', q: '' }));
+  };
 
   const columns: Column<MeetingWithRefs>[] = [
     {
@@ -142,7 +160,7 @@ const Meetings: React.FC = () => {
     // (RLS already scoped the row set to what they can read). Never gate it on edit rights.
     items.push({
       label: t('meetings.actions.open', 'Open'),
-      onClick: () => navigate(`/meetings/${m.id}`),
+      onClick: () => openRecord(`/meetings/${m.id}`),
     });
     if (
       may('archive', 'meeting', {
@@ -214,7 +232,7 @@ const Meetings: React.FC = () => {
             hideLabel
             value={projectFilter}
             onChange={(v) => {
-              setProjectFilter(v);
+              setWorkingSet((ws) => ({ ...ws, project: v }));
               trackFilterApplied('project', projectOptions.length, 'meetings');
             }}
             options={projectOptions}
@@ -279,7 +297,9 @@ const Meetings: React.FC = () => {
           rows={rows}
           columns={columns}
           rowKey={(m) => m.id}
-          onActivate={(m) => navigate(`/meetings/${m.id}`)}
+          // list-working-set-return (#683, AC-LRC-008): capture the current filtered/searched
+          // Meetings URL + scroll position as return context instead of a bare navigate.
+          onActivate={(m) => openRecord(`/meetings/${m.id}`)}
           // M12: interpolated key — safe now that test/setup.ts initialises i18next, so the
           // options bag interpolates in unit tests exactly as it does at runtime.
           rowLabel={(m) => t('meetings.table.rowLabel', 'Open {{title}}', { title: m.title })}
@@ -287,6 +307,7 @@ const Meetings: React.FC = () => {
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
           emptySub={t('meetings.table.emptySub', 'Try a different project or clear the search.')}
+          emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
         />
       )}
 

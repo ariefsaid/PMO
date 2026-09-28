@@ -218,6 +218,7 @@
       "errorTitle": "Couldn't load companies"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different type or clear the search.",
       "emptyTitle": "No companies match your filters"
     },
@@ -545,6 +546,7 @@
       "errorTitle": "Couldn't load contacts"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different company or clear the search.",
       "emptyTitle": "No contacts match your filters"
     },
@@ -822,6 +824,7 @@
       "errorTitle": "Couldn't load meetings"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different project or clear the search.",
       "emptyTitle": "No meetings match",
       "rowLabel": "Open {{title}}"
@@ -889,6 +892,7 @@
     "lifecycleLabel": "Lifecycle",
     "listLabel": "Procurement requests",
     "noMatch": {
+      "clearFilters": "Clear filters",
       "sub": "Try a different status, search term, or clear the filters.",
       "title": "No requests match your filters"
     },
@@ -1799,6 +1803,7 @@
     },
     "summaryLabel": "Pipeline summary",
     "tableEmpty": {
+      "clearFilters": "Clear filters",
       "lost": {
         "sub": "Projects marked lost will appear here.",
         "title": "No lost projects"

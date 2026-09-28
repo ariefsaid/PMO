@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, navigateMock, useMeetingsSpy } = vi.hoisted(() => ({
+const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -25,30 +25,31 @@ const { listState, mutations, navigateMock, useMeetingsSpy } = vi.hoisted(() => 
     revokeGrant: { mutateAsync: vi.fn(), isPending: false },
     createActionItem: { mutateAsync: vi.fn(), isPending: false },
   },
-  navigateMock: vi.fn(),
   useMeetingsSpy: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useMeetings', () => ({
-  useMeetings: (params: unknown) => {
+  useMeetings: (params: { projectId?: string; search?: string } = {}) => {
     useMeetingsSpy(params);
-    return listState;
+    // list-working-set-return (#683): Meetings' search/project narrowing is a SERVER query
+    // (DD-MTG-5) — simulate that here so an AC-LRC-012 zero-match/clear-filters case is
+    // observable through the page, not just as a spy call.
+    return { ...listState, data: params.projectId || params.search ? [] : listState.data };
   },
   useMeetingMutations: () => mutations,
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }], isPending: false }),
+  useProjects: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade' }], isPending: false }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useNavigate: () => navigateMock };
-});
+// list-working-set-return (#683): the page writes real router navigation for its `project`/`q`
+// URL state and for record-open return context, so `react-router` stays UNMOCKED — a LocationProbe
+// sibling (below) reads the real `useLocation()` to assert the resulting URL/state.
 
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -63,8 +64,8 @@ const seed = [
     title: 'Kickoff with Acme',
     occurred_at: '2026-08-20T09:00:00Z',
     location: 'Site office',
-    project_id: 'p1',
-    project: { id: 'p1', name: 'Harbour Upgrade', project_manager_id: null, pm: null },
+    project_id: '33333333-3333-4333-8333-333333333333',
+    project: { id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', project_manager_id: null, pm: null },
     created_by_id: 'u1',
     archived_at: null,
     is_template: false,
@@ -84,11 +85,27 @@ const seed = [
   },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+// list-working-set-return (#683): reads the REAL router location so tests can assert the URL
+// (filter/search round-trip) and the record-open return-context `location.state`.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+    >
+      {JSON.stringify(location.state ?? null)}
+    </div>
+  );
+};
+
+const renderPage = (role: Role = 'Admin', initialPath = '/meetings') => {
   realRole = role;
   return render(
     <ToastProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <Meetings />
       </MemoryRouter>
     </ToastProvider>,
@@ -105,7 +122,6 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
-  navigateMock.mockClear();
   useMeetingsSpy.mockClear();
   realRole = 'Admin';
 });
@@ -124,7 +140,7 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
   it('a row activates into the /meetings/:id detail route', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Kickoff with Acme'));
-    expect(navigateMock).toHaveBeenCalledWith('/meetings/m1');
+    expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/meetings/m1');
   });
 
   it('the search box drives the SERVER query (DD-MTG-5 — notes are the find mechanism)', async () => {
@@ -189,5 +205,53 @@ describe('Meetings — states', () => {
     listState.isPending = true;
     renderPage();
     expect(screen.queryByText('Kickoff with Acme')).not.toBeInTheDocument();
+  });
+});
+
+// list-working-set-return (#683, AC-LRC-008): `project`/`q` round-trip through the URL, and
+// opening a row stamps a validated Meetings return context onto the navigation's router state.
+// The existing deferred SERVER search + newest-first query are unchanged (see Meetings.tsx).
+describe('Meetings index — list working set + return context (AC-LRC-008)', () => {
+  it('a direct URL with ?project= restores the selected filter and queries the server for it', () => {
+    renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
+    );
+  });
+
+  it('choosing a project filter writes ?project= to the URL', async () => {
+    renderPage('Admin');
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Filter by project/i),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toBe(
+        '?project=33333333-3333-4333-8333-333333333333',
+      ),
+    );
+  });
+
+  it('opening a row stamps a validated Meetings return context onto the navigation state', async () => {
+    renderPage('Admin');
+    await userEvent.click(screen.getByText('Supplier dispute call'));
+    await waitFor(() => {
+      const probe = screen.getByTestId('location-probe');
+      expect(probe.dataset.pathname).toBe('/meetings/m2');
+      const state = JSON.parse(probe.textContent || 'null');
+      expect(state.pmoListReturn).toMatchObject({ list: 'meetings', path: '/meetings' });
+    });
+  });
+
+  it('AC-LRC-012: a zero-match server filter offers Clear filters, which restores the rows', async () => {
+    renderPage('Admin');
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Filter by project/i),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(await screen.findByText(/No meetings match/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(await screen.findByText('Kickoff with Acme')).toBeInTheDocument();
+    expect(screen.getByText('Supplier dispute call')).toBeInTheDocument();
   });
 });
