@@ -155,4 +155,41 @@ describe('AC-PLC-005: progression event dates follow the profile timezone', () =
     renderTimeline(events);
     expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent('Jun 15, 2026');
   });
+
+  // Orphan-record events carry the record's BUSINESS DATE (`date`, `receipt_date`,
+  // `invoice_date`, `received_date` — `YYYY-MM-DD`), not an instant. A business date is a
+  // calendar day: it must render (never "—") and must never move with the viewer's timezone.
+  it('renders a date-only business date on its own calendar day under every profile timezone', () => {
+    const events: ProgressionEvent[] = [
+      { kind: 'record', label: 'Invoice', actor: null, actorName: null, at: '2026-06-14', docRef: 'VI-2026-0001', docHref: null },
+    ];
+    for (const timezone of ['UTC', 'Asia/Jakarta', 'Pacific/Honolulu', 'Pacific/Kiritimati']) {
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone });
+      const { unmount } = renderTimeline(events);
+      const time = screen.getByText((_, el) => el?.tagName === 'TIME');
+      expect(time, timezone).toHaveTextContent('Jun 14, 2026');
+      expect(time).toHaveAttribute('dateTime', '2026-06-14');
+      unmount();
+    }
+  });
+
+  it('renders a mixed timeline: instants shift with the timezone, business dates do not', () => {
+    const events: ProgressionEvent[] = [
+      { kind: 'record', label: 'PO', actor: null, actorName: null, at: '2026-06-14', docRef: null, docHref: null },
+      { kind: 'transition', label: 'Ordered', actor: null, actorName: null, at: '2026-06-14T23:30:00Z', docRef: null, docHref: null },
+    ];
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    renderTimeline(events);
+    // Newest-first: the transition renders first, then the business-date record.
+    const times = screen.getAllByText((_, el) => el?.tagName === 'TIME');
+    expect(times.map((t) => t.textContent)).toEqual(['Jun 15, 2026', 'Jun 14, 2026']);
+  });
+
+  it('renders an em dash for a malformed event date instead of a raw string', () => {
+    const events: ProgressionEvent[] = [
+      { kind: 'record', label: 'PR', actor: null, actorName: null, at: 'not-a-date', docRef: null, docHref: null },
+    ];
+    renderTimeline(events);
+    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent('—');
+  });
 });
