@@ -311,6 +311,35 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
   });
 
+  it('AC-PLC-003: a failed write keeps the choices, then a retry succeeds with exactly one success and one refresh', async () => {
+    currentUserState = { ...currentUserState, locale: null, number_locale: null, timezone: null };
+    setLocalePreferences.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce(undefined);
+    refreshMock.mockResolvedValue({ error: null });
+
+    renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'en-US' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Failure: accessible alert, choices intact, no refresh, no success.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not save your preference/i);
+    expect(languageSelect()).toHaveValue('id');
+    expect(screen.getByLabelText(/number format/i)).toHaveValue('en-US');
+    expect(refreshMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+
+    // Retry with the same retained choices.
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/preferences saved/i));
+
+    expect(setLocalePreferences).toHaveBeenCalledTimes(2);
+    expect(setLocalePreferences).toHaveBeenLastCalledWith('user-123', { locale: 'id', numberLocale: 'en-US', timezone: null });
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText(/preferences saved/i)).toHaveLength(1);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('AC-PLC-006: rejects an invalid timezone before any profile preference write', async () => {
     currentUserState = { ...currentUserState, locale: 'en', number_locale: 'en-US', timezone: 'Not/A_Time_Zone' };
     setLocalePreferences.mockResolvedValue(undefined);
