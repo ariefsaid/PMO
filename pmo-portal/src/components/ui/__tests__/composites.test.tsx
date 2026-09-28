@@ -190,6 +190,36 @@ describe('Funnel', () => {
     expect(probChip.className).toContain('text-[11px]');
     expect(probChip.className).not.toContain('text-[10px]');
   });
+
+  it('AC-SFA-004: a long dashboard-panel value stays exact inside one local Funnel scroll viewport', () => {
+    const longVal = '$1,234,567';
+    render(
+      <div style={{ width: 260 }}>
+        <Funnel
+          stages={Array.from({ length: 5 }, (_, i) => ({
+            name: `Stage ${i + 1}`,
+            value: longVal,
+          }))}
+        />
+      </div>
+    );
+
+    // The exact long value is NOT abbreviated or dropped.
+    expect(screen.getAllByText(longVal)).toHaveLength(5);
+
+    // The shared Funnel owns a bounded local scroll viewport (never shrinks/abbreviates).
+    const scrollArea = screen.getByTestId('funnel-scroll-area');
+    expect(scrollArea.className).toContain('max-w-full');
+    expect(scrollArea.className).toContain('min-w-0');
+    expect(scrollArea.className).toContain('overflow-x-auto');
+
+    // Its child grid is a min-w-full five-minmax-track grid so the panel delegates overflow
+    // to the local scroller instead of widening the host or clipping the amount.
+    const grid = screen.getByTestId('funnel-stage-grid');
+    expect(grid.className).toContain('grid');
+    expect(grid.className).toContain('min-w-full');
+    expect(grid.style.gridTemplateColumns).toBe('repeat(5, minmax(10rem, 1fr))');
+  });
 });
 
 describe('GateNotice', () => {
