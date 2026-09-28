@@ -3,6 +3,7 @@ import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
 import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
 import type { RunContext } from '@/src/lib/agent/runtime/port';
+import type { ListReturnNavigation } from '@/src/lib/listReturnContext';
 import { UserRole } from '../../../types';
 
 export interface ModuleDef {
@@ -278,12 +279,14 @@ const administrationBreadcrumbForPath = (
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
-  navigate?: (path: string) => void,
+  navigate?: (target: string | ListReturnNavigation) => void,
   recordResolved = false,
   // FIX-2: the stage group is no longer used to change the breadcrumb ancestry for
   // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
   // The param is kept in the signature so App.tsx callers don't need updating.
   _recordStatusGroup?: ProjectStatusGroup,
+  /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
+  contextualParent?: ListReturnNavigation,
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -341,7 +344,14 @@ export function breadcrumbForPath(
         const parentLabel = m.label;
         const parentPath = m.path;
         return [
-          { label: parentLabel, onClick: () => navigate?.(parentPath) },
+          {
+            label: parentLabel,
+            // App passes a descriptor for every adopting list's detail route: the validated source
+            // list URL, or the owning index when there is no usable context, with cleaned router
+            // state (a one-shot scroll restore only when an offset was captured). Other modules'
+            // detail routes have no descriptor and navigate to their bare index path.
+            onClick: () => navigate?.(contextualParent ?? parentPath),
+          },
           { label: recordCrumb },
         ];
       }

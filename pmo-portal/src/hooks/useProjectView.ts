@@ -2,12 +2,13 @@ import { useCallback, useState } from 'react';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 /** The Projects index body layouts (ViewToggle options): table, cards, calendar, or kanban board. */
-export type ProjectView = 'table' | 'cards' | 'calendar' | 'kanban';
+export const PROJECT_VIEWS = ['table', 'cards', 'calendar', 'kanban'] as const;
+export type ProjectView = (typeof PROJECT_VIEWS)[number];
 
-const DEFAULT_VIEW: ProjectView = 'table';
+export const DEFAULT_PROJECT_VIEW: ProjectView = 'table';
 
 function isProjectView(v: unknown): v is ProjectView {
-  return v === 'table' || v === 'cards' || v === 'calendar' || v === 'kanban';
+  return (PROJECT_VIEWS as readonly unknown[]).includes(v);
 }
 
 /**
@@ -18,14 +19,14 @@ function isProjectView(v: unknown): v is ProjectView {
  * shared with sibling surfaces.
  */
 export function readProjectView(): ProjectView {
-  if (typeof sessionStorage === 'undefined') return DEFAULT_VIEW;
+  if (typeof sessionStorage === 'undefined') return DEFAULT_PROJECT_VIEW;
   try {
     const raw = sessionStorage.getItem(VIEWS_STORAGE_KEY);
-    if (!raw) return DEFAULT_VIEW;
+    if (!raw) return DEFAULT_PROJECT_VIEW;
     const map = JSON.parse(raw) as Record<string, unknown>;
-    return isProjectView(map.project) ? map.project : DEFAULT_VIEW;
+    return isProjectView(map.project) ? map.project : DEFAULT_PROJECT_VIEW;
   } catch {
-    return DEFAULT_VIEW;
+    return DEFAULT_PROJECT_VIEW;
   }
 }
 

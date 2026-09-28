@@ -35,37 +35,38 @@ export interface SalesColumn {
   terminal?: boolean;
 }
 
+/**
+ * The five open (non-terminal) funnel stages, in staleness order, as a literal
+ * tuple. The SALES_COLUMNS board and the list-return working-set codec both draw
+ * the open-stage set from here so a new stage stays in sync across list URLs and
+ * the funnel. `satisfies` keeps it a literal rather than widening to string[].
+ */
+export const OPEN_FUNNEL_STAGES = [
+  'Leads',
+  'PQ Submitted',
+  'Quotation Submitted',
+  'Tender Submitted',
+  'Negotiation',
+] as const satisfies readonly string[];
+export type OpenFunnelStage = (typeof OPEN_FUNNEL_STAGES)[number];
+
+/** Board titles for the open stages (may differ from the enum, e.g. "Pre-Qual"). */
+const OPEN_STAGE_TITLES: Record<OpenFunnelStage, string> = {
+  Leads: 'Leads',
+  'PQ Submitted': 'Pre-Qual',
+  'Quotation Submitted': 'Quotation',
+  'Tender Submitted': 'Tender',
+  Negotiation: 'Negotiation',
+};
+
 export const SALES_COLUMNS: readonly SalesColumn[] = [
-  {
-    title: 'Leads',
-    statuses: ['Leads'],
+  // Open stages come from OPEN_FUNNEL_STAGES; their dots are a quiet neutral (Batch-3 polish).
+  ...OPEN_FUNNEL_STAGES.map((stage) => ({
+    title: OPEN_STAGE_TITLES[stage],
+    statuses: [stage],
     dotColor: 'hsl(var(--muted-foreground))',
-    testId: 'stage-Leads',
-  },
-  {
-    title: 'Pre-Qual',
-    statuses: ['PQ Submitted'],
-    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was categorical violet)
-    testId: 'stage-PQ Submitted',
-  },
-  {
-    title: 'Quotation',
-    statuses: ['Quotation Submitted'],
-    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was off-palette cyan)
-    testId: 'stage-Quotation Submitted',
-  },
-  {
-    title: 'Tender',
-    statuses: ['Tender Submitted'],
-    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was categorical warning hue)
-    testId: 'stage-Tender Submitted',
-  },
-  {
-    title: 'Negotiation',
-    statuses: ['Negotiation'],
-    dotColor: 'hsl(var(--muted-foreground))',
-    testId: 'stage-Negotiation',
-  },
+    testId: `stage-${stage}`,
+  })),
   {
     title: 'Won',
     statuses: [...ON_HAND_STATUSES],

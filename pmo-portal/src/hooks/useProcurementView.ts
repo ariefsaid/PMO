@@ -2,12 +2,13 @@ import { useCallback, useState } from 'react';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 /** The two Procurement body layouts (ViewToggle options). */
-export type ProcurementView = 'table' | 'board';
+export const PROCUREMENT_VIEWS = ['table', 'board'] as const;
+export type ProcurementView = (typeof PROCUREMENT_VIEWS)[number];
 
-const DEFAULT_VIEW: ProcurementView = 'table';
+export const DEFAULT_PROCUREMENT_VIEW: ProcurementView = 'table';
 
 function isProcurementView(v: unknown): v is ProcurementView {
-  return v === 'table' || v === 'board';
+  return (PROCUREMENT_VIEWS as readonly unknown[]).includes(v);
 }
 
 /**
@@ -17,14 +18,14 @@ function isProcurementView(v: unknown): v is ProcurementView {
  * `procurement` key is read — the map is shared with sibling surfaces.
  */
 export function readProcurementView(): ProcurementView {
-  if (typeof sessionStorage === 'undefined') return DEFAULT_VIEW;
+  if (typeof sessionStorage === 'undefined') return DEFAULT_PROCUREMENT_VIEW;
   try {
     const raw = sessionStorage.getItem(VIEWS_STORAGE_KEY);
-    if (!raw) return DEFAULT_VIEW;
+    if (!raw) return DEFAULT_PROCUREMENT_VIEW;
     const map = JSON.parse(raw) as Record<string, unknown>;
-    return isProcurementView(map.procurement) ? map.procurement : DEFAULT_VIEW;
+    return isProcurementView(map.procurement) ? map.procurement : DEFAULT_PROCUREMENT_VIEW;
   } catch {
-    return DEFAULT_VIEW;
+    return DEFAULT_PROCUREMENT_VIEW;
   }
 }
 
