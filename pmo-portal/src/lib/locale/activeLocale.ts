@@ -1,5 +1,11 @@
 import { enUS, id as idLocale, type Locale as DateFnsLocale } from 'date-fns/locale';
-import { FALLBACK_LOCALE, FALLBACK_TIMEZONE, type ResolvedLocale } from './resolveLocale';
+import {
+  FALLBACK_LOCALE,
+  FALLBACK_TIMEZONE,
+  isUsableLocaleTag,
+  isUsableTimeZone,
+  type ResolvedLocale,
+} from './resolveLocale';
 
 /**
  * The process-wide holder for the locale `src/lib/format.ts` formats in (FR-L10N-010/011).
@@ -48,14 +54,23 @@ let active: ResolvedLocale = FALLBACK;
 
 /**
  * Point every formatter at a newly resolved locale. Called by `I18nProvider` once the profile and
- * org defaults land, and by tests/Storybook to pin a locale explicitly.
+ * org defaults land, and by tests/Storybook to pin a locale explicitly. A value `Intl` cannot use
+ * falls back field by field (language → FALLBACK_LOCALE, number locale → the language, timezone →
+ * FALLBACK_TIMEZONE).
  *
  * There is no cache to invalidate: `format.ts` keys its formatter cache BY LOCALE, so a switch
  * simply misses into a new entry. (A cache keyed without the locale would let the first locale
  * rendered poison every later render — see the mutation guard in `format.locale.test.ts`.)
  */
 export function setActiveLocale(resolved: ResolvedLocale): void {
-  active = resolved;
+  // Every formatter reads this holder, and `Intl` throws on an unusable tag or zone — so a value
+  // that bypassed `resolveLocale` (a direct caller) still falls back rather than breaking renders.
+  const locale = isUsableLocaleTag(resolved.locale) ? resolved.locale : FALLBACK_LOCALE;
+  const numberLocale = isUsableLocaleTag(resolved.numberLocale) ? resolved.numberLocale : locale;
+  const timezone = isUsableTimeZone(resolved.timezone) ? resolved.timezone : FALLBACK_TIMEZONE;
+  active = locale === resolved.locale && numberLocale === resolved.numberLocale && timezone === resolved.timezone
+    ? resolved
+    : { locale, numberLocale, timezone };
 }
 
 /** Test/teardown helper — restore the boot default. */
