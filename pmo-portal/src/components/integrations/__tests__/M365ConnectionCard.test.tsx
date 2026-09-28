@@ -43,7 +43,7 @@
  */
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -880,7 +880,7 @@ describe('AC-M365LOC-004 — reviewed error copy (no raw transport data)', () =>
     const { i18n } = await renderCard({ initialEntry: '/integrations?m365_error=ignored&m365_error_code=INTERNAL_ERROR' });
     const banner = screen.getByRole('alert');
     expect(banner).toHaveTextContent(describeM365Error('INTERNAL_ERROR'));
-    await i18n.changeLanguage('id');
+    await act(async () => { await i18n.changeLanguage('id'); });
     const reRendered = screen.getByRole('alert');
     expect(reRendered).toHaveTextContent('Terjadi kesalahan di sisi kami. Silakan coba lagi.');
     expect(reRendered.textContent).not.toContain('INTERNAL_ERROR');
