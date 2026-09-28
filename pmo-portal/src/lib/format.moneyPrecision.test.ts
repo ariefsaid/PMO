@@ -94,6 +94,15 @@ describe('DD-I18N-10: neutral import float-noise tolerance', () => {
     }
   });
 
+  it('guarantees only the third decimal: a fourth is absorbed once the relative tolerance reaches it', () => {
+    // DD-I18N-10's stated limit, pinned so the ruling cannot drift from the code.
+    setActiveLocale(EN);
+    expect(parseNeutralMoneyInputAtScale('1234.5601', 2)).toBeNull();
+    expect(parseNeutralMoneyInputAtScale('100000000000.0001', 2)).toBeNull();
+    expect(parseNeutralMoneyInputAtScale('300000000000.0001', 2)).toBe(300000000000);
+    expect(parseNeutralMoneyInputAtScale('1234.5600000001', 2)).toBe(1234.56);
+  });
+
   it('never extends the tolerance to on-screen entry, where every typed digit is the user\'s', () => {
     setActiveLocale(EN);
     expect(parseMoneyInputAtScale('1234.5600000000002', 2)).toBeNull();

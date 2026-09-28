@@ -2727,7 +2727,7 @@ RIS target, 15 stays supported for the local dev bed until it is re-provisioned 
 delta observed: the Company doctype no longer carries `default_bank_account` (activation maps it to "no default";
 the payment-entry body falls back to the cash account). `DD-OPS-2`'s v15 pin is superseded for the target.
 
-## DD-I18N-10 — a spreadsheet's binary float noise imports as its cent value; real extra precision is still refused (Director, 2026-09-28)
+## DD-I18N-10 — a spreadsheet's binary float noise imports as its cent value; a third decimal is still refused (Director, 2026-09-28)
 
 **[DD-I18N-10]** Raised in #684. The neutral import parser (`parseNeutralMoneyInputAtScale`, used by the
 budget, project and procurement-cycle imports and by imported tax facts) refuses a value its scale-2 target
@@ -2744,9 +2744,15 @@ written number is `1234.56`, never the noisy double. Anything further away is st
   `30000000.299999997`, 3.7e-9 from 30000000.30 — past any flat bound small enough to be safe. `5e-16 × |value|`
   is about 2.25 machine epsilons (2–4.5 units in the last place), enough for a short formula's accumulated
   rounding; a sheet whose noise exceeds it (a very long running sum) is refused, which is the fail-closed side.
-- **Why it cannot admit a real third decimal.** Every money column is `numeric(14,2)`, so |value| < 1e12 and the
-  tolerance stays below 5e-4, while a genuine third decimal sits at least ~0.00088 from its nearest cent even
-  after double rounding at that ceiling. `1234.567` and `999999999999.991` are both still refused.
+- **What is guaranteed: a third decimal is refused.** Every money column is `numeric(14,2)`, so |value| < 1e12
+  and the tolerance stays below 5e-4, while a genuine third decimal sits at least ~0.00088 from its nearest cent
+  even after double rounding at that ceiling. `1234.567` and `999999999999.991` are both still refused.
+- **What is not guaranteed: a fourth or later decimal.** The tolerance is the same size as those digits, so they
+  are refused only while they exceed it. A digit within the absolute arm (10th decimal onward, e.g.
+  `1234.5600000001`) is absorbed at any magnitude, and a fourth decimal is absorbed once `5e-16 × |value|`
+  reaches it — `300000000000.0001` imports as `300000000000.00`, while `100000000000.0001` and `1234.5601` are
+  refused. At that magnitude a double cannot resolve a fourth decimal reliably anyway (its spacing near 1e12 is
+  ~1.2e-4), so the snapped cent value is the closest faithful reading of the cell.
 - **Imports only.** On-screen money entry keeps exact-scale validation (DD-I18N-3/6): there every digit is one the
   user typed, so `1234.5600000000002` typed into a form is refused.
 
