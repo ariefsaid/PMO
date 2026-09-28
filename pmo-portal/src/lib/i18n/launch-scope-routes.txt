@@ -123,4 +123,4 @@
 # ── Personal (Member-owner) Microsoft 365 connect home (AC-ADMIA-006) — the OTHER ownership surface.
 #    It shares the "integrations" word with the organization surface at /administration/integrations;
 #    keeping it here means the personal-vs-organization ownership copy cannot drift.
-/integrations                 pages/Integrations.tsx
+/integrations                 pages/Integrations.tsx src/components/integrations/M365ConnectionCard.tsx
