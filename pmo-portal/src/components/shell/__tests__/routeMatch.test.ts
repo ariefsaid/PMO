@@ -180,6 +180,28 @@ describe('breadcrumbForPath / recordLabelForPath — company + contact detail (C
   });
 });
 
+describe('breadcrumbForPath — contextual list return', () => {
+  it('keeps canonical Projects ancestry while navigating to the validated list URL', () => {
+    let destination = '';
+    const navigate = (path: string) => {
+      destination = path;
+    };
+    const crumbs = breadcrumbForPath(
+      '/projects/project-1',
+      'Example project',
+      navigate,
+      true,
+      undefined,
+      '/projects?filter=Ongoing&q=harbor',
+    );
+
+    expect(crumbs[0].label).toBe('Projects');
+    crumbs[0].onClick!();
+    expect(destination).toBe('/projects?filter=Ongoing&q=harbor');
+    expect(crumbs[1]).toEqual({ label: 'Example project' });
+  });
+});
+
 // ── /views/:viewId breadcrumb and recordLabel (FR-VR-053, FR-VR-082) ─────────
 import { vi } from 'vitest';
 

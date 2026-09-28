@@ -50,6 +50,7 @@ import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
+import { contextualListReturnPath } from '@/src/lib/listReturnContext';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -199,7 +200,8 @@ export const AppRoutes: React.FC = () => (
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 const ShellChrome: React.FC = () => {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -250,6 +252,9 @@ const ShellChrome: React.FC = () => {
     () => [...(pipeline?.projects ?? []), ...(lostDeals ?? [])],
     [pipeline, lostDeals],
   );
+  const contextualParentPath = useMemo(() => {
+    return contextualListReturnPath(pathname, location.state);
+  }, [location.state, pathname]);
 
   // The shell already has enough cached record data to render the detail breadcrumb before a lazy
   // page chunk mounts. Publish that same identity before paint so an immediate Assistant turn made
@@ -341,9 +346,17 @@ const ShellChrome: React.FC = () => {
       (pathname.startsWith('/meetings/') && !meetingsPending) ||
       (pathname.startsWith('/sales/') && !pipelinePending) ||
       (pathname.startsWith('/views/') && !userViewsPending);  // I3 (FR-VR-053)
-    return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
+    return breadcrumbForPath(
+      pathname,
+      recordLabel,
+      navigate,
+      recordResolved,
+      recordStatusGroup,
+      contextualParentPath,
+    );
   }, [
     pathname,
+    contextualParentPath,
     t,
     navigate,
     projects,

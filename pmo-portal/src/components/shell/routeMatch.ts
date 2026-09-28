@@ -284,6 +284,8 @@ export function breadcrumbForPath(
   // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
   // The param is kept in the signature so App.tsx callers don't need updating.
   _recordStatusGroup?: ProjectStatusGroup,
+  /** Validated same-owner list context; callers must validate untrusted router state first. */
+  contextualParentPath?: string,
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -341,7 +343,7 @@ export function breadcrumbForPath(
         const parentLabel = m.label;
         const parentPath = m.path;
         return [
-          { label: parentLabel, onClick: () => navigate?.(parentPath) },
+          { label: parentLabel, onClick: () => navigate?.(contextualParentPath ?? parentPath) },
           { label: recordCrumb },
         ];
       }

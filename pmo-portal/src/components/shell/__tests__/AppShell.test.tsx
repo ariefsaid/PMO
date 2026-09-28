@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
@@ -60,6 +60,37 @@ describe('AppShell', () => {
     // A route change moves focus to the main landmark.
     expect(main).toHaveFocus();
     tree.unmount();
+  });
+
+  it('resets the main scroll container when the pathname changes', () => {
+    const NavProbe = () => {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate('/second-route')}>
+          go
+        </button>
+      );
+    };
+    render(
+      <MemoryRouter>
+        <AppShell rail={null} header={null}>
+          <div>x</div>
+        </AppShell>
+        <NavProbe />
+      </MemoryRouter>,
+    );
+    const main = screen.getByRole('main');
+    main.scrollTop = 240;
+    const scrollTo = vi.fn((options?: ScrollToOptions) => {
+      const { top } = options ?? {};
+      main.scrollTop = top ?? 0;
+    });
+    main.scrollTo = scrollTo as unknown as typeof main.scrollTo;
+
+    fireEvent.click(screen.getByRole('button', { name: 'go' }));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(main.scrollTop).toBe(0);
   });
 
   it('renders a skip-to-main link', () => {
