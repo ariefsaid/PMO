@@ -12,7 +12,6 @@ import {
 import {
   formatCurrency,
   formatMoneyInputValue,
-  parseMoneyInput,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
@@ -36,21 +35,24 @@ export interface ItemDraft {
 
 const EMPTY_DRAFT: ItemDraft = { name: '', quantity: '', rate: '' };
 
-/** Parse a possibly-formatted numeric string → number (0 on empty/invalid). Delegates to the
- *  shared `parseMoneyInput` so the persisted value matches what `validateLineNum` accepted. */
+/**
+ * Parse a possibly-formatted quantity → number (0 on empty/invalid). Quantity is stored as
+ * `numeric(14,2)` like the unit price (#684, #699), so it uses the SAME locale-aware scale-2 parse
+ * `validateLineNum` accepted: a third decimal is refused rather than rounded by the column, which
+ * keeps the previewed line total equal to the saved one.
+ */
 function num(v: string): number {
-  return parseMoneyInput(v) ?? 0;
+  return parseMoneyInputAtScale(v, 2) ?? 0;
 }
 
 /**
- * Validate a raw numeric field string for a line-item column.
- * Returns an error message string, or undefined when valid.
- * Must be non-empty and parse (via the SAME `parseMoneyInput` used to persist) to a number > 0.
+ * Validate a raw quantity string. Returns an error message string, or undefined when valid.
+ * Must be non-empty and parse (via the SAME scale-2 parse used to persist) to a number > 0.
  */
 function validateLineNum(raw: string, label: string): string | undefined {
   if (!raw.trim()) return `${label} is required.`;
-  const n = parseMoneyInput(raw);
-  if (n === null || n <= 0) return `${label} must be a number greater than 0.`;
+  const n = parseMoneyInputAtScale(raw, 2);
+  if (n === null || n <= 0) return `${label} must be greater than 0 with no more than 2 decimal places.`;
   return undefined;
 }
 

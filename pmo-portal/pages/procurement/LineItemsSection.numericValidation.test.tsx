@@ -189,6 +189,48 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 5, rate: 1234 });
   });
 
+  it.each(['0.005', '1.234'])(
+    'AC-PLC-009: rejects an en-US line-item quantity %s with excess precision before adding',
+    async (qtyRaw) => {
+      setActiveLocale(EN_LOCALE);
+      const { onAdd } = renderSection();
+      const row = screen.getByTestId('line-item-add-row');
+      await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
+      await userEvent.type(within(row).getByLabelText(/new item quantity/i), qtyRaw);
+      await userEvent.type(within(row).getByLabelText(/new item unit price/i), '10');
+      await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/quantity/i);
+      expect(onAdd).not.toHaveBeenCalled();
+    },
+  );
+
+  it('AC-PLC-009: persists id-ID grouped line-item quantity 1.234 as 1234', async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onAdd } = renderSection();
+    const row = screen.getByTestId('line-item-add-row');
+    await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
+    await userEvent.type(within(row).getByLabelText(/new item quantity/i), '1.234');
+    await userEvent.type(within(row).getByLabelText(/new item unit price/i), '5');
+    await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 1234, rate: 5 });
+  });
+
+  it('AC-PLC-009: rejects an en-US edit-row quantity with excess precision before saving', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onUpdate } = renderSection({ items: oneItem });
+    await userEvent.click(screen.getByRole('button', { name: /edit mig welding wire/i }));
+    const qty = screen.getByLabelText(/edit quantity for mig welding wire/i);
+    await userEvent.clear(qty);
+    await userEvent.type(qty, '0.005');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/quantity/i);
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
   // ── Edit row: Save gated on valid qty + rate ──────────────────────────────
 
   it('AC-W3-NUM-002: invalid quantity in edit-row blocks onUpdate', async () => {
