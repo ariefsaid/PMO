@@ -46,6 +46,16 @@ This is constant-size, CSS-only layout work: no query, cache, rerender loop, mon
    - Confirm the diff is limited to the two production files, the two RTL tests, the one read-only e2e spec, and this issue plan. Confirm no `package-lock.json`, `ProjectCardShell`, Kanban component, money/locale code, repository/DAL, migration, RLS, or dependency changed. Run the full locked verification after the targeted red-green loop; report actual exit status and stop on any red test rather than weakening/deleting/skipping it.
    - **Verify:** `cd pmo-portal && npm run verify:locked`.
 
+## Deviation log
+
+- **Track floor (Discover follow-up, 2026-09-28):** step 3 as written specified
+  `minmax(10rem, 1fr)`. Shipped `minmax(max-content, 1fr)` instead — a fixed 160px floor still
+  overflowed a trillions-scale IDR amount (a rendered mutation measured +59.2px overflow at
+  `10rem`), because a fixed length cannot grow past its own value for a longer, unbreakable
+  amount. `max-content` gives the track a hard content-derived floor while `1fr` still
+  distributes leftover desktop width evenly. See `DESIGN.md`'s `Funnel`/Sales note and
+  `docs/qa-portfolio.md`'s AC-SFA-001 row.
+
 ## Acceptance traceability
 
 | Acceptance criterion | Owning proof | Tasks |

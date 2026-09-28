@@ -712,6 +712,15 @@ padding-floor (e.g. `pt-2`) on a transparent wrapper for the minimum gap, plus `
 wrapper for the cross-row alignment — and never put the padding on the indicator's own visible/filled
 element, or the fill color paints through the gap.
 
+**Focus ring inside a scrolling ancestor (2026-09-28, `Funnel` stages):** the global outward
+`:focus-visible` ring (2px width, 2px offset) assumes its element's nearest scrolling ancestor has
+`overflow: visible`. Setting only `overflow-x: auto` on an ancestor still computes `overflow-y` to
+`auto` too (the CSS overflow spec forces the paired axis once either axis leaves `visible`), so that
+ancestor clips the ring's top/bottom edge along with everything else it clips. A focusable element
+whose nearest scrolling ancestor is itself the clip boundary (not a further-out page scroller) must
+draw its ring INWARD instead — `focus-visible:outline-offset-[-2px]` with the same width/color
+token — so the ring never crosses into the ancestor's own clip region on any side.
+
 ---
 
 ## Icons — the `<Icon name=…>` monoline facade (ADR-0068, locked look)

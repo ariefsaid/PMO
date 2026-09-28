@@ -25,6 +25,9 @@ Keep exact formatted amounts. Let the existing horizontal funnel scroll provide 
 | **AC-SFA-002** | Given a stage in a horizontally scrolled funnel, when the user clicks or presses Enter or Space on it, then the selected stage and `aria-pressed` state agree with the list filter. | Component integration |
 | **AC-SFA-003** | Given English and Bahasa Indonesia in light and dark themes, when the 390px and desktop funnel render, then amount, probability, and weighted text remain readable. | Rendered review matrix |
 | **AC-SFA-004** | Given a dashboard Funnel panel with long values, when the panel renders in a narrow container, then the funnel stays within a deliberate local scroll area rather than widening the page. | Component/layout test |
+| **AC-SFA-005** | Given a funnel stage that sits partly off-screen at 390px, when a keyboard user tabs to it, then the stage scrolls into the funnel's own viewport so it is fully visible, without scrolling the page. | Browser geometry / visual regression |
+| **AC-SFA-006** | Given a stage's weighted-value line and progress bar, when the funnel renders at 390px, then every stage's bar sits at least 8px below its weighted line and all stages' bar tops align, regardless of whether a sibling's text wraps. | Browser geometry / visual regression |
+| **AC-SFA-007** | Given a funnel stage focused via keyboard, when its visible focus ring renders at 390px, then the ring's full box lies inside the funnel's own scroll viewport and is never clipped by the viewport's overflow. | Browser geometry / visual regression |
 
 ## Boundaries
 
