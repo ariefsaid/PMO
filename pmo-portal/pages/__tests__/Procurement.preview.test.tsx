@@ -53,10 +53,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-vi.mock('@/src/hooks/useProcurementView', () => ({
-  useProcurementView: () => ['table', vi.fn()],
-}));
-
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' }, role: 'Admin' }),
 }));

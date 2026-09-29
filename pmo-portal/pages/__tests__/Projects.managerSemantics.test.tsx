@@ -28,9 +28,6 @@ const projectsState = {
 };
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useProjectView', () => ({
-  useProjectView: () => ['table', vi.fn()] as ['table', () => void],
-}));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('../../components/ProjectCalendarView', () => ({
   default: () => <div data-testid="project-calendar-view" />,
@@ -39,9 +36,13 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({
+    // list-working-set-return (#682): `pm` is a URL-owned referenced-ID filter — the codec's
+    // `referenceValue` accepts only a syntactically valid UUID (or the Unassigned sentinel), so
+    // the blank-name profile actually SELECTED as a filter below must be UUID-shaped to round-trip
+    // through the URL instead of being silently rejected back to "All".
     data: [
       { id: 'u-alice', full_name: 'Alice Manager' },
-      { id: 'b1a2c3d4-eeee-0000', full_name: '   ' },
+      { id: 'b1a2c3d4-1111-4eee-8000-000000000001', full_name: '   ' },
     ],
   }),
   useProjectMutations: () => ({
@@ -72,10 +73,6 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
-});
 
 import Projects from '../Projects';
 
@@ -90,7 +87,7 @@ const seed: ProjectWithRefs[] = [
   } as unknown as ProjectWithRefs,
   {
     id: 'p2', name: 'Blank PM Project', code: 'PRJ-002', status: 'Ongoing Project',
-    client_id: 'c1', project_manager_id: 'b1a2c3d4-eeee-0000', contract_value: 1_000_000, currency: 'USD',
+    client_id: 'c1', project_manager_id: 'b1a2c3d4-1111-4eee-8000-000000000001', contract_value: 1_000_000, currency: 'USD',
     budget: 800_000, spent: 400_000, end_date: '2026-12-31',
     client: { name: 'Acme Corp' }, pm: { full_name: '   ' },
     customer_contract_ref: null, contract_date: null, decided_at: null,
@@ -126,7 +123,7 @@ describe('AC-PRJUX-004 — blank-name manager profiles get a readable label and 
   it('AC-PRJUX-004: the PM option for a blank-name profile has a nonempty, readable label', () => {
     renderPage();
     const select = pmSelect();
-    const blankOption = Array.from(select.options).find((o) => o.value === 'b1a2c3d4-eeee-0000');
+    const blankOption = Array.from(select.options).find((o) => o.value === 'b1a2c3d4-1111-4eee-8000-000000000001');
     expect(blankOption).toBeTruthy();
     expect(blankOption!.textContent!.trim().length).toBeGreaterThan(0);
     expect(blankOption!.textContent).toContain('Unnamed user');
@@ -134,7 +131,7 @@ describe('AC-PRJUX-004 — blank-name manager profiles get a readable label and 
 
   it('AC-PRJUX-004: selecting the blank-name profile filters by its real ID (only its project remains)', async () => {
     renderPage();
-    await userEvent.selectOptions(pmSelect(), 'b1a2c3d4-eeee-0000');
+    await userEvent.selectOptions(pmSelect(), 'b1a2c3d4-1111-4eee-8000-000000000001');
     expect(screen.getByText('Blank PM Project')).toBeInTheDocument();
     expect(screen.queryByText('Named Manager Project')).not.toBeInTheDocument();
     expect(screen.queryByText('No Manager Project')).not.toBeInTheDocument();

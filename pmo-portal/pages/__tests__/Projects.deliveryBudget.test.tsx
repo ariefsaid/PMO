@@ -36,10 +36,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
 
-vi.mock('@/src/hooks/useProjectView', () => ({
-  useProjectView: () => ['table', vi.fn()] as ['table', () => void],
-}));
-
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),

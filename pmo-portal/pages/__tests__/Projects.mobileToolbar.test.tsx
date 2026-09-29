@@ -17,7 +17,11 @@ import { resolve } from 'node:path';
 import { ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-const { projectsState, clientsState, managersState, viewBox, roleBox } = vi.hoisted(() => ({
+// list-working-set-return (#682): `client`/`pm` are URL-owned referenced-ID filters — the codec's
+// `referenceValue` accepts only a syntactically valid UUID (or a named sentinel), falling back to
+// "All" otherwise. Fixture IDs must be real UUID-shaped strings so a selection round-trips through
+// the URL instead of being silently rejected back to the default.
+const { projectsState, clientsState, managersState, roleBox } = vi.hoisted(() => ({
   projectsState: {
     data: [] as unknown as ProjectWithRefs[],
     isPending: false,
@@ -25,27 +29,23 @@ const { projectsState, clientsState, managersState, viewBox, roleBox } = vi.hois
     refetch: vi.fn(),
   },
   clientsState: {
-    data: [{ id: 'c2', name: 'Innovate Corp' }],
+    data: [{ id: '11111111-1111-1111-1111-111111111111', name: 'Innovate Corp' }],
     isPending: false,
     isError: false,
     isSuccess: true,
     refetch: vi.fn(),
   },
   managersState: {
-    data: [{ id: 'u-pm', full_name: 'Alice Manager' }],
+    data: [{ id: '22222222-2222-2222-2222-222222222222', full_name: 'Alice Manager' }],
     isPending: false,
     isError: false,
     isSuccess: true,
     refetch: vi.fn(),
   },
-  viewBox: { value: 'table' as 'table' | 'cards' | 'calendar' | 'kanban' },
   roleBox: { value: 'Project Manager' as string },
 }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useProjectView', () => ({
-  useProjectView: () => [viewBox.value, vi.fn()] as [typeof viewBox.value, () => void],
-}));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
@@ -65,7 +65,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDeliverySummary: () => ({ data: {} }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: roleBox.value }),
+  useAuth: () => ({ currentUser: { id: '22222222-2222-2222-2222-222222222222', org_id: 'org-1' }, role: roleBox.value }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
@@ -79,10 +79,6 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
-});
 vi.mock('../../components/ProjectCalendarView', () => ({
   default: () => <div data-testid="project-calendar-view" />,
 }));
@@ -95,7 +91,7 @@ import Projects from '../Projects';
 const seed: ProjectWithRefs[] = [
   {
     id: 'p1', name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
-    client_id: 'c2', project_manager_id: 'u-pm', contract_value: 1_000_000, currency: 'USD',
+    client_id: '11111111-1111-1111-1111-111111111111', project_manager_id: '22222222-2222-2222-2222-222222222222', contract_value: 1_000_000, currency: 'USD',
     budget: 800_000, spent: 400_000, end_date: '2026-12-31',
     client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null,
@@ -139,7 +135,6 @@ const renderPage = (role = 'Project Manager') => {
 describe('AC-PRJUX-001 — loaded mobile composition', () => {
   beforeEach(() => {
     mockMobileViewport();
-    viewBox.value = 'table';
     projectsState.data = resets.data;
     projectsState.isPending = false;
     projectsState.isError = false;
@@ -187,7 +182,6 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
 describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
   beforeEach(() => {
     mockMobileViewport();
-    viewBox.value = 'table';
     projectsState.data = resets.data;
     projectsState.isPending = false;
     projectsState.isError = false;
@@ -203,7 +197,7 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
 
     // open Filters, choose a customer — selecting closes the disclosure and shows a chip
     await user.click(screen.getByRole('button', { name: /^Filters$/i }));
-    await user.selectOptions(screen.getByRole('combobox', { name: /filter by customer/i }), 'c2');
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by customer/i }), '11111111-1111-1111-1111-111111111111');
     expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
     expect(screen.getByText(/Customer: Innovate Corp/)).toBeInTheDocument();
 
@@ -213,7 +207,7 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
 
     // add a PM filter too → count 2, both chips
     await user.click(filtersBtn);
-    await user.selectOptions(screen.getByRole('combobox', { name: /filter by project manager/i }), 'u-pm');
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by project manager/i }), '22222222-2222-2222-2222-222222222222');
     expect(screen.getByText(/Project manager: Alice Manager/)).toBeInTheDocument();
     expect(within(filtersBtn).getByTestId('mobile-toolbar-count')).toHaveTextContent('2');
 
@@ -251,7 +245,6 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
 describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () => {
   beforeEach(() => {
     mockMobileViewport();
-    viewBox.value = 'table';
     projectsState.data = resets.data;
     projectsState.isPending = false;
     projectsState.isError = false;
@@ -304,7 +297,6 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
 describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All and helpers', () => {
   beforeEach(() => {
     mockMobileViewport();
-    viewBox.value = 'table';
     projectsState.data = resets.data;
     projectsState.isPending = false;
     projectsState.isError = false;
@@ -363,7 +355,6 @@ describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All an
 describe('AC-PRJUX-001 — page states render no incomplete mobile toolbar', () => {
   beforeEach(() => {
     mockMobileViewport();
-    viewBox.value = 'table';
     roleBox.value = 'Project Manager';
   });
 

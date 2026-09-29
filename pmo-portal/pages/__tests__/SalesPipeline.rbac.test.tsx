@@ -37,7 +37,6 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
 }));
-vi.mock('@/src/hooks/usePipelineView', () => ({ usePipelineView: () => ['kanban', vi.fn()] }));
 // B-3: SalesPipeline now includes the "+ New opportunity" CTA (useProjectMutations). Stub to
 // avoid the QueryClientProvider requirement. Also mock useAuth for usePermission.
 vi.mock('@/src/hooks/useProjects', () => ({
