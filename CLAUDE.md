@@ -108,6 +108,7 @@ of an RLS gap forces "can anyone reach it?", which is the `role_table_grants` jo
 stopped two dead layers being ranked above the one live one.
 
 ## Quality gates & checkpoints (binding)
+- **PRs to `dev` (owner 2026-09-29):** GitHub CI's `verify` + `pgtap` is the full-suite gate — don't also run `verify:locked` on the shared Mac; run the touched tests + e2e journeys locally, and heavy e2e via `gh workflow run ci.yml --ref <branch>` (integration lane), **once per PR**, never per fix round. PRs to `main` keep the two rules below.
 - **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
   pushing ANY PR, run **`npm run verify`** — **13 gates** as of 2026-08-20, and the list grows, so
   ⚑ **read `pmo-portal/package.json`'s `verify` script rather than trusting a count written here**
