@@ -13,7 +13,7 @@
  * Coverage: Projects, Procurement, Incidents pages (all three ship a status ViewToggle).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -113,6 +113,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
 // ── Page imports (after mocks) ───────────────────────────────────────────────
 import Projects from '../Projects';
 import Procurement from '../Procurement';
+import { readProcurementView } from '@/src/hooks/useProcurementView';
 import Incidents from '../Incidents';
 
 const renderProjects = () =>
@@ -200,13 +201,21 @@ describe('AC-MOB-VT: Projects view toggle remains reachable below md', () => {
     expect(scrollWrapper!.className).not.toContain('hidden');
   });
 
-  it('Procurement: the "Procurement view" tablist is inside a hidden/md:block wrapper (A-MIN-1)', () => {
+  it('Procurement (A-MIN-1 superseded by #715, AC-PVT-001): the view toggle is present and operable below md (no hidden wrapper)', () => {
     renderProcurement();
     const viewToggle = screen.getByRole('tablist', { name: /procurement view/i });
-    const wrapper = viewToggle.parentElement;
-    expect(wrapper).not.toBeNull();
-    expect(wrapper!.className).toContain('hidden');
-    expect(wrapper!.className).toMatch(/md:block|md:contents/);
+    // #715: a phone user must be able to leave the last-used view, so neither the tablist's
+    // wrapper nor any ancestor up to the page carries `hidden`.
+    for (let el: HTMLElement | null = viewToggle; el && el !== document.body; el = el.parentElement) {
+      expect(el.className, `${el.tagName} must not hide the toggle`).not.toMatch(/(^|\s)hidden(\s|$)/);
+    }
+    const tabs = Array.from(viewToggle.querySelectorAll<HTMLElement>('[role="tab"]'));
+    expect(tabs.map((t) => t.textContent?.trim())).toEqual(['Table', 'Board']);
+    // Operable: clicking Board reaches the page's view handler, which persists the choice (this
+    // file stubs useNavigate, so the URL flip itself is owned by e2e AC-PVT-001).
+    expect(readProcurementView()).toBe('table');
+    fireEvent.click(tabs[1]);
+    expect(readProcurementView()).toBe('board');
   });
 
   it('Procurement: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {
