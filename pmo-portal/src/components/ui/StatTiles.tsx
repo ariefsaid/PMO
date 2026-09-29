@@ -102,7 +102,10 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             <div
               className={cn(
                 'text-[17px] font-bold tracking-[-0.01em] tabular',
-                t.tone === 'pos' && 'text-success',
+                // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
+                // the same class of gap the 'neg' tone below was already fixed for. text-success-text
+                // uses --success-text (the AA on-canvas variant), same move as destructive-text.
+                t.tone === 'pos' && 'text-success-text',
                 // text-destructive (#ef4444) is 3.76:1 on white — below AA 4.5:1.
                 // text-destructive-text uses --destructive-text (≈6.2:1 on white, WCAG AA).
                 t.tone === 'neg' && 'text-destructive-text',

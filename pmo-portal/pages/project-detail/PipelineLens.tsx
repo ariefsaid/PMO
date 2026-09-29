@@ -218,9 +218,15 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     <div>
       <StatTiles tiles={stats} columns={5} className="mb-4" />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* AC-RAM-003 (#688): base grid-cols-1 (explicit, matches the stacked mobile intent) +
+          min-w-0 on EACH grid item. Without it, a grid item's default min-width:auto falls back
+          to its content-based minimum size — which, for the Journey card, is the LifecycleStepper's
+          un-wrapped step row (flex, no wrap, summed children) — forcing the shared single-column
+          track to that width and overflowing the viewport at phone width. min-w-0 lets the track
+          shrink to the container's width; the stepper's own overflow-x-auto then scrolls instead. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Opportunity journey */}
-        <Card>
+        <Card className="min-w-0">
           <CardHead>{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
           <CardPad>
             <LifecycleStepper
@@ -233,7 +239,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
 
         {/* Next actions — wrapped in RecordActionZone so the advance/decide verb is sticky
             on desktop (never below the fold per DESIGN.md §7 RecordActionZone molecule). */}
-        <RecordActionZone>
+        <RecordActionZone className="min-w-0">
         <Card>
           {/* N10 (OD-W5-C3-B): wrap CardHead in a focusable div; the focus moves here
               programmatically after an Advance/Lost transition so a keyboard/SR user is

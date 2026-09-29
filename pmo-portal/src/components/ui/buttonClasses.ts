@@ -25,7 +25,11 @@ const variantClasses: Record<ButtonVariant, string> = {
     'border-transparent bg-primary text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] hover:bg-primary/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
   outline: 'border-input bg-background text-foreground hover:bg-accent disabled:opacity-60',
   ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent disabled:opacity-60',
-  destructive: 'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
+  // AC-RAM-004 (#688) regression fix: `bg-destructive-solid`, NOT `bg-destructive` — the raw
+  // `--destructive` hue is shared with `text-destructive` (error text) and the status dot/bar,
+  // both of which need the brighter raw hue for their own contrast. Only the solid button fill
+  // uses the darker `-solid` L (index.css).
+  destructive: 'border-transparent bg-destructive-solid text-destructive-foreground hover:bg-destructive-solid/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
   success: 'border-transparent bg-success text-success-foreground hover:bg-success/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
 };
 
