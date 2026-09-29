@@ -7,6 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import ProjectDetailHeader from '../ProjectDetailHeader';
+import { currencySymbol } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 // Mutable real-role box + project mutations (hoisted) — drive the edit/archive/value gating.
@@ -493,5 +494,24 @@ describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
     unmount();
     renderHeader('Finance', exclusive);
     expect(screen.getByTestId('contract-tile-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+});
+
+describe('#694 ProjectDetailHeader — contract-value adornment is the project currency', () => {
+  const idrProject = { ...onHand, currency: 'IDR' } as ProjectWithRefs;
+  const adornmentOf = (label: RegExp) => screen.getByLabelText(label).parentElement!.textContent;
+
+  it('#694: an IDR project shows the IDR glyph beside Contract value and Tax amount, never $', async () => {
+    renderHeader('Finance', idrProject);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    expect(adornmentOf(/^Contract value/i)).toBe(currencySymbol('IDR'));
+    expect(adornmentOf(/tax amount/i)).toBe(currencySymbol('IDR'));
+    expect(adornmentOf(/^Contract value/i)).not.toContain('$');
+  });
+
+  it('#694: a USD project still shows $', async () => {
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    expect(adornmentOf(/^Contract value/i)).toBe('$');
   });
 });

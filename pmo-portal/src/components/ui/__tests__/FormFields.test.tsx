@@ -104,6 +104,14 @@ describe('NumberField: numeric, right-aligned tabular, decimal inputmode', () =>
     expect(screen.getByLabelText('Estimated value')).toHaveValue('4,820,000');
     expect(screen.getByText('$')).toBeInTheDocument();
   });
+
+  it('#694: a multi-character adornment (a currency code) reserves more room than a single glyph', () => {
+    const { unmount } = render(<NumberField label="Value" value="" onChange={() => {}} prefix="$" />);
+    expect(screen.getByLabelText('Value').style.paddingLeft).toBe('');
+    unmount();
+    render(<NumberField label="Value" value="" onChange={() => {}} prefix="IDR" />);
+    expect(parseInt(screen.getByLabelText('Value').style.paddingLeft, 10)).toBeGreaterThan(22);
+  });
 });
 
 describe('NumberField: fires onChange', () => {

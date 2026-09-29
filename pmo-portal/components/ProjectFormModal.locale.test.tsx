@@ -23,6 +23,8 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => null };
 });
+// #694: the create form reads the org currency for its money adornment.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [{ id: 'c1', name: 'Innovate Corp', type: 'Client' }], isError: false }),
   useProjectManagers: () => ({ data: [{ id: 'u1', full_name: 'Alice Manager' }], isError: false }),
