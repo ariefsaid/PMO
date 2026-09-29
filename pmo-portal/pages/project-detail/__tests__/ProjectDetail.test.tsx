@@ -358,6 +358,17 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
+  it.each([
+    ['loading', { data: undefined as unknown as ProjectWithRefs[], isPending: true }],
+    ['not-found', { data: [] as ProjectWithRefs[], isPending: false }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(projectsState, s);
+    renderAt('/projects/does-not-exist');
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
+  });
+
   it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {
     // Director ruling (2026-09-29): the destination stays canonical `/projects` while a direct
     // link with no captured list context now additionally carries validated clean return state.

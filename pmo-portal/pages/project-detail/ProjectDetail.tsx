@@ -183,7 +183,7 @@ const ProjectDetail: React.FC = () => {
     if (isPending || oppPending) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
           <ListState variant="loading" rows={6} />
         </>
       );
@@ -209,7 +209,7 @@ const ProjectDetail: React.FC = () => {
     }
     return (
       <>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           icon="inbox"

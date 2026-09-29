@@ -114,7 +114,7 @@ const ContactDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
         <div data-testid="contact-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -126,7 +126,7 @@ const ContactDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('contactDetail.error.title', "Couldn't load contact")}
@@ -142,7 +142,7 @@ const ContactDetail: React.FC = () => {
   if (!contact) {
     return (
       <>
-        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
         <div data-testid="contact-not-found">
           <ListState
             variant="empty"

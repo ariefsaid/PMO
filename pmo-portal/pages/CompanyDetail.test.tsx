@@ -153,6 +153,18 @@ describe('CompanyDetail', () => {
     expect(detailState.refetch).toHaveBeenCalled();
   });
 
+  it.each([
+    ['loading', { data: undefined, isPending: true, isError: false }],
+    ['not-found', { data: null, isPending: false, isError: false }],
+    ['error', { data: undefined, isPending: false, isError: true }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(detailState, s);
+    renderPage();
+    const bar = screen.getByRole('button', { name: /back to companies/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
+  });
+
   it('CW-4b: Back returns to the Companies list', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /back to companies/i }));

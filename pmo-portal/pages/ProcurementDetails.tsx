@@ -327,7 +327,7 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isPending) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} phoneOnly onBack={goBack} />
         <div data-testid="procurement-loading">
           <ListState variant="loading" rows={6} />
         </div>
@@ -352,7 +352,7 @@ const ProcurementDetails: React.FC = () => {
   if (isNoAccess || (!detailQuery.isError && !detailQuery.data)) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} phoneOnly onBack={goBack} />
         {/* BackBar above already carries the "Back to Procurement" escape route,
             so the empty state does not repeat it (avoids a duplicate control). */}
         <div data-testid="procurement-no-access">
@@ -374,7 +374,7 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isError) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('procurementDetail.error.title', "Couldn't load procurement")}

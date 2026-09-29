@@ -138,7 +138,7 @@ const CompanyDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
         <div data-testid="company-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -150,7 +150,7 @@ const CompanyDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('companyDetail.error.title', "Couldn't load company")}
@@ -166,7 +166,7 @@ const CompanyDetail: React.FC = () => {
   if (!company) {
     return (
       <>
-        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
         <div data-testid="company-not-found">
           <ListState
             variant="empty"

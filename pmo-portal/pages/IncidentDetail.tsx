@@ -61,7 +61,7 @@ const IncidentDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label="Incidents" onBack={goBack} />
+        <BackBar label="Incidents" phoneOnly onBack={goBack} />
         <div data-testid="incident-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -73,7 +73,7 @@ const IncidentDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label="Incidents" onBack={goBack} />
+        <BackBar label="Incidents" phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title="Couldn't load incident"
@@ -89,7 +89,7 @@ const IncidentDetail: React.FC = () => {
   if (!incident) {
     return (
       <>
-        <BackBar label="Incidents" onBack={goBack} />
+        <BackBar label="Incidents" phoneOnly onBack={goBack} />
         <div data-testid="incident-not-found">
           <ListState
             variant="empty"
