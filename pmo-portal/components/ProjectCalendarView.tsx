@@ -34,6 +34,12 @@ export interface ProjectCalendarViewProps {
   onOpenProject: (id: string) => void;
   /** Test seam: force the initial displayed month (defaults to todayCursor()). */
   initialCursor?: MonthCursor;
+  /**
+   * Controlled month (#716): when `onCursorChange` is supplied the caller owns the displayed month
+   * (Projects keeps it in the URL working set so a return from a record lands on the same month).
+   */
+  cursor?: MonthCursor;
+  onCursorChange?: (next: MonthCursor) => void;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -146,8 +152,13 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   milestoneDates,
   onOpenProject,
   initialCursor,
+  cursor: controlledCursor,
+  onCursorChange,
 }) => {
-  const [cursor, setCursor] = useState<MonthCursor>(initialCursor ?? todayCursor());
+  const [localCursor, setLocalCursor] = useState<MonthCursor>(initialCursor ?? todayCursor());
+  const controlled = onCursorChange !== undefined;
+  const cursor = controlled ? (controlledCursor ?? todayCursor()) : localCursor;
+  const moveTo = (next: MonthCursor) => (controlled ? onCursorChange(next) : setLocalCursor(next));
   const isDesktop = useIsDesktop();
 
   const events = useMemo(
@@ -174,9 +185,9 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
     [eventsByDay],
   );
 
-  const goPrev = () => setCursor((c) => addMonths(c, -1));
-  const goNext = () => setCursor((c) => addMonths(c, 1));
-  const goToday = () => setCursor(todayCursor());
+  const goPrev = () => moveTo(addMonths(cursor, -1));
+  const goNext = () => moveTo(addMonths(cursor, 1));
+  const goToday = () => moveTo(todayCursor());
 
   const nav = (
     <div className="mb-3 flex items-center gap-2">
