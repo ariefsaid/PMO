@@ -106,5 +106,5 @@ Render `/integrations` at 1440px and 390px in English and Bahasa, in light and d
 
 - Do not change the connection state machine, callback URL contract/cleanup, fetch timing, entitlement gate, server authorization, token custody, or role model. The organization approval surface's behavior is unchanged too; only its copy and error presentation are localized (FR-M365LOC-007, #690).
 - Do not claim that an account connection means an organization integration is active or data movement has succeeded.
-- Do not introduce another locale store, translation package, server schema, or shared confirmation-dialog behavior.
+- Do not introduce another locale store, translation package, server schema, or a new shared confirmation-dialog component. #692 does change the shared `ConfirmDialog` for every consumer (its background is inert while open, matching `EntityFormModal`); no other dialog behavior changes.
 - No live Microsoft account is required for this card-copy acceptance; the separate live data-transfer acceptance remains under the enterprise coherence brief.

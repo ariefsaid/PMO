@@ -11,10 +11,12 @@ import { join, relative } from 'node:path';
  * surfaces that no test connected (`CommandPalette`, `ProjectIntegrationsCard`).
  *
  * This gate turns the rule into a deterministic check over the source: no single class string may
- * apply `text-destructive` AND a `bg-destructive/<alpha>` tint in the SAME state. Only unprefixed
- * utilities are compared, so:
- *   - `hover:bg-destructive/10` (a transient hover wash on a ghost button) is out of scope;
- *   - `[&_svg]:text-destructive` (a glyph, held to the 3:1 non-text bar) is out of scope.
+ * apply raw `text-destructive` AND a `bg-destructive/<alpha>` tint in the SAME state:
+ *   - resting: `text-destructive` + `bg-destructive/*`;
+ *   - hover: `hover:bg-destructive/*` with the text that is visible on hover, i.e. `hover:text-destructive`
+ *     or (when hover does not override it) the resting `text-destructive` — the wash is a real tint the
+ *     label sits on, so the same ~4.2:1 defect applies. A ghost button must use `destructive-text`.
+ * `[&_svg]:text-destructive` (a glyph, held to the 3:1 non-text bar) is out of scope.
  *
  * Scope is deliberate and stated: it inspects string literals (single, double, template). A class
  * assembled across separate literals (`cn('text-destructive', hot && 'bg-destructive/10')`) is
@@ -64,12 +66,14 @@ export function literalBodies(src: string): Array<{ body: string; index: number 
   return found;
 }
 
-/** True when one class string applies raw `text-destructive` and an unprefixed destructive tint. */
+/** True when one class string puts raw `text-destructive` on a destructive tint (resting or hover). */
 export function combinesDestructiveTextWithTint(classString: string): boolean {
   const tokens = classString.split(/\s+/).filter(Boolean);
   const hasText = tokens.includes('text-destructive');
+  const hasHoverText = tokens.includes('hover:text-destructive');
   const hasTint = tokens.some((t) => /^bg-destructive\//.test(t));
-  return hasText && hasTint;
+  const hasHoverTint = tokens.some((t) => /^hover:bg-destructive\//.test(t));
+  return (hasText && hasTint) || ((hasText || hasHoverText) && hasHoverTint);
 }
 
 interface Offender {
@@ -101,8 +105,15 @@ describe('AC-A11Y-CONTRAST-001: text-destructive is never placed on a destructiv
     expect(combinesDestructiveTextWithTint('text-destructive bg-destructive/[0.07]')).toBe(true);
     // The DESIGN.md-sanctioned pairing, hover washes and glyph-only colouring are not defects.
     expect(combinesDestructiveTextWithTint('bg-destructive/10 text-destructive-text')).toBe(false);
-    expect(combinesDestructiveTextWithTint('text-destructive hover:bg-destructive/10')).toBe(false);
     expect(combinesDestructiveTextWithTint('bg-destructive/10 [&_svg]:text-destructive')).toBe(false);
+    expect(combinesDestructiveTextWithTint('text-destructive-text hover:bg-destructive/10')).toBe(false);
+    expect(
+      combinesDestructiveTextWithTint('text-destructive-text hover:bg-destructive/10 hover:text-destructive-text'),
+    ).toBe(false);
+    // The hover wash is a tint the label sits on: raw text-destructive over it is the same defect.
+    expect(combinesDestructiveTextWithTint('text-destructive hover:bg-destructive/10')).toBe(true);
+    expect(combinesDestructiveTextWithTint('text-destructive hover:bg-destructive/10 hover:text-destructive')).toBe(true);
+    expect(combinesDestructiveTextWithTint('text-foreground hover:bg-destructive/10 hover:text-destructive')).toBe(true);
     expect(combinesDestructiveTextWithTint('text-destructive')).toBe(false);
   });
 

@@ -312,7 +312,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
-                    className="text-destructive hover:bg-destructive/10"
+                    className="text-destructive-text hover:bg-destructive/10"
                     aria-label={`Delete line item ${li.category}`}
                     disabled={updateIsPending}
                   >
@@ -351,7 +351,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
-                    className="text-destructive hover:bg-destructive/10"
+                    className="text-destructive-text hover:bg-destructive/10"
                     aria-label={`Delete line item ${li.category}`}
                   >
                     Delete
@@ -537,7 +537,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onDeleteDraft(version.id)}
-                className="text-destructive hover:bg-destructive/10"
+                className="text-destructive-text hover:bg-destructive/10"
               >
                 Delete draft
               </Button>

@@ -112,7 +112,7 @@ export const M365OrgApprovalCard: React.FC = () => {
           loading={phase === 'approving'}
           data-testid="m365-org-approval-btn"
         >
-          <Icon name="export" className="size-3.55" aria-hidden="true" />
+          <Icon name="export" className="size-3.5" aria-hidden="true" />
           {phase === 'approving'
             ? t('integrations.m365OrgApproval.approving', 'Opening Microsoft 365…')
             : t('integrations.m365OrgApproval.approve', 'Approve in Microsoft 365')}

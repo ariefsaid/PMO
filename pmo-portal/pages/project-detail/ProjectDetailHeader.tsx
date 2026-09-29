@@ -290,7 +290,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           variant="ghost"
           size="sm"
           onClick={() => setDeleteOpen(true)}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
         >
           {t('projectDetail.header.action.delete', 'Delete')}
         </Button>
