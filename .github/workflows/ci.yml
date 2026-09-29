@@ -250,6 +250,8 @@ jobs:
     # `gh workflow run ci.yml --ref <branch>`), so a PR to `dev` can get its e2e proof on a
     # GitHub runner instead of the shared local stack. Trigger it once per PR, after local
     # fixes are done — not per fix round.
+    # Trade-off: a dispatch runs branch code with the job's secrets without a PR audit trail;
+    # only write-access collaborators can dispatch (fork PRs never receive secrets).
     if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
