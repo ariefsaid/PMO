@@ -187,3 +187,57 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 1234 });
   });
 });
+
+describe('#684 AC-PLC-010: the estimated-value error distinguishes a FORMAT mistake from a real precision loss', () => {
+  it("under id-ID, English-style separators (1,234.56) report the SEPARATOR mistake, not '2 decimal places'", async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1,234.56');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/for example 1\.234,56/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(screen.queryByText(/no more than 2 decimal places/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('under id-ID, a pasted dot-grouped amount (1234567.89) reports the SEPARATOR mistake', async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    const field = screen.getByLabelText(/estimated value/i);
+    field.focus();
+    await userEvent.paste('1234567.89');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    // The message's example is a FIXED reference amount in the viewer's convention ("1.234,56"),
+    // never an echo of the user's own (malformed) input — the pasted value could itself be
+    // ambiguous, which is why it needed correcting in the first place.
+    expect(await screen.findByText(/for example 1\.234,56/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(screen.queryByText(/no more than 2 decimal places/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('under en-US, id-ID-style separators (1.234,56) report the SEPARATOR mistake, not the precision message', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234,56');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/for example 1,234\.56/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(screen.queryByText(/no more than 2 decimal places/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a genuine 3-decimal-place amount under en-US still reports the PRECISION message (regression)', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/no more than 2 decimal places/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});

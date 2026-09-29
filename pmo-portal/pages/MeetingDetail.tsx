@@ -37,8 +37,12 @@ import {
 import { useProjects } from '@/src/hooks/useProjects';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
-import { formatDateTime, formatDateOnly } from '@/src/lib/format';
-import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
+import {
+  formatDateTime,
+  formatDateOnly,
+  instantToZonedDatetimeLocal,
+  zonedDatetimeLocalToInstant,
+} from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -840,7 +844,7 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
   const form = useEntityForm<EditFormValues>({
     initialValues: {
       title: meeting.title,
-      occurredAt: toDatetimeLocalValue(new Date(meeting.occurred_at)),
+      occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)),
       location: meeting.location ?? '',
       projectId: meeting.project_id ?? '',
     },
@@ -861,9 +865,10 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       try {
+        const instant = zonedDatetimeLocalToInstant(values.occurredAt);
         await onSave({
           title: values.title.trim(),
-          occurred_at: new Date(values.occurredAt).toISOString(),
+          occurred_at: (instant ?? new Date(meeting.occurred_at)).toISOString(),
           location: values.location.trim() || null,
           project_id: values.projectId || null,
         });

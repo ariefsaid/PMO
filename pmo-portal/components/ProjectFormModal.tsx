@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   EntityFormModal,
   TextField,
@@ -11,7 +13,14 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
-import { parseMoneyInput, parseMoneyInputAtScale } from '@/src/lib/format';
+import {
+  formatMoneyInputValue,
+  moneyInputErrorKind,
+  numberSymbols,
+  parseMoneyInput,
+  parseMoneyInputAtScale,
+} from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -100,23 +109,39 @@ const ORIGINATION_OPTIONS = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s,
  * "Estimated value" is OPTIONAL (a pre-win estimate may be unset). Blank → valid (unset).
  * Non-blank must parse (via the same locale-aware scale-2 parser used to persist — Wave 3 input
  * integrity) to a finite, non-negative number; otherwise an inline error blocks the submit.
+ *
+ * #684 AC-PLC-010/FR-PLC-010: a value that fails to parse AT ALL (wrong separators for the
+ * viewer's convention — `1,234.56` under `id-ID`, or a pasted `1234567.89` whose grouping matches
+ * neither convention) is a FORMAT mistake, not a precision one — it is told apart from a value
+ * that parses correctly but carries more fractional digits than the target column can store, and
+ * each gets its own message naming what actually went wrong.
  */
-function moneyError(raw: string): string | undefined {
+function moneyError(raw: string, t: TFunction, locale = getNumberLocale()): string | undefined {
   if (!raw.trim()) return undefined; // optional — blank is fine
-  const n = parseMoneyInputAtScale(raw, 2);
-  return n === null || n < 0
-    ? 'Enter a valid non-negative amount with no more than 2 decimal places.'
-    : undefined;
+  const n = parseMoneyInputAtScale(raw, 2, locale);
+  if (n !== null && n >= 0) return undefined;
+  if (moneyInputErrorKind(raw, 2, locale) === 'format') {
+    const { decimal, group } = numberSymbols(locale);
+    return t('projectForm.value.formatError', {
+      defaultValue: 'Use "{{group}}" to group thousands and "{{decimal}}" for decimals — for example {{example}}.',
+      group,
+      decimal,
+      example: formatMoneyInputValue(1234.56, locale),
+    });
+  }
+  return t('projectDetail.header.invalidContractValue', 'Enter a valid non-negative amount with no more than 2 decimal places.');
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.name.trim()) errors.name = 'Project name is required.';
-  if (!v.clientId) errors.clientId = 'Select a client company.';
-  const valueErr = moneyError(v.value);
-  if (valueErr) errors.value = valueErr;
-  return errors;
-};
+const makeValidate =
+  (t: TFunction) =>
+  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+    const errors: Partial<Record<keyof FormValues, string>> = {};
+    if (!v.name.trim()) errors.name = 'Project name is required.';
+    if (!v.clientId) errors.clientId = 'Select a client company.';
+    const valueErr = moneyError(v.value, t);
+    if (valueErr) errors.value = valueErr;
+    return errors;
+  };
 
 export interface ProjectFormModalProps {
   /** Omit (or 'create') for a new project; 'editHeader' to edit an existing project. */
@@ -140,6 +165,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onError,
 }) => {
   const isEdit = mode === 'editHeader';
+  const { t } = useTranslation();
+  const validate = useMemo(() => makeValidate(t), [t]);
   const { data: clients = [], isError: clientsError } = useClientCompanies();
   const { data: managers = [], isError: pmError } = useProjectManagers();
 
@@ -388,7 +415,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 error={valueField.error}
                 localeAware
                 placeholder="0"
-                helper="Estimate, pre-win. Editable by Admin, Executive, and PM."
+                helper={t('projectForm.value.helper', 'Estimate, pre-win. Editable by Admin, Executive, and PM.')}
               />
               {/* #513: asked ONLY once a non-zero value is entered — a project originated at 0
                   states nothing and is asked nothing (migration 0197's conditional CHECK). No

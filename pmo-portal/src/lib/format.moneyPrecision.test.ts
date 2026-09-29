@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   formatMoneyInputValue,
+  moneyInputErrorKind,
   parseMoneyInputAtScale,
   parseNeutralMoneyInput,
   parseNeutralMoneyInputAtScale,
@@ -50,6 +51,45 @@ describe('money target precision', () => {
     expect(formatMoneyInputValue(1234.5)).toBe('1,234.5');
     expect(formatMoneyInputValue(-0.25)).toBe('-0.25');
     expect(parseMoneyInputAtScale(formatMoneyInputValue(1234.56), 2)).toBe(1234.56);
+  });
+});
+
+describe('moneyInputErrorKind (#684 AC-PLC-010/FR-PLC-010) — format mistake vs real precision loss', () => {
+  it('a blank/whitespace draft has no error', () => {
+    expect(moneyInputErrorKind('', 2, 'en-US')).toBeNull();
+    expect(moneyInputErrorKind('   ', 2, 'id-ID')).toBeNull();
+  });
+
+  it('a value valid at the target scale has no error, in either convention', () => {
+    expect(moneyInputErrorKind('1,234.56', 2, 'en-US')).toBeNull();
+    expect(moneyInputErrorKind('1.234,56', 2, 'id-ID')).toBeNull();
+  });
+
+  it("under id-ID, the OTHER convention's separators (1,234.56) are a FORMAT error, not precision", () => {
+    // decimal=',' group='.': splitting on ',' leaves a fraction of "234.56", which is not all
+    // digits — parseMoneyDraft itself rejects it, before any scale check runs.
+    expect(moneyInputErrorKind('1,234.56', 2, 'id-ID')).toBe('format');
+  });
+
+  it('under id-ID, a pasted dot-grouped amount (1234567.89) is a FORMAT error, not precision', () => {
+    // No ',' present, so "1234567.89" is read as the integer part with '.' grouping — "1234567"
+    // does not fit the 1-3-digit leading group, so this is a bad GROUPING, not extra precision.
+    expect(moneyInputErrorKind('1234567.89', 2, 'id-ID')).toBe('format');
+  });
+
+  it("under en-US, id-ID's separators (1.234,56) are a FORMAT error, not precision", () => {
+    expect(moneyInputErrorKind('1.234,56', 2, 'en-US')).toBe('format');
+  });
+
+  it('a value that parses correctly but exceeds the target scale is a PRECISION error', () => {
+    expect(moneyInputErrorKind('1.234', 2, 'en-US')).toBe('precision'); // en-US: 1.234, 3 dp
+    expect(moneyInputErrorKind('123,456', 2, 'id-ID')).toBe('precision'); // id-ID: 123.456, 3 dp
+  });
+
+  it('DD-I18N-6: the SAME digits classify differently across conventions', () => {
+    // "1.234" is a valid 2dp integer (1234) under id-ID, but a 3dp precision failure under en-US.
+    expect(moneyInputErrorKind('1.234', 2, 'id-ID')).toBeNull();
+    expect(moneyInputErrorKind('1.234', 2, 'en-US')).toBe('precision');
   });
 });
 

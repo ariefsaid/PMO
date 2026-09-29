@@ -154,6 +154,22 @@
     "unknownRequester": "Unknown requester",
     "weekOf": "Week of"
   },
+  "combobox": {
+    "search": {
+      "label": "Search {{noun}}s",
+      "placeholder": "Search {{noun}}s…"
+    },
+    "loading": "Loading {{noun}}s…",
+    "error": {
+      "title": "Couldn't load {{noun}}s.",
+      "retry": "Retry"
+    },
+    "listLabel": "{{noun}}s",
+    "empty": {
+      "withQuery": "No {{noun}} matches \"{{query}}\".",
+      "bare": "No {{noun}} matches."
+    }
+  },
   "companies": {
     "accessDenied": {
       "sub": "The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.",
@@ -1642,6 +1658,12 @@
       }
     }
   },
+  "projectForm": {
+    "value": {
+      "helper": "Estimate, pre-win. Editable by Admin, Executive, and PM.",
+      "formatError": "Use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals — for example {{example}}."
+    }
+  },
   "projects": {
     "actions": {
       "archive": "Archive",
@@ -2176,9 +2198,7 @@
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default — {{value}}",
         "id": "Indonesian (1.234.567,89)",
-        "en": "English (1,234,567.89)",
-        "idLabel": "Indonesian: ",
-        "enLabel": "English: "
+        "en": "English (1,234,567.89)"
       }
     },
     "timezone": {

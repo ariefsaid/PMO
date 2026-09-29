@@ -133,6 +133,11 @@ export const ProfileSettings: React.FC = () => {
   ];
   const effectiveLanguage = languageName(resolvedLocale.locale);
   const effectiveNumberFormat = numberExample(resolvedLocale.numberLocale);
+  // #684: the preview reflects what SAVING NOW would produce (the pending selection), never the
+  // still-in-effect saved value — otherwise picking a new convention shows no visible feedback
+  // until after Save + refresh.
+  const previewNumberLocale = numberChoice === 'inherit' ? inheritedNumberLocale : numberChoice;
+  const previewNumberFormat = numberExample(previewNumberLocale);
 
   const resetStatus = () => {
     setStatus('idle');
@@ -207,23 +212,13 @@ export const ProfileSettings: React.FC = () => {
                 resetStatus();
               }}
               options={numberOptions}
-              helper={t('profileSettings.number.help', { defaultValue: 'Preview: {{value}}', value: effectiveNumberFormat })}
+              helper={t('profileSettings.number.help', { defaultValue: 'Preview: {{value}}', value: previewNumberFormat })}
               disabled={isSaving}
               fullWidth
             />
             <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
               {t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}
             </p>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] tabular-nums text-muted-foreground">
-              <span>
-                <span className="sr-only">{t('profileSettings.number.options.idLabel', 'Indonesian: ')}</span>
-                <span>1.234.567,89</span>
-              </span>
-              <span>
-                <span className="sr-only">{t('profileSettings.number.options.enLabel', 'English: ')}</span>
-                <span>1,234,567.89</span>
-              </span>
-            </div>
           </div>
 
           <div className="sm:col-span-2">

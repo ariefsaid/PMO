@@ -12,8 +12,11 @@ import {
 import {
   formatCurrency,
   formatMoneyInputValue,
+  moneyInputErrorKind,
+  numberSymbols,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 
 // ---------------------------------------------------------------------------
@@ -46,14 +49,28 @@ function num(v: string): number {
 }
 
 /**
+ * #684 AC-PLC-010/FR-PLC-010: a value that fails to parse AT ALL under the viewer's number
+ * convention (wrong separators — e.g. `1,234.56` under `id-ID`) is a FORMAT mistake, not a
+ * precision one, and gets a message naming the separators this screen expects, with an example in
+ * the viewer's own convention — never the generic "no more than 2 decimal places", which is simply
+ * wrong for a separator mistake.
+ */
+function describeFormatError(label: string, locale = getNumberLocale()): string {
+  const { decimal, group } = numberSymbols(locale);
+  const example = formatMoneyInputValue(1234.56, locale);
+  return `${label} must use "${group}" to group thousands and "${decimal}" for decimals — for example ${example}.`;
+}
+
+/**
  * Validate a raw quantity string. Returns an error message string, or undefined when valid.
  * Must be non-empty and parse (via the SAME scale-2 parse used to persist) to a number > 0.
  */
 function validateLineNum(raw: string, label: string): string | undefined {
   if (!raw.trim()) return `${label} is required.`;
   const n = parseMoneyInputAtScale(raw, 2);
-  if (n === null || n <= 0) return `${label} must be greater than 0 with no more than 2 decimal places.`;
-  return undefined;
+  if (n !== null && n > 0) return undefined;
+  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label);
+  return `${label} must be greater than 0 with no more than 2 decimal places.`;
 }
 
 /**
@@ -68,9 +85,9 @@ function parseRate(raw: string): number | null {
 
 function validateRate(raw: string): string | undefined {
   if (!raw.trim()) return 'Unit price is required.';
-  return parseRate(raw) === null
-    ? 'Unit price must be greater than 0 with no more than 2 decimal places.'
-    : undefined;
+  if (parseRate(raw) !== null) return undefined;
+  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError('Unit price');
+  return 'Unit price must be greater than 0 with no more than 2 decimal places.';
 }
 
 interface LineItemErrors {
@@ -379,7 +396,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                     <CellInput
                       numeric
                       aria-label="New item unit price"
-                      placeholder="0.00"
+                      placeholder={`0${numberSymbols().decimal}00`}
                       ref={addRateMask.ref}
                       value={draft.rate}
                       onChange={addRateMask.onChange}
@@ -388,9 +405,13 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {draft.quantity && draft.rate
-                    ? formatCurrency(num(draft.quantity) * num(draft.rate), currency)
-                    : '—'}
+                  {(() => {
+                    // #684: show "—" while either side fails to PARSE — not $0, which reads as a
+                    // real (zero) total rather than "not entered / not a number yet".
+                    const qty = parseMoneyInputAtScale(draft.quantity, 2);
+                    const rate = parseMoneyInputAtScale(draft.rate, 2);
+                    return qty !== null && rate !== null ? formatCurrency(qty * rate, currency) : '—';
+                  })()}
                 </td>
                 <td className="px-3 py-2 text-center">
                   <Button

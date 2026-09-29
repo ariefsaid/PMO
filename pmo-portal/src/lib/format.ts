@@ -180,6 +180,30 @@ export function parseMoneyInputAtScale(
 }
 
 /**
+ * Why a money input string at `scale` failed to parse — a genuine SEPARATOR/GROUPING mistake
+ * ('format', e.g. `1,234.56` typed under `id-ID`, or a pasted `1234567.89` whose grouping doesn't
+ * match either convention) versus a value that parses correctly but carries more fractional
+ * digits than the target column can store ('precision', e.g. `1.234` under `en-US` for a
+ * numeric(14,2) field). `null` when the raw string is valid at `scale` (no error at all).
+ *
+ * Both failure modes previously shared one "no more than N decimal places" message, which is
+ * simply WRONG for a format mistake — a user who typed the wrong convention's separators is not
+ * told which separators this screen expects (#684, AC-PLC-010/FR-PLC-010).
+ */
+export type MoneyInputErrorKind = 'format' | 'precision';
+
+export function moneyInputErrorKind(
+  raw: string,
+  scale = 2,
+  locale = getNumberLocale(),
+): MoneyInputErrorKind | null {
+  if (!raw.trim()) return null;
+  const parsed = parseMoneyDraft(raw, locale);
+  if (!parsed) return 'format';
+  return fitsMoneyScale(parsed.normalized, scale) ? null : 'precision';
+}
+
+/**
  * The import convention: dot decimal with optional correctly placed ASCII comma grouping. It is
  * the `en-US` grammar by definition, pinned here so a viewer's display preference can never change
  * how a spreadsheet/CSV cell is read.
@@ -358,6 +382,84 @@ export function formatInstantDateNumeric(iso: string | null | undefined): string
     year: 'numeric',
     timeZone: timezone,
   }).format(parsed);
+}
+
+// ── Wall-clock <-> instant, for `<input type="datetime-local">` (#684, FR-PLC-006, AC-PLC-005) ──
+//
+// ⛔ Before #684 a meeting's edit form formatted its `occurred_at` with the PROCESS/BROWSER
+// timezone (`toDatetimeLocalValue(new Date(iso))`) while the header displayed it in the resolved
+// PROFILE timezone above — a user whose profile zone differs from their device's OS zone saw one
+// wall time in the header and a different one in the edit field, and saving an "unedited" value
+// silently shifted the meeting's instant. Both directions below default to the SAME
+// `getActiveLocale().timezone` the instant formatters above read, so prefill, "now", and submit
+// all agree; a caller may still pass an explicit zone (tests; a future non-active-locale use).
+//
+// No timezone-database dependency: `Intl.DateTimeFormat` already carries the IANA tz database.
+// Instant -> wall time is a direct `formatToParts` read; wall time -> instant uses the standard
+// two-pass UTC-offset lookup (the same technique `date-fns-tz`/`luxon` use) so it converges
+// correctly across a DST transition.
+
+interface WallTimeParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+}
+
+function readWallTimeParts(instant: Date, timeZone: string, withSeconds: boolean): WallTimeParts {
+  const parts = dateFormatterFor(withSeconds ? 'wallTimeSec' : 'wallTime', 'en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(withSeconds ? { second: '2-digit' as const } : {}),
+  }).formatToParts(instant);
+  const map: Record<string, string> = {};
+  for (const part of parts) if (part.type !== 'literal') map[part.type] = part.value;
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    second: withSeconds ? Number(map.second) : 0,
+  };
+}
+
+/** The UTC offset (ms) in effect for `instant` in `timeZone`; positive when the zone is ahead of UTC. */
+function wallTimeOffsetMs(instant: Date, timeZone: string): number {
+  const p = readWallTimeParts(instant, timeZone, true);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - instant.getTime();
+}
+
+/** Format an instant as the wall-clock value a `datetime-local` input shows, in `timeZone`. */
+export function instantToZonedDatetimeLocal(instant: Date, timeZone = getActiveLocale().timezone): string {
+  const p = readWallTimeParts(instant, timeZone, false);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`;
+}
+
+const DATETIME_LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+/**
+ * Parse a `datetime-local` value as wall-clock time IN `timeZone`, returning the instant it names.
+ * `null` for a malformed value. Two offset lookups converge on the correct instant either side of
+ * a DST transition (the literal skipped/repeated hour is inherently ambiguous for any converter).
+ */
+export function zonedDatetimeLocalToInstant(value: string, timeZone = getActiveLocale().timezone): Date | null {
+  const match = DATETIME_LOCAL_RE.exec(value);
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s] = match;
+  const guessMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? '0'));
+  const firstOffset = wallTimeOffsetMs(new Date(guessMs), timeZone);
+  const secondOffset = wallTimeOffsetMs(new Date(guessMs - firstOffset), timeZone);
+  return new Date(guessMs - secondOffset);
 }
 
 /**

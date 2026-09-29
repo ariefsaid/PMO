@@ -206,8 +206,24 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(screen.getByLabelText(/number format/i)).toHaveValue('inherit');
     expect(screen.getByRole('combobox', { name: /timezone/i })).toHaveTextContent(/organization default/i);
     expect(screen.getByText(/effective.*english/i)).toBeInTheDocument();
-    expect(screen.getByText('1.234.567,89')).toBeInTheDocument();
-    expect(screen.getByText('1,234,567.89')).toBeInTheDocument();
+    // #684: the ONE labelled preview reflects the pending (here: inherited) choice — English,
+    // not the currently effective saved convention ('id-ID' per resolvedLocaleState above).
+    expect(screen.getByText('Preview: 1,234,567.89')).toBeInTheDocument();
+  });
+
+  it('AC-PLC-001 (#684): the number-format preview reflects the PENDING choice, not the saved effective value', () => {
+    currentUserState = { ...currentUserState, locale: 'en', number_locale: 'en-US', timezone: 'Asia/Jakarta' };
+    resolvedLocaleState.current = { locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' };
+
+    renderPage();
+    expect(screen.getByText('Preview: 1,234,567.89')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'id-ID' } });
+
+    // The preview updates immediately, before Save is pressed…
+    expect(screen.getByText('Preview: 1.234.567,89')).toBeInTheDocument();
+    // …while the "effective" (currently saved) convention is unchanged until save + refresh.
+    expect(screen.getByText('Effective number format: 1,234,567.89')).toBeInTheDocument();
   });
 
   it('AC-PLC-001: names the organization timezone on Organization default, not the user override', async () => {

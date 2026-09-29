@@ -28,8 +28,7 @@ import { useMeetings, useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useProjects } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { formatDateTime } from '@/src/lib/format';
-import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
+import { formatDateTime, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { MeetingWithRefs, MeetingInput } from '@/src/lib/db/meetings';
 
 /**
@@ -370,7 +369,7 @@ const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
   const form = useEntityForm<FormValues>({
     initialValues: {
       title: '',
-      occurredAt: toDatetimeLocalValue(new Date()),
+      occurredAt: instantToZonedDatetimeLocal(new Date()),
       location: '',
       projectId: '',
     },
@@ -396,7 +395,9 @@ const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
     void form.handleSubmit(async (values) => {
       const input: MeetingInput = {
         title: values.title.trim(),
-        occurred_at: values.occurredAt ? new Date(values.occurredAt).toISOString() : undefined,
+        occurred_at: values.occurredAt
+          ? (zonedDatetimeLocalToInstant(values.occurredAt)?.toISOString() ?? undefined)
+          : undefined,
         location: values.location.trim() || null,
         project_id: values.projectId || null,
       };

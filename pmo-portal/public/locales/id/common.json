@@ -154,6 +154,22 @@
     "unknownRequester": "Peminta tidak diketahui",
     "weekOf": "Minggu"
   },
+  "combobox": {
+    "search": {
+      "label": "Cari {{noun}}",
+      "placeholder": "Cari {{noun}}…"
+    },
+    "loading": "Memuat {{noun}}…",
+    "error": {
+      "title": "Gagal memuat {{noun}}.",
+      "retry": "Coba lagi"
+    },
+    "listLabel": "{{noun}}",
+    "empty": {
+      "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\".",
+      "bare": "Tidak ada {{noun}} yang cocok."
+    }
+  },
   "companies": {
     "accessDenied": {
       "sub": "Direktori perusahaan adalah master data bersama untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
@@ -1642,6 +1658,12 @@
       }
     }
   },
+  "projectForm": {
+    "value": {
+      "helper": "Estimasi, sebelum menang. Dapat diedit oleh Admin, Eksekutif, dan PM.",
+      "formatError": "Gunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal — misalnya {{example}}."
+    }
+  },
   "projects": {
     "actions": {
       "archive": "Arsipkan",
@@ -2176,9 +2198,7 @@
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi — {{value}}",
         "id": "Indonesia (1.234.567,89)",
-        "en": "Inggris (1,234,567.89)",
-        "idLabel": "Indonesia: ",
-        "enLabel": "Inggris: "
+        "en": "Inggris (1,234,567.89)"
       }
     },
     "timezone": {

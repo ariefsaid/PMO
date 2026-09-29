@@ -7,6 +7,8 @@ import {
   formatInstantDate,
   formatInstantDateNumeric,
   formatRelativeTime,
+  instantToZonedDatetimeLocal,
+  zonedDatetimeLocalToInstant,
 } from './format';
 
 const EN = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
@@ -49,5 +51,58 @@ describe('profile-timezone date formatting', () => {
     expect(formatDateOnly('not-a-date')).toBe('—');
     expect(formatInstantDate('not-a-date')).toBe('—');
     expect(formatInstantDateNumeric('')).toBe('—');
+  });
+});
+
+describe('instantToZonedDatetimeLocal (#684 FR-PLC-006)', () => {
+  it('defaults to the resolved profile timezone, not the process/browser zone', () => {
+    setActiveLocale({ ...EN, timezone: 'Asia/Jakarta' });
+    // 2026-08-25T14:15:00Z is 21:15 in Asia/Jakarta (UTC+7) regardless of the test runner's TZ.
+    expect(instantToZonedDatetimeLocal(new Date('2026-08-25T14:15:00Z'))).toBe('2026-08-25T21:15');
+  });
+
+  it('formats the same instant differently in an explicitly-passed zone (overrides the default)', () => {
+    const instant = new Date('2026-08-25T14:15:00Z');
+    expect(instantToZonedDatetimeLocal(instant, 'Asia/Jakarta')).toBe('2026-08-25T21:15');
+    expect(instantToZonedDatetimeLocal(instant, 'America/Los_Angeles')).toBe('2026-08-25T07:15');
+  });
+
+  it('zero-pads month, day, hour and minute', () => {
+    expect(instantToZonedDatetimeLocal(new Date('2026-01-03T04:07:00Z'), 'UTC')).toBe('2026-01-03T04:07');
+  });
+});
+
+describe('zonedDatetimeLocalToInstant (#684 FR-PLC-006)', () => {
+  it('interprets the wall-clock value as being IN the resolved profile timezone by default', () => {
+    setActiveLocale({ ...EN, timezone: 'Asia/Jakarta' });
+    // 21:15 wall time in Jakarta (UTC+7) is 14:15Z.
+    expect(zonedDatetimeLocalToInstant('2026-08-25T21:15')?.toISOString()).toBe('2026-08-25T14:15:00.000Z');
+  });
+
+  it('round-trips through instantToZonedDatetimeLocal for an arbitrary explicit zone', () => {
+    const original = new Date('2026-08-25T14:15:00Z');
+    const wallValue = instantToZonedDatetimeLocal(original, 'Asia/Jakarta');
+    expect(zonedDatetimeLocalToInstant(wallValue, 'Asia/Jakarta')?.toISOString()).toBe(original.toISOString());
+  });
+
+  it('is DST-safe across a US spring-forward transition (America/Los_Angeles, 2026-03-08)', () => {
+    // 2026-03-08 02:00 America/Los_Angeles is the skipped hour (clocks jump 02:00 -> 03:00); pick
+    // wall times either side of the transition and confirm each converts to the correct UTC offset.
+    expect(zonedDatetimeLocalToInstant('2026-03-08T01:30', 'America/Los_Angeles')?.toISOString())
+      .toBe('2026-03-08T09:30:00.000Z'); // 01:30 PST (UTC-8) -> 09:30Z
+    expect(zonedDatetimeLocalToInstant('2026-03-08T03:30', 'America/Los_Angeles')?.toISOString())
+      .toBe('2026-03-08T10:30:00.000Z'); // 03:30 PDT (UTC-7) -> 10:30Z
+  });
+
+  it('is DST-safe across a US fall-back transition (America/Los_Angeles, 2026-11-01)', () => {
+    expect(zonedDatetimeLocalToInstant('2026-11-01T00:30', 'America/Los_Angeles')?.toISOString())
+      .toBe('2026-11-01T07:30:00.000Z'); // 00:30 PDT (UTC-7, still daylight) -> 07:30Z
+    expect(zonedDatetimeLocalToInstant('2026-11-01T03:30', 'America/Los_Angeles')?.toISOString())
+      .toBe('2026-11-01T11:30:00.000Z'); // 03:30 PST (UTC-8, standard resumed) -> 11:30Z
+  });
+
+  it('returns null for a malformed value', () => {
+    expect(zonedDatetimeLocalToInstant('not-a-date', 'UTC')).toBeNull();
+    expect(zonedDatetimeLocalToInstant('', 'UTC')).toBeNull();
   });
 });

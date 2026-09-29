@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -206,5 +206,42 @@ describe('AC-PLC-005: meeting occurrence follows the profile timezone', () => {
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
     renderPage();
     expect(screen.getByText(/Jun 15, 2026, 06:30\sAM/)).toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow the PROFILE timezone, not the device zone', () => {
+  const originalTz = process.env.TZ;
+  const PINNED_NOW = new Date('2026-06-14T14:15:00Z'); // 21:15 Asia/Jakarta, 07:15 America/Los_Angeles
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(PINNED_NOW);
+    // Simulate a device/browser zone that DIFFERS from the resolved profile timezone (#684's
+    // reported scenario: profile Asia/Jakarta, browser America/Los_Angeles).
+    process.env.TZ = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.TZ = originalTz;
+    resetActiveLocale();
+  });
+
+  it('prefills "When" with the current wall time in the profile timezone (not the device zone)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    expect(when.value).toBe('2026-06-14T21:15');
+  });
+
+  it('submitting the unedited default keeps the same instant', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
+    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    const [input] = mutations.create.mutateAsync.mock.calls[0];
+    expect(input.occurred_at).toBe('2026-06-14T14:15:00.000Z');
   });
 });
