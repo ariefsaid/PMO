@@ -55,6 +55,8 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 }));
 
 // ── Project / procurement FK hooks ───────────────────────────────────────────
+// #694: the create form reads the org currency for its money adornment.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [{ id: 'co-1', name: 'Cascade Port Authority' }], isError: false }),
   useProjectManagers: () => ({ data: [{ id: 'pm-1', full_name: 'Pat Manager' }], isError: false }),

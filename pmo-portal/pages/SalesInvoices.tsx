@@ -206,7 +206,8 @@ const SalesInvoices: React.FC = () => {
           {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} /> : null}
         </span>
       ),
-      exportValue: (inv) => inv.amount?.toString() ?? '',
+      // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
+      exportValue: (inv) => inv.amount ?? '',
     },
     {
       key: 'erp_outstanding_amount',
@@ -217,7 +218,7 @@ const SalesInvoices: React.FC = () => {
           {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
         </span>
       ),
-      exportValue: (inv) => inv.erp_outstanding_amount?.toString() ?? '',
+      exportValue: (inv) => inv.erp_outstanding_amount ?? '',
     },
     {
       key: 'invoice_date',

@@ -15,6 +15,7 @@ import {
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
 import {
+  currencySymbol,
   formatMoneyInputValue,
   moneyInputErrorKind,
   numberSymbols,
@@ -25,6 +26,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { CONTRACT_TAX_REQUIRED_HINT, parseTaxFacts } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { projectIconColor } from './projects';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -216,6 +218,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // no new figure for a default to describe, and pre-selecting there would put the CURRENT org
   // setting on an OLD row's basis — the read-time inference OD-TAX-1 forbids outright.
   const orgTaxDefault = useOrgTaxDefault();
+  // #694: a new project takes the org's currency (migration 0187), so that is the adornment.
+  const moneyPrefix = currencySymbol(useOrgCurrency());
   useTaxTreatmentPreselect(
     orgTaxDefault,
     form.values.taxTreatment,
@@ -408,7 +412,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               <NumberField
                 id={valueField.id}
                 label={t('projectForm.estimatedValue', 'Estimated value')}
-                prefix="$"
+                prefix={moneyPrefix}
                 value={valueField.value}
                 onChange={valueField.onChange}
                 onBlur={valueField.onBlur}
@@ -438,7 +442,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                     id={taxAmountField.id}
                     label={t('projectDetail.header.taxAmount', 'Tax amount')}
                     required
-                    prefix="$"
+                    prefix={moneyPrefix}
                     value={taxAmountField.value}
                     onChange={taxAmountField.onChange}
                     onBlur={taxAmountField.onBlur}

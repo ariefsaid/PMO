@@ -203,7 +203,8 @@ const IncomingPayments: React.FC = () => {
           {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
         </span>
       ),
-      exportValue: (p) => p.amount?.toString() ?? '',
+      // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
+      exportValue: (p) => p.amount ?? '',
     },
     {
       key: 'date',

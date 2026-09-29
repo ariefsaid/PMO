@@ -292,6 +292,9 @@ export const NumberField: React.FC<NumberFieldProps> = ({
               error && inputInvalid,
               className,
             )}
+            // A currency CODE adornment ("IDR") is wider than a single glyph ("$"): reserve room
+            // per character so a long value never runs under it (#694).
+            style={prefix && prefix.length > 1 ? { paddingLeft: `${14 + prefix.length * 8}px`, ...rest.style } : rest.style}
           />
         </div>
       )}

@@ -21,6 +21,7 @@ import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
+  currencySymbol,
   formatCurrency,
   formatDateOnly,
   formatMoneyInputValue,
@@ -310,7 +311,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           <div className="w-[180px]">
             <NumberField
               label={t('projectDetail.header.contractValue', 'Contract value')}
-              prefix="$"
+              prefix={currencySymbol(project.currency)}
               value={valueDraft}
               onChange={setValueDraft}
               error={valueDraftError}
@@ -335,7 +336,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           <div className="w-[160px]">
             <NumberField
               label={t('projectDetail.header.taxAmount', 'Tax amount')}
-              prefix="$"
+              prefix={currencySymbol(project.currency)}
               value={taxAmountDraft}
               onChange={setTaxAmountDraft}
               localeAware
