@@ -26,12 +26,7 @@ const projectsState = {
   refetch: vi.fn(),
 };
 
-const viewBox = { value: 'table' as 'table' | 'cards' | 'calendar' | 'kanban' };
-
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useProjectView', () => ({
-  useProjectView: () => [viewBox.value, vi.fn()] as [typeof viewBox.value, () => void],
-}));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
@@ -120,7 +115,6 @@ describe('AC-PRJUX-001 — Projects phone-width view toggle (round-3)', () => {
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
-    viewBox.value = 'table';
   });
 
   it('AC-PRJUX-001: Table / Cards / Calendar / Board are ALL present and reachable below md', () => {

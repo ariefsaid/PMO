@@ -33,7 +33,6 @@ vi.mock('react-router', async (orig) => {
   return { ...actual, useNavigate: () => vi.fn() };
 });
 
-vi.mock('@/src/hooks/usePipelineView', () => ({ usePipelineView: () => ['table', vi.fn()] }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
   useClientCompanies: () => ({ data: [] }),

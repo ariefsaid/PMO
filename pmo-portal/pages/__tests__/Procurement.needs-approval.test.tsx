@@ -47,8 +47,6 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({ useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
-vi.mock('@/src/hooks/useProcurementView', () => ({ useProcurementView: () => ['table', vi.fn()] }));
-
 import ProcurementPage from '../Procurement';
 
 const renderAs = (realRole: Role) =>

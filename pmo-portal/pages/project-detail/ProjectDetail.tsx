@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -13,6 +13,7 @@ import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects'
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
@@ -58,6 +59,7 @@ function tabFromParam(param: string | undefined): PTab {
 const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
   const may = usePermission();
@@ -146,13 +148,17 @@ const ProjectDetail: React.FC = () => {
   const isDeliveryForward = !hasFinanceView(realRole);
   const setTab = (next: PTab) => {
     trackProjectTabViewed(next);
-    navigate(`/projects/${projectId}/${next}`, { replace: true });
+    // list-working-set-return (#682): forward the current router state so a captured
+    // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
+    navigate(`/projects/${projectId}/${next}`, { replace: true, state: location.state });
   };
 
-  // Back to the Projects index — a plain navigate, no tab (AC-NAV-007). The
-  // breadcrumb resolves the record name from the cached list in App.tsx, so no
-  // per-page label hydration is needed once the tab layer is gone.
-  const goBack = () => navigate('/projects');
+  // Back to the Projects index (AC-NAV-007/AC-LRC-003): `returnToList` navigates to the
+  // captured Projects list URL when the record was opened from a narrowed list, and falls
+  // back to the bare index with clean state for a direct/copied link. The desktop parent
+  // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
+  const { returnToList } = useListReturn({ list: 'projects' });
+  const goBack = () => returnToList('projects');
 
   const openEditProject = () => setEditOpen(true);
   const closeEditProject = () => setEditOpen(false);
@@ -269,7 +275,7 @@ const ProjectDetail: React.FC = () => {
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
-            <PipelineLens project={project} />
+            <PipelineLens project={project} locationState={location.state} />
           </div>
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).

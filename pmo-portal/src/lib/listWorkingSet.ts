@@ -235,10 +235,27 @@ function putView(params: URLSearchParams, list: ViewList, view: string, sessionV
   putParam(params, 'view', view, fallbackIsDefault ? DEFAULT_VIEWS[list] : undefined);
 }
 
+/**
+ * Write `value` to `key` unless it is a non-explicit derived default. An empty string is always
+ * omitted. A value that equals the omitted default is ALSO omitted — UNLESS the incoming URL
+ * already carried exactly that legitimate value under this key, in which case the default-valued
+ * key is preserved (#683 carry-over: an Engineer's `?filter=My+Projects`, which equals their role
+ * default, must survive an unrelated edit like typing a search without silently widening the list
+ * back to All). A default that was ABSENT, or that resulted from canonicalizing an invalid or
+ * foreign token (`?filter=bogus` → All, `?view=map` → table), is still dropped so the canonical
+ * URL stays clean — the raw token is compared as the source of truth.
+ */
 function putParam(params: URLSearchParams, key: string, value: string, omit?: string): void {
-  if (value === '' || value === omit) {
+  if (value === '') {
     params.delete(key);
     return;
+  }
+  if (value === omit) {
+    // Keep an explicitly-present, legitimate default; drop an absent or fallback-derived one.
+    if (params.get(key) !== value) {
+      params.delete(key);
+      return;
+    }
   }
   params.set(key, value);
 }
@@ -285,21 +302,31 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
   sales: {
     parse: (params, options) => {
       const status = enumValue(params.get('status'), SALES_STAGES, '');
+      const view = viewValue<PipelineView>(params, 'sales', options.sessionView);
       const requestedScope = enumValue(params.get('scope'), SALES_SCOPES, 'Open');
       return {
-        // Only a Lost scope conflicts with an open funnel stage. "Needs attention" and an open
-        // stage are a valid combination today (SalesPipeline intersects them), so request flow
-        // forces Open scope only when Lost was requested together with an open stage.
-        scope: status && requestedScope === 'Lost' ? 'Open' : requestedScope,
+        // Scope is meaningful ONLY for the table view — the board is the open pipeline by stage
+        // and has no scope of its own, so a board URL (including a copied/direct
+        // `?view=kanban&scope=Lost`) always parses to Open, regardless of any scope token.
+        // Within the table, only a Lost scope conflicts with an open funnel stage. "Needs
+        // attention" and an open stage are a valid combination (SalesPipeline intersects them),
+        // so that contradiction forces Open only when Lost was requested together with an open
+        // stage. This is the single place the "scope is table-only" rule lives — mirrored in
+        // `serialize` below, never re-derived on the page.
+        scope: view !== 'table' ? 'Open' : status && requestedScope === 'Lost' ? 'Open' : requestedScope,
         status,
         q: searchValue(params),
-        view: viewValue(params, 'sales', options.sessionView),
+        view,
       };
     },
     serialize: (params, value, options) => {
-      // A Lost scope cannot coexist with an open stage, so it is forced to Open only in that
-      // contradictory case; Needs attention + stage round-trips as-is.
-      const scope = value.scope === 'Lost' && value.status ? 'Open' : value.scope;
+      // Mirror of parse: the board carries no scope, so switching to it (or serializing a working
+      // set whose view is already board) never writes an inert `scope` — the key is omitted
+      // entirely rather than pinned to a value the view ignores. A Lost scope cannot coexist with
+      // an open stage in the table, so it is forced to Open only in that contradictory case;
+      // Needs attention + stage round-trips as-is.
+      const scope =
+        value.view !== 'table' ? 'Open' : value.scope === 'Lost' && value.status ? 'Open' : value.scope;
       putParam(params, 'scope', scope, 'Open');
       putParam(params, 'status', value.status);
       putParam(params, 'q', value.q);

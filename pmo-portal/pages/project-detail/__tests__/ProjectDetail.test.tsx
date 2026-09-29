@@ -124,7 +124,10 @@ vi.mock('react-router', async (orig) => {
 // after a tab click (which goes to /projects/:projectId/:tab) keeps rendering ProjectDetail.
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-const renderAt = (path: string) =>
+// list-working-set-return (#682, AC-LRC-003): a plain string entry is the direct-link case (no
+// captured list context); an { pathname, state } entry lets a test seed a validated
+// `pmoListReturn` context as though the record were opened from a narrowed Projects list.
+const renderAt = (path: string | { pathname: string; state?: unknown }) =>
   render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
@@ -246,6 +249,16 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
   });
 
+  it('AC-LRC-003: a tab switch forwards the current location.state so return context survives it', async () => {
+    const capturedState = { pmoListReturn: { list: 'projects' as const, path: '/projects?filter=Ongoing' } };
+    renderAt({ pathname: '/projects/p1', state: capturedState });
+    await userEvent.click(screen.getByRole('tab', { name: 'Procurement' }));
+    expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', {
+      replace: true,
+      state: capturedState,
+    });
+  });
+
   it('switches to the real Tasks tab and shows its empty register (AC-TASK-001)', async () => {
     // B-9 (AC-W2-IA-004): tab is now URL-driven — navigate directly to the :tab deep-link.
     // (The mocked `useNavigate` is a vi.fn() no-op, so clicking the tab does not change the
@@ -316,10 +329,28 @@ describe('ProjectDetail shell (decomposition)', () => {
   });
 
   it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {
+    // Director ruling (2026-09-29): the destination stays canonical `/projects` while a direct
+    // link with no captured list context now additionally carries validated clean return state.
     projectsState.data = [];
     renderAt('/projects/does-not-exist');
     await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
-    expect(navigate).toHaveBeenCalledWith('/projects');
+    expect(navigate).toHaveBeenCalledWith('/projects', { state: {} });
+  });
+
+  it('AC-LRC-003: "Back to Projects" returns to the captured Projects list URL when opened from a narrowed list', async () => {
+    // Mobile BackBar only — the desktop parent breadcrumb reads the same context in App.tsx.
+    desktopBox.value = false;
+    renderAt({
+      pathname: '/projects/p1',
+      state: { pmoListReturn: { list: 'projects', path: '/projects?filter=Ongoing' } },
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
+    expect(navigate).toHaveBeenCalledWith(
+      '/projects?filter=Ongoing',
+      expect.objectContaining({
+        state: expect.not.objectContaining({ pmoListReturn: expect.anything() }),
+      }),
+    );
   });
 
   it('C-IMP-1: BackBar is present on the success render on mobile (< 768px viewport)', () => {

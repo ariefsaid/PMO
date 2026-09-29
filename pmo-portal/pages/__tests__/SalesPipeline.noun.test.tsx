@@ -64,17 +64,16 @@ vi.mock('react-router', async (orig) => {
   return { ...actual, useNavigate: () => vi.fn() };
 });
 
-// Force table view to expose the column header.
-vi.mock('@/src/hooks/usePipelineView', () => ({
-  usePipelineView: () => ['table', vi.fn()] as ['table', ReturnType<typeof vi.fn>],
-}));
-
 import SalesPipeline from '../../pages/SalesPipeline';
 
+// list-working-set-return (#682): the view is URL-owned now — force table view via `?view=table`
+// to expose the column header (previously done by mocking the whole usePipelineView module,
+// which also shadowed the DEFAULT_PIPELINE_VIEW/PIPELINE_VIEWS exports listWorkingSet.ts imports
+// directly).
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/sales?view=table']}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>

@@ -10,10 +10,11 @@
  * value, status pill, lifecycle stepper) so the preview list feels like the table.
  */
 import React, { useId, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
@@ -47,7 +48,13 @@ function daysAgo(iso: string): string {
  * (expanded). This keeps the hook call unconditional within the component
  * while avoiding a QueryClient dependency in the always-rendered row header.
  */
-const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = ({ row, panelId }) => {
+const ExpandedPanel: React.FC<{
+  row: ProcurementWithRefs;
+  panelId: string;
+  /** list-working-set-return (#682, AC-LRC-005): the shared opener for the "View full request"
+   * footer link, so it carries the same validated Procurement return context as the row/title. */
+  onOpen: (path: string) => boolean;
+}> = ({ row, panelId, onOpen }) => {
   const detail = useProcurementDetail(row.id);
 
   return (
@@ -109,6 +116,16 @@ const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = (
           <div className="mt-2 flex justify-end">
             <Link
               to={`/procurement/${row.id}`}
+              onClick={(e) => {
+                // Native modified/new-tab clicks keep the plain href (no return context to
+                // carry into a separate browsing context) — only a plain left-click is
+                // intercepted to route through the shared opener (AC-LRC-005).
+                if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                  return;
+                }
+                e.preventDefault();
+                onOpen(`/procurement/${row.id}`);
+              }}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
             >
               View full request
@@ -124,7 +141,9 @@ const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = (
 export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
-  const navigate = useNavigate();
+  // list-working-set-return (#682, AC-LRC-005): captures the current Procurement list URL +
+  // scroll as validated return context before navigating to the canonical detail route.
+  const { openRecord } = useListReturn({ list: 'procurement' });
 
   return (
     <div className="border-b border-border last:border-b-0">
@@ -146,7 +165,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           )
             return;
           trackProcurementDetailOpened('/procurement/:procurementId', 'list');
-          navigate(`/procurement/${row.id}`);
+          openRecord(`/procurement/${row.id}`);
         }}
         className="flex cursor-pointer flex-wrap items-start gap-2 px-3.5 py-3 transition-colors hover:bg-accent/60">
         {/* Disclosure toggle (AC-FIX5-PREVIEW-01) */}
@@ -170,6 +189,16 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
         <div className="min-w-0 flex-1">
           <Link
             to={`/procurement/${row.id}`}
+            onClick={(e) => {
+              // Native modified/new-tab clicks keep the plain href (no return context to carry
+              // into a separate browsing context) — only a plain left-click is intercepted to
+              // route through the shared opener (AC-LRC-005), matching the row-click behaviour.
+              if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                return;
+              }
+              e.preventDefault();
+              openRecord(`/procurement/${row.id}`);
+            }}
             className="block truncate font-semibold text-[13px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
             title={row.title}
           >
@@ -206,7 +235,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
 
       {/* Expanded preview panel (AC-FIX5-PREVIEW-02): ExpandedPanel mounts only when
           expanded so useProcurementDetail is not called on the collapsed row. */}
-      {expanded && <ExpandedPanel row={row} panelId={panelId} />}
+      {expanded && <ExpandedPanel row={row} panelId={panelId} onOpen={openRecord} />}
     </div>
   );
 };

@@ -239,11 +239,14 @@ describe('AC-S6-3 (C-IMP-1): BackBar present in success render DOM for mobile ba
   });
 
   it('AC-S6-3: clicking the mobile BackBar navigates to /procurement', async () => {
+    // Director ruling (2026-09-29): the destination stays canonical `/procurement` while a
+    // direct link with no captured list context now additionally carries validated clean
+    // return state (the same fallback shape as AC-NAV-007's Projects/Procurement equivalents).
     navigate.mockClear();
     renderPage();
     const backBtn = screen.getByRole('button', { name: /Back to Procurement/i });
     backBtn.click();
-    expect(navigate).toHaveBeenCalledWith('/procurement');
+    expect(navigate).toHaveBeenCalledWith('/procurement', { state: {} });
   });
 });
 

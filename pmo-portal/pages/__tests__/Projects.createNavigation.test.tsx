@@ -70,7 +70,7 @@ vi.mock('react-router', async (orig) => {
 const renderPage = () => {
   roleBox.value = 'Admin';
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/projects']}>
       <ToastProvider>
         <Projects />
       </ToastProvider>
@@ -104,7 +104,7 @@ describe('Projects create navigation (AC-RAM-006)', () => {
 
   it('AC-RAM-006: a successful create names the project and opens its record', async () => {
     projectMutations.create.mutateAsync.mockResolvedValue({
-      id: 'p-new',
+      id: '9b1d0c2e-4f6a-4c3b-8d7e-000000000abc',
       name: 'New project',
       status: 'Leads',
     });
@@ -116,7 +116,16 @@ describe('Projects create navigation (AC-RAM-006)', () => {
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/Harborside Terminal/);
     // The app navigates to the newly created record's canonical route.
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects/p-new'));
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith(
+        '/projects/9b1d0c2e-4f6a-4c3b-8d7e-000000000abc',
+        expect.objectContaining({
+          state: expect.objectContaining({
+            pmoListReturn: expect.objectContaining({ list: 'projects' }),
+          }),
+        }),
+      ),
+    );
   });
 
   it('AC-RAM-006: a failed create stays on /projects with the modal open', async () => {

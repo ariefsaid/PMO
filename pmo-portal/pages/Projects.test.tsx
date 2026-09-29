@@ -10,9 +10,9 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   return { ...actual, useOrgTaxDefault: () => 'exclusive' };
 });
 
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
@@ -85,18 +85,29 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
-const navigate = vi.fn();
-// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => navigate };
-});
+// list-working-set-return (#682): the page writes URL changes through the real router navigate
+// (one replace per event), so tests read the REAL location to assert the URL and the record-open
+// return-context `location.state` — the #683 Companies pattern — instead of mocking navigation away.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+      data-state={JSON.stringify(location.state ?? null)}
+    />
+  );
+};
 
 // Projects rows embed ProjectStatusControl, which uses useToast — needs a provider.
-const renderPage = (role = 'Project Manager') => {
+// list-working-set-return (#682): the list-return seam captures context only from the list's own
+// canonical index path (`/projects`), so the default entry must be `/projects`, not `/`.
+const renderPage = (role = 'Project Manager', initialPath = '/projects') => {
   roleBox.value = role;
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
+      <LocationProbe />
       <ToastProvider>
         <Projects />
       </ToastProvider>
@@ -110,7 +121,6 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
     projectsState.isPending = false;
     projectsState.isError = false;
-    navigate.mockClear();
   });
 
   it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
@@ -156,7 +166,6 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
     projectsState.isPending = false;
     projectsState.isError = false;
-    navigate.mockClear();
   });
 
   it('renders seeded projects with joined client + PM names (AC-401)', () => {
@@ -192,10 +201,15 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 
-  it('AC-NAV-006: navigates to the project detail route when a row is activated (no tab)', async () => {
+  it('AC-NAV-006: navigates to the project detail route when a row is activated, carrying validated list-return context (no tab)', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Innovate Corp HQ Fit-Out'));
-    expect(navigate).toHaveBeenCalledWith('/projects/p1');
+    const probe = screen.getByTestId('location-probe');
+    // Director ruling (2026-09-29): the destination stays canonical `/projects/p1` while the
+    // record-open now additionally carries the validated Projects list-return context.
+    await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p1'));
+    const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
+    expect(state.pmoListReturn).toMatchObject({ list: 'projects' });
   });
 
   // Model B (ADR-0020): the pre-win "Leads" partition lives in the Sales Pipeline now, so the
@@ -364,7 +378,6 @@ describe('Projects index — New project create + gating', () => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
     projectsState.isPending = false;
     projectsState.isError = false;
-    navigate.mockClear();
     roleBox.value = 'Project Manager';
     Object.values(projectMutations).forEach((m) => {
       m.mutateAsync.mockReset();
@@ -513,5 +526,82 @@ describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basi
     expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
     expect(labels[0]).toHaveTextContent('incl. PPN');
     expect(labels[1]).toHaveTextContent('excl. PPN');
+  });
+});
+
+// list-working-set-return (#682): AC-LRC-001/002 for Projects — `filter`/`client`/`pm`/`q`/`view`
+// are URL-owned. The owning pure-codec proof lives in src/lib/listWorkingSet.test.ts; here we prove
+// the component renders the URL-backed working set and writes ONE replace per event.
+describe('Projects list working set — AC-LRC-001/002', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+  });
+
+  const renderAt = (path: string, role = 'Project Manager') => {
+    roleBox.value = role;
+    return render(
+      <MemoryRouter initialEntries={[path]}>
+        <LocationProbe />
+        <ToastProvider>
+          <Projects />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+  };
+
+  it('AC-LRC-001: renders the URL-backed working set (filter + search + view) and refresh/copy reproduces it', () => {
+    // p1 ("Innovate Corp HQ Fit-Out") is the only seed row that is BOTH Ongoing and matches the
+    // search text, so it is the row that must render as a card under this combined URL state.
+    renderAt('/projects?filter=Ongoing&q=Innovate&view=cards');
+    // The URL-driven filter segment is selected.
+    const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
+    expect(within(statusTabs).getByRole('tab', { name: /^Ongoing$/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    // The URL-driven search is present in the search box.
+    expect(screen.getByPlaceholderText(/Search projects/i)).toHaveValue('Innovate');
+    // The URL-driven view renders card carriers.
+    expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
+    // Re-rendering from the same URL (a refresh / copied link) reproduces the same controls.
+    cleanup();
+    renderAt('/projects?filter=Ongoing&q=Innovate&view=cards');
+    expect(within(screen.getByRole('tablist', { name: /status filter/i })).getByRole('tab', { name: /^Ongoing$/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('AC-LRC-001: a control change writes ONE replace of the list URL (no history entry per click)', async () => {
+    renderAt('/projects');
+    const probe = screen.getByTestId('location-probe');
+    await userEvent.click(screen.getByRole('tab', { name: /^Ongoing$/ }));
+    expect(probe.dataset.search).toBe('?filter=Ongoing');
+    // View change persists AND writes the URL in one event (kanban renders, the status filter
+    // set moments earlier survives untouched — it is not a keystroke this event should drop).
+    await userEvent.click(screen.getByRole('tab', { name: /Board/i }));
+    expect(probe.dataset.search).toBe('?filter=Ongoing&view=kanban');
+    expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
+    expect(sessionStorage.getItem('pmo.workspace.views')).toContain('kanban');
+  });
+
+  it('AC-LRC-002 (#683 carry-over): an Engineer default ?filter=My+Projects survives typing a search', async () => {
+    renderAt('/projects?filter=My+Projects', 'Engineer');
+    const probe = screen.getByTestId('location-probe');
+    await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'Northwind');
+    await waitFor(() => expect(probe.dataset.search).toContain('q=Northwind'));
+    // The explicit default-valued filter key survives the search write (not widened to All).
+    expect(probe.dataset.search).toContain('filter=My+Projects');
+  });
+
+  it('AC-LRC-002: a dashboard ?filter= drill link keeps its intended subset selected on later control changes', async () => {
+    renderAt('/projects?filter=my+projects', 'Engineer');
+    const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
+    // The dashboard drill lands on "My Projects" for an Engineer, and it stays the effective
+    // filter (an inch-scrollable source) even after an unrelated URL edit is written.
+    expect(within(statusTabs).getByRole('tab', { name: /My Projects/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
   });
 });
