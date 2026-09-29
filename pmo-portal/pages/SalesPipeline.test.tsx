@@ -365,3 +365,69 @@ describe('SalesPipeline table zero-match', () => {
     expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
   });
 });
+
+// #697: in Board view a funnel stage selection used to mark the stage pressed and change nothing
+// else (the stage filter only narrows the Table). The selection now takes the board to that stage's
+// column (the same jump the mobile stage tabs make) and marks the column.
+describe('SalesPipeline Board stage selection (#697)', () => {
+  const scrollToSpy = vi.fn();
+  beforeEach(() => {
+    scrollToSpy.mockClear();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      writable: true,
+      value: scrollToSpy,
+    });
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
+  });
+
+  const funnelStage = (name: RegExp) =>
+    within(screen.getByLabelText('Pipeline summary')).getByRole('button', { name });
+
+  it('#697: selecting a stage in Board view brings that stage column into view and marks it', async () => {
+    renderPage('/sales?view=kanban');
+    const stageNav = screen.getByRole('navigation', { name: /Pipeline stage navigation/i });
+    expect(within(stageNav).getByRole('button', { name: 'Leads' })).toHaveAttribute('aria-current', 'true');
+    expect(scrollToSpy).not.toHaveBeenCalled();
+
+    await userEvent.click(funnelStage(/^Tender/));
+
+    // The board jumped: the programmatic scroll ran on the board's scroller and the indicator
+    // moved to the selected stage's column.
+    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
+    expect(within(stageNav).getByRole('button', { name: 'Tender' })).toHaveAttribute('aria-current', 'true');
+    expect(within(stageNav).getByRole('button', { name: 'Leads' })).not.toHaveAttribute('aria-current');
+    // The selected column carries a visible mark; the others do not.
+    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
+    expect(screen.getByTestId('stage-Leads').querySelector('[data-selected="true"]')).toBeNull();
+  });
+
+  it('#697: selecting a different stage moves again; deselecting clears the mark', async () => {
+    renderPage('/sales?view=kanban');
+    await userEvent.click(funnelStage(/^Tender/));
+    await userEvent.click(funnelStage(/^Negotiation/));
+    const stageNav = screen.getByRole('navigation', { name: /Pipeline stage navigation/i });
+    await waitFor(() =>
+      expect(within(stageNav).getByRole('button', { name: 'Negotiation' })).toHaveAttribute('aria-current', 'true'),
+    );
+    expect(scrollToSpy).toHaveBeenCalledTimes(2);
+
+    await userEvent.click(funnelStage(/^Negotiation/)); // toggle off
+    expect(document.querySelector('[data-selected="true"]')).toBeNull();
+  });
+
+  it('#697: a board opened with ?status= already selected lands on that stage column', async () => {
+    renderPage('/sales?view=kanban&status=Tender%20Submitted');
+    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
+  });
+});

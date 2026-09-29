@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
@@ -21,6 +21,12 @@ interface SalesKanbanBoardProps {
   onOpen: (project: PipelineProject) => void;
   /** Currently-open opportunity id — highlights its card. */
   selectedId?: string;
+  /**
+   * Index (into the open columns) of the funnel stage the page has selected, or null/undefined for
+   * none (#697). Changing it takes the board to that column and marks it — the same jump the
+   * mobile stage tabs make — so a stage selection has a visible effect in Board view.
+   */
+  selectedStageIndex?: number | null;
 }
 
 /**
@@ -108,7 +114,12 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string
  *     scroll events do NOT bubble — `onScroll` is passed DIRECTLY to `<Kanban>`,
  *     which spreads it onto the actual `.kanban-scroll` element (was the Defect-1 bug).
  */
-const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, selectedId }) => {
+const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({
+  projects,
+  onOpen,
+  selectedId,
+  selectedStageIndex = null,
+}) => {
   const { t } = useTranslation();
   // FR-L10N-020: the per-CARD figures use each project's OWN currency (get_sales_pipeline now
   // projects it, migration 0201); the per-COLUMN totals sum across projects and so have none, and
@@ -118,6 +129,12 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
+
+  // #697: a funnel stage selection scrolls the board to that column (on mount too, so a copied
+  // `?status=` link lands on it). `handleStageClick` is identity-stable.
+  useEffect(() => {
+    if (selectedStageIndex !== null) handleStageClick(selectedStageIndex);
+  }, [selectedStageIndex, handleStageClick]);
 
   // The five OPEN columns for the stage indicator (terminal Won/Lost are excluded —
   // the indicator is for navigating the pipeline, not the terminal archive columns).
@@ -158,6 +175,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
                 count={colProjects.length}
                 totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : undefined}
                 emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
+                selected={colIdx === selectedStageIndex}
               >
                 {colProjects.map((p) => (
                   <DealCard

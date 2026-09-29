@@ -577,7 +577,7 @@ const SalesPipeline: React.FC = () => {
       )}
 
       {state === undefined && view === 'kanban' && !boardZeroMatch && (
-        <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} />
+        <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
       )}
 
       {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (
