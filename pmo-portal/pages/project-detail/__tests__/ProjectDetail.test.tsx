@@ -17,6 +17,9 @@ const seed = [
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
 const committedSpendState = { data: 2_350_000 };
+// The by-id opportunity read (the fallback for a record outside the active cache) — mutable so a test
+// can fail it independently of the list read.
+const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
 const { roleBox, desktopBox, projectMutations, projectTransition } = vi.hoisted(() => ({
@@ -75,7 +78,7 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 // projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
 // avoid needing a QueryClient.
 vi.mock('@/src/lib/db/opportunity', () => ({
-  useOpportunity: () => ({ data: undefined, isPending: false }),
+  useOpportunity: () => oppState,
 }));
 // MilestoneStrip now mounts in the header area — stub its hooks to avoid network.
 vi.mock('@/src/hooks/useMilestones', () => ({
@@ -146,6 +149,11 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
+    projectsState.refetch.mockReset();
+    oppState.data = undefined;
+    oppState.isPending = false;
+    oppState.isError = false;
+    oppState.refetch.mockReset();
     committedSpendState.data = 2_350_000;
     roleBox.value = 'Project Manager';
     desktopBox.value = true;
@@ -326,6 +334,28 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/does-not-exist');
     expect(screen.getByText(/Project not found/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+  });
+
+  it('#695: when BOTH project reads fail it shows a load error with Retry, never "Project not found"', async () => {
+    projectsState.data = undefined as unknown as ProjectWithRefs[];
+    projectsState.isError = true;
+    oppState.isError = true;
+    renderAt('/projects/p1');
+    expect(screen.queryByText(/Project not found/i)).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(/Couldn.t load this project/i);
+    // The escape route stays; and Retry re-runs BOTH reads.
+    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(projectsState.refetch).toHaveBeenCalledTimes(1);
+    expect(oppState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('#695: a failed by-id read on a list miss is a load error too — absence cannot be claimed from a failed read', () => {
+    projectsState.data = [];
+    oppState.isError = true;
+    renderAt('/projects/p1');
+    expect(screen.queryByText(/Project not found/i)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
   it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {

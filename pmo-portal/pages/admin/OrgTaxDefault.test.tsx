@@ -103,6 +103,20 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
     ).toBeInTheDocument();
   });
 
+  it('#695: a rejected default read shows an error with Retry, not a skeleton that never resolves', async () => {
+    getTaxDefault.mockRejectedValue(new Error('network down'));
+    renderPanel('Admin');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn.t load the default tax treatment/i);
+    expect(screen.queryByTestId('org-tax-default-loading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('org-tax-default-select')).not.toBeInTheDocument();
+
+    // Retry re-runs the read; a recovered read replaces the error with the control.
+    getTaxDefault.mockResolvedValue('inclusive');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(select().value).toBe('inclusive'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('AC-RAM-005: while the new default is being written, the control is disabled so a second change cannot race it', async () => {
     let finishWrite: () => void = () => {};
     setTaxDefault.mockReturnValue(

@@ -64,7 +64,7 @@ const ProjectDetail: React.FC = () => {
   const { realRole } = useEffectiveRole();
   const may = usePermission();
   const { t } = useTranslation();
-  const { data, isPending } = useProjects();
+  const { data, isPending, refetch: refetchProjects } = useProjects();
   const { updateHeader } = useProjectMutations();
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
@@ -91,7 +91,12 @@ const ProjectDetail: React.FC = () => {
   // Fallback by-id fetch for a record NOT in the active projects cache (a pre-win / lost deal
   // lives in the Sales Pipeline partition). Only fired when the cache misses, so on-hand records
   // (the common path) cost no extra query.
-  const { data: opp, isPending: oppPending } = useOpportunity(cached ? undefined : projectId);
+  const {
+    data: opp,
+    isPending: oppPending,
+    isError: oppError,
+    refetch: refetchOpp,
+  } = useOpportunity(cached ? undefined : projectId);
   const { data: committedSpend = 0 } = useProjectCommittedSpend(projectId || null);
 
   // A pre-win/lost record's full row comes from the opportunity fetch; map it onto the
@@ -180,6 +185,25 @@ const ProjectDetail: React.FC = () => {
         <>
           <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
           <ListState variant="loading" rows={6} />
+        </>
+      );
+    }
+    // #695: absence cannot be claimed from a FAILED read. A by-id fetch that errored says nothing
+    // about whether the record exists, so it is a load error with Retry - never "not found".
+    if (oppError) {
+      return (
+        <>
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+          <ListState
+            variant="error"
+            title={t('projectDetail.loadError.title', "Couldn't load this project")}
+            sub={t('projectDetail.loadError.sub', 'The request failed. Check your connection and try again.')}
+            retryLabel={t('projectDetail.loadError.retry', 'Retry')}
+            onRetry={() => {
+              void refetchProjects();
+              void refetchOpp();
+            }}
+          />
         </>
       );
     }

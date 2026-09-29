@@ -33,6 +33,9 @@
       "value": {
         "exclusive": "Exclusive — pajak ditambahkan di atas nilai",
         "inclusive": "Inclusive — nilai sudah termasuk pajak"
+      },
+      "loadError": {
+        "title": "Gagal memuat perlakuan pajak default"
       }
     },
     "retry": "Coba lagi",
@@ -1830,6 +1833,11 @@
         "updated": "Work Order diperbarui",
         "valueSet": "Nilai Work Order ditetapkan"
       }
+    },
+    "loadError": {
+      "title": "Gagal memuat proyek ini",
+      "sub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "retry": "Coba lagi"
     }
   },
   "projectForm": {

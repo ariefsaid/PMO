@@ -33,6 +33,9 @@
       "value": {
         "exclusive": "Exclusive — tax is on top of the amount",
         "inclusive": "Inclusive — the amount already includes tax"
+      },
+      "loadError": {
+        "title": "Couldn't load the default tax treatment"
       }
     },
     "retry": "Retry",
@@ -1830,6 +1833,11 @@
         "updated": "Work order updated",
         "valueSet": "Work order value set"
       }
+    },
+    "loadError": {
+      "title": "Couldn't load this project",
+      "sub": "The request failed. Check your connection and try again.",
+      "retry": "Retry"
     }
   },
   "projectForm": {

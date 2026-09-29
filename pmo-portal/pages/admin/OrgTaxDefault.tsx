@@ -6,7 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
-import { useOrgTaxDefault, ORG_TAX_DEFAULT_KEY } from '@/src/hooks/useOrgTaxDefault';
+import { useOrgTaxDefaultQuery, ORG_TAX_DEFAULT_KEY } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 
@@ -35,7 +35,8 @@ const OrgTaxDefault: React.FC = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const current = useOrgTaxDefault();
+  const { data, isError, refetch } = useOrgTaxDefaultQuery();
+  const current = data ?? undefined;
   const taxOptions = useTaxTreatmentOptions();
 
   const mutation = useMutation({
@@ -79,7 +80,15 @@ const OrgTaxDefault: React.FC = () => {
         )}
       </p>
       <div className="mt-3 max-w-md">
-        {current === undefined ? (
+        {isError ? (
+          <ListState
+            variant="error"
+            title={t('admin.taxDefault.loadError.title', "Couldn't load the default tax treatment")}
+            sub={t('admin.loadErrorSub', 'The request failed. Check your connection and try again.')}
+            retryLabel={t('admin.retry', 'Retry')}
+            onRetry={() => void refetch()}
+          />
+        ) : current === undefined ? (
           <ListState variant="loading" rows={1} testId="org-tax-default-loading" />
         ) : canManage ? (
           <SelectField
