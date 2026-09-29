@@ -329,9 +329,10 @@ const Projects: React.FC = () => {
     <ProjectFormModal
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
-        await create.mutateAsync(input);
+        const row = await create.mutateAsync(input);
         toast(t('projects.toast.created', 'Project created'), input.name, 'success');
         setCreateOpen(false);
+        navigate(`/projects/${row.id}`);
       }}
       onError={(err) => {
         const { headline, detail } = classifyMutationError(err);

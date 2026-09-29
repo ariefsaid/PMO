@@ -120,6 +120,12 @@ and mounted panel must agree; a settled Operator panel remains stable during a b
 refresh. The personal integration destination must keep its rail, breadcrumb, and page title aligned
 while remaining distinct from the organization-owned section.
 
+**RIS Admin setup-to-first-project cells (#688):** the route × oracle matrix for `/administration/users`,
+`/administration/integrations`, `/administration/accounting`, `/administration/credits`, `/integrations`,
+`/projects`, `/sales` and `/projects/:id` — with the deciding test per cell and the code-proof vs
+live-RIS-proof split — lives in `docs/specs/ris-admin-route-matrix.spec.md`. Re-derive a cell from its
+cited test, never from this pointer.
+
 **Oracles (one specialist each):** action-completeness ("then what?") · state-coverage
 (loading/empty/error/permission) · data-correctness (numbers/dates/positions) · cross-screen
 consistency · a11y (WCAG-AA) · mobile@390 · job-fit-per-role.

@@ -242,3 +242,56 @@ export async function openPipelineCard(page: Page, dealName: string, within?: Lo
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/, { timeout: 3_000 });
   }).toPass({ timeout: 30_000 });
 }
+
+// -----------------------------------------------------------------------
+// Personal Microsoft 365 card fixtures (read-only: no DB write, edge fn mocked).
+// -----------------------------------------------------------------------
+
+/**
+ * The seed intentionally leaves `m365_integration` disabled. Entitle THIS page only by rewriting the
+ * authenticated `org_features` read — the shared org row is never mutated and the route dies with the
+ * page. Call after signIn and before the navigation that must see the card.
+ */
+export async function grantM365EntitlementFixture(page: Page): Promise<void> {
+  await page.route('**/rest/v1/org_features*', async (route) => {
+    const response = await route.fetch();
+    if (!response.ok()) {
+      await route.fulfill({ response });
+      return;
+    }
+    const rows = (await response.json()) as Array<{ feature_key?: string; enabled?: boolean }>;
+    await route.fulfill({
+      response,
+      json: [
+        ...rows.filter((row) => row.feature_key !== 'm365_integration'),
+        { feature_key: 'm365_integration', enabled: true },
+      ],
+    });
+  });
+}
+
+/**
+ * Answers the personal card's `m365-token-custody` call with a 500 so the card settles on its
+ * "status unknown" state (AC-M365-023) instead of depending on whether edge functions are served —
+ * they are not, in the ordinary lanes (docs/e2e-parallel-conventions.md). Mocked, so a spec using it
+ * stays `read-only`.
+ */
+export async function stubM365StatusUnavailable(page: Page): Promise<void> {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'POST, OPTIONS',
+  };
+  await page.route('**/functions/v1/m365-token-custody', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: cors });
+      return;
+    }
+    await route.fulfill({
+      status: 500,
+      headers: cors,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'INTERNAL_ERROR', message: 'stubbed' }),
+    });
+  });
+}

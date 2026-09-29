@@ -102,4 +102,21 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
       await screen.findByText(/does not restate any existing figure/i),
     ).toBeInTheDocument();
   });
+
+  it('AC-RAM-005: while the new default is being written, the control is disabled so a second change cannot race it', async () => {
+    let finishWrite: () => void = () => {};
+    setTaxDefault.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishWrite = resolve;
+      }),
+    );
+    renderPanel('Admin');
+    await waitFor(() => expect(select().value).toBe('exclusive'));
+
+    await userEvent.selectOptions(select(), 'inclusive');
+    await waitFor(() => expect(select()).toBeDisabled());
+
+    finishWrite();
+    await waitFor(() => expect(select()).toBeEnabled());
+  });
 });
