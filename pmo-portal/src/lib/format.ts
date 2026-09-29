@@ -1,5 +1,5 @@
 import { parseISO, formatDistanceToNow } from 'date-fns';
-import { getDateFnsLocale, getDateLocale, getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveLocale, getDateFnsLocale, getDateLocale, getNumberLocale } from '@/src/lib/locale/activeLocale';
 
 /**
  * The app's SINGLE display-formatting seam (#468/#477, FR-L10N-010/011). Every Intl formatter in
@@ -43,7 +43,7 @@ function dateFormatterFor(
   locale: string,
   opts: Intl.DateTimeFormatOptions,
 ): Intl.DateTimeFormat {
-  const key = `d|${locale}|${shape}`;
+  const key = `d|${locale}|${shape}|${opts.timeZone ?? ''}`;
   let formatter = formatterCache.get(key) as Intl.DateTimeFormat | undefined;
   if (!formatter) {
     formatter = new Intl.DateTimeFormat(locale, opts);
@@ -72,15 +72,226 @@ export function formatCurrency(value: number, currency: string): string {
  * the form can still be silently saved wrong (e.g. a strip-then-parse path turning "1e5" into 15).
  * Routing both through this helper guarantees the value the user is told is valid is the value saved.
  *
- * - strips thousands separators, trims; blank → `null` (caller decides if blank is allowed);
+ * - applies the viewer's decimal/group separators and validates group widths; blank → `null`;
  * - strict `Number()` (so "12x" / "1.2.3" → `null`, unlike `parseFloat` which would yield 12 / 1.2);
  * - does NOT apply a min/sign rule — callers add `>= 0` (optional value) or `> 0` (required qty/rate/total).
  */
-export function parseMoneyInput(raw: string): number | null {
-  const cleaned = raw.replace(/,/g, '').trim();
-  if (cleaned === '') return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
+/**
+ * The decimal and grouping symbols of a number locale (`id-ID` → `,` and `.`; `en-US` → `.` and
+ * `,`). The one place money entry learns a convention, so the parser, the draft mask, and the
+ * input's caret mapping can never disagree about which character is which.
+ */
+export function numberSymbols(locale = getNumberLocale()): { decimal: string; group: string | undefined } {
+  const parts = numberFormatterFor('symbols', locale, undefined, {}).formatToParts(12_345.6);
+  return {
+    decimal: parts.find((part) => part.type === 'decimal')?.value ?? '.',
+    group: parts.find((part) => part.type === 'group')?.value,
+  };
+}
+
+interface ParsedMoneyDraft {
+  value: number;
+  normalized: string;
+}
+
+function parseMoneyDraft(raw: string, locale: string): ParsedMoneyDraft | null {
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+
+  // Keep Number()'s existing machine-number forms: the original money parser deliberately
+  // accepted exponent notation and hexadecimal. These contain no locale separators.
+  if (/^0[xX][0-9a-fA-F]+$/.test(trimmed) || /^0[bB][01]+$/.test(trimmed) || /^0[oO][0-7]+$/.test(trimmed)) {
+    const value = Number(trimmed);
+    // Normalize to decimal so the scale check sees an integer rather than an unparseable token.
+    return Number.isFinite(value) ? { value, normalized: String(value) } : null;
+  }
+
+  const { decimal, group } = numberSymbols(locale);
+
+  const exponentMatch = trimmed.match(/([eE][+-]?\d+)$/);
+  const exponent = exponentMatch?.[0] ?? '';
+  const base = exponent ? trimmed.slice(0, -exponent.length) : trimmed;
+  if (/[eE]/.test(base) || (exponent && !/^[eE][+-]?\d+$/.test(exponent))) return null;
+
+  const sign = /^[+-]/.test(base) ? base[0] : '';
+  const unsigned = sign ? base.slice(1) : base;
+  const decimalParts = unsigned.split(decimal);
+  if (decimalParts.length > 2) return null;
+  const integerPart = decimalParts[0];
+  const fractionPart = decimalParts.length === 2 ? decimalParts[1] : undefined;
+  if (fractionPart !== undefined && !/^\d*$/.test(fractionPart)) return null;
+
+  let integerDigits: string;
+  if (group && integerPart.includes(group)) {
+    const groups = integerPart.split(group);
+    if (
+      groups.length < 2
+      || !/^\d{1,3}$/.test(groups[0])
+      || groups.slice(1).some((chunk) => !/^\d{3}$/.test(chunk))
+    ) return null;
+    integerDigits = groups.join('');
+  } else {
+    if (!/^\d*$/.test(integerPart)) return null;
+    integerDigits = integerPart;
+  }
+
+  if (integerDigits === '' && (fractionPart === undefined || fractionPart === '')) return null;
+  const normalized = `${sign}${integerDigits || '0'}${fractionPart === undefined ? '' : `.${fractionPart}`}${exponent}`;
+  const value = Number(normalized);
+  return Number.isFinite(value) ? { value, normalized } : null;
+}
+
+/**
+ * Parse a user-typed amount using the viewer's number convention. The form boundary passes the
+ * same result through validation and persistence, so a masked draft cannot be validated as one
+ * value and written as another. Blank stays null; sign/minimum rules belong to each caller.
+ */
+export function parseMoneyInput(raw: string, locale = getNumberLocale()): number | null {
+  return parseMoneyDraft(raw, locale)?.value ?? null;
+}
+
+/**
+ * Whether a normalized decimal can be represented at the requested fractional scale without
+ * rounding. Trailing zeros do not consume scale (`1.2300` fits scale 2), and exponent notation is
+ * interpreted exactly from its decimal digits (`1e-2` fits, `1e-3` does not).
+ */
+function fitsMoneyScale(normalized: string, scale: number): boolean {
+  if (!Number.isInteger(scale) || scale < 0) return false;
+  const match = normalized.match(/^[+-]?(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+  if (!match) return false;
+
+  const fraction = match[2] ?? '';
+  const exponent = BigInt(match[3] ?? '0');
+  const coefficient = `${match[1]}${fraction}`;
+  const trailingZeros = coefficient.match(/0+$/)?.[0].length ?? 0;
+  const effectiveScale = BigInt(fraction.length - trailingZeros) - exponent;
+  return effectiveScale <= BigInt(scale);
+}
+
+/** Parse screen input using its viewer convention and reject values that require target rounding. */
+export function parseMoneyInputAtScale(
+  raw: string,
+  scale = 2,
+  locale = getNumberLocale(),
+): number | null {
+  const parsed = parseMoneyDraft(raw, locale);
+  if (!parsed || !fitsMoneyScale(parsed.normalized, scale)) return null;
+  return parsed.value;
+}
+
+/**
+ * Why a money input string at `scale` failed to parse — a genuine SEPARATOR/GROUPING mistake
+ * ('format', e.g. `1,234.56` typed under `id-ID`, or a pasted `1234567.89` whose grouping doesn't
+ * match either convention) versus a value that parses correctly but carries more fractional
+ * digits than the target column can store ('precision', e.g. `1.234` under `en-US` for a
+ * numeric(14,2) field). `null` when the raw string is valid at `scale` (no error at all).
+ *
+ * Both failure modes previously shared one "no more than N decimal places" message, which is
+ * simply WRONG for a format mistake — a user who typed the wrong convention's separators is not
+ * told which separators this screen expects (#684, AC-PLC-010/FR-PLC-010).
+ */
+export type MoneyInputErrorKind = 'format' | 'precision';
+
+export function moneyInputErrorKind(
+  raw: string,
+  scale = 2,
+  locale = getNumberLocale(),
+): MoneyInputErrorKind | null {
+  if (!raw.trim()) return null;
+  const parsed = parseMoneyDraft(raw, locale);
+  if (!parsed) return 'format';
+  return fitsMoneyScale(parsed.normalized, scale) ? null : 'precision';
+}
+
+/**
+ * The import convention: dot decimal with optional correctly placed ASCII comma grouping. It is
+ * the `en-US` grammar by definition, pinned here so a viewer's display preference can never change
+ * how a spreadsheet/CSV cell is read.
+ */
+const NEUTRAL_NUMBER_LOCALE = 'en-US';
+
+function parseNeutralMoneyDraft(raw: string): ParsedMoneyDraft | null {
+  return parseMoneyDraft(raw, NEUTRAL_NUMBER_LOCALE);
+}
+
+/** Locale-independent decimal parser for neutral imports. */
+export function parseNeutralMoneyInput(raw: string): number | null {
+  return parseNeutralMoneyDraft(raw)?.value ?? null;
+}
+
+/**
+ * DD-I18N-10 — binary float noise from a spreadsheet formula cell is not user precision.
+ * `=1234.5+0.06` reaches the importer as `1234.5600000000002` (the double's shortest round-trip
+ * string). A value within max(ABS, REL × |value|) of a value at the target scale snaps to it.
+ * ABS covers small amounts generously; REL (≈2.25 machine epsilons, i.e. 2–4.5 ULPs) covers large
+ * ones, where one formula's noise already exceeds any flat bound (`=10000000.1*3` is 3.7e-9 off).
+ * At the numeric(14,2) ceiling (|value| < 1e12) REL × |value| < 5e-4, well under the ~0.001 a
+ * genuine third decimal sits from its nearest cent — so `1234.567` is still rejected.
+ */
+const IMPORT_FLOAT_NOISE_ABS = 1e-9;
+const IMPORT_FLOAT_NOISE_REL = 5e-16;
+
+function snapImportFloatNoise(value: number, scale: number): number | null {
+  if (!Number.isInteger(scale) || scale < 0) return null;
+  const factor = 10 ** scale;
+  const snapped = Math.round(value * factor) / factor;
+  const tolerance = Math.max(IMPORT_FLOAT_NOISE_ABS, Math.abs(value) * IMPORT_FLOAT_NOISE_REL);
+  if (!Number.isFinite(snapped) || Math.abs(value - snapped) > tolerance) return null;
+  // `+ 0` folds a negative-zero snap (a tiny negative residue) to a clean 0.
+  return snapped + 0;
+}
+
+/**
+ * Locale-independent import parser with a target fractional-scale guard. A value that fits the
+ * scale exactly is returned as parsed; otherwise only float noise (DD-I18N-10) is accepted,
+ * normalised to the scale value. On-screen entry never gets this tolerance.
+ */
+export function parseNeutralMoneyInputAtScale(raw: string, scale = 2): number | null {
+  const parsed = parseNeutralMoneyDraft(raw);
+  if (!parsed) return null;
+  if (fitsMoneyScale(parsed.normalized, scale)) return parsed.value;
+  return snapImportFloatNoise(parsed.value, scale);
+}
+
+/**
+ * Group a valid in-progress money draft without changing its decimal digits or interpreting an
+ * unfinished decimal as a completed integer. Invalid drafts stay visible for validation to report.
+ */
+export function formatMoneyInputDraft(raw: string, locale = getNumberLocale()): string {
+  if (!raw || raw.trim() !== raw || /[eE]/.test(raw)) return raw;
+  const { decimal, group } = numberSymbols(locale);
+  const partialDecimal = raw === decimal || raw === `+${decimal}` || raw === `-${decimal}`;
+  if (partialDecimal) return raw;
+
+  const parsed = parseMoneyDraft(raw, locale);
+  if (!parsed || /^[-+]?0[xbo]/i.test(raw)) return raw;
+
+  const sign = /^[+-]/.test(raw) ? raw[0] : '';
+  const unsigned = sign ? raw.slice(1) : raw;
+  const decimalParts = unsigned.split(decimal);
+  if (decimalParts.length > 2) return raw;
+  const integerPart = decimalParts[0];
+  const fractionPart = decimalParts.length === 2 ? decimalParts[1] : undefined;
+  const integerDigits = group ? integerPart.split(group).join('') : integerPart;
+  if (!/^\d*$/.test(integerDigits) || (fractionPart !== undefined && !/^\d*$/.test(fractionPart))) return raw;
+
+  const groupedInteger = group
+    ? integerDigits.replace(/\B(?=(\d{3})+(?!\d))/g, group)
+    : integerDigits;
+  const leadingZero = groupedInteger === '' && fractionPart !== undefined ? '0' : groupedInteger;
+  return `${sign}${leadingZero}${fractionPart === undefined ? '' : `${decimal}${fractionPart}`}`;
+}
+
+/**
+ * Seed an edit draft from a stored number in the viewer's convention, so re-saving an untouched
+ * value reads back the same number (`1234.5` → `1.234,5` under `id-ID`). The number's shortest
+ * round-trip decimal form is the source, never `Intl` fraction rounding; exponent forms (far
+ * outside money magnitudes) stay machine-readable as-is.
+ */
+export function formatMoneyInputValue(value: number, locale = getNumberLocale()): string {
+  const neutral = String(value);
+  if (!/^-?\d+(\.\d+)?$/.test(neutral)) return neutral;
+  return formatMoneyInputDraft(neutral.replace('.', numberSymbols(locale).decimal), locale);
 }
 
 /** Format a nullable % value: null → '—'; numeric → '{rounded}%'. */
@@ -121,6 +332,134 @@ export function formatDate(iso: string | null | undefined): string {
   const parsed = parseISO(iso);
   if (Number.isNaN(parsed.getTime())) return '—';
   return dateFormatter().format(parsed);
+}
+
+function parseDateOnly(iso: string | null | undefined): Date | null {
+  if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const parsed = parseISO(iso);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function parseInstant(iso: string | null | undefined): Date | null {
+  if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(iso)) return null;
+  const parsed = parseISO(iso);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** Calendar date stored as `YYYY-MM-DD`; personal timezone never shifts the value. */
+export function formatDateOnly(iso: string | null | undefined): string {
+  const parsed = parseDateOnly(iso);
+  return parsed ? dateFormatter().format(parsed) : '—';
+}
+
+/** Numeric calendar date stored as `YYYY-MM-DD`; personal timezone never shifts the value. */
+export function formatDateOnlyNumeric(iso: string | null | undefined): string {
+  const parsed = parseDateOnly(iso);
+  if (!parsed) return '—';
+  return dateFormatterFor('dateOnlyNumeric', getDateLocale(), {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(parsed);
+}
+
+/** Calendar date derived from an ISO instant, interpreted in the viewer's resolved timezone. */
+export function formatInstantDate(iso: string | null | undefined): string {
+  const parsed = parseInstant(iso);
+  if (!parsed) return '—';
+  const timezone = getActiveLocale().timezone;
+  return dateFormatterFor('instantDate', getDateLocale(), { ...DATE_OPTS, timeZone: timezone }).format(parsed);
+}
+
+/** Numeric calendar date derived from an ISO instant in the viewer's resolved timezone. */
+export function formatInstantDateNumeric(iso: string | null | undefined): string {
+  const parsed = parseInstant(iso);
+  if (!parsed) return '—';
+  const timezone = getActiveLocale().timezone;
+  return dateFormatterFor('instantDateNumeric', getDateLocale(), {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: timezone,
+  }).format(parsed);
+}
+
+// ── Wall-clock <-> instant, for `<input type="datetime-local">` (#684, FR-PLC-006, AC-PLC-005) ──
+//
+// ⛔ Before #684 a meeting's edit form formatted its `occurred_at` with the PROCESS/BROWSER
+// timezone (`toDatetimeLocalValue(new Date(iso))`) while the header displayed it in the resolved
+// PROFILE timezone above — a user whose profile zone differs from their device's OS zone saw one
+// wall time in the header and a different one in the edit field, and saving an "unedited" value
+// silently shifted the meeting's instant. Both directions below default to the SAME
+// `getActiveLocale().timezone` the instant formatters above read, so prefill, "now", and submit
+// all agree; a caller may still pass an explicit zone (tests; a future non-active-locale use).
+//
+// No timezone-database dependency: `Intl.DateTimeFormat` already carries the IANA tz database.
+// Instant -> wall time is a direct `formatToParts` read; wall time -> instant uses the standard
+// two-pass UTC-offset lookup (the same technique `date-fns-tz`/`luxon` use) so it converges
+// correctly across a DST transition.
+
+interface WallTimeParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+}
+
+function readWallTimeParts(instant: Date, timeZone: string, withSeconds: boolean): WallTimeParts {
+  const parts = dateFormatterFor(withSeconds ? 'wallTimeSec' : 'wallTime', 'en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(withSeconds ? { second: '2-digit' as const } : {}),
+  }).formatToParts(instant);
+  const map: Record<string, string> = {};
+  for (const part of parts) if (part.type !== 'literal') map[part.type] = part.value;
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    second: withSeconds ? Number(map.second) : 0,
+  };
+}
+
+/** The UTC offset (ms) in effect for `instant` in `timeZone`; positive when the zone is ahead of UTC. */
+function wallTimeOffsetMs(instant: Date, timeZone: string): number {
+  const p = readWallTimeParts(instant, timeZone, true);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - instant.getTime();
+}
+
+/** Format an instant as the wall-clock value a `datetime-local` input shows, in `timeZone`. */
+export function instantToZonedDatetimeLocal(instant: Date, timeZone = getActiveLocale().timezone): string {
+  const p = readWallTimeParts(instant, timeZone, false);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`;
+}
+
+const DATETIME_LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+/**
+ * Parse a `datetime-local` value as wall-clock time IN `timeZone`, returning the instant it names.
+ * `null` for a malformed value. Two offset lookups converge on the correct instant either side of
+ * a DST transition (the literal skipped/repeated hour is inherently ambiguous for any converter).
+ */
+export function zonedDatetimeLocalToInstant(value: string, timeZone = getActiveLocale().timezone): Date | null {
+  const match = DATETIME_LOCAL_RE.exec(value);
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s] = match;
+  const guessMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? '0'));
+  const firstOffset = wallTimeOffsetMs(new Date(guessMs), timeZone);
+  const secondOffset = wallTimeOffsetMs(new Date(guessMs - firstOffset), timeZone);
+  return new Date(guessMs - secondOffset);
 }
 
 /**
@@ -190,6 +529,17 @@ export function formatNumberMax2(value: number): string {
   }).format(value);
 }
 
+/**
+ * A number with every meaningful fraction digit its shortest round-trip form carries, grouped in
+ * the viewer's convention (credits balance: `737.123456` stays `737.123456`, not `737.12`).
+ */
+export function formatNumberExact(value: number): string {
+  const fraction = /\.(\d+)$/.exec(String(value))?.[1].length ?? 0;
+  return numberFormatterFor(`exact${fraction}`, getNumberLocale(), undefined, {
+    maximumFractionDigits: Math.min(fraction, 20),
+  }).format(value);
+}
+
 // ── Date display variants (all Date-in; construction stays at call sites) ──────────────────
 
 /** "Jun 14" — short month + day. */
@@ -209,12 +559,14 @@ export function formatFullDate(d: Date): string {
 
 /** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
 export function formatDateTime(d: Date): string {
+  const timezone = getActiveLocale().timezone;
   return dateFormatterFor('dateTime', getDateLocale(), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: timezone,
   }).format(d);
 }
 

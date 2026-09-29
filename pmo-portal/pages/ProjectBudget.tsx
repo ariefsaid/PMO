@@ -2,7 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
+import {
+  formatCurrency,
+  formatMoneyInputValue,
+  parseMoneyInputAtScale,
+} from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   Button,
@@ -12,6 +16,7 @@ import {
   TableFoot,
   ConfirmDialog,
   useToast,
+  NumberField,
 } from '@/src/components/ui';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
@@ -89,6 +94,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState('');
+  const [newAmountError, setNewAmountError] = useState<string | null>(null);
   // ⚑ FR-BFY-060 — free TEXT, not a select. The valid values are another system's calendar (the
   // client's ERPNext `Fiscal Year` names), which the write path cannot reach; the years this project
   // has already touched are offered as SUGGESTIONS via a datalist, but a year the project is only now
@@ -112,7 +118,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     setEditingId(li.id);
     setEditCategory(li.category as Enums<'budget_category'>);
     setEditDesc(li.description ?? '');
-    setEditAmount(String(Number(li.budgeted_amount)));
+    setEditAmount(formatMoneyInputValue(Number(li.budgeted_amount)));
     setEditFiscalYear(li.fiscal_year ?? '');
     setEditAmountError(null);
   };
@@ -123,10 +129,10 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   };
 
   const handleSaveEdit = async (li: BudgetLineItemRow) => {
-    // Validate using parseMoneyInput (F3/F4 pattern: validate == persist)
-    const parsed = parseMoneyInput(editAmount);
+    // Validate with the same locale-aware, storage-scale parser used for the write.
+    const parsed = parseMoneyInputAtScale(editAmount, 2);
     if (parsed === null) {
-      setEditAmountError('Enter a valid amount');
+      setEditAmountError('Enter a valid amount with no more than 2 decimal places');
       return;
     }
     if (parsed <= 0) {
@@ -151,8 +157,17 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   };
 
   const handleAdd = async () => {
-    const amount = parseMoneyInput(newAmount);
-    if (!newCategory || amount === null || amount <= 0) return;
+    const amount = parseMoneyInputAtScale(newAmount, 2);
+    if (!newCategory) return;
+    if (amount === null) {
+      setNewAmountError('Enter a valid amount with no more than 2 decimal places');
+      return;
+    }
+    if (amount <= 0) {
+      setNewAmountError('Amount must be greater than 0');
+      return;
+    }
+    setNewAmountError(null);
     // B-0.6: wrap in try/catch → surface failure via onSaveError (no silent no-op).
     try {
       await onCreateLineItem({
@@ -164,6 +179,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
       setAdding(false);
       setNewDesc('');
       setNewAmount('');
+      setNewAmountError(null);
       setNewFiscalYear('');
     } catch (err) {
       onSaveError?.(err);
@@ -250,32 +266,21 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex flex-col items-end gap-0.5">
-                    <label htmlFor={`edit-amount-${li.id}`} className="sr-only">
-                      Amount
-                    </label>
-                    <input
+                    {/* NumberField owns the (visually hidden) label — a second <label> here doubled
+                        the accessible name to "Amount Amount". */}
+                    <NumberField
                       id={`edit-amount-${li.id}`}
-                      type="text"
-                      inputMode="decimal"
-                      aria-label="Amount"
-                      aria-describedby={editAmountError ? `edit-amount-error-${li.id}` : undefined}
-                      aria-invalid={editAmountError ? 'true' : undefined}
+                      label="Amount"
+                      hideLabel
                       value={editAmount}
-                      onChange={(e) => {
-                        setEditAmount(e.target.value);
+                      onChange={(value) => {
+                        setEditAmount(value);
                         setEditAmountError(null);
                       }}
-                      className={`${fieldCls} w-28 text-right tabular${editAmountError ? ' border-destructive' : ''}`}
+                      error={editAmountError ?? undefined}
+                      localeAware
+                      className="w-28"
                     />
-                    {editAmountError && (
-                      <span
-                        id={`edit-amount-error-${li.id}`}
-                        role="alert"
-                        className="text-[11px] text-destructive"
-                      >
-                        {editAmountError}
-                      </span>
-                    )}
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular text-muted-foreground">
@@ -401,14 +406,18 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 </datalist>
               </td>
               <td className="px-3 py-2 text-right">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  aria-label="Line item amount"
+                <NumberField
+                  label="Line item amount"
+                  hideLabel
                   placeholder="Amount"
                   value={newAmount}
-                  onChange={(e) => setNewAmount(e.target.value)}
-                  className={`${fieldCls} w-28 text-right tabular`}
+                  onChange={(value) => {
+                    setNewAmount(value);
+                    setNewAmountError(null);
+                  }}
+                  error={newAmountError ?? undefined}
+                  localeAware
+                  className="w-28"
                 />
               </td>
               <td />
@@ -427,7 +436,10 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setAdding(false)}
+                  onClick={() => {
+                    setAdding(false);
+                    setNewAmountError(null);
+                  }}
                   disabled={createIsPending}
                 >
                   Cancel
@@ -447,7 +459,15 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         </span>
       </TableFoot>
       {!adding && (
-        <Button variant="ghost" size="sm" onClick={() => setAdding(true)} className="mt-2 text-primary">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setNewAmountError(null);
+            setAdding(true);
+          }}
+          className="mt-2 text-primary"
+        >
           + Add line item
         </Button>
       )}

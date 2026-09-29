@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import ProjectDetailHeader from '../ProjectDetailHeader';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -77,6 +78,7 @@ const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHan
 };
 
 beforeEach(() => {
+  setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
   Object.values(projectMutations).forEach((m) => {
     m.mutateAsync.mockReset();
@@ -84,6 +86,7 @@ beforeEach(() => {
     m.isPending = false;
   });
 });
+afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
   it('renders the project name + StatusPill + customer + mono code + Customer PO ref (AC-G)', () => {
@@ -265,6 +268,40 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
         value: 5140000,
         taxTreatment: 'exclusive',
         taxAmount: 565400,
+      }),
+    );
+  });
+
+  it('AC-PLC-009: does not open SoD confirmation for an en-US value with excess precision', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    await userEvent.clear(screen.getByRole('textbox', { name: /Contract value/i }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Contract value/i }), '1.234');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '0');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: records id-ID grouped contract value as 1234 after SoD confirmation', async () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    await userEvent.clear(screen.getByRole('textbox', { name: /Contract value/i }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Contract value/i }), '1.234');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '0');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    const confirm = await screen.findByRole('dialog');
+    await userEvent.click(within(confirm).getByRole('button', { name: /record/i }));
+
+    await waitFor(() =>
+      expect(projectMutations.setContractValue.mutateAsync).toHaveBeenCalledWith({
+        id: 'p1', value: 1234, taxTreatment: 'exclusive', taxAmount: 0,
       }),
     );
   });

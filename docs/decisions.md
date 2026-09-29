@@ -2726,3 +2726,37 @@ with no v16 break. Consequences: `SUPPORTED_VERSION_MAJORS = [15, 16]` (shipped 
 RIS target, 15 stays supported for the local dev bed until it is re-provisioned (a chore, not a gate). The v16-only
 delta observed: the Company doctype no longer carries `default_bank_account` (activation maps it to "no default";
 the payment-entry body falls back to the cash account). `DD-OPS-2`'s v15 pin is superseded for the target.
+
+## DD-I18N-10 — a spreadsheet's binary float noise imports as its cent value; a third decimal is still refused (Director, 2026-09-28)
+
+**[DD-I18N-10]** Raised in #684. The neutral import parser (`parseNeutralMoneyInputAtScale`, used by the
+budget, project and procurement-cycle imports and by imported tax facts) refuses a value its scale-2 target
+cannot store, so a `1.234` cell never silently becomes `1.23`. But a spreadsheet **formula** cell reaches the
+importer as the shortest round-trip string of a binary double: `=1234.5+0.06` arrives as `1234.5600000000002`.
+That tail is float arithmetic, not a digit anyone typed, and refusing it made an ordinary summed sheet fail
+to import with a precision error the user cannot see in their own cell.
+
+**The rule.** An imported value that does not fit the target scale exactly is accepted **only** when it lies
+within `max(1e-9, 5e-16 × |value|)` of a value at that scale, and it is then **normalised to that value** — the
+written number is `1234.56`, never the noisy double. Anything further away is still refused before any write.
+
+- **Why a relative arm, not a flat 1e-9.** One formula's noise grows with magnitude: `=10000000.1*3` is
+  `30000000.299999997`, 3.7e-9 from 30000000.30 — past any flat bound small enough to be safe. `5e-16 × |value|`
+  is about 2.25 machine epsilons (2–4.5 units in the last place), enough for a short formula's accumulated
+  rounding; a sheet whose noise exceeds it (a very long running sum) is refused, which is the fail-closed side.
+- **What is guaranteed: a third decimal is refused.** Every money column is `numeric(14,2)`, so |value| < 1e12
+  and the tolerance stays below 5e-4, while a genuine third decimal sits at least ~0.00088 from its nearest cent
+  even after double rounding at that ceiling. `1234.567` and `999999999999.991` are both still refused.
+- **What is not guaranteed: a fourth or later decimal.** The tolerance is the same size as those digits, so they
+  are refused only while they exceed it. A digit within the absolute arm (10th decimal onward, e.g.
+  `1234.5600000001`) is absorbed at any magnitude, and a fourth decimal is absorbed once `5e-16 × |value|`
+  reaches it — `300000000000.0001` imports as `300000000000.00`, while `100000000000.0001` and `1234.5601` are
+  refused. At that magnitude a double cannot resolve a fourth decimal reliably anyway (its spacing near 1e12 is
+  ~1.2e-4), so the snapped cent value is the closest faithful reading of the cell.
+- **Imports only.** On-screen money entry keeps exact-scale validation (DD-I18N-3/6): there every digit is one the
+  user typed, so `1234.5600000000002` typed into a form is refused.
+
+Proof: `src/lib/format.moneyPrecision.test.ts` (noise snapped under both viewer locales; genuine precision
+refused across the range) and the budget import test (the written line item carries `1234.56`). Mutation-checked:
+widening the absolute bound to 0.01, or raising the relative bound to 1e-14, turns the refusal tests red; setting
+the relative bound to 0 turns the large-magnitude noise test red.

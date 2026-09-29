@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, SelectField, useToast } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
-import { formatDate } from '@/src/lib/format';
+import { formatDateOnly } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 
@@ -198,7 +198,7 @@ const MyTasks: React.FC = () => {
                           {task.start_date && (
                             <span>
                               {t('myTasks.start', 'Start {{date}}', {
-                                date: formatDate(task.start_date),
+                                date: formatDateOnly(task.start_date),
                               })}
                             </span>
                           )}
@@ -206,7 +206,7 @@ const MyTasks: React.FC = () => {
                           {task.end_date && (
                             <span>
                               {t('myTasks.due', 'Due {{date}}', {
-                                date: formatDate(task.end_date),
+                                date: formatDateOnly(task.end_date),
                               })}
                             </span>
                           )}

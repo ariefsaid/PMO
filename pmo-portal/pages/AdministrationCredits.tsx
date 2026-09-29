@@ -7,6 +7,7 @@ import {
   EntityFormModal,
   type SubmitError,
   FormSection,
+  NumberField,
   TextField,
   ListState,
   SectionHeader,
@@ -15,7 +16,7 @@ import {
 } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatNumberMax2 } from '@/src/lib/format';
+import { formatNumberExact, parseMoneyInput } from '@/src/lib/format';
 
 /**
  * Administration › Credits section (ops-admin-surface S6, FR-CRE-002/005, AC-CRE-004 Unit shape).
@@ -42,14 +43,22 @@ interface GrantFormValues {
   note: string;
 }
 
+/**
+ * #684 (AC-PLC-009): the grant amount is read in the viewer's number convention by the ONE strict
+ * parse that also produces the granted number. Credits are stored as unrestricted `numeric`, so no
+ * decimal-scale limit applies — only a finite value greater than zero is accepted.
+ */
+function parseGrantAmount(raw: string): number | null {
+  const n = parseMoneyInput(raw);
+  return n !== null && n > 0 ? n : null;
+}
+
 const validateGrant = (v: GrantFormValues): Partial<Record<keyof GrantFormValues, string>> => {
   const errors: Partial<Record<keyof GrantFormValues, string>> = {};
-  const amount = v.amount.trim();
-  if (!amount) {
+  if (!v.amount.trim()) {
     errors.amount = 'Amount is required.';
-  } else {
-    const n = Number(amount);
-    if (!Number.isFinite(n) || n <= 0) errors.amount = 'Grant amount must be positive.';
+  } else if (parseGrantAmount(v.amount) === null) {
+    errors.amount = 'Grant amount must be positive.';
   }
   return errors;
 };
@@ -121,7 +130,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
           <span className="text-[13px] text-muted-foreground">Org balance</span>
           <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
-            {formatNumberMax2(balanceQuery.data)}{' '}
+            {formatNumberExact(balanceQuery.data)}{' '}
             <span className="text-[13px] font-semibold text-muted-foreground">credits</span>
           </span>
         </div>
@@ -165,7 +174,10 @@ const GrantFormModal: React.FC<{
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit((values) => {
-      onSubmit(Number(values.amount.trim()), values.note.trim());
+      const amount = parseGrantAmount(values.amount);
+      // Unreachable after `validateGrant`, which applies the same parse.
+      if (amount === null) return;
+      onSubmit(amount, values.note.trim());
     });
   };
 
@@ -183,11 +195,10 @@ const GrantFormModal: React.FC<{
       errorSummary={errorSummary}
     >
       <FormSection legend="Grant details">
-        <TextField
+        <NumberField
           id={amountField.id}
           label="Amount"
-          type="number"
-          inputMode="decimal"
+          localeAware
           required
           value={amountField.value}
           onChange={amountField.onChange}

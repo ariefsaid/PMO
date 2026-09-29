@@ -29,8 +29,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { formatDateTime } from '@/src/lib/format';
-import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
+import { formatDateTime, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { MeetingWithRefs, MeetingInput } from '@/src/lib/db/meetings';
 
 /**
@@ -56,6 +55,10 @@ const makeValidate =
     const errors: Partial<Record<keyof FormValues, string>> = {};
     if (!v.title.trim())
       errors.title = t('meetings.form.errors.titleRequired', 'Meeting title is required.');
+    // A meeting's time is required (#684): a cleared or unparseable "When" must block the save,
+    // never silently default — `zonedDatetimeLocalToInstant` returns null for both cases.
+    if (!zonedDatetimeLocalToInstant(v.occurredAt))
+      errors.occurredAt = t('meetings.form.errors.whenInvalid', 'Enter a valid date and time.');
     return errors;
   };
 
@@ -411,7 +414,7 @@ const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
   const form = useEntityForm<FormValues>({
     initialValues: {
       title: '',
-      occurredAt: toDatetimeLocalValue(new Date()),
+      occurredAt: instantToZonedDatetimeLocal(new Date()),
       location: '',
       projectId: '',
     },
@@ -428,16 +431,20 @@ const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
 
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
-  const errorSummary = form.errors.title
-    ? [{ fieldId: titleField.id, message: form.errors.title }]
-    : undefined;
+  const errorSummary = [
+    form.errors.title ? { fieldId: titleField.id, message: form.errors.title } : null,
+    form.errors.occurredAt ? { fieldId: occurredField.id, message: form.errors.occurredAt } : null,
+  ].filter((item): item is { fieldId: string; message: string } => item !== null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
+      // `validate` already blocked submit when this is null (#684) — never reached with a
+      // cleared/unparseable value.
+      const instant = zonedDatetimeLocalToInstant(values.occurredAt)!;
       const input: MeetingInput = {
         title: values.title.trim(),
-        occurred_at: values.occurredAt ? new Date(values.occurredAt).toISOString() : undefined,
+        occurred_at: instant.toISOString(),
         location: values.location.trim() || null,
         project_id: values.projectId || null,
       };
@@ -489,6 +496,7 @@ const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
             value={occurredField.value}
             onChange={occurredField.onChange}
             onBlur={occurredField.onBlur}
+            error={occurredField.error}
           />
           <TextField
             id={locationField.id}

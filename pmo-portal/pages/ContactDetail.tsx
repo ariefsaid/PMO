@@ -30,7 +30,7 @@ import { useContact, useContactActivities, useContactMeetings, useContactMutatio
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDate } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { ContactInput } from '@/src/lib/db/contacts';
@@ -327,7 +327,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
 const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatDate(iso);
+  return formatInstantDate(iso);
 };
 
 /** Returns the route to the related object for an activity, or null when neither id is set.

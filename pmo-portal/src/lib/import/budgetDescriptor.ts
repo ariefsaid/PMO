@@ -1,4 +1,5 @@
 import { repositories } from '@/src/lib/repositories';
+import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import { Constants } from '@/src/lib/supabase/database.types';
 import type { BudgetLineItemRow } from '@/src/lib/db/budgets';
 import { type ImportDescriptor, IMPORT_SKIPPED } from './types';
@@ -52,6 +53,23 @@ export function computeBudgetLineImportKey(cells: {
 /** 0195's partial unique index turns a concurrent duplicate into 23505 — that is a skip, not a failure. */
 function isUniqueViolation(err: unknown): boolean {
   return (err as { code?: unknown })?.code === '23505';
+}
+
+/**
+ * #684 (AC-PLC-009): `budgeted_amount` is numeric(14,2), read with the NEUTRAL import parser — the
+ * file's own dot-decimal convention with optional comma grouping, independent of the viewer's
+ * display preference. The same parse validates the cell and produces the written number.
+ */
+function parseBudgetedAmount(raw: string): number | null {
+  return parseNeutralMoneyInputAtScale(raw, 2);
+}
+
+function requireBudgetedAmount(raw: string): number {
+  const n = parseBudgetedAmount(raw);
+  // Only validated rows reach `toInput`; refusing here keeps an unparseable cell from ever
+  // becoming a NaN write if that contract is broken.
+  if (n === null) throw new Error('Budgeted amount is not a valid amount.');
+  return n;
 }
 
 /**
@@ -116,10 +134,10 @@ export function makeBudgetImportDescriptor(
         label: 'Budgeted amount',
         required: true,
         validate: (raw) => {
-          const n = Number(raw.trim());
-          return raw.trim() && Number.isFinite(n) && n >= 0
+          const n = parseBudgetedAmount(raw);
+          return n !== null && n >= 0
             ? null
-            : 'Budgeted amount must be a non-negative number.';
+            : 'Budgeted amount must be a non-negative number with no more than 2 decimal places.';
         },
       },
       { key: 'description', label: 'Description', required: false, validate: () => null },
@@ -130,7 +148,7 @@ export function makeBudgetImportDescriptor(
       projectId: refId(project, cells.projectId ?? '') ?? '',
       category: cells.category.trim() as BudgetCategory,
       description: cells.description?.trim() || null,
-      budgetedAmount: Number(cells.budgetedAmount.trim()),
+      budgetedAmount: requireBudgetedAmount(cells.budgetedAmount),
       // FR-BFY-060: an omitted year stays NULL (un-phased) — PMO never invents another system's
       // calendar name.
       fiscalYear: cells.fiscalYear?.trim() || null,

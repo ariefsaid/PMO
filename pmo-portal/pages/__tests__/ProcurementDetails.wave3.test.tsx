@@ -7,7 +7,7 @@
  * AC-W3-O3  — "Mark Vendor Invoiced" opens an inline capture that performs the
  *             transition + VI-create together; cancel leaves status unchanged.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // OD-TAX-1 (#548): the inline VI capture PRE-SELECTS the org's `default_tax_treatment`. Only the
 // org READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so the real
@@ -21,6 +21,12 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
+
+afterEach(() => resetActiveLocale());
 
 // ---------------------------------------------------------------------------
 // Shared mutable hook state
@@ -343,6 +349,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
   beforeEach(() => {
     mockEffectiveRole = 'Finance';
     orgDefault.value = 'exclusive';
+    setActiveLocale(EN_LOCALE);
     mockTransition.mockClear().mockResolvedValue(undefined);
     mockCreateInvoice.mockClear().mockResolvedValue({ id: 'i-new', vi_number: 'VI-001' });
     // harden #2: the capture now goes through the ONE atomic RPC (transition + invoice + event).
@@ -423,6 +430,39 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     });
     expect(mockTransition).not.toHaveBeenCalled();
     expect(mockCreateInvoice).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: rejects en-US vendor-invoice amount with excess precision before the atomic write', async () => {
+    setActiveLocale(EN_LOCALE);
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/amount|decimal/i);
+    expect(mockCaptureVendorInvoice).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: passes id-ID grouped vendor-invoice amount as 1234 to the atomic write', async () => {
+    setActiveLocale(ID_LOCALE);
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
+
+    await waitFor(() => expect(mockCaptureVendorInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 1234, taxAmount: 0 }),
+    ));
   });
 
   it('AC-W3-O3: cancelling the inline capture leaves the status unchanged (no transition, no VI-create)', async () => {

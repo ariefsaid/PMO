@@ -26,7 +26,7 @@
  * OWN treatment via `TaxBasisLabel`.
  */
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
-import { parseMoneyInput } from '@/src/lib/format';
+import { parseMoneyInputAtScale, parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 
 /**
  * The two-value domain, phrased as the question the user is actually answering. The DB CHECK is
@@ -54,21 +54,34 @@ export interface ParsedTaxFacts {
  * (0196/0197's column comments). Callers use `parseTaxFacts(...) === null` as the submit-disabled
  * predicate AND as the guard at submit time, so the two can never disagree.
  *
- * The amount goes through `parseMoneyInput` — "the single parse used for BOTH validation and
- * persistence" (format.ts) — rather than a local `Number()` parse, so this field can never diverge
- * from every other money field in the app (the #468 locale defect is fixed once, in format.ts, and
- * is not re-introduced here).
+ * The on-screen amount goes through the shared locale-aware scale-2 parser — "the single parse used
+ * for BOTH validation and persistence" (format.ts) — rather than a local `Number()` parse. Imports
+ * use the separately named neutral parser so viewer preferences cannot change file interpretation.
  */
-export function parseTaxFacts(treatmentRaw: string, amountRaw: string): ParsedTaxFacts | null {
+function parseTaxFactsWith(
+  treatmentRaw: string,
+  amountRaw: string,
+  parseAmount: (raw: string) => number | null,
+): ParsedTaxFacts | null {
   // ⚑ TRIMMED, because everything else on this path is: the importer trims, the RPCs `btrim`, and
   // the DB CHECK is exact. An untrimmed match here made `' exclusive '` acceptable to the importer
   // and the RPC but not to this predicate — three postures for one domain value, in the module whose
   // whole job is that there is only one.
   const treatment = TAX_TREATMENT_OPTIONS.find((o) => o.value === treatmentRaw.trim())?.value;
   if (!treatment) return null;
-  const taxAmount = parseMoneyInput(amountRaw);
+  const taxAmount = parseAmount(amountRaw);
   if (taxAmount === null || taxAmount < 0) return null;
   return { taxTreatment: treatment, taxAmount };
+}
+
+/** Parses an on-screen tax amount using the viewer's number convention and scale-2 target. */
+export function parseTaxFacts(treatmentRaw: string, amountRaw: string): ParsedTaxFacts | null {
+  return parseTaxFactsWith(treatmentRaw, amountRaw, (raw) => parseMoneyInputAtScale(raw, 2));
+}
+
+/** Parses neutral imported tax facts using dot decimals regardless of the viewer's locale. */
+export function parseNeutralTaxFacts(treatmentRaw: string, amountRaw: string): ParsedTaxFacts | null {
+  return parseTaxFactsWith(treatmentRaw, amountRaw, (raw) => parseNeutralMoneyInputAtScale(raw, 2));
 }
 
 /**

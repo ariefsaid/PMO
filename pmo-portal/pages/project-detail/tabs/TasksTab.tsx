@@ -32,7 +32,7 @@ import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/u
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
-import { formatDate } from '@/src/lib/format';
+import { formatDateOnly } from '@/src/lib/format';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
@@ -342,7 +342,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       header: t('projectDetail.tasks.column.due', 'Due'),
       cell: (t) =>
         t.end_date ? (
-          <span className="tabular text-muted-foreground">{formatDate(t.end_date)}</span>
+          <span className="tabular text-muted-foreground">{formatDateOnly(t.end_date)}</span>
         ) : (
           <span className="text-muted-foreground">—</span>
         ),

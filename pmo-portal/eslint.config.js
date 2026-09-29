@@ -71,7 +71,8 @@ export default tseslint.config(
   // toLocaleString / toLocaleDateString / new Intl.* hardcode or imply a locale and bypass the
   // single formatting seam (#468). Exempt: format.ts itself (the seam), the export path (typed
   // cells, DD-I18N-4 — a formatted string in a spreadsheet cell corrupts data), and tests.
-  // ProjectDetailHeader.tsx:67 (masked money input, owned by #468) carries a line-scoped disable.
+  // src/lib/locale/timezones.ts carries a line-scoped disable: it constructs a DateTimeFormat only
+  // to VALIDATE an IANA zone id, never to format.
   {
     files: ['**/*.{ts,tsx}'],
     ignores: [

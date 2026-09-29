@@ -7,7 +7,7 @@
  *   - the PRESERVED data-testids the unit + e2e BDD layer keys off
  *   - VI status options exclude Paid (N1)
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // OD-TAX-1 (#548): the VI capture form PRE-SELECTS the org's `default_tax_treatment`. Only the org
 // READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so what runs below
@@ -21,12 +21,18 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
 
 beforeEach(() => {
   orgDefault.value = 'exclusive';
+  setActiveLocale(EN_LOCALE);
 });
+afterEach(() => resetActiveLocale());
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { RecordCaptureForm, RecordCaptureTrigger } from './RecordCaptureForm';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 function renderForm(props: Partial<React.ComponentProps<typeof RecordCaptureForm>>) {
   const onCreate = props.onCreate ?? vi.fn().mockResolvedValue(undefined);
@@ -129,6 +135,31 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
         taxAmount: 123.95,
       }),
     );
+  });
+
+  it('AC-PLC-009: rejects an en-US invoice amount with excess precision before staging', async () => {
+    setActiveLocale(EN_LOCALE);
+    const onStage = vi.fn();
+    renderForm({ kind: 'vendor_invoice', onStage });
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/amount|decimal/i);
+    expect(onStage).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: stages an id-ID grouped invoice amount as 1234', async () => {
+    setActiveLocale(ID_LOCALE);
+    const onStage = vi.fn();
+    renderForm({ kind: 'vendor_invoice', onStage });
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+
+    expect(onStage).toHaveBeenCalledWith(expect.objectContaining({ amount: 1234, taxAmount: 0 }));
   });
 
   // ── #505: the tax facts gate the save ──────────────────────────────────────────────────────

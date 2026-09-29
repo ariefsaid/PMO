@@ -583,6 +583,27 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeInTheDocument();
   });
 
+  it('AC-PLC-005: the "connected since" date is the calendar day in the viewer\'s profile timezone', async () => {
+    featureState.value = true;
+    // 03:30 UTC: already Jul 15 in Jakarta (10:30), still Jul 14 in Los Angeles (20:30).
+    const nearMidnight = { ...STATUS_ACTIVE, connected_at: '2026-07-15T03:30:00.000Z' };
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    invoke.mockResolvedValueOnce({ data: nearMidnight, error: null });
+    const { unmount } = await renderCard();
+    expect(await screen.findByTestId('m365-connected-msg')).toHaveTextContent(
+      'Connected since Jul 15, 2026. You can disconnect any time.',
+    );
+    unmount();
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'America/Los_Angeles' });
+    invoke.mockResolvedValueOnce({ data: nearMidnight, error: null });
+    await renderCard();
+    expect(await screen.findByTestId('m365-connected-msg')).toHaveTextContent(
+      'Connected since Jul 14, 2026. You can disconnect any time.',
+    );
+  });
+
   it('AC-M365LOC-001: connected without a date omits the "since" clause', async () => {
     featureState.value = true;
     invoke.mockResolvedValueOnce({ data: { ...STATUS_ACTIVE, connected_at: null }, error: null });

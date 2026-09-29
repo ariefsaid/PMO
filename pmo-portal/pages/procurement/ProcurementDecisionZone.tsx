@@ -26,11 +26,14 @@ import {
   Card,
   CardPad,
   Button,
+  FieldError,
   Icon,
   RecordActionZone,
+  useMoneyInputMask,
 } from '@/src/components/ui';
 import { RecordCaptureForm, RecordCaptureTrigger, type StagedRecord } from './RecordCaptureForm';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
+import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -392,11 +395,19 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [refNum, setRefNum] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
+  const [amtError, setAmtError] = React.useState<string | undefined>(undefined);
+  const amtErrorId = React.useId();
   // #505: the empty string is "not answered yet", not a value. Submit stays disabled until the
   // control holds one of the two (see `tax` below), so nothing can be recorded with a marker nobody
   // chose. OD-TAX-1 (#548) pre-selects it from the org setting — see the hook call below.
   const [taxTreatmentStr, setTaxTreatmentStr] = React.useState('');
   const [taxAmtStr, setTaxAmtStr] = React.useState('');
+  // #684: both money drafts group in the viewer's number convention as the user types.
+  const amtMask = useMoneyInputMask(amtStr, (next) => {
+    setAmtStr(next);
+    setAmtError(undefined);
+  });
+  const taxAmtMask = useMoneyInputMask(taxAmtStr, setTaxAmtStr);
 
   // The ONE predicate: null ⇒ the tax facts are incomplete ⇒ submit is disabled AND the handler
   // refuses. Disabled-button state and submit guard can therefore never disagree.
@@ -413,8 +424,14 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
 
   const handleSubmit = () => {
     if (!tax) return;
+    // #684 (AC-PLC-009): the same parse validates and persists; excess scale never reaches the RPC.
+    const amount = parseRecordAmount(amtStr);
+    if (!amount.ok) {
+      setAmtError(RECORD_AMOUNT_ERROR);
+      return;
+    }
     const ref = refNum.trim() || null;
-    const amt = amtStr.trim() === '' ? null : Number(amtStr.replace(/,/g, ''));
+    const amt = amount.amount;
     onSubmit({
       status: viStatus,
       invoiceDate,
@@ -448,8 +465,11 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           <input
             type="text"
             inputMode="decimal"
+            ref={amtMask.ref}
             value={amtStr}
-            onChange={(e) => setAmtStr(e.target.value)}
+            onChange={amtMask.onChange}
+            aria-invalid={amtError ? true : undefined}
+            aria-describedby={amtError ? amtErrorId : undefined}
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.amount}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -502,8 +522,9 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           <input
             type="text"
             inputMode="decimal"
+            ref={taxAmtMask.ref}
             value={taxAmtStr}
-            onChange={(e) => setTaxAmtStr(e.target.value)}
+            onChange={taxAmtMask.onChange}
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -534,6 +555,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       {/* #505: say WHY submit is blocked rather than leaving a dead button. Also the a11y hint —
           the tax fields carry no `required` attribute (the select's empty option is the unanswered
           state), so this line is the programmatic explanation. */}
+      <FieldError id={amtErrorId}>{amtError}</FieldError>
       {!tax && (
         <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
           {VI_TAX_REQUIRED_HINT}

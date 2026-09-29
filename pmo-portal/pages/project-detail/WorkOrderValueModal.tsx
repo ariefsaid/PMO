@@ -11,7 +11,7 @@ import {
   useEntityForm,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseMoneyInput } from '@/src/lib/format';
+import { parseMoneyInputAtScale } from '@/src/lib/format';
 import { parseTaxFacts } from '@/src/lib/taxTreatment';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, SetWorkOrderValueInput } from '@/src/lib/db/workOrders';
@@ -46,11 +46,11 @@ interface FormValues {
 
 const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  const value = parseMoneyInput(v.value);
+  const value = parseMoneyInputAtScale(v.value, 2);
   if (value === null || value < 0) {
     errors.value = t(
       'projectDetail.workOrderValue.errors.value',
-      'Enter the order value as a non-negative number',
+      'Enter the order value as a non-negative amount with no more than 2 decimal places',
     );
   }
   if (!v.taxTreatment.trim()) {
@@ -126,7 +126,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const value = parseMoneyInput(values.value);
+      const value = parseMoneyInputAtScale(values.value, 2);
       const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
       if (value === null || tax === null) return;
       try {
@@ -181,6 +181,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
             onChange={valueField.onChange}
             onBlur={valueField.onBlur}
             error={valueField.error}
+            localeAware
             data-testid="wo-value-input"
           />
           <SelectField
@@ -205,6 +206,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
             onBlur={taxField.onBlur}
             error={taxField.error}
             helper={t('projectDetail.workOrderValue.taxAmountHelper', 'Enter 0 if there is no tax.')}
+            localeAware
             data-testid="wo-value-tax-amount"
           />
         </FormGrid>

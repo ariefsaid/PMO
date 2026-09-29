@@ -22,7 +22,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import type { IncidentInput } from '@/src/lib/db/incidents';
-import { formatDate } from '@/src/lib/format';
+import { formatDateOnly } from '@/src/lib/format';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
 /**
@@ -151,7 +151,7 @@ const IncidentDetail: React.FC = () => {
             <StatusPill variant={workflowVariant(incident.status)}>{incident.status}</StatusPill>
           </span>
         }
-        meta={<span className="tabular">Reported {formatDate(incident.incident_date)}</span>}
+        meta={<span className="tabular">Reported {formatDateOnly(incident.incident_date)}</span>}
         actions={
           canEdit ? (
             <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
@@ -189,7 +189,7 @@ const IncidentDetail: React.FC = () => {
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Field label="Type" value={incident.type} />
-            <Field label="Date" value={formatDate(incident.incident_date)} />
+            <Field label="Date" value={formatDateOnly(incident.incident_date)} />
             <Field label="Severity" value={incident.severity} />
             <Field label="Status" value={incident.status} />
             <Field label="Location" value={incident.location || '—'} />

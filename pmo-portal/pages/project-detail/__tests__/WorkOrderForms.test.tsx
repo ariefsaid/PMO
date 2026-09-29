@@ -11,13 +11,17 @@
  *     authorship the witness re-stamps — pre-filling makes "press Save" the path of least
  *     resistance for the very decision the SoD is asking a second person to make.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const draft = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
   ({
@@ -55,10 +59,12 @@ const onUpdate = vi.fn();
 const onSave = vi.fn();
 
 beforeEach(() => {
+  setActiveLocale(EN_LOCALE);
   onCreate.mockReset().mockResolvedValue(undefined);
   onUpdate.mockReset().mockResolvedValue(undefined);
   onSave.mockReset().mockResolvedValue(undefined);
 });
+afterEach(() => resetActiveLocale());
 
 const renderCreate = () =>
   render(
@@ -140,6 +146,33 @@ describe('WorkOrderFormModal — create', () => {
       startDate: null,
       endDate: null,
     });
+  });
+
+  it('AC-PLC-009: rejects an en-US order value with excess precision before creating the draft', async () => {
+    setActiveLocale(EN_LOCALE);
+    renderCreate();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Phase 2');
+    await userEvent.type(screen.getByTestId('wo-order-value'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('wo-tax-treatment'), 'exclusive');
+    await userEvent.type(screen.getByTestId('wo-tax-amount'), '0');
+    await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
+
+    expect(await screen.findByText(/non-negative amount with no more than 2 decimal places/i, {
+      selector: 'span[role="alert"]',
+    })).toBeInTheDocument();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: parses id-ID order value grouping as 1234 before creating the draft', async () => {
+    setActiveLocale(ID_LOCALE);
+    renderCreate();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Phase 2');
+    await userEvent.type(screen.getByTestId('wo-order-value'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('wo-tax-treatment'), 'exclusive');
+    await userEvent.type(screen.getByTestId('wo-tax-amount'), '0');
+    await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
+
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ orderValue: 1234 }));
   });
 });
 
@@ -232,5 +265,30 @@ describe('WorkOrderValueModal', () => {
     await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '30000');
     expect(screen.getByRole('button', { name: 'Set value' })).toBeDisabled();
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: rejects an en-US witnessed value with excess precision before the SoD write', async () => {
+    setActiveLocale(EN_LOCALE);
+    renderValue();
+    await userEvent.type(screen.getByTestId('wo-value-input'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('wo-value-tax-treatment'), 'exclusive');
+    await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '0');
+    await userEvent.click(screen.getByRole('button', { name: 'Set value' }));
+
+    expect(await screen.findByText(/non-negative amount with no more than 2 decimal places/i, {
+      selector: 'span[role="alert"]',
+    })).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: parses id-ID witnessed value grouping as 1234 before the SoD write', async () => {
+    setActiveLocale(ID_LOCALE);
+    renderValue();
+    await userEvent.type(screen.getByTestId('wo-value-input'), '1.234');
+    await userEvent.selectOptions(screen.getByTestId('wo-value-tax-treatment'), 'exclusive');
+    await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '0');
+    await userEvent.click(screen.getByRole('button', { name: 'Set value' }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ value: 1234, taxAmount: 0 }));
   });
 });

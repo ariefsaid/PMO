@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
-import { formatDate } from '@/src/lib/format';
+import { formatDateOnly } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from '../../components/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
@@ -74,8 +74,8 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
                 </span>
               }
             />
-            <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDate(project.start_date)} />
-            <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDate(project.end_date)} />
+            <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
+            <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
             <DetailRow
               label={t('projectDetail.rail.code', 'Code')}
               value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
