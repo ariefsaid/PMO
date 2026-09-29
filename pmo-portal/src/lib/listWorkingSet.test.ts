@@ -231,17 +231,23 @@ describe('list working-set URL codec', () => {
     expect(meetings.project).toBe('All');
   });
 
-  it('AC-LRC-001/002: keeps a Needs-attention scope with an open funnel stage and forces Open only for Lost', () => {
+  it('AC-LRC-001/002: within the table view, keeps a Needs-attention scope with an open funnel stage and forces Open only for Lost', () => {
+    // Scope is meaningful only for the table view (#682 Director ruling, 2026-09-29) — these
+    // scope/stage interactions are a table-only concept, so the URL states this test parses and
+    // serializes name `view=table` explicitly.
     const attention: SalesWorkingSet = parseListWorkingSet(
       'sales',
-      '?scope=Needs+attention&status=Leads',
+      '?scope=Needs+attention&status=Leads&view=table',
     );
-    expect(attention).toMatchObject({ scope: 'Needs attention', status: 'Leads' });
+    expect(attention).toMatchObject({ scope: 'Needs attention', status: 'Leads', view: 'table' });
 
-    const lostWithStage: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost&status=Leads');
+    const lostWithStage: SalesWorkingSet = parseListWorkingSet(
+      'sales',
+      '?scope=Lost&status=Leads&view=table',
+    );
     expect(lostWithStage).toMatchObject({ scope: 'Open', status: 'Leads' });
 
-    const lostAlone: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost');
+    const lostAlone: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost&view=table');
     expect(lostAlone).toMatchObject({ scope: 'Lost', status: '' });
 
     // Serializing a contradictory Lost + open stage omits scope (Open is the default), so the URL
@@ -250,15 +256,15 @@ describe('list working-set URL codec', () => {
       scope: 'Lost',
       status: 'Leads',
       q: '',
-      view: 'kanban',
+      view: 'table',
     });
-    expect(lostQuery.toString()).toBe('campaign=fall&status=Leads');
+    expect(lostQuery.toString()).toBe('campaign=fall&status=Leads&view=table');
     expect(parseListWorkingSet('sales', lostQuery)).toMatchObject({ scope: 'Open', status: 'Leads' });
     // Lost without a stage is not contradictory and is written as-is.
     expect(
-      serializeListWorkingSet('sales', '', { scope: 'Lost', status: '', q: '', view: 'kanban' })
+      serializeListWorkingSet('sales', '', { scope: 'Lost', status: '', q: '', view: 'table' })
         .toString(),
-    ).toBe('scope=Lost');
+    ).toBe('scope=Lost&view=table');
 
     // Round-trips: Needs attention + stage survives serialization.
     const roundTrip = parseListWorkingSet(
@@ -266,6 +272,30 @@ describe('list working-set URL codec', () => {
       serializeListWorkingSet('sales', '', attention),
     );
     expect(roundTrip).toMatchObject({ scope: 'Needs attention', status: 'Leads' });
+  });
+
+  it('#682 Director ruling (2026-09-29): scope is meaningful only for the Sales table view — the board carries no scope', () => {
+    // A direct/copied board URL with a stale scope parses to Open, never Lost/Needs attention.
+    expect(parseListWorkingSet('sales', '?view=kanban&scope=Lost')).toMatchObject({
+      scope: 'Open',
+      view: 'kanban',
+    });
+    expect(parseListWorkingSet('sales', '?view=kanban&scope=Needs+attention')).toMatchObject({
+      scope: 'Open',
+      view: 'kanban',
+    });
+    // Serializing a working set whose view is the board never writes an inert `scope` key, even
+    // when the in-memory value still carries a stale table scope (e.g. mid-transition).
+    const boardQuery = serializeListWorkingSet('sales', '?scope=Lost', {
+      scope: 'Lost',
+      status: '',
+      q: '',
+      view: 'kanban',
+    });
+    expect(boardQuery.get('scope')).toBeNull();
+    // Switching the view back to table (same working set otherwise) reads Open, not the stale
+    // Lost — the URL no longer carries it, so there is nothing to snap back to.
+    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'Open', view: 'kanban' });
   });
 
   it('AC-LRC-002: falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {

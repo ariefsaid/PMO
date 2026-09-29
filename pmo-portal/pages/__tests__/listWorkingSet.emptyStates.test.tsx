@@ -317,6 +317,23 @@ describe('AC-LRC-012 — Sales Pipeline', () => {
     expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
   });
 
+  it('AC-LRC-012: on the Board (default view), a search that matches no card shows the same zero-match copy + Clear filters, which restores the cards', async () => {
+    pipelineState.data = {
+      stages: [],
+      projects: [
+        { id: 'op1', name: 'Northwind ERP', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 100000, currency: 'USD', win_probability: 0.5 },
+      ],
+    };
+    lostState.data = [];
+    renderList(SalesPipeline);
+    // Default view is Board (kanban) — no view switch needed to reach this state.
+    await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
+    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    const clear = screen.getByRole('button', { name: /Clear filters/i });
+    await userEvent.click(clear);
+    expect(await screen.findByText('Northwind ERP')).toBeInTheDocument();
+  });
+
   it('AC-LRC-012: in the Lost scope with no lost projects and no search, the scope-empty copy stays', async () => {
     pipelineState.data = {
       stages: [],

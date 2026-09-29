@@ -394,9 +394,14 @@ const SalesPipeline: React.FC = () => {
   // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
   // (AC-LRC-012) — the scope-empty sentence would deny rows that exist.
   const narrowedWithinScope = search.trim() !== '' || stageIndex !== null;
+  // AC-LRC-012 (Board): the board has no scope/stage filter of its own (only search narrows
+  // `kanbanProjects` to `kanbanFiltered`), so a zero-match here is always a search zero-match, not
+  // the genuine-empty state (`state === 'empty'` above already covers no open AND no lost deals).
+  const boardZeroMatch = kanbanFiltered.length === 0;
   // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
-  // controls move together (no second event drops the first call).
-  const clearTableFilters = () => {
+  // controls move together (no second event drops the first call). Shared by the table's
+  // DataTable `emptyAction` and the board's zero-match ListState below.
+  const clearFilters = () => {
     setSearch('');
     setWorkingSet(() => parseListWorkingSet('sales', '', { sessionView: readPipelineView() }));
   };
@@ -559,7 +564,19 @@ const SalesPipeline: React.FC = () => {
         />
       )}
 
-      {state === undefined && view === 'kanban' && (
+      {/* AC-LRC-012: a search that matches no card on the Board shows the same zero-match copy
+          + Clear filters as the Table (state === 'empty' above already covers the genuine
+          no-open-AND-no-lost pipeline, which keeps its own create-first-project state). */}
+      {state === undefined && view === 'kanban' && boardZeroMatch && (
+        <ListState
+          variant="empty"
+          title={t('sales.tableEmpty.search.title', 'No projects match your search')}
+          sub={t('sales.tableEmpty.search.sub', 'Try a different name or customer.')}
+          action={{ label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }}
+        />
+      )}
+
+      {state === undefined && view === 'kanban' && !boardZeroMatch && (
         <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} />
       )}
 
@@ -600,7 +617,7 @@ const SalesPipeline: React.FC = () => {
           }
           emptyAction={
             filtersActive
-              ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearTableFilters }
+              ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
               : undefined
           }
         />

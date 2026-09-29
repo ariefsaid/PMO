@@ -267,10 +267,54 @@ describe('SalesPipeline list working set — AC-LRC-001/002', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
     const toggle = screen.getByRole('tablist', { name: /Project scope/i });
     expect(within(toggle).getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
-    // View change persists AND writes the URL in one event (board renders, the scope set moments
-    // earlier survives untouched — it is not a keystroke this event should drop).
+    // View change persists AND writes the URL in one event (board renders). Scope is meaningful
+    // only for the table view (#682 Director ruling, 2026-09-29 — see the dedicated describe
+    // block below), so it resets to Open on this same switch rather than surviving untouched.
     await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
     expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+  });
+});
+
+// #682 Director ruling (2026-09-29): the Board is the open pipeline by stage and has no scope.
+// Switching Table → Board resets scope to Open in the working set's single write, so the URL no
+// longer carries an inert `scope`; a direct/copied board URL with a stale scope parses to Open
+// the same way. Switching back to Table then shows Open, never the scope that was active before.
+describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
+  it('switching Table (Lost) → Board resets scope to Open and drops it from the URL; switching back to Table shows Open', async () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?view=table&scope=Lost');
+    expect(screen.getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
+    // The board renders (no scope segmented control at all — it is table-only).
+    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: /Project scope/i })).not.toBeInTheDocument();
+    // The URL no longer carries the inert scope.
+    const probe = screen.getByTestId('location-probe');
+    expect(probe.dataset.search).not.toContain('scope=Lost');
+    expect(new URLSearchParams(probe.dataset.search).get('scope')).toBeNull();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+  });
+
+  it('a direct/copied `?view=kanban&scope=Lost` URL parses to Open scope (Board renders; Table then shows Open)', async () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?view=kanban&scope=Lost');
+    expect(screen.getByRole('tab', { name: /^Board$/i })).toHaveAttribute('aria-selected', 'true');
+    // The lost deal still appears on the board (its own terminal Lost column) — the stale scope
+    // never hid it, because the board never applied it in the first place.
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
   });
 });
 
