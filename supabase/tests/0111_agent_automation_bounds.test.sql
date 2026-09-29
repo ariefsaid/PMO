@@ -9,7 +9,7 @@
 --   4. 25 active automations insert cleanly; the 26th is DENIED (P0001 owner cap).
 --   5. Archived automations do NOT count toward the cap (archive one => insert succeeds).
 begin;
-select plan(5);
+select plan(8);
 
 insert into organizations (id, name) values
   ('01110000-0000-0000-0000-000000000001','Automation Bounds Org');
@@ -69,6 +69,28 @@ select lives_ok(
     values ('01110000-0000-0000-0000-000000000001','01110000-0000-0000-0000-0000000000a1',
             'schedule', 'after-archive', '0 9 * * *')$$,
   'AUDIT-M1: archived automations do not count toward the owner cap');
+
+-- 6. UN-ARCHIVING counts too: with 25 active, bringing an archived one back would be the 26th.
+select throws_ok(
+  $$update agent_automations set archived_at = null
+     where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt = 'p1'$$,
+  'P0001',
+  null,
+  'AUDIT-M1: un-archiving an automation past the cap is rejected (the cap is not INSERT-only)');
+
+-- 7. Ordinary edits to an active automation are unaffected at the cap.
+select lives_ok(
+  $$update agent_automations set prompt = 'p2-edited'
+     where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt = 'p2'$$,
+  'AUDIT-M1: editing an active automation at the cap still works');
+
+-- 8. Below the cap, un-archiving is allowed.
+update agent_automations set archived_at = now()
+ where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt = 'p3';
+select lives_ok(
+  $$update agent_automations set archived_at = null
+     where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt = 'p1'$$,
+  'AUDIT-M1: un-archiving below the cap is allowed');
 
 select * from finish();
 rollback;

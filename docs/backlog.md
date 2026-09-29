@@ -349,12 +349,14 @@ BEHIND `dev`, content identical).
   un-destructured resolve-with-`error`, supabase-js's ordinary failure mode). Failures now reach
   `error_events`, and therefore Telegram, rather than a console line nobody reads.
 - ~~**`enforce_automation_owner_cap` race**~~ ✅ **CLOSED #401** — per-owner `FOR UPDATE` + `SECURITY DEFINER`,
-  proven by a real two-session `dblink` test (`55P03` under a short `lock_timeout`). ⚑ Still bypassable by
-  UN-ARCHIVING (the trigger is BEFORE INSERT only) — that half is open.
+  proven by a real two-session `dblink` test (`55P03` under a short `lock_timeout`). The un-archive half
+  (the trigger was BEFORE INSERT only) is ✅ **closed by `0221` (2026-09-30)** — the cap also runs on an
+  un-archive; `0111` AUDIT-M1 cases 6-8.
 - ~~**`set_project_contract_value` accepts negative**~~ ✅ **CLOSED #401** — RPC guard + column CHECK.
   ⚑ `>= 0` alone was NOT enough: **`NaN >= 0` is TRUE in Postgres** and PostgREST coerces `"NaN"` from a
   quoted string, poisoning `sum()` org-wide. Shipped as `>= 0 and < 'Infinity'::numeric`.
-  🔴 **The INSERT-side gap is still OPEN and live in prod** — see the CURRENT FOCUS block.
+  The INSERT-side gap noted here at the time was ✅ closed by the create-path SoD work
+  (`0174`, `0179`–`0184`, promoted 2026-07-30).
 - ~~**`spike-rls.yml`** — only `npm install` → `npm ci` remains.~~ ✅ **CLOSED BY DELETION 2026-07-28** —
   the workflow and `spike/agent-native-rls/` no longer exist (owner-approved; ADR-0036 §8, its only
   reason to exist, closed 2026-07-03). Do not go looking for this file.
