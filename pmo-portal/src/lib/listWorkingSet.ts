@@ -188,7 +188,10 @@ export function currentMonthToken(): string {
  * strand the user on an unreachable month.
  */
 function monthValue(value: string | null): string | undefined {
-  return value !== null && MONTH_PATTERN.test(value) && value !== currentMonthToken()
+  return value !== null &&
+    MONTH_PATTERN.test(value) &&
+    Number(value.slice(0, 4)) >= 1900 && // a two-digit-era year would render as 19xx
+    value !== currentMonthToken()
     ? value
     : undefined;
 }

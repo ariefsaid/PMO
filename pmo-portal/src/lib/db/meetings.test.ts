@@ -152,6 +152,15 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
       expect(rows.map((r) => r.id)).toEqual(['m1']);
     });
 
+    it('#708: a search of only wildcard/escape symbols runs no substring leg (never "%%" = every row)', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: [], error: null }); // full-text only
+      const rows = await listMeetings({ search: ' %_*\\ ' });
+      expect(h.calls.textSearch).toHaveLength(1);
+      expect(h.calls.or).toEqual([]);
+      expect(rows).toEqual([]);
+    });
+
     it('#708: the union de-duplicates by id and is ordered newest-first', async () => {
       h.queue.length = 0;
       h.queue.push({

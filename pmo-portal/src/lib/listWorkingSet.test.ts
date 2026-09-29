@@ -531,7 +531,7 @@ describe('Projects calendar month in the working set (#716, AC-LRC-003)', () => 
   });
 
   it('falls back to the current month for a missing, malformed or out-of-range token', () => {
-    for (const token of ['', 'bogus', '2026-13', '2026-00', '2026-3', '26-03', '2026-03-01', '２０２６-03']) {
+    for (const token of ['', 'bogus', '2026-13', '2026-00', '2026-3', '26-03', '2026-03-01', '２０２６-03', '0050-03', '1899-12', '10000-01']) {
       const parsed = parseListWorkingSet('projects', new URLSearchParams({ month: token }));
       expect(parsed.month, token).toBeUndefined();
     }

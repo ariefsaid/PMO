@@ -117,8 +117,13 @@ export interface MeetingListParams {
  * `*`) and the LIKE escape character (`\`) are replaced with spaces so the term matches as plain
  * text; the quoting still escapes `\` and `"` so it holds even if that list changes.
  */
+/** The part of a search term the substring leg can match: control chars and wildcards stripped. */
+function substringText(term: string): string {
+  return term.replace(/[\p{Cc}%_*\\]/gu, ' ').trim();
+}
+
 function ilikeAnyOf(columns: readonly string[], term: string): string {
-  const text = term.replace(/[\p{Cc}%_*\\]/gu, ' ').trim();
+  const text = substringText(term);
   const quoted = `"%${text.replace(/[\\"]/g, (c) => `\\${c}`)}%"`;
   return columns.map((column) => `${column}.ilike.${quoted}`).join(',');
 }
@@ -165,6 +170,14 @@ export async function listMeetings(params?: MeetingListParams): Promise<MeetingW
 
   if (!q) {
     const { data, error } = await build();
+    if (error) throwWrite(error);
+    return (data ?? []) as unknown as MeetingWithRefs[];
+  }
+
+  // A term of only wildcard / escape symbols leaves nothing to match; its substring leg would be
+  // `"%%"` — every row — so run the full-text leg alone.
+  if (!substringText(q)) {
+    const { data, error } = await build('fts');
     if (error) throwWrite(error);
     return (data ?? []) as unknown as MeetingWithRefs[];
   }
