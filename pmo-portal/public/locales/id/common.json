@@ -493,7 +493,8 @@
     "descriptionMeetingsLink": "modul Rapat",
     "filters": {
       "allCompanies": "Semua perusahaan",
-      "companyLabel": "Filter berdasarkan perusahaan"
+      "companyLabel": "Filter berdasarkan perusahaan",
+      "unavailableCompany": "Perusahaan tidak tersedia"
     },
     "form": {
       "company": {
@@ -785,7 +786,8 @@
     "description": "Rapat bernotulen dengan peserta dan action item. Anda melihat rapat yang Anda hadiri, tulis, atau dibagikan kepada Anda.",
     "filters": {
       "allProjects": "Semua proyek",
-      "projectLabel": "Filter berdasarkan proyek"
+      "projectLabel": "Filter berdasarkan proyek",
+      "unavailableProject": "Proyek tidak tersedia"
     },
     "form": {
       "errors": {
@@ -1830,6 +1832,9 @@
     "winProbability": "Peluang menang"
   },
   "shell": {
+    "backBar": {
+      "label": "Kembali ke {{label}}"
+    },
     "breadcrumb": {
       "label": "Breadcrumb"
     },

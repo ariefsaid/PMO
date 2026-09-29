@@ -31,7 +31,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 
@@ -73,13 +73,12 @@ const Contacts: React.FC = () => {
   const canView = may('view', 'contact');
 
   // list-working-set-return (#683): `company`/`q` are URL-owned (AC-LRC-007). Search stays LOCAL
-  // text written to the URL after a pause — never bound straight to `workingSet.q`.
-  const { workingSet, setWorkingSet } = useListWorkingSet('contacts');
-  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
-    setWorkingSet((ws) => ({ ...ws, q })),
-  );
+  // text written to the URL after a pause — never bound straight to `workingSet.q`. A Back return
+  // restores the list's scroll once its rows have loaded (`contentReady`).
+  const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
+    useListSearchWorkingSet('contacts');
+  const { openRecord } = useListReturn({ list: 'contacts', contentReady: !isPending && !isError });
   const companyFilter = workingSet.company;
-  const { openRecord } = useListReturn({ list: 'contacts' });
 
   const [formTarget, setFormTarget] = useState<{ contact: ContactRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<ContactRow | null>(null);
@@ -100,6 +99,23 @@ const Contacts: React.FC = () => {
     () => companies.map((c) => ({ value: c.id, label: c.name })),
     [companies],
   );
+  // Spec decision 6: a `?company=` naming no company this user can see (archived, deleted, or
+  // another org's) stays the ACTIVE choice — the control agrees with the URL and the zero-match
+  // state offers Clear filters — rather than the select silently showing "All companies".
+  const companyFilterOptions = useMemo(() => {
+    const options = [
+      { value: 'All', label: t('contacts.filters.allCompanies', 'All companies') },
+      ...companyOptions,
+    ];
+    if (companyFilter !== 'All' && !companyById.has(companyFilter)) {
+      options.push({
+        value: companyFilter,
+        // Until the directory has loaded the choice may yet resolve, so it is not called unavailable.
+        label: companyData ? t('contacts.filters.unavailableCompany', 'Unavailable company') : '…',
+      });
+    }
+    return options;
+  }, [companyById, companyData, companyFilter, companyOptions, t]);
   const importDescriptor = useMemo(() => makeContactImportDescriptor(companies), [companies]);
 
   const all = useMemo(() => data ?? [], [data]);
@@ -116,13 +132,9 @@ const Contacts: React.FC = () => {
       );
   }, [all, search, companyFilter]);
 
-  // AC-LRC-012: this DataTable's `empty` branch only renders when `all.length > 0` (the
-  // collection-empty case is the page-level `state === 'empty'` below), so a zero-match result
-  // here is always a filtered zero-match.
-  const clearFilters = () => {
-    setSearch('');
-    setWorkingSet((ws) => ({ ...ws, company: 'All', q: '' }));
-  };
+  // AC-LRC-012: the DataTable's `empty` branch (with `clearFilters`) only renders when
+  // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'` below), so a
+  // zero-match result there is always a filtered zero-match.
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
@@ -258,10 +270,7 @@ const Contacts: React.FC = () => {
             hideLabel
             value={companyFilter}
             onChange={(v) => setWorkingSet((ws) => ({ ...ws, company: v }))}
-            options={[
-              { value: 'All', label: t('contacts.filters.allCompanies', 'All companies') },
-              ...companyOptions,
-            ]}
+            options={companyFilterOptions}
           />
         )
       }

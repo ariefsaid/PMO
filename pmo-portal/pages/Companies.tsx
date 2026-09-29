@@ -33,7 +33,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
@@ -101,13 +101,12 @@ const Companies: React.FC = () => {
 
   // list-working-set-return (#683): `type`/`q` are URL-owned (AC-LRC-006) — a copied link and a
   // refresh reproduce the same filtered set. Search stays LOCAL text, written to the URL after a
-  // pause (never bound straight to `workingSet.q` — see useUrlSearchInput's search contract).
-  const { workingSet, setWorkingSet } = useListWorkingSet('companies');
-  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
-    setWorkingSet((ws) => ({ ...ws, q })),
-  );
+  // pause (never bound straight to `workingSet.q` — see useUrlSearchInput's search contract). A
+  // Back return restores the list's scroll once its rows have loaded (`contentReady`).
+  const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
+    useListSearchWorkingSet('companies');
+  const { openRecord } = useListReturn({ list: 'companies', contentReady: !isPending && !isError });
   const filter = workingSet.type;
-  const { openRecord } = useListReturn({ list: 'companies' });
 
   // Modal: null = closed; { company: null } = create; { company } = edit.
   const [formTarget, setFormTarget] = useState<{ company: CompanyRow | null } | null>(null);
@@ -136,13 +135,9 @@ const Companies: React.FC = () => {
       .filter((c) => !q || c.name.toLowerCase().includes(q));
   }, [all, search, filter]);
 
-  // AC-LRC-012: this DataTable's `empty` branch below only ever renders when `all.length > 0`
-  // (the collection-empty case is handled separately as the page-level `state === 'empty'`), so a
-  // zero-match result here is always a filtered zero-match — clearing both controls is always safe.
-  const clearFilters = () => {
-    setSearch('');
-    setWorkingSet((ws) => ({ ...ws, type: 'All', q: '' }));
-  };
+  // AC-LRC-012: the DataTable's `empty` branch below (with `clearFilters`) only ever renders when
+  // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'`), so a
+  // zero-match result there is always a filtered zero-match — clearing both controls is safe.
 
   // ── States ──────────────────────────────────────────────────────────────
   const state: 'loading' | 'empty' | 'error' | undefined = isPending

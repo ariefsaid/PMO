@@ -97,17 +97,19 @@
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is
 #    also the reference slice, so its patterns propagate to whatever is built next.
 /companies                     pages/Companies.tsx
-/companies/:companyId          pages/CompanyDetail.tsx
+# `BackBar` (the mobile "Back to …" return control) is named on each record line it renders on:
+# its sentence is a key, and a shared component is checked only where a line names it.
+/companies/:companyId          pages/CompanyDetail.tsx src/components/shell/BackBar.tsx
 
 # ── Same directory pairing — a project's people, reached daily from the company record.
 /contacts                      pages/Contacts.tsx
-/contacts/:contactId           pages/ContactDetail.tsx
+/contacts/:contactId           pages/ContactDetail.tsx src/components/shell/BackBar.tsx
 
 # ── Meetings (#526, launch-scope item 3 on map #450): minuted meetings with attendees, action
 #    items and view-only shares. Added by the slice that built the screens (DD-I18N-9's additive
 #    rule — a launch-scope screen shipping without its line silently shrinks this gate).
 /meetings                      pages/Meetings.tsx
-/meetings/:meetingId           pages/MeetingDetail.tsx
+/meetings/:meetingId           pages/MeetingDetail.tsx src/components/shell/BackBar.tsx
 
 # ── Personal profile language settings (RIS readiness slice): every signed-in user's choice of
 #    interface-language override (inherit / Bahasa Indonesia / English).

@@ -76,6 +76,16 @@ const renderPage = (role: Role = 'Admin', initialPath = '/contacts') => {
   );
 };
 
+/** The shell's scroll container, sized so a restore has a real range to land in (jsdom has no layout). */
+const sizeMainScroll = (): HTMLElement => {
+  const main = document.querySelector<HTMLElement>('.main-scroll')!;
+  Object.defineProperties(main, {
+    scrollHeight: { configurable: true, value: 2000 },
+    clientHeight: { configurable: true, value: 400 },
+  });
+  return main;
+};
+
 beforeEach(() => {
   contactsState.data = contacts;
   contactsState.isPending = false;
@@ -208,13 +218,13 @@ describe('Contacts index — row → detail navigation (CW-4b)', () => {
 // list-working-set-return (#683, AC-LRC-007): `company`/`q` round-trip through the URL, and
 // opening a row stamps a validated Contacts return context onto the navigation's router state.
 describe('Contacts index — list working set + return context (AC-LRC-007)', () => {
-  it('a direct URL with ?company= restores the selected filter and the narrowed rows', () => {
+  it('AC-LRC-001: a direct URL with ?company= restores the selected filter and the narrowed rows', () => {
     renderPage('Admin', '/contacts?company=22222222-2222-4222-8222-222222222222');
     expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument();
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
   });
 
-  it('choosing a company filter writes ?company= to the URL', async () => {
+  it('AC-LRC-001: choosing a company filter writes ?company= to the URL', async () => {
     renderPage('Admin');
     await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
     await waitFor(() =>
@@ -224,7 +234,7 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
     );
   });
 
-  it('typing a search term writes ?q= to the URL', async () => {
+  it('AC-LRC-001: typing a search term writes ?q= to the URL', async () => {
     renderPage('Admin');
     await userEvent.type(screen.getByLabelText(/Search contacts/i), 'marcus');
     await waitFor(() =>
@@ -232,7 +242,7 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
     );
   });
 
-  it('opening a row stamps a validated Contacts return context onto the navigation state', async () => {
+  it('AC-LRC-007: opening a row stamps a validated Contacts return context onto the navigation state', async () => {
     renderPage('Admin', '/contacts?company=22222222-2222-4222-8222-222222222222');
     await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
     await waitFor(() => {
@@ -246,12 +256,59 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
     });
   });
 
-  it('AC-LRC-012: a zero-match filtered result offers Clear filters, which restores the rows', async () => {
+  // Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+  it('a zero-match filtered result offers Clear filters, which restores the rows', async () => {
     renderPage('Admin');
     await userEvent.type(screen.getByLabelText(/Search contacts/i), 'no-such-contact');
     expect(await screen.findByText(/No contacts match your filters/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: an unavailable ?company= stays the active, clearable choice (control agrees with the URL)', async () => {
+    const GONE = '99999999-9999-4999-8999-999999999999';
+    renderPage('Admin', `/contacts?company=${GONE}`);
+    const select = screen.getByLabelText(/Filter by company/i);
+    // The control shows the URL's choice — never silently "All companies" while rows are narrowed.
+    expect(select).toHaveValue(GONE);
+    expect(screen.getByRole('option', { name: 'Unavailable company', selected: true })).toBeInTheDocument();
+    expect(screen.getByText(/No contacts match your filters/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.getByLabelText(/Filter by company/i)).toHaveValue('All');
+    expect(screen.queryByRole('option', { name: 'Unavailable company' })).not.toBeInTheDocument();
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+  });
+
+  it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {
+    contactsState.isPending = true;
+    const path = '/contacts?company=22222222-2222-4222-8222-222222222222';
+    const entry = {
+      pathname: '/contacts',
+      search: '?company=22222222-2222-4222-8222-222222222222',
+      state: { pmoListScrollRestore: { list: 'contacts', path, scrollTop: 300 } },
+    };
+    // A fresh element per render: re-rendering the SAME element would let React bail out.
+    const tree = () => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <div className="main-scroll">
+            <Contacts />
+          </div>
+        </MemoryRouter>
+      </ToastProvider>
+    );
+    const { rerender } = render(tree());
+    const main = sizeMainScroll();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    contactsState.isPending = false;
+    rerender(tree());
+    await waitFor(() => expect(main.scrollTop).toBe(300));
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
   });
 });

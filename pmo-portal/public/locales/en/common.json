@@ -493,7 +493,8 @@
     "descriptionMeetingsLink": "Meetings module",
     "filters": {
       "allCompanies": "All companies",
-      "companyLabel": "Filter by company"
+      "companyLabel": "Filter by company",
+      "unavailableCompany": "Unavailable company"
     },
     "form": {
       "company": {
@@ -785,7 +786,8 @@
     "description": "Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.",
     "filters": {
       "allProjects": "All projects",
-      "projectLabel": "Filter by project"
+      "projectLabel": "Filter by project",
+      "unavailableProject": "Unavailable project"
     },
     "form": {
       "errors": {
@@ -1830,6 +1832,9 @@
     "winProbability": "Win probability"
   },
   "shell": {
+    "backBar": {
+      "label": "Back to {{label}}"
+    },
     "breadcrumb": {
       "label": "Breadcrumb"
     },

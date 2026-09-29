@@ -2,7 +2,7 @@
 // journey needs several rows to overflow the list), so this spec creates its own uniquely-named
 // meetings (Date.now()) via the app's own "New meeting" form and deletes them again at the end
 // (finally block, retry-safe); it never touches a shared seed row.
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { login } from './helpers';
 
 /**
@@ -27,13 +27,24 @@ async function waitReady(page: Page) {
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
+/** "Nearby position" (FR-LRC-005): the restored offset lands within one row of the captured one. */
+const SCROLL_TOLERANCE_PX = 48;
+async function expectScrollRestored(main: Locator, captured: number) {
+  await expect
+    .poll(async () => Math.abs((await main.evaluate((el) => el.scrollTop)) - captured), {
+      timeout: 10_000,
+    })
+    .toBeLessThanOrEqual(SCROLL_TOLERANCE_PX);
+}
+
 async function createMeeting(page: Page, title: string): Promise<string> {
   await page.goto('/meetings');
   await waitReady(page);
   await page.getByRole('button', { name: /new meeting/i }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: 8_000 });
-  await dialog.getByLabel(/^Title$/i).fill(title);
+  // The required field's label carries its marker ("Title *").
+  await dialog.getByLabel(/^Title\s*\*?$/i).fill(title);
   await dialog.getByLabel(/^Project$/i).selectOption({ label: PROJECT_NAME });
   await dialog.getByRole('button', { name: /create meeting/i }).click();
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
@@ -43,9 +54,11 @@ async function createMeeting(page: Page, title: string): Promise<string> {
 
 async function deleteMeeting(page: Page, id: string) {
   await page.goto(`/meetings/${id}`);
-  await waitReady(page);
+  // Wait for the record itself: a bare "no skeleton yet" check passes before the page has even
+  // started loading, which is how this cleanup silently skipped every delete before.
+  await expect(page.getByTestId('record-header')).toBeVisible({ timeout: 15_000 });
   const deleteBtn = page.getByTestId('meeting-delete');
-  if (!(await deleteBtn.isVisible().catch(() => false))) return;
+  await expect(deleteBtn).toBeVisible();
   await deleteBtn.click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toBeVisible({ timeout: 8_000 });
@@ -102,9 +115,7 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     await waitReady(page);
     await expect(page.getByLabel(/Filter by project/i)).toHaveValue(/[0-9a-f-]+/i);
     await expect(search).toHaveValue('coordination');
-    await expect
-      .poll(async () => main.evaluate((el) => el.scrollTop), { timeout: 10_000 })
-      .toBeGreaterThan(0);
+    await expectScrollRestored(main, scrolledTop);
 
     // ── Mobile BackBar return ────────────────────────────────────────────────────────────────
     // Resize FIRST: below `md` DataTable swaps its desktop table branch for a mobile card list
@@ -112,15 +123,15 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
+    expect(mobileScrolledTop).toBeGreaterThan(0);
     await page.getByText(titleB).click();
     await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+$/i, { timeout: 15_000 });
-    await page.getByRole('button', { name: /back to meetings/i }).click();
+    await page.getByRole('button', { name: 'Back to Meetings', exact: true }).click();
     await expect(page).toHaveURL(/[?&]project=[0-9a-f-]+/i, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=coordination(&|$)/);
     await waitReady(page);
-    await expect
-      .poll(async () => main.evaluate((el) => el.scrollTop), { timeout: 10_000 })
-      .toBeGreaterThan(0);
+    await expectScrollRestored(main, mobileScrolledTop);
 
     // ── A direct/copied record link carries no captured list context — Back falls back to the
     //    bare owning index. ─────────────────────────────────────────────────────────────────
@@ -135,8 +146,12 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     await expect(freshPage).toHaveURL(/\/meetings$/, { timeout: 10_000 });
     await freshPage.close();
   } finally {
+    // Best-effort cleanup that never masks the test's own result — but a leftover row is logged,
+    // not swallowed, so a leak is visible in the run output.
     for (const id of createdIds) {
-      await deleteMeeting(page, id).catch(() => undefined);
+      await deleteMeeting(page, id).catch((err: unknown) => {
+        console.warn(`[AC-LRC-008] cleanup could not delete meeting ${id}:`, err);
+      });
     }
   }
 });

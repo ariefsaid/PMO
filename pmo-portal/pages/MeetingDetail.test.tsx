@@ -377,14 +377,14 @@ describe('MeetingDetail — states', () => {
 // Meetings context and falls back to the bare index for a direct/copied link; archive/delete
 // success also return to the same filtered context (not a bare reset).
 describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
-  it('a direct/copied link (no captured context) Back returns to the bare Meetings index', async () => {
+  it('AC-LRC-010: a direct/copied link (no captured context) Back returns to the bare Meetings index', async () => {
     renderRouted('/meetings/m1', 'Admin');
     await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
     expect(screen.getByTestId('meetings-index-probe')).toHaveTextContent('Meetings index');
     expect(screen.getByTestId('meetings-index-probe').textContent).toBe('Meetings index');
   });
 
-  it('a record opened from a narrowed Meetings list returns to that SAME filtered URL', async () => {
+  it('AC-LRC-008: a record opened from a narrowed Meetings list returns to that SAME filtered URL', async () => {
     renderRouted(
       {
         pathname: '/meetings/m1',
@@ -403,7 +403,7 @@ describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
     );
   });
 
-  it('archive-success returns to the SAME filtered list context, not a bare reset', async () => {
+  it('AC-LRC-008: archive-success returns to the SAME filtered list context, not a bare reset', async () => {
     renderRouted(
       {
         pathname: '/meetings/m1',
@@ -418,7 +418,7 @@ describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
     expect(screen.getByTestId('meetings-index-probe')).toHaveTextContent('Meetings index?q=kickoff');
   });
 
-  it('delete-success returns to the SAME filtered list context, not a bare reset', async () => {
+  it('AC-LRC-008: delete-success returns to the SAME filtered list context, not a bare reset', async () => {
     renderRouted(
       {
         pathname: '/meetings/m1',

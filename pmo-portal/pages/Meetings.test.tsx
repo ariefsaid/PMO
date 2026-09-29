@@ -12,6 +12,10 @@ const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
     data: [] as unknown[],
     isPending: false,
     isError: false,
+    isPlaceholderData: false,
+    /** When true, the UNFILTERED query answers with react-query's kept-previous `[]` placeholder
+     *  (a refetch still in flight after Clear filters). */
+    unfilteredPlaceholder: false,
     refetch: vi.fn(),
   },
   mutations: {
@@ -34,7 +38,11 @@ vi.mock('@/src/hooks/useMeetings', () => ({
     // list-working-set-return (#683): Meetings' search/project narrowing is a SERVER query
     // (DD-MTG-5) — simulate that here so an AC-LRC-012 zero-match/clear-filters case is
     // observable through the page, not just as a spy call.
-    return { ...listState, data: params.projectId || params.search ? [] : listState.data };
+    const narrowed = Boolean(params.projectId || params.search);
+    if (!narrowed && listState.unfilteredPlaceholder) {
+      return { ...listState, data: [], isPlaceholderData: true };
+    }
+    return { ...listState, data: narrowed ? [] : listState.data };
   },
   useMeetingMutations: () => mutations,
 }));
@@ -112,10 +120,22 @@ const renderPage = (role: Role = 'Admin', initialPath = '/meetings') => {
   );
 };
 
+/** The shell's scroll container, sized so a restore has a real range to land in (jsdom has no layout). */
+const sizeMainScroll = (): HTMLElement => {
+  const main = document.querySelector<HTMLElement>('.main-scroll')!;
+  Object.defineProperties(main, {
+    scrollHeight: { configurable: true, value: 2000 },
+    clientHeight: { configurable: true, value: 400 },
+  });
+  return main;
+};
+
 beforeEach(() => {
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;
+  listState.isPlaceholderData = false;
+  listState.unfilteredPlaceholder = false;
   listState.refetch.mockClear();
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
@@ -212,14 +232,14 @@ describe('Meetings — states', () => {
 // opening a row stamps a validated Meetings return context onto the navigation's router state.
 // The existing deferred SERVER search + newest-first query are unchanged (see Meetings.tsx).
 describe('Meetings index — list working set + return context (AC-LRC-008)', () => {
-  it('a direct URL with ?project= restores the selected filter and queries the server for it', () => {
+  it('AC-LRC-001: a direct URL with ?project= restores the selected filter and queries the server for it', () => {
     renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
     expect(useMeetingsSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
     );
   });
 
-  it('choosing a project filter writes ?project= to the URL', async () => {
+  it('AC-LRC-001: choosing a project filter writes ?project= to the URL', async () => {
     renderPage('Admin');
     await userEvent.selectOptions(
       screen.getByLabelText(/Filter by project/i),
@@ -232,7 +252,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     );
   });
 
-  it('opening a row stamps a validated Meetings return context onto the navigation state', async () => {
+  it('AC-LRC-008: opening a row stamps a validated Meetings return context onto the navigation state', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByText('Supplier dispute call'));
     await waitFor(() => {
@@ -243,7 +263,8 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     });
   });
 
-  it('AC-LRC-012: a zero-match server filter offers Clear filters, which restores the rows', async () => {
+  // Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+  it('a zero-match server filter offers Clear filters, which restores the rows', async () => {
     renderPage('Admin');
     await userEvent.selectOptions(
       screen.getByLabelText(/Filter by project/i),
@@ -253,5 +274,92 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(await screen.findByText('Kickoff with Acme')).toBeInTheDocument();
     expect(screen.getByText('Supplier dispute call')).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: a direct URL with ?q= fills the search box and sends that term to the SERVER query', () => {
+    renderPage('Admin', '/meetings?q=pipeline');
+    expect(screen.getByLabelText(/Search meetings/i)).toHaveValue('pipeline');
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'pipeline' }));
+  });
+
+  it('FR-LRC-007: after Clear filters, the kept-previous empty result reads as loading — never "No meetings yet"', async () => {
+    renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
+    expect(await screen.findByText(/No meetings match/i)).toBeInTheDocument();
+
+    // The unfiltered refetch is still in flight: react-query keeps the previous `[]` as placeholder.
+    listState.unfilteredPlaceholder = true;
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.queryByText('No meetings yet')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No meetings match/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    // The toolbar stays mounted through the refetch (the search box keeps its focus/text).
+    expect(screen.getByLabelText(/Search meetings/i)).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: an unavailable ?project= stays the active, clearable choice (control agrees with the URL)', async () => {
+    const GONE = '99999999-9999-4999-8999-999999999999';
+    renderPage('Admin', `/meetings?project=${GONE}`);
+    const select = screen.getByLabelText(/Filter by project/i);
+    expect(select).toHaveValue(GONE);
+    expect(screen.getByRole('option', { name: 'Unavailable project', selected: true })).toBeInTheDocument();
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: GONE }));
+    expect(screen.getByText(/No meetings match/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.getByLabelText(/Filter by project/i)).toHaveValue('All');
+    expect(screen.queryByRole('option', { name: 'Unavailable project' })).not.toBeInTheDocument();
+  });
+
+  it('AC-LRC-008: a meeting created from a filtered list opens with that list as its return context', async () => {
+    mutations.create.mutateAsync.mockResolvedValue({ id: 'm-new' });
+    renderPage('Admin', '/meetings?q=kickoff');
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/^Title/), 'Design review');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Create meeting/i }));
+    await waitFor(() => {
+      const probe = screen.getByTestId('location-probe');
+      expect(probe.dataset.pathname).toBe('/meetings/m-new');
+      const state = JSON.parse(probe.textContent || 'null');
+      expect(state.pmoListReturn).toMatchObject({ list: 'meetings', path: '/meetings?q=kickoff' });
+    });
+  });
+
+  it('FR-LRC-005: a return restores the captured scroll position only once real (non-placeholder) rows are ready', async () => {
+    listState.isPending = true;
+    const entry = {
+      pathname: '/meetings',
+      search: '',
+      state: { pmoListScrollRestore: { list: 'meetings', path: '/meetings', scrollTop: 300 } },
+    };
+    // A fresh element per render: re-rendering the SAME element would let React bail out.
+    const tree = () => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <div className="main-scroll">
+            <Meetings />
+          </div>
+        </MemoryRouter>
+      </ToastProvider>
+    );
+    const { rerender } = render(tree());
+    const main = sizeMainScroll();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    // Rows on screen, but they are the previous query's placeholder — still not this list's content.
+    listState.isPending = false;
+    listState.isPlaceholderData = true;
+    rerender(tree());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    listState.isPlaceholderData = false;
+    rerender(tree());
+    await waitFor(() => expect(main.scrollTop).toBe(300));
+    expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();
   });
 });

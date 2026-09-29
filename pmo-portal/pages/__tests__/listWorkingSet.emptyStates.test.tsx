@@ -176,7 +176,7 @@ beforeEach(() => {
 
 // ── Companies ──────────────────────────────────────────────────────────────────────────────
 describe('AC-LRC-012 — Companies', () => {
-  it('a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
+  it('AC-LRC-012: a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
     companiesState.data = [];
     renderList(Companies);
     expect(screen.getByText(/No companies yet/i)).toBeInTheDocument();
@@ -184,7 +184,7 @@ describe('AC-LRC-012 — Companies', () => {
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
 
-  it('a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
+  it('AC-LRC-012: a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
     companiesState.data = [
       { id: CLIENT_CO, name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', archived_at: null },
     ];
@@ -199,7 +199,7 @@ describe('AC-LRC-012 — Companies', () => {
 
 // ── Contacts ───────────────────────────────────────────────────────────────────────────────
 describe('AC-LRC-012 — Contacts', () => {
-  it('a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
+  it('AC-LRC-012: a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
     contactsState.data = [];
     companiesState.data = [];
     renderList(Contacts);
@@ -208,7 +208,7 @@ describe('AC-LRC-012 — Contacts', () => {
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
 
-  it('a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
+  it('AC-LRC-012: a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
     companiesState.data = [{ id: CLIENT_CO, name: 'Cascade Port Authority', type: 'Client' }];
     contactsState.data = [
       { id: 'ct1', full_name: 'Jane Doe', company_id: CLIENT_CO, title: null, email: null, phone: null, notes: null, archived_at: null },
@@ -224,7 +224,7 @@ describe('AC-LRC-012 — Contacts', () => {
 
 // ── Meetings ───────────────────────────────────────────────────────────────────────────────
 describe('AC-LRC-012 — Meetings', () => {
-  it('a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
+  it('AC-LRC-012: a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
     meetingsState.data = [];
     projectsState.data = [];
     renderList(Meetings);
@@ -233,7 +233,7 @@ describe('AC-LRC-012 — Meetings', () => {
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
 
-  it('a filtered (server) zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
+  it('AC-LRC-012: a filtered (server) zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
     projectsState.data = [{ id: PROJECT_ID, name: 'Harbour Upgrade' }];
     meetingsState.data = [
       { id: 'm1', title: 'Kickoff', occurred_at: '2026-08-20T09:00:00Z', location: null, project_id: null, project: null, created_by_id: 'u1', archived_at: null, notes: [] },
@@ -249,7 +249,7 @@ describe('AC-LRC-012 — Meetings', () => {
 
 // ── Projects ───────────────────────────────────────────────────────────────────────────────
 describe('AC-LRC-012 — Projects', () => {
-  it('a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
+  it('AC-LRC-012: a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
     projectsState.data = [];
     renderList(Projects);
     expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
@@ -257,7 +257,7 @@ describe('AC-LRC-012 — Projects', () => {
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
 
-  it('a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
+  it('AC-LRC-012: a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
     projectsState.data = [
       { id: 'p1', name: 'Harbour Upgrade', code: 'P-001', status: 'Ongoing Project', project_manager_id: 'pm-1', client_id: 'c1', contract_value: 100000, currency: 'USD', budget: 80000, spent: 10000, customer_contract_ref: null, client: { id: 'c1', name: 'Acme' }, pm: { id: 'pm-1', full_name: 'Alice PM' } },
     ];
@@ -272,7 +272,7 @@ describe('AC-LRC-012 — Projects', () => {
 
 // ── Sales Pipeline ─────────────────────────────────────────────────────────────────────────
 describe('AC-LRC-012 — Sales Pipeline', () => {
-  it('a genuinely empty collection (no open AND no lost deals) shows the empty copy, no Clear filters action', () => {
+  it('AC-LRC-012: a genuinely empty collection (no open AND no lost deals) shows the empty copy, no Clear filters action', () => {
     pipelineState.data = { stages: [], projects: [] };
     lostState.data = [];
     renderList(SalesPipeline);
@@ -280,7 +280,7 @@ describe('AC-LRC-012 — Sales Pipeline', () => {
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
 
-  it('a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
+  it('AC-LRC-012: a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
     pipelineState.data = {
       stages: [],
       projects: [
@@ -297,11 +297,44 @@ describe('AC-LRC-012 — Sales Pipeline', () => {
     await userEvent.click(clear);
     expect(await screen.findByText('Northwind ERP')).toBeInTheDocument();
   });
+  it('AC-LRC-012: in the Lost scope, a search that excludes existing lost projects shows the zero-match copy, not the scope-empty copy', async () => {
+    pipelineState.data = {
+      stages: [],
+      projects: [
+        { id: 'op1', name: 'Northwind ERP', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 100000, currency: 'USD', win_probability: 0.5 },
+      ],
+    };
+    lostState.data = [
+      { id: 'pl1', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderList(SalesPipeline);
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
+    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No lost projects/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
+  });
+
+  it('AC-LRC-012: in the Lost scope with no lost projects and no search, the scope-empty copy stays', async () => {
+    pipelineState.data = {
+      stages: [],
+      projects: [
+        { id: 'op1', name: 'Northwind ERP', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 100000, currency: 'USD', win_probability: 0.5 },
+      ],
+    };
+    lostState.data = [];
+    renderList(SalesPipeline);
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    expect(await screen.findByText(/No lost projects/i)).toBeInTheDocument();
+  });
 });
 
 // ── Procurement ────────────────────────────────────────────────────────────────────────────
 describe('AC-LRC-012 — Procurement', () => {
-  it('a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
+  it('AC-LRC-012: a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
     procurementsState.data = [];
     renderList(Procurement);
     expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
@@ -309,7 +342,7 @@ describe('AC-LRC-012 — Procurement', () => {
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
 
-  it('a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
+  it('AC-LRC-012: a filtered zero-match shows distinct copy + Clear filters, which restores the rows', async () => {
     procurementsState.data = [
       { id: 'pr1', title: 'Crane hire', code: 'PR-001', status: 'Requested', total_value: 5000, currency: 'USD', created_at: '2026-06-01T00:00:00Z', project: { name: 'Harbour' }, requested_by_id: 'u1', requested_by: { full_name: 'Alice' } },
     ];

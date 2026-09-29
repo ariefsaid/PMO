@@ -371,6 +371,10 @@ const SalesPipeline: React.FC = () => {
   // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
   // nothing is active (e.g. no open deals but lost ones exist) would be a no-op, so no action then.
   const filtersActive = search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
+  // The Lost / Needs-attention copy ("No lost projects") is true only when the SCOPE itself is
+  // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
+  // (AC-LRC-012) — the scope-empty sentence would deny rows that exist.
+  const narrowedWithinScope = search.trim() !== '' || stageIndex !== null;
   const clearTableFilters = () => {
     setSearch('');
     setScope('Open');
@@ -554,16 +558,16 @@ const SalesPipeline: React.FC = () => {
           rowLabel={(r) => `${t('sales.openRow', 'Open')} ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={
-            scope === 'Lost'
+            !narrowedWithinScope && scope === 'Lost'
               ? t('sales.tableEmpty.lost.title', 'No lost projects')
-              : scope === 'Needs attention'
+              : !narrowedWithinScope && scope === 'Needs attention'
                 ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
                 : t('sales.tableEmpty.search.title', 'No projects match your search')
           }
           emptySub={
-            scope === 'Lost'
+            !narrowedWithinScope && scope === 'Lost'
               ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
-              : scope === 'Needs attention'
+              : !narrowedWithinScope && scope === 'Needs attention'
                 ? t(
                     'sales.tableEmpty.needsAttention.sub',
                     'No project has been untouched for {{days}}+ days — pipeline is active.',

@@ -74,6 +74,16 @@ const renderPage = (role: Role = 'Admin', initialPath = '/companies') => {
   );
 };
 
+/** The shell's scroll container, sized so a restore has a real range to land in (jsdom has no layout). */
+const sizeMainScroll = (): HTMLElement => {
+  const main = document.querySelector<HTMLElement>('.main-scroll')!;
+  Object.defineProperties(main, {
+    scrollHeight: { configurable: true, value: 2000 },
+    clientHeight: { configurable: true, value: 400 },
+  });
+  return main;
+};
+
 beforeEach(() => {
   listState.data = seed;
   listState.isPending = false;
@@ -339,14 +349,14 @@ describe('Companies index — row → detail navigation (CW-4b)', () => {
 // row stamps a validated Companies return context (list + path + no scroll element in jsdom) onto
 // the navigation's router state — the seam CompanyDetail's BackBar/breadcrumb read on return.
 describe('Companies index — list working set + return context (AC-LRC-006)', () => {
-  it('a direct URL with ?type= restores the selected filter and the narrowed rows', () => {
+  it('AC-LRC-001: a direct URL with ?type= restores the selected filter and the narrowed rows', () => {
     renderPage('Admin', '/companies?type=Vendor');
     expect(screen.getByRole('tab', { name: /^Vendor$/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 
-  it('choosing a type filter writes ?type= to the URL (a copied link reproduces the same set)', async () => {
+  it('AC-LRC-001: choosing a type filter writes ?type= to the URL (a copied link reproduces the same set)', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('tab', { name: /^Vendor$/ }));
     await waitFor(() =>
@@ -354,7 +364,7 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
     );
   });
 
-  it('typing a search term writes ?q= to the URL', async () => {
+  it('AC-LRC-001: typing a search term writes ?q= to the URL', async () => {
     renderPage('Admin');
     await userEvent.type(screen.getByLabelText(/Search companies/i), 'steel');
     await waitFor(() =>
@@ -362,7 +372,7 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
     );
   });
 
-  it('opening a row stamps a validated Companies return context onto the navigation state', async () => {
+  it('AC-LRC-006: opening a row stamps a validated Companies return context onto the navigation state', async () => {
     renderPage('Admin', '/companies?type=Vendor');
     await userEvent.click(screen.getByRole('button', { name: 'Open Steelforge Fabrication' }));
     await waitFor(() => {
@@ -373,7 +383,8 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
     });
   });
 
-  it('AC-LRC-012: a zero-match filtered result offers Clear filters, which restores the rows', async () => {
+  // Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+  it('a zero-match filtered result offers Clear filters, which restores the rows', async () => {
     renderPage('Admin');
     await userEvent.type(screen.getByLabelText(/Search companies/i), 'no-such-company');
     expect(await screen.findByText(/No companies match your filters/i)).toBeInTheDocument();
@@ -381,5 +392,35 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
     expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
     expect(screen.getByText('Internal Holdings')).toBeInTheDocument();
+  });
+
+  it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {
+    listState.isPending = true;
+    const entry = {
+      pathname: '/companies',
+      search: '?type=Vendor',
+      state: { pmoListScrollRestore: { list: 'companies', path: '/companies?type=Vendor', scrollTop: 300 } },
+    };
+    // A fresh element per render: re-rendering the SAME element would let React bail out.
+    const tree = () => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <div className="main-scroll">
+            <Companies />
+          </div>
+        </MemoryRouter>
+      </ToastProvider>
+    );
+    const { rerender } = render(tree());
+    const main = sizeMainScroll();
+
+    // Still loading: the restore must wait — scrolling a list before its rows exist is a no-op.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    listState.isPending = false;
+    rerender(tree());
+    await waitFor(() => expect(main.scrollTop).toBe(300));
+    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 });

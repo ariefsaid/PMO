@@ -247,7 +247,7 @@ describe('ContactDetail', () => {
 // list-working-set-return (#683, AC-LRC-007): the mobile BackBar honours a validated captured
 // Contacts context and falls back to the bare index for a direct/copied link.
 describe('ContactDetail — list-return context (AC-LRC-007)', () => {
-  it('a record opened from a narrowed Contacts list returns to that SAME filtered URL', async () => {
+  it('AC-LRC-007: a record opened from a narrowed Contacts list returns to that SAME filtered URL', async () => {
     renderPageWithReturnContext();
     await userEvent.click(screen.getByRole('button', { name: /back to contacts/i }));
     expect(screen.getByTestId('Contacts index-probe')).toHaveTextContent(
@@ -255,7 +255,7 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
     );
   });
 
-  it('archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
+  it('AC-LRC-007: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
     await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
     const dialog = await screen.findByRole('dialog');
@@ -266,7 +266,7 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
     );
   });
 
-  it('the Contact→Company related link is a plain Link: it never carries the Contacts return context', async () => {
+  it('FR-LRC-004: the Contact→Company related link is a plain Link: it never carries the Contacts return context', async () => {
     renderPageWithReturnContext();
     await userEvent.click(screen.getByRole('link', { name: /Cascade Port Authority/i }));
     // Lands on the company record with NO location.state carrying the Contacts return context.

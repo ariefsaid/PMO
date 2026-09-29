@@ -223,14 +223,14 @@ describe('CompanyDetail', () => {
 // list-working-set-return (#683, AC-LRC-006): the mobile BackBar honours a validated captured
 // Companies context and falls back to the bare index for a direct/copied link.
 describe('CompanyDetail — list-return context (AC-LRC-006)', () => {
-  it('a direct/copied link (no captured context) Back returns to the bare Companies index', async () => {
+  it('AC-LRC-010: a direct/copied link (no captured context) Back returns to the bare Companies index', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /back to companies/i }));
     expect(screen.getByTestId('companies-index-probe')).toHaveTextContent('Companies index');
     expect(screen.getByTestId('companies-index-probe').textContent).toBe('Companies index');
   });
 
-  it('a record opened from a narrowed Companies list returns to that SAME filtered URL', async () => {
+  it('AC-LRC-006: a record opened from a narrowed Companies list returns to that SAME filtered URL', async () => {
     renderPageWithReturnContext();
     await userEvent.click(screen.getByRole('button', { name: /back to companies/i }));
     expect(screen.getByTestId('companies-index-probe')).toHaveTextContent(
@@ -238,7 +238,7 @@ describe('CompanyDetail — list-return context (AC-LRC-006)', () => {
     );
   });
 
-  it('archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
+  it('AC-LRC-006: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
     await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
     const dialog = await screen.findByRole('dialog');
@@ -249,7 +249,7 @@ describe('CompanyDetail — list-return context (AC-LRC-006)', () => {
     );
   });
 
-  it('a captured context belonging to a DIFFERENT list is ignored — Back falls back to the index', async () => {
+  it('AC-LRC-010: a captured context belonging to a DIFFERENT list is ignored — Back falls back to the index', async () => {
     render(
       <ToastProvider>
         <MemoryRouter

@@ -66,7 +66,7 @@ test(
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await expect(page.getByTestId('record-header')).toContainText('CableCore Electrical');
 
-    const backBtnEn = page.getByRole('button', { name: /back to (companies|perusahaan)/i });
+    const backBtnEn = page.getByRole('button', { name: 'Back to Companies', exact: true });
     await expect(backBtnEn).toBeVisible();
     await backBtnEn.focus();
     await expect(backBtnEn).toBeFocused();
@@ -92,12 +92,12 @@ test(
     await waitReady(page);
     await expectNoHorizontalOverflow(page);
 
-    // The type filter's VALUE (and so its accessible name here) stays the untranslated English
-    // token by design (it is `?type=` URL state — see listWorkingSet.ts); only the toolbar LABEL
-    // words translate, so the same "Vendor" tab name is correct in both locales.
+    // The Vendor tab's label IS translated (`companies.type.vendor`); the Bahasa word happens to
+    // be "Vendor" as well, so the same tab name is correct in both locales. The `?type=` URL value
+    // is the untranslated enum by design (listWorkingSet.ts).
     await page.getByRole('tab', { name: /^Vendor$/i }).click();
     await expect(page).toHaveURL(/[?&]type=Vendor/);
-    const searchId = page.getByRole('searchbox');
+    const searchId = page.getByRole('searchbox', { name: 'Cari perusahaan', exact: true });
     await expect(searchId).toBeVisible();
     await searchId.fill('e');
     await expect(page).toHaveURL(/[?&]q=e(&|$)/);
@@ -106,7 +106,7 @@ test(
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await expect(page.getByTestId('record-header')).toContainText('CableCore Electrical');
 
-    const backBtnId = page.getByRole('button', { name: /back to (companies|perusahaan)/i });
+    const backBtnId = page.getByRole('button', { name: 'Kembali ke Perusahaan', exact: true });
     await expect(backBtnId).toBeVisible();
     await backBtnId.tap();
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
