@@ -51,10 +51,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   }),
 }));
 
-vi.mock('@/src/hooks/useProjectView', () => ({
-  useProjectView: () => ['table', vi.fn()] as ['table', () => void],
-}));
-
 vi.mock('@/src/hooks/useMyTasks', () => ({
   useMyTasks: () => myTasksState,
 }));
@@ -141,6 +137,9 @@ const renderWithUrl = (url: string, role: Role = 'Project Manager') =>
   );
 
 beforeEach(() => {
+  // list-working-set-return (#682): the page now reads/writes the Projects view via
+  // sessionStorage-backed readProjectView/writeProjectView; clear it so no test leaks a view.
+  sessionStorage.clear();
   projectsState.data = fixtures;
   projectsState.isPending = false;
   projectsState.isError = false;

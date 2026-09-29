@@ -101,10 +101,12 @@ const LocationProbe: React.FC = () => {
 };
 
 // Projects rows embed ProjectStatusControl, which uses useToast — needs a provider.
-const renderPage = (role = 'Project Manager') => {
+// list-working-set-return (#682): the list-return seam captures context only from the list's own
+// canonical index path (`/projects`), so the default entry must be `/projects`, not `/`.
+const renderPage = (role = 'Project Manager', initialPath = '/projects') => {
   roleBox.value = role;
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <LocationProbe />
       <ToastProvider>
         <Projects />
@@ -542,6 +544,7 @@ describe('Projects list working set — AC-LRC-001/002', () => {
     roleBox.value = role;
     return render(
       <MemoryRouter initialEntries={[path]}>
+        <LocationProbe />
         <ToastProvider>
           <Projects />
         </ToastProvider>
@@ -550,7 +553,9 @@ describe('Projects list working set — AC-LRC-001/002', () => {
   };
 
   it('AC-LRC-001: renders the URL-backed working set (filter + search + view) and refresh/copy reproduces it', () => {
-    renderAt('/projects?filter=Ongoing&q=Northwind&view=cards');
+    // p1 ("Innovate Corp HQ Fit-Out") is the only seed row that is BOTH Ongoing and matches the
+    // search text, so it is the row that must render as a card under this combined URL state.
+    renderAt('/projects?filter=Ongoing&q=Innovate&view=cards');
     // The URL-driven filter segment is selected.
     const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
     expect(within(statusTabs).getByRole('tab', { name: /^Ongoing$/ })).toHaveAttribute(
@@ -558,12 +563,12 @@ describe('Projects list working set — AC-LRC-001/002', () => {
       'true',
     );
     // The URL-driven search is present in the search box.
-    expect(screen.getByPlaceholderText(/Search projects/i)).toHaveValue('Northwind');
+    expect(screen.getByPlaceholderText(/Search projects/i)).toHaveValue('Innovate');
     // The URL-driven view renders card carriers.
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
     // Re-rendering from the same URL (a refresh / copied link) reproduces the same controls.
     cleanup();
-    renderAt('/projects?filter=Ongoing&q=Northwind&view=cards');
+    renderAt('/projects?filter=Ongoing&q=Innovate&view=cards');
     expect(within(screen.getByRole('tablist', { name: /status filter/i })).getByRole('tab', { name: /^Ongoing$/ })).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -572,9 +577,10 @@ describe('Projects list working set — AC-LRC-001/002', () => {
     const probe = screen.getByTestId('location-probe');
     await userEvent.click(screen.getByRole('tab', { name: /^Ongoing$/ }));
     expect(probe.dataset.search).toBe('?filter=Ongoing');
-    // View change persists AND writes the URL in one event (kanban renders, search unchanged).
+    // View change persists AND writes the URL in one event (kanban renders, the status filter
+    // set moments earlier survives untouched — it is not a keystroke this event should drop).
     await userEvent.click(screen.getByRole('tab', { name: /Board/i }));
-    expect(probe.dataset.search).toBe('?view=kanban');
+    expect(probe.dataset.search).toBe('?filter=Ongoing&view=kanban');
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
     expect(sessionStorage.getItem('pmo.workspace.views')).toContain('kanban');
   });
