@@ -34,6 +34,172 @@
         "exclusive": "Exclusive — tax is on top of the amount",
         "inclusive": "Inclusive — the amount already includes tax"
       }
+    },
+    "retry": "Retry",
+    "loadErrorSub": "The request failed. Check your connection and try again.",
+    "roles": {
+      "engineer": "Engineer",
+      "projectManager": "Project Manager",
+      "finance": "Finance",
+      "executive": "Executive",
+      "admin": "Admin"
+    },
+    "users": {
+      "blocked": "Administration is an Admin-only area. You don’t have access to user management.",
+      "execReadOnly": "You can view the user directory, but only an Admin can add, edit, or disable users.",
+      "allUsers": "All users",
+      "search": {
+        "placeholder": "Search by name or email…",
+        "label": "Search users"
+      },
+      "invite": "Invite user",
+      "columns": {
+        "user": "User",
+        "role": "Role",
+        "status": "Status",
+        "manager": "Manager"
+      },
+      "status": {
+        "active": "Active",
+        "disabled": "Disabled"
+      },
+      "noManager": "No manager",
+      "menu": {
+        "editRole": "Edit role",
+        "changeManager": "Change manager",
+        "reEnable": "Re-enable",
+        "disable": "Disable"
+      },
+      "toast": {
+        "roleUpdated": "Role updated",
+        "roleUpdatedDetail": "{{name}} is now {{role}}.",
+        "managerUpdated": "Manager updated",
+        "managerUpdatedDetail": "Updated the reporting line for {{name}}.",
+        "disabled": "User disabled",
+        "disabledDetail": "{{name}} can no longer sign in.",
+        "reEnabled": "User re-enabled",
+        "reEnabledDetail": "{{name}} can sign in again.",
+        "inviteSent": "Invite sent",
+        "inviteSentDetail": "{{email}} has been invited as {{role}}."
+      },
+      "inviteError": {
+        "duplicateEmail": "That person is already in your workspace.",
+        "unauthorized": "You don't have permission to invite users.",
+        "invalidRole": "Choose a valid role.",
+        "unknownOrg": "That organization doesn't exist."
+      },
+      "error": {
+        "title": "Couldn't load users"
+      },
+      "empty": {
+        "title": "No users yet",
+        "sub": "People appear here once they are invited to the workspace."
+      },
+      "noMatch": {
+        "title": "No users match your search",
+        "sub": "Try a different name or email."
+      },
+      "roleConfirm": {
+        "title": "Change {{name}}'s role to {{role}}?",
+        "fallbackTitle": "Change role?",
+        "description": "This changes what they can see and do across the whole workspace, effective immediately. The change is recorded against your account.",
+        "confirm": "Change role"
+      },
+      "disableConfirm": {
+        "title": "Disable {{name}}?",
+        "fallbackTitle": "Disable user?",
+        "description": "They will no longer be able to sign in. You can re-enable them at any time.",
+        "confirm": "Disable"
+      },
+      "page": {
+        "description": "Manage users’ role, status, and reporting line. Administration is Admin-only; role changes are high-impact and recorded."
+      },
+      "inviteForm": {
+        "subtitleOperator": "Invite someone by email — they'll set their own password and role takes effect immediately.",
+        "subtitle": "Invite someone to your workspace by email — they'll set their own password.",
+        "legend": "Invite details",
+        "email": "Email",
+        "roleHelper": "Determines what this person can see and do once they sign in.",
+        "emailRequired": "Email is required.",
+        "emailInvalid": "Enter a valid email address."
+      },
+      "roleForm": {
+        "title": "Edit role",
+        "subtitle": "Set the workspace role for {{name}}",
+        "submit": "Save role",
+        "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
+      },
+      "managerForm": {
+        "title": "Change manager",
+        "subtitle": "Set the line manager for {{name}}",
+        "submit": "Save manager",
+        "legend": "Reporting line",
+        "label": "Manager",
+        "noun": "person",
+        "placeholder": "Assign a manager…",
+        "search": "Search people…",
+        "hint": "Used for timesheet-approval routing.",
+        "clear": "Clear manager"
+      }
+    },
+    "credits": {
+      "grant": "Grant credits",
+      "orgBalance": "Org balance",
+      "unit": "credits",
+      "error": {
+        "title": "Couldn't load balance"
+      },
+      "toast": {
+        "granted": "Credits granted",
+        "grantedDetail": "The org balance has been updated."
+      },
+      "form": {
+        "subtitle": "Add credits to the org pool. Takes effect immediately.",
+        "legend": "Grant details",
+        "amount": "Amount",
+        "amountHelper": "Must be greater than zero.",
+        "note": "Note",
+        "noteHelper": "Optional context recorded against the grant."
+      },
+      "amountRequired": "Amount is required.",
+      "amountPositive": "Grant amount must be positive."
+    },
+    "budgetMap": {
+      "sectionLabel": "Budget category to ERP account map",
+      "title": "Budget account map",
+      "description": "Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.",
+      "columns": {
+        "category": "Category",
+        "erpAccount": "ERP account",
+        "actions": "Actions"
+      },
+      "unmapped": "Not mapped — blocks every push",
+      "edit": "Edit {{category}}",
+      "map": "Map {{category}}",
+      "unmap": "Unmap {{category}}",
+      "error": {
+        "title": "Couldn't load the account map"
+      },
+      "toast": {
+        "unmapped": "Category unmapped",
+        "saved": "Account map saved"
+      },
+      "confirm": {
+        "title": "Unmap {{category}}?",
+        "fallbackTitle": "Unmap category?",
+        "description": "The category will have no ERP account. Pushing a budget with a non-zero amount in this category will fail closed until it is mapped again.",
+        "confirm": "Unmap"
+      },
+      "form": {
+        "editTitle": "Edit {{category}} mapping",
+        "editSubtitle": "Change the ERP account this category pushes to",
+        "createSubtitle": "Choose the ERP account this category pushes to",
+        "save": "Save mapping",
+        "legend": "Account",
+        "placeholder": "e.g. 5100 - Direct Costs",
+        "required": "An ERP account is required.",
+        "conflict": "{{account}} is already mapped to {{category}}."
+      }
     }
   },
   "approvals": {
@@ -1670,7 +1836,52 @@
     "value": {
       "helper": "Estimate, pre-win. Editable by Admin, Executive, and PM.",
       "formatError": "Use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals — for example {{example}}."
-    }
+    },
+    "title": {
+      "create": "New project",
+      "edit": "Edit project"
+    },
+    "subtitle": {
+      "create": "Create a project",
+      "edit": "Update the project header details"
+    },
+    "submit": {
+      "create": "Create project",
+      "edit": "Save project"
+    },
+    "section": {
+      "project": "Project",
+      "schedule": "Schedule"
+    },
+    "name": {
+      "label": "Project name",
+      "placeholder": "e.g. Harborside Terminal — Civil Works",
+      "required": "Project name is required."
+    },
+    "client": {
+      "label": "Client company",
+      "placeholder": "Select a company…",
+      "search": "Search companies…",
+      "noun": "company",
+      "required": "Select a client company."
+    },
+    "pm": {
+      "label": "Project manager",
+      "placeholder": "Assign a PM…",
+      "noun": "manager"
+    },
+    "code": {
+      "label": "Project code",
+      "placeholder": "e.g. OPP-2041"
+    },
+    "stage": {
+      "label": "Origination stage",
+      "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."
+    },
+    "estimatedValue": "Estimated value",
+    "expectedStart": "Expected start",
+    "expectedEnd": "Expected end",
+    "taxRequiredHint": "State the tax treatment and the tax amount for this contract value — enter 0 if there is no tax. Without it the work-order drawdown compares this ceiling against order values on an unknown basis."
   },
   "projects": {
     "actions": {
@@ -1857,7 +2068,11 @@
     },
     "viewToggleLabel": "Pipeline view",
     "weightedForecast": "Weighted pipeline forecast",
-    "winProbability": "Win probability"
+    "winProbability": "Win probability",
+    "board": {
+      "ariaLabel": "Sales pipeline board",
+      "weightedShort": "{{value}} wtd"
+    }
   },
   "shell": {
     "backBar": {

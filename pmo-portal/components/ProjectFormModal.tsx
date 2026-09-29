@@ -21,13 +21,9 @@ import {
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import {
-  TAX_TREATMENT_OPTIONS,
-  TAX_TREATMENT_PLACEHOLDER,
-  CONTRACT_TAX_REQUIRED_HINT,
-  parseTaxFacts,
-} from '@/src/lib/taxTreatment';
+import { CONTRACT_TAX_REQUIRED_HINT, parseTaxFacts } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
+import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { projectIconColor } from './projects';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -136,8 +132,8 @@ const makeValidate =
   (t: TFunction) =>
   (v: FormValues): Partial<Record<keyof FormValues, string>> => {
     const errors: Partial<Record<keyof FormValues, string>> = {};
-    if (!v.name.trim()) errors.name = 'Project name is required.';
-    if (!v.clientId) errors.clientId = 'Select a client company.';
+    if (!v.name.trim()) errors.name = t('projectForm.name.required', 'Project name is required.');
+    if (!v.clientId) errors.clientId = t('projectForm.client.required', 'Select a client company.');
     const valueErr = moneyError(v.value, t);
     if (valueErr) errors.value = valueErr;
     return errors;
@@ -167,6 +163,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const isEdit = mode === 'editHeader';
   const { t } = useTranslation();
   const validate = useMemo(() => makeValidate(t), [t]);
+  const taxOptions = useTaxTreatmentOptions();
   const { data: clients = [], isError: clientsError } = useClientCompanies();
   const { data: managers = [], isError: pmError } = useProjectManagers();
 
@@ -234,7 +231,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     return clients.map((c) => ({
       value: c.id,
       label: c.name,
-      sub: 'Client',
+      sub: t('companies.type.client', 'Client'),
       initials: initialsOf(c.name),
       color: projectIconColor(),
     }));
@@ -322,11 +319,13 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit project' : 'New project'}
+      title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
       subtitle={
-        isEdit ? 'Update the project header details' : 'Create a project'
+        isEdit
+          ? t('projectForm.subtitle.edit', 'Update the project header details')
+          : t('projectForm.subtitle.create', 'Create a project')
       }
-      submitLabel={isEdit ? 'Save project' : 'Create project'}
+      submitLabel={isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -334,22 +333,22 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       submitDisabled={!form.isComplete || taxIncomplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
-      <FormSection legend="Project">
+      <FormSection legend={t('projectForm.section.project', 'Project')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Project name"
+            label={t('projectForm.name.label', 'Project name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Harborside Terminal — Civil Works"
+            placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal — Civil Works')}
             fullWidth
           />
 
           <Combobox
-            label="Client company"
+            label={t('projectForm.client.label', 'Client company')}
             required
             value={form.values.clientId}
             selectedOption={
@@ -362,14 +361,14 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               setClientLabel(opt.label);
             }}
             loadOptions={loadClients}
-            placeholder="Select a company…"
-            searchPlaceholder="Search companies…"
-            noun="company"
+            placeholder={t('projectForm.client.placeholder', 'Select a company…')}
+            searchPlaceholder={t('projectForm.client.search', 'Search companies…')}
+            noun={t('projectForm.client.noun', 'company')}
             error={form.errors.clientId}
           />
 
           <Combobox
-            label="Project manager"
+            label={t('projectForm.pm.label', 'Project manager')}
             value={form.values.pmId}
             selectedOption={
               form.values.pmId && pmLabel
@@ -381,33 +380,33 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               setPmLabel(opt.label);
             }}
             loadOptions={loadManagers}
-            placeholder="Assign a PM…"
-            noun="manager"
+            placeholder={t('projectForm.pm.placeholder', 'Assign a PM…')}
+            noun={t('projectForm.pm.noun', 'manager')}
           />
 
           {isEdit ? (
             <TextField
               id={codeField.id}
-              label="Project code"
+              label={t('projectForm.code.label', 'Project code')}
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              placeholder="e.g. OPP-2041"
+              placeholder={t('projectForm.code.placeholder', 'e.g. OPP-2041')}
               mono
             />
           ) : (
             <>
               <SelectField
                 id={statusField.id}
-                label="Origination stage"
+                label={t('projectForm.stage.label', 'Origination stage')}
                 value={statusField.value}
                 onChange={(v) => statusField.onChange(v as ProjectStatus)}
                 options={ORIGINATION_OPTIONS}
-                helper="On-hand is reached only by winning a project in the pipeline, never created directly."
+                helper={t('projectForm.stage.helper', 'On-hand is reached only by winning a project in the pipeline, never created directly.')}
               />
               <NumberField
                 id={valueField.id}
-                label="Estimated value"
+                label={t('projectForm.estimatedValue', 'Estimated value')}
                 prefix="$"
                 value={valueField.value}
                 onChange={valueField.onChange}
@@ -426,17 +425,17 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 <>
                   <SelectField
                     id={taxTreatmentField.id}
-                    label="Tax treatment"
+                    label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
                     required
                     value={taxTreatmentField.value}
                     onChange={taxTreatmentField.onChange}
-                    placeholder={TAX_TREATMENT_PLACEHOLDER}
-                    options={TAX_TREATMENT_OPTIONS}
+                    placeholder={taxOptions.placeholder}
+                    options={taxOptions.options}
                     data-testid="project-tax-treatment"
                   />
                   <NumberField
                     id={taxAmountField.id}
-                    label="Tax amount"
+                    label={t('projectDetail.header.taxAmount', 'Tax amount')}
                     required
                     prefix="$"
                     value={taxAmountField.value}
@@ -451,7 +450,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                       data-testid="project-tax-required-hint"
                       className="col-span-full text-[12px] text-muted-foreground"
                     >
-                      {CONTRACT_TAX_REQUIRED_HINT}
+                      {t('projectForm.taxRequiredHint', CONTRACT_TAX_REQUIRED_HINT)}
                     </p>
                   )}
                 </>
@@ -461,18 +460,18 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         </FormGrid>
       </FormSection>
 
-      <FormSection legend="Schedule">
+      <FormSection legend={t('projectForm.section.schedule', 'Schedule')}>
         <FormGrid>
           <TextField
             id={startField.id}
-            label="Expected start"
+            label={t('projectForm.expectedStart', 'Expected start')}
             type="date"
             value={startField.value}
             onChange={startField.onChange}
           />
           <TextField
             id={endField.id}
-            label="Expected end"
+            label={t('projectForm.expectedEnd', 'Expected end')}
             type="date"
             value={endField.value}
             onChange={endField.onChange}

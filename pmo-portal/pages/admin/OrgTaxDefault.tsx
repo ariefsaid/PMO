@@ -7,7 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
 import { useOrgTaxDefault, ORG_TAX_DEFAULT_KEY } from '@/src/hooks/useOrgTaxDefault';
-import { TAX_TREATMENT_OPTIONS } from '@/src/lib/taxTreatment';
+import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 
 /**
@@ -36,6 +36,7 @@ const OrgTaxDefault: React.FC = () => {
   const { toast } = useToast();
   const qc = useQueryClient();
   const current = useOrgTaxDefault();
+  const taxOptions = useTaxTreatmentOptions();
 
   const mutation = useMutation({
     mutationFn: (value: TaxTreatment) => repositories.orgSettings.setTaxDefault(value),
@@ -86,7 +87,7 @@ const OrgTaxDefault: React.FC = () => {
             label={t('admin.taxDefault.label', 'Default tax treatment')}
             value={current}
             onChange={(value) => void onChange(value)}
-            options={TAX_TREATMENT_OPTIONS}
+            options={taxOptions.options}
             disabled={mutation.isPending}
             data-testid="org-tax-default-select"
           />

@@ -50,7 +50,7 @@
 #    (OD-TAX-1 §2): it renders on this list, on the project detail header and overview, on the
 #    procurement ledger and on the sales-invoice list, and a shared component rendered BY a
 #    launch-scope screen is not checked unless the screen's line names it.
-/projects                      pages/Projects.tsx components/ProjectCard.tsx components/ProjectKanbanBoard.tsx src/components/ui/TaxBasisLabel.tsx
+/projects                      pages/Projects.tsx components/ProjectCard.tsx components/ProjectKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/TaxBasisLabel.tsx
 
 # ── The daily work surface. Both routes render the same component; the `:tab` route also
 #    carries the launch-scope `tasks` strings, because TasksTab is where tasks live — there is
@@ -94,7 +94,7 @@
 #    won passes through here, so leaving it out would split one journey across the gate boundary.
 #    `Funnel` is named here (#687 Discover follow-up) because its scroll-viewport a11y label
 #    lives in the shared component, and it also renders on this screen.
-/sales                         pages/SalesPipeline.tsx src/components/ui/Funnel.tsx
+/sales                         pages/SalesPipeline.tsx components/SalesKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/Funnel.tsx
 
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is
 #    also the reference slice, so its patterns propagate to whatever is built next.
@@ -122,7 +122,7 @@
 #    shell, so naming the shell (plus its /:section form) is what keeps every Administration label,
 #    description, denial and pending copy inside the gate.
 /administration               pages/Administration.tsx
-/administration/:section      pages/Administration.tsx src/components/integrations/M365OrgApprovalCard.tsx
+/administration/:section      pages/Administration.tsx pages/AdminUsers.tsx pages/AdministrationCredits.tsx pages/admin/OrgTaxDefault.tsx pages/admin/BudgetAccountMap.tsx src/components/integrations/M365OrgApprovalCard.tsx
 
 # ── Personal (Member-owner) Microsoft 365 connect home (AC-ADMIA-006) — the OTHER ownership surface.
 #    It shares the "integrations" word with the organization surface at /administration/integrations;

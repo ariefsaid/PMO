@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   Button,
   Icon,
@@ -53,15 +54,17 @@ function parseGrantAmount(raw: string): number | null {
   return n !== null && n > 0 ? n : null;
 }
 
-const validateGrant = (v: GrantFormValues): Partial<Record<keyof GrantFormValues, string>> => {
-  const errors: Partial<Record<keyof GrantFormValues, string>> = {};
-  if (!v.amount.trim()) {
-    errors.amount = 'Amount is required.';
-  } else if (parseGrantAmount(v.amount) === null) {
-    errors.amount = 'Grant amount must be positive.';
-  }
-  return errors;
-};
+const makeValidateGrant =
+  (t: TFunction) =>
+  (v: GrantFormValues): Partial<Record<keyof GrantFormValues, string>> => {
+    const errors: Partial<Record<keyof GrantFormValues, string>> = {};
+    if (!v.amount.trim()) {
+      errors.amount = t('admin.credits.amountRequired', 'Amount is required.');
+    } else if (parseGrantAmount(v.amount) === null) {
+      errors.amount = t('admin.credits.amountPositive', 'Grant amount must be positive.');
+    }
+    return errors;
+  };
 
 export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
   isOperator,
@@ -87,12 +90,16 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
       repositories.credits.grant(args),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['orgCreditBalance', orgId] });
-      toast('Credits granted', 'The org balance has been updated.', 'success');
+      toast(
+        t('admin.credits.toast.granted', 'Credits granted'),
+        t('admin.credits.toast.grantedDetail', 'The org balance has been updated.'),
+        'success',
+      );
       setGrantOpen(false);
     },
     onError: (err: unknown) => {
       const { headline, detail } = classifyMutationError(err, {
-        '23514': 'Grant amount must be positive.',
+        '23514': t('admin.credits.amountPositive', 'Grant amount must be positive.'),
       });
       setSaveError({ headline, detail });
       toast(headline, detail, 'warning');
@@ -107,7 +114,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
           isOperator && (
             <Button variant="primary" onClick={() => setGrantOpen(true)}>
               <Icon name="plus" />
-              Grant credits
+              {t('admin.credits.grant', 'Grant credits')}
             </Button>
           )
         }
@@ -121,17 +128,20 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
       {balanceQuery.isError && (
         <ListState
           variant="error"
-          title="Couldn't load balance"
-          sub="The request failed. Check your connection and try again."
+          title={t('admin.credits.error.title', "Couldn't load balance")}
+          sub={t('admin.loadErrorSub', 'The request failed. Check your connection and try again.')}
+          retryLabel={t('admin.retry', 'Retry')}
           onRetry={() => void balanceQuery.refetch()}
         />
       )}
       {balanceQuery.data !== undefined && (
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-          <span className="text-[13px] text-muted-foreground">Org balance</span>
+          <span className="text-[13px] text-muted-foreground">{t('admin.credits.orgBalance', 'Org balance')}</span>
           <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
             {formatNumberExact(balanceQuery.data)}{' '}
-            <span className="text-[13px] font-semibold text-muted-foreground">credits</span>
+            <span className="text-[13px] font-semibold text-muted-foreground">
+              {t('admin.credits.unit', 'credits')}
+            </span>
           </span>
         </div>
       )}
@@ -157,9 +167,11 @@ const GrantFormModal: React.FC<{
   onClose: () => void;
   onSubmit: (amount: number, note: string) => void;
 }> = ({ loading, submitError, onClose, onSubmit }) => {
+  const { t } = useTranslation();
+  const validate = useMemo(() => makeValidateGrant(t), [t]);
   const form = useEntityForm<GrantFormValues>({
     initialValues: { amount: '', note: '' },
-    validate: validateGrant,
+    validate,
     idPrefix: 'grant-credits-form',
     requiredFields: ['amount'],
     module: 'administration',
@@ -184,9 +196,9 @@ const GrantFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title="Grant credits"
-      subtitle="Add credits to the org pool. Takes effect immediately."
-      submitLabel="Grant credits"
+      title={t('admin.credits.grant', 'Grant credits')}
+      subtitle={t('admin.credits.form.subtitle', 'Add credits to the org pool. Takes effect immediately.')}
+      submitLabel={t('admin.credits.grant', 'Grant credits')}
       onSubmit={handleSubmit}
       submitError={submitError}
       onClose={onClose}
@@ -194,26 +206,26 @@ const GrantFormModal: React.FC<{
       dirty={form.isDirty}
       errorSummary={errorSummary}
     >
-      <FormSection legend="Grant details">
+      <FormSection legend={t('admin.credits.form.legend', 'Grant details')}>
         <NumberField
           id={amountField.id}
-          label="Amount"
+          label={t('admin.credits.form.amount', 'Amount')}
           localeAware
           required
           value={amountField.value}
           onChange={amountField.onChange}
           onBlur={amountField.onBlur}
           error={form.errors.amount}
-          helper="Must be greater than zero."
+          helper={t('admin.credits.form.amountHelper', 'Must be greater than zero.')}
           fullWidth
         />
         <TextField
           id={noteField.id}
-          label="Note"
+          label={t('admin.credits.form.note', 'Note')}
           value={noteField.value}
           onChange={noteField.onChange}
           onBlur={noteField.onBlur}
-          helper="Optional context recorded against the grant."
+          helper={t('admin.credits.form.noteHelper', 'Optional context recorded against the grant.')}
           fullWidth
         />
       </FormSection>
