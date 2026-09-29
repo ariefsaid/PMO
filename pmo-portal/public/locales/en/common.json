@@ -1997,6 +1997,19 @@
       "board": "Projects kanban board",
       "empty": "No projects in {{stage}}",
       "swipe": "Swipe for more →"
+    },
+    "status": {
+      "leads": "Leads",
+      "pqSubmitted": "PQ Submitted",
+      "quotationSubmitted": "Quotation Submitted",
+      "tenderSubmitted": "Tender Submitted",
+      "negotiation": "Negotiation",
+      "wonPendingKom": "Won, Pending KoM",
+      "ongoingProject": "Ongoing Project",
+      "onHold": "On Hold",
+      "closeOut": "Close Out",
+      "lossTender": "Loss Tender",
+      "internalProject": "Internal Project"
     }
   },
   "sales": {
@@ -2080,6 +2093,14 @@
     "board": {
       "ariaLabel": "Sales pipeline board",
       "weightedShort": "{{value}} wtd"
+    },
+    "stage": {
+      "leads": "Leads",
+      "preQual": "Pre-Qual",
+      "quotation": "Quotation",
+      "tender": "Tender",
+      "negotiation": "Negotiation",
+      "lost": "Lost"
     }
   },
   "shell": {

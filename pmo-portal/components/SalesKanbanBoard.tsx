@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
@@ -34,6 +35,7 @@ const DealCard: React.FC<{
   onActivate: () => void;
 }> = ({ project, selected, onActivate }) => {
   const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
   const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
   return (
     <ProjectCardShell
@@ -43,7 +45,7 @@ const DealCard: React.FC<{
       name={project.name}
       client={project.client_name}
       status={
-        <StatusPill variant={pillVariantForStatus(project.status)}>{project.status}</StatusPill>
+        <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
       }
       body={
         <div className="flex items-baseline justify-between gap-2">
@@ -112,6 +114,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
   // projects it, migration 0201); the per-COLUMN totals sum across projects and so have none, and
   // take the org default.
   const orgCurrency = useOrgCurrency();
+  const stageLabel = useSalesStageLabel();
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
@@ -119,7 +122,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
   // The five OPEN columns for the stage indicator (terminal Won/Lost are excluded —
   // the indicator is for navigating the pipeline, not the terminal archive columns).
   const openStages = SALES_COLUMNS.filter((c) => !c.terminal).map((c) => ({
-    title: c.title,
+    title: stageLabel(c),
     dotColor: c.dotColor,
   }));
 
@@ -141,6 +144,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
           const colProjects = byColumn(col);
           const gross = colProjects.reduce((s, p) => s + p.contract_value, 0);
           const weighted = colProjects.reduce((s, p) => s + weightedValue(p), 0);
+          const colTitle = stageLabel(col);
           return (
             <div
               key={col.title}
@@ -149,11 +153,11 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
               className="flex min-w-0 flex-col"
             >
               <KanbanColumn
-                title={col.title}
+                title={colTitle}
                 dotColor={col.dotColor}
                 count={colProjects.length}
                 totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : undefined}
-                emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: col.title })}
+                emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
               >
                 {colProjects.map((p) => (
                   <DealCard

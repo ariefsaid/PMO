@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
 import {
   EntityFormModal,
@@ -99,8 +100,6 @@ function needsTaxBasis(valueRaw: string): boolean {
   return n !== null && n > 0;
 }
 
-const ORIGINATION_OPTIONS = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: s }));
-
 /**
  * "Estimated value" is OPTIONAL (a pre-win estimate may be unset). Blank → valid (unset).
  * Non-blank must parse (via the same locale-aware scale-2 parser used to persist — Wave 3 input
@@ -162,6 +161,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 }) => {
   const isEdit = mode === 'editHeader';
   const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
+  const originationOptions = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: statusLabel(s) }));
   const validate = useMemo(() => makeValidate(t), [t]);
   const taxOptions = useTaxTreatmentOptions();
   const { data: clients = [], isError: clientsError } = useClientCompanies();
@@ -401,7 +402,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 label={t('projectForm.stage.label', 'Origination stage')}
                 value={statusField.value}
                 onChange={(v) => statusField.onChange(v as ProjectStatus)}
-                options={ORIGINATION_OPTIONS}
+                options={originationOptions}
                 helper={t('projectForm.stage.helper', 'On-hand is reached only by winning a project in the pipeline, never created directly.')}
               />
               <NumberField

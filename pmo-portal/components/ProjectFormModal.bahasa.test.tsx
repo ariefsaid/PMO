@@ -59,6 +59,16 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(screen.getByText('Jadwal')).toBeInTheDocument();
   });
 
+  it('#693: the origination stage options show Bahasa names while the values stay the enum', () => {
+    renderForm();
+    const select = screen.getByLabelText('Tahap awal') as HTMLSelectElement;
+    const options = Array.from(select.options).map((o) => [o.value, o.textContent]);
+    expect(options).toEqual([
+      ['Leads', 'Prospek'],
+      ['Internal Project', 'Proyek internal'],
+    ]);
+  });
+
   it('#693: the tax treatment question appears in Bahasa once a value is entered', async () => {
     renderForm();
     await userEvent.type(screen.getByLabelText(/Nilai estimasi/), '1000');

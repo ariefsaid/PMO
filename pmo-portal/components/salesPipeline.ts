@@ -24,7 +24,8 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
  * Terminal Won/Lost keep their outcome colors. Every dot is an `hsl(var(--…))` token.
  */
 export interface SalesColumn {
-  /** Display title (may differ from the enum, e.g. "Pre-Qual"). */
+  /** Display title (English default; may differ from the enum, e.g. "Pre-Qual"). Translated on the
+   *  board via `useSalesStageLabel()` keyed by `testId` — the enum itself never changes. */
   title: string;
   /** The project status enum value(s) this column collects. */
   statuses: string[];

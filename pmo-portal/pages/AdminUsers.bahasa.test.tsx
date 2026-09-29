@@ -83,7 +83,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     for (const h of ['Pengguna', 'Role', 'Status', 'Manajer']) {
       expect(screen.getAllByRole('columnheader', { name: h }).length).toBeGreaterThan(0);
     }
-    expect(screen.getAllByText('Manajer Proyek').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Manajer proyek').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Keuangan').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Aktif').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Nonaktif').length).toBeGreaterThan(0);
@@ -109,16 +109,16 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     listState.data = [];
     renderPage();
     expect(screen.getByText('Belum ada pengguna')).toBeInTheDocument();
-    expect(screen.getByText('Orang akan muncul di sini setelah diundang ke workspace.')).toBeInTheDocument();
+    expect(screen.getByText('Orang akan muncul di sini setelah diundang ke organisasi.')).toBeInTheDocument();
   });
 
   it('#693: the invite modal, its validation and its role options are Bahasa', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Undang pengguna' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Undang seseorang ke workspace Anda lewat email — mereka akan menetapkan kata sandi sendiri.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Undang seseorang ke organisasi Anda lewat email — mereka akan menetapkan kata sandi sendiri.')).toBeInTheDocument();
     expect(within(dialog).getByText('Detail undangan')).toBeInTheDocument();
-    expect(within(dialog).getByRole('option', { name: 'Manajer Proyek' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('option', { name: 'Manajer proyek' })).toBeInTheDocument();
     expect(within(dialog).getByRole('option', { name: 'Eksekutif' })).toBeInTheDocument();
     await userEvent.type(within(dialog).getByLabelText(/^Email/), 'bukan-email');
     await userEvent.tab();
@@ -134,12 +134,26 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('menuitem', { name: 'Nonaktifkan' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Edit role' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Tetapkan role workspace untuk Desmond Achebe')).toBeInTheDocument();
+    expect(within(dialog).getByText('Tetapkan role organisasi untuk Desmond Achebe')).toBeInTheDocument();
     await userEvent.selectOptions(within(dialog).getByLabelText(/^Role/), 'Executive');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan role' }));
     const confirm = await screen.findByRole('dialog', { name: 'Ubah role Desmond Achebe menjadi Eksekutif?' });
     await userEvent.click(within(confirm).getByRole('button', { name: 'Ubah role' }));
     await waitFor(() => expect(mutations.updateRole.mutateAsync).toHaveBeenCalled());
     expect(await screen.findByText('Desmond Achebe sekarang Eksekutif.')).toBeInTheDocument();
+  });
+
+  it('#693: the reporting line reads "Atasan langsung" in the manager modal and its toast — not the literal "garis pelaporan"', async () => {
+    renderPage();
+    await userEvent.click(
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Ubah manajer' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Atasan langsung')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Garis pelaporan')).toBeNull();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan manajer' }));
+    await waitFor(() => expect(mutations.assignManager.mutateAsync).toHaveBeenCalled());
+    expect(await screen.findByText('Atasan Desmond Achebe diperbarui.')).toBeInTheDocument();
   });
 });

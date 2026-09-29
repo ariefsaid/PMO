@@ -42,7 +42,7 @@
     "loadErrorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "roles": {
       "engineer": "Engineer",
-      "projectManager": "Manajer Proyek",
+      "projectManager": "Manajer proyek",
       "finance": "Keuangan",
       "executive": "Eksekutif",
       "admin": "Admin"
@@ -77,7 +77,7 @@
         "roleUpdated": "Role diperbarui",
         "roleUpdatedDetail": "{{name}} sekarang {{role}}.",
         "managerUpdated": "Manajer diperbarui",
-        "managerUpdatedDetail": "Garis pelaporan {{name}} diperbarui.",
+        "managerUpdatedDetail": "Atasan {{name}} diperbarui.",
         "disabled": "Pengguna dinonaktifkan",
         "disabledDetail": "{{name}} tidak dapat lagi masuk.",
         "reEnabled": "Pengguna diaktifkan kembali",
@@ -86,7 +86,7 @@
         "inviteSentDetail": "{{email}} telah diundang sebagai {{role}}."
       },
       "inviteError": {
-        "duplicateEmail": "Orang tersebut sudah ada di workspace Anda.",
+        "duplicateEmail": "Orang tersebut sudah ada di organisasi Anda.",
         "unauthorized": "Anda tidak memiliki izin untuk mengundang pengguna.",
         "invalidRole": "Pilih role yang valid.",
         "unknownOrg": "Organisasi tersebut tidak ada."
@@ -96,7 +96,7 @@
       },
       "empty": {
         "title": "Belum ada pengguna",
-        "sub": "Orang akan muncul di sini setelah diundang ke workspace."
+        "sub": "Orang akan muncul di sini setelah diundang ke organisasi."
       },
       "noMatch": {
         "title": "Tidak ada pengguna yang cocok dengan pencarian",
@@ -105,7 +105,7 @@
       "roleConfirm": {
         "title": "Ubah role {{name}} menjadi {{role}}?",
         "fallbackTitle": "Ubah role?",
-        "description": "Ini mengubah apa yang dapat mereka lihat dan lakukan di seluruh workspace, berlaku segera. Perubahan dicatat atas akun Anda.",
+        "description": "Ini mengubah apa yang dapat mereka lihat dan lakukan di seluruh organisasi, berlaku segera. Perubahan dicatat atas akun Anda.",
         "confirm": "Ubah role"
       },
       "disableConfirm": {
@@ -115,11 +115,11 @@
         "confirm": "Nonaktifkan"
       },
       "page": {
-        "description": "Kelola role, status, dan garis pelaporan pengguna. Administrasi hanya untuk Admin; perubahan role berdampak besar dan dicatat."
+        "description": "Kelola role, status, dan atasan langsung pengguna. Administrasi hanya untuk Admin; perubahan role berdampak besar dan dicatat."
       },
       "inviteForm": {
         "subtitleOperator": "Undang seseorang lewat email — mereka akan menetapkan kata sandi sendiri dan role langsung berlaku.",
-        "subtitle": "Undang seseorang ke workspace Anda lewat email — mereka akan menetapkan kata sandi sendiri.",
+        "subtitle": "Undang seseorang ke organisasi Anda lewat email — mereka akan menetapkan kata sandi sendiri.",
         "legend": "Detail undangan",
         "email": "Email",
         "roleHelper": "Menentukan apa yang dapat dilihat dan dilakukan orang ini setelah masuk.",
@@ -128,7 +128,7 @@
       },
       "roleForm": {
         "title": "Edit role",
-        "subtitle": "Tetapkan role workspace untuk {{name}}",
+        "subtitle": "Tetapkan role organisasi untuk {{name}}",
         "submit": "Simpan role",
         "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu."
       },
@@ -136,7 +136,7 @@
         "title": "Ubah manajer",
         "subtitle": "Tetapkan manajer langsung untuk {{name}}",
         "submit": "Simpan manajer",
-        "legend": "Garis pelaporan",
+        "legend": "Atasan langsung",
         "label": "Manajer",
         "noun": "orang",
         "placeholder": "Tetapkan manajer…",
@@ -170,13 +170,13 @@
     "budgetMap": {
       "sectionLabel": "Peta kategori anggaran ke akun ERP",
       "title": "Peta akun anggaran",
-      "description": "Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat di-push. Kategori yang belum dipetakan memblokir push untuk SELURUH anggaran, bukan hanya baris itu.",
+      "description": "Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat dikirim ke ERP. Kategori yang belum dipetakan memblokir pengiriman SELURUH anggaran, bukan hanya baris itu.",
       "columns": {
         "category": "Kategori",
         "erpAccount": "Akun ERP",
         "actions": "Aksi"
       },
-      "unmapped": "Belum dipetakan — memblokir setiap push",
+      "unmapped": "Belum dipetakan — memblokir setiap pengiriman",
       "edit": "Edit {{category}}",
       "map": "Petakan {{category}}",
       "unmap": "Hapus pemetaan {{category}}",
@@ -190,13 +190,13 @@
       "confirm": {
         "title": "Hapus pemetaan {{category}}?",
         "fallbackTitle": "Hapus pemetaan kategori?",
-        "description": "Kategori ini tidak akan memiliki akun ERP. Push anggaran dengan jumlah bukan nol pada kategori ini akan ditolak hingga dipetakan kembali.",
+        "description": "Kategori ini tidak akan memiliki akun ERP. Pengiriman anggaran dengan jumlah bukan nol pada kategori ini akan ditolak hingga dipetakan kembali.",
         "confirm": "Hapus pemetaan"
       },
       "form": {
         "editTitle": "Edit pemetaan {{category}}",
-        "editSubtitle": "Ubah akun ERP tujuan push kategori ini",
-        "createSubtitle": "Pilih akun ERP tujuan push kategori ini",
+        "editSubtitle": "Ubah akun ERP tujuan pengiriman kategori ini",
+        "createSubtitle": "Pilih akun ERP tujuan pengiriman kategori ini",
         "save": "Simpan pemetaan",
         "legend": "Akun",
         "placeholder": "mis. 5100 - Biaya Langsung",
@@ -1997,6 +1997,19 @@
       "board": "Papan kanban proyek",
       "empty": "Tidak ada proyek pada tahap {{stage}}",
       "swipe": "Geser untuk melihat lainnya →"
+    },
+    "status": {
+      "leads": "Prospek",
+      "pqSubmitted": "Pra-kualifikasi diajukan",
+      "quotationSubmitted": "Penawaran diajukan",
+      "tenderSubmitted": "Tender diajukan",
+      "negotiation": "Negosiasi",
+      "wonPendingKom": "Menang, menunggu KoM",
+      "ongoingProject": "Proyek berjalan",
+      "onHold": "Ditunda",
+      "closeOut": "Penutupan",
+      "lossTender": "Tender kalah",
+      "internalProject": "Proyek internal"
     }
   },
   "sales": {
@@ -2080,6 +2093,14 @@
     "board": {
       "ariaLabel": "Papan pipeline penjualan",
       "weightedShort": "{{value}} tertimbang"
+    },
+    "stage": {
+      "leads": "Prospek",
+      "preQual": "Pra-kualifikasi",
+      "quotation": "Penawaran",
+      "tender": "Tender",
+      "negotiation": "Negosiasi",
+      "lost": "Kalah"
     }
   },
   "shell": {

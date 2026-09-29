@@ -35,8 +35,11 @@ const OrgTaxDefault: React.FC = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { data, isError, refetch } = useOrgTaxDefaultQuery();
+  const { data, isError, isSuccess, refetch } = useOrgTaxDefaultQuery();
   const current = data ?? undefined;
+  // Error only when there is nothing to show: a failed BACKGROUND refetch (after a save) must not
+  // replace a working control, and a read that resolved with no value is a failure, not a skeleton.
+  const loadFailed = (isError && current === undefined) || (isSuccess && data === null);
   const taxOptions = useTaxTreatmentOptions();
 
   const mutation = useMutation({
@@ -80,7 +83,7 @@ const OrgTaxDefault: React.FC = () => {
         )}
       </p>
       <div className="mt-3 max-w-md">
-        {isError ? (
+        {loadFailed ? (
           <ListState
             variant="error"
             title={t('admin.taxDefault.loadError.title', "Couldn't load the default tax treatment")}

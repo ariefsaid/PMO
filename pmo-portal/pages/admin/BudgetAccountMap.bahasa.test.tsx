@@ -53,11 +53,15 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Peta akun anggaran' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Peta kategori anggaran ke akun ERP' })).toBeInTheDocument();
-    expect(screen.getByText(/Setiap kategori anggaran harus dipetakan ke akun ERP/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat dikirim ke ERP. Kategori yang belum dipetakan memblokir pengiriman SELURUH anggaran, bukan hanya baris itu.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Kategori' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
-    expect(screen.getAllByText('Belum dipetakan — memblokir setiap push').length).toBe(6);
+    expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(6);
     expect(screen.getByRole('button', { name: 'Edit Labor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Petakan Materials' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hapus pemetaan Labor' })).toBeInTheDocument();
@@ -75,7 +79,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Petakan Materials' }));
     const dialog = await screen.findByRole('dialog', { name: 'Petakan Materials' });
-    expect(within(dialog).getByText('Pilih akun ERP tujuan push kategori ini')).toBeInTheDocument();
+    expect(within(dialog).getByText('Pilih akun ERP tujuan pengiriman kategori ini')).toBeInTheDocument();
     expect(within(dialog).getByPlaceholderText('mis. 5100 - Biaya Langsung')).toBeInTheDocument();
     await userEvent.type(within(dialog).getByLabelText(/Akun ERP/), '5100 - Direct Costs');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan pemetaan' }));
@@ -89,6 +93,10 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Hapus pemetaan Labor' }));
     const confirm = await screen.findByRole('alertdialog', { name: 'Hapus pemetaan Labor?' });
     expect(within(confirm).getByRole('button', { name: 'Hapus pemetaan' })).toBeInTheDocument();
-    expect(within(confirm).getByText(/Kategori ini tidak akan memiliki akun ERP/)).toBeInTheDocument();
+    expect(
+      within(confirm).getByText(
+        'Kategori ini tidak akan memiliki akun ERP. Pengiriman anggaran dengan jumlah bukan nol pada kategori ini akan ditolak hingga dipetakan kembali.',
+      ),
+    ).toBeInTheDocument();
   });
 });
