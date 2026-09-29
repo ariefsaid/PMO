@@ -26,7 +26,7 @@
  * ring lies inside the funnel viewport, never clipped by the scroll area's own overflow).
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 /** Currency symbol + a grouped thousands separator — the noncompact long-number shape. */
 const LONG_AMOUNT_SHAPE = /[\p{Sc}]\s?\d{1,3}(?:[.,]\d{3})+/u;
@@ -42,6 +42,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     // The funnel band renders five fixed open stages, each tagged with a stable hook.
     await expect(page.getByRole('region', { name: 'Pipeline summary' })).toBeVisible();
     await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+    await waitForFonts(page);
 
     // Exercise the geometry against a noncompact representative amount: at least one stage
     // must show a currency symbol plus a grouped thousands separator (not a compact form).
@@ -113,6 +114,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     await signIn(page, 'admin@acme.test');
     await page.goto('/sales');
     await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+    await waitForFonts(page);
 
     const lastStage = page.locator('[data-funnel-stage]').last();
     // `.focus()` dispatches the same native `focus` event a real Tab keypress produces, without
@@ -152,6 +154,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     await signIn(page, 'admin@acme.test');
     await page.goto('/sales');
     await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+    await waitForFonts(page);
 
     const bars = await page.evaluate(() => {
       const results: { i: number; weightedBottom: number; barTop: number }[] = [];
@@ -202,6 +205,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     await signIn(page, 'admin@acme.test');
     await page.goto('/sales');
     await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+    await waitForFonts(page);
 
     const stages = page.locator('[data-funnel-stage]');
     const middleIndex = 2;

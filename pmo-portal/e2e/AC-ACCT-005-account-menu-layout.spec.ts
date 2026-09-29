@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — signed-in shell rendering and menu interaction only; no database write.
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 /**
  * AC-ACCT-005 — the ONE account menu fits desktop and short 390px phone viewports: every
@@ -15,6 +15,7 @@ test.describe('AC-ACCT-005 account-menu responsive layout', () => {
     await page.getByRole('button', { name: /account menu/i }).click();
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
+    await waitForFonts(page);
     const desktopBox = await menu.boundingBox();
     expect(desktopBox).not.toBeNull();
     expect(desktopBox!.x).toBeGreaterThanOrEqual(-1);
@@ -44,6 +45,7 @@ test.describe('AC-ACCT-005 account-menu responsive layout', () => {
     await page.getByRole('button', { name: /account menu/i }).click();
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
+    await waitForFonts(page);
     const menuBox = await menu.boundingBox();
     expect(menuBox).not.toBeNull();
     expect(menuBox!.x).toBeGreaterThanOrEqual(-1);

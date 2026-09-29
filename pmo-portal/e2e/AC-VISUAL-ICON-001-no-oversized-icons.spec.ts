@@ -23,7 +23,7 @@
  * deterministic structural visual-invariant layer-1 gate battery.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 // Stable seed id — supabase/seed.sql.
 const MERIDIAN = '41000000-0000-0000-0000-000000000001';
@@ -67,6 +67,8 @@ interface OversizedIcon {
 /** Walk every `svg[viewBox="0 0 24 24"]` on the page. Skip invisible ones (size 0 or
  *  display:none). Return those whose rendered width or height exceeds MAX_ICON_SIZE. */
 async function findOversizedIcons(page: Page, maxSize: number): Promise<OversizedIcon[]> {
+  // Icons sized in em track the text face, so measure on the settled (post-swap) layout (#713).
+  await waitForFonts(page);
   return page.evaluate((maxSize) => {
     const oversized: {
       width: number;

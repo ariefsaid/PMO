@@ -25,7 +25,7 @@
  */
 // @e2e-isolation: read-only — viewport sweep + bleed measurement; login + nav to seeded routes; no DB writes.
 import { test, expect, type Page, type Locator } from '@playwright/test';
-import { signIn, grantM365EntitlementFixture, stubM365StatusUnavailable } from './helpers';
+import { signIn, grantM365EntitlementFixture, stubM365StatusUnavailable, waitForFonts } from './helpers';
 
 // Known seed ids (stable across local + cloud — supabase/seed.sql).
 const MERIDIAN = '41000000-0000-0000-0000-000000000001';
@@ -129,6 +129,7 @@ test.describe('AC-MOBILE-OVERFLOW-001 no horizontal bleed @mobile', () => {
         // Let async data + charts settle so we measure steady state, not the mount flash.
         await page.waitForLoadState('networkidle').catch(() => {});
         await page.waitForTimeout(1500);
+        await waitForFonts(page);
 
         const bleeders = await findBleeders(page, width);
         expect(
