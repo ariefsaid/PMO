@@ -496,12 +496,10 @@ It does **not** shorten an already-issued JWT's life. **Offboarding is not "solv
 token lifetime is a separate auth-side decision.
 
 **⛔ Still open after Part B (found in passing, deliberately not fixed here):**
-- `approved_timesheet_for_push` — the precedent this slice followed — checks the resolved actor's
-  `profiles.status` and applies `is_active_member()` **only when there is a JWT**, so its `p_actor`
-  (service-role sweep) path never gets `0095`'s `banned_until` check. A raw-banned approver's sheet can
-  still be pushed by the backstop. One-line fix: use `is_active_member(coalesce(auth.uid(), p_actor))`.
-  Not touched here because it is outside the fifteen and changing the sweep's gate deserves its own
-  caller analysis.
+- ~~`approved_timesheet_for_push` applied `is_active_member()` only with a JWT, so the sweep path
+  missed `0095`'s `banned_until`.~~ **Fixed by `0220` (2026-09-30):** the resolved actor's whole standing
+  is checked on both paths; `0143` AC-TSP-013 covers a raw-banned actor on the real sweep path (it
+  clears the JWT first — the earlier sweep cases ran with a leftover JWT and exercised the JWT path).
 - `0178` closed `transition_project` / `set_project_contract_value` with a bare `'not authorized'`
   message, so an offboarded user's money-path refusal is still indistinguishable from a role denial
   (FR-AMG-004). The fifteen carry the distinguishing message; those two do not.
