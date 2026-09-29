@@ -40,10 +40,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-vi.mock('@/src/hooks/useProcurementView', () => ({
-  useProcurementView: () => ['table', vi.fn()] as ['table', () => void],
-}));
-
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Finance' }),
 }));
@@ -63,6 +59,7 @@ const renderWithUrl = (url: string, role: Role = 'Finance') =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
 });
 
 describe('Procurement page — URL param read-on-mount (AC-IXD-DASH-W5-C2A)', () => {

@@ -60,17 +60,12 @@ const createMutate = vi.fn().mockResolvedValue({ id: 'pc-new' });
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: createMutate, isPending: false }),
 }));
-const navigate = vi.fn();
-// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => navigate };
-});
-
-const renderPage = () =>
+// list-working-set-return (#682): the list-return seam captures context only from the list's own
+// canonical index path (`/procurement`), so the default entry must be `/procurement`, not `/`.
+const renderPage = (initialPath = '/procurement') =>
   render(
     <ToastProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
         <Procurement />
       </MemoryRouter>
     </ToastProvider>,
@@ -82,7 +77,6 @@ describe('Procurement index — IA-3 (real data)', () => {
     procState.isPending = false;
     procState.isError = false;
     sessionStorage.clear();
-    navigate.mockClear();
   });
 
   it('renders seeded requests with joined project name (AC-501)', () => {
@@ -185,7 +179,6 @@ describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
     procState.isError = false;
     effRole.value = 'Project Manager';
     createMutate.mockClear();
-    navigate.mockClear();
   });
 
   it('AC-PROC-006: a write-role sees the header Raise request CTA', () => {
@@ -204,5 +197,39 @@ describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
     await userEvent.click(screen.getByRole('button', { name: /raise request/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
+  });
+});
+
+// list-working-set-return (#682): AC-LRC-001/002 for Procurement — `status`/`q`/`view` are
+// URL-owned. The owning pure-codec proof lives in src/lib/listWorkingSet.test.ts; here we prove
+// the component renders the URL-backed working set and writes ONE replace per event.
+describe('Procurement list working set — AC-LRC-001/002', () => {
+  beforeEach(() => {
+    procState.data = seed;
+    procState.isPending = false;
+    procState.isError = false;
+    sessionStorage.clear();
+  });
+
+  it('AC-LRC-001: renders the URL-backed working set (status + search + view) and refresh/copy reproduces it', () => {
+    renderPage('/procurement?status=Paid&q=Crane&view=table');
+    // The URL-driven status segment is selected.
+    expect(screen.getByRole('tab', { name: /^Paid$/ })).toHaveAttribute('aria-selected', 'true');
+    // The URL-driven search is present in the search box.
+    expect(screen.getByPlaceholderText(/Filter requests/i)).toHaveValue('Crane');
+    // Only the matching row renders.
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: a control change writes ONE replace of the list URL (no history entry per click)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Paid$/ }));
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+    // View change persists AND writes the URL in one event (board renders, the status set moments
+    // earlier survives untouched — it is not a keystroke this event should drop).
+    await userEvent.click(screen.getByRole('tab', { name: /Board/i }));
+    expect(screen.queryByTestId('prstage-vq')).toBeInTheDocument();
+    expect(within(screen.getByTestId('prstage-paid')).getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 });
