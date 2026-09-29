@@ -111,6 +111,21 @@ with tempfile.TemporaryDirectory() as tmp:
     check("gives up waiting with 75", result.returncode, 75)
     check("says it was the lock", "lock" in result.output_tail, True)
 
+    # 4b. Under an outer holder (PMO_TEST_LOCK_HELD=1 inherited, e.g. the run itself under
+    #     with-test-lock.sh), do not re-acquire: that would block on our own parent.
+    holder = hold_lock(lock, 4)
+    os.environ["PMO_TEST_LOCK_HELD"] = "1"
+    try:
+        started = time.monotonic()
+        result = quality._run(spec(["true"], timeout=5, lock_path=lock, wait=1), run)
+        waited = time.monotonic() - started
+    finally:
+        os.environ.pop("PMO_TEST_LOCK_HELD", None)
+        holder.kill()
+        holder.wait()
+    check("under an outer hold the run does not wait on the lock", result.returncode, 0)
+    check("under an outer hold it runs straight away", waited < 1, True)
+
     # 5. The real `test` check declares the shared lock and times the suite on its own.
     captured = []
     real_run = quality._run

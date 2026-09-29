@@ -103,7 +103,9 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
     stderr = ""
     lock = None
     try:
-        if spec.lock_path:
+        # An outer holder (the run itself under with-test-lock.sh / verify:locked) already owns the
+        # lock: re-acquiring through a new file description would block on our own parent.
+        if spec.lock_path and env.get("PMO_TEST_LOCK_HELD") != "1":
             # Queue for the lock OUTSIDE the command's timeout: time spent behind another
             # suite is not the suite's time (#704).
             lock = _acquire_lock(spec.lock_path, spec.lock_wait_seconds)
@@ -198,7 +200,7 @@ def test(run) -> QualityCheckResult:
         # The lock is taken by _run BEFORE this clock starts, so the budget is the suite's alone
         # (#704).
         lock_path=os.environ.get("PMO_TEST_LOCK") or str(Path.home() / ".pmo-test.lock"),
-        timeout_seconds=1200,
+        timeout_seconds=3600,  # full suite measured 628-1081s under load; wait is outside
     ), run)
 
 
