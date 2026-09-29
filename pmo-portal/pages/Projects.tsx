@@ -342,7 +342,8 @@ const Projects: React.FC = () => {
         const row = await create.mutateAsync(input);
         toast(t('projects.toast.created', 'Project created'), input.name, 'success');
         setCreateOpen(false);
-        navigate(`/projects/${row.id}`);
+        // Opens the new record with this list as its return context (#688 AC-RAM-006, #682).
+        openRecord(`/projects/${row.id}`);
       }}
       onError={(err) => {
         const { headline, detail } = classifyMutationError(err);
