@@ -47,7 +47,7 @@ begin
   raise notice '0219: profiles.locale normalised to NULL on % row(s)', v_n;
 
   update public.profiles set number_locale = null
-   where number_locale is not null and number_locale not in ('en-US', 'id-ID', 'en', 'id');
+   where number_locale is not null and number_locale not in ('en-US', 'id-ID');
   get diagnostics v_n = row_count;
   raise notice '0219: profiles.number_locale normalised to NULL on % row(s)', v_n;
 
@@ -79,7 +79,9 @@ alter table public.profiles
   add constraint profiles_locale_supported
     check (locale in ('en', 'id')),
   add constraint profiles_number_locale_supported
-    check (number_locale in ('en-US', 'id-ID', 'en', 'id'));
+    -- A person picks a concrete format or inherits (NULL); the bare-language "derive" form is an
+    -- org-level default only (0198). A stored bare tag would show as "inherit" in ProfileSettings.
+    check (number_locale in ('en-US', 'id-ID'));
 
 alter table public.organizations
   add constraint organizations_default_locale_supported
@@ -108,6 +110,16 @@ begin
 
   if v_zone is null then
     return new;  -- profiles: NULL = inherit. organizations: the NOT NULL constraint owns the refusal.
+  end if;
+
+  -- An unchanged value was already valid (existing rows are normalised above), and the zone catalogue
+  -- lookup is not free: skip it on the many saves that resend the timezone unchanged.
+  if tg_op = 'UPDATE' then
+    if tg_table_name = 'organizations' then
+      if new.default_timezone is not distinct from old.default_timezone then return new; end if;
+    elsif new.timezone is not distinct from old.timezone then
+      return new;
+    end if;
   end if;
 
   if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = v_zone) then

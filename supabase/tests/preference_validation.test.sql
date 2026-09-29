@@ -17,13 +17,19 @@
 -- MUTATION-CHECKED: dropping the two CHECK constraints reddens the locale/number cases; dropping the
 -- two triggers reddens the timezone cases (observations in the build report).
 begin;
-select plan(26);
+select plan(30);
 
 insert into organizations (id, name, default_currency, default_locale, default_number_locale, default_timezone)
 values ('07110000-0000-0000-0000-000000000001', 'PV Org', 'IDR', 'id', null, 'Asia/Jakarta');
 insert into auth.users (id, email) values ('07110000-0000-0000-0000-0000000000a1','pv-self@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('07110000-0000-0000-0000-0000000000a1','07110000-0000-0000-0000-000000000001','PV Self','pv-self@example.com','Engineer','active');
+insert into auth.users (id, email) values
+  ('07110000-0000-0000-0000-0000000000c1','pv-operator@example.com'),
+  ('07110000-0000-0000-0000-0000000000c2','pv-new-admin@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('07110000-0000-0000-0000-0000000000c1','07110000-0000-0000-0000-000000000001','PV Operator','pv-operator@example.com','Admin','active');
+insert into platform_operators (user_id) values ('07110000-0000-0000-0000-0000000000c1');
 
 -- ═══ profiles — as the row owner ═══
 set local role authenticated;
@@ -94,6 +100,22 @@ select lives_ok($$ update organizations set default_number_locale=null where id=
   '#711 org: NULL default_number_locale (derive) still saves');
 select is((select default_locale || '|' || default_timezone from organizations
             where id='07110000-0000-0000-0000-000000000001'), 'en|UTC', '#711 org: the valid write persisted');
+
+-- ═══ review follow-up: the real org-creation path, profile INSERT, and bare tags on a profile ═══
+reset role;
+select throws_ok($$ insert into profiles (id, org_id, full_name, email, role, status, timezone)
+  values ('07110000-0000-0000-0000-0000000000c2','07110000-0000-0000-0000-000000000001','PV New','pv-new-admin@example.com','Engineer','active','Mars/Base') $$,
+  '23514', 'invalid_timezone', '#711 profile INSERT: an unknown timezone is rejected');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"07110000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ update profiles set number_locale='en' where id='07110000-0000-0000-0000-0000000000a1' $$,
+  '23514', null, '#711 profile: a bare language tag is not a personal number format (org-level derive only)');
+set local request.jwt.claims = '{"sub":"07110000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select throws_ok($$ select operator_create_org('PV Org FR','07110000-0000-0000-0000-0000000000c2','PV New','IDR','fr',null,'Asia/Jakarta') $$,
+  '23514', null, '#711 operator_create_org: an unsupported default locale is rejected on the real org-creation path');
+select throws_ok($$ select operator_create_org('PV Org TZ','07110000-0000-0000-0000-0000000000c2','PV New','IDR','id',null,'Mars/Base') $$,
+  '23514', 'invalid_timezone', '#711 operator_create_org: an unknown default timezone is rejected on the real org-creation path');
+reset role;
 
 select finish();
 rollback;
