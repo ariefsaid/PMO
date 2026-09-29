@@ -60,7 +60,13 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
       {/* Left column: name + badges, weight share, target */}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12px] font-semibold text-foreground">{name}</span>
+          {/* AC-RAM-004 (#688) Discover-pass follow-up (2026-09-29): a long, unbroken milestone
+              name (e.g. "Commissioning & Grid Connection") could overflow this flex item's own
+              content-derived min-width and render UNDER the `shrink-0` % column to its right
+              (15-35px overlap on the 4-column desktop card grid at 1280/1440). `break-words` forces
+              a wrap point at any character rather than only at spaces, so the name always stays
+              within its own column instead of bleeding into the sibling's. */}
+          <span data-testid="milestone-phase-name" className="min-w-0 break-words text-[12px] font-semibold text-foreground">{name}</span>
           {/* AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas (sub-AA,
               DESIGN.md accessibility posture). text-primary-text is the AA on-canvas variant, same
               token the "Back to Sales Pipeline" link (PipelineLens) already uses for blue text. */}
@@ -94,8 +100,9 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
         )}
       </div>
 
-      {/* Right column: effective percentage */}
-      <div className="shrink-0 text-right">
+      {/* Right column: effective percentage — a fixed min-width reserves its own column so it
+          never shares horizontal space with the (now-wrapping) name column beside it. */}
+      <div data-testid="milestone-phase-pct" className="min-w-[44px] shrink-0 text-right">
         <div className="text-[23px] font-bold leading-none tabular text-foreground">{pct(effectivePct)}</div>
       </div>
     </div>

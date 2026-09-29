@@ -102,7 +102,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
   return (
     // min-w-0 + overflow-hidden prevent the scroll content from inflating the
     // page scrollWidth (R3 fix: items-tab @390 caused 11px horizontal page scroll).
-    <div className={cn('relative min-w-0 overflow-hidden', className)}>
+    <div data-testid="stepper-clip-wrapper" className={cn('relative min-w-0 overflow-hidden', className)}>
       {/* Scrollable step track. AC-RAM-004 (#688): the steps are read-only (no focusable child),
           so a keyboard user had no way to reach this region's overflow when it's narrower than its
           content (axe `scrollable-region-focusable`) — the same gap Funnel.tsx / BudgetProjection.tsx
@@ -115,7 +115,13 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
         data-testid="stepper-scroll-container"
         role="group"
         tabIndex={0}
-        className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        // AC-RAM-004 (#688) Discover-pass follow-up (2026-09-29): the global `*:focus-visible` ring
+        // draws OUTWARD (2px width, 2px offset) from this element's own border box, but the parent
+        // `overflow-hidden` wrapper clips at that exact box's edge — the ring's top/bottom/side
+        // slice was invisible (WCAG 2.4.7). Same fix Funnel.tsx already applies to its own
+        // scroll-viewport stages: a negative outline-offset pulls the ring back INSIDE the element's
+        // own border box (same width/color token) so it never crosses into the clip region.
+        className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
       >
         <div
           className="flex items-start gap-2 px-2 pb-1.5 pt-1"

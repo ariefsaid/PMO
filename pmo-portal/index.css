@@ -65,6 +65,12 @@
   --accent: 240 5% 95.5%;             --accent-foreground: 240 4% 32%;
   /* --- Status / semantic (reskin §0 light hues + AA -fg) --- */
   --destructive: 0 72% 50%;           --destructive-foreground: 0 0% 100%;
+  /* Solid destructive BUTTON fill only (never the dot/bar/status hue, never text-destructive) —
+     the same primary/primary-solid split DESIGN.md's accessibility posture already names for
+     --primary (index.css .dark --primary below). Light keeps the same value as raw --destructive
+     (light solid-button contrast was never flagged as failing); dark is a darker `-solid` L so
+     white button text clears AA — see .dark below for why the two must differ. */
+  --destructive-solid: 0 72% 50%;
   --warning: 40 96% 50%;              --warning-foreground: 28 95% 33%;
   --success: 142 60% 42%;             --success-foreground: 0 0% 100%;
   /* --- Status pill text (reskin AA -text variants; single source of truth).
@@ -136,10 +142,20 @@
   --muted: 240 5% 14%;                --muted-foreground: 240 4% 60%;
   --accent: 240 5% 14%;               --accent-foreground: 240 5% 72%;
   /* --- Status / semantic (reskin dark hues + AA -fg) --- */
-  /* AC-RAM-004 (#688): the raw dark hue (0 80% 62%) with white button text measured 3.58:1 —
-     sub-AA. Darkened to the "-solid" L DESIGN.md already named as the pending fix (destructive-solid
-     46%, same move already applied to --primary above); white text now measures ~5.38:1. */
-  --destructive: 0 80% 46%;           --destructive-foreground: 0 0% 100%;
+  /* AC-RAM-004 (#688) regression fix (2026-09-29): the FIRST fix for the 3.58:1 solid-button
+     contrast defect darkened THIS token (0 80% 62% → 0 80% 46%) — but --destructive doubles as
+     TEXT (`text-destructive`, ~30 callsites) and TEXT wants the brighter raw hue for contrast
+     against the dark canvas, not the darker solid-button L. Darkening it fixed the button and
+     broke every text usage (dark error text fell to ~3.5:1, sub-AA). Restored to the raw hue;
+     the solid BUTTON fill now reads `--destructive-solid` below instead (the split this section's
+     "Solid fills" note already prescribed for --primary/--destructive but this fix skipped). */
+  --destructive: 0 80% 62%;           --destructive-foreground: 0 0% 100%;
+  /* Solid destructive BUTTON fill only — darkened to the target this section's "Solid fills" note
+     already named (destructive-solid dark 46%) so white button text clears AA (~5.38:1), without
+     touching the raw --destructive hue that `text-destructive` and the dot/bar rely on for its own
+     (brighter, AA-on-dark-canvas) contrast. Same move already made for --primary's dark value
+     above (52% = its own `-solid` L). */
+  --destructive-solid: 0 80% 46%;
   --warning: 43 90% 58%;              --warning-foreground: 43 92% 64%;
   --success: 142 55% 52%;             --success-foreground: 0 0% 100%;
   /* --- Status pill text (reskin dark -text; AA on dark tints) --- */
@@ -203,6 +219,7 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-solid: hsl(var(--destructive-solid));
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
   --color-success: hsl(var(--success));

@@ -336,7 +336,10 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
             {milestone.name}
           </span>
           {isCurrent && (
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+            // AC-RAM-004 (#688): raw text-primary as small TEXT is ~3.5:1 on the dark canvas
+            // (sub-AA, DESIGN.md accessibility posture) — same class of gap as the stepper's
+            // "Current" badge (MilestonePhaseHeader). text-primary-text is the AA on-canvas variant.
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary-text">
               {t('projectDetail.milestones.current', 'Current')}
             </span>
           )}

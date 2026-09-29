@@ -288,6 +288,22 @@ them.
   `pmo-portal/src/components/ui/LifecycleStepper.tsx` (bar-variant scroll viewport: `role=group` +
   `tabIndex=0` wrapper, `scrollable-region-focusable`), `pmo-portal/pages/project-detail/PipelineLens.tsx`
   (`grid-cols-1` base + `min-w-0` on both grid items, the AC-RAM-003 overflow root cause).
+  **Director admission (2026-09-29, second round — regression + Discover follow-ups):** the first
+  AC-RAM-004 fix darkened `--destructive` itself and broke `text-destructive`/the dot/bar (sub-AA in
+  dark); a second rendered pass then found two further clipping/overlap gaps the axe scan itself
+  cannot see. Both are fixed and gate-tested under this same admission. Additional files touched:
+  `DESIGN.md` (§0/§"Unverified solids" — documents the `--destructive`/`--destructive-solid` split),
+  `pmo-portal/index.css` (restores `--destructive` to its original dark hue; adds a dedicated
+  `--destructive-solid` token in both themes), `pmo-portal/src/components/ui/buttonClasses.ts` (the
+  `destructive` Button variant reads `bg-destructive-solid`, not `bg-destructive`),
+  `pmo-portal/src/components/ui/__tests__/destructiveSolidToken.test.ts` (new — the token-split
+  regression gate), `pmo-portal/pages/project-detail/MilestoneStrip.tsx` (mobile "Current" badge:
+  `text-primary` → `text-primary-text`), `pmo-portal/src/components/milestones/MilestonePhaseHeader.tsx`
+  (name column `break-words` + `min-w-0`, percentage column `min-w-[44px]`, so a long milestone name
+  cannot render under the percentage at the 4-column desktop card width; `data-testid` added to both
+  for the geometry gate), `pmo-portal/e2e/AC-RAM-004-ris-admin-geometry.spec.ts` (new — the focus-ring
+  and name/percentage geometry gates), `pmo-portal/e2e/AC-RAM-004-ris-admin-axe.spec.ts` (adds a 390px
+  re-scan of the two project-lens surfaces).
 
 ## Acceptance criteria and owning proof
 
