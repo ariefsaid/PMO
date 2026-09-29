@@ -58,6 +58,34 @@ describe('list working-set URL codec', () => {
     ).toBe('at-risk');
   });
 
+  it('AC-LRC-001 (#683 carry-over): an explicit default-valued filter survives an unrelated edit', () => {
+    // An Engineer's `?filter=My+Projects` equals the role default, so a search write must NOT
+    // drop it (that would silently widen the list back to All). An absent default stays omitted.
+    expect(
+      String(
+        serializeListWorkingSet(
+          'projects',
+          '?filter=My+Projects',
+          parseListWorkingSet('projects', '?filter=My+Projects', {
+            projectsDefaultFilter: 'My Projects',
+          }),
+          { projectsDefaultFilter: 'My Projects' },
+        ),
+      ),
+    ).toBe('filter=My+Projects');
+    // The same default derived from no URL key is omitted (clean URL).
+    expect(
+      String(
+        serializeListWorkingSet(
+          'projects',
+          '',
+          parseListWorkingSet('projects', '', { projectsDefaultFilter: 'My Projects' }),
+          { projectsDefaultFilter: 'My Projects' },
+        ),
+      ),
+    ).toBe('');
+  });
+
   it('AC-LRC-001/002: round-trips all enum choices and dashboard drill tokens', () => {
     const projectParams = new URLSearchParams(
       `?filter=at-risk&client=${CLIENT_ID}&pm=${PM_ID}&q=review&view=calendar`,

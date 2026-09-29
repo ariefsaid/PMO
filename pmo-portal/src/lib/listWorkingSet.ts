@@ -235,10 +235,27 @@ function putView(params: URLSearchParams, list: ViewList, view: string, sessionV
   putParam(params, 'view', view, fallbackIsDefault ? DEFAULT_VIEWS[list] : undefined);
 }
 
+/**
+ * Write `value` to `key` unless it is a non-explicit derived default. An empty string is always
+ * omitted. A value that equals the omitted default is ALSO omitted — UNLESS the incoming URL
+ * already carried exactly that legitimate value under this key, in which case the default-valued
+ * key is preserved (#683 carry-over: an Engineer's `?filter=My+Projects`, which equals their role
+ * default, must survive an unrelated edit like typing a search without silently widening the list
+ * back to All). A default that was ABSENT, or that resulted from canonicalizing an invalid or
+ * foreign token (`?filter=bogus` → All, `?view=map` → table), is still dropped so the canonical
+ * URL stays clean — the raw token is compared as the source of truth.
+ */
 function putParam(params: URLSearchParams, key: string, value: string, omit?: string): void {
-  if (value === '' || value === omit) {
+  if (value === '') {
     params.delete(key);
     return;
+  }
+  if (value === omit) {
+    // Keep an explicitly-present, legitimate default; drop an absent or fallback-derived one.
+    if (params.get(key) !== value) {
+      params.delete(key);
+      return;
+    }
   }
   params.set(key, value);
 }

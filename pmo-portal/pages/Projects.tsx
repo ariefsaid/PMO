@@ -21,7 +21,6 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
-import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -34,7 +33,11 @@ import {
 } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
-import { useProjectView } from '@/src/hooks/useProjectView';
+import { readProjectView, writeProjectView } from '@/src/hooks/useProjectView';
+import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
+import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
+import type { ProjectView } from '@/src/hooks/useProjectView';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
@@ -60,9 +63,6 @@ import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/proje
 type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
 const FILTERS: StatusFilter[] = ['All', 'My Projects', 'Ongoing', 'Completed', 'at-risk'];
 
-/** Values accepted as ?filter= URL params. Any unrecognised param falls back to the role default. */
-const VALID_URL_FILTERS = new Set<StatusFilter>(FILTERS);
-
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
@@ -71,8 +71,6 @@ const Projects: React.FC = () => {
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
   const isEngineer = effectiveRole === 'Engineer';
   // B-11 fix: an IC's "My Projects" means projects they are ASSIGNED to (have a task on),
@@ -99,26 +97,33 @@ const Projects: React.FC = () => {
   const canArchive = may('archive', 'project');
   const canRowWrite = canEdit || canArchive;
 
-  const [view, setView] = useProjectView();
-
-  // AC-IXD-DASH-W5-C2A: URL search-param read-on-mount convention. A ?filter=<value> param
-  // drills directly into the requested filter segment (e.g. from a dashboard KPI link).
-  // Backward-compatible: no param => role-based default (Engineers default to "My Projects",
-  // all others to "All"). Unrecognised values fall back to the role default silently.
+  // list-working-set-return (#682): `filter`/`client`/`pm`/`q`/`view` are URL-owned. The URL is
+  // authoritative for supported keys; the role default (Engineer keeps "My Projects") and the
+  // persisted session view are the fallback, materialized once the role default is known
+  // (`defaultsReady`). B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs
+  // who want their own assigned work, not the full org project list; all other roles default to
+  // "All". `effectiveRole` is used so an impersonated-as-Engineer session gets the scoped default.
   const roleDefault: StatusFilter = effectiveRole === 'Engineer' ? 'My Projects' : 'All';
-  const urlFilter = searchParams.get('filter') as StatusFilter | null;
-  const initialFilter: StatusFilter =
-    urlFilter && VALID_URL_FILTERS.has(urlFilter) ? urlFilter : roleDefault;
+  const { workingSet, setWorkingSet } = useListWorkingSet('projects', {
+    sessionView: readProjectView(),
+    projectsDefaultFilter: roleDefault,
+    defaultsReady: effectiveRole != null,
+  });
+  // Search stays LOCAL text written to the URL after a pause (useUrlSearchInput's search
+  // contract) — never bound straight to `workingSet.q`.
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
+    setWorkingSet((ws) => ({ ...ws, q })),
+  );
+  const { openRecord } = useListReturn({ list: 'projects', contentReady: !isPending && !isError });
 
-  // B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs who
-  // want their own assigned work, not the full org project list. All other roles
-  // default to "All" (unscoped manager view). `effectiveRole` is used here so that
-  // an impersonated-as-Engineer session also gets the scoped default, matching the
-  // intent of "what would an Engineer see?" consistently.
-  const [filter, setFilter] = useState<StatusFilter>(initialFilter);
-  const [filterClient, setFilterClient] = useState('All');
-  const [filterPM, setFilterPM] = useState('All');
-  const [search, setSearch] = useState('');
+  const filter = workingSet.filter;
+  const filterClient = workingSet.client;
+  const filterPM = workingSet.pm;
+  const view = workingSet.view;
+  const onViewChange = (v: ProjectView) => {
+    writeProjectView(v);
+    setWorkingSet((ws) => ({ ...ws, view: v }));
+  };
   // Mobile disclosure state (FR-PRJUX-003): Filters closes after a selection; More actions
   // closes after an export dispatch but is deliberately left OPEN when an Import wizard opens
   // (the wizard must stay mounted for its own lifecycle — DD-BIMP-3). Both are controlled here
@@ -278,20 +283,25 @@ const Projects: React.FC = () => {
 
   // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
   // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
-  // PM, and search. Keeps the status URL/analytics inputs unchanged.
+  // PM, and search — ONE working-set update plus the search reset (#683), so the URL and
+  // controls move together and no second event drops the first call. Keeps the view.
   const clearFilters = () => {
-    setFilter(roleDefault);
-    setFilterClient('All');
-    setFilterPM('All');
     setSearch('');
+    setWorkingSet(() =>
+      parseListWorkingSet('projects', '', {
+        projectsDefaultFilter: roleDefault,
+        sessionView: readProjectView(),
+      }),
+    );
   };
 
-  // Row/card drill is a plain react-router navigate (AC-NAV-006) — no tab.
-  // `source` distinguishes the table/list row path from every card-shaped surface
-  // (cards, kanban, calendar) for `project_detail_opened` (2026-07-13 wiring plan).
+  // Row/card drill captures the current list URL + scroll as validated return context
+  // via `openRecord` (AC-LRC-003) — the canonical `/projects/:id` route is unchanged
+  // (AC-NAV-006, no tab). `source` distinguishes the table/list row path from every
+  // card-shaped surface (cards, kanban, calendar) for `project_detail_opened`.
   const onOpen = (p: ProjectWithRefs, source: 'list' | 'card' = 'list') => {
     trackProjectDetailOpened('/projects/:projectId', source);
-    navigate(`/projects/${p.id}`);
+    openRecord(`/projects/${p.id}`);
   };
 
   // ── rowMenu: Edit (→ editHeader modal) + Archive (→ confirm) ───────────────
@@ -670,7 +680,7 @@ const Projects: React.FC = () => {
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
           onChange={(v) => {
-            setFilter(v);
+            setWorkingSet((ws) => ({ ...ws, filter: v }));
             trackFilterApplied('status', FILTERS.length, 'projects');
           }}
           ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
@@ -700,7 +710,7 @@ const Projects: React.FC = () => {
               { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
             ]}
             value={view}
-            onChange={setView}
+            onChange={onViewChange}
             ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
           />
         </div>
@@ -725,7 +735,7 @@ const Projects: React.FC = () => {
                   label={t('projects.filters.customerLabel', 'Filter by customer')}
                   value={filterClient}
                   onChange={(v) => {
-                    setFilterClient(v);
+                    setWorkingSet((ws) => ({ ...ws, client: v }));
                     trackFilterApplied('customer', customerFilterOptions.length, 'projects');
                   }}
                   options={customerFilterOptions}
@@ -763,7 +773,7 @@ const Projects: React.FC = () => {
                   label={t('projects.filters.pmLabel', 'Filter by project manager')}
                   value={filterPM}
                   onChange={(v) => {
-                    setFilterPM(v);
+                    setWorkingSet((ws) => ({ ...ws, pm: v }));
                     trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
                   }}
                   options={pmFilterOptions}
@@ -831,7 +841,7 @@ const Projects: React.FC = () => {
                 type="button"
                 aria-label={`${t('projects.mobile.removeCustomer', 'Remove customer filter')}: ${selectedCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
                 className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
-                onClick={() => setFilterClient('All')}
+                onClick={() => setWorkingSet((ws) => ({ ...ws, client: 'All' }))}
               >
                 <Icon name="x" className="size-3" />
               </button>
@@ -846,7 +856,7 @@ const Projects: React.FC = () => {
                 type="button"
                 aria-label={`${t('projects.mobile.removeManager', 'Remove project manager filter')}: ${selectedPm?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
                 className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
-                onClick={() => setFilterPM('All')}
+                onClick={() => setWorkingSet((ws) => ({ ...ws, pm: 'All' }))}
               >
                 <Icon name="x" className="size-3" />
               </button>
@@ -879,7 +889,7 @@ const Projects: React.FC = () => {
             options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
             value={filter}
             onChange={(v) => {
-              setFilter(v);
+              setWorkingSet((ws) => ({ ...ws, filter: v }));
               trackFilterApplied('status', FILTERS.length, 'projects');
             }}
             ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
@@ -913,7 +923,7 @@ const Projects: React.FC = () => {
               label={t('projects.filters.customerLabel', 'Filter by customer')}
               value={filterClient}
               onChange={(v) => {
-                setFilterClient(v);
+                setWorkingSet((ws) => ({ ...ws, client: v }));
                 trackFilterApplied('customer', customerFilterOptions.length, 'projects');
               }}
               options={customerFilterOptions}
@@ -924,7 +934,7 @@ const Projects: React.FC = () => {
               label={t('projects.filters.pmLabel', 'Filter by project manager')}
               value={filterPM}
               onChange={(v) => {
-                setFilterPM(v);
+                setWorkingSet((ws) => ({ ...ws, pm: v }));
                 trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
               }}
               options={pmFilterOptions}
@@ -950,7 +960,7 @@ const Projects: React.FC = () => {
             { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
           ]}
           value={view}
-          onChange={setView}
+          onChange={onViewChange}
           ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
         />
       }
@@ -980,7 +990,7 @@ const Projects: React.FC = () => {
           milestoneDates={milestoneDates}
           onOpenProject={(id) => {
             trackProjectDetailOpened('/projects/:projectId', 'card');
-            navigate(`/projects/${id}`);
+            openRecord(`/projects/${id}`);
           }}
         />
       ) : view === 'table' ? (
