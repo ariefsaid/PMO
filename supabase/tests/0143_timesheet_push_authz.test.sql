@@ -11,7 +11,7 @@
 -- ⚑ The command payload is never trusted to assert approved-ness: the entries come back FROM THIS READ,
 --   so a forged payload cannot decide what hours are pushed (ADR-0059 §3.3).
 begin;
-select plan(16);
+select plan(18);
 
 insert into organizations (id, name) values
   ('01430000-0000-0000-0000-00000000000a','TS Push Org A'),
@@ -191,6 +191,32 @@ select is(
      '01430000-0000-0000-0000-0000000000a2')),
   1,
   'AC-TSP-013: the sweep STILL works for an active actor (the gate must not disable the backstop)');
+reset role;
+
+-- A RAW ban (auth.users.banned_until set from the dashboard, profiles.status still 'active') must stop
+--   the sweep path too: the resolved actor's standing is the whole active-member rule (0095/0180), not
+--   the status column alone.
+update auth.users set banned_until = now() + interval '1 day' where id = '01430000-0000-0000-0000-0000000000a2';
+-- ⚑ Clear the JWT left by the cases above: `set local request.jwt.claims` lasts the whole transaction,
+--   so without this `auth.uid()` still resolves to the approver and the call takes the JWT path, not
+--   the sweep path this case is about.
+set local request.jwt.claims = '{"role":"service_role"}';
+set local role service_role;
+select throws_ok(
+  $$ select * from approved_timesheet_for_push(
+       '01430000-0000-0000-0000-000000000010',
+       '01430000-0000-0000-0000-0000000000a2') $$,
+  '42501', null,
+  'AC-TSP-013: the sweep passing a RAW-BANNED actor (status still active) as p_actor is refused 42501');
+reset role;
+update auth.users set banned_until = null where id = '01430000-0000-0000-0000-0000000000a2';
+set local role service_role;
+select is(
+  (select count(*)::int from approved_timesheet_for_push(
+     '01430000-0000-0000-0000-000000000010',
+     '01430000-0000-0000-0000-0000000000a2')),
+  1,
+  'AC-TSP-013: lifting the ban restores the sweep for that actor');
 reset role;
 
 select * from finish();
