@@ -77,25 +77,27 @@ export function useListWorkingSet<K extends ListName>(
     navigate(`${location.pathname}${targetSearch}`, { replace: true, state: location.state });
   }, [location.pathname, location.search, location.state, targetSearch, navigate]);
 
+  // The router commits a location change as a transition, and typing can keep pre-empting it. Build
+  // each write on the latest one this hook made, not the last committed render, or a filter picked
+  // just before a debounced search write is silently dropped (AC-LRC-008).
+  const latestSearch = useRef(location.search);
+  useEffect(() => {
+    latestSearch.current = location.search;
+  }, [location.search]);
+
   const setWorkingSet = useCallback(
     (updater: ListWorkingSetUpdater<K>) => {
-      const next = updater(workingSet);
-      const params = serializeListWorkingSet(list, location.search, next, {
+      const base = latestSearch.current;
+      const current = parseListWorkingSet(list, base, { sessionView, projectsDefaultFilter });
+      const params = serializeListWorkingSet(list, base, updater(current), {
         projectsDefaultFilter,
         sessionView,
       });
       const search = params.toString();
-      navigate(`${location.pathname}${search ? `?${search}` : ''}`, { replace: true });
+      latestSearch.current = search ? `?${search}` : '';
+      navigate(`${location.pathname}${latestSearch.current}`, { replace: true });
     },
-    [
-      list,
-      location.pathname,
-      location.search,
-      navigate,
-      projectsDefaultFilter,
-      sessionView,
-      workingSet,
-    ],
+    [list, location.pathname, navigate, projectsDefaultFilter, sessionView],
   );
 
   return { workingSet, setWorkingSet };

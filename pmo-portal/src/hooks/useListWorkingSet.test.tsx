@@ -297,3 +297,37 @@ describe('useUrlSearchInput — search text over the URL working set', () => {
     expect(input).toHaveValue('');
   });
 });
+
+function MeetingsHost() {
+  const { setWorkingSet } = useListWorkingSet('meetings');
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        // Two writes with no render in between — what happens when the router's location update
+        // is still pending (it commits as a transition, which typing can keep pre-empting).
+        setWorkingSet((prev) => ({ ...prev, project: '6f1c2b3a-0000-4000-8000-00000000abcd' }));
+        setWorkingSet((prev) => ({ ...prev, q: 'coordination' }));
+      }}
+    >
+      Pick project then search
+    </button>
+  );
+}
+
+describe('useListWorkingSet — writes before the location commits', () => {
+  it('AC-LRC-008: a second write builds on the first even before the router re-renders, so a picked filter is not dropped', async () => {
+    window.history.replaceState(null, '', '/meetings');
+    render(
+      <BrowserRouter>
+        <MeetingsHost />
+        <LocationProbe />
+      </BrowserRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Pick project then search' }));
+    await settle();
+    const path = currentPath();
+    expect(path).toContain('project=6f1c2b3a-0000-4000-8000-00000000abcd');
+    expect(path).toContain('q=coordination');
+  });
+});

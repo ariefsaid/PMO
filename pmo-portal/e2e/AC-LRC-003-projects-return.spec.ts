@@ -55,6 +55,8 @@ test(
     const main = page.locator('.main-scroll');
     await expect(main).toBeVisible();
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    // Read the offset where the user IS when opening: the click scrolls an off-screen row into view first.
+    await page.getByText('Innovate Corp HQ Fit-Out').scrollIntoViewIfNeeded();
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
 
     // ── Open a record; capture its canonical URL for the direct-visit check below ───────────
@@ -88,6 +90,7 @@ test(
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    await page.getByText('Innovate Corp HQ Fit-Out').scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
     await page.getByText('Innovate Corp HQ Fit-Out').click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });

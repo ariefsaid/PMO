@@ -96,6 +96,8 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     const main = page.locator('.main-scroll');
     await expect(main).toBeVisible();
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    // Read the offset where the user IS when opening: the click scrolls an off-screen row into view first.
+    await page.getByText(titleB).scrollIntoViewIfNeeded();
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(scrolledTop).toBeGreaterThan(0);
 
@@ -123,6 +125,7 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    await page.getByText(titleB).scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(mobileScrolledTop).toBeGreaterThan(0);
     await page.getByText(titleB).click();
