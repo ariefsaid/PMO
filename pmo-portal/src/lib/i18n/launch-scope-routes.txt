@@ -122,7 +122,7 @@
 #    shell, so naming the shell (plus its /:section form) is what keeps every Administration label,
 #    description, denial and pending copy inside the gate.
 /administration               pages/Administration.tsx
-/administration/:section      pages/Administration.tsx
+/administration/:section      pages/Administration.tsx src/components/integrations/M365OrgApprovalCard.tsx
 
 # ── Personal (Member-owner) Microsoft 365 connect home (AC-ADMIA-006) — the OTHER ownership surface.
 #    It shares the "integrations" word with the organization surface at /administration/integrations;

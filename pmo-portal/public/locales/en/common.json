@@ -2138,7 +2138,7 @@
       }
     },
     "personal": {
-      "description": "Connect your personal Microsoft 365 account to bring your documents and calendar into projects. This is separate from your organization’s Administration integrations.",
+      "description": "Connect your personal Microsoft 365 account so PMO Portal can reach the content your account has access to. This is separate from your organization’s Administration integrations.",
       "title": "My integrations"
     },
     "personalM365": {
@@ -2160,7 +2160,7 @@
       },
       "confirm": {
         "title": "Disconnect Microsoft 365?",
-        "description": "Disconnecting removes this Microsoft 365 account connection. PMO can no longer access the OneDrive files, Teams, and calendar information available through this account until you reconnect. You can reconnect at any time.",
+        "description": "Disconnecting removes this Microsoft 365 account connection. PMO Portal can no longer access the OneDrive files, Teams, and calendar information available through this account until you reconnect. You can reconnect at any time.",
         "cancel": "Cancel",
         "confirm": "Disconnect"
       },
@@ -2176,7 +2176,7 @@
         "notConnected": "Microsoft 365 isn't connected.",
         "tokenExchangeFailed": "Microsoft declined the connection. Please try again.",
         "invalidState": "The connection request expired. Please try again.",
-        "scopeInsufficient": "The connection needs additional permissions. Reconnect to grant them.",
+        "scopeInsufficient": "The connection needs additional permissions. Connect again to grant them.",
         "badRequest": "The request was invalid. Please try again.",
         "graphError": "Microsoft Graph is unavailable right now. Please try again shortly.",
         "internalError": "Something went wrong on our end. Please try again.",
@@ -2185,6 +2185,14 @@
         "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
         "generic": "Microsoft 365 could not be connected. Please try again."
       }
+    },
+    "m365OrgApproval": {
+      "heading": "Microsoft 365",
+      "badge": "Organization approval",
+      "description": "Approve the PMO Portal app for your organization in Microsoft 365. This one-time step lets your team connect their own Microsoft 365 accounts to PMO Portal.",
+      "approve": "Approve in Microsoft 365",
+      "approving": "Opening Microsoft 365…",
+      "errorFallback": "Could not start Microsoft 365 organization approval."
     }
   },
   "profileSettings": {

@@ -2138,7 +2138,7 @@
       }
     },
     "personal": {
-      "description": "Hubungkan akun Microsoft 365 pribadi Anda untuk membawa dokumen dan kalender ke dalam proyek. Ini terpisah dari integrasi Administrasi organisasi Anda.",
+      "description": "Hubungkan akun Microsoft 365 pribadi Anda agar PMO Portal dapat mengakses konten yang tersedia melalui akun Anda. Ini terpisah dari integrasi Administrasi organisasi Anda.",
       "title": "Integrasi saya"
     },
     "personalM365": {
@@ -2160,7 +2160,7 @@
       },
       "confirm": {
         "title": "Putuskan koneksi Microsoft 365?",
-        "description": "Memutuskan koneksi akan menghapus koneksi akun Microsoft 365 ini. PMO tidak dapat lagi mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun ini sampai Anda menghubungkannya kembali. Anda dapat menghubungkannya kembali kapan saja.",
+        "description": "Memutuskan koneksi akan menghapus koneksi akun Microsoft 365 ini. PMO Portal tidak dapat lagi mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun ini sampai Anda menghubungkannya kembali. Anda dapat menghubungkannya kembali kapan saja.",
         "cancel": "Batal",
         "confirm": "Putuskan koneksi"
       },
@@ -2176,7 +2176,7 @@
         "notConnected": "Microsoft 365 belum terhubung.",
         "tokenExchangeFailed": "Microsoft menolak koneksi. Silakan coba lagi.",
         "invalidState": "Permintaan koneksi telah kedaluwarsa. Silakan coba lagi.",
-        "scopeInsufficient": "Koneksi memerlukan izin tambahan. Hubungkan ulang untuk memberikan izin tersebut.",
+        "scopeInsufficient": "Koneksi memerlukan izin tambahan. Hubungkan kembali untuk memberikan izin tersebut.",
         "badRequest": "Permintaan tidak valid. Silakan coba lagi.",
         "graphError": "Microsoft Graph sedang tidak tersedia. Silakan coba lagi sebentar lagi.",
         "internalError": "Terjadi kesalahan di sisi kami. Silakan coba lagi.",
@@ -2185,6 +2185,14 @@
         "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.",
         "generic": "Microsoft 365 tidak dapat dihubungkan. Silakan coba lagi."
       }
+    },
+    "m365OrgApproval": {
+      "heading": "Microsoft 365",
+      "badge": "Persetujuan organisasi",
+      "description": "Setujui aplikasi PMO Portal untuk organisasi Anda di Microsoft 365. Langkah satu kali ini memungkinkan tim Anda menghubungkan akun Microsoft 365 mereka sendiri ke PMO Portal.",
+      "approve": "Setujui di Microsoft 365",
+      "approving": "Membuka Microsoft 365…",
+      "errorFallback": "Tidak dapat memulai persetujuan organisasi Microsoft 365."
     }
   },
   "profileSettings": {

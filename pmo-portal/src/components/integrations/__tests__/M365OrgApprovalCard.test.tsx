@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 // usePermission drives the FE Admin gate. Hoist a controllable boolean so each test can flip the
 // caller between Admin (gate open) and non-Admin (gate closed).
@@ -105,5 +110,133 @@ describe('FR-M365SEP-005 — Approve calls initiate_org_approval and top-level-n
     fireEvent.click(btn); // stray second synchronous click before React flushes
 
     await waitFor(() => expect(initiateM365OrgApproval).toHaveBeenCalledTimes(1));
+  });
+});
+
+// ── #690: the organization-approval card is localized and shares the personal card's error table ──
+/** The REAL shipped catalogues — assertions pin the actual copy in both languages. */
+type Catalogue = { integrations: { personalM365: { errors: Record<string, string> } } };
+const readCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Catalogue;
+
+async function makeI18n(lng: 'en' | 'id', withCatalogues = true) {
+  const i18n = i18next.createInstance();
+  await i18n.init({
+    lng,
+    fallbackLng: 'en',
+    defaultNS: 'common',
+    resources: withCatalogues
+      ? { en: { common: readCatalogue('en') }, id: { common: readCatalogue('id') } }
+      : { en: { common: {} } },
+    parseMissingKeyHandler,
+    returnEmptyString: false,
+  });
+  return i18n;
+}
+
+async function renderLocalized(lng: 'en' | 'id', withCatalogues = true) {
+  const i18n = await makeI18n(lng, withCatalogues);
+  const utils = render(
+    <I18nextProvider i18n={i18n}>
+      <M365OrgApprovalCard />
+    </I18nextProvider>,
+  );
+  return { ...utils, i18n };
+}
+
+/** Click the approve button (its accessible name differs per locale) and wait for the failure. */
+async function failApproval(buttonName: RegExp, error: Error) {
+  vi.mocked(initiateM365OrgApproval).mockRejectedValueOnce(error);
+  fireEvent.click(screen.getByRole('button', { name: buttonName }));
+  return screen.findByTestId('m365-org-approval-error');
+}
+
+describe('AC-M365LOC-006 — M365OrgApprovalCard is localized (en/id) and code-driven', () => {
+  it('AC-M365LOC-006: English shows the card copy, the approve action and no raw key', async () => {
+    await renderLocalized('en');
+    const card = screen.getByTestId('m365-org-approval');
+    expect(card).toHaveTextContent('Organization approval');
+    expect(card).toHaveTextContent(/approve the PMO Portal app for your organization/i);
+    expect(screen.getByRole('button', { name: 'Approve in Microsoft 365' })).toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
+  });
+
+  it('AC-M365LOC-006: Bahasa shows the localized card copy and approve action', async () => {
+    await renderLocalized('id');
+    const card = screen.getByTestId('m365-org-approval');
+    expect(card).toHaveTextContent('Persetujuan organisasi');
+    expect(card).toHaveTextContent(/setujui aplikasi PMO Portal untuk organisasi Anda/i);
+    expect(screen.getByRole('button', { name: 'Setujui di Microsoft 365' })).toBeInTheDocument();
+    // None of the English copy survives in the Bahasa render.
+    expect(card.textContent).not.toMatch(/Organization approval|Approve in Microsoft 365/);
+  });
+
+  it('AC-M365LOC-006: with NO catalogue loaded the card still reads as English (defaults, never keys)', async () => {
+    await renderLocalized('en', false);
+    const card = screen.getByTestId('m365-org-approval');
+    expect(card).toHaveTextContent('Organization approval');
+    expect(screen.getByRole('button', { name: 'Approve in Microsoft 365' })).toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
+  });
+
+  it('AC-M365LOC-006: a failure carrying a known code renders that code in Bahasa, never the server text', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    await renderLocalized('id');
+    const alert = await failApproval(
+      /setujui di microsoft 365/i,
+      new AppError('raw server sentence that must not be echoed', 'FORBIDDEN'),
+    );
+    expect(alert).toHaveTextContent(readCatalogue('id').integrations.personalM365.errors.forbidden);
+    expect(alert.textContent).not.toContain('raw server sentence');
+    expect(alert.textContent).not.toContain('FORBIDDEN');
+  });
+
+  it('AC-M365LOC-006: every wire code the personal card knows renders its localized copy here too', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    const { M365_ERROR_CODES, knownM365ErrorReason } = await import('@/src/lib/m365/errorCopy');
+    const { i18n } = await renderLocalized('id');
+    for (const code of M365_ERROR_CODES) {
+      const alert = await failApproval(/setujui di microsoft 365/i, new AppError('raw', code));
+      expect(alert).toHaveTextContent(knownM365ErrorReason(i18n.t.bind(i18n), code)!);
+    }
+  });
+
+  it('AC-M365LOC-006: an unknown or absent code shows the localized organization fallback, never the raw message', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    await renderLocalized('id');
+    const unknown = await failApproval(
+      /setujui di microsoft 365/i,
+      new AppError('leaky backend detail', 'SOMETHING_NEW'),
+    );
+    expect(unknown).toHaveTextContent('Tidak dapat memulai persetujuan organisasi Microsoft 365.');
+    expect(unknown.textContent).not.toContain('leaky backend detail');
+    const plain = await failApproval(/setujui di microsoft 365/i, new Error('socket hang up'));
+    expect(plain).toHaveTextContent('Tidak dapat memulai persetujuan organisasi Microsoft 365.');
+    expect(plain.textContent).not.toContain('socket hang up');
+  });
+
+  it('AC-M365LOC-006: switching language re-renders a visible error in place (the code is stored, not the text)', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    const { i18n } = await renderLocalized('en');
+    const alert = await failApproval(
+      /approve in microsoft 365/i,
+      new AppError('raw', 'FORBIDDEN'),
+    );
+    expect(alert).toHaveTextContent(/restricted to organization administrators/i);
+    await act(async () => {
+      await i18n.changeLanguage('id');
+    });
+    expect(screen.getByTestId('m365-org-approval-error')).toHaveTextContent(
+      readCatalogue('id').integrations.personalM365.errors.forbidden,
+    );
+  });
+
+  it('AC-M365LOC-008: the error line keeps its icon on the first wrapped line (390px)', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    await renderLocalized('en');
+    const alert = await failApproval(/approve in microsoft 365/i, new AppError('raw', 'GRAPH_ERROR'));
+    expect(alert.className).toContain('items-start');
+    expect(alert.className).not.toContain('items-center');
+    expect(alert.querySelector('svg')!.getAttribute('class')).toContain('mt-[3px]');
   });
 });

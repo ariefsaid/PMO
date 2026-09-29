@@ -33,7 +33,7 @@ const IntegrationsPage: React.FC = () => {
       <p className="mt-1 max-w-xl text-sm text-muted-foreground">
         {t(
           'integrations.personal.description',
-          'Connect your personal Microsoft 365 account to bring your documents and calendar into projects. This is separate from your organization’s Administration integrations.',
+          'Connect your personal Microsoft 365 account so PMO Portal can reach the content your account has access to. This is separate from your organization’s Administration integrations.',
         )}
       </p>
       <div className="mt-4 max-w-xl">

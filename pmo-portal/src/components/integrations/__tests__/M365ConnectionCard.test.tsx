@@ -1054,3 +1054,89 @@ describe('AC-M365LOC-001 — every t() call carries its English default (missing
     expect(document.body.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
   });
 });
+
+// ── #692: callback/dialog copy agrees with the buttons; the status icon sits on the first line ──
+describe('AC-M365LOC-007 — copy names the action the button actually offers', () => {
+  it('AC-M365LOC-007: insufficient permissions (English) says Connect again while the button reads Connect', async () => {
+    featureState.value = true;
+    await renderCard({
+      initialEntry: '/integrations?m365_error=raw&m365_error_code=SCOPE_INSUFFICIENT',
+    });
+    const banner = screen.getByRole('alert');
+    expect(banner).toHaveTextContent(/connect again to grant them/i);
+    expect(banner.textContent).not.toMatch(/reconnect/i);
+    // The button in this state is the plain Connect — the message and the button use the same verb.
+    expect(screen.getByRole('button', { name: /^connect microsoft 365$/i })).toBeInTheDocument();
+  });
+
+  it('AC-M365LOC-007: insufficient permissions (Bahasa) says Hubungkan kembali while the button reads Hubungkan', async () => {
+    featureState.value = true;
+    await renderCard({
+      locale: 'id',
+      initialEntry: '/integrations?m365_error=raw&m365_error_code=SCOPE_INSUFFICIENT',
+    });
+    const banner = screen.getByRole('alert');
+    expect(banner).toHaveTextContent(/hubungkan kembali untuk memberikan izin/i);
+    expect(banner.textContent).not.toMatch(/hubungkan ulang/i);
+    expect(screen.getByRole('button', { name: /^hubungkan microsoft 365$/i })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', /PMO Portal can no longer access/, /PMO can no longer/],
+    ['id', /PMO Portal tidak dapat lagi mengakses/, /PMO tidak dapat lagi/],
+  ] as const)(
+    'AC-M365LOC-007: the %s disconnect dialog names the product "PMO Portal", like the card',
+    async (locale, expected, forbidden) => {
+      featureState.value = true;
+      await renderCard({ locale, initialEntry: '/integrations?m365_connected=true' });
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: locale === 'en' ? /disconnect/i : /putuskan koneksi/i }),
+      );
+      const dialog = await screen.findByRole('alertdialog');
+      expect(dialog.textContent).toMatch(expected);
+      expect(dialog.textContent).not.toMatch(forbidden);
+    },
+  );
+});
+
+describe('AC-M365LOC-008 — a wrapped status line keeps its icon on the FIRST line (390px)', () => {
+  /** Every status line is a flex row whose icon is top-aligned and nudged onto the first text line. */
+  function expectFirstLineIcon(line: HTMLElement) {
+    expect(line.className).toContain('items-start');
+    expect(line.className).not.toContain('items-center');
+    const icon = line.querySelector('svg');
+    expect(icon, 'status line has an icon').not.toBeNull();
+    expect(icon!.getAttribute('class')).toContain('mt-[3px]');
+  }
+
+  it('AC-M365LOC-008: the error line (callback failure)', async () => {
+    featureState.value = true;
+    await renderCard({ initialEntry: '/integrations?m365_error=raw&m365_error_code=GRAPH_ERROR' });
+    expectFirstLineIcon(screen.getByTestId('m365-error-msg'));
+  });
+
+  it.each([
+    ['m365-connected-msg', STATUS_ACTIVE],
+    ['m365-reconnect-msg', STATUS_STALE],
+    ['m365-revoked-msg', STATUS_REVOKED],
+  ] as const)('AC-M365LOC-008: %s (status fetch)', async (testId, status) => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: status, error: null });
+    await renderCard();
+    expectFirstLineIcon(await screen.findByTestId(testId));
+  });
+
+  it('AC-M365LOC-008: the unknown-status line', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: null, error: networkError('boom') });
+    await renderCard();
+    expectFirstLineIcon(await screen.findByTestId('m365-unknown-msg'));
+  });
+
+  it('AC-M365LOC-008: the organization-approved line', async () => {
+    featureState.value = true;
+    await renderCard({ initialEntry: '/integrations?m365_org_approved=true' });
+    expectFirstLineIcon(screen.getByTestId('m365-org-approved-msg'));
+  });
+});
