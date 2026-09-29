@@ -10,7 +10,7 @@
  * AC-VQ-006  clicking Select calls onSelect with the quotation id (confirm → mutation)
  * AC-VQ-007  Add quotation affordance visible when canAdd=true; hidden when false
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -35,6 +35,13 @@ vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
 
 import { VendorQuotesTab } from '../procurement/VendorQuotesTab';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
+
+beforeEach(() => setActiveLocale(EN_LOCALE));
+afterEach(() => resetActiveLocale());
 
 type QuotationRow = Tables<'procurement_quotations'>;
 
@@ -347,6 +354,41 @@ describe('FR-L10N-020: currency-aware rendering (not a blind $)', () => {
     await userEvent.click(screen.getByRole('button', { name: /add quotation/i }));
     expect(screen.getByText('€')).toBeInTheDocument();
     expect(screen.queryByText('$')).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-009: vendor quote money entry', () => {
+  const enterQuote = async (
+    numberLocale: typeof EN_LOCALE | typeof ID_LOCALE,
+    onAdd: React.ComponentProps<typeof VendorQuotesTab>['onAdd'],
+  ) => {
+    setActiveLocale(numberLocale);
+    const user = userEvent.setup();
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd onAdd={onAdd} />);
+    await user.click(screen.getByRole('button', { name: /add quotation/i }));
+    await user.click(screen.getByRole('combobox', { name: 'Vendor' }));
+    await user.click(await screen.findByRole('option', { name: /Apex Supply/i }));
+    const amount = screen.getByLabelText(/quoted total/i);
+    await user.type(amount, '1.234');
+    const form = screen.getByTestId('add-quotation-form');
+    await user.click(within(form).getByRole('button', { name: /add quotation/i }));
+  };
+
+  it('rejects an en-US quoted total with excess precision before adding', async () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    await enterQuote(EN_LOCALE, onAdd);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/quoted total|decimal/i);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('persists an id-ID grouped quoted total as 1234', async () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    await enterQuote(ID_LOCALE, onAdd);
+
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ vendorId: 'v-1', totalAmount: 1234 }),
+    );
   });
 });
 

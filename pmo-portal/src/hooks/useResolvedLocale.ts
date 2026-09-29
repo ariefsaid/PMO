@@ -10,12 +10,28 @@ const NO_ORG_DEFAULTS: OrgLocaleDefaultsRow = {
 };
 
 /**
- * The caller's effective locale, language and number locale and timezone (FR-L10N-003).
- *
- * Follows the `useOrgCurrency` pattern exactly — react-query, `staleTime: Infinity`, a safe
- * placeholder — because org locale defaults change only by operator action. Until the profile and
- * org row resolve this yields the hardcoded fallback, which is why `resolveLocale`'s own defaults
- * and not a second set of literals live behind it.
+ * The caller's organization locale defaults (#684) — the values a `NULL` profile preference
+ * inherits. Follows the `useOrgCurrency` pattern exactly — react-query, `staleTime: Infinity`, a
+ * safe placeholder — because org locale defaults change only by operator action. Shared by
+ * `useResolvedLocale` and Profile & preferences, which names what "Organization default" would
+ * give the user; both read the SAME cached query.
+ */
+export function useOrgLocaleDefaults(): OrgLocaleDefaultsRow {
+  const { currentUser } = useAuth();
+  const { data } = useQuery<OrgLocaleDefaultsRow>({
+    queryKey: ['org-locale-defaults', currentUser?.org_id],
+    queryFn: () => getOrgLocaleDefaults(),
+    enabled: Boolean(currentUser),
+    staleTime: Infinity,
+    placeholderData: NO_ORG_DEFAULTS,
+  });
+  return data ?? NO_ORG_DEFAULTS;
+}
+
+/**
+ * The caller's effective locale, language and number locale and timezone (FR-L10N-003). Until the
+ * profile and org row resolve this yields the hardcoded fallback, which is why `resolveLocale`'s own
+ * defaults and not a second set of literals live behind it.
  *
  * ⛔ This hook is the ONLY place the three inputs meet. No call site may reach for
  * `profile.locale ?? org.default_locale` on its own — FR-L10N-003 makes `resolveLocale` the single
@@ -23,13 +39,7 @@ const NO_ORG_DEFAULTS: OrgLocaleDefaultsRow = {
  */
 export function useResolvedLocale(): ResolvedLocale {
   const { currentUser } = useAuth();
-  const { data: orgDefaults } = useQuery<OrgLocaleDefaultsRow>({
-    queryKey: ['org-locale-defaults', currentUser?.org_id],
-    queryFn: () => getOrgLocaleDefaults(),
-    enabled: Boolean(currentUser),
-    staleTime: Infinity,
-    placeholderData: NO_ORG_DEFAULTS,
-  });
+  const orgDefaults = useOrgLocaleDefaults();
 
   return resolveLocale(
     {
@@ -37,6 +47,6 @@ export function useResolvedLocale(): ResolvedLocale {
       numberLocale: currentUser?.number_locale ?? null,
       timezone: currentUser?.timezone ?? null,
     },
-    orgDefaults ?? NO_ORG_DEFAULTS,
+    orgDefaults,
   );
 }

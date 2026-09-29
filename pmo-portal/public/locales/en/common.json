@@ -154,6 +154,22 @@
     "unknownRequester": "Unknown requester",
     "weekOf": "Week of"
   },
+  "combobox": {
+    "search": {
+      "label": "Search {{noun}}s",
+      "placeholder": "Search {{noun}}s…"
+    },
+    "loading": "Loading {{noun}}s…",
+    "error": {
+      "title": "Couldn't load {{noun}}s.",
+      "retry": "Retry"
+    },
+    "listLabel": "{{noun}}s",
+    "empty": {
+      "withQuery": "No {{noun}} matches \"{{query}}\".",
+      "bare": "No {{noun}} matches."
+    }
+  },
   "companies": {
     "accessDenied": {
       "sub": "The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.",
@@ -706,7 +722,8 @@
       "editSubtitle": "Update this meeting record",
       "editTitle": "Edit meeting",
       "errors": {
-        "titleRequired": "Meeting title is required."
+        "titleRequired": "Meeting title is required.",
+        "whenInvalid": "Enter a valid date and time."
       },
       "location": {
         "label": "Location"
@@ -794,7 +811,8 @@
     },
     "form": {
       "errors": {
-        "titleRequired": "Meeting title is required."
+        "titleRequired": "Meeting title is required.",
+        "whenInvalid": "Enter a valid date and time."
       },
       "location": {
         "label": "Location",
@@ -1191,6 +1209,7 @@
         "title": "Archive {{name}}?"
       },
       "contractValue": "Contract value",
+      "invalidContractValue": "Enter a valid non-negative amount with no more than 2 decimal places.",
       "contractValueConfirm": {
         "body": "You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax.",
         "confirm": "Change and record",
@@ -1645,6 +1664,12 @@
         "updated": "Work order updated",
         "valueSet": "Work order value set"
       }
+    }
+  },
+  "projectForm": {
+    "value": {
+      "helper": "Estimate, pre-win. Editable by Admin, Executive, and PM.",
+      "formatError": "Use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals — for example {{example}}."
     }
   },
   "projects": {
@@ -2165,20 +2190,44 @@
   "profileSettings": {
     "loading": "Loading profile…",
     "title": "Profile & preferences",
-    "description": "Choose the language used for buttons, labels, and messages in this portal.",
+    "description": "Choose your language, number format, and timezone for this portal.",
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
+      "effective": "Effective language: {{value}}",
       "options": {
         "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
-      },
-      "inheritHint": "Organization default follows your organization’s setting. Choose a language below to override it."
+      }
+    },
+    "number": {
+      "label": "Number format",
+      "help": "Preview: {{value}}",
+      "effective": "Effective number format: {{value}}",
+      "options": {
+        "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{value}}",
+        "id": "Indonesian (1.234.567,89)",
+        "en": "English (1,234,567.89)"
+      }
+    },
+    "timezone": {
+      "label": "Timezone",
+      "placeholder": "Select a timezone",
+      "search": "Search timezones…",
+      "noun": "timezone",
+      "effective": "Effective timezone: {{value}}",
+      "options": {
+        "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{timezone}}"
+      }
     },
     "save": "Save",
     "saving": "Saving your preference…",
     "saved": "Preferences saved",
-    "error": "Could not save your preference. Please try again."
+    "error": "Could not save your preferences. Please try again.",
+    "invalidTimezone": "Choose a valid timezone before saving."
   }
 }

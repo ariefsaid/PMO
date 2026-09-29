@@ -328,7 +328,8 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
     expect(categoryEl.value).toBe('Labor');
 
     const amountEl = screen.getByRole('textbox', { name: /amount/i }) as HTMLInputElement;
-    expect(amountEl.value).toBe('200000');
+    // AC-PLC-004 / plan Task 5 Step 4: edit drafts are seeded in the active display convention (en-US).
+    expect(amountEl.value).toBe('200,000');
   });
 
   it('Save calls updateLineItem with the correct {id, patch} when amount changes', async () => {

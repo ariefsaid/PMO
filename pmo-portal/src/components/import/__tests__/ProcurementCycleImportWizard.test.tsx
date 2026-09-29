@@ -107,10 +107,10 @@ const FULL_ROWS: string[][] = [
 ];
 
 /** Drive the wizard to the preview step with our fixture sheet. */
-async function driveToPreview(user: ReturnType<typeof userEvent.setup>) {
+async function driveToPreview(user: ReturnType<typeof userEvent.setup>, rows: string[][] = FULL_ROWS) {
   (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
     headers: FULL_HEADERS,
-    rows: FULL_ROWS,
+    rows,
   });
 
   await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
@@ -398,7 +398,7 @@ describe('ProcurementCycleImportWizard', () => {
     const user = userEvent.setup();
     renderWizard();
     await driveToPreview(user);
-    // The amount 5000 should display as $5,000 (formatCurrency), not "$5000"
+    // The amount 5000 should display grouped as currency ($5,000.00), not "$5000"
     // There are two amounts in our fixture: 5000 and 2000
     expect(screen.queryByText(/\$5000/)).not.toBeInTheDocument();
     // Multiple elements may match — just confirm at least one "$5,000" is present
@@ -412,6 +412,22 @@ describe('ProcurementCycleImportWizard', () => {
     await driveToPreview(user);
     expect(screen.getAllByText(/€5,000/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/\$5,000/)).not.toBeInTheDocument();
+  });
+
+  it('AC-PLC-009: the preview shows the amount the neutral import parse will commit', async () => {
+    const rows = FULL_ROWS.map((r) => [...r]);
+    rows[2][9] = '1,234.50'; // case-001 VI — grouped: commits 1234.5
+    rows[3][9] = '1.234'; // case-001 Payment — three decimals: refused, never committed as 1.23
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user, rows);
+
+    // The grouped amount previews as the value commit will write, not as its raw cell text.
+    expect(screen.getAllByText('$1,234.50').length).toBeGreaterThan(0);
+    // The refused amount is shown as typed, never as a rounded figure that would not be written.
+    expect(screen.queryByText('$1.23')).not.toBeInTheDocument();
+    expect(screen.getByText('1.234')).toBeInTheDocument();
+    expect(screen.getByText(/amount must be a number with no more than 2 decimal places/i)).toBeInTheDocument();
   });
 
   // ── D11: committing step shows progress ──────────────────────────────────

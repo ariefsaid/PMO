@@ -20,7 +20,12 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatDate, parseMoneyInput } from '@/src/lib/format';
+import {
+  formatCurrency,
+  formatDateOnly,
+  formatMoneyInputValue,
+  parseMoneyInputAtScale,
+} from '@/src/lib/format';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -62,22 +67,6 @@ export interface ProjectDetailHeaderProps {
 function signedCurrency(value: number, currency: string): string {
   if (value < 0) return `−${formatCurrency(Math.abs(value), currency)}`;
   return formatCurrency(value, currency);
-}
-
-/**
- * Group the digits of a partially-typed money value with thousands separators so
- * the inline editor reads "$5,000,000" rather than the raw "5000000" (polish #4).
- * Preserves a trailing decimal-in-progress (e.g. "1234." → "1,234.") and an empty
- * field, so it is safe to run on every keystroke of a controlled input.
- */
-function formatThousands(raw: string): string {
-  const cleaned = raw.replace(/[^0-9.]/g, '');
-  if (cleaned === '') return '';
-  const [intPart, ...rest] = cleaned.split('.');
-  // eslint-disable-next-line no-restricted-syntax -- masked money INPUT, not display; owned by the #468 locale seam (excluded from the #477 sweep)
-  const grouped = intPart ? Number(intPart).toLocaleString('en-US') : '';
-  // Keep at most one decimal portion; "" intPart with a lone "." stays as ".".
-  return rest.length ? `${grouped}.${rest.join('')}` : grouped;
 }
 
 /**
@@ -160,7 +149,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           project.contract_date
             ? t('projectDetail.header.poWithDate', 'PO {{ref}} ({{date}})', {
                 ref: project.customer_contract_ref,
-                date: formatDate(project.contract_date),
+                date: formatDateOnly(project.contract_date),
               })
             : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
         }`
@@ -196,7 +185,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const beginValueEdit = () => {
     // Seed the editor with the formatted figure ("5,000,000"), not the raw number. The tax fields
     // are deliberately NOT seeded — see the state declaration.
-    setValueDraft(formatThousands(String(contract)));
+    setValueDraft(formatMoneyInputValue(contract));
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
     setValueEditing(true);
@@ -212,10 +201,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // #513: the ONE predicate. `stagedValue` is null exactly when the editor is not submittable —
   // no parsable value, or a value with no stated basis — and it drives BOTH the disabled Save and
   // the guard inside `onValueSave`, so the button state and the write guard cannot disagree.
-  // `parseMoneyInput` is the single money parse (validation AND persistence) for both figures; a
-  // local `Number()` parse here would silently diverge from the #468 locale fix.
-  const parsedValue = parseMoneyInput(valueDraft);
+  // The same locale-aware scale-2 parse drives eligibility and the eventual RPC payload.
+  const parsedValue = parseMoneyInputAtScale(valueDraft, 2);
   const parsedTax = parseTaxFacts(taxTreatmentDraft, taxAmountDraft);
+  const valueDraftError = valueDraft.trim() && (parsedValue === null || parsedValue < 0)
+    ? t('projectDetail.header.invalidContractValue', 'Enter a valid non-negative amount with no more than 2 decimal places.')
+    : undefined;
   const stagedValue: PendingContractValue | null =
     parsedValue !== null && parsedValue >= 0 && parsedTax !== null
       ? { value: parsedValue, ...parsedTax }
@@ -321,7 +312,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               label={t('projectDetail.header.contractValue', 'Contract value')}
               prefix="$"
               value={valueDraft}
-              onChange={(v) => setValueDraft(formatThousands(v))}
+              onChange={setValueDraft}
+              error={valueDraftError}
+              localeAware
             />
           </div>
           {/* #513: the contract value's tax basis — BOTH required, and the treatment has no
@@ -344,7 +337,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               label={t('projectDetail.header.taxAmount', 'Tax amount')}
               prefix="$"
               value={taxAmountDraft}
-              onChange={(v) => setTaxAmountDraft(formatThousands(v))}
+              onChange={setTaxAmountDraft}
+              localeAware
               data-testid="contract-tax-amount"
             />
           </div>

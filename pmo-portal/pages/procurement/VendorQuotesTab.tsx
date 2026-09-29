@@ -14,7 +14,7 @@ import {
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatDate, parseMoneyInput } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -156,9 +156,11 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
   const submitAdd = async () => {
     if (!vendorId) return;
-    const parsed = parseMoneyInput(total);
+    // #684 (AC-PLC-009): the quote total is stored as numeric(14,2); one locale-aware scale-2 parse
+    // both validates and produces the persisted number, so excess precision is refused, not rounded.
+    const parsed = parseMoneyInputAtScale(total, 2);
     if (parsed === null || parsed <= 0) {
-      setTotalError('Quoted total must be a number greater than 0.');
+      setTotalError('Quoted total must be greater than 0 with no more than 2 decimal places.');
       return;
     }
     setTotalError(undefined);
@@ -302,7 +304,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
                   {/* Valid until column */}
                   <div className="px-3 py-2.5 text-[13.5px] text-muted-foreground">
-                    {formatDate(q.valid_until)}
+                    {formatDateOnly(q.valid_until)}
                   </div>
 
                   {/* Action column */}
@@ -369,7 +371,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                       Valid until
                     </dt>
                     <dd className="text-[13.5px] text-muted-foreground">
-                      {formatDate(q.valid_until)}
+                      {formatDateOnly(q.valid_until)}
                     </dd>
                   </div>
                 </dl>
@@ -420,6 +422,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                   setTotalError(undefined);
                 }}
                 error={totalError}
+                localeAware
                 placeholder="0.00"
               />
             </div>

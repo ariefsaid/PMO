@@ -31,6 +31,7 @@ import { createQuotation, createReceipt, createInvoice } from '@/src/lib/db/proc
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
+import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import type { ImportSkipLookup, RecordTableName } from '@/src/lib/db/procurementImportSkip';
 import { computeCaseImportKey, computeRecordImportKey } from './importKey';
 import type {
@@ -72,10 +73,18 @@ const TYPE_TO_TABLE: Record<CycleType, RecordTableName> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * #684 (AC-PLC-009): the same neutral scale-2 parse `validateGroups` applied. Blank is "not stated";
+ * a non-blank cell that does not parse can only arrive here if validation regressed, so it fails the
+ * row loudly instead of being written as a missing (or rounded) amount.
+ */
 function parseAmount(raw: string | undefined): number | null {
   if (!raw?.trim()) return null;
-  const n = Number(raw.trim());
-  return isNaN(n) ? null : n;
+  const n = parseNeutralMoneyInputAtScale(raw, 2);
+  if (n === null) {
+    throw new Error('a row reached commit with an invalid amount — validateGroups should have refused it');
+  }
+  return n;
 }
 
 function parseDate(raw: string | undefined): string | null {
@@ -222,6 +231,10 @@ async function createRecord(
           'a VI row reached commit with no tax treatment or amount — validateGroups should have refused it',
         );
       }
+      const taxAmount = parseNeutralMoneyInputAtScale(taxAmountRaw, 2);
+      if (taxAmount === null) {
+        throw new Error('a VI row reached commit with an invalid tax amount — validateGroups should have refused it');
+      }
       const result = await createInvoice({
         procurementId,
         status: viStatus,
@@ -229,7 +242,7 @@ async function createRecord(
         referenceNumber: ref,
         amount,
         taxTreatment: taxTreatmentRaw,
-        taxAmount: Number(taxAmountRaw),
+        taxAmount,
         importKey,
         importBatchId,
         importedAt,

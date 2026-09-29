@@ -19,7 +19,7 @@ import {
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDateNumeric } from '@/src/lib/format';
+import { formatCurrency, formatInstantDateNumeric } from '@/src/lib/format';
 import {
   transitionProject,
   LEGAL_PROJECT_TRANSITIONS,
@@ -199,7 +199,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
     {
       label: t('projectDetail.pipeline.stat.decision', 'Decision'),
       value: project.decided_at
-        ? formatDateNumeric(new Date(project.decided_at))
+        ? formatInstantDateNumeric(project.decided_at)
         : t('projectDetail.pipeline.pending', 'Pending'),
     },
   ];

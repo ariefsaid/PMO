@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next';
 import { Button, Card, Icon } from '@/src/components/ui';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { useFeature } from '@/src/auth/useFeature';
-import { formatDate } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import {
   initiateM365Connect,
   disconnectM365,
@@ -418,7 +418,7 @@ export const M365ConnectionCard: React.FC = () => {
             {connectedAt
               ? t('integrations.personalM365.state.connectedSince', {
                   defaultValue: 'Connected since {{date}}. You can disconnect any time.',
-                  date: formatDate(connectedAt),
+                  date: formatInstantDate(connectedAt),
                 })
               : t('integrations.personalM365.state.connected', 'Connected. You can disconnect any time.')}
           </span>

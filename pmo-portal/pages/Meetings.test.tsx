@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -225,6 +226,72 @@ describe('Meetings — states', () => {
     listState.isPending = true;
     renderPage();
     expect(screen.queryByText('Kickoff with Acme')).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005: meeting occurrence follows the profile timezone', () => {
+  afterEach(() => resetActiveLocale());
+
+  it('shows the occurrence wall time and day in the viewer timezone', () => {
+    listState.data = [{ ...seed[0], occurred_at: '2026-06-14T23:30:00Z' }];
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const { unmount } = renderPage();
+    expect(screen.getByText(/Jun 14, 2026, 11:30\sPM/)).toBeInTheDocument();
+    unmount();
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    renderPage();
+    expect(screen.getByText(/Jun 15, 2026, 06:30\sAM/)).toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow the PROFILE timezone, not the device zone', () => {
+  const originalTz = process.env.TZ;
+  const PINNED_NOW = new Date('2026-06-14T14:15:00Z'); // 21:15 Asia/Jakarta, 07:15 America/Los_Angeles
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(PINNED_NOW);
+    // Simulate a device/browser zone that DIFFERS from the resolved profile timezone (#684's
+    // reported scenario: profile Asia/Jakarta, browser America/Los_Angeles).
+    process.env.TZ = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.TZ = originalTz;
+    resetActiveLocale();
+  });
+
+  it('prefills "When" with the current wall time in the profile timezone (not the device zone)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    expect(when.value).toBe('2026-06-14T21:15');
+  });
+
+  it('submitting the unedited default keeps the same instant', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
+    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    const [input] = mutations.create.mutateAsync.mock.calls[0];
+    expect(input.occurred_at).toBe('2026-06-14T14:15:00.000Z');
+  });
+
+  it('clearing "When" blocks the create with a visible error (a meeting time is required)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
+    // Shown twice by design: the inline field error and the dialog's error summary banner.
+    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

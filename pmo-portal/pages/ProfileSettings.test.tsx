@@ -8,9 +8,19 @@ import enCatalogue from '../public/locales/en/common.json';
 import idCatalogue from '../public/locales/id/common.json';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-const { setInterfaceLanguage, refreshMock } = vi.hoisted(() => ({
-  setInterfaceLanguage: vi.fn(),
+const { setLocalePreferences, refreshMock, resolvedLocaleState, orgDefaultsState } = vi.hoisted(() => ({
+  setLocalePreferences: vi.fn(),
   refreshMock: vi.fn(),
+  resolvedLocaleState: {
+    current: { locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' },
+  },
+  orgDefaultsState: {
+    current: {
+      defaultLocale: null as string | null,
+      defaultNumberLocale: null as string | null,
+      defaultTimezone: 'Asia/Jakarta' as string | null,
+    },
+  },
 }));
 
 let currentUserState: Record<string, unknown> | null = null;
@@ -35,14 +45,21 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 vi.mock('@/src/lib/repositories/profilePreferences', () => ({
-  profilePreferencesRepository: { setInterfaceLanguage },
+  profilePreferencesRepository: { setLocalePreferences },
+}));
+
+vi.mock('@/src/hooks/useResolvedLocale', () => ({
+  useResolvedLocale: () => resolvedLocaleState.current,
+  useOrgLocaleDefaults: () => orgDefaultsState.current,
 }));
 
 import ProfileSettings from './ProfileSettings';
 
 beforeEach(() => {
-  setInterfaceLanguage.mockReset();
+  setLocalePreferences.mockReset();
   refreshMock.mockReset();
+  resolvedLocaleState.current = { locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
+  orgDefaultsState.current = { defaultLocale: null, defaultNumberLocale: null, defaultTimezone: 'Asia/Jakarta' };
   currentUserState = {
     id: 'user-123',
     full_name: 'Alice Manager',
@@ -70,8 +87,9 @@ describe('ProfileSettings (profile language settings slice)', () => {
     const { unmount } = renderPage();
     const select = languageSelect();
     const options = within(select).getAllByRole('option');
+    // AC-PLC-001: the inherit option names the inherited org value (no org default → English).
     expect(options.map((o) => o.textContent)).toEqual([
-      'Organization default',
+      'Organization default — English',
       'Bahasa Indonesia',
       'English',
     ]);
@@ -92,7 +110,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
   it('saving Organization default writes null to language only, then refreshes', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
-    setInterfaceLanguage.mockResolvedValue(undefined);
+    setLocalePreferences.mockResolvedValue(undefined);
     let resolveRefresh!: (value: { error: null }) => void;
     refreshMock.mockReturnValue(new Promise((resolve) => { resolveRefresh = resolve; }));
 
@@ -100,9 +118,11 @@ describe('ProfileSettings (profile language settings slice)', () => {
     fireEvent.change(languageSelect(), { target: { value: 'inherit' } });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
-    await waitFor(() =>
-      expect(setInterfaceLanguage).toHaveBeenCalledWith('user-123', null)
-    );
+    await waitFor(() => expect(setLocalePreferences).toHaveBeenCalledWith('user-123', {
+      locale: null,
+      numberLocale: 'id-ID',
+      timezone: 'Asia/Jakarta',
+    }));
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
     await act(async () => resolveRefresh({ error: null }));
@@ -111,7 +131,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
   it('disables the select and save button and shows a saving status while the write is pending', async () => {
     let resolveDAL!: () => void;
-    setInterfaceLanguage.mockImplementation(
+    setLocalePreferences.mockImplementation(
       () => new Promise<void>((res) => (resolveDAL = () => res()))
     );
     refreshMock.mockResolvedValue({ error: null });
@@ -130,7 +150,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
   it('shows an assertive error and no success when the database write rejects', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
-    setInterfaceLanguage.mockRejectedValue(new Error('db write failed'));
+    setLocalePreferences.mockRejectedValue(new Error('db write failed'));
     refreshMock.mockResolvedValue({ error: null });
 
     renderPage();
@@ -147,7 +167,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
   it('shows an assertive error and no success when the profile refresh fails after a successful write', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
-    setInterfaceLanguage.mockResolvedValue(undefined);
+    setLocalePreferences.mockResolvedValue(undefined);
     refreshMock.mockResolvedValue({ error: 'profile refresh failed' });
 
     renderPage();
@@ -167,6 +187,185 @@ describe('ProfileSettings (profile language settings slice)', () => {
     );
     const { blocking } = await axeViolations(container);
     expect(blocking).toEqual([]);
+  });
+});
+
+describe('ProfileSettings personal locale preferences', () => {
+  it('AC-PLC-001: shows stored inheritance separately from effective defaults and offers number previews', () => {
+    currentUserState = {
+      ...currentUserState,
+      locale: null,
+      number_locale: null,
+      timezone: null,
+    };
+    resolvedLocaleState.current = { locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
+
+    renderPage();
+
+    expect(languageSelect()).toHaveValue('inherit');
+    expect(screen.getByLabelText(/number format/i)).toHaveValue('inherit');
+    expect(screen.getByRole('combobox', { name: /timezone/i })).toHaveTextContent(/organization default/i);
+    expect(screen.getByText(/effective.*english/i)).toBeInTheDocument();
+    // #684: the ONE labelled preview reflects the pending (here: inherited) choice — English,
+    // not the currently effective saved convention ('id-ID' per resolvedLocaleState above).
+    expect(screen.getByText('Preview: 1,234,567.89')).toBeInTheDocument();
+  });
+
+  it('AC-PLC-001 (#684): the number-format preview reflects the PENDING choice, not the saved effective value', () => {
+    currentUserState = { ...currentUserState, locale: 'en', number_locale: 'en-US', timezone: 'Asia/Jakarta' };
+    resolvedLocaleState.current = { locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' };
+
+    renderPage();
+    expect(screen.getByText('Preview: 1,234,567.89')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'id-ID' } });
+
+    // The preview updates immediately, before Save is pressed…
+    expect(screen.getByText('Preview: 1.234.567,89')).toBeInTheDocument();
+    // …while the "effective" (currently saved) convention is unchanged until save + refresh.
+    expect(screen.getByText('Effective number format: 1,234,567.89')).toBeInTheDocument();
+  });
+
+  it('AC-PLC-001: names the organization timezone on Organization default, not the user override', async () => {
+    currentUserState = { ...currentUserState, timezone: 'UTC' };
+    resolvedLocaleState.current = { locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' };
+    orgDefaultsState.current = { defaultLocale: null, defaultNumberLocale: null, defaultTimezone: 'Asia/Jakarta' };
+
+    renderPage();
+    fireEvent.click(screen.getByRole('combobox', { name: /timezone/i }));
+
+    expect(await screen.findByRole('option', { name: /organization default — Asia\/Jakarta/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /organization default — UTC/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PLC-001: names the inherited organization language and number format on Organization default, even with explicit overrides selected', () => {
+    // The user overrides both; the organization says English + English grouping.
+    currentUserState = { ...currentUserState, locale: 'id', number_locale: 'id-ID', timezone: 'UTC' };
+    resolvedLocaleState.current = { locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' };
+    orgDefaultsState.current = { defaultLocale: 'en', defaultNumberLocale: 'en-US', defaultTimezone: 'Asia/Jakarta' };
+
+    renderPage();
+
+    expect(languageSelect()).toHaveValue('id');
+    expect(within(languageSelect()).getByRole('option', { name: 'Organization default — English' })).toHaveValue('inherit');
+    const numberSelect = screen.getByLabelText(/number format/i) as HTMLSelectElement;
+    expect(numberSelect).toHaveValue('id-ID');
+    expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1,234,567.89' })).toHaveValue('inherit');
+  });
+
+  it('AC-PLC-001: an inherited number format with no organization number default follows the language it would derive from', () => {
+    // No org number default: the inherited convention derives from the language (resolveLocale).
+    currentUserState = { ...currentUserState, locale: null, number_locale: null, timezone: null };
+    resolvedLocaleState.current = { locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' };
+    orgDefaultsState.current = { defaultLocale: 'id', defaultNumberLocale: null, defaultTimezone: 'Asia/Jakarta' };
+
+    renderPage();
+
+    expect(within(languageSelect()).getByRole('option', { name: 'Organization default — Bahasa Indonesia' })).toBeInTheDocument();
+    const numberSelect = screen.getByLabelText(/number format/i) as HTMLSelectElement;
+    expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1.234.567,89' })).toBeInTheDocument();
+    // The effective line shows the convention's example, never a bare language tag like "id".
+    expect(screen.getByText('Effective number format: 1.234.567,89')).toBeInTheDocument();
+
+    // Choosing English as the language changes what "Organization default" number format would give.
+    fireEvent.change(languageSelect(), { target: { value: 'en' } });
+    expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1,234,567.89' })).toBeInTheDocument();
+  });
+
+  it('AC-PLC-001: keeps explicit choices explicit when they match organization defaults', () => {
+    currentUserState = { ...currentUserState, locale: 'en', number_locale: 'id-ID', timezone: 'Asia/Jakarta' };
+    resolvedLocaleState.current = { locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
+
+    renderPage();
+
+    expect(languageSelect()).toHaveValue('en');
+    expect(screen.getByLabelText(/number format/i)).toHaveValue('id-ID');
+    expect(screen.getByRole('combobox', { name: /timezone/i })).toHaveTextContent(/Asia\/Jakarta/i);
+  });
+
+  it('AC-PLC-002: saves all three preferences in one write and waits for profile refresh', async () => {
+    currentUserState = { ...currentUserState, locale: 'en', number_locale: 'id-ID', timezone: 'Asia/Jakarta' };
+    resolvedLocaleState.current = { locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
+    setLocalePreferences.mockResolvedValue(undefined);
+    let resolveRefresh!: (value: { error: null }) => void;
+    refreshMock.mockReturnValue(new Promise((resolve) => { resolveRefresh = resolve; }));
+
+    renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'en' } });
+    fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'inherit' } });
+    fireEvent.click(screen.getByRole('combobox', { name: /timezone/i }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Asia/Jakarta' }));
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(setLocalePreferences).toHaveBeenCalledWith('user-123', {
+      locale: 'en',
+      numberLocale: null,
+      timezone: 'Asia/Jakarta',
+    }));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+    await act(async () => resolveRefresh({ error: null }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/preferences saved/i);
+  });
+
+  it('AC-PLC-003: preserves choices and shows an accessible retry error after write or refresh failure', async () => {
+    currentUserState = { ...currentUserState, locale: null, number_locale: null, timezone: null };
+    setLocalePreferences.mockRejectedValueOnce(new Error('write failed'));
+
+    renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(languageSelect()).toHaveValue('id');
+    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+
+    setLocalePreferences.mockResolvedValueOnce(undefined);
+    refreshMock.mockResolvedValueOnce({ error: 'refresh failed' });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(languageSelect()).toHaveValue('id');
+    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-PLC-003: a failed write keeps the choices, then a retry succeeds with exactly one success and one refresh', async () => {
+    currentUserState = { ...currentUserState, locale: null, number_locale: null, timezone: null };
+    setLocalePreferences.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce(undefined);
+    refreshMock.mockResolvedValue({ error: null });
+
+    renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'en-US' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Failure: accessible alert, choices intact, no refresh, no success.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not save your preference/i);
+    expect(languageSelect()).toHaveValue('id');
+    expect(screen.getByLabelText(/number format/i)).toHaveValue('en-US');
+    expect(refreshMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+
+    // Retry with the same retained choices.
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/preferences saved/i));
+
+    expect(setLocalePreferences).toHaveBeenCalledTimes(2);
+    expect(setLocalePreferences).toHaveBeenLastCalledWith('user-123', { locale: 'id', numberLocale: 'en-US', timezone: null });
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText(/preferences saved/i)).toHaveLength(1);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('AC-PLC-006: rejects an invalid timezone before any profile preference write', async () => {
+    currentUserState = { ...currentUserState, locale: 'en', number_locale: 'en-US', timezone: 'Not/A_Time_Zone' };
+    setLocalePreferences.mockResolvedValue(undefined);
+
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(setLocalePreferences).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 });
 
