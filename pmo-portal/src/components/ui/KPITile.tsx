@@ -66,7 +66,7 @@ export interface KPITileProps<L extends string = string> {
 
 const DELTA_CLASS: Record<KPIDelta['dir'], string> = {
   up: 'text-success bg-success/12',
-  down: 'text-destructive bg-destructive/10',
+  down: 'text-destructive-text bg-destructive/10',
   neutral: 'text-muted-foreground bg-secondary',
 };
 
