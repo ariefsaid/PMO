@@ -40,6 +40,13 @@ if [ "${1:-}" = --self-test ]; then
   echo "ci-e2e self-test: ok"; exit 0
 fi
 
+# Check → dispatch → log runs under one machine-wide lock shared with MOS's wrapper, so two sessions
+# in different repos can never both pass the busy check at once.
+if [ -z "${CI_E2E_LOCK_HELD:-}" ]; then
+  exec "$(cd "$(dirname "$0")" && pwd)/lib/flock-run.sh" "ci-e2e-lock" "${CI_E2E_LOCK:-$HOME/.ci-e2e.lock}" 60 \
+    CI_E2E_LOCK_HELD "another session's CI dispatch check" -- "$0" "$@"
+fi
+
 usage() { echo "usage: $0 <branch> [--bugfix-proof \"<why>\" | --owner-ok \"<quote>\"] [--dry-run]" >&2; exit 2; }
 [ $# -ge 1 ] || usage
 branch=$1; shift
