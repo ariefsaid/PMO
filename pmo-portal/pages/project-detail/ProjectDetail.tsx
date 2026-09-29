@@ -193,7 +193,7 @@ const ProjectDetail: React.FC = () => {
     if (oppError) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
           <ListState
             variant="error"
             title={t('projectDetail.loadError.title', "Couldn't load this project")}

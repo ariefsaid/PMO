@@ -345,6 +345,10 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/Couldn.t load this project/i);
     // The escape route stays; and Retry re-runs BOTH reads.
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    // #707: like the loading / not-found states, the error state's Back bar is phone-only.
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(projectsState.refetch).toHaveBeenCalledTimes(1);
     expect(oppState.refetch).toHaveBeenCalledTimes(1);
