@@ -18,6 +18,7 @@
 import { supabase } from '../supabase/client.ts';
 import { AppError } from '../appError.ts';
 import { invokeWithTimeout } from '../supabase/invokeWithTimeout.ts';
+import { M365_ERROR_ENGLISH, type M365KnownCode } from './errorCopy.ts';
 
 const FN_NAME = 'm365-token-custody';
 
@@ -57,51 +58,19 @@ interface M365ErrorBody {
 }
 
 /**
- * Human copy for each code in the M365ErrorCode wire taxonomy
- * (supabase/functions/m365-token-custody/types.ts). The edge fn's `message` is generic; the FE
+ * Reviewed English for each code in the M365ErrorCode wire taxonomy
+ * (supabase/functions/m365-token-custody/types.ts), sourced from the shared table in `errorCopy.ts`
+ * (which the cards localize through). The edge fn's `message` is generic; the FE
  * maps by the stable `error` CODE so (a) messaging is consistent + reviewable, (b) a server-side
  * message regression can't leak detail, and (c) the raw code string never reaches the user.
  * Unknown codes + the network fallback share a single generic message.
  */
 export function describeM365Error(code: string | undefined): string {
-  switch (code) {
-    case 'NOT_ENTITLED':
-      return "Your organization isn't enabled for the Microsoft 365 integration yet.";
-    // Connection-model (2026-07-30): the membership-status rejection and the org-approval rejection
-    // are their OWN outcomes, distinct from an entitlement rejection (NFR-M365SEP-006). A disabled
-    // member must NOT be told the org is not entitled; a user whose org hasn't approved the app must
-    // NOT be told either of the other two.
-    case 'DISABLED_MEMBER':
-      return 'Your account access has been disabled. Please contact your administrator.';
-    case 'BANNED_MEMBER':
-      return 'Your account is suspended. Please contact your administrator.';
-    case 'ORG_APPROVAL_REQUIRED':
-      return "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365.";
-    case 'FORBIDDEN':
-      return 'Approving the PMO Portal app in Microsoft 365 is restricted to organization administrators and platform operators.';
-    case 'UNAUTHORIZED':
-      return 'Your session expired. Refresh the page and try again.';
-    case 'CONNECTION_STALE':
-      return 'The Microsoft 365 connection expired. Please reconnect.';
-    case 'CONNECTION_REVOKED':
-      return 'The Microsoft 365 connection was revoked. Connect again to continue.';
-    case 'NOT_CONNECTED':
-      return "Microsoft 365 isn't connected.";
-    case 'TOKEN_EXCHANGE_FAILED':
-      return "Microsoft declined the connection. Please try again.";
-    case 'INVALID_STATE':
-      return 'The connection request expired. Please try again.';
-    case 'SCOPE_INSUFFICIENT':
-      return 'The connection needs additional permissions. Reconnect to grant them.';
-    case 'BAD_REQUEST':
-      return 'The request was invalid. Please try again.';
-    case 'GRAPH_ERROR':
-      return 'Microsoft Graph is unavailable right now. Please try again shortly.';
-    case 'INTERNAL_ERROR':
-      return 'Something went wrong on our end. Please try again.';
-    default:
-      return 'Microsoft 365 could not be connected. Please try again.';
-  }
+  return (
+    (Object.prototype.hasOwnProperty.call(M365_ERROR_ENGLISH, code ?? '')
+      ? M365_ERROR_ENGLISH[code as M365KnownCode]
+      : undefined) ?? 'Microsoft 365 could not be connected. Please try again.'
+  );
 }
 
 /**

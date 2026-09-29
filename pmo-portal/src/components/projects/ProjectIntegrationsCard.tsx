@@ -191,7 +191,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
           <div className="flex items-center gap-2">
             <Icon name="plug" />
             <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
-            <StatusPill variant="neutral" className="bg-destructive/10 text-destructive">
+            <StatusPill variant="neutral" className="bg-destructive/10 text-destructive-text">
               Failed to load lists
             </StatusPill>
           </div>
@@ -213,7 +213,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
           <div className="flex items-center gap-2">
             <Icon name="plug" />
             <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
-            <StatusPill variant="neutral" className="bg-destructive/10 text-destructive">
+            <StatusPill variant="neutral" className="bg-destructive/10 text-destructive-text">
               Failed to load
             </StatusPill>
           </div>

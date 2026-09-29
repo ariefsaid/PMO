@@ -252,7 +252,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                 onClick={() => setPending({ row, to: 'Cancelled' })}
               >
                 {t('projectDetail.workOrders.action.cancel', 'Cancel')}

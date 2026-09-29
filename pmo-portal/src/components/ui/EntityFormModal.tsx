@@ -5,6 +5,7 @@ import { Icon } from './icons';
 import { Button } from './Button';
 import { FormActions } from './FormFields';
 import { ConfirmDialog } from './ConfirmDialog';
+import { acquireBackgroundInert } from './backgroundInert';
 
 // ---------------------------------------------------------------------------
 // EntityFormModal — the create / focused-edit composite (crud-components §2.2).
@@ -42,32 +43,6 @@ export interface ErrorSummaryItem {
 export interface SubmitError {
   headline: string;
   detail?: string;
-}
-
-// ── Background inert (AC-A11Y-MODAL-001) ────────────────────────────────────
-// `aria-modal="true"` is ADVISORY: it does not remove the background from the tab
-// order, so focus that starts OUTSIDE the dialog (e.g. dumped on <body> by a failed
-// save) walks straight into the app behind the scrim. `inert` on the app-shell root
-// is the platform-native fix — it removes the background from the tab order AND the
-// a11y tree AND blocks pointer events in one attribute. The refcount keeps two
-// stacked dialogs from un-inerting the background when only the inner one closes.
-// Scoped to the shell root (not <body>'s children) so the toast host and other
-// body-level portals stay announceable.
-const APP_SHELL_SELECTOR = '[data-app-shell="root"]';
-let backgroundInertRefs = 0;
-
-function acquireBackgroundInert(): () => void {
-  const shell = document.querySelector<HTMLElement>(APP_SHELL_SELECTOR);
-  if (!shell) return () => {};
-  if (backgroundInertRefs === 0) shell.setAttribute('inert', '');
-  backgroundInertRefs += 1;
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    backgroundInertRefs = Math.max(0, backgroundInertRefs - 1);
-    if (backgroundInertRefs === 0) shell.removeAttribute('inert');
-  };
 }
 
 export interface EntityFormModalProps {

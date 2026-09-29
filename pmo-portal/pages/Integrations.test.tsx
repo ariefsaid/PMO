@@ -38,6 +38,14 @@ describe('Integrations — the PERSONAL connection route (AC-ADMIA-006)', () => 
     expect(screen.getByTestId('personal-m365-card')).toBeInTheDocument();
   });
 
+  it('AC-M365LOC-007: the intro does not promise documents or a calendar in projects (a connection alone proves neither)', () => {
+    renderPage();
+    const intro = screen.getByText(/personal microsoft 365 account/i);
+    expect(intro.textContent).not.toMatch(/documents|calendar|into projects/i);
+    // It says what a connection does grant: access to what the user's own account can reach.
+    expect(intro).toHaveTextContent(/PMO Portal can reach the content your account has access to/i);
+  });
+
   it('does not claim that a personal connection makes the organization integration ready', () => {
     renderPage();
     // AC-ADMIA-006: personal ≠ organization. The personal route must not assert org readiness.

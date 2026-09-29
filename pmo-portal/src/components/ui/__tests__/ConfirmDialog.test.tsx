@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { EntityFormModal } from '../EntityFormModal';
 
 // ---------------------------------------------------------------------------
 // matchMedia helpers — let tests control the breakpoint seam.
@@ -359,5 +360,95 @@ describe('AC-CONFIRM-011: confirmDisabled', () => {
   it('AC-CONFIRM-011: without confirmDisabled the confirm button is enabled (default)', () => {
     render(<ConfirmDialog {...baseProps} />);
     expect(screen.getByRole('button', { name: 'Mark lost' })).toBeEnabled();
+  });
+});
+
+// AC-A11Y-MODAL-001 (#692) — `aria-modal` is advisory: it does not take the page behind the dialog
+// out of the accessibility tree, so a screen reader could still browse it. ConfirmDialog must make
+// the app shell inert while open, exactly as EntityFormModal does, and share ONE refcount with it
+// so a discard-confirm stacked on a form dialog cannot un-inert the form's background.
+describe('AC-A11Y-MODAL-001: ConfirmDialog makes the app shell inert while open', () => {
+  let shell: HTMLDivElement;
+
+  beforeEach(() => {
+    shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    shell.innerHTML = '<a href="#main">Skip to main content</a>';
+    document.body.appendChild(shell);
+  });
+
+  afterEach(() => {
+    shell.remove();
+  });
+
+  it('AC-A11Y-MODAL-001: the shell is inert while a destructive confirm is open and restored when it closes', () => {
+    const { rerender } = render(<ConfirmDialog {...baseProps} open={false} tone="destructive" />);
+    expect(shell).not.toHaveAttribute('inert');
+
+    rerender(<ConfirmDialog {...baseProps} open tone="destructive" />);
+    expect(shell).toHaveAttribute('inert');
+
+    rerender(<ConfirmDialog {...baseProps} open={false} tone="destructive" />);
+    expect(shell).not.toHaveAttribute('inert');
+  });
+
+  it('AC-A11Y-MODAL-001: the default (non-destructive) confirm also inerts the shell', () => {
+    render(<ConfirmDialog {...baseProps} />);
+    expect(shell).toHaveAttribute('inert');
+  });
+
+  it('AC-A11Y-MODAL-001: unmounting while open (a conditionally-rendered consumer) still releases the shell', () => {
+    const { unmount } = render(<ConfirmDialog {...baseProps} tone="destructive" />);
+    expect(shell).toHaveAttribute('inert');
+    unmount();
+    expect(shell).not.toHaveAttribute('inert');
+  });
+
+  it('AC-A11Y-MODAL-001: focus is restored to the trigger after the shell is un-inerted', async () => {
+    const trigger = document.createElement('button');
+    trigger.textContent = 'Open';
+    shell.appendChild(trigger);
+    trigger.focus();
+
+    const { rerender } = render(<ConfirmDialog {...baseProps} open={false} />);
+    rerender(<ConfirmDialog {...baseProps} open />);
+    expect(shell).toHaveAttribute('inert');
+    rerender(<ConfirmDialog {...baseProps} open={false} />);
+    expect(shell).not.toHaveAttribute('inert');
+    expect(trigger).toHaveFocus();
+  });
+
+  it('AC-A11Y-MODAL-001: two stacked confirms keep the shell inert until the LAST one closes', () => {
+    const outer = render(<ConfirmDialog {...baseProps} />);
+    const inner = render(<ConfirmDialog {...baseProps} title="Discard changes" />);
+    expect(shell).toHaveAttribute('inert');
+
+    inner.unmount();
+    expect(shell).toHaveAttribute('inert'); // the outer dialog is still open
+    outer.unmount();
+    expect(shell).not.toHaveAttribute('inert');
+  });
+
+  it('AC-A11Y-MODAL-001: a confirm stacked on an open EntityFormModal leaves the form background inert after it closes', () => {
+    const form = render(
+      <EntityFormModal
+        open
+        title="Edit deal"
+        submitLabel="Save"
+        onSubmit={(e) => e.preventDefault()}
+        onClose={() => {}}
+      >
+        <input aria-label="Deal name" />
+      </EntityFormModal>,
+    );
+    expect(shell).toHaveAttribute('inert');
+
+    const confirm = render(<ConfirmDialog {...baseProps} title="Discard changes" />);
+    confirm.unmount();
+
+    // ONE shared refcount: the form dialog is still open, so its background is still inert.
+    expect(shell).toHaveAttribute('inert');
+    form.unmount();
+    expect(shell).not.toHaveAttribute('inert');
   });
 });
