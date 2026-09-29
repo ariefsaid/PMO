@@ -30,6 +30,7 @@ import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -50,14 +51,31 @@ import { useTranslation } from 'react-i18next';
  * the other destinations so unrelated queries and panels stay unmounted.
  */
 
-/** The five user_role enum values, ordered for the role <select>. */
-const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: 'Engineer', label: 'Engineer' },
-  { value: 'Project Manager', label: 'Project Manager' },
-  { value: 'Finance', label: 'Finance' },
-  { value: 'Executive', label: 'Executive' },
-  { value: 'Admin', label: 'Admin' },
-];
+/**
+ * The five user_role enum values, ordered for the role <select>, with their display names. A role is
+ * NAMED in many places (pill, both selects, the manager combobox, confirm titles, toasts), so its
+ * translation lives here once. The stored enum value (`UserRole`) is never translated.
+ */
+function useRoleLabels(): {
+  label: (role: UserRole) => string;
+  options: { value: UserRole; label: string }[];
+} {
+  const { t } = useTranslation();
+  return useMemo(() => {
+    const labels: Record<UserRole, string> = {
+      Engineer: t('admin.roles.engineer', 'Engineer'),
+      'Project Manager': t('admin.roles.projectManager', 'Project Manager'),
+      Finance: t('admin.roles.finance', 'Finance'),
+      Executive: t('admin.roles.executive', 'Executive'),
+      Admin: t('admin.roles.admin', 'Admin'),
+    };
+    const order: UserRole[] = ['Engineer', 'Project Manager', 'Finance', 'Executive', 'Admin'];
+    return {
+      label: (role) => labels[role],
+      options: order.map((value) => ({ value, label: labels[value] })),
+    };
+  }, [t]);
+}
 
 /** Deterministic two-letter initials for the avatar tile. */
 function initialsOf(name: string): string {
@@ -100,6 +118,8 @@ const Avatar: React.FC<{ user: UserRow; size?: number }> = ({ user, size = 30 })
 );
 
 const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+  const { t } = useTranslation();
+  const roleNames = useRoleLabels();
   const may = usePermission();
   const isOperator = useIsOperator();
   const { toast } = useToast();
@@ -197,7 +217,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       <div>
         <PageHead canInvite={false} onInvite={() => setInviteOpen(true)} />
         <GateNotice variant="blocked" className="mt-2">
-          Administration is an Admin-only area. You don&rsquo;t have access to user management.
+          {t('admin.users.blocked', 'Administration is an Admin-only area. You don’t have access to user management.')}
         </GateNotice>
       </div>
     );
@@ -206,7 +226,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const columns: Column<UserRow>[] = [
     {
       key: 'user',
-      header: 'User',
+      header: t('admin.users.columns.user', 'User'),
       cell: (u) => (
         <div className="flex min-w-0 items-center gap-2.5">
           <Avatar user={u} />
@@ -223,22 +243,22 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     },
     {
       key: 'role',
-      header: 'Role',
-      cell: (u) => <StatusPill variant={roleVariant(u.role)}>{u.role}</StatusPill>,
+      header: t('admin.users.columns.role', 'Role'),
+      cell: (u) => <StatusPill variant={roleVariant(u.role)}>{roleNames.label(u.role)}</StatusPill>,
     },
     {
       key: 'status',
-      header: 'Status',
+      header: t('admin.users.columns.status', 'Status'),
       cell: (u) =>
         u.status === 'disabled' ? (
-          <StatusPill variant="warn">Disabled</StatusPill>
+          <StatusPill variant="warn">{t('admin.users.status.disabled', 'Disabled')}</StatusPill>
         ) : (
-          <StatusPill variant="neutral">Active</StatusPill>
+          <StatusPill variant="neutral">{t('admin.users.status.active', 'Active')}</StatusPill>
         ),
     },
     {
       key: 'manager',
-      header: 'Manager',
+      header: t('admin.users.columns.manager', 'Manager'),
       colClassName: 'hidden md:table-cell',
       // AD-1 (AC-JR-W3B-E1): clicking the manager name scrolls to that manager's
       // row in the same table (no user-detail route exists; keep small).
@@ -253,7 +273,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             {manager.full_name}
           </button>
         ) : (
-          <span className="text-muted-foreground">No manager</span>
+          <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>
         );
       },
     },
@@ -270,15 +290,15 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const isSelf = !!currentUser?.id && currentUser.id === u.id;
     if (canManage && !isSelf) {
       items.push(
-        { label: 'Edit role', onClick: () => setEditTarget({ mode: 'role', user: u }) },
-        { label: 'Change manager', onClick: () => setEditTarget({ mode: 'manager', user: u }) },
+        { label: t('admin.users.menu.editRole', 'Edit role'), onClick: () => setEditTarget({ mode: 'role', user: u }) },
+        { label: t('admin.users.menu.changeManager', 'Change manager'), onClick: () => setEditTarget({ mode: 'manager', user: u }) },
       );
     }
     if (canDisable) {
       if (u.status === 'disabled') {
-        items.push({ label: 'Re-enable', onClick: () => void confirmSetStatus(u, 'active') });
+        items.push({ label: t('admin.users.menu.reEnable', 'Re-enable'), onClick: () => void confirmSetStatus(u, 'active') });
       } else {
-        items.push({ label: 'Disable', danger: true, onClick: () => setPendingStatus({ user: u, status: 'disabled' }) });
+        items.push({ label: t('admin.users.menu.disable', 'Disable'), danger: true, onClick: () => setPendingStatus({ user: u, status: 'disabled' }) });
       }
     }
     return items;
@@ -300,7 +320,15 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const { user, role } = pendingRole;
     try {
       await updateRole.mutateAsync({ id: user.id, role });
-      toast('Role updated', `${user.full_name} is now ${role}.`, 'success');
+      toast(
+        t('admin.users.toast.roleUpdated', 'Role updated'),
+        t('admin.users.toast.roleUpdatedDetail', {
+          defaultValue: '{{name}} is now {{role}}.',
+          name: user.full_name,
+          role: roleNames.label(role),
+        }),
+        'success',
+      );
       setPendingRole(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -313,7 +341,14 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const submitManager = async (user: UserRow, managerId: string | null) => {
     try {
       await assignManager.mutateAsync({ id: user.id, managerId });
-      toast('Manager updated', `Updated the reporting line for ${user.full_name}.`, 'success');
+      toast(
+        t('admin.users.toast.managerUpdated', 'Manager updated'),
+        t('admin.users.toast.managerUpdatedDetail', {
+          defaultValue: 'Updated the reporting line for {{name}}.',
+          name: user.full_name,
+        }),
+        'success',
+      );
       setEditTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -327,10 +362,18 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     try {
       await setStatus.mutateAsync({ id: user.id, status, orgId: user.org_id });
       toast(
-        status === 'disabled' ? 'User disabled' : 'User re-enabled',
         status === 'disabled'
-          ? `${user.full_name} can no longer sign in.`
-          : `${user.full_name} can sign in again.`,
+          ? t('admin.users.toast.disabled', 'User disabled')
+          : t('admin.users.toast.reEnabled', 'User re-enabled'),
+        status === 'disabled'
+          ? t('admin.users.toast.disabledDetail', {
+              defaultValue: '{{name}} can no longer sign in.',
+              name: user.full_name,
+            })
+          : t('admin.users.toast.reEnabledDetail', {
+              defaultValue: '{{name}} can sign in again.',
+              name: user.full_name,
+            }),
         'success',
       );
       setPendingStatus(null);
@@ -350,14 +393,22 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const submitInvite = async (email: string, role: UserRole, pOrgId: string | null) => {
     try {
       await invite.mutateAsync({ email, role, pOrgId });
-      toast('Invite sent', `${email} has been invited as ${role}.`, 'success');
+      toast(
+        t('admin.users.toast.inviteSent', 'Invite sent'),
+        t('admin.users.toast.inviteSentDetail', {
+          defaultValue: '{{email}} has been invited as {{role}}.',
+          email,
+          role: roleNames.label(role),
+        }),
+        'success',
+      );
       setInviteOpen(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err, {
-        DUPLICATE_EMAIL: "That person is already in your workspace.",
-        INVITE_UNAUTHORIZED: "You don't have permission to invite users.",
-        INVALID_ROLE: 'Choose a valid role.',
-        UNKNOWN_ORG: "That organization doesn't exist.",
+        DUPLICATE_EMAIL: t('admin.users.inviteError.duplicateEmail', 'That person is already in your workspace.'),
+        INVITE_UNAUTHORIZED: t('admin.users.inviteError.unauthorized', "You don't have permission to invite users."),
+        INVALID_ROLE: t('admin.users.inviteError.invalidRole', 'Choose a valid role.'),
+        UNKNOWN_ORG: t('admin.users.inviteError.unknownOrg', "That organization doesn't exist."),
       });
       setInviteError({ headline, detail });
       toast(headline, detail, 'warning');
@@ -370,20 +421,20 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
       {isExecReadOnly && (
         <GateNotice variant="blocked" className="mb-3.5">
-          You can view the user directory, but only an Admin can add, edit, or disable users.
+          {t('admin.users.execReadOnly', 'You can view the user directory, but only an Admin can add, edit, or disable users.')}
         </GateNotice>
       )}
 
       {/* Toolbar */}
       {state !== 'loading' && (
         <Toolbar standalone>
-          <span className="text-[13px] font-semibold">All users</span>
+          <span className="text-[13px] font-semibold">{t('admin.users.allUsers', 'All users')}</span>
           {state === undefined && (
             <span className="text-[12.5px] text-muted-foreground tabular">{all.length}</span>
           )}
           <SearchMini
-            placeholder="Search by name or email…"
-            aria-label="Search users"
+            placeholder={t('admin.users.search.placeholder', 'Search by name or email…')}
+            aria-label={t('admin.users.search.label', 'Search users')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
@@ -401,8 +452,9 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load users"
-          sub="The request failed. Check your connection and try again."
+          title={t('admin.users.error.title', "Couldn't load users")}
+          sub={t('admin.loadErrorSub', 'The request failed. Check your connection and try again.')}
+          retryLabel={t('admin.retry', 'Retry')}
           onRetry={() => refetch()}
         />
       )}
@@ -411,8 +463,8 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         <ListState
           variant="empty"
           icon="admin"
-          title="No users yet"
-          sub="People appear here once they are invited to the workspace."
+          title={t('admin.users.empty.title', 'No users yet')}
+          sub={t('admin.users.empty.sub', 'People appear here once they are invited to the workspace.')}
         />
       )}
 
@@ -424,8 +476,8 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             rowKey={(u) => u.id}
             rowMenu={canManage || canDisable ? rowMenu : undefined}
             state={filtered.length === 0 ? 'empty' : undefined}
-            emptyTitle="No users match your search"
-            emptySub="Try a different name or email."
+            emptyTitle={t('admin.users.noMatch.title', 'No users match your search')}
+            emptySub={t('admin.users.noMatch.sub', 'Try a different name or email.')}
           />
         </div>
       )}
@@ -456,10 +508,19 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         open={!!pendingRole}
         tone="default"
         title={
-          pendingRole ? `Change ${pendingRole.user.full_name}'s role to ${pendingRole.role}?` : 'Change role?'
+          pendingRole
+            ? t('admin.users.roleConfirm.title', {
+                defaultValue: "Change {{name}}'s role to {{role}}?",
+                name: pendingRole.user.full_name,
+                role: roleNames.label(pendingRole.role),
+              })
+            : t('admin.users.roleConfirm.fallbackTitle', 'Change role?')
         }
-        description="This changes what they can see and do across the whole workspace, effective immediately. The change is recorded against your account."
-        confirmLabel="Change role"
+        description={t(
+          'admin.users.roleConfirm.description',
+          'This changes what they can see and do across the whole workspace, effective immediately. The change is recorded against your account.',
+        )}
+        confirmLabel={t('admin.users.roleConfirm.confirm', 'Change role')}
         loading={updateRole.isPending}
         onConfirm={confirmRole}
         onCancel={() => setPendingRole(null)}
@@ -469,9 +530,19 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       <ConfirmDialog
         open={!!pendingStatus}
         tone="destructive"
-        title={pendingStatus ? `Disable ${pendingStatus.user.full_name}?` : 'Disable user?'}
-        description="They will no longer be able to sign in. You can re-enable them at any time."
-        confirmLabel="Disable"
+        title={
+          pendingStatus
+            ? t('admin.users.disableConfirm.title', {
+                defaultValue: 'Disable {{name}}?',
+                name: pendingStatus.user.full_name,
+              })
+            : t('admin.users.disableConfirm.fallbackTitle', 'Disable user?')
+        }
+        description={t(
+          'admin.users.disableConfirm.description',
+          'They will no longer be able to sign in. You can re-enable them at any time.',
+        )}
+        confirmLabel={t('admin.users.disableConfirm.confirm', 'Disable')}
         loading={setStatus.isPending}
         onConfirm={confirmDisable}
         onCancel={() => setPendingStatus(null)}
@@ -505,7 +576,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
        consistency (DESIGN.md §7): button / modal title / submit all say "Invite user". */
     <Button variant="primary" onClick={onInvite}>
       <Icon name="plus" />
-      Invite user
+      {t('admin.users.invite', 'Invite user')}
     </Button>
   ) : undefined;
 
@@ -519,10 +590,12 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
         {/* B-8 (AC-W2-IA-003): the standalone compatibility composition keeps the
             Administration heading aligned with its route and breadcrumb. The route-backed shell
             uses the embedded Users section header above instead. */}
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">Administration</h1>
+        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('admin.nav.title', 'Administration')}</h1>
         <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-          Manage users&rsquo; role, status, and reporting line. Administration is Admin-only;
-          role changes are high-impact and recorded.
+          {t(
+            'admin.users.page.description',
+            'Manage users’ role, status, and reporting line. Administration is Admin-only; role changes are high-impact and recorded.',
+          )}
         </p>
       </div>
       {inviteAction}
@@ -543,13 +616,17 @@ interface InviteFormValues {
   role: UserRole;
 }
 
-const validateInvite = (v: InviteFormValues): Partial<Record<keyof InviteFormValues, string>> => {
-  const errors: Partial<Record<keyof InviteFormValues, string>> = {};
-  const email = v.email.trim();
-  if (!email) errors.email = 'Email is required.';
-  else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.email = 'Enter a valid email address.';
-  return errors;
-};
+const makeValidateInvite =
+  (t: TFunction) =>
+  (v: InviteFormValues): Partial<Record<keyof InviteFormValues, string>> => {
+    const errors: Partial<Record<keyof InviteFormValues, string>> = {};
+    const email = v.email.trim();
+    if (!email) errors.email = t('admin.users.inviteForm.emailRequired', 'Email is required.');
+    else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      errors.email = t('admin.users.inviteForm.emailInvalid', 'Enter a valid email address.');
+    }
+    return errors;
+  };
 
 const InviteFormModal: React.FC<{
   isOperator: boolean;
@@ -559,9 +636,12 @@ const InviteFormModal: React.FC<{
   onClose: () => void;
   onSubmit: (email: string, role: UserRole, pOrgId: string | null) => void;
 }> = ({ isOperator, loading, submitError, onClose, onSubmit }) => {
+  const { t } = useTranslation();
+  const roleNames = useRoleLabels();
+  const validate = useMemo(() => makeValidateInvite(t), [t]);
   const form = useEntityForm<InviteFormValues>({
     initialValues: { email: '', role: 'Engineer' },
-    validate: validateInvite,
+    validate,
     idPrefix: 'invite-form',
     requiredFields: ['email'],
     module: 'administration',
@@ -585,13 +665,19 @@ const InviteFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title="Invite user"
+      title={t('admin.users.invite', 'Invite user')}
       subtitle={
         isOperator
-          ? "Invite someone by email — they'll set their own password and role takes effect immediately."
-          : "Invite someone to your workspace by email — they'll set their own password."
+          ? t(
+              'admin.users.inviteForm.subtitleOperator',
+              "Invite someone by email — they'll set their own password and role takes effect immediately.",
+            )
+          : t(
+              'admin.users.inviteForm.subtitle',
+              "Invite someone to your workspace by email — they'll set their own password.",
+            )
       }
-      submitLabel="Invite user"
+      submitLabel={t('admin.users.invite', 'Invite user')}
       onSubmit={handleSubmit}
       submitError={submitError}
       onClose={onClose}
@@ -599,10 +685,10 @@ const InviteFormModal: React.FC<{
       dirty={form.isDirty}
       errorSummary={errorSummary}
     >
-      <FormSection legend="Invite details">
+      <FormSection legend={t('admin.users.inviteForm.legend', 'Invite details')}>
         <TextField
           id={emailField.id}
-          label="Email"
+          label={t('admin.users.inviteForm.email', 'Email')}
           type="email"
           required
           value={emailField.value}
@@ -613,13 +699,13 @@ const InviteFormModal: React.FC<{
         />
         <SelectField
           id={roleField.id}
-          label="Role"
+          label={t('admin.users.columns.role', 'Role')}
           required
           value={roleField.value}
           onChange={(v) => roleField.onChange(v as UserRole)}
           onBlur={roleField.onBlur}
-          options={ROLE_OPTIONS}
-          helper="Determines what this person can see and do once they sign in."
+          options={roleNames.options}
+          helper={t('admin.users.inviteForm.roleHelper', 'Determines what this person can see and do once they sign in.')}
           fullWidth
         />
       </FormSection>
@@ -634,6 +720,8 @@ const RoleFormModal: React.FC<{
   onClose: () => void;
   onSubmit: (user: UserRow, role: UserRole) => void;
 }> = ({ user, submitError, onClose, onSubmit }) => {
+  const { t } = useTranslation();
+  const roleNames = useRoleLabels();
   const form = useEntityForm<RoleFormValues>({
     initialValues: { role: user.role },
     idPrefix: 'role-form',
@@ -651,24 +739,30 @@ const RoleFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title="Edit role"
-      subtitle={`Set the workspace role for ${user.full_name}`}
-      submitLabel="Save role"
+      title={t('admin.users.roleForm.title', 'Edit role')}
+      subtitle={t('admin.users.roleForm.subtitle', {
+        defaultValue: 'Set the workspace role for {{name}}',
+        name: user.full_name,
+      })}
+      submitLabel={t('admin.users.roleForm.submit', 'Save role')}
       onSubmit={handleSubmit}
       submitError={submitError}
       onClose={onClose}
       dirty={form.isDirty}
     >
-      <FormSection legend="Role">
+      <FormSection legend={t('admin.users.columns.role', 'Role')}>
         <SelectField
           id={roleField.id}
-          label="Role"
+          label={t('admin.users.columns.role', 'Role')}
           required
           value={roleField.value}
           onChange={(v) => roleField.onChange(v as UserRole)}
           onBlur={roleField.onBlur}
-          options={ROLE_OPTIONS}
-          helper="Determines what this user can see and do. Changes take effect immediately and are confirmed first."
+          options={roleNames.options}
+          helper={t(
+            'admin.users.roleForm.helper',
+            'Determines what this user can see and do. Changes take effect immediately and are confirmed first.',
+          )}
           fullWidth
         />
       </FormSection>
@@ -689,6 +783,8 @@ const ManagerFormModal: React.FC<{
   onClose: () => void;
   onSubmit: (user: UserRow, managerId: string | null) => void;
 }> = ({ user, candidates, loading, onClose, onSubmit }) => {
+  const { t } = useTranslation();
+  const roleNames = useRoleLabels();
   const form = useEntityForm<ManagerFormValues>({
     initialValues: { managerId: user.manager_id ?? null },
     idPrefix: 'manager-form',
@@ -703,7 +799,7 @@ const ManagerFormModal: React.FC<{
       .map((c) => ({
         value: c.id,
         label: c.full_name,
-        sub: c.role,
+        sub: roleNames.label(c.role),
         initials: initialsOf(c.full_name),
         color: avatarHue(c.id),
       }));
@@ -712,7 +808,7 @@ const ManagerFormModal: React.FC<{
     ? (() => {
         const m = candidates.find((c) => c.id === managerId);
         return m
-          ? { value: m.id, label: m.full_name, sub: m.role, initials: initialsOf(m.full_name), color: avatarHue(m.id) }
+          ? { value: m.id, label: m.full_name, sub: roleNames.label(m.role), initials: initialsOf(m.full_name), color: avatarHue(m.id) }
           : null;
       })()
     : null;
@@ -727,27 +823,30 @@ const ManagerFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title="Change manager"
-      subtitle={`Set the line manager for ${user.full_name}`}
-      submitLabel="Save manager"
+      title={t('admin.users.managerForm.title', 'Change manager')}
+      subtitle={t('admin.users.managerForm.subtitle', {
+        defaultValue: 'Set the line manager for {{name}}',
+        name: user.full_name,
+      })}
+      submitLabel={t('admin.users.managerForm.submit', 'Save manager')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={loading}
       dirty={form.isDirty}
     >
-      <FormSection legend="Reporting line">
+      <FormSection legend={t('admin.users.managerForm.legend', 'Reporting line')}>
         <Combobox
-          label="Manager"
-          noun="person"
+          label={t('admin.users.managerForm.label', 'Manager')}
+          noun={t('admin.users.managerForm.noun', 'person')}
           value={managerId}
           selectedOption={selectedOption}
           onChange={(v) => form.setValue('managerId', v)}
           loadOptions={loadOptions}
-          placeholder="Assign a manager…"
-          searchPlaceholder="Search people…"
+          placeholder={t('admin.users.managerForm.placeholder', 'Assign a manager…')}
+          searchPlaceholder={t('admin.users.managerForm.search', 'Search people…')}
         />
         <p className="mt-1.5 text-[12px] text-muted-foreground">
-          Used for timesheet-approval routing.
+          {t('admin.users.managerForm.hint', 'Used for timesheet-approval routing.')}
         </p>
         {managerId && (
           <button
@@ -756,7 +855,7 @@ const ManagerFormModal: React.FC<{
             className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-text hover:underline"
           >
             <Icon name="x" className="size-[13px]" />
-            Clear manager
+            {t('admin.users.managerForm.clear', 'Clear manager')}
           </button>
         )}
       </FormSection>

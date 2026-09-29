@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
@@ -32,6 +34,8 @@ const DealCard: React.FC<{
   selected: boolean;
   onActivate: () => void;
 }> = ({ project, selected, onActivate }) => {
+  const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
   const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
   return (
     <ProjectCardShell
@@ -41,7 +45,7 @@ const DealCard: React.FC<{
       name={project.name}
       client={project.client_name}
       status={
-        <StatusPill variant={pillVariantForStatus(project.status)}>{project.status}</StatusPill>
+        <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
       }
       body={
         <div className="flex items-baseline justify-between gap-2">
@@ -55,7 +59,10 @@ const DealCard: React.FC<{
                 qualifying the number next to it instead. */}
             <TaxBasisLabel treatment={project.tax_treatment} />
             <span className="text-[11px] text-muted-foreground tabular">
-              {formatCurrency(weightedValue(project), project.currency)} wtd
+              {t('sales.board.weightedShort', {
+                defaultValue: '{{value}} wtd',
+                value: formatCurrency(weightedValue(project), project.currency),
+              })}
             </span>
           </div>
           <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
@@ -71,12 +78,17 @@ const DealCard: React.FC<{
  *  own — it is denominated in the org default, threaded from the board rather than read here.
  *  A total that mixed currencies would be arithmetic nobody can defend and it would still render;
  *  that is a separate multi-currency problem (OD-CR-5), and this prop is where it will surface. */
-const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string }> = ({ gross, weighted, currency }) => (
-  <>
-    <span className="text-[13px] font-bold tabular">{formatCurrency(gross, currency)}</span>
-    <span className="text-[11px] text-muted-foreground tabular">{formatCurrency(weighted, currency)} wtd</span>
-  </>
-);
+const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string }> = ({ gross, weighted, currency }) => {
+  const { t } = useTranslation();
+  return (
+    <>
+      <span className="text-[13px] font-bold tabular">{formatCurrency(gross, currency)}</span>
+      <span className="text-[11px] text-muted-foreground tabular">
+        {t('sales.board.weightedShort', { defaultValue: '{{value}} wtd', value: formatCurrency(weighted, currency) })}
+      </span>
+    </>
+  );
+};
 
 /**
  * The IA-3 sales pipeline board: six fixed columns (five open stages + one
@@ -97,10 +109,12 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string
  *     which spreads it onto the actual `.kanban-scroll` element (was the Defect-1 bug).
  */
 const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, selectedId }) => {
+  const { t } = useTranslation();
   // FR-L10N-020: the per-CARD figures use each project's OWN currency (get_sales_pipeline now
   // projects it, migration 0201); the per-COLUMN totals sum across projects and so have none, and
   // take the org default.
   const orgCurrency = useOrgCurrency();
+  const stageLabel = useSalesStageLabel();
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
@@ -108,7 +122,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
   // The five OPEN columns for the stage indicator (terminal Won/Lost are excluded —
   // the indicator is for navigating the pipeline, not the terminal archive columns).
   const openStages = SALES_COLUMNS.filter((c) => !c.terminal).map((c) => ({
-    title: c.title,
+    title: stageLabel(c),
     dotColor: c.dotColor,
   }));
 
@@ -125,11 +139,12 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
       {/* Kanban scroll wrapper — onScroll is passed directly to <Kanban> so it lands on
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
           handler to any ancestor wrapper would never fire on a swipe gesture. */}
-      <Kanban aria-label="Sales pipeline board" onScroll={onScroll}>
+      <Kanban aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
           const gross = colProjects.reduce((s, p) => s + p.contract_value, 0);
           const weighted = colProjects.reduce((s, p) => s + weightedValue(p), 0);
+          const colTitle = stageLabel(col);
           return (
             <div
               key={col.title}
@@ -138,11 +153,11 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
               className="flex min-w-0 flex-col"
             >
               <KanbanColumn
-                title={col.title}
+                title={colTitle}
                 dotColor={col.dotColor}
                 count={colProjects.length}
                 totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : undefined}
-                emptyMessage={`No projects in ${col.title}`}
+                emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
               >
                 {colProjects.map((p) => (
                   <DealCard

@@ -6,8 +6,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
-import { useOrgTaxDefault, ORG_TAX_DEFAULT_KEY } from '@/src/hooks/useOrgTaxDefault';
-import { TAX_TREATMENT_OPTIONS } from '@/src/lib/taxTreatment';
+import { useOrgTaxDefaultQuery, ORG_TAX_DEFAULT_KEY } from '@/src/hooks/useOrgTaxDefault';
+import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 
 /**
@@ -35,7 +35,12 @@ const OrgTaxDefault: React.FC = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const current = useOrgTaxDefault();
+  const { data, isError, isSuccess, refetch } = useOrgTaxDefaultQuery();
+  const current = data ?? undefined;
+  // Error only when there is nothing to show: a failed BACKGROUND refetch (after a save) must not
+  // replace a working control, and a read that resolved with no value is a failure, not a skeleton.
+  const loadFailed = (isError && current === undefined) || (isSuccess && data === null);
+  const taxOptions = useTaxTreatmentOptions();
 
   const mutation = useMutation({
     mutationFn: (value: TaxTreatment) => repositories.orgSettings.setTaxDefault(value),
@@ -78,7 +83,15 @@ const OrgTaxDefault: React.FC = () => {
         )}
       </p>
       <div className="mt-3 max-w-md">
-        {current === undefined ? (
+        {loadFailed ? (
+          <ListState
+            variant="error"
+            title={t('admin.taxDefault.loadError.title', "Couldn't load the default tax treatment")}
+            sub={t('admin.loadErrorSub', 'The request failed. Check your connection and try again.')}
+            retryLabel={t('admin.retry', 'Retry')}
+            onRetry={() => void refetch()}
+          />
+        ) : current === undefined ? (
           <ListState variant="loading" rows={1} testId="org-tax-default-loading" />
         ) : canManage ? (
           <SelectField
@@ -86,7 +99,7 @@ const OrgTaxDefault: React.FC = () => {
             label={t('admin.taxDefault.label', 'Default tax treatment')}
             value={current}
             onChange={(value) => void onChange(value)}
-            options={TAX_TREATMENT_OPTIONS}
+            options={taxOptions.options}
             disabled={mutation.isPending}
             data-testid="org-tax-default-select"
           />

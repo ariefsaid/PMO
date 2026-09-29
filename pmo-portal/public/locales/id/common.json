@@ -33,6 +33,175 @@
       "value": {
         "exclusive": "Exclusive — pajak ditambahkan di atas nilai",
         "inclusive": "Inclusive — nilai sudah termasuk pajak"
+      },
+      "loadError": {
+        "title": "Gagal memuat perlakuan pajak default"
+      }
+    },
+    "retry": "Coba lagi",
+    "loadErrorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+    "roles": {
+      "engineer": "Engineer",
+      "projectManager": "Manajer proyek",
+      "finance": "Keuangan",
+      "executive": "Eksekutif",
+      "admin": "Admin"
+    },
+    "users": {
+      "blocked": "Administrasi hanya untuk Admin. Anda tidak memiliki akses ke manajemen pengguna.",
+      "execReadOnly": "Anda dapat melihat direktori pengguna, tetapi hanya Admin yang dapat menambah, mengedit, atau menonaktifkan pengguna.",
+      "allUsers": "Semua pengguna",
+      "search": {
+        "placeholder": "Cari berdasarkan nama atau email…",
+        "label": "Cari pengguna"
+      },
+      "invite": "Undang pengguna",
+      "columns": {
+        "user": "Pengguna",
+        "role": "Role",
+        "status": "Status",
+        "manager": "Manajer"
+      },
+      "status": {
+        "active": "Aktif",
+        "disabled": "Nonaktif"
+      },
+      "noManager": "Tanpa manajer",
+      "menu": {
+        "editRole": "Edit role",
+        "changeManager": "Ubah manajer",
+        "reEnable": "Aktifkan kembali",
+        "disable": "Nonaktifkan"
+      },
+      "toast": {
+        "roleUpdated": "Role diperbarui",
+        "roleUpdatedDetail": "{{name}} sekarang {{role}}.",
+        "managerUpdated": "Manajer diperbarui",
+        "managerUpdatedDetail": "Atasan {{name}} diperbarui.",
+        "disabled": "Pengguna dinonaktifkan",
+        "disabledDetail": "{{name}} tidak dapat lagi masuk.",
+        "reEnabled": "Pengguna diaktifkan kembali",
+        "reEnabledDetail": "{{name}} dapat masuk lagi.",
+        "inviteSent": "Undangan terkirim",
+        "inviteSentDetail": "{{email}} telah diundang sebagai {{role}}."
+      },
+      "inviteError": {
+        "duplicateEmail": "Orang tersebut sudah ada di organisasi Anda.",
+        "unauthorized": "Anda tidak memiliki izin untuk mengundang pengguna.",
+        "invalidRole": "Pilih role yang valid.",
+        "unknownOrg": "Organisasi tersebut tidak ada."
+      },
+      "error": {
+        "title": "Gagal memuat pengguna"
+      },
+      "empty": {
+        "title": "Belum ada pengguna",
+        "sub": "Orang akan muncul di sini setelah diundang ke organisasi."
+      },
+      "noMatch": {
+        "title": "Tidak ada pengguna yang cocok dengan pencarian",
+        "sub": "Coba nama atau email lain."
+      },
+      "roleConfirm": {
+        "title": "Ubah role {{name}} menjadi {{role}}?",
+        "fallbackTitle": "Ubah role?",
+        "description": "Ini mengubah apa yang dapat mereka lihat dan lakukan di seluruh organisasi, berlaku segera. Perubahan dicatat atas akun Anda.",
+        "confirm": "Ubah role"
+      },
+      "disableConfirm": {
+        "title": "Nonaktifkan {{name}}?",
+        "fallbackTitle": "Nonaktifkan pengguna?",
+        "description": "Mereka tidak akan bisa masuk lagi. Anda dapat mengaktifkannya kembali kapan saja.",
+        "confirm": "Nonaktifkan"
+      },
+      "page": {
+        "description": "Kelola role, status, dan atasan langsung pengguna. Administrasi hanya untuk Admin; perubahan role berdampak besar dan dicatat."
+      },
+      "inviteForm": {
+        "subtitleOperator": "Undang seseorang lewat email — mereka akan menetapkan kata sandi sendiri dan role langsung berlaku.",
+        "subtitle": "Undang seseorang ke organisasi Anda lewat email — mereka akan menetapkan kata sandi sendiri.",
+        "legend": "Detail undangan",
+        "email": "Email",
+        "roleHelper": "Menentukan apa yang dapat dilihat dan dilakukan orang ini setelah masuk.",
+        "emailRequired": "Email wajib diisi.",
+        "emailInvalid": "Masukkan alamat email yang valid."
+      },
+      "roleForm": {
+        "title": "Edit role",
+        "subtitle": "Tetapkan role organisasi untuk {{name}}",
+        "submit": "Simpan role",
+        "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu."
+      },
+      "managerForm": {
+        "title": "Ubah manajer",
+        "subtitle": "Tetapkan manajer langsung untuk {{name}}",
+        "submit": "Simpan manajer",
+        "legend": "Atasan langsung",
+        "label": "Manajer",
+        "noun": "orang",
+        "placeholder": "Tetapkan manajer…",
+        "search": "Cari orang…",
+        "hint": "Digunakan untuk perutean persetujuan timesheet.",
+        "clear": "Hapus manajer"
+      }
+    },
+    "credits": {
+      "grant": "Berikan kredit",
+      "orgBalance": "Saldo organisasi",
+      "unit": "kredit",
+      "error": {
+        "title": "Gagal memuat saldo"
+      },
+      "toast": {
+        "granted": "Kredit diberikan",
+        "grantedDetail": "Saldo organisasi telah diperbarui."
+      },
+      "form": {
+        "subtitle": "Tambahkan kredit ke pool organisasi. Berlaku segera.",
+        "legend": "Detail pemberian",
+        "amount": "Jumlah",
+        "amountHelper": "Harus lebih besar dari nol.",
+        "note": "Catatan",
+        "noteHelper": "Konteks opsional yang dicatat pada pemberian ini."
+      },
+      "amountRequired": "Jumlah wajib diisi.",
+      "amountPositive": "Jumlah pemberian harus positif."
+    },
+    "budgetMap": {
+      "sectionLabel": "Peta kategori anggaran ke akun ERP",
+      "title": "Peta akun anggaran",
+      "description": "Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat dikirim ke ERP. Kategori yang belum dipetakan memblokir pengiriman SELURUH anggaran, bukan hanya baris itu.",
+      "columns": {
+        "category": "Kategori",
+        "erpAccount": "Akun ERP",
+        "actions": "Aksi"
+      },
+      "unmapped": "Belum dipetakan — memblokir setiap pengiriman",
+      "edit": "Edit {{category}}",
+      "map": "Petakan {{category}}",
+      "unmap": "Hapus pemetaan {{category}}",
+      "error": {
+        "title": "Gagal memuat peta akun"
+      },
+      "toast": {
+        "unmapped": "Pemetaan kategori dihapus",
+        "saved": "Peta akun disimpan"
+      },
+      "confirm": {
+        "title": "Hapus pemetaan {{category}}?",
+        "fallbackTitle": "Hapus pemetaan kategori?",
+        "description": "Kategori ini tidak akan memiliki akun ERP. Pengiriman anggaran dengan jumlah bukan nol pada kategori ini akan ditolak hingga dipetakan kembali.",
+        "confirm": "Hapus pemetaan"
+      },
+      "form": {
+        "editTitle": "Edit pemetaan {{category}}",
+        "editSubtitle": "Ubah akun ERP tujuan pengiriman kategori ini",
+        "createSubtitle": "Pilih akun ERP tujuan pengiriman kategori ini",
+        "save": "Simpan pemetaan",
+        "legend": "Akun",
+        "placeholder": "mis. 5100 - Biaya Langsung",
+        "required": "Akun ERP wajib diisi.",
+        "conflict": "{{account}} sudah dipetakan ke {{category}}."
       }
     }
   },
@@ -1664,13 +1833,63 @@
         "updated": "Work Order diperbarui",
         "valueSet": "Nilai Work Order ditetapkan"
       }
+    },
+    "loadError": {
+      "title": "Gagal memuat proyek ini",
+      "sub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "retry": "Coba lagi"
     }
   },
   "projectForm": {
     "value": {
       "helper": "Estimasi, sebelum menang. Dapat diedit oleh Admin, Eksekutif, dan PM.",
       "formatError": "Gunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal — misalnya {{example}}."
-    }
+    },
+    "title": {
+      "create": "Proyek baru",
+      "edit": "Edit proyek"
+    },
+    "subtitle": {
+      "create": "Buat proyek",
+      "edit": "Perbarui detail header proyek"
+    },
+    "submit": {
+      "create": "Buat proyek",
+      "edit": "Simpan proyek"
+    },
+    "section": {
+      "project": "Proyek",
+      "schedule": "Jadwal"
+    },
+    "name": {
+      "label": "Nama proyek",
+      "placeholder": "mis. Terminal Pelabuhan — Pekerjaan Sipil",
+      "required": "Nama proyek wajib diisi."
+    },
+    "client": {
+      "label": "Perusahaan klien",
+      "placeholder": "Pilih perusahaan…",
+      "search": "Cari perusahaan…",
+      "noun": "perusahaan",
+      "required": "Pilih perusahaan klien."
+    },
+    "pm": {
+      "label": "Manajer proyek",
+      "placeholder": "Tetapkan PM…",
+      "noun": "manajer"
+    },
+    "code": {
+      "label": "Kode proyek",
+      "placeholder": "mis. OPP-2041"
+    },
+    "stage": {
+      "label": "Tahap awal",
+      "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di pipeline, tidak pernah dibuat langsung."
+    },
+    "estimatedValue": "Nilai estimasi",
+    "expectedStart": "Perkiraan mulai",
+    "expectedEnd": "Perkiraan selesai",
+    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini — isi 0 jika tidak ada pajak. Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui."
   },
   "projects": {
     "actions": {
@@ -1778,6 +1997,19 @@
       "board": "Papan kanban proyek",
       "empty": "Tidak ada proyek pada tahap {{stage}}",
       "swipe": "Geser untuk melihat lainnya →"
+    },
+    "status": {
+      "leads": "Prospek",
+      "pqSubmitted": "Pra-kualifikasi diajukan",
+      "quotationSubmitted": "Penawaran diajukan",
+      "tenderSubmitted": "Tender diajukan",
+      "negotiation": "Negosiasi",
+      "wonPendingKom": "Menang, menunggu KoM",
+      "ongoingProject": "Proyek berjalan",
+      "onHold": "Ditunda",
+      "closeOut": "Penutupan",
+      "lossTender": "Tender kalah",
+      "internalProject": "Proyek internal"
     }
   },
   "sales": {
@@ -1857,7 +2089,19 @@
     },
     "viewToggleLabel": "Tampilan pipeline",
     "weightedForecast": "Proyeksi pipeline tertimbang",
-    "winProbability": "Peluang menang"
+    "winProbability": "Peluang menang",
+    "board": {
+      "ariaLabel": "Papan pipeline penjualan",
+      "weightedShort": "{{value}} tertimbang"
+    },
+    "stage": {
+      "leads": "Prospek",
+      "preQual": "Pra-kualifikasi",
+      "quotation": "Penawaran",
+      "tender": "Tender",
+      "negotiation": "Negosiasi",
+      "lost": "Kalah"
+    }
   },
   "shell": {
     "backBar": {
