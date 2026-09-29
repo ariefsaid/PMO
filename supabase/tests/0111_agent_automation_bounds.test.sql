@@ -9,7 +9,7 @@
 --   4. 25 active automations insert cleanly; the 26th is DENIED (P0001 owner cap).
 --   5. Archived automations do NOT count toward the cap (archive one => insert succeeds).
 begin;
-select plan(8);
+select plan(9);
 
 insert into organizations (id, name) values
   ('01110000-0000-0000-0000-000000000001','Automation Bounds Org');
@@ -78,11 +78,12 @@ select throws_ok(
   null,
   'AUDIT-M1: un-archiving an automation past the cap is rejected (the cap is not INSERT-only)');
 
--- 7. Ordinary edits to an active automation are unaffected at the cap.
+-- 7. At the cap, an archived_at write that is NOT an un-archive (re-stamping an archived row) passes the
+--    trigger's early return — this statement does fire `UPDATE OF archived_at`.
 select lives_ok(
-  $$update agent_automations set prompt = 'p2-edited'
-     where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt = 'p2'$$,
-  'AUDIT-M1: editing an active automation at the cap still works');
+  $$update agent_automations set archived_at = now()
+     where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt = 'p1'$$,
+  'AUDIT-M1: at the cap, an archived_at write that is not an un-archive is allowed');
 
 -- 8. Below the cap, un-archiving is allowed.
 update agent_automations set archived_at = now()
@@ -91,6 +92,17 @@ select lives_ok(
   $$update agent_automations set archived_at = null
      where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt = 'p1'$$,
   'AUDIT-M1: un-archiving below the cap is allowed');
+
+-- 9. A single statement un-archiving several rows is still held to the cap (each row counts the ones
+--    before it): archive 3 (22 active), then un-archive 4 at once -> the 26th is refused.
+update agent_automations set archived_at = now()
+ where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt in ('p4','p5','p6');
+select throws_ok(
+  $$update agent_automations set archived_at = null
+     where owner_id = '01110000-0000-0000-0000-0000000000a1' and prompt in ('p3','p4','p5','p6')$$,
+  'P0001',
+  null,
+  'AUDIT-M1: a bulk un-archive past the cap is rejected');
 
 select * from finish();
 rollback;
