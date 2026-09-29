@@ -2760,3 +2760,39 @@ Proof: `src/lib/format.moneyPrecision.test.ts` (noise snapped under both viewer 
 refused across the range) and the budget import test (the written line item carries `1234.56`). Mutation-checked:
 widening the absolute bound to 0.01, or raising the relative bound to 1e-14, turns the refusal tests red; setting
 the relative bound to 0 turns the large-magnitude noise test red.
+
+## DD-API-1 — the existing REST + RPC surface is PMO's API; MCP is a thin adapter over it (Director, 2026-09-29)
+
+Resolves #722 on map #720. The app already reaches the database only through Supabase REST and RPCs under the
+signed-in user's session, and row-level security plus the security-definer RPCs are the enforcement authority
+(ADR-0016/0019). A reading of the seed entities (companies, contacts, projects, milestones, tasks, meetings,
+activities) found no rule the browser alone enforces that matters for integrity — org, role, money, status and
+delete rules all hold in the database; only cosmetic form checks (blank name, email format, date order) are
+browser-only, and database checks for them can come later. So there is **no new action layer**: the public API is
+a documented allow-list of existing tables and RPCs, called with the user's own token; an MCP server, when built,
+wraps that same surface under the caller's token. The assistant's tools stay as they are. Revisit if a second,
+untrusted caller class appears.
+
+## DD-API-2 — outside callers sign in through Supabase's own OAuth 2.1 server, as themselves (Director, 2026-09-29)
+
+Resolves #723. A pre-registered public client with PKCE and a loopback redirect; the access token is an ordinary
+user session token, so row-level security treats a script exactly like the user's browser. PMO stores no tokens
+and holds no signing key. Offboarding and demotion bite immediately because role and org are read live from
+`profiles` (`auth_role()`/`auth_org_id()`, 0002) and every policy checks active membership including bans (0095).
+Personal access tokens were rejected: they need a service-role mint or a signing key that could forge any user.
+Dynamic client registration stays off until an MCP client needs it. Caveats: the Supabase OAuth server is beta and
+has identity scopes only (restriction, if ever needed, comes from RLS on the token's `client_id`). **Enabling it on
+the hosted project is an owner-gated infrastructure change.**
+
+## DD-API-3 — what outside callers may write first, and how RIS is seeded (Director, 2026-09-29)
+
+Resolves #724. Open first: projects (Lead/Internal), milestones, tasks, meetings, CRM activities, and contacts and
+companies while no ERP is connected; budget lines last and into Draft versions only. Stay closed to outside
+callers: deletes, `contract_value`, project and work-order transitions, budget activation, and the money RPCs.
+No extra server-side approval step for a user acting as themselves — the database rules are the authority; an MCP
+client prompts its own human for AI-initiated calls. No rate limit for one trusted owner; add a per-user limit if
+an edge proxy is ever built. Seeding runs as an owner-run script under the owner's own token with a dry-run first,
+matching existing rows by name and skipping them (only budget lines carry an import key today) — never the
+service-role historical loader, which bypasses RLS. **Order matters:** once ERPNext is connected, company and
+contact names mirror ERPNext and are read-only in PMO (0097), and once ClickUp is connected the same holds for tasks
+(0093) — so seed those before connecting, or let the connection bring them in.
