@@ -149,6 +149,78 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     expect(rows[0].title).toBe('Fallback hit');
   });
 
+  describe('the ilike fallback term is user-controlled (search box or URL ?q=) and cannot add conditions', () => {
+    /** Split a PostgREST logic-tree body at its top-level commas, honouring quoted values. */
+    const splitConditions = (body: string): string[] => {
+      const out: string[] = [];
+      let cur = '';
+      let depth = 0;
+      let quoted = false;
+      for (let i = 0; i < body.length; i++) {
+        const c = body[i];
+        if (quoted) {
+          if (c === '\\') {
+            cur += c + body[++i];
+            continue;
+          }
+          if (c === '"') quoted = false;
+          cur += c;
+          continue;
+        }
+        if (c === '"') quoted = true;
+        else if (c === '(') depth++;
+        else if (c === ')') depth--;
+        else if (c === ',' && depth === 0) {
+          out.push(cur);
+          cur = '';
+          continue;
+        }
+        if (depth < 0) throw new Error(`unbalanced ")" in ${body}`);
+        cur += c;
+      }
+      if (quoted || depth !== 0) throw new Error(`unterminated filter: ${body}`);
+      out.push(cur);
+      return out;
+    };
+    const CONDITION = /^(title|notes_text)\.ilike\."((?:[^"\\]|\\.)*)"$/;
+    const unescape = (v: string) => v.replace(/\\(.)/g, '$1');
+
+    const fallbackFilter = async (search: string): Promise<string> => {
+      h.queue.length = 0;
+      h.queue.push({ data: null, error: { message: 'fts unavailable' } });
+      h.queue.push({ data: [], error: null });
+      await listMeetings({ search });
+      expect(h.calls.or.length).toBe(1);
+      return String(h.calls.or[0]);
+    };
+
+    it('a term shaped like a filter stays ONE quoted value per column (no extra condition)', async () => {
+      const body = await fallbackFilter('x,is_template.eq.true)');
+      const conditions = splitConditions(body);
+      expect(conditions).toHaveLength(2);
+      const parsed = conditions.map((c) => c.match(CONDITION));
+      expect(parsed.map((m) => m?.[1])).toEqual(['title', 'notes_text']);
+      // The user's text survives inside the quoted value — searched for, never parsed. (The LIKE
+      // single-character wildcard `_` is neutralised to a space, as before.)
+      for (const m of parsed) expect(unescape(m![2])).toBe('%x,is template.eq.true)%');
+    });
+
+    it('quotes and backslashes in the term cannot close the quoted value', async () => {
+      const body = await fallbackFilter('a"),is_template.eq.true,title.ilike.("b\\');
+      const conditions = splitConditions(body);
+      expect(conditions).toHaveLength(2);
+      for (const c of conditions) expect(c).toMatch(CONDITION);
+    });
+
+    it('a NUL (and other control characters) never reach the filter', async () => {
+      const body = await fallbackFilter('plan\u0000ning\u0007');
+      expect(body).not.toMatch(/\p{Cc}/u);
+      const conditions = splitConditions(body);
+      expect(conditions).toHaveLength(2);
+      for (const c of conditions) expect(c).toMatch(CONDITION);
+    });
+  });
+
   it('a non-search query error is NOT retried — it throws with the code preserved', async () => {
     h.queue[0] = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(listMeetings()).rejects.toMatchObject({ code: '42501' });

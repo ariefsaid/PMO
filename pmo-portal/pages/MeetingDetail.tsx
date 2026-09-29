@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router';
+import { useParams, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -26,6 +26,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { useAuth } from '@/src/auth/useAuth';
 import {
   useMeeting,
@@ -71,7 +72,6 @@ const attendeeName = (a: MeetingAttendeeWithRefs): string =>
 const MeetingDetail: React.FC = () => {
   const { t } = useTranslation();
   const { meetingId } = useParams<{ meetingId: string }>();
-  const navigate = useNavigate();
   const may = usePermission();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -123,7 +123,11 @@ const MeetingDetail: React.FC = () => {
   // task — the affordance explains itself instead of 42501-ing (fail-closed 'pmo' when unknown).
   const tasksExternal = routeTaskWrite(meeting?.project_id ?? undefined) === 'external';
 
-  const goBack = () => navigate('/meetings');
+  // list-working-set-return (#683, AC-LRC-008): return to the validated Meetings list context
+  // (project filter + search + scroll) when opened from that list; a direct/copied link falls back
+  // to the bare index.
+  const { returnToList } = useListReturn({ list: 'meetings' });
+  const goBack = () => returnToList();
   const backLabel = t('meetingDetail.backToMeetings', 'Meetings');
 
   const onMutationError = (err: unknown) => {
@@ -256,7 +260,8 @@ const MeetingDetail: React.FC = () => {
       await archive.mutateAsync(meeting.id);
       toast(t('meetingDetail.toast.archived', 'Meeting archived'), meeting.title, 'success');
       setArchiveOpen(false);
-      navigate('/meetings');
+      // AC-LRC-008: return to the same filtered/searched list context, not a bare index reset.
+      returnToList();
     } catch (err) {
       onMutationError(err);
     }
@@ -267,7 +272,8 @@ const MeetingDetail: React.FC = () => {
       await remove.mutateAsync(meeting.id);
       toast(t('meetingDetail.toast.deleted', 'Meeting deleted'), meeting.title, 'success');
       setDeleteOpen(false);
-      navigate('/meetings');
+      // AC-LRC-008: return to the same filtered/searched list context, not a bare index reset.
+      returnToList();
     } catch (err) {
       onMutationError(err);
       setDeleteOpen(false);

@@ -253,3 +253,25 @@ describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () =>
     expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
   });
 });
+
+// list-working-set-return (#683): a filtered table zero-match offers a Clear filters action
+// (scope/stage/search all reset); the genuine empty-collection state above carries none.
+// Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+describe('SalesPipeline table zero-match', () => {
+  it('a Lost-scope search with no matches says so (not "No lost projects") and Clear filters restores the rows and the scope', async () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
+    // Lost projects DO exist — the search excluded them, so the scope-empty copy would be false.
+    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No lost projects/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+  });
+});

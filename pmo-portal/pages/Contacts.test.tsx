@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { contactsState, companiesState, mutations, navigateMock } = vi.hoisted(() => ({
+const { contactsState, companiesState, mutations } = vi.hoisted(() => ({
   contactsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   companiesState: { data: [] as unknown[], isPending: false, isError: false },
   mutations: {
@@ -18,7 +18,6 @@ const { contactsState, companiesState, mutations, navigateMock } = vi.hoisted(()
     remove: { mutateAsync: vi.fn(), isPending: false },
     logActivity: { mutateAsync: vi.fn(), isPending: false },
   },
-  navigateMock: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useContacts', () => ({
@@ -29,11 +28,9 @@ vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
 }));
 
-// CW-4b: rows navigate to /contacts/:id — capture the navigate call.
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useNavigate: () => navigateMock };
-});
+// list-working-set-return (#683): the page writes real router navigation for its `company`/`q`
+// URL state and for record-open return context, so `react-router` stays UNMOCKED — a LocationProbe
+// sibling (below) reads the real `useLocation()` to assert the resulting URL/state.
 
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -43,24 +40,50 @@ vi.mock('@/src/auth/impersonation', () => ({
 import Contacts from './Contacts';
 
 const companies = [
-  { id: 'co1', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', archived_at: null },
-  { id: 'co2', name: 'Steelforge Fabrication', type: 'Vendor', org_id: 'org-1', archived_at: null },
+  { id: '11111111-1111-4111-8111-111111111111', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', archived_at: null },
+  { id: '22222222-2222-4222-8222-222222222222', name: 'Steelforge Fabrication', type: 'Vendor', org_id: 'org-1', archived_at: null },
 ];
 
 const contacts = [
-  { id: 'ct1', full_name: 'Jane Doe', company_id: 'co1', title: 'Buyer', email: 'jane@cascade.test', phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'ct2', full_name: 'Marcus Webb', company_id: 'co2', title: 'Procurement Lead', email: 'm@steelforge.test', phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-02-01T00:00:00Z' },
+  { id: 'ct1', full_name: 'Jane Doe', company_id: '11111111-1111-4111-8111-111111111111', title: 'Buyer', email: 'jane@cascade.test', phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'ct2', full_name: 'Marcus Webb', company_id: '22222222-2222-4222-8222-222222222222', title: 'Procurement Lead', email: 'm@steelforge.test', phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-02-01T00:00:00Z' },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+// list-working-set-return (#683): reads the REAL router location so tests can assert the URL
+// (filter/search round-trip) and the record-open return-context `location.state`.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+    >
+      {JSON.stringify(location.state ?? null)}
+    </div>
+  );
+};
+
+const renderPage = (role: Role = 'Admin', initialPath = '/contacts') => {
   realRole = role;
   return render(
     <ToastProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <Contacts />
       </MemoryRouter>
     </ToastProvider>,
   );
+};
+
+/** The shell's scroll container, sized so a restore has a real range to land in (jsdom has no layout). */
+const sizeMainScroll = (): HTMLElement => {
+  const main = document.querySelector<HTMLElement>('.main-scroll')!;
+  Object.defineProperties(main, {
+    scrollHeight: { configurable: true, value: 2000 },
+    clientHeight: { configurable: true, value: 400 },
+  });
+  return main;
 };
 
 beforeEach(() => {
@@ -76,7 +99,6 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
-  navigateMock.mockClear();
   realRole = 'Admin';
 });
 
@@ -137,7 +159,7 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
 
   it('AC-CRM-030: the company filter narrows the visible rows', async () => {
     renderPage();
-    await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), 'co2');
+    await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
     expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument();
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
   });
@@ -161,11 +183,11 @@ describe('Contacts create form (AC-CRM-030)', () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /New contact/i }));
     await userEvent.type(screen.getByLabelText(/Full name/i), 'Nina Park');
-    await userEvent.selectOptions(screen.getByLabelText(/^Company/i), 'co1');
+    await userEvent.selectOptions(screen.getByLabelText(/^Company/i), '11111111-1111-4111-8111-111111111111');
     await userEvent.click(screen.getByRole('button', { name: /^Create contact$/i }));
     await waitFor(() =>
       expect(mutations.create.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ full_name: 'Nina Park', company_id: 'co1' }),
+        expect.objectContaining({ full_name: 'Nina Park', company_id: '11111111-1111-4111-8111-111111111111' }),
       ),
     );
   });
@@ -181,13 +203,113 @@ describe('Contacts index — row → detail navigation (CW-4b)', () => {
     // Row activation = the first-cell <button> (rowLabel "Open <name>").
     expect(screen.getByRole('button', { name: 'Open Marcus Webb' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/contacts/ct2'));
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/contacts/ct2'),
+    );
   });
 
   it('CW-4b: the drawer-as-record overlay is gone — activating a row opens no dialog', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: 'Open Jane Doe' }));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+// list-working-set-return (#683, AC-LRC-007): `company`/`q` round-trip through the URL, and
+// opening a row stamps a validated Contacts return context onto the navigation's router state.
+describe('Contacts index — list working set + return context (AC-LRC-007)', () => {
+  it('AC-LRC-001: a direct URL with ?company= restores the selected filter and the narrowed rows', () => {
+    renderPage('Admin', '/contacts?company=22222222-2222-4222-8222-222222222222');
+    expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument();
+    expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: choosing a company filter writes ?company= to the URL', async () => {
+    renderPage('Admin');
+    await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toBe(
+        '?company=22222222-2222-4222-8222-222222222222',
+      ),
+    );
+  });
+
+  it('AC-LRC-001: typing a search term writes ?q= to the URL', async () => {
+    renderPage('Admin');
+    await userEvent.type(screen.getByLabelText(/Search contacts/i), 'marcus');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toBe('?q=marcus'),
+    );
+  });
+
+  it('AC-LRC-007: opening a row stamps a validated Contacts return context onto the navigation state', async () => {
+    renderPage('Admin', '/contacts?company=22222222-2222-4222-8222-222222222222');
+    await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
+    await waitFor(() => {
+      const probe = screen.getByTestId('location-probe');
+      expect(probe.dataset.pathname).toBe('/contacts/ct2');
+      const state = JSON.parse(probe.textContent || 'null');
+      expect(state.pmoListReturn).toMatchObject({
+        list: 'contacts',
+        path: '/contacts?company=22222222-2222-4222-8222-222222222222',
+      });
+    });
+  });
+
+  // Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+  it('a zero-match filtered result offers Clear filters, which restores the rows', async () => {
+    renderPage('Admin');
+    await userEvent.type(screen.getByLabelText(/Search contacts/i), 'no-such-contact');
+    expect(await screen.findByText(/No contacts match your filters/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: an unavailable ?company= stays the active, clearable choice (control agrees with the URL)', async () => {
+    const GONE = '99999999-9999-4999-8999-999999999999';
+    renderPage('Admin', `/contacts?company=${GONE}`);
+    const select = screen.getByLabelText(/Filter by company/i);
+    // The control shows the URL's choice — never silently "All companies" while rows are narrowed.
+    expect(select).toHaveValue(GONE);
+    expect(screen.getByRole('option', { name: 'Unavailable company', selected: true })).toBeInTheDocument();
+    expect(screen.getByText(/No contacts match your filters/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.getByLabelText(/Filter by company/i)).toHaveValue('All');
+    expect(screen.queryByRole('option', { name: 'Unavailable company' })).not.toBeInTheDocument();
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+  });
+
+  it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {
+    contactsState.isPending = true;
+    const path = '/contacts?company=22222222-2222-4222-8222-222222222222';
+    const entry = {
+      pathname: '/contacts',
+      search: '?company=22222222-2222-4222-8222-222222222222',
+      state: { pmoListScrollRestore: { list: 'contacts', path, scrollTop: 300 } },
+    };
+    // A fresh element per render: re-rendering the SAME element would let React bail out.
+    const tree = () => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <div className="main-scroll">
+            <Contacts />
+          </div>
+        </MemoryRouter>
+      </ToastProvider>
+    );
+    const { rerender } = render(tree());
+    const main = sizeMainScroll();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    contactsState.isPending = false;
+    rerender(tree());
+    await waitFor(() => expect(main.scrollTop).toBe(300));
+    expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
   });
 });
 
