@@ -25,6 +25,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { useContact, useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useCompanies } from '@/src/hooks/useCompanies';
@@ -89,7 +90,12 @@ const ContactDetail: React.FC = () => {
     [companies],
   );
 
-  const goBack = () => navigate('/contacts');
+  // list-working-set-return (#683, AC-LRC-007): return to the validated Contacts list context
+  // (filter + search + scroll) when opened from that list; a direct/copied link falls back to the
+  // bare index. The Contact→Company related link below stays a PLAIN Link (no captured state) so
+  // it never carries Contacts list context onto the company record.
+  const { returnToList } = useListReturn({ list: 'contacts' });
+  const goBack = () => returnToList();
 
   if (!canView) {
     return (
@@ -164,7 +170,8 @@ const ContactDetail: React.FC = () => {
       await archive.mutateAsync(contact.id);
       toast(t('contactDetail.toast.archived', 'Contact archived'), contact.full_name, 'success');
       setArchiveOpen(false);
-      navigate('/contacts');
+      // AC-LRC-007: return to the same filtered/searched list context, not a bare index reset.
+      returnToList();
     } catch (err) {
       onMutationError(err);
     }

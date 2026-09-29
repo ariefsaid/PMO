@@ -218,6 +218,7 @@
       "errorTitle": "Gagal memuat perusahaan"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba tipe lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada perusahaan yang cocok dengan filter"
     },
@@ -492,7 +493,8 @@
     "descriptionMeetingsLink": "modul Rapat",
     "filters": {
       "allCompanies": "Semua perusahaan",
-      "companyLabel": "Filter berdasarkan perusahaan"
+      "companyLabel": "Filter berdasarkan perusahaan",
+      "unavailableCompany": "Perusahaan tidak tersedia"
     },
     "form": {
       "company": {
@@ -545,6 +547,7 @@
       "errorTitle": "Gagal memuat kontak"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba perusahaan lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada kontak yang cocok dengan filter"
     },
@@ -786,7 +789,8 @@
     "description": "Rapat bernotulen dengan peserta dan action item. Anda melihat rapat yang Anda hadiri, tulis, atau dibagikan kepada Anda.",
     "filters": {
       "allProjects": "Semua proyek",
-      "projectLabel": "Filter berdasarkan proyek"
+      "projectLabel": "Filter berdasarkan proyek",
+      "unavailableProject": "Proyek tidak tersedia"
     },
     "form": {
       "errors": {
@@ -825,6 +829,7 @@
       "errorTitle": "Gagal memuat rapat"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba proyek lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada rapat yang cocok",
       "rowLabel": "Buka {{title}}"
@@ -892,6 +897,7 @@
     "lifecycleLabel": "Siklus",
     "listLabel": "Permintaan pengadaan",
     "noMatch": {
+      "clearFilters": "Hapus filter",
       "sub": "Coba status atau kata kunci lain, atau hapus filter.",
       "title": "Tidak ada permintaan yang cocok dengan filter"
     },
@@ -1802,6 +1808,7 @@
     },
     "summaryLabel": "Ringkasan pipeline",
     "tableEmpty": {
+      "clearFilters": "Hapus filter",
       "lost": {
         "sub": "Proyek yang ditandai kalah akan muncul di sini.",
         "title": "Tidak ada proyek yang kalah"
@@ -1828,6 +1835,9 @@
     "winProbability": "Peluang menang"
   },
   "shell": {
+    "backBar": {
+      "label": "Kembali ke {{label}}"
+    },
     "breadcrumb": {
       "label": "Breadcrumb"
     },

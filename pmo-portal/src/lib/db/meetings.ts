@@ -110,6 +110,20 @@ export interface MeetingListParams {
 }
 
 /**
+ * A PostgREST `or` filter body matching `term` as a substring of any of `columns`. The term is
+ * user-controlled, so each value is a double-quoted PostgREST literal (backslash + quote escaped):
+ * commas, dots and parentheses inside it are searched for, never parsed as filter syntax. Control
+ * characters (NUL included — Postgres text rejects it), the LIKE / PostgREST wildcards (`%`, `_`,
+ * `*`) and the LIKE escape character (`\`) are replaced with spaces so the term matches as plain
+ * text; the quoting still escapes `\` and `"` so it holds even if that list changes.
+ */
+function ilikeAnyOf(columns: readonly string[], term: string): string {
+  const text = term.replace(/[\p{Cc}%_*\\]/gu, ' ').trim();
+  const quoted = `"%${text.replace(/[\\"]/g, (c) => `\\${c}`)}%"`;
+  return columns.map((column) => `${column}.ilike.${quoted}`).join(',');
+}
+
+/**
  * List meetings visible to the caller (RLS: attendee ∪ author ∪ grant ∪ Admin, org-scoped),
  * newest-first by `occurred_at` (FR-MTG-028), excluding templates and archived rows by default
  * (FR-MTG-029), capped by MEETING_LIST_CAP (FR-MTG-035). A project filter narrows to one project;
@@ -119,13 +133,15 @@ export interface MeetingListParams {
  * (FR-MTG-011 — quoted phrases and -exclusions behave as everywhere else); the trigger builds the
  * vector with the `simple` config (0205), so the query parses with the same config.
  *
- * ⚑ The ilike fallback is for INFRASTRUCTURE faults, NOT bad user input: `websearch_to_tsquery`
- * is the FORGIVING parser — it never raises on malformed query text (unbalanced quotes, stray
- * operators all degrade gracefully), so a user's typing cannot reach this branch. It fires only
- * when the FTS path itself errors — e.g. the GIN index is unavailable / a transient DB fault — and
- * when it does it SILENTLY swaps stemmed full-text matching for substring (`ilike`) semantics.
- * Kept as a resilience net so search stays usable through such a fault; the semantic downgrade is
- * the accepted cost of not failing the whole list.
+ * ⚑ The ilike fallback is TRIGGERED by an infrastructure fault, not by bad input:
+ * `websearch_to_tsquery` is the forgiving parser and never raises on malformed query text, so the
+ * fallback runs only when the FTS path itself errors (index unavailable / transient DB fault). When
+ * it does, it SILENTLY swaps stemmed full-text matching for substring (`ilike`) semantics — the
+ * accepted cost of not failing the whole list.
+ *
+ * ⚑ But the fallback's TERM is always user-controlled — typed into the search box or carried by a
+ * shared `?q=` list URL — so it is built with `ilikeAnyOf`, which PostgREST-quotes each value. The
+ * term can never close its value and add a condition to the `or` filter.
  */
 export async function listMeetings(params?: MeetingListParams): Promise<MeetingWithRefs[]> {
   const build = (useFts: boolean) => {
@@ -140,8 +156,7 @@ export async function listMeetings(params?: MeetingListParams): Promise<MeetingW
       if (useFts) {
         query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
       } else {
-        const like = `%${q.replace(/[%_,()]/g, ' ').trim()}%`;
-        query = query.or(`title.ilike.${like},notes_text.ilike.${like}`);
+        query = query.or(ilikeAnyOf(['title', 'notes_text'], q));
       }
     }
     return query.order('occurred_at', { ascending: false }).limit(MEETING_LIST_CAP);

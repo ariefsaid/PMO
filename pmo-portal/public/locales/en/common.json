@@ -218,6 +218,7 @@
       "errorTitle": "Couldn't load companies"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different type or clear the search.",
       "emptyTitle": "No companies match your filters"
     },
@@ -492,7 +493,8 @@
     "descriptionMeetingsLink": "Meetings module",
     "filters": {
       "allCompanies": "All companies",
-      "companyLabel": "Filter by company"
+      "companyLabel": "Filter by company",
+      "unavailableCompany": "Unavailable company"
     },
     "form": {
       "company": {
@@ -545,6 +547,7 @@
       "errorTitle": "Couldn't load contacts"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different company or clear the search.",
       "emptyTitle": "No contacts match your filters"
     },
@@ -786,7 +789,8 @@
     "description": "Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.",
     "filters": {
       "allProjects": "All projects",
-      "projectLabel": "Filter by project"
+      "projectLabel": "Filter by project",
+      "unavailableProject": "Unavailable project"
     },
     "form": {
       "errors": {
@@ -825,6 +829,7 @@
       "errorTitle": "Couldn't load meetings"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different project or clear the search.",
       "emptyTitle": "No meetings match",
       "rowLabel": "Open {{title}}"
@@ -892,6 +897,7 @@
     "lifecycleLabel": "Lifecycle",
     "listLabel": "Procurement requests",
     "noMatch": {
+      "clearFilters": "Clear filters",
       "sub": "Try a different status, search term, or clear the filters.",
       "title": "No requests match your filters"
     },
@@ -1802,6 +1808,7 @@
     },
     "summaryLabel": "Pipeline summary",
     "tableEmpty": {
+      "clearFilters": "Clear filters",
       "lost": {
         "sub": "Projects marked lost will appear here.",
         "title": "No lost projects"
@@ -1828,6 +1835,9 @@
     "winProbability": "Win probability"
   },
   "shell": {
+    "backBar": {
+      "label": "Back to {{label}}"
+    },
     "breadcrumb": {
       "label": "Breadcrumb"
     },

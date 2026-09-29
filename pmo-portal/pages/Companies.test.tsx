@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, navigateMock } = vi.hoisted(() => ({
+const { listState, mutations } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -21,7 +21,6 @@ const { listState, mutations, navigateMock } = vi.hoisted(() => ({
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   },
-  navigateMock: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
@@ -29,11 +28,9 @@ vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanyMutations: () => mutations,
 }));
 
-// CW-4b: rows navigate to /companies/:id — capture the navigate call.
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useNavigate: () => navigateMock };
-});
+// list-working-set-return (#683): the page now writes real router navigation for its `type`/`q`
+// URL state and for record-open return context, so `react-router` stays UNMOCKED here — a
+// LocationProbe sibling (below) reads the real `useLocation()` to assert the resulting URL/state.
 
 // usePermission reads the REAL JWT role from the impersonation context.
 let realRole: Role = 'Admin';
@@ -49,15 +46,42 @@ const seed = [
   { id: 'c3', name: 'Internal Holdings', type: 'Internal', org_id: 'org-1', archived_at: null, created_at: '2026-03-01T00:00:00Z' },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+// list-working-set-return (#683): reads the REAL router location so tests can assert the URL
+// (filter/search round-trip) and the record-open return-context `location.state` without mocking
+// navigation away.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+    >
+      {JSON.stringify(location.state ?? null)}
+    </div>
+  );
+};
+
+const renderPage = (role: Role = 'Admin', initialPath = '/companies') => {
   realRole = role;
   return render(
     <ToastProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <Companies />
       </MemoryRouter>
     </ToastProvider>,
   );
+};
+
+/** The shell's scroll container, sized so a restore has a real range to land in (jsdom has no layout). */
+const sizeMainScroll = (): HTMLElement => {
+  const main = document.querySelector<HTMLElement>('.main-scroll')!;
+  Object.defineProperties(main, {
+    scrollHeight: { configurable: true, value: 2000 },
+    clientHeight: { configurable: true, value: 400 },
+  });
+  return main;
 };
 
 beforeEach(() => {
@@ -70,7 +94,6 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
-  navigateMock.mockClear();
   realRole = 'Admin';
 });
 
@@ -310,12 +333,94 @@ describe('Companies index — row → detail navigation (CW-4b)', () => {
     // Row activation = the first-cell <button> (rowLabel "Open <name>").
     expect(screen.getByRole('button', { name: 'Open Steelforge Fabrication' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open Steelforge Fabrication' }));
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/companies/c2'));
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/companies/c2'),
+    );
   });
 
   it('CW-4b: the drawer-as-record overlay is gone — activating a row opens no dialog', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: 'Open Cascade Port Authority' }));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+// list-working-set-return (#683, AC-LRC-006): `type`/`q` round-trip through the URL, and opening a
+// row stamps a validated Companies return context (list + path + no scroll element in jsdom) onto
+// the navigation's router state — the seam CompanyDetail's BackBar/breadcrumb read on return.
+describe('Companies index — list working set + return context (AC-LRC-006)', () => {
+  it('AC-LRC-001: a direct URL with ?type= restores the selected filter and the narrowed rows', () => {
+    renderPage('Admin', '/companies?type=Vendor');
+    expect(screen.getByRole('tab', { name: /^Vendor$/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
+    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: choosing a type filter writes ?type= to the URL (a copied link reproduces the same set)', async () => {
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('tab', { name: /^Vendor$/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toBe('?type=Vendor'),
+    );
+  });
+
+  it('AC-LRC-001: typing a search term writes ?q= to the URL', async () => {
+    renderPage('Admin');
+    await userEvent.type(screen.getByLabelText(/Search companies/i), 'steel');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toBe('?q=steel'),
+    );
+  });
+
+  it('AC-LRC-006: opening a row stamps a validated Companies return context onto the navigation state', async () => {
+    renderPage('Admin', '/companies?type=Vendor');
+    await userEvent.click(screen.getByRole('button', { name: 'Open Steelforge Fabrication' }));
+    await waitFor(() => {
+      const probe = screen.getByTestId('location-probe');
+      expect(probe.dataset.pathname).toBe('/companies/c2');
+      const state = JSON.parse(probe.textContent || 'null');
+      expect(state.pmoListReturn).toMatchObject({ list: 'companies', path: '/companies?type=Vendor' });
+    });
+  });
+
+  // Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+  it('a zero-match filtered result offers Clear filters, which restores the rows', async () => {
+    renderPage('Admin');
+    await userEvent.type(screen.getByLabelText(/Search companies/i), 'no-such-company');
+    expect(await screen.findByText(/No companies match your filters/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
+    expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
+    expect(screen.getByText('Internal Holdings')).toBeInTheDocument();
+  });
+
+  it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {
+    listState.isPending = true;
+    const entry = {
+      pathname: '/companies',
+      search: '?type=Vendor',
+      state: { pmoListScrollRestore: { list: 'companies', path: '/companies?type=Vendor', scrollTop: 300 } },
+    };
+    // A fresh element per render: re-rendering the SAME element would let React bail out.
+    const tree = () => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <div className="main-scroll">
+            <Companies />
+          </div>
+        </MemoryRouter>
+      </ToastProvider>
+    );
+    const { rerender } = render(tree());
+    const main = sizeMainScroll();
+
+    // Still loading: the restore must wait — scrolling a list before its rows exist is a no-op.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    listState.isPending = false;
+    rerender(tree());
+    await waitFor(() => expect(main.scrollTop).toBe(300));
+    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 });

@@ -31,6 +31,8 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 
 interface FormValues {
@@ -70,8 +72,13 @@ const Contacts: React.FC = () => {
   // CRM directory view = the master-data roles (Engineer = ○, no nav/page) — mirrors Companies §D.
   const canView = may('view', 'contact');
 
-  const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('All');
+  // list-working-set-return (#683): `company`/`q` are URL-owned (AC-LRC-007). Search stays LOCAL
+  // text written to the URL after a pause — never bound straight to `workingSet.q`. A Back return
+  // restores the list's scroll once its rows have loaded (`contentReady`).
+  const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
+    useListSearchWorkingSet('contacts');
+  const { openRecord } = useListReturn({ list: 'contacts', contentReady: !isPending && !isError });
+  const companyFilter = workingSet.company;
 
   const [formTarget, setFormTarget] = useState<{ contact: ContactRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<ContactRow | null>(null);
@@ -92,6 +99,23 @@ const Contacts: React.FC = () => {
     () => companies.map((c) => ({ value: c.id, label: c.name })),
     [companies],
   );
+  // Spec decision 6: a `?company=` naming no company this user can see (archived, deleted, or
+  // another org's) stays the ACTIVE choice — the control agrees with the URL and the zero-match
+  // state offers Clear filters — rather than the select silently showing "All companies".
+  const companyFilterOptions = useMemo(() => {
+    const options = [
+      { value: 'All', label: t('contacts.filters.allCompanies', 'All companies') },
+      ...companyOptions,
+    ];
+    if (companyFilter !== 'All' && !companyById.has(companyFilter)) {
+      options.push({
+        value: companyFilter,
+        // Until the directory has loaded the choice may yet resolve, so it is not called unavailable.
+        label: companyData ? t('contacts.filters.unavailableCompany', 'Unavailable company') : '…',
+      });
+    }
+    return options;
+  }, [companyById, companyData, companyFilter, companyOptions, t]);
   const importDescriptor = useMemo(() => makeContactImportDescriptor(companies), [companies]);
 
   const all = useMemo(() => data ?? [], [data]);
@@ -107,6 +131,10 @@ const Contacts: React.FC = () => {
           (c.email ?? '').toLowerCase().includes(q),
       );
   }, [all, search, companyFilter]);
+
+  // AC-LRC-012: the DataTable's `empty` branch (with `clearFilters`) only renders when
+  // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'` below), so a
+  // zero-match result there is always a filtered zero-match.
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
@@ -241,11 +269,8 @@ const Contacts: React.FC = () => {
             label={t('contacts.filters.companyLabel', 'Filter by company')}
             hideLabel
             value={companyFilter}
-            onChange={setCompanyFilter}
-            options={[
-              { value: 'All', label: t('contacts.filters.allCompanies', 'All companies') },
-              ...companyOptions,
-            ]}
+            onChange={(v) => setWorkingSet((ws) => ({ ...ws, company: v }))}
+            options={companyFilterOptions}
           />
         )
       }
@@ -321,7 +346,9 @@ const Contacts: React.FC = () => {
           rowKey={(c) => c.id}
           // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the
           // drawer-as-record is retired). Create/edit-in-modal are unchanged.
-          onActivate={(c) => navigate(`/contacts/${c.id}`)}
+          // list-working-set-return (#683, AC-LRC-007): capture the current filtered/searched
+          // Contacts URL + scroll position as return context instead of a bare navigate.
+          onActivate={(c) => openRecord(`/contacts/${c.id}`)}
           // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
           // notReady `t` the unit suite uses (no i18next instance is mounted there).
           rowLabel={(c) => `Open ${c.full_name}`}
@@ -329,6 +356,7 @@ const Contacts: React.FC = () => {
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
           emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
+          emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
         />
       )}
 

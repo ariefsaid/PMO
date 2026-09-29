@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
 
@@ -37,5 +41,36 @@ describe('BackBar', () => {
     btn.focus();
     await userEvent.keyboard('{Enter}');
     expect(onBack).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('BackBar — localized accessible name (AC-LRC-013)', () => {
+  /** The REAL shipped catalogues, so the assertion pins the copy a Bahasa user actually hears. */
+  const catalogue = (lng: 'en' | 'id') =>
+    JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8'));
+
+  const renderIn = async (lng: 'en' | 'id', label: string) => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng,
+      fallbackLng: 'en',
+      defaultNS: 'common',
+      resources: { en: { common: catalogue('en') }, id: { common: catalogue('id') } },
+    });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <BackBar label={label} onBack={() => {}} />
+      </I18nextProvider>,
+    );
+  };
+
+  it('AC-LRC-013: reads "Back to Companies" in English', async () => {
+    await renderIn('en', 'Companies');
+    expect(screen.getByRole('button', { name: 'Back to Companies' })).toBeInTheDocument();
+  });
+
+  it('AC-LRC-013: reads "Kembali ke Perusahaan" in Bahasa Indonesia — no English left in the name', async () => {
+    await renderIn('id', 'Perusahaan');
+    expect(screen.getByRole('button', { name: 'Kembali ke Perusahaan' })).toBeInTheDocument();
   });
 });
