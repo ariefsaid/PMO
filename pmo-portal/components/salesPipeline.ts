@@ -1,6 +1,7 @@
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import type { StatusVariant } from '@/src/components/ui';
 import type { LifecycleStep } from '@/src/components/ui';
+import type { ListName } from '@/src/lib/listWorkingSet';
 import {
   PIPELINE_STATUSES,
   LOST_STATUSES,
@@ -141,16 +142,22 @@ export function formatPercent(probability: number): string {
 }
 
 /**
- * Navigates to the deal's canonical detail route. Model B (ADR-0020): a project/opportunity has
- * ONE detail URL, `/projects/:id`, at every stage — so a pipeline drill goes to the same place
- * the Projects list does, and the stage-adaptive lens picks the pipeline view pre-win. The URL
- * is the single source of truth and the top-bar breadcrumb derives from it.
+ * Opens the deal's canonical detail route. Model B (ADR-0020): a project/opportunity has ONE
+ * detail URL, `/projects/:id`, at every stage — so a pipeline drill goes to the same place the
+ * Projects list does, and the stage-adaptive lens picks the pipeline view pre-win. The URL is the
+ * single source of truth and the top-bar breadcrumb derives from it.
+ *
+ * list-working-set-return (#682, AC-LRC-004): `open` is `useListReturn({list:'sales'}).openRecord`
+ * — the shared seam that captures the current Sales list URL + scroll position as validated
+ * return context. The explicit `'projects'` owner stamps that context onto the PROJECT record (a
+ * Sales list may open a Projects record; see `canCaptureFromList`), so only the project's
+ * PipelineLens Sales link can read it back — the structural Projects breadcrumb/BackBar never do.
  */
 export function openOpportunity(
-  navigate: (path: string) => void,
+  open: (path: string, owner?: ListName) => boolean,
   project: Pick<PipelineProject, 'id'>,
 ): void {
-  navigate(`/projects/${project.id}`);
+  open(`/projects/${project.id}`, 'projects');
 }
 
 /**

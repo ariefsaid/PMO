@@ -59,22 +59,15 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
 }));
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
-});
-
-// Force table view so we can inspect filtered rows easily.
-vi.mock('@/src/hooks/usePipelineView', () => ({
-  usePipelineView: () => ['table', vi.fn()] as ['table', ReturnType<typeof vi.fn>],
-}));
-
 import SalesPipeline from '../../pages/SalesPipeline';
 
+// list-working-set-return (#682): the page's view is now URL-owned; force table view via `?view=`
+// (previously done by mocking the whole usePipelineView module, which also shadowed the
+// DEFAULT_PIPELINE_VIEW/PIPELINE_VIEWS exports listWorkingSet.ts imports directly).
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/sales?view=table']}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>

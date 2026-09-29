@@ -17,14 +17,18 @@ import {
   type Column,
   TaxBasisLabel,
 } from '@/src/components/ui';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../components/SalesKanbanBoard';
-import { usePipelineView } from '@/src/hooks/usePipelineView';
+import { readPipelineView, writePipelineView } from '@/src/hooks/usePipelineView';
+import type { PipelineView } from '@/src/hooks/usePipelineView';
+import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
+import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import {
   SALES_COLUMNS,
   weightedValue,
@@ -34,6 +38,7 @@ import {
   daysSince,
   isNeedsAttention,
   ATTENTION_THRESHOLD_DAYS,
+  type OpenFunnelStage,
 } from '../components/salesPipeline';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -79,25 +84,39 @@ const SalesPipeline: React.FC = () => {
   // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
   const { data: lostDeals, isError: lostError, refetch: refetchLost } = useLostDeals();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [view, setView] = usePipelineView();
-  const [search, setSearch] = useState('');
-  const [scope, setScope] = useState<DealScope>('Open');
+  // list-working-set-return (#682): `scope`/`status`/`q`/`view` are URL-owned. D-1
+  // (AC-JR-W3B-05) dashboard drill-links via `?status=` keep working — the codec normalizes
+  // a contradictory `scope=Lost&status=<open stage>` to Open (AC-LRC-002).
+  const { workingSet, setWorkingSet } = useListWorkingSet('sales', {
+    sessionView: readPipelineView(),
+  });
+  // Search stays LOCAL text written to the URL after a pause — see useUrlSearchInput's contract.
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
+    setWorkingSet((ws) => ({ ...ws, q })),
+  );
+  const { openRecord } = useListReturn({ list: 'sales', contentReady: !isPending && !isError });
 
-  // D-1 (AC-JR-W3B-05): seed stageIndex from ?status= so drill-links from
-  // ProjectedMarginBars land pre-filtered. Index is derived from OPEN_COLUMNS
-  // (the same source the Funnel uses) so the two filters stay in sync.
-  const initialStageIndex = useMemo(() => {
-    const statusParam = searchParams.get('status');
-    if (!statusParam) return null;
-    const idx = OPEN_COLUMNS.findIndex((c) => c.statuses.includes(statusParam));
-    return idx >= 0 ? idx : null;
-  }, [searchParams]);
+  const scope = workingSet.scope;
+  const view = workingSet.view;
+  const onViewChange = (v: PipelineView) => {
+    writePipelineView(v);
+    setWorkingSet((ws) => ({ ...ws, view: v }));
+  };
 
+  /** The funnel stage currently selected from the URL, or null when none is. */
+  const selectedStatus: OpenFunnelStage | null =
+    (workingSet.status as OpenFunnelStage | '') || null;
   /** Index into OPEN_COLUMNS for the currently selected funnel stage (null = no stage filter). */
-  const [stageIndex, setStageIndex] = useState<number | null>(initialStageIndex);
-  /** The status string for the selected funnel stage, or null when no stage is selected. */
-  const selectedStatus = stageIndex !== null ? OPEN_COLUMNS[stageIndex]?.statuses[0] ?? null : null;
+  const stageIndex = useMemo(
+    () =>
+      selectedStatus === null
+        ? null
+        : (() => {
+            const idx = OPEN_COLUMNS.findIndex((c) => c.statuses.includes(selectedStatus));
+            return idx >= 0 ? idx : null;
+          })(),
+    [selectedStatus],
+  );
 
   const openProjects = useMemo(() => data?.projects ?? [], [data]);
   const lost = useMemo(() => lostDeals ?? [], [lostDeals]);
@@ -173,7 +192,7 @@ const SalesPipeline: React.FC = () => {
     'Needs attention': t('sales.scope.needsAttention', 'Needs attention'),
   };
 
-  const onOpen = (p: PipelineProject) => openOpportunity(navigate, p);
+  const onOpen = (p: PipelineProject) => openOpportunity(openRecord, p);
 
   const tableColumns: Column<PipelineProject>[] = [
     {
@@ -375,10 +394,11 @@ const SalesPipeline: React.FC = () => {
   // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
   // (AC-LRC-012) — the scope-empty sentence would deny rows that exist.
   const narrowedWithinScope = search.trim() !== '' || stageIndex !== null;
+  // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
+  // controls move together (no second event drops the first call).
   const clearTableFilters = () => {
     setSearch('');
-    setScope('Open');
-    setStageIndex(null);
+    setWorkingSet(() => parseListWorkingSet('sales', '', { sessionView: readPipelineView() }));
   };
 
   // ── States ────────────────────────────────────────────────────────────────
@@ -454,7 +474,13 @@ const SalesPipeline: React.FC = () => {
               <Funnel
                 stages={funnelStages}
                 selectedIndex={stageIndex ?? undefined}
-                onSelect={(i) => setStageIndex((prev) => (prev === i ? null : i))}
+                onSelect={(i) => {
+                  const nextStatus = OPEN_COLUMNS[i]?.statuses[0] as OpenFunnelStage | undefined;
+                  setWorkingSet((ws) => ({
+                    ...ws,
+                    status: ws.status === nextStatus ? '' : (nextStatus ?? ''),
+                  }));
+                }}
               />
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
                 <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
@@ -473,7 +499,7 @@ const SalesPipeline: React.FC = () => {
           <ViewToggle<DealScope>
             options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
             value={scope}
-            onChange={setScope}
+            onChange={(v) => setWorkingSet((ws) => ({ ...ws, scope: v }))}
             ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
           />
         )
@@ -503,7 +529,7 @@ const SalesPipeline: React.FC = () => {
               { value: 'table', label: t('sales.view.table', 'Table'), icon: 'table' },
             ]}
             value={view}
-            onChange={setView}
+            onChange={onViewChange}
             ariaLabel={t('sales.viewToggleLabel', 'Pipeline view')}
           />
         )

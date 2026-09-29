@@ -105,10 +105,13 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
   });
 
   // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
-  it('AC-IXD-PROJ-001: openOpportunity navigates to the canonical /projects/:id detail route', () => {
-    const navigate = vi.fn();
-    openOpportunity(navigate, project({ id: 'abc', name: 'Acme Deal' }));
-    expect(navigate).toHaveBeenCalledWith('/projects/abc');
+  // Director ruling (2026-09-29): openOpportunity now takes the shared list-return `openRecord`
+  // opener (not a bare navigate) so the destination + owner it requests can be asserted; the
+  // resulting router navigation/state is useListReturn's own concern, proven in its own tests.
+  it('AC-IXD-PROJ-001 / AC-LRC-004: openOpportunity opens the canonical /projects/:id route, owned by "projects"', () => {
+    const open = vi.fn(() => true);
+    openOpportunity(open, project({ id: 'abc', name: 'Acme Deal' }));
+    expect(open).toHaveBeenCalledWith('/projects/abc', 'projects');
   });
 
   it('AC-SP-208: dealJourneySteps marks done/current/upcoming from the pipeline index', () => {

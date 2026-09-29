@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import SalesPipeline from './SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -32,8 +32,6 @@ const pipelineState: {
   refetch: ReturnType<typeof vi.fn>;
 } = { data: { stages: seedStages, projects: seedProjects }, isPending: false, isError: false, refetch: vi.fn() };
 
-const navigate = vi.fn();
-
 const lostState: { data: Array<Record<string, unknown>>; isPending: boolean; isError: boolean } = {
   data: [],
   isPending: false,
@@ -59,19 +57,31 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
 }));
-// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => navigate };
-});
+// list-working-set-return (#682): the page writes URL changes through the real router navigate
+// (one replace per event), so tests read the REAL location to assert the URL and the record-open
+// return-context `location.state` instead of mocking navigation away.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+      data-state={JSON.stringify(location.state ?? null)}
+    />
+  );
+};
 
 // The pipeline-board journeys are a manager viewing/forecasting the pipeline; render under a
 // PM real role so the A-4 Sales view-gate (Admin·Exec·PM·Finance) shows the board.
 // ToastProvider is required because the B-3 CTA uses useToast() on deal creation.
-const renderPage = () =>
+// list-working-set-return (#682): the list-return seam captures context only from the list's own
+// canonical index path (`/sales`), so the default entry must be `/sales`, not `/`.
+const renderPage = (initialPath = '/sales') =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>
@@ -81,7 +91,6 @@ const renderPage = () =>
 
 beforeEach(() => {
   sessionStorage.clear();
-  navigate.mockClear();
   pipelineState.data = { stages: seedStages, projects: seedProjects };
   pipelineState.isPending = false;
   pipelineState.isError = false;
@@ -214,17 +223,54 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
 
 describe('SalesPipeline drill-down (Model B canonical route)', () => {
   // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
-  it('AC-IXD-PROJ-001: clicking a card navigates to the canonical /projects/:id detail route', () => {
+  // Director ruling (2026-09-29): the destination stays canonical `/projects/p2` while the
+  // record-open now additionally carries validated Sales list-return context.
+  it('AC-IXD-PROJ-001 / AC-LRC-004: clicking a card navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
-    expect(navigate).toHaveBeenCalledWith('/projects/p2');
+    const probe = screen.getByTestId('location-probe');
+    await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
+    const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
+    expect(state.pmoListReturn).toMatchObject({ list: 'sales' });
   });
 
-  it('AC-IXD-PROJ-001: a table row click navigates to the canonical /projects/:id detail route', async () => {
+  it('AC-IXD-PROJ-001 / AC-LRC-004: a table row click navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
-    expect(navigate).toHaveBeenCalledWith('/projects/p2');
+    const probe = screen.getByTestId('location-probe');
+    await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
+    const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
+    expect(state.pmoListReturn).toMatchObject({ list: 'sales' });
+  });
+});
+
+// list-working-set-return (#682): AC-LRC-001/002 for Sales — `scope`/`status`/`q`/`view` are
+// URL-owned. The owning pure-codec proof lives in src/lib/listWorkingSet.test.ts; here we prove
+// the component renders the URL-backed working set and writes ONE replace per event.
+describe('SalesPipeline list working set — AC-LRC-001/002', () => {
+  it('AC-LRC-001: renders the URL-backed working set (scope + search + view) and refresh/copy reproduces it', () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?scope=Lost&q=Coastal&view=table');
+    // The URL-driven scope segment is selected.
+    expect(screen.getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+    // The URL-driven search is present in the search box.
+    expect(screen.getByLabelText(/Search projects/i)).toHaveValue('Coastal');
+    // The URL-driven view renders the table.
+    expect(screen.getAllByRole('row').length).toBeGreaterThan(0);
+  });
+
+  it('AC-LRC-001: a control change writes ONE replace of the list URL (no history entry per click)', async () => {
+    renderPage('/sales?view=table');
+    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    const toggle = screen.getByRole('tablist', { name: /Project scope/i });
+    expect(within(toggle).getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+    // View change persists AND writes the URL in one event (board renders, the scope set moments
+    // earlier survives untouched — it is not a keystroke this event should drop).
+    await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
+    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
   });
 });
 
