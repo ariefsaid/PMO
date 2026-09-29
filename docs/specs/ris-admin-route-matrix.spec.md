@@ -303,7 +303,9 @@ them.
   cannot render under the percentage at the 4-column desktop card width; `data-testid` added to both
   for the geometry gate), `pmo-portal/e2e/AC-RAM-004-ris-admin-geometry.spec.ts` (new — the focus-ring
   and name/percentage geometry gates), `pmo-portal/e2e/AC-RAM-004-ris-admin-axe.spec.ts` (adds a 390px
-  re-scan of the two project-lens surfaces).
+  re-scan of the two project-lens surfaces), `pmo-portal/src/components/ui/LifecycleStepper.tsx` (focus
+  ring drawn inward — `outline-offset-[-2px]` — so the scroll region's clipping wrapper can no longer hide
+  it; `data-testid="stepper-clip-wrapper"` added for the geometry gate).
 
 ## Acceptance criteria and owning proof
 
