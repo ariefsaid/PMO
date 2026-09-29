@@ -411,19 +411,17 @@ const ProcurementPage: React.FC = () => {
       }
       view={
         state !== 'loading' && (
-          /* A-MIN-1: below md DataTable force-renders cards (no table/board possible),
-             so hide the Table/Board toggle — it would be a state-lie. */
-          <div className="hidden md:block">
-            <ViewToggle<'table' | 'board'>
-              options={[
-                { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
-                { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
-              ]}
-              value={view}
-              onChange={onViewChange}
-              ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
-            />
-          </div>
+          /* #715: the Table/Board switch stays reachable on phones (it drives the URL-owned view),
+             so a phone user is never stuck in the last-used view. Supersedes A-MIN-1. */
+          <ViewToggle<'table' | 'board'>
+            options={[
+              { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
+              { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
+            ]}
+            value={view}
+            onChange={onViewChange}
+            ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
+          />
         )
       }
     >

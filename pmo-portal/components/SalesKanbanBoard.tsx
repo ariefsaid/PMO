@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
@@ -21,6 +21,12 @@ interface SalesKanbanBoardProps {
   onOpen: (project: PipelineProject) => void;
   /** Currently-open opportunity id — highlights its card. */
   selectedId?: string;
+  /**
+   * Index (into the open columns) of the funnel stage the page has selected, or null/undefined for
+   * none (#697). Changing it takes the board to that column and marks it — the same jump the
+   * mobile stage tabs make — so a stage selection has a visible effect in Board view.
+   */
+  selectedStageIndex?: number | null;
 }
 
 /**
@@ -48,8 +54,13 @@ const DealCard: React.FC<{
         <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
       }
       body={
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="flex items-baseline gap-2">
+        // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
+        // amounts + the PPN label) amount, basis, weighted figure and the probability pill do not
+        // fit on one line — non-wrapping, they overran the card and gave every column's card list
+        // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
+        // the pill whole when it drops to its own line.
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-[15px] font-bold tabular">
               {formatCurrency(project.contract_value, project.currency)}
             </span>
@@ -65,7 +76,7 @@ const DealCard: React.FC<{
               })}
             </span>
           </div>
-          <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+          <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
         </div>
       }
       onOpen={onActivate}
@@ -108,7 +119,12 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string
  *     scroll events do NOT bubble — `onScroll` is passed DIRECTLY to `<Kanban>`,
  *     which spreads it onto the actual `.kanban-scroll` element (was the Defect-1 bug).
  */
-const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, selectedId }) => {
+const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({
+  projects,
+  onOpen,
+  selectedId,
+  selectedStageIndex = null,
+}) => {
   const { t } = useTranslation();
   // FR-L10N-020: the per-CARD figures use each project's OWN currency (get_sales_pipeline now
   // projects it, migration 0201); the per-COLUMN totals sum across projects and so have none, and
@@ -118,6 +134,12 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
+
+  // #697: a funnel stage selection scrolls the board to that column (on mount too, so a copied
+  // `?status=` link lands on it). `handleStageClick` is identity-stable.
+  useEffect(() => {
+    if (selectedStageIndex !== null) handleStageClick(selectedStageIndex);
+  }, [selectedStageIndex, handleStageClick]);
 
   // The five OPEN columns for the stage indicator (terminal Won/Lost are excluded —
   // the indicator is for navigating the pipeline, not the terminal archive columns).
@@ -158,6 +180,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
                 count={colProjects.length}
                 totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : undefined}
                 emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
+                selected={colIdx === selectedStageIndex}
               >
                 {colProjects.map((p) => (
                   <DealCard
