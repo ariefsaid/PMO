@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -323,5 +324,22 @@ describe('CompanyDetail — cold-start empty Activity section (AC-G3C-CD-4)', ()
     contactActivitiesState.data = [];
     renderPage('Admin');
     expect(screen.queryByText(/add a contact to start logging activity/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005: account activity dates follow the profile timezone', () => {
+  afterEach(() => resetActiveLocale());
+
+  it('dates an activity near UTC midnight on the viewer-timezone calendar day', () => {
+    contactsState.data = contacts;
+    contactActivitiesState.data = [{ ...activity, occurred_at: '2026-06-14T23:30:00Z' }];
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const { unmount } = renderPage('Admin');
+    expect(within(screen.getByTestId('account-activity-timeline')).getByText(/Jun 14, 2026/)).toBeInTheDocument();
+    unmount();
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    renderPage('Admin');
+    expect(within(screen.getByTestId('account-activity-timeline')).getByText(/Jun 15, 2026/)).toBeInTheDocument();
   });
 });

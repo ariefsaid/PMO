@@ -20,6 +20,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const { grant } = vi.hoisted(() => ({ grant: vi.fn() }));
 
@@ -48,8 +49,12 @@ describe('AC-ERR-001: AdministrationCredits keeps a rejected save on screen', ()
   beforeEach(() => {
     grant.mockReset();
     grant.mockRejectedValue(Object.assign(new Error('boom'), { code: '23514' }));
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    resetActiveLocale();
+  });
 
   it('AC-ERR-001: the rejection is shown IN the dialog and is still there after the toast has gone', async () => {
     const user = userEvent.setup();
@@ -74,4 +79,42 @@ describe('AC-ERR-001: AdministrationCredits keeps a rejected save on screen', ()
       expect(screen.getByTestId('entity-modal-save-error')).toBeInTheDocument();
     });
   }, 15000);
+
+  it('AC-PLC-009: preserves unrestricted en-US credit precision when granting', async () => {
+    grant.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: /Grant credits/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/amount/i), '1.234');
+    await user.click(within(dialog).getByRole('button', { name: /^Grant credits$/i }));
+
+    await waitFor(() => expect(grant).toHaveBeenCalledWith({ orgId: 'org-1', amount: 1.234, note: '' }));
+  });
+
+  it('AC-PLC-009: persists an id-ID grouped credit amount as 1234', async () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    grant.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: /Grant credits/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/amount/i), '1.234');
+    await user.click(within(dialog).getByRole('button', { name: /^Grant credits$/i }));
+
+    await waitFor(() => expect(grant).toHaveBeenCalledWith({ orgId: 'org-1', amount: 1234, note: '' }));
+  });
+
+  it('AC-PLC-009: rejects a non-positive credit amount before granting', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: /Grant credits/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/amount/i), '0');
+    await user.click(within(dialog).getByRole('button', { name: /^Grant credits$/i }));
+
+    // The shared dialog renders BOTH a summary alert and the field's own alert; target the field's.
+    expect(await within(dialog).findByText(/positive/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(grant).not.toHaveBeenCalled();
+  });
 });

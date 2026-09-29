@@ -5,8 +5,8 @@ import {
   type ProjectStatus,
   type TaxTreatment,
 } from '@/src/lib/db/projects';
-import { parseMoneyInput } from '@/src/lib/format';
-import { TAX_TREATMENT_OPTIONS, parseTaxFacts } from '@/src/lib/taxTreatment';
+import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
+import { TAX_TREATMENT_OPTIONS, parseNeutralTaxFacts } from '@/src/lib/taxTreatment';
 import type { ImportDescriptor } from './types';
 import { makeRefLookup, refValidate, refId } from './refLookup';
 
@@ -14,18 +14,21 @@ import { makeRefLookup, refValidate, refId } from './refLookup';
 const TAX_TREATMENTS: readonly TaxTreatment[] = TAX_TREATMENT_OPTIONS.map((o) => o.value);
 
 /**
- * Money cells go through `parseMoneyInput` — "the single parse used for BOTH validation and
- * persistence" (format.ts). A local `Number()` parse here (which this file used to have) silently
- * diverges from the #468 locale fix and would validate a cell one way and persist it another.
+ * Money cells go through the NEUTRAL import parser (#684, AC-PLC-009) — "the single parse used for
+ * BOTH validation and persistence" (format.ts). A sheet is read in the file's own convention (dot
+ * decimal, optional comma grouping), never the viewer's display preference, and `contract_value` /
+ * `tax_amount` are numeric(14,2): a cell that would need rounding is refused, not silently changed.
  */
 function parsedMoney(raw: string | undefined): number | null {
-  return raw?.trim() ? parseMoneyInput(raw) : null;
+  return raw?.trim() ? parseNeutralMoneyInputAtScale(raw, 2) : null;
 }
 
 function moneyCellError(raw: string, label: string): string | null {
   if (!raw.trim()) return null; // optional — blank means "not stated"
-  const n = parseMoneyInput(raw);
-  return n !== null && n >= 0 ? null : `${label} must be a non-negative number.`;
+  const n = parseNeutralMoneyInputAtScale(raw, 2);
+  return n !== null && n >= 0
+    ? null
+    : `${label} must be a non-negative number with no more than 2 decimal places.`;
 }
 
 /**
@@ -127,10 +130,10 @@ export function makeProjectImportDescriptor(
       };
       const value = parsedMoney(cells.contract_value);
       if (value === null || value <= 0) return { ...base, contract_value: 0 };
-      // ⚑ ONE predicate, shared with `validateRow` above — `parseTaxFacts` returns the pair or null.
+      // ⚑ ONE predicate, shared with `validateRow` above — `parseNeutralTaxFacts` returns the pair or null.
       // A bare `trim() as TaxTreatment` cast used to live here, which let 'Inclusive' or 'unknown'
       // through truthy to die on the DB's domain CHECK: the wrong error, from the wrong layer.
-      const tax = parseTaxFacts(cells.tax_treatment ?? '', cells.tax_amount ?? '');
+      const tax = parseNeutralTaxFacts(cells.tax_treatment ?? '', cells.tax_amount ?? '');
       if (!tax) {
         // ⛔ NOT a fall-through to `contract_value: 0`, which is what this did before. A sheet cell
         // reading 1,000,000 becoming a project worth ZERO is a silent, plausible-looking data loss —

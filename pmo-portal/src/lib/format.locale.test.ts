@@ -4,6 +4,7 @@ import {
   formatCurrency,
   formatCompactCurrency,
   formatNumber,
+  formatNumberExact,
   formatDate,
   formatDateNumeric,
   formatDateUtc,
@@ -30,6 +31,15 @@ describe('format.ts reads the resolved locale (FR-L10N-010/011)', () => {
     expect(canonicalizeLocale('en')).toBe('en-US');
     expect(canonicalizeLocale('id')).toBe('id-ID');
     expect(canonicalizeLocale('en-GB')).toBe('en-GB'); // already regioned — passes through
+  });
+
+  it('AC-PLC-004: an exact number keeps every meaningful fraction digit in the viewer convention', () => {
+    setActiveLocale(ID);
+    expect(formatNumberExact(1234.123456)).toBe('1.234,123456');
+    expect(formatNumberExact(737.5)).toBe('737,5');
+    setActiveLocale(EN);
+    expect(formatNumberExact(1234.123456)).toBe('1,234.123456');
+    expect(formatNumberExact(1000)).toBe('1,000');
   });
 
   it('AC-L10N-020: grouping follows the NUMBER locale while the symbol follows the record currency', () => {
@@ -142,14 +152,17 @@ describe('what the locale must NOT reach', () => {
     }
   });
 
-  it('⛔ parseMoneyInput is untouched by the locale (DD-I18N-3 binds it to the mask commit)', () => {
-    // Display went locale-aware in this change; the PARSE deliberately did not. Leaving it
-    // comma-only for one issue is a known, bounded inconsistency. Making it locale-aware HERE,
-    // while the masked input still strips to [0-9.], is how "5.000.000" becomes 5.
+  it('AC-PLC-009 / DD-I18N-6: parses the same money draft using the active number locale', () => {
     setActiveLocale(ID);
-    expect(parseMoneyInput('1,234')).toBe(1234);
+    expect(parseMoneyInput('1.234')).toBe(1234);
+
+    setActiveLocale(EN);
     expect(parseMoneyInput('1.234')).toBe(1.234);
+    expect(parseMoneyInput('12,34')).toBeNull();
     expect(parseMoneyInput('1e5')).toBe(100000);
     expect(parseMoneyInput('1.2.3')).toBeNull();
+    expect(parseMoneyInput('0x10')).toBe(16);
+    expect(parseMoneyInput('')).toBeNull();
   });
+
 });

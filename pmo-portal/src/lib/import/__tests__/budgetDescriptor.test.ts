@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { budget } = vi.hoisted(() => ({
   budget: {
@@ -12,6 +12,10 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
 
 import { makeBudgetImportDescriptor, computeBudgetLineImportKey } from '../budgetDescriptor';
 import { IMPORT_SKIPPED } from '../types';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const projects = [
   { id: 'prj-1', name: 'Apollo' },
@@ -38,7 +42,9 @@ describe('makeBudgetImportDescriptor', () => {
     budget.findImportedLine.mockResolvedValue(null);
     budget.createVersion.mockResolvedValue({ id: 'ver-new' });
     budget.createLineItem.mockResolvedValue({ id: 'line-new' });
+    setActiveLocale(EN_LOCALE);
   });
+  afterEach(() => resetActiveLocale());
 
   const make = () => makeBudgetImportDescriptor(projects, 'batch-1');
 
@@ -174,6 +180,32 @@ describe('makeBudgetImportDescriptor', () => {
     expect(field('budgetedAmount').validate('0')).toBeNull();
     expect(field('budgetedAmount').validate('-1')).toMatch(/non-negative/i);
     expect(field('budgetedAmount').validate('')).toMatch(/non-negative/i);
+  });
+
+  it('AC-PLC-009: budget sheet values use a neutral comma-grouped dot-decimal format and reject excess scale', () => {
+    const d = make();
+    const field = d.fields.find((f) => f.key === 'budgetedAmount')!;
+    for (const locale of [EN_LOCALE, ID_LOCALE]) {
+      setActiveLocale(locale);
+      expect(field.validate('1,234.56')).toBeNull();
+      expect(d.toInput(cells({ budgetedAmount: '1,234.56' })).budgetedAmount).toBe(1234.56);
+      expect(field.validate('1.234')).toMatch(/2 decimal|two decimal/i);
+    }
+  });
+
+  it('DD-I18N-10: a formula cell\'s float noise imports as its cent value; genuine extra precision writes nothing', async () => {
+    const d = make();
+    const field = d.fields.find((f) => f.key === 'budgetedAmount')!;
+    for (const locale of [EN_LOCALE, ID_LOCALE]) {
+      setActiveLocale(locale);
+      expect(field.validate('1234.5600000000002')).toBeNull();
+      expect(d.toInput(cells({ budgetedAmount: '1234.5600000000002' })).budgetedAmount).toBe(1234.56);
+      expect(field.validate('1234.567')).toMatch(/2 decimal|two decimal/i);
+      expect(() => d.toInput(cells({ budgetedAmount: '1234.567' }))).toThrow();
+    }
+    await d.create(d.toInput(cells({ budgetedAmount: '1234.5600000000002' })));
+    expect(budget.createLineItem).toHaveBeenCalledTimes(1);
+    expect(budget.createLineItem.mock.calls[0][1]).toMatchObject({ budgeted_amount: 1234.56 });
   });
 
   it('an omitted fiscal year stays NULL — PMO never invents another system’s calendar name', async () => {

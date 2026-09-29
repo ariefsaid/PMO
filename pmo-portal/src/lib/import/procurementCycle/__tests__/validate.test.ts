@@ -1,8 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { validateGroups } from '../validate';
 import { groupRows } from '../group';
 import { makeRefLookup } from '@/src/lib/import/refLookup';
 import type { CycleRow, CaseGroup } from '../types';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
+
+afterEach(() => resetActiveLocale());
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -120,6 +126,29 @@ describe('validateGroups — AC-CYCLE-VAL-003: Quotation required fields', () =>
     const group = makeGroup(rows);
     const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
     expect(result.rows[0].valid).toBe(true);
+  });
+
+  it('AC-PLC-009: import amounts use neutral grouping and reject precision beyond two decimals', () => {
+    for (const locale of [EN_LOCALE, ID_LOCALE]) {
+      setActiveLocale(locale);
+      const check = (amount: string) => {
+        const group = makeGroup([
+          row({
+            caseRef: 'C-PLC',
+            type: 'Quotation',
+            title: 'Quotation',
+            vendor: 'Acme Supplies',
+            amount,
+            date: '2025-03-10',
+            rowNumber: 1,
+          }),
+        ]);
+        return validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk })[0].rows[0];
+      };
+
+      expect(check('1,234.56').valid).toBe(true);
+      expect(check('1.234').errors.join(' ')).toMatch(/2 decimal|two decimal|amount/i);
+    }
   });
 });
 
@@ -468,6 +497,18 @@ describe('validateGroups — #505: VI tax treatment + tax amount are required', 
     const result = validateRow(viRow({ taxAmount: '0', taxTreatment: 'exclusive' }));
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it('AC-PLC-009: neutral imported invoice amounts reject precision beyond two decimals', () => {
+    setActiveLocale(ID_LOCALE);
+    const grouped = validateRow(viRow({ amount: '1,234.56', taxAmount: '1.23' }));
+    expect(grouped.valid).toBe(true);
+    const excessValue = validateRow(viRow({ amount: '1.234', taxAmount: '0' }));
+    expect(excessValue.valid).toBe(false);
+    expect(excessValue.errors.join(' ')).toMatch(/2 decimal|two decimal|amount/i);
+    const excessTax = validateRow(viRow({ amount: '1000', taxAmount: '1.234' }));
+    expect(excessTax.valid).toBe(false);
+    expect(excessTax.errors.join(' ')).toMatch(/tax amount/i);
   });
 
   it('#505: the tax columns are NOT required on a non-VI row', () => {

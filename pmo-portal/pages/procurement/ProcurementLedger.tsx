@@ -37,19 +37,18 @@ import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency, formatDateUtc } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
 // ---------------------------------------------------------------------------
-// Date formatting (UTC-safe — consistent with RecordCard's formatDate)
+// Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
+// viewer's timezone (#684, FR-PLC-006).
 // ---------------------------------------------------------------------------
 
 function formatBusinessDate(iso: string): string {
-  // iso can be either a date string (YYYY-MM-DD) or a full datetime
-  const datePart = iso.slice(0, 10);
-  const [y, m, d] = datePart.split('-').map(Number);
-  return formatDateUtc(new Date(Date.UTC(y, m - 1, d)));
+  // iso can be either a date string (YYYY-MM-DD) or a full datetime; the date part is the value.
+  return formatDateOnly(iso.slice(0, 10));
 }
 
 // ---------------------------------------------------------------------------

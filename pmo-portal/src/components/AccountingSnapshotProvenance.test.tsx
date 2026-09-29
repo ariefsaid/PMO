@@ -5,7 +5,8 @@
  *
  * RED until AccountingSnapshotProvenance.tsx exists.
  */
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen } from '@testing-library/react';
 import { AccountingSnapshotProvenance } from './AccountingSnapshotProvenance';
 
@@ -55,5 +56,21 @@ describe('AccountingSnapshotProvenance (task 7.8 — read-only provenance displa
     expect(screen.getByText(/GL Entry/)).toBeInTheDocument();
     // no version chip rendered
     expect(screen.queryByText(/erpnext-/)).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005: the snapshot date follows the profile timezone', () => {
+  afterEach(() => resetActiveLocale());
+
+  it('shows the as_of instant on the calendar day of the viewer timezone', () => {
+    const asOf = '2026-06-14T23:30:00Z';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const { unmount } = render(<AccountingSnapshotProvenance asOf={asOf} sourceReport="GL Entry" reportVersion={null} />);
+    expect(screen.getByText(/Jun 14, 2026/)).toBeInTheDocument();
+    unmount();
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    render(<AccountingSnapshotProvenance asOf={asOf} sourceReport="GL Entry" reportVersion={null} />);
+    expect(screen.getByText(/Jun 15, 2026/)).toBeInTheDocument();
   });
 });

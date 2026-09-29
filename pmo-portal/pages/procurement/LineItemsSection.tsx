@@ -7,8 +7,16 @@ import {
   Icon,
   ConfirmDialog,
   FieldError,
+  useMoneyInputMask,
 } from '@/src/components/ui';
-import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
+import {
+  formatCurrency,
+  formatMoneyInputValue,
+  moneyInputErrorKind,
+  numberSymbols,
+  parseMoneyInputAtScale,
+} from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 
 // ---------------------------------------------------------------------------
@@ -30,22 +38,56 @@ export interface ItemDraft {
 
 const EMPTY_DRAFT: ItemDraft = { name: '', quantity: '', rate: '' };
 
-/** Parse a possibly-formatted numeric string → number (0 on empty/invalid). Delegates to the
- *  shared `parseMoneyInput` so the persisted value matches what `validateLineNum` accepted. */
+/**
+ * Parse a possibly-formatted quantity → number (0 on empty/invalid). Quantity is stored as
+ * `numeric(14,2)` like the unit price (#684, #699), so it uses the SAME locale-aware scale-2 parse
+ * `validateLineNum` accepted: a third decimal is refused rather than rounded by the column, which
+ * keeps the previewed line total equal to the saved one.
+ */
 function num(v: string): number {
-  return parseMoneyInput(v) ?? 0;
+  return parseMoneyInputAtScale(v, 2) ?? 0;
 }
 
 /**
- * Validate a raw numeric field string for a line-item column.
- * Returns an error message string, or undefined when valid.
- * Must be non-empty and parse (via the SAME `parseMoneyInput` used to persist) to a number > 0.
+ * #684 AC-PLC-010/FR-PLC-010: a value that fails to parse AT ALL under the viewer's number
+ * convention (wrong separators — e.g. `1,234.56` under `id-ID`) is a FORMAT mistake, not a
+ * precision one, and gets a message naming the separators this screen expects, with an example in
+ * the viewer's own convention — never the generic "no more than 2 decimal places", which is simply
+ * wrong for a separator mistake.
+ */
+function describeFormatError(label: string, locale = getNumberLocale()): string {
+  const { decimal, group } = numberSymbols(locale);
+  const example = formatMoneyInputValue(1234.56, locale);
+  return `${label} must use "${group}" to group thousands and "${decimal}" for decimals — for example ${example}.`;
+}
+
+/**
+ * Validate a raw quantity string. Returns an error message string, or undefined when valid.
+ * Must be non-empty and parse (via the SAME scale-2 parse used to persist) to a number > 0.
  */
 function validateLineNum(raw: string, label: string): string | undefined {
   if (!raw.trim()) return `${label} is required.`;
-  const n = parseMoneyInput(raw);
-  if (n === null || n <= 0) return `${label} must be a number greater than 0.`;
-  return undefined;
+  const n = parseMoneyInputAtScale(raw, 2);
+  if (n !== null && n > 0) return undefined;
+  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label);
+  return `${label} must be greater than 0 with no more than 2 decimal places.`;
+}
+
+/**
+ * The unit price is money stored as `numeric(14,2)` (#684, AC-PLC-009): the same locale-aware
+ * scale-2 parse validates it and produces the persisted number, so an amount the column would
+ * have to round is refused here instead of silently saved.
+ */
+function parseRate(raw: string): number | null {
+  const n = parseMoneyInputAtScale(raw, 2);
+  return n !== null && n > 0 ? n : null;
+}
+
+function validateRate(raw: string): string | undefined {
+  if (!raw.trim()) return 'Unit price is required.';
+  if (parseRate(raw) !== null) return undefined;
+  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError('Unit price');
+  return 'Unit price must be greater than 0 with no more than 2 decimal places.';
 }
 
 interface LineItemErrors {
@@ -71,7 +113,7 @@ export interface LineItemsSectionProps {
 
 /** Cell input — the small 30px `li-inp` shell from the mockup. */
 const CellInput: React.FC<
-  React.InputHTMLAttributes<HTMLInputElement> & { numeric?: boolean }
+  React.ComponentPropsWithRef<'input'> & { numeric?: boolean }
 > = ({ numeric, className = '', ...rest }) => (
   <input
     {...rest}
@@ -104,20 +146,31 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const [editDraft, setEditDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [editErrors, setEditErrors] = useState<LineItemErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<ProcurementItemRow | null>(null);
+  // #684: unit-price drafts group in the viewer's number convention as the user types. Only one
+  // row is ever in edit mode, so one mask serves it.
+  const addRateMask = useMoneyInputMask(draft.rate, (rate) => {
+    setDraft((d) => ({ ...d, rate }));
+    setAddErrors((prev) => ({ ...prev, rate: undefined }));
+  });
+  const editRateMask = useMoneyInputMask(editDraft.rate, (rate) => {
+    setEditDraft((d) => ({ ...d, rate }));
+    setEditErrors((prev) => ({ ...prev, rate: undefined }));
+  });
 
   const total = items.reduce((sum, it) => sum + Number(it.amount ?? 0), 0);
 
   const submitAdd = async () => {
     if (!draft.name.trim()) return;
     const qtyErr = validateLineNum(draft.quantity, 'Quantity');
-    const rateErr = validateLineNum(draft.rate, 'Unit price');
-    if (qtyErr || rateErr) {
+    const rateErr = validateRate(draft.rate);
+    const rate = parseRate(draft.rate);
+    if (qtyErr || rateErr || rate === null) {
       setAddErrors({ quantity: qtyErr, rate: rateErr });
       return;
     }
     setAddErrors({});
     try {
-      await onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate: num(draft.rate) });
+      await onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate });
       setDraft(EMPTY_DRAFT);
     } catch (err) {
       onError(err);
@@ -126,15 +179,21 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
   const startEdit = (it: ProcurementItemRow) => {
     setEditingId(it.id);
-    setEditDraft({ name: it.name, quantity: String(it.quantity), rate: String(it.rate) });
+    // Seed in the viewer's convention so an untouched value re-parses to the same number.
+    setEditDraft({
+      name: it.name,
+      quantity: formatMoneyInputValue(Number(it.quantity)),
+      rate: formatMoneyInputValue(Number(it.rate)),
+    });
     setEditErrors({});
   };
 
   const submitEdit = async (id: string) => {
     if (!editDraft.name.trim()) return;
     const qtyErr = validateLineNum(editDraft.quantity, 'Quantity');
-    const rateErr = validateLineNum(editDraft.rate, 'Unit price');
-    if (qtyErr || rateErr) {
+    const rateErr = validateRate(editDraft.rate);
+    const rate = parseRate(editDraft.rate);
+    if (qtyErr || rateErr || rate === null) {
       setEditErrors({ quantity: qtyErr, rate: rateErr });
       return;
     }
@@ -143,7 +202,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       await onUpdate(id, {
         name: editDraft.name.trim(),
         quantity: num(editDraft.quantity),
-        rate: num(editDraft.rate),
+        rate,
       });
       setEditingId(null);
     } catch (err) {
@@ -243,11 +302,9 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                         <CellInput
                           numeric
                           aria-label={`Edit unit price for ${it.name}`}
+                          ref={editRateMask.ref}
                           value={editDraft.rate}
-                          onChange={(e) => {
-                            setEditDraft((d) => ({ ...d, rate: e.target.value }));
-                            setEditErrors((prev) => ({ ...prev, rate: undefined }));
-                          }}
+                          onChange={editRateMask.onChange}
                         />
                         <FieldError>{editErrors.rate}</FieldError>
                       </div>
@@ -339,20 +396,22 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                     <CellInput
                       numeric
                       aria-label="New item unit price"
-                      placeholder="0.00"
+                      placeholder={`0${numberSymbols().decimal}00`}
+                      ref={addRateMask.ref}
                       value={draft.rate}
-                      onChange={(e) => {
-                        setDraft((d) => ({ ...d, rate: e.target.value }));
-                        setAddErrors((prev) => ({ ...prev, rate: undefined }));
-                      }}
+                      onChange={addRateMask.onChange}
                     />
                     <FieldError>{addErrors.rate}</FieldError>
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {draft.quantity && draft.rate
-                    ? formatCurrency(num(draft.quantity) * num(draft.rate), currency)
-                    : '—'}
+                  {(() => {
+                    // #684: show "—" while either side fails to PARSE — not $0, which reads as a
+                    // real (zero) total rather than "not entered / not a number yet".
+                    const qty = parseMoneyInputAtScale(draft.quantity, 2);
+                    const rate = parseMoneyInputAtScale(draft.rate, 2);
+                    return qty !== null && rate !== null ? formatCurrency(qty * rate, currency) : '—';
+                  })()}
                 </td>
                 <td className="px-3 py-2 text-center">
                   <Button

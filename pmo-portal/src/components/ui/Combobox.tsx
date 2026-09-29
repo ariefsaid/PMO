@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { FieldError } from './FormFields';
@@ -81,6 +82,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   disabled,
   className,
 }) => {
+  const { t } = useTranslation();
   const baseId = useId();
   const labelId = `${baseId}-lbl`;
   const listId = `${baseId}-list`;
@@ -107,11 +109,16 @@ export const Combobox: React.FC<ComboboxProps> = ({
     [selectedOption, options, value],
   );
 
+  // Underscore/space are the SAME word break to a searcher (an IANA zone's city segment is
+  // underscore-joined, "America/New_York", but nobody types the underscore) — normalize both
+  // sides so "new york" matches it (#684).
+  const normalizeForSearch = (s: string) => s.toLowerCase().replace(/_/g, ' ');
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeForSearch(query.trim());
     if (!q) return options;
     return options.filter(
-      (o) => o.label.toLowerCase().includes(q) || o.sub?.toLowerCase().includes(q),
+      (o) => normalizeForSearch(o.label).includes(q) || (o.sub && normalizeForSearch(o.sub).includes(q)),
     );
   }, [options, query]);
 
@@ -162,10 +169,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
     if (open) searchRef.current?.focus();
   }, [open, state]);
 
-  // Reset the highlight when the visible set changes (nothing pre-highlighted).
+  // Reset the highlight when the visible set changes — EXCEPT when typing has narrowed the list
+  // to exactly one match, which auto-highlights it (#684): otherwise Enter after typing a query
+  // that leaves a single result does nothing (`filtered[-1]` is undefined) until an ArrowDown.
   useEffect(() => {
-    setActive(-1);
-  }, [query, options]);
+    setActive(filtered.length === 1 ? 0 : -1);
+  }, [filtered]);
 
   // Keep the active option scrolled into view as the highlight moves with the
   // keyboard (so a long, data-driven list never highlights an off-screen row).
@@ -209,6 +218,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
       onChange(opt.value, opt);
       setOpen(false);
       setQuery('');
+      // Without this, focus drops to <body> when the selection came from the keyboard (#684) —
+      // the trigger is where focus was before the popover opened, so it is where it returns to.
+      triggerRef.current?.focus();
     },
     [onChange],
   );
@@ -311,10 +323,10 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onSearchKeyDown}
-                aria-label={`Search ${noun}s`}
+                aria-label={t('combobox.search.label', { defaultValue: 'Search {{noun}}s', noun })}
                 aria-controls={listId}
                 aria-activedescendant={activeId}
-                placeholder={searchPlaceholder ?? `Search ${noun}s…`}
+                placeholder={searchPlaceholder ?? t('combobox.search.placeholder', { defaultValue: 'Search {{noun}}s…', noun })}
                 className="w-full border-0 bg-transparent text-[13.5px] text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
@@ -324,26 +336,32 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 <div className="skel skel-line" style={{ width: '72%' }} />
                 <div className="skel skel-line" style={{ width: '58%' }} />
                 <div className="skel skel-line" style={{ width: '65%' }} />
-                <span className="sr-only">Loading {noun}s…</span>
+                <span className="sr-only">{t('combobox.loading', { defaultValue: 'Loading {{noun}}s…', noun })}</span>
               </div>
             )}
 
             {state === 'error' && (
               <div className="px-3 py-3.5 text-center text-[12.5px]" style={{ color: 'hsl(0 72% 45%)' }}>
-                Couldn&apos;t load {noun}s.
+                {t('combobox.error.title', { defaultValue: "Couldn't load {{noun}}s.", noun })}
                 <button
                   type="button"
                   onClick={() => load()}
                   className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
                 >
                   <Icon name="refresh" className="size-[14px]" />
-                  Retry
+                  {t('combobox.error.retry', 'Retry')}
                 </button>
               </div>
             )}
 
             {state === 'ready' && (
-              <ul ref={listRef} id={listId} role="listbox" aria-label={`${noun}s`} className="max-h-[220px] overflow-y-auto p-[5px]">
+              <ul
+                ref={listRef}
+                id={listId}
+                role="listbox"
+                aria-label={t('combobox.listLabel', { defaultValue: '{{noun}}s', noun })}
+                className="max-h-[220px] overflow-y-auto p-[5px]"
+              >
                 {filtered.map((opt, i) => {
                   const isSelected = opt.value === value;
                   const isActive = i === active;
@@ -375,8 +393,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
                 {filtered.length === 0 && (
                   <li role="presentation" className="px-3 py-3.5 text-center text-[12.5px] text-muted-foreground">
-                    No {noun} matches
-                    {query ? ` "${query}"` : ''}.
+                    {query
+                      ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
+                      : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun })}
                     {onCreate && query.trim() && (
                       <button
                         type="button"

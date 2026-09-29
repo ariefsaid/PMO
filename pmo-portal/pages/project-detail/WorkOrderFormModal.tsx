@@ -13,7 +13,7 @@ import {
   useEntityForm,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseMoneyInput } from '@/src/lib/format';
+import { parseMoneyInputAtScale } from '@/src/lib/format';
 import { parseTaxFacts } from '@/src/lib/taxTreatment';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, WorkOrderInput, WorkOrderPatch } from '@/src/lib/db/workOrders';
@@ -60,11 +60,11 @@ const validate = (
   }
   if (isEdit) return errors;
 
-  const value = parseMoneyInput(v.orderValue);
+  const value = parseMoneyInputAtScale(v.orderValue, 2);
   if (value === null || value < 0) {
     errors.orderValue = t(
       'projectDetail.workOrderForm.errors.value',
-      'Enter the order value as a non-negative number',
+      'Enter the order value as a non-negative amount with no more than 2 decimal places',
     );
   }
   const tax = parseTaxFacts(v.taxTreatment, v.taxAmount);
@@ -181,9 +181,8 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           });
           return;
         }
-        // Re-parsed rather than trusted: `validate` already proved both are well-formed, and this
-        // is the same single parse (`parseMoneyInput`) validation used, so the two cannot diverge.
-        const value = parseMoneyInput(values.orderValue);
+        // Re-parse with the same scale-2 locale parser used by validation before persisting.
+        const value = parseMoneyInputAtScale(values.orderValue, 2);
         const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
         if (value === null || tax === null) return;
         await onCreate({
@@ -315,6 +314,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
               onChange={valueField.onChange}
               onBlur={valueField.onBlur}
               error={valueField.error}
+              localeAware
               data-testid="wo-order-value"
             />
             <SelectField
@@ -339,6 +339,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
               onBlur={taxField.onBlur}
               error={taxField.error}
               helper={t('projectDetail.workOrderForm.taxAmountHelper', 'Enter 0 if there is no tax.')}
+              localeAware
               data-testid="wo-tax-amount"
             />
           </FormGrid>

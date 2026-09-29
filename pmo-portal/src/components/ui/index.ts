@@ -93,6 +93,7 @@ export {
   type FormSectionProps,
   type FormActionsProps,
 } from './FormFields';
+export { useMoneyInputMask } from './useMoneyInputMask';
 export { Combobox, type ComboboxProps, type ComboboxOption } from './Combobox';
 export {
   EntityFormModal,

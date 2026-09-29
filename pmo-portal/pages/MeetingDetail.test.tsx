@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const { meetingState, attendeesState, grantsState, actionItemsState, mutations, routeTaskWriteMock } =
   vi.hoisted(() => ({
@@ -370,6 +371,67 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByTestId('meeting-edit')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-delete')).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFILE timezone, not the device zone', () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    // Simulate a device/browser zone that DIFFERS from the resolved profile timezone (#684's
+    // reported scenario: profile Asia/Jakarta, browser America/Los_Angeles).
+    process.env.TZ = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    meetingState.data = { ...baseMeeting, occurred_at: '2026-06-14T14:15:00Z' }; // 21:15 Jakarta, 07:15 LA
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+    resetActiveLocale();
+  });
+
+  it('prefills "When" with the same wall time the header displays, in the profile timezone', async () => {
+    renderPage('Engineer');
+    expect(screen.getByText(/09:15\s?PM/i)).toBeInTheDocument(); // header, profile-zone wall time
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    expect(when.value).toBe('2026-06-14T21:15');
+  });
+
+  it('submitting the unedited default keeps the same instant', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    const call = mutations.update.mutateAsync.mock.calls[0][0];
+    expect(call.patch.occurred_at).toBe('2026-06-14T14:15:00.000Z');
+  });
+
+  it('editing to 10:00 saves 10:00 in the profile timezone', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    // fireEvent-style direct value set + change, mirroring datetime-local input semantics.
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.type(when, '2026-06-14T10:00');
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    const call = mutations.update.mutateAsync.mock.calls[0][0];
+    // 10:00 Asia/Jakarta (UTC+7) is 03:00Z.
+    expect(call.patch.occurred_at).toBe('2026-06-14T03:00:00.000Z');
+  });
+
+  it('clearing "When" blocks the save with a visible error, and never falls back to the old time', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    // Shown twice by design: the inline field error and the dialog's error summary banner.
+    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
   });
 });
 
