@@ -18,7 +18,7 @@
  * parallel-safe instead of serial-lane profile mutation.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 const INNER_EPSILON = 1; // 1px sub-pixel rendering tolerance
 
@@ -97,6 +97,7 @@ test.describe('AC-SBC-001 sales board card money-row geometry (#696)', () => {
         await page.goto('/sales?view=kanban');
         if (bahasa) await expect(page.locator('html')).toHaveAttribute('lang', 'id', { timeout: 60_000 });
         await expect(page.getByTestId('project-card').first()).toBeVisible({ timeout: 60_000 });
+        await waitForFonts(page);
 
         const { cardCount, cardOverflows, listScroll } = await measureBoard(page);
         expect(cardCount, 'expected seeded deal cards on the board').toBeGreaterThanOrEqual(5);

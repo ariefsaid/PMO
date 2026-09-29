@@ -409,6 +409,11 @@ describe('SalesPipeline Board stage selection (#697)', () => {
     // The selected column carries a visible mark; the others do not.
     expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
     expect(screen.getByTestId('stage-Leads').querySelector('[data-selected="true"]')).toBeNull();
+    // Not colour-only: the selected column is announced (aria-current) and carries a ring cue.
+    const selectedColumn = screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]');
+    expect(selectedColumn).toHaveAttribute('aria-current', 'true');
+    expect(selectedColumn).toHaveClass('ring-2');
+    expect(screen.getByTestId('stage-Leads').querySelector('[aria-current="true"]')).toBeNull();
   });
 
   it('#697: selecting a different stage moves again; deselecting clears the mark', async () => {
@@ -428,6 +433,12 @@ describe('SalesPipeline Board stage selection (#697)', () => {
   it('#697: a board opened with ?status= already selected lands on that stage column', async () => {
     renderPage('/sales?view=kanban&status=Tender%20Submitted');
     await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
+  });
+
+  it('#697: a scroller without scrollTo (old webview) still opens on the selected stage without throwing', () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, writable: true, value: undefined });
+    renderPage('/sales?view=kanban&status=Tender%20Submitted');
     expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
   });
 });

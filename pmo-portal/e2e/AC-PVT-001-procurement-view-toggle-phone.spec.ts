@@ -3,13 +3,13 @@
 /**
  * AC-PVT-001 (#715) — a phone user can reach the Procurement Table/Board switch and it works.
  *
- * ORACLE: at 390px the "Procurement view" tablist has a real (non-zero) box inside the viewport,
- * and choosing Board then Table changes what the page renders (the board's stage columns appear,
- * then the list rows replace them). Projects and Sales already keep a usable switch at this width.
+ * ORACLE: at 390px the "Procurement view" tablist has a real (non-zero) box inside the viewport, the
+ * page does not pan sideways, and choosing Board then Table changes what the page renders (the
+ * board's stage columns appear, then the list rows replace them). Projects and Sales already keep a usable switch at this width.
  * Supersedes the A-MIN-1 rule that hid this toggle below md.
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 test.describe('AC-PVT-001 procurement view toggle on a phone @mobile', () => {
   test('AC-PVT-001: the Procurement view switch is visible at 390px and switching Table/Board changes the view', async ({
@@ -21,12 +21,22 @@ test.describe('AC-PVT-001 procurement view toggle on a phone @mobile', () => {
 
     const toggle = page.getByRole('tablist', { name: 'Procurement view' });
     await expect(toggle).toBeVisible({ timeout: 60_000 });
+    await waitForFonts(page);
     const box = await toggle.boundingBox();
     expect(box, 'the view tablist has a rendered box').not.toBeNull();
     expect(box!.width).toBeGreaterThan(0);
     expect(box!.height).toBeGreaterThan(0);
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(390 + 1);
+
+    // No page-level sideways scroll at 390px: showing the switch must not push the toolbar wider.
+    const overflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(overflow.scrollWidth, 'the page must not pan sideways at 390px').toBeLessThanOrEqual(
+      overflow.clientWidth,
+    );
 
     const boardStage = page.locator('[data-testid^="prstage-"]').first();
     const tableTab = toggle.getByRole('tab', { name: 'Table' });

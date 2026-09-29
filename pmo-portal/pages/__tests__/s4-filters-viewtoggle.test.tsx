@@ -207,7 +207,7 @@ describe('AC-MOB-VT: Projects view toggle remains reachable below md', () => {
     // #715: a phone user must be able to leave the last-used view, so neither the tablist's
     // wrapper nor any ancestor up to the page carries `hidden`.
     for (let el: HTMLElement | null = viewToggle; el && el !== document.body; el = el.parentElement) {
-      expect(el.className, `${el.tagName} must not hide the toggle`).not.toMatch(/(^|\s)hidden(\s|$)/);
+      expect(el.className, `${el.tagName} must not hide the toggle`).not.toMatch(/(^|\s|:)hidden(\s|$)/);
     }
     const tabs = Array.from(viewToggle.querySelectorAll<HTMLElement>('[role="tab"]'));
     expect(tabs.map((t) => t.textContent?.trim())).toEqual(['Table', 'Board']);
