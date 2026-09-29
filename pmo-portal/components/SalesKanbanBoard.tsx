@@ -54,8 +54,13 @@ const DealCard: React.FC<{
         <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
       }
       body={
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="flex items-baseline gap-2">
+        // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
+        // amounts + the PPN label) amount, basis, weighted figure and the probability pill do not
+        // fit on one line — non-wrapping, they overran the card and gave every column's card list
+        // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
+        // the pill whole when it drops to its own line.
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-[15px] font-bold tabular">
               {formatCurrency(project.contract_value, project.currency)}
             </span>
@@ -71,7 +76,7 @@ const DealCard: React.FC<{
               })}
             </span>
           </div>
-          <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+          <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
         </div>
       }
       onOpen={onActivate}
