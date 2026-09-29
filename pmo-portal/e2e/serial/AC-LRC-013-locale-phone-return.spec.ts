@@ -22,7 +22,9 @@ const OPEN_CABLECORE = { name: 'Open CableCore Electrical', exact: true };
 
 /** The settings page's native labelled select; its option VALUES are locale-stable. */
 function languageSelect(page: Page) {
-  return page.locator('select');
+  // Preferences now also carries a Number format select (#684); pick the language one by its label
+  // in either interface language.
+  return page.getByLabel(/^(Interface language|Bahasa antarmuka)$/);
 }
 /** The primary save button — name matches both English ("Save") and Bahasa ("Simpan") UIs. */
 function saveButton(page: Page, { exact = false }: { exact?: boolean } = {}) {
