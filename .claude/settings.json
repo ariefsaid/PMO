@@ -31,6 +31,11 @@
             "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-push-collision-gate.sh\"",
             "timeout": 30,
             "statusMessage": "Checking ADR/migration collisions\u2026"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/ci-e2e-gate.sh\"",
+            "statusMessage": "Checking CI fair-use caps\u2026"
           }
         ]
       }
