@@ -192,18 +192,21 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
   });
 
-  it('clicking a tab navigates (replace) to its deep-link', async () => {
+  // list-working-set-return (#682): tab switches now forward the current router `location.state`
+  // so a captured list-return context survives a tab change (Director ruling 2026-09-29 amended
+  // — same class as the other `{ replace: true }` tab-switch assertions).
+  it('clicking a tab navigates (replace) to its deep-link, forwarding location.state', async () => {
     renderAt('/procurement/proc-001');
     await userEvent.click(screen.getByRole('tab', { name: /Vendor quotes/ }));
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', { replace: true });
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', { replace: true, state: null });
   });
 
-  it('ArrowRight moves selection to the next tab (roving keyboard nav)', async () => {
+  it('ArrowRight moves selection to the next tab (roving keyboard nav), forwarding location.state', async () => {
     renderAt('/procurement/proc-001');
     const overview = screen.getByRole('tab', { name: 'Overview' });
     overview.focus();
     await userEvent.keyboard('{ArrowRight}');
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', { replace: true });
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', { replace: true, state: null });
   });
 
   it('the active panel is a role=tabpanel labelled by the active tab (a11y wiring)', () => {

@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useLocation } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -52,6 +52,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import {
   lifecycleSteps,
   pillVariantForStatus,
@@ -263,6 +264,7 @@ const ProcurementDetails: React.FC = () => {
   const may = usePermission();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   const detailQuery = useProcurementDetail(procurementId);
@@ -307,14 +309,19 @@ const ProcurementDetails: React.FC = () => {
     return () => setEntity(undefined);
   }, [detailQuery.data, setEntity]);
 
-  // Back to the Procurement index — a plain navigate, no tab (AC-NAV-007). The
-  // breadcrumb resolves the record title from the cached list in App.tsx.
-  const goBack = () => navigate('/procurement');
+  // Back to the Procurement index (AC-NAV-007/AC-LRC-005): `returnToList` navigates to the
+  // captured Procurement list URL when the record was opened from a narrowed list, and falls
+  // back to the bare index with clean state for a direct/copied link. The desktop parent
+  // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
+  const { returnToList } = useListReturn({ list: 'procurement' });
+  const goBack = () => returnToList('procurement');
 
   // Deep-linkable tab switch (mirrors ProjectDetail) — replace so tab changes don't
   // pile up in history. The shell route is `/procurement/:procurementId/:tab?`.
+  // list-working-set-return (#682): forward the current router state so a captured
+  // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
   const setTab = (next: ProcTab) =>
-    navigate(`/procurement/${procurementId}/${next}`, { replace: true });
+    navigate(`/procurement/${procurementId}/${next}`, { replace: true, state: location.state });
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {
