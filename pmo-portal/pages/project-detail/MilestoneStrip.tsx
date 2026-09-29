@@ -226,7 +226,25 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             </li>
             {isDesktop && (
               <li>
-                <div data-testid="milestone-card-grid" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {/* AC-RAM-004 (#688) Discover round 3 (2026-09-29): the previous fixed
+                    `sm:grid-cols-2 xl:grid-cols-4` sized columns off the VIEWPORT, but this grid
+                    sits in a two-column record layout (`ProjectDetail`'s
+                    `lg:grid-cols-[minmax(0,1fr)_340px]`) — its own rendered width is ~627px at a
+                    1280px viewport and ~787px at 1440px, nowhere near 1280/4=320px per card. Forcing
+                    4 columns at that width squeezed the name column to ~7-47px, breaking words
+                    mid-letter (`break-words`, round 2's fix, stopped the % overlap but not this).
+                    `auto-fit`/`minmax` sizes columns off the GRID'S OWN width instead of a viewport
+                    breakpoint, so the name column always gets >= `MIN_CARD_WIDTH` regardless of the
+                    record layout it's embedded in — DESIGN.md "narrow cards: stack secondary metrics
+                    rather than squeezing the title" (this file's card keeps % beside the name, so the
+                    floor guarantees room for both instead of stacking). `MIN_CARD_WIDTH` (220px) covers
+                    card padding (24px) + the ⋯ menu column (40px) + the reserved % column (52px),
+                    leaving >=100px for the name — enough for the longest seeded word
+                    ("Commissioning", ~95px at 12px font-semibold) to never need a mid-word break. */}
+                <div
+                  data-testid="milestone-card-grid"
+                  className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3"
+                >
                   {all.map((milestone) => (
                     <MilestonePhaseCard
                       key={milestone.id}

@@ -306,6 +306,17 @@ them.
   re-scan of the two project-lens surfaces), `pmo-portal/src/components/ui/LifecycleStepper.tsx` (focus
   ring drawn inward — `outline-offset-[-2px]` — so the scroll region's clipping wrapper can no longer hide
   it; `data-testid="stepper-clip-wrapper"` added for the geometry gate).
+  **Director admission (2026-09-29, third round — readability follow-up):** the second round's
+  `break-words`+`min-w[44px]` fix stopped the name/percentage overlap but not the underlying squeeze —
+  the milestone card grid was sized off the *viewport* (`sm:grid-cols-2 xl:grid-cols-4`) while it actually
+  renders inside `ProjectDetail`'s narrower two-column record layout, so a forced 4th column at 1280/1440px
+  left the name column readable-width-zero and `break-words` cut words mid-letter ("Enginee/ring",
+  "Procure/ment"). Fixed and gate-tested under this same admission. Files touched:
+  `pmo-portal/pages/project-detail/MilestoneStrip.tsx` (`milestone-card-grid`: `grid-cols-[repeat(auto-fit,minmax(220px,1fr))]`
+  sizes columns off the grid's own rendered width instead of a viewport breakpoint),
+  `pmo-portal/e2e/AC-RAM-004-ris-admin-geometry.spec.ts` (new describe block — every phase name's words
+  render on one line at 1280px/1440px), `DESIGN.md` (milestone card note on narrow-card behavior),
+  `docs/qa-portfolio.md` (new graduation row).
 
 ## Acceptance criteria and owning proof
 

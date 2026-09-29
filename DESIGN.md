@@ -697,6 +697,17 @@ wiring) + `e2e/AC-RAM-004-ris-admin-axe.spec.ts` (rendered axe, both themes).
 tokens (same H/S family, darkened L) — see the "Avatar categorical solids" table above. Deterministic gate:
 `AdminUsers.avatarContrast.test.ts` (`AC-A11Y-AVATAR-001`).
 
+**Milestone card, narrow-card readability — CLOSED (AC-RAM-004, #688, round 3, 2026-09-29).** A
+grid of secondary metric cards (e.g. `MilestoneStrip`'s `milestone-card-grid`) must size its
+columns off the grid's OWN rendered width, not a viewport breakpoint — a card embedded in a
+narrower record-layout column (e.g. `ProjectDetail`'s two-column `lg:grid-cols-[minmax(0,1fr)_340px]`)
+can be far narrower than the viewport implies, and a fixed column count (`xl:grid-cols-4`) will
+squeeze the title until it has no readable width left. Prefer CSS `auto-fit`/`minmax` (a
+content-driven floor per card) over a viewport-keyed column count; keep the title on one column
+and its secondary metric (the effective %) in a reserved column beside it, sized so the floor
+covers both plus the card's own padding and any corner affordance (the `⋯` menu) — narrow cards
+should drop a column before a title runs out of room, never squeeze the title to fit one.
+
 **Status dots** are graphical (≥3:1) and always paired with a text label (WCAG-exempt); light
 success-dot 3.92 / warn-dot 3.17 / neutral-dot 4.22 on canvas; dark dots already clear 3:1 at the vivid
 hues (success 8.75 / warn 11.01 / neutral 3.12).

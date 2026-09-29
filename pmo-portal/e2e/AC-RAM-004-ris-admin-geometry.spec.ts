@@ -134,3 +134,73 @@ test.describe('AC-RAM-004 geometry: milestone percentage never overlaps the phas
     });
   }
 });
+
+/**
+ * AC-RAM-004 Discover round 3 (#688, 2026-09-29): round 2's `break-words` fix stopped the % from
+ * overlapping the name but not the underlying squeeze — at the 4-column desktop card grid
+ * (`milestone-card-grid`, `xl:grid-cols-4`) the name column narrowed to ~7px at 1280px and ~47px
+ * at 1440px (this grid sits inside `ProjectDetail`'s two-column record layout, so its OWN
+ * rendered width — not the viewport — is what constrains it: ~627px at 1280, ~787px at 1440,
+ * nowhere near enough for 4 columns to hold a readable name). `break-words` then forced a wrap
+ * point INSIDE a word ("Enginee/ring", "Procure/ment") rather than only at spaces.
+ *
+ * The fix sizes columns off the grid's own width (`auto-fit`/`minmax`) instead of a viewport
+ * breakpoint, so the grid drops to fewer, wider columns before a card gets too narrow. This test
+ * proves every seeded phase name (all four: "Engineering Design", "Procurement", "Construction",
+ * "Commissioning & Grid Connection") renders each of its words on a single line — a word is
+ * "broken" if its own text range spans more than one distinct line `top`, which only happens when
+ * the browser had to insert a wrap point inside the word to fit its column.
+ *
+ * Mobile (390px) compact rows (`MilestoneMobileRow`) were checked and found NOT affected: that
+ * row has no `break-words` utility and its name column (`grid-cols-[64px_minmax(0,1fr)_auto]`,
+ * `minmax(0,1fr)`) already has ample width at 390px, so no assertion is added there — an
+ * assertion with no defect behind it is a dead oracle (`docs/qa-portfolio.md`).
+ */
+test.describe('AC-RAM-004 geometry round 3: milestone phase names wrap only at word boundaries', () => {
+  for (const viewport of [
+    { label: '1280', width: 1280, height: 900 },
+    { label: '1440', width: 1440, height: 900 },
+  ]) {
+    test(`AC-RAM-004 every milestone card phase name renders each word on a single line at ${viewport.label}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await signIn(page, ADMIN);
+      await page.goto(`/projects/${DELIVERY_LENS}/overview`);
+      const grid = page.getByTestId('milestone-card-grid');
+      await expect(grid).toBeVisible({ timeout: 20_000 });
+
+      const nameEls = grid.getByTestId('milestone-phase-name');
+      const count = await nameEls.count();
+      expect(count, 'expected the seeded delivery phases to render as cards').toBeGreaterThan(0);
+
+      for (let i = 0; i < count; i += 1) {
+        const nameEl = nameEls.nth(i);
+        const result = await nameEl.evaluate((el) => {
+          const node = el.firstChild;
+          if (!node || node.nodeType !== Node.TEXT_NODE) {
+            return { name: el.textContent ?? '', brokenWords: [] as string[] };
+          }
+          const text = node.textContent ?? '';
+          const brokenWords: string[] = [];
+          for (const match of text.matchAll(/\S+/g)) {
+            const range = document.createRange();
+            range.setStart(node, match.index!);
+            range.setEnd(node, match.index! + match[0].length);
+            // A whole, unbroken word's client rects all share one line `top`. More than one
+            // distinct `top` means the renderer split the word itself across two lines — the
+            // exact geometry `break-words` produces when its column is narrower than the word.
+            const lineTops = new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top)));
+            if (lineTops.size > 1) brokenWords.push(match[0]);
+          }
+          return { name: el.textContent ?? '', brokenWords };
+        });
+
+        expect(
+          result.brokenWords,
+          `"${result.name}" broke word(s) [${result.brokenWords.join(', ')}] mid-word at ${viewport.label}px — every word must stay on one line`,
+        ).toEqual([]);
+      }
+    });
+  }
+});
