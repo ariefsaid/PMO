@@ -11,7 +11,7 @@
 -- ⚑ The command payload is never trusted to assert approved-ness: the entries come back FROM THIS READ,
 --   so a forged payload cannot decide what hours are pushed (ADR-0059 §3.3).
 begin;
-select plan(18);
+select plan(19);
 
 insert into organizations (id, name) values
   ('01430000-0000-0000-0000-00000000000a','TS Push Org A'),
@@ -210,6 +210,18 @@ select throws_ok(
   'AC-TSP-013: the sweep passing a RAW-BANNED actor (status still active) as p_actor is refused 42501');
 reset role;
 update auth.users set banned_until = null where id = '01430000-0000-0000-0000-0000000000a2';
+-- A status-disabled actor on the real sweep path (JWT still cleared) is refused as well.
+reset role;
+update profiles set status = 'disabled' where id = '01430000-0000-0000-0000-0000000000a2';
+set local role service_role;
+select throws_ok(
+  $$ select * from approved_timesheet_for_push(
+       '01430000-0000-0000-0000-000000000010',
+       '01430000-0000-0000-0000-0000000000a2') $$,
+  '42501', null,
+  'AC-TSP-013: the sweep passing a DISABLED actor as p_actor is refused on the real sweep path');
+reset role;
+update profiles set status = 'active' where id = '01430000-0000-0000-0000-0000000000a2';
 set local role service_role;
 select is(
   (select count(*)::int from approved_timesheet_for_push(

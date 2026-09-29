@@ -43,14 +43,10 @@ begin
   -- edge fn's auth guard is not in the path. Without this a just-disabled approver holding a valid JWT
   -- could keep pushing payroll-costing hours into the client's ERP until their token expired.
   --
-  -- ⚑ Deliberately NOT a bare `is_active_member()` conjunct. That helper keys on `auth.uid()`, which is
-  -- NULL on the service_role sweep path — conjoining it would refuse every sweep call and silently
-  -- disable the backstop. So: check the RESOLVED actor's status (covers BOTH the JWT and the `p_actor`
-  -- sweep path uniformly), and additionally require `is_active_member()` only when there IS a JWT
-  -- caller, which is what brings in 0095's `banned_until` (raw-ban) check for that path.
-  -- 0220: the RESOLVED actor's whole standing (status AND 0095's banned_until), on BOTH the JWT and the
-  -- `p_actor` sweep path — `is_active_member(uuid)` (0180) is that rule. Before, the sweep path checked
-  -- the status column only.
+  -- ⚑ Keyed on the RESOLVED actor, never a bare `is_active_member()`: that zero-argument helper reads
+  -- `auth.uid()`, which is NULL on the service_role sweep path, so conjoining it would refuse every sweep
+  -- call and silently disable the backstop. `is_active_member(v_actor)` (0180) applies the whole standing
+  -- rule (status AND 0095's banned_until) to whoever the actor resolved to, on both paths (0220).
   if v_actor_status is distinct from 'active' or not public.is_active_member(v_actor) then
     raise exception 'not authorized' using errcode = '42501';
   end if;
