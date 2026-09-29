@@ -124,7 +124,7 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     expect(h.calls.eq.filter((c) => (c as unknown[])[0] === 'project_id')).toEqual([]);
   });
 
-  it('searches notes_search with websearch semantics on the simple config (FR-MTG-011)', async () => {
+  it('searches notes_search with websearch semantics on the simple config (FR-MTG-011; #708 supersedes fallback-only substring)', async () => {
     h.queue[0] = { data: [], error: null };
     await listMeetings({ search: 'pipeline -old' });
     expect(h.calls.textSearch).toContainEqual([
@@ -132,7 +132,73 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
       'pipeline -old',
       { type: 'websearch', config: 'simple' },
     ]);
-    expect(h.calls.or).toEqual([]);
+    // #708: the substring leg ALWAYS runs alongside full-text (it used to be an infra-fault-only
+    // fallback), so a partial word matches like the other list searches.
+    expect(h.calls.or).toHaveLength(1);
+    expect(String(h.calls.or[0])).toContain('title.ilike.');
+    expect(String(h.calls.or[0])).toContain('notes_text.ilike.');
+  });
+
+  describe('#708 — search is the union of the full-text leg and the substring leg', () => {
+    const row = (id: string, occurred_at: string, title = id) => ({ id, title, occurred_at });
+
+    it('#708: a partial word ("coord") finds "coordination" through the substring leg', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: [], error: null }); // full-text: no whole-word match for "coord"
+      h.queue.push({ data: [row('m1', '2026-09-01T10:00:00Z', 'Site coordination')], error: null });
+      const rows = await listMeetings({ search: 'coord' });
+      expect(h.calls.textSearch).toHaveLength(1);
+      expect(String(h.calls.or[0])).toContain('title.ilike."%coord%"');
+      expect(rows.map((r) => r.id)).toEqual(['m1']);
+    });
+
+    it('#708: the union de-duplicates by id and is ordered newest-first', async () => {
+      h.queue.length = 0;
+      h.queue.push({
+        data: [row('a', '2026-09-02T00:00:00Z'), row('b', '2026-09-01T00:00:00Z')],
+        error: null,
+      });
+      h.queue.push({
+        data: [row('b', '2026-09-01T00:00:00Z'), row('c', '2026-09-03T00:00:00Z')],
+        error: null,
+      });
+      const rows = await listMeetings({ search: 'plan' });
+      expect(rows.map((r) => r.id)).toEqual(['c', 'a', 'b']);
+    });
+
+    it('#708: the merged result is re-capped to MEETING_LIST_CAP, keeping the newest', async () => {
+      const at = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString();
+      h.queue.length = 0;
+      h.queue.push({
+        data: Array.from({ length: 150 }, (_, i) => row(`f${i}`, at(i))),
+        error: null,
+      });
+      h.queue.push({
+        data: Array.from({ length: 150 }, (_, i) => row(`s${i}`, at(1000 + i))),
+        error: null,
+      });
+      const rows = await listMeetings({ search: 'plan' });
+      expect(rows).toHaveLength(MEETING_LIST_CAP);
+      expect(rows[0].id).toBe('s149');
+      // All 150 (newer) substring rows survive; only the 50 newest full-text rows fill the rest.
+      expect(rows.filter((r) => r.id.startsWith('s'))).toHaveLength(150);
+      expect(rows.filter((r) => r.id.startsWith('f'))).toHaveLength(50);
+    });
+
+    it('#708: a full-text error returns the substring leg alone', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: null, error: { message: 'fts unavailable' } });
+      h.queue.push({ data: [row('s1', '2026-09-01T00:00:00Z')], error: null });
+      const rows = await listMeetings({ search: 'plan' });
+      expect(rows.map((r) => r.id)).toEqual(['s1']);
+    });
+
+    it('#708: a substring error throws with the code preserved, even when full-text succeeded', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: [row('a', '2026-09-01T00:00:00Z')], error: null });
+      h.queue.push({ data: null, error: { message: 'denied', code: '42501' } });
+      await expect(listMeetings({ search: 'plan' })).rejects.toMatchObject({ code: '42501' });
+    });
   });
 
   it('falls back to ilike over title + notes_text when the FTS PATH itself errors (infra fault)', async () => {

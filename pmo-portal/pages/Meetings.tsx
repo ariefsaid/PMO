@@ -270,7 +270,7 @@ const Meetings: React.FC = () => {
             searchSurface="meetings-list"
             module="meetings"
             resultCount={rows.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto sm:min-w-[220px]"
           />
         )
       }
