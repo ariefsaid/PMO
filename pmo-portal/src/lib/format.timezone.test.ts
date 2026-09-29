@@ -54,11 +54,29 @@ describe('profile-timezone date formatting', () => {
   });
 });
 
+// A previous version of this test hardcoded 'Asia/Jakarta' as the profile timezone. On a machine
+// whose PROCESS timezone also resolves to Asia/Jakarta (this dev box, and possibly CI), a bug that
+// falls back to the process zone instead of the resolved profile zone would still pass — the two
+// zones agree by coincidence. Pick a profile zone that is proven, at test time, to differ from
+// BOTH the process zone and UTC, so the assertion can only pass for the right reason everywhere.
+const PROCESS_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const CANDIDATE_ZONES: Record<string, string> = {
+  'Asia/Jakarta': '2026-08-25T21:15', // UTC+7, no DST
+  'America/Los_Angeles': '2026-08-25T07:15', // PDT (UTC-7) in August
+};
+const [DISCRIMINATING_ZONE, EXPECTED_WALL_TIME] = (() => {
+  const zone = Object.keys(CANDIDATE_ZONES).find((tz) => tz !== PROCESS_TIME_ZONE);
+  if (!zone) throw new Error('no candidate profile zone differs from the process zone');
+  return [zone, CANDIDATE_ZONES[zone]] as const;
+})();
+
 describe('instantToZonedDatetimeLocal (#684 FR-PLC-006)', () => {
   it('defaults to the resolved profile timezone, not the process/browser zone', () => {
-    setActiveLocale({ ...EN, timezone: 'Asia/Jakarta' });
-    // 2026-08-25T14:15:00Z is 21:15 in Asia/Jakarta (UTC+7) regardless of the test runner's TZ.
-    expect(instantToZonedDatetimeLocal(new Date('2026-08-25T14:15:00Z'))).toBe('2026-08-25T21:15');
+    expect(DISCRIMINATING_ZONE).not.toBe(PROCESS_TIME_ZONE);
+    expect(DISCRIMINATING_ZONE).not.toBe('UTC');
+    setActiveLocale({ ...EN, timezone: DISCRIMINATING_ZONE });
+    // 2026-08-25T14:15:00Z, converted to the DISCRIMINATING_ZONE wall time.
+    expect(instantToZonedDatetimeLocal(new Date('2026-08-25T14:15:00Z'))).toBe(EXPECTED_WALL_TIME);
   });
 
   it('formats the same instant differently in an explicitly-passed zone (overrides the default)', () => {

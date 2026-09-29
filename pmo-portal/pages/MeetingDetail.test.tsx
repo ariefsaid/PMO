@@ -399,4 +399,16 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
     // 10:00 Asia/Jakarta (UTC+7) is 03:00Z.
     expect(call.patch.occurred_at).toBe('2026-06-14T03:00:00.000Z');
   });
+
+  it('clearing "When" blocks the save with a visible error, and never falls back to the old time', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    // Shown twice by design: the inline field error and the dialog's error summary banner.
+    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
 });

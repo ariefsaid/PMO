@@ -719,7 +719,8 @@
       "editSubtitle": "Update this meeting record",
       "editTitle": "Edit meeting",
       "errors": {
-        "titleRequired": "Meeting title is required."
+        "titleRequired": "Meeting title is required.",
+        "whenInvalid": "Enter a valid date and time."
       },
       "location": {
         "label": "Location"
@@ -806,7 +807,8 @@
     },
     "form": {
       "errors": {
-        "titleRequired": "Meeting title is required."
+        "titleRequired": "Meeting title is required.",
+        "whenInvalid": "Enter a valid date and time."
       },
       "location": {
         "label": "Location",

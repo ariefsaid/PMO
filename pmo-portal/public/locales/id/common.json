@@ -719,7 +719,8 @@
       "editSubtitle": "Perbarui data rapat ini",
       "editTitle": "Edit rapat",
       "errors": {
-        "titleRequired": "Judul rapat wajib diisi."
+        "titleRequired": "Judul rapat wajib diisi.",
+        "whenInvalid": "Masukkan tanggal dan waktu yang valid."
       },
       "location": {
         "label": "Lokasi"
@@ -806,7 +807,8 @@
     },
     "form": {
       "errors": {
-        "titleRequired": "Judul rapat wajib diisi."
+        "titleRequired": "Judul rapat wajib diisi.",
+        "whenInvalid": "Masukkan tanggal dan waktu yang valid."
       },
       "location": {
         "label": "Lokasi",

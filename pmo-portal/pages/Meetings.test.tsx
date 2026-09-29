@@ -244,4 +244,17 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
     const [input] = mutations.create.mutateAsync.mock.calls[0];
     expect(input.occurred_at).toBe('2026-06-14T14:15:00.000Z');
   });
+
+  it('clearing "When" blocks the create with a visible error (a meeting time is required)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
+    // Shown twice by design: the inline field error and the dialog's error summary banner.
+    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
 });

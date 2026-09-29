@@ -816,6 +816,11 @@ const makeEditValidate =
     const errors: Partial<Record<keyof EditFormValues, string>> = {};
     if (!v.title.trim())
       errors.title = t('meetingDetail.form.errors.titleRequired', 'Meeting title is required.');
+    // A meeting's time is required (#684): a cleared or unparseable "When" must block the save,
+    // never silently keep the meeting's old time — `zonedDatetimeLocalToInstant` returns null for
+    // both cases.
+    if (!zonedDatetimeLocalToInstant(v.occurredAt))
+      errors.occurredAt = t('meetingDetail.form.errors.whenInvalid', 'Enter a valid date and time.');
     return errors;
   };
 
@@ -865,10 +870,12 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       try {
-        const instant = zonedDatetimeLocalToInstant(values.occurredAt);
+        // `validate` already blocked submit when this is null (#684) — never reached with a
+        // cleared/unparseable value, so there is no silent fallback to the meeting's old time.
+        const instant = zonedDatetimeLocalToInstant(values.occurredAt)!;
         await onSave({
           title: values.title.trim(),
-          occurred_at: (instant ?? new Date(meeting.occurred_at)).toISOString(),
+          occurred_at: instant.toISOString(),
           location: values.location.trim() || null,
           project_id: values.projectId || null,
         });
@@ -895,9 +902,12 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
-      errorSummary={
-        form.errors.title ? [{ fieldId: titleField.id, message: form.errors.title }] : undefined
-      }
+      errorSummary={[
+        form.errors.title ? { fieldId: titleField.id, message: form.errors.title } : null,
+        form.errors.occurredAt
+          ? { fieldId: occurredField.id, message: form.errors.occurredAt }
+          : null,
+      ].filter((item): item is { fieldId: string; message: string } => item !== null)}
       submitError={saveError}
     >
       <FormSection legend={t('meetingDetail.form.sections.details', 'Details')}>
@@ -919,6 +929,7 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
             value={occurredField.value}
             onChange={occurredField.onChange}
             onBlur={occurredField.onBlur}
+            error={occurredField.error}
           />
           <TextField
             id={locationField.id}
