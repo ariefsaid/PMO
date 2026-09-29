@@ -6,7 +6,7 @@
 // like the existing e2e/serial/AC-L10N-060-language-switch.spec.ts. Kept off pm@acme.test (that
 // spec's own subject) to reduce contention within the serial lane.
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from '../helpers';
+import { signIn, waitForFonts } from '../helpers';
 
 /**
  * AC-LRC-013 (list-working-set-return, #683): at a 390px viewport, in English AND Bahasa
@@ -41,6 +41,7 @@ async function waitReady(page: Page) {
  *  SPA shell can still be booting when this runs. */
 async function expectNoHorizontalOverflow(page: Page) {
   await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+  await waitForFonts(page);
   const overflow = await page.evaluate(() => {
     const main = document.querySelector('main')!;
     return { mainWidth: Math.round(main.getBoundingClientRect().width), vw: window.innerWidth };

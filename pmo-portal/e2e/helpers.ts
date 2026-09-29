@@ -90,6 +90,23 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
   await expect(page).toHaveURL(/\/$/);
 }
 
+/**
+ * Wait for web fonts to settle before a spec MEASURES layout (#713).
+ *
+ * The app's Inter faces use `font-display: swap`: text is first laid out in the fallback face and
+ * re-laid-out when Inter arrives, so a `boundingBox()` / `getBoundingClientRect()` / `scrollWidth`
+ * read in that window can see a different text width than the settled page and flip a result that
+ * sits at a column boundary. Call this AFTER the content under test is visible (a face is only
+ * requested once text using it is laid out — `document.fonts.ready` resolves immediately when
+ * nothing has been requested yet) and BEFORE the first measurement.
+ * `scripts/check-e2e-fonts-ready.mjs` fails verify for a geometry-measuring spec that omits it.
+ */
+export async function waitForFonts(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+}
+
 /** Alias for signIn — used by data-layer e2e specs (AC-4xx). */
 export const login = signIn;
 

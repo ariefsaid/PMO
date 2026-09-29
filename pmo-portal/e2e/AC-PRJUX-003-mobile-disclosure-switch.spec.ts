@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — exercises Projects toolbar without changing stored data.
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 test('AC-PRJUX-003: switching mobile toolbar disclosures keeps the tapped action reachable', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 844 });
@@ -12,6 +12,7 @@ test('AC-PRJUX-003: switching mobile toolbar disclosures keeps the tapped action
   await filters.click();
   const filtersRegion = page.getByRole('region', { name: 'Filters' });
   await expect(filtersRegion).toBeVisible();
+  await waitForFonts(page);
   const filtersBox = await filtersRegion.boundingBox();
   expect(filtersBox).not.toBeNull();
   expect(filtersBox!.x).toBeGreaterThanOrEqual(0);

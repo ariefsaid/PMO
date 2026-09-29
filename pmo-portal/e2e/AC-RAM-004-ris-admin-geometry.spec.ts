@@ -2,7 +2,7 @@
 // RIS-Admin surfaces (the pipeline-lens stage journey, the delivery-lens milestone strip). No
 // DB writes.
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 /**
  * AC-RAM-004 (#688) Discover-pass follow-ups (2026-09-29) — two rendered-geometry gaps found
@@ -41,6 +41,7 @@ test.describe('AC-RAM-004 geometry: LifecycleStepper focus ring is not clipped',
       await signIn(page, ADMIN);
       await page.goto(`/projects/${PIPELINE_LENS}`);
       await expect(page.getByLabel('Project stage journey')).toBeVisible({ timeout: 20_000 });
+      await waitForFonts(page);
 
       const scrollContainer = page.getByTestId('stepper-scroll-container');
       await scrollContainer.focus();
@@ -110,6 +111,7 @@ test.describe('AC-RAM-004 geometry: milestone percentage never overlaps the phas
         .locator('section')
         .filter({ hasText: 'Commissioning & Grid Connection' });
       await expect(card).toBeVisible();
+      await waitForFonts(page);
 
       const nameBox = await card.getByTestId('milestone-phase-name').boundingBox();
       const pctBox = await card.getByTestId('milestone-phase-pct').boundingBox();
@@ -169,6 +171,7 @@ test.describe('AC-RAM-004 geometry round 3: milestone phase names wrap only at w
       await page.goto(`/projects/${DELIVERY_LENS}/overview`);
       const grid = page.getByTestId('milestone-card-grid');
       await expect(grid).toBeVisible({ timeout: 20_000 });
+      await waitForFonts(page);
 
       const nameEls = grid.getByTestId('milestone-phase-name');
       const count = await nameEls.count();

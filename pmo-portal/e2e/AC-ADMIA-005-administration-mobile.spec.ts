@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — desktop + 390px reachability/overflow/visibility sweep of the route-backed shell; seeded Admin session, no DB writes.
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 /**
  * AC-ADMIA-005 (rendered) — desktop and 390px phone oracle for the Administration shell (Plan Task 9).
@@ -88,6 +88,7 @@ async function findBleeders(page: Page, vw: number) {
 /** The two complementary no-overflow oracles: no element bleeds past the viewport, and the page
  *  itself never pans horizontally. */
 async function assertNoHorizontalOverflow(page: Page, vw: number) {
+  await waitForFonts(page);
   const bleeders = await findBleeders(page, vw);
   expect(
     bleeders,
@@ -123,6 +124,7 @@ async function driveSections(
     const panelHeading = page.getByRole('heading', { level: 2, name: s.heading });
     await expect(heading).toBeVisible();
     await expect(panelHeading).toBeVisible();
+    await waitForFonts(page);
     if (vw < 600) {
       for (const el of [heading, sectionNav(page).getByRole('link', { name: s.name }), panelHeading]) {
         const box = await el.boundingBox();

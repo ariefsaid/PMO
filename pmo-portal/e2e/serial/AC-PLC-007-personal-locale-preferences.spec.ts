@@ -1,6 +1,6 @@
 // @e2e-isolation: serial — writes a shared seed user's own profile preferences and restores all three to inherit in afterEach.
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from '../helpers';
+import { signIn, waitForFonts } from '../helpers';
 
 // AC-PLC-007 — on a 390px phone, a signed-in user chooses and saves all three personal display
 // preferences (language, number format, timezone); the controls stay reachable, the feedback is
@@ -37,6 +37,7 @@ async function openProfileFromAccountMenu(page: Page) {
 
 /** No control may push the 390px page into horizontal scroll. */
 async function expectNoHorizontalOverflow(page: Page) {
+  await waitForFonts(page);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
