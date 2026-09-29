@@ -4,7 +4,7 @@
 **Rulings:** `DD-MTG-1..5` (`docs/decisions.md:1831`) · **`OD-MTG-1..2`, `DD-MTG-6..7` (owner grill 2026-08-21, §4/§8.1)** · `DD-TASK-1..2` (`docs/decisions.md:1650`) ·
 `OD-CR-3`/`OD-CR-4` (`docs/decisions.md:1106`) · `DD-I18N-1` (`docs/decisions.md:1335`) ·
 `OD-CR-12` (`docs/backlog.md:1038`)
-**Spike:** `docs/spikes/2026-08-19-blocknote-prototype.md` (branch `spike/467-blocknote`, code deliberately unmerged)
+**Spike:** `docs/spikes/2026-08-19-blocknote-prototype.md` (code deliberately unmerged; archived as tag `archive/spike-467-blocknote`)
 **Id prefix:** `MTG` — unused today for both `FR-` and `AC-` across `docs/specs/`.
 
 > **Why this document exists.** #463 and #467 are both closed and neither produced a build ticket, a

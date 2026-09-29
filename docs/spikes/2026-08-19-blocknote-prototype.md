@@ -2,7 +2,7 @@
 
 ## Environment and boundary
 
-- Branch: `spike/467-blocknote`.
+- Branch: `spike/467-blocknote`, archived 2026-09-29 as tag `archive/spike-467-blocknote` (includes the prototype code).
 - Verification environment: Node `v22.23.1` / npm `10.9.8`, satisfying the repository's Node >=22.22.0 requirement. An earlier exploratory run used v22.20.0; the final scoped verification and bundle measurements below were rerun under v22.23.1.
 - Temporary packages: `@blocknote/core@0.54.0`, `@blocknote/react@0.54.0`, `@blocknote/shadcn@0.54.0`; all are MPL-2.0. They were installed with `npm install --no-save --package-lock=false`. Neither `package.json` nor `package-lock.json` changed.
 - Reproduce from `pmo-portal/`: `npm install --no-save --package-lock=false @blocknote/core@0.54.0 @blocknote/react@0.54.0 @blocknote/shadcn@0.54.0 && npm run dev` and open `/spike/blocknote` after the normal demo login.

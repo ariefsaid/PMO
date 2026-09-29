@@ -4,6 +4,17 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ 2026-09-29 — enterprise UI/UX readiness milestone COMPLETE on `dev` (not promoted)
+
+Signed brief `docs/design/2026-09-26-enterprise-coherence-brief.md`: #685 (#691), #689 (#698), #681 (#703),
+#687 (#706), #683 (#709), #684 (#710), #688 (#712), #682 (#717); umbrella #679 closed. The full CI e2e lane
+(chromium + serial) went green via #725, which fixed seven drifted journeys and a real list-seam race (a filter
+picked just before a debounced search write was dropped). `main` and production are untouched by this
+milestone. **Code-ready is not RIS-ready:** RIS stays unproven until a real RIS org Admin exercises live
+Microsoft 365 and ERPNext. Open follow-ups: #690, #692–#697, #700, #701, #704, #707, #708, #711, #713, #715,
+#716; external-access map #720 (API/MCP), PWA #718, record history #719. **CI fair use (owner, shared with MOS):**
+heavy e2e only via `scripts/ci-e2e.sh` (#726).
+
 ### ⚑⚑⚑ CURRENT STATE (2026-09-08) — v0.10.0 is LIVE; what is left is owner-held facts and the RIS test paths
 
 **Live in production (2026-09-11, owner-instructed):** release **v0.10.1** (`b9a84459`) — Cloudflare
@@ -626,10 +637,9 @@ this very entry asserted a control that was not in the tree. Caught by running t
 and getting `No such file or directory`. Landed separately; **a doc claiming a guard is not a guard**. Both gates also now **fail closed on a zero-file scan** — `check-migration-collisions.sh` used
 to print `OK (0 files)` and exit 0 on an empty directory.
 
-**Branch-deletion caveat (still open, owner call):** `redesign/design-system` holds the exploration
+**Branch-deletion caveat — RESOLVED 2026-09-29 without loss:** the branch became the tag `archive/redesign-design-system`, which holds the exploration
 artifacts ADR-0068 references (`design-mockups/redesign/{diverge,converge,reskin}/` + 3 port plans),
-deliberately not promoted. Deletable **if** losing those sketches is acceptable; no citation depends
-on it.
+deliberately not promoted. Nothing was lost; no citation depends on the branch.
 
 
 ### ⚑⚑ LESSONS — 2026-07-29, the promote (read before adding a foreign key or an e2e spec)

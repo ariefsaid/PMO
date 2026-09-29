@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-03 · **Status:** reference catalog (owner to pick; nothing here is committed work)
 **Context:** the agent-native sidecar was retired (ADR-0040 addendum 2026-07-03; PR #209 closed unmerged,
-branch `feat/agent-native-adoption` kept as a mining reference). The next program is **batteries-included A**
+branch `feat/agent-native-adoption` kept as a mining reference; now the tag `archive/agent-native-adoption`). The next program is **batteries-included A**
 (backlog "NEXT BUILD": ① OpenRouter `ModelClient` ② `agent_threads`/`agent_events` ③ `agent_usage`+credits
 ④ PostHog events). This doc is the exhaustive mining pass over the framework — the retired branch's
 installed dist (`@agent-native/core` 0.84.8) **and** upstream docs (agent-native.com/docs, core 0.85.x) —
