@@ -699,6 +699,31 @@ buttons and landmarks. **Keyboard:** tab order follows DOM; overlays add focus m
 `RecordActionZone` keeps the primary action in the keyboard path and above the fold; status pills stay
 dot+label (never color-only).
 
+**Scrollable regions (2026-09-28):** a horizontally scrolling region with no focusable children gets
+`role="group"`, a label, and `tabIndex={0}` — otherwise a keyboard user has no way to reach its overflow
+(axe `scrollable-region-focusable`). Skip this when the region already contains its own focusable
+children (e.g. `Funnel` stages rendered with `onSelect`); adding it there would only insert a redundant
+tab stop ahead of the first real control.
+
+**Bottom-aligned row indicators (2026-09-28, `Funnel` bars):** a fixed top margin and a bare
+`margin-top: auto` each solve only half of "pin an indicator to the bottom of every card in a
+stretched row, with a guaranteed minimum gap above it": a fixed margin loses cross-row alignment the
+moment one sibling's content wraps taller, and `margin-top: auto` alone collapses to a 0px gap
+whenever every sibling's natural height is already equal (the common case, since a flex column with
+no imposed extra height gives an auto margin nothing to consume). Use both together — a fixed
+padding-floor (e.g. `pt-2`) on a transparent wrapper for the minimum gap, plus `mt-auto` on that same
+wrapper for the cross-row alignment — and never put the padding on the indicator's own visible/filled
+element, or the fill color paints through the gap.
+
+**Focus ring inside a scrolling ancestor (2026-09-28, `Funnel` stages):** the global outward
+`:focus-visible` ring (2px width, 2px offset) assumes its element's nearest scrolling ancestor has
+`overflow: visible`. Setting only `overflow-x: auto` on an ancestor still computes `overflow-y` to
+`auto` too (the CSS overflow spec forces the paired axis once either axis leaves `visible`), so that
+ancestor clips the ring's top/bottom edge along with everything else it clips. A focusable element
+whose nearest scrolling ancestor is itself the clip boundary (not a further-out page scroller) must
+draw its ring INWARD instead — `focus-visible:outline-offset-[-2px]` with the same width/color
+token — so the ring never crosses into the ancestor's own clip region on any side.
+
 ---
 
 ## Icons — the `<Icon name=…>` monoline facade (ADR-0068, locked look)
