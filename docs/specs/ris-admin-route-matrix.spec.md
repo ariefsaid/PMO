@@ -233,6 +233,7 @@ confirms each finding before it enters the graduation registry. None is a securi
 | F-4 | Creating a project from `/projects` (origination Leads) shows "Project created · <name>" but no link to the record. The Projects list excludes pre-win projects (ADR-0020), so in an empty organization the list stays empty after a successful create. | A first-time RIS Admin may believe the create failed and create the project again. **Ruled 2026-09-28 (Director, revisitable):** create opens the new record at `/projects/:id`, matching the Meetings precedent (`pages/Meetings.tsx` create handler). Fixed in this issue (FR-RAM-009, AC-RAM-006). | R6 O6 |
 | F-5 | The project record treats a failed read as "not found" (details in R8 O3). | A RIS Admin on a poor connection is told that the first project does not exist, with no retry. | R8 O3 |
 | F-6 | The default tax treatment shows a loading skeleton indefinitely when its read fails (details in R3 O3). | A RIS Admin cannot tell whether an outage has happened or the page is still loading, and has no way to recover. | R3 O3 |
+| F-7 | The pipeline-lens record (`/projects/:id`, R8) panned to ~618px at 390px/360px: `PipelineLens`'s two-card grid had no `min-w-0` on either grid item, so the Journey card's un-wrapped `LifecycleStepper` step row set the shared single-column track's floor past the viewport (AC-RAM-003). | A RIS Admin opening their first project on a phone has to pan the whole page sideways to read the Next-actions card. **Fixed here** (AC-RAM-003, `PipelineLens.tsx` `grid-cols-1` + `min-w-0`). | R8 O9 |
 
 ## Live RIS proof (separate manual acceptance; never claimed here)
 
@@ -276,6 +277,46 @@ them.
   `functions/v1` instead of depending on served edge functions, and use the seed-org sample Admin.
 - **NFR-RAM-002:** This issue shall change no application source, schema, route, permission, or
   configuration, except the FR-RAM-009 create destination and a token-level or one-file fix the Director admits under the AC-RAM-004 stop rule.
+  **Director admission (2026-09-29):** the AC-RAM-004 axe run and the AC-RAM-003 overflow sweep both
+  found real gate-test defects; fixing them (rather than reporting-only) is admitted under this NFR.
+  Files touched, beyond FR-RAM-009/AC-RAM-006: `pmo-portal/index.css` (dark `--destructive` token,
+  §"Unverified solids"), `pmo-portal/pages/Projects.tsx` (dropped `/80` opacity on the customer-contract
+  cell), `pmo-portal/src/components/ui/StatTiles.tsx` (`text-success` → `text-success-text`),
+  `pmo-portal/src/components/ui/Tabs.tsx` (active-tab `text-primary` → `text-primary-text`),
+  `pmo-portal/src/components/milestones/MilestonePhaseHeader.tsx` ("Current" badge and Edit-progress
+  link, same token swap plus dropping the contrast-losing `opacity-60`),
+  `pmo-portal/src/components/ui/LifecycleStepper.tsx` (bar-variant scroll viewport: `role=group` +
+  `tabIndex=0` wrapper, `scrollable-region-focusable`), `pmo-portal/pages/project-detail/PipelineLens.tsx`
+  (`grid-cols-1` base + `min-w-0` on both grid items, the AC-RAM-003 overflow root cause).
+  **Director admission (2026-09-29, second round — regression + Discover follow-ups):** the first
+  AC-RAM-004 fix darkened `--destructive` itself and broke `text-destructive`/the dot/bar (sub-AA in
+  dark); a second rendered pass then found two further clipping/overlap gaps the axe scan itself
+  cannot see. Both are fixed and gate-tested under this same admission. Additional files touched:
+  `DESIGN.md` (§0/§"Unverified solids" — documents the `--destructive`/`--destructive-solid` split),
+  `pmo-portal/index.css` (restores `--destructive` to its original dark hue; adds a dedicated
+  `--destructive-solid` token in both themes), `pmo-portal/src/components/ui/buttonClasses.ts` (the
+  `destructive` Button variant reads `bg-destructive-solid`, not `bg-destructive`),
+  `pmo-portal/src/components/ui/__tests__/destructiveSolidToken.test.ts` (new — the token-split
+  regression gate), `pmo-portal/pages/project-detail/MilestoneStrip.tsx` (mobile "Current" badge:
+  `text-primary` → `text-primary-text`), `pmo-portal/src/components/milestones/MilestonePhaseHeader.tsx`
+  (name column `break-words` + `min-w-0`, percentage column `min-w-[44px]`, so a long milestone name
+  cannot render under the percentage at the 4-column desktop card width; `data-testid` added to both
+  for the geometry gate), `pmo-portal/e2e/AC-RAM-004-ris-admin-geometry.spec.ts` (new — the focus-ring
+  and name/percentage geometry gates), `pmo-portal/e2e/AC-RAM-004-ris-admin-axe.spec.ts` (adds a 390px
+  re-scan of the two project-lens surfaces), `pmo-portal/src/components/ui/LifecycleStepper.tsx` (focus
+  ring drawn inward — `outline-offset-[-2px]` — so the scroll region's clipping wrapper can no longer hide
+  it; `data-testid="stepper-clip-wrapper"` added for the geometry gate).
+  **Director admission (2026-09-29, third round — readability follow-up):** the second round's
+  `break-words`+`min-w[44px]` fix stopped the name/percentage overlap but not the underlying squeeze —
+  the milestone card grid was sized off the *viewport* (`sm:grid-cols-2 xl:grid-cols-4`) while it actually
+  renders inside `ProjectDetail`'s narrower two-column record layout, so a forced 4th column at 1280/1440px
+  left the name column readable-width-zero and `break-words` cut words mid-letter ("Enginee/ring",
+  "Procure/ment"). Fixed and gate-tested under this same admission. Files touched:
+  `pmo-portal/pages/project-detail/MilestoneStrip.tsx` (`milestone-card-grid`: `grid-cols-[repeat(auto-fit,minmax(220px,1fr))]`
+  sizes columns off the grid's own rendered width instead of a viewport breakpoint),
+  `pmo-portal/e2e/AC-RAM-004-ris-admin-geometry.spec.ts` (new describe block — every phase name's words
+  render on one line at 1280px/1440px), `DESIGN.md` (milestone card note on narrow-card behavior),
+  `docs/qa-portfolio.md` (new graduation row).
 
 ## Acceptance criteria and owning proof
 
@@ -303,4 +344,6 @@ them.
 
 No new route, dashboard, guided tour, or setup checklist. No change to permissions, RLS, schema, or edge
 functions. No claim of live RIS readiness and no production promotion. Findings F-1 to F-3, F-5 and F-6 are
-follow-ups; this issue records them and does not fix them. F-4 is fixed here (AC-RAM-006).
+follow-ups; this issue records them and does not fix them. F-4 and F-7 are fixed here (AC-RAM-006,
+AC-RAM-003 respectively) — F-7 under the NFR-RAM-002 Director-admission carve-out (2026-09-29), the seven
+AC-RAM-004 axe-contrast/scroll-region fixes fall under the same admission.

@@ -329,9 +329,10 @@ const Projects: React.FC = () => {
     <ProjectFormModal
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
-        await create.mutateAsync(input);
+        const row = await create.mutateAsync(input);
         toast(t('projects.toast.created', 'Project created'), input.name, 'success');
         setCreateOpen(false);
+        navigate(`/projects/${row.id}`);
       }}
       onError={(err) => {
         const { headline, detail } = classifyMutationError(err);
@@ -378,7 +379,7 @@ const Projects: React.FC = () => {
                 {p.code ?? p.id.slice(0, 8)}
               </div>
               {p.customer_contract_ref && (
-                <div className="truncate font-mono text-[11px] text-muted-foreground/80">
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
                   {p.customer_contract_ref}
                 </div>
               )}

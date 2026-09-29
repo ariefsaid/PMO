@@ -167,7 +167,8 @@ color/semantic token for a first-class dark theme.** Every value below is copied
 ### Status / semantic (the dot/bar hue) + their AA text variants
 | Token | Light | Dark | Role |
 |---|---|---|---|
-| `--destructive` | `0 72% 50%` | `0 80% 62%` | destructive dot/bar/button fill |
+| `--destructive` | `0 72% 50%` | `0 80% 62%` | destructive dot/bar + `text-destructive` (error text) |
+| `--destructive-solid` | `0 72% 50%` | `0 80% 46%` | solid destructive BUTTON fill ONLY (AC-RAM-004) |
 | `--destructive-foreground` | `0 0% 100%` | `0 0% 100%` | white-on-destructive |
 | `--warning` | `40 96% 50%` | `43 90% 58%` | warning dot/bar |
 | `--warning-foreground` | `28 95% 33%` | `43 92% 64%` | AA amber text on warning tint |
@@ -532,6 +533,12 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Do** reserve violet/status hues for non-interactive meaning — never as action colors.
 - **Do** route every status/severity/category pill through `src/lib/status/statusVariants.ts`.
 - **Do** open every primary entity as a routable `/x/:id` page (The Record-Open Rule, §7).
+- **Do** give every item of a responsive `grid`/`flex` layout an explicit `min-w-0` the moment ANY
+  descendant is intrinsically wide and un-wrappable (a `LifecycleStepper`-style scroll row, a mono id,
+  `whitespace-nowrap`): the CSS default `min-width: auto` floors the shared track/item at that
+  descendant's content-based minimum, overflowing a narrow viewport, even when a nested
+  `overflow-hidden` sits several levels further down (AC-RAM-003, #688 — `PipelineLens`'s two-card
+  grid panned to 618px at 390px before this).
 
 ### Don't:
 - **Don't** ship the "AI SaaS marketing" aesthetic (dark+purple-gradients, neon, glassmorphism, hero
@@ -663,10 +670,25 @@ Light (text token → on surface → ratio) and Dark:
 `--primary-text` bright-blue split (the reskin `--ds-primary-text`, already prototyped) landing with the
 surface slices — **not a token-layer concern**. Until then, surface agents MUST use the AA `-text` tokens
 (`--nav-active-text`, `--status-*-text`, `--destructive-text`, `--success-text`) for blue/status TEXT.
-**Unverified solids (not in the §0 table):** the solid BUTTON fills `--primary` (light `53.3%` L) and
-`--destructive` (light `50%` / dark `62%` L) with white text were not contrast-verified in §0 — §0's
-AA-passing solids are darker `-solid` variants (primary-solid 47%/52%, destructive-solid 44%/46%) the app
-has not yet split out. Treat solid status-button contrast as pending the surface slices.
+**Unverified solid (not in the §0 table):** the solid `--primary`-BUTTON fill (light `53.3%` L) with
+white text was not contrast-verified in §0 — the app has not yet split `--primary`/`-solid` the way
+`--destructive` now is (below). Treat solid `--primary`-button light contrast as pending the surface
+slices.
+**Dark `--destructive` — CLOSED (AC-RAM-004, #688, 2026-09-29; REGRESSED-THEN-FIXED same day).**
+Measured 3.58:1 with white button text (`0 80% 62%`, e.g. the organization-integrations "Disconnect"
+button) — sub-AA. The first fix darkened `--destructive` ITSELF to the `-solid` target (`0 80% 46%`).
+That broke `text-destructive` (error text, ~30 callsites) and the status dot/bar, which both rely on
+the brighter raw hue for THEIR OWN contrast against the dark canvas — dark error text fell to ~3.5:1,
+sub-AA. Corrected same day by actually splitting the token: a dedicated **`--destructive-solid`**
+(light `0 72% 50%` — same as raw `--destructive`, light was never flagged as failing; dark `0 80% 46%`)
+used ONLY by the solid destructive Button fill (`buttonClasses.ts`'s `destructive` variant); raw
+`--destructive` restored to `0 80% 62%` in dark so `text-destructive`/the dot/bar keep their original
+AA-on-canvas contrast. White button text on `--destructive-solid` now ~5.38:1. Same class of gap as
+the raw-`text-primary`/`text-success`-as-TEXT rule above — also fixed at three more callsites in the
+same pass (`StatTiles` positive-tone value, the milestone-phase "Current" badge + its Edit-progress
+link, the active in-page `Tabs` label): all now use their `-text` token instead of the raw hue.
+Deterministic gates: `src/components/ui/__tests__/destructiveSolidToken.test.ts` (token split + Button
+wiring) + `e2e/AC-RAM-004-ris-admin-axe.spec.ts` (rendered axe, both themes).
 
 **Avatar categorical solids — CLOSED (2026-07-06 audits → fixed 2026-07-07).** The `Avatar` in
 `pages/AdminUsers.tsx` renders bold WHITE initials on a raw categorical hue picked from
@@ -674,6 +696,17 @@ has not yet split out. Treat solid status-button contrast as pending the surface
 2.96:1, raw `--warning` 1.96:1) failed AA as a solid white-text fill. Fixed via dedicated `--avatar-1..5`
 tokens (same H/S family, darkened L) — see the "Avatar categorical solids" table above. Deterministic gate:
 `AdminUsers.avatarContrast.test.ts` (`AC-A11Y-AVATAR-001`).
+
+**Milestone card, narrow-card readability — CLOSED (AC-RAM-004, #688, round 3, 2026-09-29).** A
+grid of secondary metric cards (e.g. `MilestoneStrip`'s `milestone-card-grid`) must size its
+columns off the grid's OWN rendered width, not a viewport breakpoint — a card embedded in a
+narrower record-layout column (e.g. `ProjectDetail`'s two-column `lg:grid-cols-[minmax(0,1fr)_340px]`)
+can be far narrower than the viewport implies, and a fixed column count (`xl:grid-cols-4`) will
+squeeze the title until it has no readable width left. Prefer CSS `auto-fit`/`minmax` (a
+content-driven floor per card) over a viewport-keyed column count; keep the title on one column
+and its secondary metric (the effective %) in a reserved column beside it, sized so the floor
+covers both plus the card's own padding and any corner affordance (the `⋯` menu) — narrow cards
+should drop a column before a title runs out of room, never squeeze the title to fit one.
 
 **Status dots** are graphical (≥3:1) and always paired with a text label (WCAG-exempt); light
 success-dot 3.92 / warn-dot 3.17 / neutral-dot 4.22 on canvas; dark dots already clear 3:1 at the vivid
@@ -704,6 +737,11 @@ dot+label (never color-only).
 (axe `scrollable-region-focusable`). Skip this when the region already contains its own focusable
 children (e.g. `Funnel` stages rendered with `onSelect`); adding it there would only insert a redundant
 tab stop ahead of the first real control.
+**When the scroll viewport already carries `role="list"` (2026-09-29, `LifecycleStepper` bar variant,
+AC-RAM-004):** don't put `role="group"` on that same element — a `listitem` child requires a `list`
+ancestor, so swapping the role breaks `aria-required-parent`. Add a wrapping `role="group"`/`tabIndex={0}`
+div one level OUT, and drop `aria-label` from it (leave the label on the inner `role="list"`) — an
+`aria-label` on both would give `getByLabel(label)` two matches for one component.
 
 **Bottom-aligned row indicators (2026-09-28, `Funnel` bars):** a fixed top margin and a bare
 `margin-top: auto` each solve only half of "pin an indicator to the bottom of every card in a
