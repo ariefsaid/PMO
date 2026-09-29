@@ -371,6 +371,24 @@ export function formatInstantDate(iso: string | null | undefined): string {
   return dateFormatterFor('instantDate', getDateLocale(), { ...DATE_OPTS, timeZone: timezone }).format(parsed);
 }
 
+/**
+ * Numeric display of a project decision date (`decided_at`, #700).
+ *
+ * On a win the RPC writes `decided_at = contract_date::timestamptz` — a CALENDAR date wearing an
+ * instant, which lands exactly on midnight UTC. Formatting that through the viewer's timezone shows
+ * the previous day to anyone behind UTC. So: a date-only value, or an instant at exactly 00:00:00.000
+ * UTC, is that calendar day for every viewer; any other instant (a loss records `now()`) is a real
+ * moment and still follows the viewer's profile timezone.
+ */
+export function formatDecisionDateNumeric(iso: string | null | undefined): string {
+  if (parseDateOnly(iso)) return formatDateOnlyNumeric(iso);
+  const instant = parseInstant(iso);
+  if (instant && instant.getTime() % 86_400_000 === 0) {
+    return formatDateOnlyNumeric(instant.toISOString().slice(0, 10));
+  }
+  return formatInstantDateNumeric(iso);
+}
+
 /** Numeric calendar date derived from an ISO instant in the viewer's resolved timezone. */
 export function formatInstantDateNumeric(iso: string | null | undefined): string {
   const parsed = parseInstant(iso);

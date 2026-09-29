@@ -4,6 +4,7 @@ import {
   formatDateOnly,
   formatDateOnlyNumeric,
   formatDateTime,
+  formatDecisionDateNumeric,
   formatInstantDate,
   formatInstantDateNumeric,
   formatRelativeTime,
@@ -39,6 +40,35 @@ describe('profile-timezone date formatting', () => {
     expect(formatDateOnlyNumeric('2026-06-14')).toBe(numericDate);
     expect(date).toBe('Jun 14, 2026');
     expect(numericDate).toBe('6/14/2026');
+  });
+
+  describe('#700 formatDecisionDateNumeric — a decision date derived from a calendar date', () => {
+    // `decided_at` is `contract_date::timestamptz` on a win: midnight UTC, i.e. a CALENDAR date
+    // wearing an instant. UTC+7 / UTC-8 / UTC bracket the date line on both sides.
+    const zones = ['Asia/Jakarta', 'Etc/GMT+8', 'America/Los_Angeles', 'UTC'];
+
+    it.each(zones)('#700: 2026-09-01 midnight UTC renders as 9/1/2026 for a %s viewer', (timezone) => {
+      setActiveLocale({ ...EN, timezone });
+      expect(formatDecisionDateNumeric('2026-09-01T00:00:00+00:00')).toBe('9/1/2026');
+      expect(formatDecisionDateNumeric('2026-09-01T00:00:00.000Z')).toBe('9/1/2026');
+      expect(formatDecisionDateNumeric('2026-09-01')).toBe('9/1/2026');
+    });
+
+    it.each(zones)('#700: the instant path is untouched — a real 23:30Z instant still follows a %s viewer', (timezone) => {
+      setActiveLocale({ ...EN, timezone });
+      const expected = formatInstantDateNumeric('2026-06-14T23:30:00Z');
+      expect(formatDecisionDateNumeric('2026-06-14T23:30:00Z')).toBe(expected);
+    });
+
+    it('#700: an instant one second past midnight UTC is a real instant, not a calendar date', () => {
+      setActiveLocale({ ...EN, timezone: 'Etc/GMT+8' });
+      expect(formatDecisionDateNumeric('2026-09-01T00:00:01Z')).toBe('8/31/2026');
+    });
+
+    it('#700: blank and invalid input render an em-dash', () => {
+      expect(formatDecisionDateNumeric(null)).toBe('—');
+      expect(formatDecisionDateNumeric('nope')).toBe('—');
+    });
   });
 
   it('keeps elapsed relative time independent of timezone and rejects invalid date inputs', () => {

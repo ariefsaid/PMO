@@ -136,4 +136,14 @@ describe('AC-PLC-005: the decision date follows the profile timezone', () => {
     renderLens(decided);
     expect(screen.getByText('6/15/2026')).toBeInTheDocument();
   });
+
+  it.each(['America/Los_Angeles', 'Etc/GMT+8', 'Asia/Jakarta', 'UTC'])(
+    '#700: a decision date derived from a calendar date (midnight UTC) shows that calendar day for a %s viewer',
+    (timezone) => {
+      const decided = { ...dealRow, decided_at: '2026-09-01T00:00:00+00:00' } as ProjectWithRefs;
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone });
+      renderLens(decided);
+      expect(screen.getByText('9/1/2026')).toBeInTheDocument();
+    },
+  );
 });
