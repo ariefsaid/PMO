@@ -106,6 +106,7 @@ jobs:
           node scripts/check-redirect-targets.mjs
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
+          bash scripts/ci-e2e.sh --self-test
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
