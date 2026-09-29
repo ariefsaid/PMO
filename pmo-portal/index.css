@@ -136,7 +136,10 @@
   --muted: 240 5% 14%;                --muted-foreground: 240 4% 60%;
   --accent: 240 5% 14%;               --accent-foreground: 240 5% 72%;
   /* --- Status / semantic (reskin dark hues + AA -fg) --- */
-  --destructive: 0 80% 62%;           --destructive-foreground: 0 0% 100%;
+  /* AC-RAM-004 (#688): the raw dark hue (0 80% 62%) with white button text measured 3.58:1 —
+     sub-AA. Darkened to the "-solid" L DESIGN.md already named as the pending fix (destructive-solid
+     46%, same move already applied to --primary above); white text now measures ~5.38:1. */
+  --destructive: 0 80% 46%;           --destructive-foreground: 0 0% 100%;
   --warning: 43 90% 58%;              --warning-foreground: 43 92% 64%;
   --success: 142 55% 52%;             --success-foreground: 0 0% 100%;
   /* --- Status pill text (reskin dark -text; AA on dark tints) --- */

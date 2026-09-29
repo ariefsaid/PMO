@@ -119,7 +119,10 @@ export function Tabs<V extends string = string>({
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
               'relative h-11 shrink-0 snap-start px-3.5 text-[13.5px] font-medium',
               active
-                ? 'ptab-active font-semibold text-primary'
+                // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
+                // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas
+                // variant; the underline (::after, decorative, non-text) keeps --primary.
+                ? 'ptab-active font-semibold text-primary-text'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >

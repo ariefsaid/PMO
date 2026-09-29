@@ -379,7 +379,7 @@ const Projects: React.FC = () => {
                 {p.code ?? p.id.slice(0, 8)}
               </div>
               {p.customer_contract_ref && (
-                <div className="truncate font-mono text-[11px] text-muted-foreground/80">
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
                   {p.customer_contract_ref}
                 </div>
               )}

@@ -233,6 +233,7 @@ confirms each finding before it enters the graduation registry. None is a securi
 | F-4 | Creating a project from `/projects` (origination Leads) shows "Project created · <name>" but no link to the record. The Projects list excludes pre-win projects (ADR-0020), so in an empty organization the list stays empty after a successful create. | A first-time RIS Admin may believe the create failed and create the project again. **Ruled 2026-09-28 (Director, revisitable):** create opens the new record at `/projects/:id`, matching the Meetings precedent (`pages/Meetings.tsx` create handler). Fixed in this issue (FR-RAM-009, AC-RAM-006). | R6 O6 |
 | F-5 | The project record treats a failed read as "not found" (details in R8 O3). | A RIS Admin on a poor connection is told that the first project does not exist, with no retry. | R8 O3 |
 | F-6 | The default tax treatment shows a loading skeleton indefinitely when its read fails (details in R3 O3). | A RIS Admin cannot tell whether an outage has happened or the page is still loading, and has no way to recover. | R3 O3 |
+| F-7 | The pipeline-lens record (`/projects/:id`, R8) panned to ~618px at 390px/360px: `PipelineLens`'s two-card grid had no `min-w-0` on either grid item, so the Journey card's un-wrapped `LifecycleStepper` step row set the shared single-column track's floor past the viewport (AC-RAM-003). | A RIS Admin opening their first project on a phone has to pan the whole page sideways to read the Next-actions card. **Fixed here** (AC-RAM-003, `PipelineLens.tsx` `grid-cols-1` + `min-w-0`). | R8 O9 |
 
 ## Live RIS proof (separate manual acceptance; never claimed here)
 
@@ -276,6 +277,17 @@ them.
   `functions/v1` instead of depending on served edge functions, and use the seed-org sample Admin.
 - **NFR-RAM-002:** This issue shall change no application source, schema, route, permission, or
   configuration, except the FR-RAM-009 create destination and a token-level or one-file fix the Director admits under the AC-RAM-004 stop rule.
+  **Director admission (2026-09-29):** the AC-RAM-004 axe run and the AC-RAM-003 overflow sweep both
+  found real gate-test defects; fixing them (rather than reporting-only) is admitted under this NFR.
+  Files touched, beyond FR-RAM-009/AC-RAM-006: `pmo-portal/index.css` (dark `--destructive` token,
+  §"Unverified solids"), `pmo-portal/pages/Projects.tsx` (dropped `/80` opacity on the customer-contract
+  cell), `pmo-portal/src/components/ui/StatTiles.tsx` (`text-success` → `text-success-text`),
+  `pmo-portal/src/components/ui/Tabs.tsx` (active-tab `text-primary` → `text-primary-text`),
+  `pmo-portal/src/components/milestones/MilestonePhaseHeader.tsx` ("Current" badge and Edit-progress
+  link, same token swap plus dropping the contrast-losing `opacity-60`),
+  `pmo-portal/src/components/ui/LifecycleStepper.tsx` (bar-variant scroll viewport: `role=group` +
+  `tabIndex=0` wrapper, `scrollable-region-focusable`), `pmo-portal/pages/project-detail/PipelineLens.tsx`
+  (`grid-cols-1` base + `min-w-0` on both grid items, the AC-RAM-003 overflow root cause).
 
 ## Acceptance criteria and owning proof
 
@@ -303,4 +315,6 @@ them.
 
 No new route, dashboard, guided tour, or setup checklist. No change to permissions, RLS, schema, or edge
 functions. No claim of live RIS readiness and no production promotion. Findings F-1 to F-3, F-5 and F-6 are
-follow-ups; this issue records them and does not fix them. F-4 is fixed here (AC-RAM-006).
+follow-ups; this issue records them and does not fix them. F-4 and F-7 are fixed here (AC-RAM-006,
+AC-RAM-003 respectively) — F-7 under the NFR-RAM-002 Director-admission carve-out (2026-09-29), the seven
+AC-RAM-004 axe-contrast/scroll-region fixes fall under the same admission.

@@ -61,7 +61,10 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[12px] font-semibold text-foreground">{name}</span>
-          {isCurrent && <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">{t('projectDetail.milestones.current', 'Current')}</span>}
+          {/* AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas (sub-AA,
+              DESIGN.md accessibility posture). text-primary-text is the AA on-canvas variant, same
+              token the "Back to Sales Pipeline" link (PipelineLens) already uses for blue text. */}
+          {isCurrent && <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary-text">{t('projectDetail.milestones.current', 'Current')}</span>}
           {isOverdue && <StatusPill variant="overdue">{t('projectDetail.milestones.overdue', 'Overdue')}</StatusPill>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -80,7 +83,10 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
           <button
             type="button"
             aria-label={t('projectDetail.milestones.editProgressForName', 'Edit progress for {{name}}', { name })}
-            className="mt-1 text-[11px] font-semibold text-primary opacity-60 hover:underline hover:opacity-100 focus-visible:opacity-100"
+            // AC-RAM-004 (#688): text-primary + opacity-60 measured 3.58:1 in dark (sub-AA). Matches
+            // MilestoneStrip's own compact-row Edit button: text-primary-text at full opacity, no
+            // dimming — hover keeps the underline as the only additional affordance.
+            className="mt-1 text-[11px] font-semibold text-primary-text hover:underline"
             onClick={onEditProgress}
           >
             {t('projectDetail.milestones.editProgress', 'Edit progress')}

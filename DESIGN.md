@@ -532,6 +532,12 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Do** reserve violet/status hues for non-interactive meaning — never as action colors.
 - **Do** route every status/severity/category pill through `src/lib/status/statusVariants.ts`.
 - **Do** open every primary entity as a routable `/x/:id` page (The Record-Open Rule, §7).
+- **Do** give every item of a responsive `grid`/`flex` layout an explicit `min-w-0` the moment ANY
+  descendant is intrinsically wide and un-wrappable (a `LifecycleStepper`-style scroll row, a mono id,
+  `whitespace-nowrap`): the CSS default `min-width: auto` floors the shared track/item at that
+  descendant's content-based minimum, overflowing a narrow viewport, even when a nested
+  `overflow-hidden` sits several levels further down (AC-RAM-003, #688 — `PipelineLens`'s two-card
+  grid panned to 618px at 390px before this).
 
 ### Don't:
 - **Don't** ship the "AI SaaS marketing" aesthetic (dark+purple-gradients, neon, glassmorphism, hero
@@ -664,9 +670,18 @@ Light (text token → on surface → ratio) and Dark:
 surface slices — **not a token-layer concern**. Until then, surface agents MUST use the AA `-text` tokens
 (`--nav-active-text`, `--status-*-text`, `--destructive-text`, `--success-text`) for blue/status TEXT.
 **Unverified solids (not in the §0 table):** the solid BUTTON fills `--primary` (light `53.3%` L) and
-`--destructive` (light `50%` / dark `62%` L) with white text were not contrast-verified in §0 — §0's
-AA-passing solids are darker `-solid` variants (primary-solid 47%/52%, destructive-solid 44%/46%) the app
-has not yet split out. Treat solid status-button contrast as pending the surface slices.
+`--destructive` (light `50%` L) with white text were not contrast-verified in §0 — §0's AA-passing
+solids are darker `-solid` variants (primary-solid 47%/52%, destructive-solid 44%/46%) the app has not
+yet split out for `--primary`. Treat solid `--primary`-button and light-`--destructive`-button contrast
+as pending the surface slices.
+**Dark `--destructive` — CLOSED (AC-RAM-004, #688, 2026-09-29).** Measured 3.58:1 with white button
+text (`0 80% 62%`, e.g. the organization-integrations "Disconnect" button) — sub-AA. Moved to the
+`destructive-solid` dark target this section already named (`0 80% 46%`), matching the move `--primary`
+already made for dark (`221 83% 52%`, the `-solid` L, not the raw hue); white text now ~5.38:1. Same
+class of gap as the raw-`text-primary`/`text-success`-as-TEXT rule above — also fixed at three more
+callsites in the same pass (`StatTiles` positive-tone value, the milestone-phase "Current" badge +
+its Edit-progress link, the active in-page `Tabs` label): all now use their `-text` token instead of
+the raw hue. Deterministic gate: `e2e/AC-RAM-004-ris-admin-axe.spec.ts`.
 
 **Avatar categorical solids — CLOSED (2026-07-06 audits → fixed 2026-07-07).** The `Avatar` in
 `pages/AdminUsers.tsx` renders bold WHITE initials on a raw categorical hue picked from
@@ -704,6 +719,11 @@ dot+label (never color-only).
 (axe `scrollable-region-focusable`). Skip this when the region already contains its own focusable
 children (e.g. `Funnel` stages rendered with `onSelect`); adding it there would only insert a redundant
 tab stop ahead of the first real control.
+**When the scroll viewport already carries `role="list"` (2026-09-29, `LifecycleStepper` bar variant,
+AC-RAM-004):** don't put `role="group"` on that same element — a `listitem` child requires a `list`
+ancestor, so swapping the role breaks `aria-required-parent`. Add a wrapping `role="group"`/`tabIndex={0}`
+div one level OUT, and drop `aria-label` from it (leave the label on the inner `role="list"`) — an
+`aria-label` on both would give `getByLabel(label)` two matches for one component.
 
 **Bottom-aligned row indicators (2026-09-28, `Funnel` bars):** a fixed top margin and a bare
 `margin-top: auto` each solve only half of "pin an indicator to the bottom of every card in a

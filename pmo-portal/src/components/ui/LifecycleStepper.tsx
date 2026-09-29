@@ -103,43 +103,56 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
     // min-w-0 + overflow-hidden prevent the scroll content from inflating the
     // page scrollWidth (R3 fix: items-tab @390 caused 11px horizontal page scroll).
     <div className={cn('relative min-w-0 overflow-hidden', className)}>
-      {/* Scrollable step track */}
+      {/* Scrollable step track. AC-RAM-004 (#688): the steps are read-only (no focusable child),
+          so a keyboard user had no way to reach this region's overflow when it's narrower than its
+          content (axe `scrollable-region-focusable`) — the same gap Funnel.tsx / BudgetProjection.tsx
+          already fixed for their own scroll viewports. `role="group"` + `tabIndex={0}` make the
+          viewport itself the focus target. No `aria-label` here (unlike Funnel's own scroll
+          wrapper): the inner `role="list"` one level in already carries `ariaLabel` as its accessible
+          name, and duplicating it on this wrapper would give `getByLabel(ariaLabel)` two matches
+          (existing `AC-RAM-001`/`AC-RAM-004` callers use it, unqualified by role). */}
       <div
         data-testid="stepper-scroll-container"
-        className="flex items-start gap-2 overflow-x-auto px-2 pb-1.5 pt-1"
-        role="list"
-        aria-label={ariaLabel}
+        role="group"
+        tabIndex={0}
+        className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        {steps.map((s, i) => (
-          <div
-            key={i}
-            role="listitem"
-            aria-label={`${s.label}: ${s.state}`}
-            aria-current={s.state === 'current' ? 'step' : undefined}
-            className={cn(
-              'jstep flex min-w-[88px] flex-1 flex-col gap-1.5',
-              s.state,
-            )}
-          >
-            {/* 6px rounded jbar over the secondary track (DESIGN.md §5). */}
-            <span aria-hidden className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-              <span className={cn('block h-full w-full rounded-full', BAR_FILL_CLASS[s.state])} />
-            </span>
-            <span
+        <div
+          className="flex items-start gap-2 px-2 pb-1.5 pt-1"
+          role="list"
+          aria-label={ariaLabel}
+        >
+          {steps.map((s, i) => (
+            <div
+              key={i}
+              role="listitem"
+              aria-label={`${s.label}: ${s.state}`}
+              aria-current={s.state === 'current' ? 'step' : undefined}
               className={cn(
-                'text-[11.5px] font-semibold leading-tight',
-                s.state === 'upcoming' || s.state === 'skipped'
-                  ? 'text-muted-foreground'
-                  : 'text-foreground',
+                'jstep flex min-w-[88px] flex-1 flex-col gap-1.5',
+                s.state,
               )}
             >
-              {s.label}
-            </span>
-            {s.ref && (
-              <span className="font-mono text-[10px] text-muted-foreground">{s.ref}</span>
-            )}
-          </div>
-        ))}
+              {/* 6px rounded jbar over the secondary track (DESIGN.md §5). */}
+              <span aria-hidden className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                <span className={cn('block h-full w-full rounded-full', BAR_FILL_CLASS[s.state])} />
+              </span>
+              <span
+                className={cn(
+                  'text-[11.5px] font-semibold leading-tight',
+                  s.state === 'upcoming' || s.state === 'skipped'
+                    ? 'text-muted-foreground'
+                    : 'text-foreground',
+                )}
+              >
+                {s.label}
+              </span>
+              {s.ref && (
+                <span className="font-mono text-[10px] text-muted-foreground">{s.ref}</span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Right-edge scroll-fade affordance (AC-IXD-MOBILE-W4-PR3-C4).
