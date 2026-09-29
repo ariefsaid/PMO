@@ -82,6 +82,7 @@ const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
+const BlockNoteSpike = React.lazy(() => import('./pages/BlockNoteSpike'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -154,6 +155,7 @@ export const appRouteConfig: RouteObject[] = [
   // I3: User-view renderer: /views/:viewId. Declared after /views/new and /views/:viewId/edit to
   //   avoid wildcard collision.
   { path: '/views/:viewId', element: <FeatureRoute feature="user_views" element={<UserViewRenderer />} /> },
+  { path: '/spike/blocknote', element: <BlockNoteSpike /> },
   { path: '*', element: <NotFoundPage /> },
 ];
 
