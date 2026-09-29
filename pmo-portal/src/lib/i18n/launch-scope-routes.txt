@@ -92,7 +92,9 @@
 
 # ── Pre-win stages of the SAME project record (Model B). A client working a project through to
 #    won passes through here, so leaving it out would split one journey across the gate boundary.
-/sales                         pages/SalesPipeline.tsx
+#    `Funnel` is named here (#687 Discover follow-up) because its scroll-viewport a11y label
+#    lives in the shared component, and it also renders on this screen.
+/sales                         pages/SalesPipeline.tsx src/components/ui/Funnel.tsx
 
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is
 #    also the reference slice, so its patterns propagate to whatever is built next.

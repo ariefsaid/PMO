@@ -196,3 +196,46 @@ describe('AC-JR-W4-03: Funnel stage click scopes the table', () => {
     expect(screen.getByText('Tender Project Beta')).toBeInTheDocument();
   });
 });
+
+describe('AC-SFA-002: funnel selection stays in sync via click, Enter, and Space', () => {
+  const assertTenderOnly = () => {
+    expect(screen.getByText('Tender Project Beta')).toBeInTheDocument();
+    expect(screen.queryByText('Leads Project Alpha')).not.toBeInTheDocument();
+    expect(screen.queryByText('PQ Project Delta')).not.toBeInTheDocument();
+    expect(screen.queryByText('Negotiation Project Gamma')).not.toBeInTheDocument();
+  };
+
+  const tenderButton = () =>
+    within(screen.getByLabelText('Pipeline summary')).getByRole('button', {
+      name: /Tender/,
+    });
+
+  it('AC-SFA-002: clicking the Tender stage selects it; aria-pressed matches the filtered list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'false');
+    await user.click(tenderButton());
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'true');
+    assertTenderOnly();
+  });
+
+  it('AC-SFA-002: pressing Enter on the Tender stage selects it; aria-pressed matches the filtered list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'false');
+    tenderButton().focus();
+    await user.keyboard('{Enter}');
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'true');
+    assertTenderOnly();
+  });
+
+  it('AC-SFA-002: pressing Space on the Tender stage selects it; aria-pressed matches the filtered list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'false');
+    tenderButton().focus();
+    await user.keyboard(' ');
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'true');
+    assertTenderOnly();
+  });
+});
