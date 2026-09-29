@@ -275,7 +275,7 @@ const ProjectDetail: React.FC = () => {
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
-            <PipelineLens project={project} />
+            <PipelineLens project={project} locationState={location.state} />
           </div>
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).

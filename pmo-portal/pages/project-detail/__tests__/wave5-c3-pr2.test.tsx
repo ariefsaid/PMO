@@ -172,11 +172,11 @@ const renderHeader = (realRole: Role, project: ProjectWithRefs = onHandRow) =>
     </ImpersonationProvider>,
   );
 
-const renderLens = (project: ProjectWithRefs = pipelineRow) =>
+const renderLens = (project: ProjectWithRefs = pipelineRow, locationState?: unknown) =>
   render(
     <ImpersonationProvider realRole="Project Manager">
       <ToastProvider>
-        <PipelineLens project={project} />
+        <PipelineLens project={project} locationState={locationState} />
       </ToastProvider>
     </ImpersonationProvider>,
   );
@@ -369,6 +369,36 @@ describe('AC-IXD-PROJ-W5-C3 N10: post-transition wayfinding', () => {
     expect(link.className).toMatch(/text-primary-text/);
     // Must not be a solid primary button
     expect(link.className).not.toMatch(/bg-primary\b/);
+  });
+
+  // list-working-set-return (#682): FR-LRC-006 — when the project was opened FROM a narrowed
+  // Sales Pipeline (captured in router state), the quiet Sales link targets that SAME filtered
+  // URL, not the bare index. The structural Projects breadcrumb/BackBar never read this context.
+  it('AC-LRC-004: "Back to Sales Pipeline" targets the captured Sales list URL when opened from a narrowed Sales Pipeline', () => {
+    renderLens(pipelineRow, {
+      pmoListReturn: { list: 'sales', path: '/sales?status=Tender+Submitted&view=table' },
+    });
+    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
+    expect(link).toHaveAttribute('href', '/sales?status=Tender+Submitted&view=table');
+  });
+
+  // AC-LRC-011: a direct project link (no captured list context) keeps the bare index — this is
+  // the SAME assertion as AC-IXD-PROJ-W5-C3-13 (renderLens with no locationState), restated here
+  // under its list-return AC id since it is that AC's owning proof of the direct-link fallback.
+  it('AC-LRC-011: a direct project link (no captured context) keeps "Back to Sales Pipeline" at bare /sales', () => {
+    renderLens();
+    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
+    expect(link).toHaveAttribute('href', '/sales');
+  });
+
+  // Capturing FROM a Projects list (not Sales) must never leak into this link — a project opened
+  // from Projects has no Sales context, so the fallback bare index applies exactly as a direct link.
+  it('AC-LRC-011: a Projects-list return context does not leak into the Sales link (bare /sales)', () => {
+    renderLens(pipelineRow, {
+      pmoListReturn: { list: 'projects', path: '/projects?filter=Ongoing' },
+    });
+    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
+    expect(link).toHaveAttribute('href', '/sales');
   });
 });
 

@@ -32,6 +32,7 @@ import {
   dealJourneySteps,
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { listReturnNavigation } from '@/src/lib/listReturnContext';
 
 // ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
 // class as the raw `project.status` rendered in the StatusPill beside them, and as
@@ -47,6 +48,15 @@ const NEXT_PIPELINE_LABEL: Record<string, string> = {
 export interface PipelineLensProps {
   /** The canonical project/opportunity row (the active detail record). */
   project: ProjectWithRefs;
+  /**
+   * The owning route's `location.state` (list-working-set-return, #682, FR-LRC-006). Read ONLY
+   * to resolve the quiet Sales Pipeline link's destination via `listReturnNavigation(…, 'sales')`
+   * — a captured Sales context (only a Sales Pipeline open stamps one; see `canCaptureFromList`)
+   * targets that same filtered Sales URL, otherwise the link falls back to bare `/sales`. Passed
+   * down rather than read via `useLocation()` here so this component keeps rendering standalone
+   * outside a Router (several tests mount it without one).
+   */
+  locationState?: unknown;
 }
 
 /**
@@ -59,7 +69,7 @@ export interface PipelineLensProps {
  * above this lens in `ProjectDetail`; this panel owns only the deal-specific surfaces (stats,
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
-const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
+const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -390,9 +400,13 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 transitions (Lost) it is the primary remaining affordance. One-Blue-compliant:
                 a text link (not a solid button). Keyboard-reachable via standard focus order.
                 Uses a plain <a> (not react-router Link) so the component mounts outside a
-                Router context without breaking (the Sales route is a top-level navigation). */}
+                Router context without breaking (the Sales route is a top-level navigation).
+                list-working-set-return (#682, FR-LRC-006): the href is the captured Sales list
+                URL when this project was opened FROM a narrowed Sales Pipeline, otherwise the
+                bare index — `listReturnNavigation` is the single validated resolver, same as
+                the mobile BackBar / desktop breadcrumb elsewhere in the seam. */}
             <a
-              href="/sales"
+              href={listReturnNavigation(locationState, 'sales').path}
               className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
