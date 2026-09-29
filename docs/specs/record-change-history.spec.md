@@ -185,7 +185,7 @@ The e2e journey asserts the goal (the edit is visible with who/what/old→new); 
 ## Open questions (recommended defaults)
 
 - **Q1: first set, or all business tables at once?** Default: the first set above; the registry, gate and `flag/omit` classification make each later table a small reviewed change, and the tables left out are exactly the ones with narrower visibility or authorization meaning.
-- **Q2: capture contact email/phone values?** Default: no (`flag` only). Owner may prefer full values for support disputes; that is a one-line registry change and a retention decision (right-to-erasure would then need a redaction path, which append-only forbids).
+- **Q2: capture contact email/phone values? — RESOLVED (owner, 2026-09-29):** no; `flag` only (the history says the field changed, without keeping the old value).
 - **Q3: export?** Default: none in v1. If wanted, a read of the same policy-scoped table (CSV of the visible events) with no new privilege, added after the UI settles.
 - **Q4: capture DELETE?** Default: no; the hard deletes are Admin-only, the record page is gone, and `audit_events` already logs the important ones. Revisit if Admins ask for a recycle-bin history.
 - **Q5: merged audit lines for Admins, or `record_changes` only?** Default: the read-side merge (D3), since the issue asks for it; if it proves noisy, drop the merge without touching the schema.
