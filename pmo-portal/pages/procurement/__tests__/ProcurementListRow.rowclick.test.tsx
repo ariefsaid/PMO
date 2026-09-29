@@ -48,8 +48,15 @@ const makeRow = (over: Partial<ProcurementWithRefs> = {}): ProcurementWithRefs =
     ...over,
   }) as ProcurementWithRefs;
 
+// Every location the router settles on, in order — lets the "does NOT navigate" cases prove the
+// row's own open handler never fired (not merely that the final URL looks right).
+const visited: string[] = [];
+
 const LocationProbe: React.FC = () => {
   const location = useLocation();
+  React.useEffect(() => {
+    visited.push(location.pathname);
+  }, [location.key, location.pathname]);
   return (
     <div
       data-testid="location-probe"
@@ -71,6 +78,7 @@ const wrap = (row: ProcurementWithRefs) =>
 
 beforeEach(() => {
   sessionStorage.clear();
+  visited.length = 0;
 });
 
 describe('AC-ROWCLICK-PROCLIST: whole-row click navigates to the detail page', () => {
@@ -90,6 +98,8 @@ describe('AC-ROWCLICK-PROCLIST: whole-row click navigates to the detail page', (
     const chevron = screen.getByRole('button', { name: /show preview for/i });
     await userEvent.click(chevron);
     expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/procurement');
+    // No navigation at all: the router never left the initial list entry.
+    expect(visited).toEqual(['/procurement']);
     // The chevron toggled the preview open.
     expect(chevron).toHaveAttribute('aria-expanded', 'true');
   });
@@ -101,6 +111,8 @@ describe('AC-ROWCLICK-PROCLIST: whole-row click navigates to the detail page', (
     // The inner <Link> navigates declaratively to ITS OWN destination (the project); the row's
     // imperative openRecord() must NOT also fire and redirect to the PR detail instead.
     expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/projects/project-xyz');
+    // Exactly one navigation, straight to the project — the row handler never fired first.
+    expect(visited).toEqual(['/procurement', '/projects/project-xyz']);
   });
 
   it('AC-ROWCLICK-PROCLIST-4: the row summary carries a cursor-pointer affordance', () => {
