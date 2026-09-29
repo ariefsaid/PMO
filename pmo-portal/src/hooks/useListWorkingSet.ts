@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
   materializeSessionView,
@@ -51,9 +51,9 @@ export function useListWorkingSet<K extends ListName>(
 ): {
   workingSet: ListWorkingSetByName[K];
   /**
-   * Replace the list URL with `updater(current)`. Call it ONCE per user event: `current` is the
-   * working set of the last rendered URL, not of a replace still in flight, so a second call in
-   * the same handler would build from the same snapshot and drop the first call's change.
+   * Replace the list URL with `updater(current)`. `current` is the working set of the latest write
+   * this hook made (even one the router has not committed yet), or of the committed URL after any
+   * outside navigation, so consecutive writes compose instead of dropping each other.
    */
   setWorkingSet: (updater: ListWorkingSetUpdater<K>) => void;
 } {
@@ -79,11 +79,21 @@ export function useListWorkingSet<K extends ListName>(
 
   // The router commits a location change as a transition, and typing can keep pre-empting it. Build
   // each write on the latest one this hook made, not the last committed render, or a filter picked
-  // just before a debounced search write is silently dropped (AC-LRC-008).
+  // just before a debounced search write is silently dropped. `pending` holds this hook's writes in
+  // order: a commit of one of them retires it and anything older, but never rolls the base back
+  // while a newer write is still in flight; any other commit is an outside navigation and wins.
   const latestSearch = useRef(location.search);
-  useEffect(() => {
+  const pending = useRef<string[]>([]);
+  useLayoutEffect(() => {
+    const own = pending.current.indexOf(location.search);
+    if (own >= 0) {
+      pending.current = pending.current.slice(own + 1);
+      if (pending.current.length > 0) return;
+    } else {
+      pending.current = [];
+    }
     latestSearch.current = location.search;
-  }, [location.search]);
+  }, [location.key, location.search]);
 
   const setWorkingSet = useCallback(
     (updater: ListWorkingSetUpdater<K>) => {
@@ -95,6 +105,7 @@ export function useListWorkingSet<K extends ListName>(
       });
       const search = params.toString();
       latestSearch.current = search ? `?${search}` : '';
+      pending.current.push(latestSearch.current);
       navigate(`${location.pathname}${latestSearch.current}`, { replace: true });
     },
     [list, location.pathname, navigate, projectsDefaultFilter, sessionView],

@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { BrowserRouter, MemoryRouter, useLocation } from 'react-router';
+import { BrowserRouter, MemoryRouter, useLocation, useNavigate } from 'react-router';
 import {
   useListWorkingSet,
   useUrlSearchInput,
@@ -300,8 +300,23 @@ describe('useUrlSearchInput — search text over the URL working set', () => {
 
 function MeetingsHost() {
   const { setWorkingSet } = useListWorkingSet('meetings');
+  const navigate = useNavigate();
   return (
-    <button
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          // A write, then an outside navigation (what a sidebar <Link> does) before it commits.
+          setWorkingSet((prev) => ({ ...prev, project: '6f1c2b3a-0000-4000-8000-00000000abcd' }));
+          navigate('/meetings');
+        }}
+      >
+        Pick project then follow nav link
+      </button>
+      <button type="button" onClick={() => setWorkingSet((prev) => ({ ...prev, q: 'sync' }))}>
+        Search sync
+      </button>
+      <button
       type="button"
       onClick={() => {
         // Two writes with no render in between — what happens when the router's location update
@@ -311,12 +326,13 @@ function MeetingsHost() {
       }}
     >
       Pick project then search
-    </button>
+      </button>
+    </>
   );
 }
 
 describe('useListWorkingSet — writes before the location commits', () => {
-  it('AC-LRC-008: a second write builds on the first even before the router re-renders, so a picked filter is not dropped', async () => {
+  it('FR-LRC-001: a second write builds on the first even before the router re-renders, so a picked filter is not dropped', async () => {
     window.history.replaceState(null, '', '/meetings');
     render(
       <BrowserRouter>
@@ -329,5 +345,39 @@ describe('useListWorkingSet — writes before the location commits', () => {
     const path = currentPath();
     expect(path).toContain('project=6f1c2b3a-0000-4000-8000-00000000abcd');
     expect(path).toContain('q=coordination');
+  });
+
+  it('FR-LRC-001: after an outside navigation (browser Back), the next write builds on the URL the user is now at', async () => {
+    window.history.replaceState(null, '', '/meetings');
+    render(
+      <BrowserRouter>
+        <MeetingsHost />
+        <LocationProbe />
+      </BrowserRouter>,
+    );
+    window.history.pushState(null, '', '/meetings?project=6f1c2b3a-0000-4000-8000-00000000abcd');
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Search sync' }));
+    await settle();
+    expect(currentPath()).toContain('project=6f1c2b3a-0000-4000-8000-00000000abcd');
+    expect(currentPath()).toContain('q=sync');
+  });
+
+  it('FR-LRC-001: a nav link followed while a write is pending wins; the next write does not resurrect the abandoned filter', async () => {
+    window.history.replaceState(null, '', '/meetings');
+    render(
+      <BrowserRouter>
+        <MeetingsHost />
+        <LocationProbe />
+      </BrowserRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Pick project then follow nav link' }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Search sync' }));
+    await settle();
+    expect(currentPath()).toBe('/meetings?q=sync');
   });
 });
