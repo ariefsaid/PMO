@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   materializeSessionView,
   parseListWorkingSet,
@@ -490,5 +490,65 @@ describe('list working-set URL codec', () => {
     );
     expect(materializeSessionView('procurement', '', 'board')).toBe('?view=board');
     expect(materializeSessionView('companies', '?type=Client', 'calendar')).toBe('?type=Client');
+  });
+});
+
+describe('Projects calendar month in the working set (#716, AC-LRC-003)', () => {
+  const base = { filter: 'All', client: 'All', pm: 'All', q: '' } as const;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 15)); // September 2026 (local)
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('round-trips a non-current month written while the calendar view is active', () => {
+    const query = serializeListWorkingSet('projects', '', {
+      ...base,
+      view: 'calendar',
+      month: '2026-03',
+    });
+    expect(query.get('month')).toBe('2026-03');
+    expect(query.get('view')).toBe('calendar');
+    expect(parseListWorkingSet('projects', query).month).toBe('2026-03');
+  });
+
+  it('omits the month when it is the current month', () => {
+    const query = serializeListWorkingSet('projects', '?month=2026-03', {
+      ...base,
+      view: 'calendar',
+      month: '2026-09',
+    });
+    expect(query.has('month')).toBe(false);
+  });
+
+  it('never writes (and drops a stale) month while another view is active', () => {
+    const query = serializeListWorkingSet('projects', '?view=calendar&month=2026-03', {
+      ...base,
+      view: 'cards',
+      month: '2026-03',
+    });
+    expect(query.has('month')).toBe(false);
+  });
+
+  it('falls back to the current month for a missing, malformed or out-of-range token', () => {
+    for (const token of ['', 'bogus', '2026-13', '2026-00', '2026-3', '26-03', '2026-03-01', '２０２６-03', '0050-03', '1899-12', '10000-01']) {
+      const parsed = parseListWorkingSet('projects', new URLSearchParams({ month: token }));
+      expect(parsed.month, token).toBeUndefined();
+    }
+    expect(parseListWorkingSet('projects', '').month).toBeUndefined();
+  });
+
+  it('treats a URL month equal to the current month as the current month', () => {
+    expect(parseListWorkingSet('projects', '?month=2026-09').month).toBeUndefined();
+  });
+
+  it('keeps unrelated keys when writing the month', () => {
+    const query = serializeListWorkingSet('projects', '?campaign=fall', {
+      ...base,
+      view: 'calendar',
+      month: '2027-01',
+    });
+    expect(query.get('campaign')).toBe('fall');
+    expect(query.get('month')).toBe('2027-01');
   });
 });

@@ -345,6 +345,10 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/Couldn.t load this project/i);
     // The escape route stays; and Retry re-runs BOTH reads.
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    // #707: like the loading / not-found states, the error state's Back bar is phone-only.
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(projectsState.refetch).toHaveBeenCalledTimes(1);
     expect(oppState.refetch).toHaveBeenCalledTimes(1);
@@ -356,6 +360,17 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/p1');
     expect(screen.queryByText(/Project not found/i)).toBeNull();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['loading', { data: undefined as unknown as ProjectWithRefs[], isPending: true }],
+    ['not-found', { data: [] as ProjectWithRefs[], isPending: false }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(projectsState, s);
+    renderAt('/projects/does-not-exist');
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
   });
 
   it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {

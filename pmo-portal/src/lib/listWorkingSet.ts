@@ -31,6 +31,11 @@ export interface ProjectsWorkingSet {
   pm: string;
   q: string;
   view: ProjectView;
+  /**
+   * The Projects calendar's displayed month as `YYYY-MM`. `undefined` means the current month, so
+   * the URL only ever carries a month the user navigated away to (#716).
+   */
+  month?: string;
 }
 
 export interface SalesWorkingSet {
@@ -169,6 +174,28 @@ function referenceValue(value: string | null, sentinels: readonly string[] = [])
   return UUID_PATTERN.test(value) ? value.toLowerCase() : 'All';
 }
 
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/u;
+
+/** The current local month as `YYYY-MM` (the calendar's default). */
+export function currentMonthToken(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * A calendar month token. Anything that is not a real `YYYY-MM`, and the current month itself,
+ * parse to `undefined` — the calendar's own default — so a stale or hand-edited link can never
+ * strand the user on an unreachable month.
+ */
+function monthValue(value: string | null): string | undefined {
+  return value !== null &&
+    MONTH_PATTERN.test(value) &&
+    Number(value.slice(0, 4)) >= 1900 && // a two-digit-era year would render as 19xx
+    value !== currentMonthToken()
+    ? value
+    : undefined;
+}
+
 /** Free-text search keeps any Unicode text but drops control characters. */
 function searchValue(params: URLSearchParams): string {
   return (params.get('q') ?? '').replace(/\p{Cc}/gu, '');
@@ -288,6 +315,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       pm: referenceValue(params.get('pm'), [UNASSIGNED_PROJECT_MANAGER]),
       q: searchValue(params),
       view: viewValue(params, 'projects', options.sessionView),
+      month: monthValue(params.get('month')),
     }),
     serialize: (params, value, options) => {
       const omitFilter = options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER;
@@ -296,6 +324,10 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       putParam(params, 'pm', value.pm, 'All');
       putParam(params, 'q', value.q);
       putView(params, 'projects', value.view, options.sessionView);
+      // The month only means something while the calendar is showing; omit the current month.
+      const month = value.view === 'calendar' ? monthValue(value.month ?? null) : undefined;
+      if (month) params.set('month', month);
+      else params.delete('month');
       return params;
     },
   },

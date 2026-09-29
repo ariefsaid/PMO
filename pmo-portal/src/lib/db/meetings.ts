@@ -117,8 +117,13 @@ export interface MeetingListParams {
  * `*`) and the LIKE escape character (`\`) are replaced with spaces so the term matches as plain
  * text; the quoting still escapes `\` and `"` so it holds even if that list changes.
  */
+/** The part of a search term the substring leg can match: control chars and wildcards stripped. */
+function substringText(term: string): string {
+  return term.replace(/[\p{Cc}%_*\\]/gu, ' ').trim();
+}
+
 function ilikeAnyOf(columns: readonly string[], term: string): string {
-  const text = term.replace(/[\p{Cc}%_*\\]/gu, ' ').trim();
+  const text = substringText(term);
   const quoted = `"%${text.replace(/[\\"]/g, (c) => `\\${c}`)}%"`;
   return columns.map((column) => `${column}.ilike.${quoted}`).join(',');
 }
@@ -129,50 +134,66 @@ function ilikeAnyOf(columns: readonly string[], term: string): string {
  * (FR-MTG-029), capped by MEETING_LIST_CAP (FR-MTG-035). A project filter narrows to one project;
  * without it project-less meetings are included.
  *
- * Search: `textSearch` on the stored `notes_search` tsvector with `websearch` semantics
- * (FR-MTG-011 — quoted phrases and -exclusions behave as everywhere else); the trigger builds the
- * vector with the `simple` config (0205), so the query parses with the same config.
+ * Search (#708) is the UNION of two legs run in parallel, so a partial word ("coord") finds
+ * "coordination" like every other list search while whole-word / phrase / exclusion queries keep
+ * their full-text behaviour:
+ *  - full-text: `textSearch` on the stored `notes_search` tsvector with `websearch` semantics
+ *    (FR-MTG-011 — quoted phrases and -exclusions); the trigger builds the vector with the `simple`
+ *    config (0205), so the query parses with the same config;
+ *  - substring: `ilike` over title + notes_text.
+ * The merge de-duplicates by id, sorts newest-first and re-applies the cap.
  *
- * ⚑ The ilike fallback is TRIGGERED by an infrastructure fault, not by bad input:
- * `websearch_to_tsquery` is the forgiving parser and never raises on malformed query text, so the
- * fallback runs only when the FTS path itself errors (index unavailable / transient DB fault). When
- * it does, it SILENTLY swaps stemmed full-text matching for substring (`ilike`) semantics — the
- * accepted cost of not failing the whole list.
+ * ⚑ A full-text error (index unavailable / transient DB fault — `websearch_to_tsquery` never raises
+ * on malformed text) returns the substring leg alone: the accepted cost of not failing the list.
+ * A substring-leg error is a real failure and throws with its code preserved.
  *
- * ⚑ But the fallback's TERM is always user-controlled — typed into the search box or carried by a
- * shared `?q=` list URL — so it is built with `ilikeAnyOf`, which PostgREST-quotes each value. The
- * term can never close its value and add a condition to the `or` filter.
+ * ⚑ The substring term is always user-controlled — typed into the search box or carried by a shared
+ * `?q=` list URL — so it is built with `ilikeAnyOf`, which PostgREST-quotes each value. The term can
+ * never close its value and add a condition to the `or` filter.
  */
 export async function listMeetings(params?: MeetingListParams): Promise<MeetingWithRefs[]> {
-  const build = (useFts: boolean) => {
+  const q = params?.search?.trim();
+  const build = (leg?: 'fts' | 'substring') => {
     let query = supabase
       .from('meetings')
       .select(SELECT)
       .eq('is_template', false)
       .is('archived_at', null);
     if (params?.projectId) query = query.eq('project_id', params.projectId);
-    const q = params?.search?.trim();
-    if (q) {
-      if (useFts) {
-        query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
-      } else {
-        query = query.or(ilikeAnyOf(['title', 'notes_text'], q));
-      }
+    if (q && leg === 'fts') {
+      query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
+    } else if (q && leg === 'substring') {
+      query = query.or(ilikeAnyOf(['title', 'notes_text'], q));
     }
     return query.order('occurred_at', { ascending: false }).limit(MEETING_LIST_CAP);
   };
 
-  const { data, error } = await build(true);
-  if (error) {
-    // Only a search query has a fallback (the ilike path needs a term); a non-search error is a
-    // real failure. See the header: this catches an FTS-path/infra fault, never bad user input,
-    // and degrades stemmed matching to substring for that one query.
-    if (!params?.search?.trim()) throwWrite(error);
-    const fallback = await build(false);
-    if (fallback.error) throwWrite(fallback.error);
-    return (fallback.data ?? []) as unknown as MeetingWithRefs[];
+  if (!q) {
+    const { data, error } = await build();
+    if (error) throwWrite(error);
+    return (data ?? []) as unknown as MeetingWithRefs[];
   }
-  return (data ?? []) as unknown as MeetingWithRefs[];
+
+  // A term of only wildcard / escape symbols leaves nothing to match; its substring leg would be
+  // `"%%"` — every row — so run the full-text leg alone.
+  if (!substringText(q)) {
+    const { data, error } = await build('fts');
+    if (error) throwWrite(error);
+    return (data ?? []) as unknown as MeetingWithRefs[];
+  }
+
+  const [fts, substring] = await Promise.all([build('fts'), build('substring')]);
+  if (substring.error) throwWrite(substring.error);
+  const substringRows = (substring.data ?? []) as unknown as MeetingWithRefs[];
+  if (fts.error) return substringRows;
+
+  const byId = new Map<string, MeetingWithRefs>();
+  for (const row of [...((fts.data ?? []) as unknown as MeetingWithRefs[]), ...substringRows]) {
+    if (!byId.has(row.id)) byId.set(row.id, row);
+  }
+  return [...byId.values()]
+    .sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at))
+    .slice(0, MEETING_LIST_CAP);
 }
 
 /**

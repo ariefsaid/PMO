@@ -360,6 +360,18 @@ describe('MeetingDetail — states', () => {
     expect(meetingState.refetch).toHaveBeenCalled();
   });
 
+  it.each([
+    ['loading', { isPending: true, isError: false, data: null }],
+    ['not-found', { isPending: false, isError: false, data: null }],
+    ['error', { isPending: false, isError: true, data: null }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(meetingState, s);
+    renderPage('Engineer');
+    const bar = screen.getByRole('button', { name: /^back to /i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
+  });
+
   it('Admin header carries Archive + Delete', () => {
     renderPage('Admin');
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();

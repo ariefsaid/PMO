@@ -139,7 +139,7 @@ const MeetingDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label={backLabel} onBack={goBack} />
+        <BackBar label={backLabel} phoneOnly onBack={goBack} />
         <div data-testid="meeting-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -150,7 +150,7 @@ const MeetingDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label={backLabel} onBack={goBack} />
+        <BackBar label={backLabel} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('meetingDetail.error.title', "Couldn't load meeting")}
@@ -164,7 +164,7 @@ const MeetingDetail: React.FC = () => {
   if (!meeting) {
     return (
       <>
-        <BackBar label={backLabel} onBack={goBack} />
+        <BackBar label={backLabel} phoneOnly onBack={goBack} />
         <div data-testid="meeting-not-found">
           <ListState
             variant="empty"

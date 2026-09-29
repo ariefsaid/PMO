@@ -36,7 +36,8 @@ import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { readProjectView, writeProjectView } from '@/src/hooks/useProjectView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
+import { currentMonthToken, parseListWorkingSet } from '@/src/lib/listWorkingSet';
+import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
 import type { ProjectView } from '@/src/hooks/useProjectView';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -124,6 +125,17 @@ const Projects: React.FC = () => {
     writeProjectView(v);
     setWorkingSet((ws) => ({ ...ws, view: v }));
   };
+  // #716: the calendar month is URL-owned (`month=YYYY-MM`, current month omitted), so a Back
+  // return from a record lands on the month the user was reviewing.
+  const calendarCursor = useMemo(() => {
+    const [y, m] = (workingSet.month ?? currentMonthToken()).split('-').map(Number);
+    return { year: y, month: m - 1 };
+  }, [workingSet.month]);
+  const onCalendarCursorChange = (next: MonthCursor) =>
+    setWorkingSet((ws) => ({
+      ...ws,
+      month: `${next.year}-${String(next.month + 1).padStart(2, '0')}`,
+    }));
   // Mobile disclosure state (FR-PRJUX-003): Filters closes after a selection; More actions
   // closes after an export dispatch but is deliberately left OPEN when an Import wizard opens
   // (the wizard must stay mounted for its own lifecycle — DD-BIMP-3). Both are controlled here
@@ -990,6 +1002,8 @@ const Projects: React.FC = () => {
         <ProjectCalendarView
           projects={filtered}
           milestoneDates={milestoneDates}
+          cursor={calendarCursor}
+          onCursorChange={onCalendarCursorChange}
           onOpenProject={(id) => {
             trackProjectDetailOpened('/projects/:projectId', 'card');
             openRecord(`/projects/${id}`);
