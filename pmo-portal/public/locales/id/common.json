@@ -646,6 +646,9 @@
     },
     "title": "Dashboard Eksekutif"
   },
+  "funnel": {
+    "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
+  },
   "meetingDetail": {
     "action": {
       "button": "Action",

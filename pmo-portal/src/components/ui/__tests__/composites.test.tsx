@@ -190,6 +190,190 @@ describe('Funnel', () => {
     expect(probChip.className).toContain('text-[11px]');
     expect(probChip.className).not.toContain('text-[10px]');
   });
+
+  it('AC-SFA-004: a long dashboard-panel value stays exact inside one local Funnel scroll viewport', () => {
+    const longVal = '$1,234,567';
+    render(
+      <div style={{ width: 260 }}>
+        <Funnel
+          stages={Array.from({ length: 5 }, (_, i) => ({
+            name: `Stage ${i + 1}`,
+            value: longVal,
+          }))}
+        />
+      </div>
+    );
+
+    // The exact long value is NOT abbreviated or dropped.
+    expect(screen.getAllByText(longVal)).toHaveLength(5);
+
+    // The shared Funnel owns a bounded local scroll viewport (never shrinks/abbreviates).
+    const scrollArea = screen.getByTestId('funnel-scroll-area');
+    expect(scrollArea.className).toContain('max-w-full');
+    expect(scrollArea.className).toContain('min-w-0');
+    expect(scrollArea.className).toContain('overflow-x-auto');
+
+    // Its child grid is a min-w-full five-track grid so the panel delegates overflow
+    // to the local scroller instead of widening the host or clipping the amount.
+    const grid = screen.getByTestId('funnel-stage-grid');
+    expect(grid.className).toContain('grid');
+    expect(grid.className).toContain('min-w-full');
+    // Discover fix (2026-09-28, #687 follow-up): each track's MIN is now the stage's own
+    // max-content — an intrinsic sizing function, so the browser's track-sizing algorithm
+    // treats it as a hard content-derived floor (unlike a fixed `10rem`, which cannot grow
+    // for a longer, unbreakable amount and let the digits overflow their stage — FR-SFA-001).
+    // The MAX stays `1fr` so leftover desktop width still distributes evenly across stages.
+    expect(grid.style.gridTemplateColumns).toBe('repeat(5, minmax(max-content, 1fr))');
+  });
+
+  it('FR-SFA-001: a representative long IDR amount does not shrink its stage below its own content width', () => {
+    // Regression for the Discover finding: a fixed `10rem` track floor left ~132px of usable
+    // content width after padding, while a trillions-scale IDR amount needs ~181px — the
+    // digits overflowed into the neighbouring stage. `max-content` tracks must never allow
+    // the stage's rendered width to be narrower than its own amount text requires.
+    const longIdrVal = 'Rp 1.250.000.000.000,00';
+    render(
+      <div style={{ width: 390 }}>
+        <Funnel
+          stages={[
+            { name: 'Leads', value: '$1' },
+            { name: 'Tender', value: longIdrVal },
+          ]}
+        />
+      </div>
+    );
+    // The default text normalizer collapses the NBSP after "Rp" to a plain space before
+    // matching, so disable it here — the point is the exact unbreakable string, NBSP intact.
+    const amount = screen.getByText(longIdrVal, { normalizer: (s) => s });
+    expect(amount.className).not.toContain('truncate');
+    expect(amount.className).not.toContain('overflow-hidden');
+    // jsdom performs no real layout, so this only locks the markup contract (no truncation/
+    // clipping classes, exact text preserved); the rendered-geometry proof is the browser
+    // oracle in e2e/AC-SFA-001-sales-funnel-amount-geometry.spec.ts.
+    expect(amount.textContent).toBe(longIdrVal);
+  });
+
+  it('AC-A11Y-SCROLL: a non-interactive (no onSelect) Funnel scroll viewport is itself keyboard-focusable', () => {
+    // Discover finding (2026-09-28): the dashboard renders Funnel with no `onSelect`, so no
+    // stage is a focusable button — the overflow-x-auto viewport had no focusable content at
+    // all, failing axe's `scrollable-region-focusable` for keyboard users. Mirrors the pattern
+    // already shipped on pages/BudgetProjection.tsx's scrollable table wrapper.
+    render(
+      <Funnel
+        stages={[
+          { name: 'Leads', value: '$1M' },
+          { name: 'Quote', value: '$2M' },
+        ]}
+      />
+    );
+    const scrollArea = screen.getByTestId('funnel-scroll-area');
+    expect(scrollArea).toHaveAttribute('role', 'group');
+    expect(scrollArea).toHaveAttribute('aria-label', 'Stage summary, scrollable horizontally');
+    expect(scrollArea).toHaveAttribute('tabIndex', '0');
+    expect(scrollArea.className).toContain('focus-visible:outline');
+  });
+
+  it('AC-A11Y-SCROLL: an interactive (onSelect present) Funnel does not add a redundant wrapper tab stop', () => {
+    // The stage buttons are already focusable when onSelect is passed — adding role=group +
+    // tabIndex=0 to the wrapper too would insert an extra Tab stop ahead of the first stage.
+    render(
+      <Funnel
+        onSelect={() => {}}
+        stages={[
+          { name: 'Leads', value: '$1M' },
+          { name: 'Quote', value: '$2M' },
+        ]}
+      />
+    );
+    const scrollArea = screen.getByTestId('funnel-scroll-area');
+    expect(scrollArea).not.toHaveAttribute('role');
+    expect(scrollArea).not.toHaveAttribute('tabIndex');
+  });
+
+  it('a focused interactive stage scrolls itself into view (keyboard users reach off-screen stages)', () => {
+    // Discover finding (2026-09-28): Tab to a partly off-screen stage did not scroll it into
+    // view at 390px. Browser scroll geometry can't be proven in jsdom; this locks the call.
+    const scrollIntoViewSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    render(
+      <Funnel
+        onSelect={() => {}}
+        stages={[
+          { name: 'Leads', value: '$1M' },
+          { name: 'Quote', value: '$2M' },
+        ]}
+      />
+    );
+    const stage = screen.getAllByRole('button')[1];
+    stage.focus();
+    expect(scrollIntoViewSpy).toHaveBeenCalledWith({ inline: 'nearest', block: 'nearest' });
+    scrollIntoViewSpy.mockRestore();
+  });
+
+  it('the progress bar stays flush to the bottom of the stage even when weighted text wraps to two lines', () => {
+    // Discover finding (2026-09-28): stages stretch to the tallest row member (grid default);
+    // a stage whose weighted text wraps sits taller, but its bar previously followed right
+    // after that text instead of the box's bottom edge, so bars visibly misaligned across a
+    // row. `mt-auto` on the bar's wrapper pins it to the bottom of every stage box.
+    render(
+      <Funnel
+        stages={[{ name: 'Leads', value: '$1M', weighted: '$200K weighted', barPct: 40 }]}
+      />
+    );
+    const stage = screen.getByText('Leads').closest('[data-funnel-stage]')!;
+    expect(stage.className).toContain('flex');
+    expect(stage.className).toContain('flex-col');
+    const barWrapper = stage.querySelector('.bg-secondary')!.parentElement!;
+    expect(barWrapper.className).toContain('mt-auto');
+    expect(barWrapper.className).not.toContain('mt-2');
+  });
+
+  it('Discover fix round 3: the bar keeps an unconditional 8px floor gap even when mt-auto has no free space to consume', () => {
+    // Round-3 finding (2026-09-28): `mt-auto` alone resolved to a 0px gap whenever a stage's
+    // natural content height already matched the row height (the common case — nothing wraps),
+    // because a flex column with no imposed extra height gives `margin-top: auto` nothing to
+    // consume. `pt-2` on the bar's OUTER (transparent) wrapper enforces the floor
+    // unconditionally; it must NOT be on the visible track itself, which would paint
+    // `bg-secondary` through the padding instead of leaving a transparent gap. jsdom does no
+    // real layout, so this locks the markup contract; the real px gap + cross-stage alignment
+    // are proven in e2e/AC-SFA-001-sales-funnel-amount-geometry.spec.ts.
+    render(
+      <Funnel
+        stages={[{ name: 'Leads', value: '$1M', weighted: '$200K weighted', barPct: 40 }]}
+      />
+    );
+    const stage = screen.getByText('Leads').closest('[data-funnel-stage]')!;
+    const weightedEl = stage.querySelector('[data-funnel-stage-weighted]')!;
+    const barTrack = stage.querySelector('[data-funnel-stage-bar]')!;
+    expect(weightedEl.textContent).toBe('$200K weighted');
+    const barWrapper = barTrack.parentElement!;
+    expect(barWrapper.className).toContain('mt-auto');
+    expect(barWrapper.className).toContain('pt-2');
+    // The floor lives on the transparent wrapper, never on the visible bg-secondary track.
+    expect(barTrack.className).not.toContain('pt-2');
+    expect(barTrack.className).not.toContain('mt-auto');
+    expect(barTrack.className).toContain('bg-secondary');
+  });
+
+  it('AC-SFA-007: an interactive stage draws its focus ring inward so the scroll viewport never clips it', () => {
+    // Discover finding I-1 (2026-09-28): the global 2px-outward focus-visible ring on a stage
+    // button was sliced by the funnel's own overflow-x-auto (which clips overflow-y too). Pulls
+    // the ring inward with a negative outline-offset instead of widening/removing the clip.
+    // jsdom does no real layout/outline painting, so this locks the markup contract; the
+    // rendered ring-vs-viewport geometry is proven in
+    // e2e/AC-SFA-001-sales-funnel-amount-geometry.spec.ts (AC-SFA-007).
+    render(<Funnel onSelect={() => {}} stages={[{ name: 'Leads', value: '$1M' }]} />);
+    const stage = screen.getByRole('button');
+    expect(stage.className).toContain('focus-visible:outline-offset-[-2px]');
+  });
+
+  it('a non-interactive Funnel has no focusable stage to carry the inward focus-ring fix', () => {
+    // The negative-offset class is scoped to interactive stages only — a non-interactive
+    // dashboard Funnel has no `role="button"` stage, so nothing there could be clipped by the
+    // scroll area in the first place (the wrapper carries its own outward ring, unaffected).
+    render(<Funnel stages={[{ name: 'Leads', value: '$1M' }]} />);
+    const stage = screen.getByText('Leads').closest('[data-funnel-stage]')!;
+    expect(stage.className).not.toContain('focus-visible:outline-offset-[-2px]');
+  });
 });
 
 describe('GateNotice', () => {

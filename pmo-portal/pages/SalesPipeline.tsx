@@ -449,16 +449,13 @@ const SalesPipeline: React.FC = () => {
             </div>
           ) : state === undefined ? (
             <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="mb-4">
-              {/* Narrow viewports scroll the band horizontally so the five stages stay
-                  readable rather than crushing below their min track width (§2 reflow). */}
-              <div className="overflow-x-auto">
-                <Funnel
-                  stages={funnelStages}
-                  className="min-w-[640px]"
-                  selectedIndex={stageIndex ?? undefined}
-                  onSelect={(i) => setStageIndex((prev) => (prev === i ? null : i))}
-                />
-              </div>
+              {/* Narrow viewports scroll the band locally; the shared Funnel owns its own
+                  min-track scroll viewport so each stage's exact amount stays in its stage. */}
+              <Funnel
+                stages={funnelStages}
+                selectedIndex={stageIndex ?? undefined}
+                onSelect={(i) => setStageIndex((prev) => (prev === i ? null : i))}
+              />
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
                 <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
                 <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
