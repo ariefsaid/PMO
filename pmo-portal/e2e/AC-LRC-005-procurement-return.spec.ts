@@ -55,6 +55,8 @@ test(
     const main = page.locator('.main-scroll');
     await expect(main).toBeVisible();
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    // Read the offset where the user IS when opening: the click scrolls an off-screen row into view first.
+    await page.getByRole('link', { name: 'PV Modules — Meridian 4.2 MW' }).scrollIntoViewIfNeeded();
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
 
     // ── Open the request; capture its canonical URL for the direct-visit check below ─────────
@@ -88,6 +90,7 @@ test(
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    await page.getByRole('link', { name: 'PV Modules — Meridian 4.2 MW' }).scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
     await page.getByRole('link', { name: 'PV Modules — Meridian 4.2 MW' }).click();
     await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]+$/i, { timeout: 15_000 });

@@ -57,6 +57,10 @@ test(
     const main = page.locator('.main-scroll');
     await expect(main).toBeVisible();
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    // Capture where the user IS when they open the record: the row must be on screen to be
+    // clicked, and Playwright's click would otherwise scroll it into view AFTER this reading
+    // (with one more matching row, CableCore sits above the fold at max scroll).
+    await page.getByRole('button', OPEN_CABLECORE).scrollIntoViewIfNeeded();
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(scrolledTop).toBeGreaterThan(0);
 
@@ -88,6 +92,7 @@ test(
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    await page.getByRole('button', OPEN_CABLECORE).scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(mobileScrolledTop).toBeGreaterThan(0);
     await page.getByRole('button', OPEN_CABLECORE).click();

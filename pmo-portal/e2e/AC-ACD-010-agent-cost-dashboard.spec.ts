@@ -74,8 +74,11 @@ test('AC-ACD-010 an Admin opens Administration › Usage and the agent cost pane
   await login(page, 'operator@pmo.test');
   await page.goto('/administration');
 
-  // The Usage section + the mounted cost panel.
+  // Administration's index redirects to the Users section (#676); a real Operator then clicks the
+  // "Usage" item in the in-page section nav to reach the Operator-only Usage panel.
   const panel = page.getByRole('main');
+  await panel.getByRole('link', { name: /^usage$/i }).click();
+  await expect(page).toHaveURL(/\/administration\/usage$/);
   await expect(panel.getByRole('heading', { name: /agent cost overview/i })).toBeVisible({ timeout: 20_000 });
 
   // Goal oracle: cache hit-rate tile = 60.0% (100·600/1000). Scope to the StatTiles strip and use an

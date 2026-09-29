@@ -46,6 +46,8 @@ test(
     const main = page.locator('.main-scroll');
     await expect(main).toBeVisible();
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    // Read the offset where the user IS when opening: the click scrolls an off-screen row into view first.
+    await page.getByText('Innovate Corp HQ Fit-Out').scrollIntoViewIfNeeded();
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(scrolledTop).toBeGreaterThan(0);
 
