@@ -4,7 +4,7 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑ 2026-09-30 (later) — second promote to `main` (#755); **v0.13.0 LIVE: production == main == `fc1aee72`** (owner yes); hosted DB at 0222; edge fns still `467591da`
+### ⚑ 2026-09-30 (later) — second promote to `main` (#755); **v0.13.0 LIVE: production == main == `fc1aee72`** (owner yes); hosted DB at 0222; all 22 edge fns at `fc1aee72` (health verified)
 
 `main` == `dev`. Adds #735, #732, #731, #585, #728 (owner CLI over Supabase OAuth + consent page +
 API-client guard 0222, runbook `docs/runbooks/pmo-cli.md`), #655/#656 (ERPNext: no redirects, read-permission
