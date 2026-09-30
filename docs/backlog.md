@@ -11,7 +11,7 @@ API-client guard 0222, runbook `docs/runbooks/pmo-cli.md`), #655/#656 (ERPNext: 
 probe before activation, active-member caller), and #754 (all eleven verify guards now run in CI; leaner local
 and CI load). Open issues triaged the same day (13 closed). Release **v0.13.0** cut (#744) and back-merged to `dev`.
 **Hosted DB: 0219–0222 pushed 2026-09-30 (owner yes)** — 0219 normalised 0 rows; REST/auth/RPC answer 200 after the
-push; the replaced definer `approved_timesheet_for_push` still refuses the anon key (42501). **CLI sign-in enabled on the hosted project 2026-09-30 (owner yes):** OAuth server on, consent at `/oauth/consent`, CLI client registered; authorize → consent page verified. Pending: the 0222 guard check with a real CLI token after the owner's first login. Was: enable the OAuth server there and register the CLI client (runbook); `main` → `production` FE promote.
+push; the replaced definer `approved_timesheet_for_push` still refuses the anon key (42501). **CLI sign-in enabled on the hosted project 2026-09-30 (owner yes):** OAuth server on, consent at `/oauth/consent`, CLI client registered; authorize → consent page verified. Owner signed in as the RIS Admin; with that CLI token the 0222 guard refuses DELETE and non-allow-listed tables (403/42501) and allows project reads. Was: enable the OAuth server there and register the CLI client (runbook); `main` → `production` FE promote.
 Before RIS activates ERPNext: its integration user needs read on the owned domains' doctypes + GL Entry +
 Payment Ledger Entry.
 
