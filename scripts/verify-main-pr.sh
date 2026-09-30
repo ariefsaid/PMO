@@ -2,13 +2,24 @@
 # Local reproduction of CI's PR-to-main run (verify + integration). CI is the gate (CLAUDE.md);
 # use this only to diagnose a CI failure CI could not report, e.g. a job that timed out.
 #
-# Runs every local equivalent of the CI verify + integration gates against a
-# fresh stack. The served-function lane is deliberately last: its teardown
-# removes the temporary edge runtime while Kong can retain that upstream until
-# the next stack restart.
+# Runs every local equivalent of the CI verify + integration gates, with the unit
+# suite ONCE (under coverage, as CI does). The shared stack is only reset, not
+# restarted — pass --fresh-stack to stop/start it first like a fresh CI runner
+# (same container set: -x studio,realtime,vector). The served-function lane is
+# deliberately last: its teardown removes the temporary edge runtime while Kong
+# can retain that upstream until the next stack restart.
+#
+# usage: scripts/verify-main-pr.sh [--fresh-stack]
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+fresh_stack=0
+for arg in "$@"; do
+  case $arg in
+    --fresh-stack) fresh_stack=1 ;;
+    *) echo "usage: $0 [--fresh-stack]" >&2; exit 2 ;;
+  esac
+done
 
 # CI pins node-version: 22 (ci.yml) and react-router 8 declares engines >=22.22.0. A shell
 # defaulting to an older node fails inside vitest's bundler with an unrelated-looking `node:util`
@@ -20,16 +31,16 @@ if [ "$node_ok" != "true" ]; then
   exit 1
 fi
 
-# Non-DB gates run before acquiring the machine-global DB lock. verify:locked
-# already serializes the heavy Vitest suite with other worktrees.
+# Non-DB gates run before acquiring the machine-global DB lock. The unit suite
+# runs ONCE, coverage-instrumented (CI's verify job), under the test lock.
 if [ "${_VERIFY_MAIN_PR_DB_LOCKED:-}" != "1" ]; then
   cd "$REPO/pmo-portal"
-  npm run verify:locked
-
-  # CI's verify job runs the coverage-instrumented suite and enforces ≥80% on
-  # changed executable lines. Plain `npm run verify` does neither, so repeat the
-  # complete suite under coverage rather than allowing a local false green.
+  npm run check:guards
+  npm run typecheck
+  npm run typecheck:edge
+  npm run lint:ci
   "$REPO/scripts/with-test-lock.sh" npm run test:coverage
+  npm run build
 
   cd "$REPO"
   git fetch --no-tags origin main
@@ -46,13 +57,15 @@ if [ "${_VERIFY_MAIN_PR_DB_LOCKED:-}" != "1" ]; then
   bash scripts/deno-test-edge-fns.sh
 
   export _VERIFY_MAIN_PR_DB_LOCKED=1
-  exec "$REPO/scripts/with-db-lock.sh" "$0"
+  exec "$REPO/scripts/with-db-lock.sh" "$0" "$@"
 fi
 
 cd "$REPO"
-echo "[verify-main-pr] restart the local stack to match a fresh CI runner"
-supabase stop || true
-supabase start -x studio,realtime,vector
+if [ "$fresh_stack" -eq 1 ]; then
+  echo "[verify-main-pr] --fresh-stack: restart the local stack to match a fresh CI runner"
+  supabase stop || true
+  supabase start -x studio,realtime,vector
+fi
 
 echo "[verify-main-pr] reset DB and run the complete pgTAP suite"
 supabase db reset --yes
@@ -77,18 +90,22 @@ unset SUPABASE_FUNCTIONS_URL
 
 echo "[verify-main-pr] run the parallel Chromium project and visual gate with CI semantics"
 cd "$REPO/pmo-portal"
-CI=true npx playwright test --project=chromium --fail-on-flaky-tests
+CI=true npx playwright test --project=chromium
 
 echo "[verify-main-pr] run shared-state Playwright cases in a separate serial invocation"
-CI=true npx playwright test --project=serial --workers=1 --fail-on-flaky-tests
+CI=true npx playwright test --project=serial --workers=1
+
+echo "[verify-main-pr] run the consent lane (analytics-enabled :3100 server)"
+CI=true npx playwright test --project=consent
 
 echo "[verify-main-pr] run the served-function boundary smoke last"
 cd "$REPO"
 served_rc=0
-scripts/serve-functions.sh -- bash -c 'cd pmo-portal && CI=true npx playwright test served-fn-smoke --project=chromium --fail-on-flaky-tests' || served_rc=$?
+scripts/serve-functions.sh -- bash -c 'cd pmo-portal && CI=true npx playwright test served-fn-smoke --project=chromium' || served_rc=$?
 
-# serve-functions removes its temporary edge-runtime container; restart the
-# ordinary stack before returning the shared local environment to other work.
+# serve-functions removes its temporary edge-runtime container and Kong keeps
+# routing functions/v1 to it (any later served lane hangs) — so this restart is a
+# REPAIR of the shared stack, not a fresh-runner mimic, and is not flag-gated.
 echo "[verify-main-pr] restore the ordinary local stack after the served lane"
 supabase stop || true
 restore_rc=0

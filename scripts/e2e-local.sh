@@ -4,20 +4,29 @@
 # Running e2e in a fresh worktree bit us repeatedly (2026-07-11): a missing .env.local, a stale
 # pre-#306 DB seed, and an un-exported SUPABASE_SERVICE_ROLE_KEY each looked like an app/test bug but
 # were environment gaps. CI's integration job sets all of this up inline; locally it was undocumented.
-# This wraps it so `scripts/e2e-local.sh` reproduces CI exactly:
-#   1. reset the shared local DB from THIS branch's migrations + seed (fresh, correct seed)
+# This wraps it so `scripts/e2e-local.sh` reproduces CI's environment:
+#   1. (--reset only) reset the shared local DB from THIS branch's migrations + seed
 #   2. write pmo-portal/.env.local exactly as ci.yml does (supabase local url/anon + the VITE_FEATURES_*
 #      flags the view/agent/crm journeys need) — NOTE this OVERWRITES .env.local (regenerated each run)
 #   3. export SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY for the service-role specs
-#   4. run both phases: chromium (workers:4) then the serial lane (--workers=1)
+#   4. run chromium (--workers=2) then the serial lane (--workers=1); or your pass-through args at 2 workers
 #
-# All DB work is serialized via scripts/with-db-lock.sh (the shared local stack is one Docker DB).
+# Load-lean by default (shared Mac): no DB reset, 2 workers, and ONE dev server — the analytics
+# :3100 server + `consent` project start only when your args name a consent spec (E2E_CONSENT_LANE).
+# The whole run holds scripts/with-db-lock.sh (the shared local stack is one Docker DB); Playwright
+# starts its own dev server(s) inside that run (reuseExistingServer: false), so startup can't move out.
 # The local supabase service_role key is the ephemeral demo key from `supabase status`, never a secret.
 #
 # Usage:
-#   scripts/e2e-local.sh                 # full two-phase run
-#   scripts/e2e-local.sh AC-DEL-022      # pass-through playwright args (single spec, --repeat-each, etc.)
+#   scripts/e2e-local.sh [--reset]                # chromium + serial lanes
+#   scripts/e2e-local.sh [--reset] AC-DEL-022     # pass-through playwright args (single spec, --repeat-each, …)
+#   --reset: `supabase db reset` first. Needed when your branch adds/changes a migration or the seed
+#            (or the shared DB is in another branch's schema); implied by E2E_SECOND_ORG=1.
 set -euo pipefail
+
+reset=0
+if [ "${1:-}" = --reset ]; then reset=1; shift; fi
+[ "${E2E_SECOND_ORG:-}" = "1" ] && reset=1
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # Node 22 (repo convention; react-router 8 needs >=22.22.0). Pick the HIGHEST installed v22 rather
@@ -40,12 +49,24 @@ fi
 # infinite recursion once we are already inside the lock.
 if [ "${_E2E_LOCAL_LOCKED:-}" != "1" ]; then
   export _E2E_LOCAL_LOCKED=1
+  [ "$reset" -eq 1 ] && set -- --reset "$@"
   exec "$REPO/scripts/with-db-lock.sh" "$0" "$@"
 fi
 
 cd "$REPO"
-echo "[e2e-local] db reset (branch: $(git branch --show-current))"
-supabase db reset >/dev/null
+if [ "$reset" -eq 1 ]; then
+  echo "[e2e-local] db reset (branch: $(git branch --show-current))"
+  supabase db reset >/dev/null
+else
+  echo "[e2e-local] no db reset (pass --reset if your branch adds/changes a migration or seed)"
+  # A previous E2E_SECOND_ORG run leaves the seed org moved; without a reset every spec would fail.
+  seed_org=$(docker exec supabase_db_pmo-portal psql -U postgres -d postgres -XAtc \
+    "select count(*) from public.organizations where id = '00000000-0000-0000-0000-000000000001'" 2>/dev/null || echo 0)
+  if [ "$seed_org" != 1 ]; then
+    echo "[e2e-local] shared DB is not at seed state (seed org missing) — re-run with --reset" >&2
+    exit 1
+  fi
+fi
 # E2E_SECOND_ORG=1 (#621): make the seed org a NON-seed org. Every business table defaults org_id to the
 # seed literal; the app never sends it; a second tenant relies on the stamp triggers to fix it up. With
 # the seed org moved to another id, every "worked only because default == org" path goes red here
@@ -91,12 +112,17 @@ export SUPABASE_URL="${API_URL}" \
 echo "[e2e-local] env ready (service key: ${SUPABASE_SERVICE_ROLE_KEY:+set})"
 
 cd pmo-portal
+# One dev server unless the args reach the consent lane (its specs need the analytics :3100 server).
+case " $* " in
+  *consent*|*AC-CON-*|*AC-VISUAL-CHECKBOX*) export E2E_CONSENT_LANE=1 ;;
+  *) export E2E_CONSENT_LANE=0 ;;
+esac
 if [ "$#" -gt 0 ]; then
-  echo "[e2e-local] playwright $*"
-  exec npx playwright test "$@"
+  echo "[e2e-local] playwright --workers=2 $* (consent lane: $E2E_CONSENT_LANE)"
+  exec npx playwright test --workers=2 "$@"
 fi
 
-echo "[e2e-local] phase 1: chromium (workers:4)"
-npx playwright test --project=chromium
+echo "[e2e-local] phase 1: chromium (--workers=2)"
+npx playwright test --project=chromium --workers=2
 echo "[e2e-local] phase 2: serial (--workers=1)"
 npx playwright test --project=serial --workers=1

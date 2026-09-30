@@ -137,6 +137,9 @@ export default defineConfig({
     },
   },
   test: {
+    // The Mac is shared by several sessions (PMO + MOS) and CI runs the full suite on every PR, so a
+    // local run defaults to 2 workers; CI keeps Vitest's default (all cores of its dedicated runner).
+    maxWorkers: process.env.CI ? undefined : 2,
     // ── Two-environment split (perf: test-speed) ──────────────────────────────
     // The jsdom `environment` setup dominated wall-clock (~508s summed across 603
     // files) even though ~165 pure-logic suites under `src/lib/**` never touch the

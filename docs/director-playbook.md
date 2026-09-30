@@ -167,10 +167,10 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
 - One **branch per issue** off an **up-to-date `dev`** — NOT `main`. Work lands on `dev`; `dev`→`main` is a
   separate gated promote (`CLAUDE.md` Branch flow). Branching off `main` also means CI verifies the wrong
   merge commit. Branch names: `feat/`, `chore/`, `test/`, `perf/`.
-- `release-engineer` pushes only with fresh evidence from the **local final gate** (CLAUDE.md): typecheck,
-  lint on touched files, `vitest run --changed origin/dev`, the touched e2e journeys, and `supabase test db`
-  for DB changes. The full suite runs in CI on the PR and decides the merge — never merge on a red or unrun
-  check.
+- `release-engineer` pushes on the builder's evidence from the **local final gate** (CLAUDE.md): typecheck,
+  lint on touched files, `vitest run --changed origin/dev`, the touched e2e journeys, and the touched pgTAP
+  files (`supabase test db <files>`) for DB changes — re-running only a check it doubts. The full suite runs
+  in CI on the PR and decides the merge — never merge on a red or unrun check.
 - For a PR targeting `main`, CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
   served-fn smoke) runs automatically and is the promotion gate. `scripts/verify-main-pr.sh` reproduces it
   locally — use it only to diagnose a CI failure CI could not report.
@@ -202,11 +202,11 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
 - Production deploy / irreversible infra = **owner approval only**.
 
 ## 7. Verification discipline
-No completion claim without fresh evidence. The gates (all must be green to merge): `npm run
-typecheck` (0 errors) · `npm run lint:ci` (`--max-warnings=0`) · `npm test` (unit, ≥80% on changed
-code, behavior-asserting) · `npm run build` · `npx playwright test` (live stack, from `pmo-portal/`) ·
-`supabase test db` (pgTAP, for DB changes). **Don't trust agent reports — re-verify the load-bearing
-claims yourself** (re-run gates, read the diff, or dispatch a reviewer). Reviewers caught a broken
+No completion claim without fresh evidence. Locally that is the **local final gate** (CLAUDE.md —
+targeted: touched tests, touched e2e journeys, touched pgTAP files; `db reset` only for a migration/seed
+change); CI's full suite on the PR decides the merge. **Don't trust agent reports — check the
+load-bearing claims yourself** (read the gate evidence and the diff, re-run only the targeted check you
+doubt, or dispatch a reviewer) — no outer re-verify chains. Reviewers caught a broken
 render, a self-escalation RLS hole, and a lying test that the implementer's own green run missed.
 
 ## 8. Code & data conventions (the quality bar)
