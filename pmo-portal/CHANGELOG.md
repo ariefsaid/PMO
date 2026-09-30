@@ -10,6 +10,18 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.13.0](https://github.com/ariefsaid/PMO/compare/v0.12.0...v0.13.0) (2026-09-30)
+
+
+### Features
+
+* enterprise UI/UX readiness milestone, follow-up batch, and CI as the full-suite gate ([37380e1](https://github.com/ariefsaid/PMO/commit/37380e17d0cf42454c365c9a9ffbf930192ee764))
+
+
+### Bug Fixes
+
+* **ui:** five rendered-check findings — dark error headline and selected stage contrast, projects table page scroll, Bahasa procurement board and sales funnel labels ([#741](https://github.com/ariefsaid/PMO/issues/741)) ([6303728](https://github.com/ariefsaid/PMO/commit/6303728559c4af0548b497c64c6e0e2d044dce61))
+
 ## [0.12.0](https://github.com/ariefsaid/PMO/compare/v0.11.1...v0.12.0) (2026-09-25)
 
 
