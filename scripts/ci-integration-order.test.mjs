@@ -19,12 +19,27 @@ test('the ordinary e2e lane runs before the served-function smoke lane', () => {
   );
 });
 
-test('CI and its local reproduction reject retry-masked flaky Playwright cases', () => {
-  // Assert the CONTRACT (every browser lane rejects flakes), not a character-distance window.
-  // The {0,300} form broke merely because a comment was added above the command — a false RED that
-  // says nothing about whether the flag is present. Match each lane's command independently.
-  assert.match(workflow, /playwright test --project=chromium --fail-on-flaky-tests/);
-  assert.match(workflow, /playwright test --project=serial --workers=1 --fail-on-flaky-tests/);
+test('no Playwright retries anywhere: a failure runs once (with a trace) and a flake cannot be retried green', () => {
+  // The CONTRACT is "no retry can mask a flake". With retries 0 there is nothing for
+  // --fail-on-flaky-tests to catch, so the lanes no longer pass it; a retry re-introduced at the
+  // config, CLI, or spec level must go red here instead.
+  const config = readFileSync(new URL('../pmo-portal/playwright.config.ts', import.meta.url), 'utf8');
+  assert.match(config, /^\s*retries: 0,/m, 'playwright.config.ts must set retries: 0 for every environment');
+  assert.match(config, /trace: 'retain-on-failure'/, "failures must keep a trace ('on-first-retry' never fires without retries)");
+  const script = readFileSync(new URL('./verify-main-pr.sh', import.meta.url), 'utf8');
+  for (const source of [workflow, script]) assert.doesNotMatch(source, /--retries/);
+  const e2eDir = new URL('../pmo-portal/e2e/', import.meta.url);
+  const specs = readdirSync(e2eDir, { recursive: true }).filter((f) => /\.ts$/.test(f));
+  assert.ok(specs.length > 0, 'no e2e sources found — this gate would have scanned nothing');
+  for (const f of specs) {
+    const code = readFileSync(new URL(f, e2eDir), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join('\n');
+    assert.doesNotMatch(code, /\bretries:\s*[1-9]/, `${f} re-introduces a retry`);
+  }
+  assert.match(workflow, /playwright test --project=chromium/);
+  assert.match(workflow, /playwright test --project=serial --workers=1/);
   // ...and that neither lane's json report is produced with a shell redirect, which would send the
   // `list` reporter into the file too — hiding the failing test name from the CI log and corrupting
   // the JSON the skip gate parses (regression, 2026-07-25).
@@ -39,14 +54,7 @@ test('CI and its local reproduction reject retry-masked flaky Playwright cases',
   assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-serial\.json/);
   assert.match(
     workflow,
-    /- name: Serve adapter-dispatch \(served-fn lane smoke\)[\s\S]{0,800}playwright test served-fn-smoke --project=chromium --fail-on-flaky-tests/,
-  );
-
-  const script = readFileSync(new URL('./verify-main-pr.sh', import.meta.url), 'utf8');
-  assert.equal(
-    script.match(/--fail-on-flaky-tests/g)?.length,
-    3,
-    'parallel, serial, and served local Playwright lanes must all reject flakes',
+    /- name: Serve adapter-dispatch \(served-fn lane smoke\)[\s\S]{0,800}playwright test served-fn-smoke --project=chromium/,
   );
 });
 
@@ -89,8 +97,8 @@ test('pull_request has NO paths-ignore — required checks must always be able t
 test('CI and local promotion run shared-state specs after the parallel browser lane', () => {
   const script = readFileSync(new URL('./verify-main-pr.sh', import.meta.url), 'utf8');
   for (const source of [workflow, script]) {
-    const parallel = source.indexOf('playwright test --project=chromium --fail-on-flaky-tests');
-    const serial = source.indexOf('playwright test --project=serial --workers=1 --fail-on-flaky-tests');
+    const parallel = source.indexOf('playwright test --project=chromium');
+    const serial = source.indexOf('playwright test --project=serial --workers=1');
     assert.ok(parallel !== -1, 'parallel Chromium lane is missing');
     assert.ok(serial > parallel, 'shared-state specs must run later in their own serial invocation');
   }
@@ -98,7 +106,7 @@ test('CI and local promotion run shared-state specs after the parallel browser l
 
 test('the local PR-to-main simulation runs every gate before the served-function smoke', () => {
   const script = readFileSync(new URL('./verify-main-pr.sh', import.meta.url), 'utf8');
-  const verify = script.indexOf('npm run verify:locked');
+  const verify = script.indexOf('npm run check:guards');
   const coverage = script.indexOf('npm run test:coverage');
   const changedLines = script.indexOf('changed-lines-coverage.mjs');
   const repositoryTests = script.indexOf('scripts/parallel-infra.test.mjs');
@@ -108,8 +116,10 @@ test('the local PR-to-main simulation runs every gate before the served-function
   const ordinaryE2e = script.indexOf('CI=true npx playwright test --project=chromium');
   const servedFunction = script.indexOf('scripts/serve-functions.sh');
 
-  assert.ok(verify !== -1, 'full verify gate is missing');
-  assert.ok(coverage > verify, 'CI-equivalent coverage suite must run after full verify');
+  assert.ok(verify !== -1, 'repo guards are missing');
+  assert.ok(coverage > verify, 'CI-equivalent coverage suite must run after the guards');
+  // The unit suite runs ONCE: coverage IS the suite (a plain `npm test`/`verify` would repeat it).
+  assert.doesNotMatch(script, /npm run verify|npm (run )?test(\s|$)/m, 'the unit suite must run only once (under coverage)');
   assert.ok(changedLines > coverage, 'changed-lines coverage gate must consume the fresh coverage report');
   assert.ok(repositoryTests > changedLines, 'repository-level CI contract tests must run after coverage');
   assert.ok(denoBoot > repositoryTests, 'Deno boot smoke must run after repository-level tests');
@@ -145,14 +155,56 @@ test('shared Deno scripts discover the complete current function and test invent
 
 test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
   assert.equal(packageJson.scripts['check:redirect-targets'], 'node ../scripts/check-redirect-targets.mjs');
-  assert.match(packageJson.scripts.verify, /check:redirect-targets/);
+  // The guard itself runs via check:guards (asserted to run in CI below); the self-test directly.
+  assert.match(packageJson.scripts['check:guards'], /npm run check:redirect-targets(\s|$)/);
   const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  integration:'));
   assert.match(verifyJob, /node scripts\/check-redirect-targets\.mjs --self-test/);
-  assert.match(verifyJob, /node scripts\/check-redirect-targets\.mjs\s*\n/);
+  assert.match(verifyJob, /run: npm run check:guards/);
+});
+
+test('every repo guard runs in CI: check:guards holds every check:* and CI verify runs it early', () => {
+  // Six guards ran only in `npm run verify` (never in CI) until 2026-09-30 — once the local promote
+  // gate became reproduction-only they ran nowhere. One list, run by both, cannot drift.
+  const { scripts } = packageJson;
+  const defined = Object.keys(scripts).filter((n) => n.startsWith('check:') && n !== 'check:guards');
+  assert.ok(defined.length > 0, 'no check:* scripts found — this gate would have scanned nothing');
+  const inGuards = [...scripts['check:guards'].matchAll(/npm run (check:[\w-]+)/g)].map((m) => m[1]);
+  assert.deepEqual([...inGuards].sort(), [...defined].sort(), 'check:guards must run every check:* script');
+  assert.match(scripts.verify, /^npm run check:guards && /, 'verify must start with check:guards');
+  assert.deepEqual(scripts.verify.match(/\bcheck:[\w-]+/g), ['check:guards'], 'verify must reach guards only via check:guards');
+
+  const verifyJob = workflow
+    .slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'))
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+  const at = (s) => verifyJob.indexOf(s);
+  assert.ok(at('run: npm ci') !== -1, 'verify job has no npm ci step — slice is wrong');
+  assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
+  assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
+  // Cheap failures first: typecheck and lint before the (slow) unit + coverage suite.
+  assert.ok(at('run: npm run typecheck') < at('run: npm run test:coverage'), 'typecheck must precede unit tests');
+  assert.ok(
+    at('run: npm run lint:ci') !== -1 && at('run: npm run lint:ci') < at('run: npm run test:coverage'),
+    'lint must precede unit tests',
+  );
+});
+
+test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
+  const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
+  assert.match(verifyJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
+  const integration = workflow.slice(workflow.indexOf('\n  integration:'));
+  assert.match(
+    integration,
+    /if: github\.event_name != 'workflow_dispatch' \|\| inputs\.run_pgtap\n\s+run: supabase test db/,
+    'pgTAP in integration must be skipped ONLY on a dispatch (never on the PR-to-main gate)',
+  );
+  const dispatcher = readFileSync(new URL('./ci-e2e.sh', import.meta.url), 'utf8');
+  assert.match(dispatcher, /--ref "\$branch" -f run_pgtap="\$pgtap"/);
 });
 
 test('the full verify gate enforces edge-function test binding', () => {
-  assert.match(packageJson.scripts.verify, /check:edge-test-binding/);
+  assert.match(packageJson.scripts['check:guards'], /check:edge-test-binding/);
   assert.equal(
     packageJson.scripts['check:edge-test-binding'],
     'node ../scripts/check-edge-fn-test-binding.mjs',

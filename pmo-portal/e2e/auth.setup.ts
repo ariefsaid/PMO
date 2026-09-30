@@ -14,9 +14,9 @@ import { SEED_PASSWORD, AUTH_DIR } from './helpers';
  * injects the captured session directly, so specs land authenticated without paying a real
  * bcrypt verification per spec (the change that let CI move off `workers: 1`).
  *
- * A transient login failure is intentionally left visible to Playwright. CI
- * retries at the runner level and `--fail-on-flaky-tests` turns a retry-masked
- * recovery into a red gate instead of silently accepting an unstable setup.
+ * A transient login failure is intentionally left visible to Playwright: there
+ * are no retries (`retries: 0`), so an unstable setup is a red gate, never a
+ * silently-accepted recovery.
  */
 
 const SEED_EMAILS = [

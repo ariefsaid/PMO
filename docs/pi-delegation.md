@@ -361,8 +361,8 @@ Never accept a pi completion report. Minimum per dispatch:
   trusting any HTML/JSX bulk edit.
 - **Render UI work yourself** (playwright/preview MCP) — this is design-workflow §2.3 lens (a),
   and it catches what source review can't.
-- **Run the gates yourself** before any phase transition (typecheck/lint/test/build/e2e from
-  `pmo-portal/`, `supabase test db` for DB).
+- **Read the builder's gate evidence**; re-run only a targeted check you doubt (the touched test,
+  the touched pgTAP file) — never a full re-verify; CI runs the full suite on the PR.
 - **Killed/timed-out runs leave HALF-APPLIED edits.** `git diff` first; re-dispatch as a
   completion round, never a blind retry.
 
@@ -391,11 +391,12 @@ their ACs, an org_id seam violation) — while the Director's own read caught 2 
 
 ## 8. ⚑ Shared-DB verdict rule (binding, learned 2026-07-12/13)
 
-A pgTAP verdict on the shared local stack counts ONLY when `supabase db reset && supabase test db`
-run **chained inside one `with-db-lock.sh` hold**:
+Locally run only the touched pgTAP files (`supabase test db <files>`); CI's `pgtap` job is the
+full proof. Reset only when your branch adds/changes a migration or seed — and then the verdict
+counts ONLY when reset and test run **chained inside one `with-db-lock.sh` hold**:
 
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'
 ```
 
 Separate holds let a sibling worktree's reset apply a *different* migration set in between —

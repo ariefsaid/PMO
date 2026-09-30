@@ -24,8 +24,9 @@ instead.
 - Create your **own** data with a unique name/id every run — `` `Test View ${Date.now()}` ``, a
   `crypto.randomUUID()` suffix, etc. Never mutate a shared seed row (P001, P002, SP-2401, the seed
   org's shared users) — another worker may be reading it concurrently.
-- Clean up in `afterEach` (or a service-role delete) so the spec is safe under `retries: 2` — a
-  retry must find the same starting state, not a leftover from attempt 1.
+- Clean up in `afterEach` (or a service-role delete), and never assume an empty table: local runs
+  don't reset the DB by default (`scripts/e2e-local.sh`), so a rerun must not trip on its own
+  leftovers.
 - Need data scoped **per worker** rather than per test? Use `testInfo.workerIndex` /
   `process.env.TEST_WORKER_INDEX` to namespace it (worker-scoped fixture, `scope: 'worker'`) —
   workers are separate processes with separate browser contexts and cannot share state or globals.
@@ -77,10 +78,10 @@ invocation owns fresh dev servers (`reuseExistingServer: false`).
 CI's `verify` + `integration` run automatically on every PR that targets `main` and decide the merge
 (owner 2026-09-30; this replaced the 2026-07-24 local-simulation rule). **`scripts/verify-main-pr.sh`**
 reproduces that run locally for diagnosis — e.g. when a CI job timed out before printing its
-failures. It follows CI's order and semantics — full verify,
-CI-equivalent coverage + changed-lines ≥80, repo contract tests, Deno boot-smoke + unit suites, a
-**fresh** Supabase stack, complete pgTAP, the whole Playwright portfolio under `CI=true`
-(`chromium` parallel then `serial --workers=1`, both `--fail-on-flaky-tests`), and the
+failures. It follows CI's order and semantics — guards, typecheck, lint, the unit suite once under
+coverage + changed-lines ≥80, build, repo contract tests, Deno boot-smoke + unit suites, a DB reset
+(`--fresh-stack` also restarts the shared stack), complete pgTAP, the whole Playwright portfolio
+under `CI=true` (`chromium` parallel then `serial --workers=1`, no retries), and the
 served-function smoke **last**.
 
 Why the ordering is load-bearing: `scripts/serve-functions.sh` tears down its temporary
