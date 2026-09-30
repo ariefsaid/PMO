@@ -23,6 +23,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { AppShell } from '../AppShell';
 import { Breadcrumb } from '../Breadcrumb';
+import { BackBar } from '../BackBar';
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -337,7 +338,7 @@ describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb mobile truncation', () => {
     expect(current!.className).toMatch(/max-\[921px\]:max-w-\[20ch\]/);
   });
 
-  it('parent crumb links are hidden at mobile (max-[921px]:hidden)', () => {
+  it('parent crumb links hide at exactly the breakpoint where the phoneOnly BackBar shows (#735: no width without a way back)', () => {
     const { container } = render(
       <Breadcrumb
         parts={[
@@ -349,7 +350,10 @@ describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb mobile truncation', () => {
     // Parent link buttons have the mobile hide class
     const parentBtn = container.querySelector('button');
     expect(parentBtn).not.toBeNull();
-    expect(parentBtn!.className).toMatch(/max-\[921px\]:hidden/);
+    const { container: bar } = render(<BackBar label="Projects" phoneOnly onBack={vi.fn()} />);
+    const showAt = (bar.firstElementChild as HTMLElement).className.match(/max-\[(\d+)px\]:flex/)?.[1];
+    expect(showAt).toBeDefined();
+    expect(parentBtn!.className).toContain(`max-[${showAt}px]:hidden`);
   });
 
   it('with only one part (no parent), nothing is hidden', () => {

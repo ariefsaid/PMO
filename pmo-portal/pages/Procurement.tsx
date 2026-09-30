@@ -12,7 +12,7 @@ import {
   ProjectNameLink,
   type Column,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
@@ -297,6 +297,9 @@ const ProcurementPage: React.FC = () => {
     },
   ];
 
+  // AC-L10N-052: the download carries each row's own ISO code beside value (export-only).
+  const exportColumns = withCurrencyColumn(columns, 'value', (r) => r.currency);
+
   // ── States ────────────────────────────────────────────────────────────────
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
@@ -387,7 +390,7 @@ const ProcurementPage: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={columns} entity="Procurement" />
+          <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" />
         )
       }
       importAction={

@@ -1,8 +1,9 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router';
+import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
+import { returnToState } from './returnTo';
 
 // -----------------------------------------------------------------------
 // RequireAuth — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -97,9 +98,11 @@ const NotProvisionedPage: React.FC = () => {
 
 export const RequireAuth: React.FC = () => {
   const { session, loading, profileError, profileErrorKind } = useAuth();
+  const location = useLocation();
 
   if (loading) return <AuthLoading />;
-  if (!session) return <Navigate to="/login" replace />;
+  // AC-CLI-012: carry the page being visited so sign-in can return to it (router state, not URL).
+  if (!session) return <Navigate to="/login" replace state={returnToState(location)} />;
   if (profileErrorKind === 'not_provisioned') return <NotProvisionedPage />;
   if (profileError) return <ProfileErrorPage message={profileError} />;
 

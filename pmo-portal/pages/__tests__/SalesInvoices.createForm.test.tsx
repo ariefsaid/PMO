@@ -33,6 +33,9 @@ const hoisted = vi.hoisted(() => ({
   projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01' }],
 }));
 
+// #731: the create form's money adornment reads the org currency. Pinned here rather than left to a
+// real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a syntax error.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => hoisted.salesInvoicesState,
   useRevenueMutations: () => ({

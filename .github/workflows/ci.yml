@@ -96,6 +96,12 @@ jobs:
       - name: Parallel-agent infra tests
         working-directory: .
         run: node --test scripts/parallel-infra.test.mjs
+      # The PMO command-line client (#728): PKCE/state, allow-lists, no-delete, the DD-API-3 write
+      # guards, refresh-on-expiry and the 0600 credentials file. Fake Supabase on an ephemeral
+      # port + temp dirs only — no DB, no network.
+      - name: PMO CLI tests
+        working-directory: .
+        run: node --test scripts/pmo.test.mjs scripts/register-oauth-client.test.mjs
       - name: CI integration-order test
         working-directory: .
         run: |
