@@ -9,8 +9,9 @@
 `main` == `dev`. Adds #735, #732, #731, #585, #728 (owner CLI over Supabase OAuth + consent page +
 API-client guard 0222, runbook `docs/runbooks/pmo-cli.md`), #655/#656 (ERPNext: no redirects, read-permission
 probe before activation, active-member caller), and #754 (all eleven verify guards now run in CI; leaner local
-and CI load). Open issues triaged the same day (13 closed). **Owner-gated next:** push 0219–0222 to the hosted
-project; enable the OAuth server there and register the CLI client (runbook); `main` → `production` FE promote.
+and CI load). Open issues triaged the same day (13 closed). Release **v0.13.0** cut (#744) and back-merged to `dev`.
+**Hosted DB: 0219–0222 pushed 2026-09-30 (owner yes)** — 0219 normalised 0 rows; REST/auth/RPC answer 200 after the
+push; the replaced definer `approved_timesheet_for_push` still refuses the anon key (42501). **Owner-gated next:** enable the OAuth server there and register the CLI client (runbook); `main` → `production` FE promote.
 Before RIS activates ERPNext: its integration user needs read on the owned domains' doctypes + GL Entry +
 Payment Ledger Entry.
 
