@@ -144,8 +144,10 @@ export function audit(reports, allow = ALLOWED_SKIPS, today = new Date().toISOSt
   const now = parseDay(today);
   const stamp = new Map(live.map((a) => [a, parseDay(a.verified)]));
   // Missing, malformed, or future-dated (a stamp cannot vouch for a day that has not happened) → fail.
-  const unverified = live.filter((a) => stamp.get(a) === null || stamp.get(a) > now);
-  const aging = live.filter((a) => stamp.get(a) !== null && stamp.get(a) <= now && (now - stamp.get(a)) / DAY_MS > VERIFY_WINDOW_DAYS);
+  // One day of slack: `today` is the UTC date, and a stamper east of UTC (Jakarta, UTC+7) is a day ahead
+  // for part of every morning.
+  const unverified = live.filter((a) => stamp.get(a) === null || stamp.get(a) > now + DAY_MS);
+  const aging = live.filter((a) => stamp.get(a) !== null && (now - stamp.get(a)) / DAY_MS > VERIFY_WINDOW_DAYS);
   return { skipped, unexplained, stale, used, unverified, aging };
 }
 
@@ -180,7 +182,8 @@ if (isRunAsMain && process.argv[2] === '--self-test') {
   if (v(undefined).unverified.length !== 1) throw new Error('self-test FAIL: missing verified stamp not caught');
   if (v('yesterday').unverified.length !== 1) throw new Error('self-test FAIL: malformed verified stamp not caught');
   if (v('2026-13-45').unverified.length !== 1) throw new Error('self-test FAIL: impossible-date verified stamp not caught');
-  if (v('2026-10-01').unverified.length !== 1) throw new Error('self-test FAIL: future-dated verified stamp not caught');
+  if (v('2026-10-02').unverified.length !== 1) throw new Error('self-test FAIL: future-dated verified stamp not caught');
+  if (v('2026-10-01').unverified.length) throw new Error('self-test FAIL: a stamp one day ahead (east-of-UTC stamper) was failed');
   const fresh = v('2026-09-30');
   if (fresh.unverified.length || fresh.aging.length) throw new Error('self-test FAIL: valid fresh stamp flagged');
   const edge = v('2026-07-02'); // exactly 90 days old — still inside the window
