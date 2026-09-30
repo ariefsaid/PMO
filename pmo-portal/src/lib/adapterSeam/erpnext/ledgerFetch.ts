@@ -123,6 +123,12 @@ async function fetchAllPages(
   return rows;
 }
 
+/** The ledger doctypes the sweep's ledger-mirror feed reads for EVERY activated org (not domain-gated) —
+ *  named once here so the activation read-permission probe (#656) checks exactly these. */
+export const GL_ENTRY_DOCTYPE = 'GL Entry';
+export const PAYMENT_LEDGER_ENTRY_DOCTYPE = 'Payment Ledger Entry';
+export const LEDGER_MIRROR_DOCTYPES: readonly string[] = [GL_ENTRY_DOCTYPE, PAYMENT_LEDGER_ENTRY_DOCTYPE];
+
 /** `GET /api/resource/GL Entry` — mirrored GL Entry truth (FR-ENA-150). Pure fetch; never persists. */
 export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<GlEntryRow[]> {
   // OD-INT-6: fail loud on missing Company (config-rejected) instead of silently filtering ['company','=',null]
@@ -140,7 +146,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
     ['company', '=', opts.company],
   ];
   if (opts.since !== undefined) filters.push(['modified', '>=', opts.since]);
-  const raw = await fetchAllPages(client, 'GL Entry', filters, GL_FIELDS, pageSize);
+  const raw = await fetchAllPages(client, GL_ENTRY_DOCTYPE, filters, GL_FIELDS, pageSize);
   return raw.map((r) => ({
     name: String(r.name),
     account: String(r.account),
@@ -176,7 +182,7 @@ export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: Led
     ['company', '=', opts.company],
   ];
   if (opts.since !== undefined) filters.push(['modified', '>=', opts.since]);
-  const raw = await fetchAllPages(client, 'Payment Ledger Entry', filters, PLE_FIELDS, pageSize);
+  const raw = await fetchAllPages(client, PAYMENT_LEDGER_ENTRY_DOCTYPE, filters, PLE_FIELDS, pageSize);
   return raw.map((r) => ({
     name: String(r.name),
     account: String(r.account),

@@ -11,7 +11,9 @@ import {
   KIND_DOMAIN,
   KIND_MIRROR_TABLE,
   externalIdForKind,
+  sweepKindsForOrg,
 } from './feedKinds.ts';
+import { DOCTYPE_REGISTRY } from './doctypeRegistry.ts';
 
 describe('erpnext/feedKinds — Payment Entry disambiguation (AC-SAR-060)', () => {
   it('Payment Entry with payment_type=Receive → incoming-payment (revenue domain)', () => {
@@ -94,5 +96,24 @@ describe('erpnext/feedKinds — Payment Entry disambiguation (AC-SAR-060)', () =
 
   it('externalIdForKind encodes Employee with the SAME Supplier:/Customer: prefix convention (FR-TSP-091)', () => {
     expect(externalIdForKind('employee', 'HR-EMP-00001')).toBe('Employee:HR-EMP-00001');
+  });
+});
+// #656 — the ONE domain→doctype rule, shared by the sweep's poll and the activation read-permission probe.
+describe('erpnext/feedKinds — sweepKindsForOrg (the sweep poll scope, #656)', () => {
+  it('an org that owns nothing polls nothing (fail-closed)', () => {
+    expect(sweepKindsForOrg([])).toEqual([]);
+  });
+
+  it('polls exactly the registry kinds of the owned domains, each with its registry doctype', () => {
+    const kinds = sweepKindsForOrg(['procurement']);
+    expect(kinds.map((k) => k.kind).sort()).toEqual(
+      ['goods-receipt', 'payment', 'purchase-invoice', 'purchase-order', 'purchase-request', 'quotation', 'rfq'],
+    );
+    for (const { kind, doctype } of kinds) expect(doctype).toBe(DOCTYPE_REGISTRY[kind].doctype);
+  });
+
+  it('unions multiple owned domains and ignores unknown ones', () => {
+    const kinds = sweepKindsForOrg(['timesheets', 'not-a-domain']).map((k) => k.kind).sort();
+    expect(kinds).toEqual(['employee', 'timesheet']);
   });
 });

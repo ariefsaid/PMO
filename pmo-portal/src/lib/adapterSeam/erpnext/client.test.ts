@@ -479,4 +479,46 @@ describe('erpnext/client', () => {
       expect(calls).toBe(2);
     });
   });
+
+  // #655 — the site URL is admin-nominated, so the client must never follow a redirect (the
+  // Authorization header would travel with it). Same policy as the connect-time probes in
+  // `external-connect` / `external-set-company`: `redirect: 'manual'`, and a 3xx is a classified failure.
+  describe('redirect policy (#655 — admin-nominated hosts)', () => {
+    it('sends redirect: "manual" on every request', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, { name: 'X' }));
+      await getDoc(deps, 'Supplier', 'X');
+      await createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' });
+      const fetchMock = deps.fetchImpl as unknown as ReturnType<typeof vi.fn>;
+      for (const call of fetchMock.mock.calls) {
+        expect((call[1] as RequestInit).redirect).toBe('manual');
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('a 3xx answer to a GET is a classified failure, never a success, and is not retried', async () => {
+      const deps = fetchDeps(async () => new Response(null, { status: 302, headers: { Location: 'https://elsewhere.example/login' } }));
+      const err = await getDoc(deps, 'Supplier', 'X').catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ErpError);
+      expect(err).toMatchObject({ code: 'external-unreachable', status: 302, retryable: false });
+      expect((err as ErpError).message).toMatch(/redirect/i);
+      // A redirect is a deterministic answer — re-asking the same host cannot change it.
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('a 3xx answer to a create POST is a classified failure (ambiguous → external-unreachable), sent once', async () => {
+      const deps = fetchDeps(async () => new Response(null, { status: 307, headers: { Location: 'https://elsewhere.example/' } }));
+      await expect(createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' }))
+        .rejects.toMatchObject({ code: 'external-unreachable', status: 307 });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('an opaque-redirect answer (the spec form of a manual redirect) is refused the same way', async () => {
+      // Runtimes that implement the fetch spec literally surface a manual redirect as
+      // `type: 'opaqueredirect'` with status 0; `new Response` cannot build one, so model it.
+      const opaque = { type: 'opaqueredirect', status: 0, ok: false, headers: new Headers(), text: async () => '' } as unknown as Response;
+      const deps = fetchDeps(async () => opaque);
+      await expect(getDoc(deps, 'Supplier', 'X')).rejects.toMatchObject({ code: 'external-unreachable', retryable: false });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+  });
 });

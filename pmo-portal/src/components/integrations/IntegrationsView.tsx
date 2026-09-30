@@ -23,9 +23,10 @@ import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnersh
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { tierLabel, domainLabel } from './integrationLabels';
 import { CanWrite } from '@/src/auth/usePermission';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatInstantDate, formatList } from '@/src/lib/format';
 import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/types';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
+import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 
 const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
 
@@ -224,6 +225,28 @@ export const IntegrationsView: React.FC = () => {
     setSelectedCompany(null);
   };
 
+  const activationErrorMessage = (refusal: ErpActivationRefusal | null): string => {
+    if (refusal?.kind === 'missing-reads') {
+      return t(
+        'integrations.organization.readiness.erpActivation.missingReads',
+        'The ERPNext integration user cannot read: {{doctypes}}. Grant it read access to these in ERPNext, then activate again. Your selection was kept.',
+        { doctypes: refusal.doctypes.join(', ') },
+      );
+    }
+    if (refusal?.kind === 'unsupported-version') {
+      return t(
+        'integrations.organization.readiness.erpActivation.unsupportedVersion',
+        'ERPNext {{version}} is not supported — PMO supports ERPNext {{supported}}. Nothing was activated.',
+        {
+          version: refusal.versionMajor,
+          // The supported set is the server's; the list joins it in the viewer's language ("15 and 16" / "15 dan 16").
+          supported: formatList(refusal.supportedMajors.map(String)),
+        },
+      );
+    }
+    return t('integrations.organization.readiness.erpActivation.activateFailed', 'Activation failed. Your selection was kept; you can try again.');
+  };
+
   const handleSetCompanySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!setCompanyTier) return;
@@ -238,10 +261,10 @@ export const IntegrationsView: React.FC = () => {
       await setCompany.mutateAsync(selectedCompany);
       setSetCompanyTier(null);
       setSelectedCompany(null);
-    } catch {
-      // AC-IRUX-005: activation failure keeps the dialog open AND the selection. Only the generic
-      // failure message is set; selectedCompany is retained so the Admin can retry Activate.
-      setSetCompanyError(t('integrations.organization.readiness.erpActivation.activateFailed', 'Activation failed. Your selection was kept; you can try again.'));
+    } catch (err) {
+      // AC-IRUX-005: activation failure keeps the dialog open AND the selection, so the Admin can retry.
+      // #656: a refusal the Admin can act on says what to fix; anything else stays generic.
+      setSetCompanyError(activationErrorMessage(erpActivationRefusalOf(err)));
     }
   };
 

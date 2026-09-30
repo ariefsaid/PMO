@@ -2320,7 +2320,9 @@
           "unavailableSub": "Perusahaan ERPNext Anda tidak dapat dibaca. Coba lagi untuk mengaktifkan integrasi.",
           "emptyTitle": "Tidak ada Perusahaan ditemukan",
           "emptySub": "Buat sebuah Perusahaan di ERPNext sebelum mengaktifkan integrasi ini.",
-          "activateFailed": "Aktivasi gagal. Pilihan Anda tetap tersimpan; Anda dapat mencoba lagi."
+          "activateFailed": "Aktivasi gagal. Pilihan Anda tetap tersimpan; Anda dapat mencoba lagi.",
+          "missingReads": "Pengguna integrasi ERPNext tidak dapat membaca: {{doctypes}}. Berikan akses baca untuk semuanya di ERPNext, lalu aktifkan lagi. Pilihan Anda tetap tersimpan.",
+          "unsupportedVersion": "ERPNext {{version}} tidak didukung — PMO mendukung ERPNext {{supported}}. Tidak ada yang diaktifkan."
         },
         "health": {
           "loading": "Memeriksa status pekerjaan keluar…",

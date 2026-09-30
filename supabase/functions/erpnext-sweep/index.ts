@@ -70,7 +70,7 @@ import { RFQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erp
 import { SQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplierQuotation.ts';
 import { SUPPLIER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplier.ts';
 import { CUSTOMER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
-import { KIND_DOMAIN, KIND_MIRROR_TABLE } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { KIND_DOMAIN, KIND_MIRROR_TABLE, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
@@ -163,38 +163,6 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-/** The list of doctypes the sweep polls, per domain. Built from DOCTYPE_REGISTRY (one source). */
-/**
- * Kinds whose OUTBOUND push shipped before their INBOUND handling did, so the poll had to stay closed
- * for them in the meantime. Registering a kind in DOCTYPE_REGISTRY enrols it in the poll
- * automatically, which is exactly why an exclusion here has to be explicit.
- *
- * `timesheet` (P3b) WAS excluded: FR-TSP's feed is LIFECYCLE-ONLY and must NEVER adopt a
- * natively-created ERP Timesheet — PMO owns entry AND approval (ADR-0059 Posture B), so minting a
- * mirror from a Desk-created Timesheet would import hours that no PMO approver ever approved. That
- * never-adopt branch landed (task 6.2, `erpnextFeedDeps.ts`'s `mintMirrorRow` throws
- * `native-timesheet-not-adopted` for an unmapped Timesheet — it mints nothing), and the desk-cancel
- * reopen (task 6.3) needed the poll running to ever observe a cancelled Timesheet — so `timesheet` was
- * REMOVED from this set in that same change. `employee` was never added here: it is the adopt TARGET
- * (FR-TSP-090/091), gated only by domain ownership (`KIND_DOMAIN.employee === 'timesheets'`,
- * AC-TSP-003) via `sweepKindsForOrg`, exactly like every other adopted master (Supplier/Customer).
- *
- * `budget` (P3c) WAS excluded for the identical shape: FR-BUD-140's never-adopt (a Desk-created ERP
- * Budget is ack-and-skipped, NEVER minted into PMO — PMO is the SoT for the budget figure,
- * OD-BUDGET-1) and FR-BUD-142's never-fight-the-operator (an external cancel reopens `push_state`,
- * never auto-re-pushes). Both now land (slice 5, `erpnextFeedDeps.ts`'s `mintMirrorRow` throws
- * `native-budget-not-adopted` for an unmapped Budget; `cancelStatusPatch`/`tombstoneMirror` reopen +
- * surface a desk-cancel) — so `budget` is REMOVED from this set in the SAME change, per the rule below.
- *
- * ⚑ Remove an entry in the SAME change that lands its inbound branch — never before.
- */
-const SWEEP_UNPOLLED_KINDS = new Set<ErpDocKind>([]);
-
-const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.entries(DOCTYPE_REGISTRY) as Array<
-  [ErpDocKind, { doctype: string }]
->)
-  .filter(([kind]) => !SWEEP_UNPOLLED_KINDS.has(kind))
-  .map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
 
 /**
  * The list-endpoint fields each kind's poll must request (Luna BLOCK 6). Sourced from the field list
@@ -214,7 +182,7 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   customer: CUSTOMER_FROM_DOC_FIELDS,
   'sales-invoice': SI_FROM_DOC_FIELDS,
   'incoming-payment': PE_RECEIVE_FROM_DOC_FIELDS,
-  // P3c: `budget` IS polled (SWEEP_UNPOLLED_KINDS is empty — the inbound never-adopt/never-fight-the-
+  // P3c: `budget` IS polled (`feedKinds.ts` SWEEP_UNPOLLED_KINDS is empty — the inbound never-adopt/never-fight-the-
   // operator branches landed). `accounts` is deliberately absent from its field list: the list endpoint
   // drops child tables anyway, and an ERP-side budget amount must never flow back into PMO (FR-BUD-152).
   budget: BUDGET_FROM_DOC_FIELDS,
@@ -272,16 +240,9 @@ export function inFlightAnchorFilter(
  */
 export const KINDS_NEEDING_FULL_DOC: ErpDocKind[] = ['incoming-payment'];
 
-/**
- * The doctypes ONE org's sweep may poll (Luna BLOCK 9). A valid, activated ERPNext binding says the org
- * talks to ERPNext; it does NOT say which PMO domains it handed over. Polling every doctype regardless
- * pushed native Sales Invoice / Receive PE mirrors into a procurement-only org's revenue read model.
- * Fail-CLOSED: an org with no recorded ownership polls nothing. Exported for direct unit testing.
- */
-export function sweepKindsForOrg(ownedDomains: readonly string[]): Array<{ kind: ErpDocKind; doctype: string }> {
-  const owned = new Set(ownedDomains);
-  return SWEEP_DOCTYPES.filter(({ kind }) => owned.has(KIND_DOMAIN[kind]));
-}
+// #656: the domain→doctype poll rule (Luna BLOCK 9) lives in `erpnext/feedKinds.ts` — ONE copy, shared
+// with the activation read-permission probe (`external-set-company`). Re-exported for existing importers.
+export { sweepKindsForOrg };
 
 /** Luna BLOCK A1 (cross-domain corruption guard): `payment` (Pay/supplier) and `incoming-payment`
  *  (Receive/customer) share the ONE `Payment Entry` doctype (`doctypeRegistry.ts`) — polling it without
@@ -1991,7 +1952,8 @@ async function readErpFiscalYearsLive(
     res = await fetchWithDeadline(
       fetch,
       url.toString(),
-      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' } },
+      // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
+      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
       ERP_PROBE_TIMEOUT_MS,
     );
   } catch (_err) {

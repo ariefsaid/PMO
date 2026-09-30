@@ -2320,7 +2320,9 @@
           "unavailableSub": "Your ERPNext Companies could not be read. Try again to activate the integration.",
           "emptyTitle": "No Companies found",
           "emptySub": "Create a Company in ERPNext before activating this integration.",
-          "activateFailed": "Activation failed. Your selection was kept; you can try again."
+          "activateFailed": "Activation failed. Your selection was kept; you can try again.",
+          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Grant it read access to these in ERPNext, then activate again. Your selection was kept.",
+          "unsupportedVersion": "ERPNext {{version}} is not supported — PMO supports ERPNext {{supported}}. Nothing was activated."
         },
         "health": {
           "loading": "Checking outbound work status…",

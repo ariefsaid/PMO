@@ -548,7 +548,8 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
     res = await fetchWithDeadline(
       fetch,
       url.toString(),
-      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' } },
+      // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
+      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
       ERP_PROBE_TIMEOUT_MS,
     );
   } catch (_err) {

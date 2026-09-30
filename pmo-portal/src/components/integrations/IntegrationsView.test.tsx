@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach, onTestFinished } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,6 +13,8 @@ import { IntegrationsView } from './IntegrationsView';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { IntegrationBinding, IntegrationHealth } from '@/src/lib/repositories/types';
+import { AppError } from '@/src/lib/appError';
+import { withErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({
   useExternalDomainOwnership: vi.fn(),
@@ -1199,6 +1201,70 @@ describe('AC-IRUX-005 ERPNext Company picker states', () => {
     // Another attempt is possible.
     await user.click(screen.getByRole('button', { name: /^Activate$/i }));
     expect(setCompany.mutateAsync).toHaveBeenCalledTimes(2);
+  });
+
+  // #656 — an activation refused for a reason the Admin can act on says what to fix, not just "failed".
+  async function activateWith(rejection: unknown, render: () => unknown = () => wrapWithRole('Admin', <IntegrationsView />)) {
+    const setCompany = { mutateAsync: vi.fn().mockRejectedValue(rejection), isPending: false };
+    vi.mocked(useIntegrations).mockReturnValue(companyReturn({ setCompany }) as any);
+    const user = userEvent.setup();
+    await render();
+    await user.click(await screen.findByRole('button', { name: /^(Select Company|Pilih Perusahaan)$/i }));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    await user.click(screen.getByLabelText(/^(Company|Perusahaan)$/i));
+    await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Acme Corp/i }));
+    await user.click(screen.getByRole('button', { name: /^(Activate|Aktifkan)$/i }));
+    return setCompany;
+  }
+
+  it('#656 a refusal for missing read permissions names every doctype the integration user cannot read', async () => {
+    await activateWith(withErpActivationRefusal(
+      new AppError('server text', 'CONFIG_REJECTED'),
+      { kind: 'missing-reads', doctypes: ['Timesheet', 'GL Entry'] },
+    ));
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/cannot read: Timesheet, GL Entry/i));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(/grant it read access/i);
+    expect(dialog).not.toHaveTextContent(/Activation failed/i);
+    // The selection survives so the Admin can retry once access is granted.
+    expect(screen.getByRole('button', { name: /^Activate$/i })).not.toBeDisabled();
+  });
+
+  it('#656 an unsupported ERPNext version names the version and the supported ones', async () => {
+    await activateWith(withErpActivationRefusal(
+      new AppError('server text', 'CONFIG_REJECTED'),
+      { kind: 'unsupported-version', versionMajor: 14, supportedMajors: [15, 16] },
+    ));
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/ERPNext 14 is not supported/i));
+    expect(screen.getByRole('dialog')).toHaveTextContent(/supports ERPNext 15 and 16/);
+  });
+
+  it('#656 the supported versions come from the server, not the copy', async () => {
+    await activateWith(withErpActivationRefusal(
+      new AppError('server text', 'CONFIG_REJECTED'),
+      { kind: 'unsupported-version', versionMajor: 14, supportedMajors: [15, 16, 17] },
+    ));
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/supports ERPNext 15, 16, and 17/));
+  });
+
+  it('#656 the unsupported-version refusal is translated with a Bahasa list (Bahasa Indonesia)', async () => {
+    // A Bahasa viewer: the UI language drives both the copy (i18n) and the list conjunction (format seam).
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    onTestFinished(() => resetActiveLocale());
+    await activateWith(
+      withErpActivationRefusal(new AppError('server text', 'CONFIG_REJECTED'), { kind: 'unsupported-version', versionMajor: 14, supportedMajors: [15, 16] }),
+      () => wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />),
+    );
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/ERPNext 14 tidak didukung — PMO mendukung ERPNext 15 dan 16/));
+  });
+
+  it('#656 the missing-read refusal is translated (Bahasa Indonesia)', async () => {
+    await activateWith(
+      withErpActivationRefusal(new AppError('server text', 'CONFIG_REJECTED'), { kind: 'missing-reads', doctypes: ['Timesheet'] }),
+      () => wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />),
+    );
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/tidak dapat membaca: Timesheet/i));
   });
 });
 

@@ -443,4 +443,16 @@ describe('erpnext/sweepCursor — deterministic paging (round-7 SHOULD-FIX)', ()
     );
     expect(changes.map((c) => String(c.record.id))).toEqual(['SINV-0002']);
   });
+
+  it('#655 a poll answered with a redirect FAILS the sweep instead of reading as "no changes" (never followed)', async () => {
+    // A followed/opaque redirect used to parse as an empty page — the sweep would report a clean tick
+    // while syncing nothing. The poll must refuse it and must not have asked fetch to follow it.
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 302, headers: { Location: 'https://elsewhere.example/login' } }));
+    const client: ErpClientDeps = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' };
+    await expect(listErpChangesSinceWatermark(
+      { client, doctype: 'Sales Invoice', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC },
+      null,
+    )).rejects.toMatchObject({ code: 'external-unreachable', status: 302 });
+    expect((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].redirect).toBe('manual');
+  });
 });

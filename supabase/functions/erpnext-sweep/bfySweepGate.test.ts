@@ -301,3 +301,36 @@ Deno.test('FR-BFY-075: a PRE-fan-out bare orphan is unchanged (no year to parse,
   assert(rows.length === 1 && rows[0].budget_version_id === VERSION_ID, JSON.stringify(rows));
   assert(rows[0].fiscal_year === null, 'no year is invented for a legacy row');
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// #655 — the sweep's live Fiscal Year read (it bypasses the shared ERPNext client) must not follow a
+// redirect off the admin-nominated host. The stub models a real runtime: a request that allows
+// redirects receives the followed 200; one sent with `redirect: 'manual'` sees the 302.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+Deno.test('#655: a redirected Fiscal Year read HOLDS the recovery instead of reading another host\'s calendar', async () => {
+  const original = globalThis.fetch;
+  const redirectModes: Array<RequestRedirect | undefined> = [];
+  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input instanceof Request ? input.url : input));
+    if (url.pathname.startsWith('/api/resource/Fiscal%20Year')) {
+      redirectModes.push(init?.redirect);
+      if (init?.redirect === 'manual') {
+        return Promise.resolve(new Response(null, { status: 302, headers: { Location: 'https://elsewhere.example/' } }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ data: UNCHANGED.fiscalYears }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+  }) as unknown as typeof fetch;
+  let outcome: { ok: boolean; code?: unknown };
+  try {
+    await buildReconcileDepsLive(fakeDb(UNCHANGED), ORG_BINDING as never, OUTBOX_ROW as never);
+    outcome = { ok: true };
+  } catch (err) {
+    outcome = { ok: false, code: (err as { code?: unknown }).code };
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert(!outcome.ok, 'a redirected calendar must not let the recovery proceed');
+  assert(outcome.code === 'budget-sweep-gate-held', `the refusal is the named hold — got ${String(outcome.code)}`);
+  assert(redirectModes.length >= 1 && redirectModes.every((m) => m === 'manual'), `redirect modes: ${JSON.stringify(redirectModes)}`);
+});
