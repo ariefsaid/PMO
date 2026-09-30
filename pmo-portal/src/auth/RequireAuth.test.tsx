@@ -1,6 +1,7 @@
+import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 
 // Mutable session/profile-error the mocked client returns; reset per test group.
 const state = vi.hoisted(() => ({
@@ -32,14 +33,26 @@ vi.mock('@/src/lib/supabase/client', () => ({
 import { AuthProvider } from './AuthProvider';
 import { RequireAuth } from './RequireAuth';
 
+/** Renders what the guard handed the login page: the return target in router state. */
+const LoginProbe: React.FC = () => {
+  const { pathname, search, state } = useLocation();
+  return (
+    <div>
+      LOGIN PAGE <span data-testid="login-url">{pathname + search}</span>
+      <span data-testid="from">{String((state as { from?: unknown } | null)?.from ?? '')}</span>
+    </div>
+  );
+};
+
 function tree(initial: string) {
   return (
     <MemoryRouter initialEntries={[initial]}>
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<div>LOGIN PAGE</div>} />
+          <Route path="/login" element={<LoginProbe />} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<div>PROTECTED HOME</div>} />
+            <Route path="/oauth/consent" element={<div>CONSENT</div>} />
           </Route>
         </Routes>
       </AuthProvider>
@@ -52,6 +65,17 @@ describe('RequireAuth (AC-AUTH-008)', () => {
     render(tree('/'));
     await waitFor(() => expect(screen.getByText('LOGIN PAGE')).toBeInTheDocument());
     expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
+  });
+});
+
+describe('RequireAuth return-to (AC-CLI-012)', () => {
+  it('AC-CLI-012: a signed-out visit to the consent screen goes to /login carrying the full return target', async () => {
+    render(tree('/oauth/consent?authorization_id=abc123'));
+    await waitFor(() => expect(screen.getByText(/LOGIN PAGE/)).toBeInTheDocument());
+    // The login URL itself is unchanged (AC-AUTH-002) — the target rides in router state.
+    expect(screen.getByTestId('login-url')).toHaveTextContent(/^\/login$/);
+    expect(screen.getByTestId('from')).toHaveTextContent('/oauth/consent?authorization_id=abc123');
+    expect(screen.queryByText('CONSENT')).not.toBeInTheDocument();
   });
 });
 

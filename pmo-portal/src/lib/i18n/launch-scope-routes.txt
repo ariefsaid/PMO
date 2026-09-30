@@ -128,3 +128,7 @@
 #    It shares the "integrations" word with the organization surface at /administration/integrations;
 #    keeping it here means the personal-vs-organization ownership copy cannot drift.
 /integrations                 pages/Integrations.tsx src/components/integrations/M365ConnectionCard.tsx
+
+# ── OAuth consent (#728): Supabase Auth's OAuth server sends the owner here to let the PMO CLI act
+#    as them. The screen names the requesting client and the signed-in account, in en + id.
+/oauth/consent                src/auth/OAuthConsentPage.tsx

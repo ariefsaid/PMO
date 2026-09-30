@@ -59,14 +59,20 @@ vi.mock('@/src/lib/supabase/client', () => ({
 import { AuthProvider } from './AuthProvider';
 import LoginPage from './LoginPage';
 
-function renderLogin() {
+function renderLogin(from?: unknown) {
   return render(
     <AuthProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[{ pathname: '/login', state: from === undefined ? undefined : { from } }]}>
         <LoginPage />
       </MemoryRouter>
     </AuthProvider>
   );
+}
+
+async function signInWithPassword() {
+  await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+  await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+  await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 }
 
 beforeEach(() => {
@@ -100,6 +106,28 @@ describe('LoginPage', () => {
     await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
     await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith('/', { replace: true }));
+  });
+
+  it('AC-CLI-012: returns to the page the guard sent the user from (the OAuth consent screen) after sign-in', async () => {
+    auth.signInWithPassword.mockResolvedValue({ error: null });
+    renderLogin('/oauth/consent?authorization_id=abc123');
+    await signInWithPassword();
+    await waitFor(() =>
+      expect(navigateSpy).toHaveBeenCalledWith('/oauth/consent?authorization_id=abc123', { replace: true }),
+    );
+  });
+
+  it.each([
+    ['protocol-relative', '//evil.example/steal'],
+    ['backslash host', '/\\evil.example'],
+    ['absolute URL', 'https://evil.example/'],
+    ['not a string', { pathname: '/x' }],
+    ['the login page itself', '/login'],
+  ])('AC-CLI-012: an unsafe return target (%s) falls back to /', async (_label, from) => {
+    auth.signInWithPassword.mockResolvedValue({ error: null });
+    renderLogin(from);
+    await signInWithPassword();
     await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith('/', { replace: true }));
   });
 
