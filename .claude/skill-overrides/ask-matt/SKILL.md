@@ -31,8 +31,8 @@ ticket structure, sequencing inside a signed scope. Record as **`OD-`** (owner-l
 money-path / SoD / auth / token-custody and anything cross-cutting → **Director-dispatched**, never the
 factory; foggy or multi-issue → `/wayfinder` first. Inside a **signed milestone brief** the Director
 chains issues without per-issue owner pauses and the owner reviews at milestone boundaries. The
-Director still runs the binding gates itself: `npm run verify:locked`, mutation checks, rendered
-verification, `verify-main-pr.sh` at promotes. The factory's green is an inner loop, not a phase gate.
+Director still owns the binding gates: CI green on every PR (the full suite runs there, not on the
+shared Mac), mutation checks, rendered verification. The factory's green is an inner loop, not a phase gate.
 
 **One page for all of it: [`docs/factory-workflow.md`](../../docs/factory-workflow.md).**
 
@@ -56,7 +56,7 @@ verification, `verify-main-pr.sh` at promotes. The factory's green is an inner l
 6. **Discover** — rendered pass on UI changes (`docs/qa-portfolio.md`).
 7. **Cover/Accept** — each `AC-###` proven at its owning layer (ADR-0010).
 8. **Ship** — `release-engineer` (role agent): branch → PR to `dev`. Promotion `dev`→`main` is
-   gated (`scripts/verify-main-pr.sh`); `main`→production is owner-only.
+   gated by CI's automatic `verify` + `integration` run on that PR; `main`→production is owner-only.
 
 **Branch — does a question need a runnable answer** (state, business logic, a UI you must see)?
 Detour through **`/prototype`** (throwaway code, exempt from TDD), bridged by **`/handoff`** in both

@@ -55,7 +55,7 @@ agents:
   # took BOTH GLM slots — and the planner runs first, so no chain could start at all.
   # ⚑ What this costs, stated so it is not rediscovered: review is now same-lineage, so the reviewer
   # shares more of the builder's blind spots than a cross-family pair would. The Director's own gates
-  # (verify:locked, mutation checks, rendered pass) carry that weight — they are the real exit, not
+  # (CI's full suite on the PR, mutation checks, rendered pass) carry that weight — they are the real exit, not
   # the ADW's green (docs/factory-workflow.md § Executor routing).
   # ⚑ The GLOBAL default above is codex too: left on zai, any agent without an explicit `model:` would
   # silently route to the exhausted substrate. builder/fe_builder were exactly that case once already.
@@ -67,7 +67,7 @@ agents:
   # ⚑ What this bets: DeepSeek-V4-Flash is a 13B-active MoE. Its agentic tool-use is strong on
   # paper (it beats V4-Pro on agentic coding benchmarks) and it passed a live read/bash/write
   # loop here, but it has NOT yet run a full ADW chain in this repo. The reviewer + the
-  # Director's own gates (verify:locked, mutation checks, rendered pass) are what catch a weak
+  # Director's own gates (CI's full suite, mutation checks, rendered pass) are what catch a weak
   # builder — do not soften them on the strength of a cheap builder. Revert lever: set builder
   # and fe_builder back to `openai-codex/gpt-5.6-luna`.
 

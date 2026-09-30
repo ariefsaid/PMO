@@ -142,9 +142,9 @@ a signed brief; unsigned/ad-hoc issues keep the classic per-issue checkpoints.
 | Foggy / multi-issue / decision-shaped | `/wayfinder` first; what exits enters the loop as ordinary issues. |
 | Throwaway question | `/prototype`, bridged by `/handoff`. |
 
-Either way the Director still runs the binding gates itself before ship: `npm run verify:locked`,
-mutation checks, rendered verification, `verify-main-pr.sh` at promotes. The ADW's green is the
-factory's inner loop, not the phase gate.
+Either way the Director still owns the binding gates before ship: CI green on every PR (the full
+suite runs there, not on the shared Mac), mutation checks, rendered verification. The ADW's green is
+the factory's inner loop, not the phase gate.
 
 ## ⛔ Run the factory in a CLEAN tree (learned the hard way, 2026-08-20)
 

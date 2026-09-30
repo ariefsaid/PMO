@@ -185,10 +185,12 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
 # ── Blocks ────────────────────────────────────────────────────────────────────
 # Replace every argv below. See the banner at the top of this file.
 
-# PMO wiring: app commands run from pmo-portal/ (CLAUDE.md). The vitest suite is heavy and the
-# machine is shared, so `test` holds the same lock scripts/with-test-lock.sh uses (~/.pmo-test.lock,
-# PMO_TEST_LOCK override) — one full suite at a time; the timeout starts once the lock is held. These are the inner-loop gates; the full 8-gate
-# `npm run verify:locked` stays the Director's pre-PR concern, not a per-fix-loop cost.
+# PMO wiring: app commands run from pmo-portal/ (CLAUDE.md). `test` runs only the tests affected by the
+# branch's changes (`vitest --changed origin/dev`: every test that imports a changed module), the same
+# local final gate CLAUDE.md sets for every builder; CI's full suite on the PR decides the merge. It holds
+# the lock scripts/with-test-lock.sh uses (~/.pmo-test.lock, PMO_TEST_LOCK override, shared with MOS),
+# and the timeout starts once the lock is held (#704). No `origin/dev` ref → the full suite, the safe
+# direction.
 
 def test(run) -> QualityCheckResult:
     """Run the project's test suite. The highest-value block to wire up first."""
@@ -196,11 +198,13 @@ def test(run) -> QualityCheckResult:
         name="test",
         area="frontend",
         operation="build",
-        argv=["bash", "-c", "cd pmo-portal && npm test"],
+        argv=["bash", "-c",
+              "cd pmo-portal && if git rev-parse -q --verify origin/dev >/dev/null; "
+              "then npx vitest run --changed origin/dev --passWithNoTests; else npm test; fi"],
         # The lock is taken by _run BEFORE this clock starts, so the budget is the suite's alone
         # (#704).
         lock_path=os.environ.get("PMO_TEST_LOCK") or str(Path.home() / ".pmo-test.lock"),
-        timeout_seconds=3600,  # full suite measured 628-1081s under load; wait is outside
+        timeout_seconds=3600,  # full-suite fallback measured 628-1081s under load; wait is outside
     ), run)
 
 

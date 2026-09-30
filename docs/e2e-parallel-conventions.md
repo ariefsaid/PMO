@@ -72,10 +72,12 @@ single run cannot pin the `serial` project to 1 worker while `chromium` uses 4. 
 the simplest way to guarantee `serial` specs never overlap the parallel batch or each other; each
 invocation owns fresh dev servers (`reuseExistingServer: false`).
 
-## 7. Before every PR→`main`: simulate CI locally (binding, owner directive 2026-07-24)
+## 7. The PR→`main` gate is CI; `verify-main-pr.sh` reproduces it locally
 
-Run **`scripts/verify-main-pr.sh`** from the repo root before creating, pushing, or refreshing any
-PR that targets `main`. It reproduces the promotion gates in CI's order and semantics — full verify,
+CI's `verify` + `integration` run automatically on every PR that targets `main` and decide the merge
+(owner 2026-09-30; this replaced the 2026-07-24 local-simulation rule). **`scripts/verify-main-pr.sh`**
+reproduces that run locally for diagnosis — e.g. when a CI job timed out before printing its
+failures. It follows CI's order and semantics — full verify,
 CI-equivalent coverage + changed-lines ≥80, repo contract tests, Deno boot-smoke + unit suites, a
 **fresh** Supabase stack, complete pgTAP, the whole Playwright portfolio under `CI=true`
 (`chromium` parallel then `serial --workers=1`, both `--fail-on-flaky-tests`), and the

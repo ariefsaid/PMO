@@ -19,7 +19,7 @@ test('the ordinary e2e lane runs before the served-function smoke lane', () => {
   );
 });
 
-test('CI and the local promotion gate reject retry-masked flaky Playwright cases', () => {
+test('CI and its local reproduction reject retry-masked flaky Playwright cases', () => {
   // Assert the CONTRACT (every browser lane rejects flakes), not a character-distance window.
   // The {0,300} form broke merely because a comment was added above the command — a false RED that
   // says nothing about whether the flag is present. Match each lane's command independently.
@@ -173,9 +173,10 @@ test('auth setup exposes transient login failures to Playwright flake detection'
   assert.doesNotMatch(setup, /SIGN_IN_ATTEMPTS|SIGN_IN_BACKOFF_MS/);
 });
 
-test('the project instructions bind PRs targeting main to the local simulation', () => {
+test('the project instructions name CI as the PR-to-main gate and verify-main-pr.sh as its local reproduction', () => {
   const instructions = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
-  assert.match(instructions, /PR.*main[\s\S]*scripts\/verify-main-pr\.sh/i);
+  assert.match(instructions, /PRs to `main` gate on CI's `verify` \+ `integration`/);
+  assert.match(instructions, /scripts\/verify-main-pr\.sh[\s\S]*reproduces CI's PR-to-`main` run/);
 });
 
 test('post-merge cleanup is verify-first and removes worktrees before branches', () => {

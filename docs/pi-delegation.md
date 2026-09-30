@@ -110,7 +110,7 @@ not resident between `supabase test db` runs. Discovery is the most expensive th
 >
 > **What it bets, stated so it is not rediscovered.** It has passed a live tool loop here but has not
 > yet run a full ADW chain in this repo. A cheap builder is not a reason to soften anything
-> downstream: the reviewer and the Director's own gates (`verify:locked`, mutation checks, the
+> downstream: the reviewer and the Director's own gates (CI's full suite, mutation checks, the
 > rendered pass) are what catch a weak builder, and they carry more weight now, not less.
 > **⚑ If a `build` dispatch falls through to the GLM rung, say so in the report** — a slice built by
 > GLM must not then be reviewed by GLM.

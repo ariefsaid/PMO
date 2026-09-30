@@ -26,7 +26,7 @@ NO production code without a failing test first. **RED → GREEN → REFACTOR.**
 2. **Red** — write the failing test that encodes the user's real journey to the goal, and prove it fails for the right reason.
 3. **Green** — the minimal code that passes.
 4. **Refactor** — improve what you touched; don't restructure beyond the task.
-5. **Verify** — the FULL gate, not just touched files: `npm run verify` from `pmo-portal/` (**`npm run verify:locked` on a shared machine**). Read exit codes; no completion claim without fresh passing evidence. Wrap every DB-driving command in `scripts/with-db-lock.sh`; chain reset+test as ONE lock hold.
+5. **Verify** — the local final gate in CLAUDE.md (typecheck, lint on touched files, `vitest run --changed origin/dev`, touched e2e journeys, `supabase test db` for DB changes); CI's full `verify` decides the merge. Read exit codes; no completion claim without fresh passing evidence. Wrap every DB-driving command in `scripts/with-db-lock.sh`; chain reset+test as ONE lock hold.
 6. **Self-review** — completeness, naming, YAGNI, tests-verify-behavior, ≥80% coverage on changed lines.
 7. **Review** — the loop's step-5 battery (3 reviewers, always) runs after; do not self-certify past it.
 8. **Capture decisions.** Did this session settle anything a future agent would otherwise re-derive — a deviation, a deferral, a rejected approach, a constraint found the hard way? Append it to `docs/decisions.md` under the right group. A decision that lives only in the commit message is lost.
