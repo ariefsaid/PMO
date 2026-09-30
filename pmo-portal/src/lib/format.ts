@@ -21,7 +21,7 @@ export const PLATFORM_CURRENCY = 'USD';
 // ⛔ THE LOCALE IS PART OF THE KEY. Without it the FIRST locale rendered poisons every later
 // render of the same shape+currency: a language switch then produces the old locale's output with
 // no error and nothing thrown. `format.locale.test.ts` plants exactly that mutation.
-const formatterCache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat>();
+const formatterCache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat>();
 
 function numberFormatterFor(
   shape: string,
@@ -672,4 +672,17 @@ export function formatUtcDayMonthYear(d: Date): string {
   }).formatToParts(d);
   const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${find('day')} ${find('month')} '${find('year')}`;
+}
+
+/** Joins a short list with the UI language's conjunction — "15 and 16" / "15 dan 16" (#656: the
+ *  activation dialog's supported-versions list). Keyed by locale like every formatter here. */
+export function formatList(items: readonly string[]): string {
+  const locale = getDateLocale();
+  const key = `l|${locale}|conjunction`;
+  let formatter = formatterCache.get(key) as Intl.ListFormat | undefined;
+  if (!formatter) {
+    formatter = new Intl.ListFormat(locale, { type: 'conjunction' });
+    formatterCache.set(key, formatter);
+  }
+  return formatter.format(items);
 }

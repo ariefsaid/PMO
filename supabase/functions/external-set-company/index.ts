@@ -7,22 +7,25 @@
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
  * 2. Load profile (role, org_id) via service-role client
- * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
+ * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check), and the caller
+ *    must currently be an active member of the org (actor_authorization_state)
  * 4. Load ERPNext binding for this org; refuse an empty site_url (FR-EAC-103)
  * 5. Resolve credentials from Vault via read_vault_secret RPC
  * 6. Validate Company exists on ERPNext site (SSRF-guarded exactly like external-connect); returns the doc
  * 7. Version handshake (frappe.utils.change_log.get_versions) BEFORE any write (FR-EAC-104); a major
  *    outside {15,16} is a 422 config-rejected that writes nothing (FR-EAC-105)
- * 8. activate_external_binding RPC — ONE statement: version_major + config (company + Company account
+ * 8. Read-permission probe (#656, R13): the integration user must read the doctypes of the org's
+ *    currently-owned domains + the ledgers; a missing read is a 422 naming them, unreachable a 502
+ * 9. activate_external_binding RPC — ONE statement: version_major + config (company + Company account
  *    defaults) + the set-once activated_at (FR-EAC-106/107)
- * 9. Audit log via log_audit('integration.set_company', ...)
- * 10. Return { ok: true, companyId, versionMajor, activatedAt }
+ * 10. Audit log via log_audit('integration.set_company', ...)
+ * 11. Return { ok: true, companyId, versionMajor, activatedAt }
  *
  * Errors:
  * - 401: missing/invalid JWT
  * - 403: not Admin of org and not Operator
  * - 404: no ERPNext binding found for this org / company not found in ERPNext
- * - 422: binding not active / Vault secret missing / invalid companyId
+ * - 422: binding not active / Vault secret missing / unsupported version / integration user lacks reads
  * - 500: internal/upstream error
  */
 
@@ -37,7 +40,10 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import {
   fetchErpVersionMajor,
   companyDefaultsFromDoc,
+  probeActivationReadPermissions,
+  ACTIVATION_CALL_TIMEOUT_MS,
   SUPPORTED_VERSION_MAJORS,
+  type ReadPermFailure,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
@@ -88,8 +94,9 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   });
 }
 
-function errorResponse(message: string, code: string, status: number): Response {
-  return json({ error: code, message }, status);
+/** `detail` carries structured fields the Company dialog renders in the viewer's language (#656). */
+function errorResponse(message: string, code: string, status: number, detail: Record<string, unknown> = {}): Response {
+  return json({ ...detail, error: code, message }, status);
 }
 
 // ============================================================================
@@ -168,7 +175,8 @@ async function validateErpNextCompany(deps: ErpCompanyDeps, companyId: string): 
     const res = await deps.fetchImpl(url, {
       headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
       redirect: 'manual',
-      signal: AbortSignal.timeout(5000),
+      // #656 review: the shared activation per-call budget (Company + handshake + probe stay < the client's 20s).
+      signal: AbortSignal.timeout(ACTIVATION_CALL_TIMEOUT_MS),
     });
     if (!res.ok) {
       if (res.status === 404) {
@@ -253,6 +261,18 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   const isPlatformOperator = !!isOperator;
   if (!isAdmin && !isPlatformOperator) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
+  }
+
+  // 4b. #656 review — the caller must CURRENTLY be an active member of the org they are activating for
+  // (profile status active and not banned), not just hold the role on a valid token. Same service-role
+  // accessor the dispatch guard uses (`actor_authorization_state`, the `is_active_member()` predicate
+  // for an arbitrary user id). Fail closed when it cannot be resolved.
+  const { data: actorState, error: actorError } = await serviceClient.rpc('actor_authorization_state', {
+    p_org_id: profile.org_id,
+    p_user_id: userId,
+  });
+  if (actorError || !actorState || (actorState as { active?: unknown }).active !== true) {
+    return errorResponse('Only an active member of this organization can activate its ERPNext connection', 'FORBIDDEN', 403);
   }
 
   // 5. Parse body
@@ -346,13 +366,50 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   if (!SUPPORTED_VERSION_MAJORS.includes(versionMajor)) {
     return errorResponse(
-      `ERPNext ${versionMajor} is not supported (PMO supports 15 and 16). No connection was activated.`,
+      `ERPNext ${versionMajor} is not supported (PMO supports ${SUPPORTED_VERSION_MAJORS.join(' and ')}). No connection was activated.`,
       // Review #650: the handler's other 422 bodies say CONFIG_REJECTED; this one outlier said
       // 'config-rejected'. Aligned — same status/message semantics, one vocabulary.
-      'CONFIG_REJECTED', 422);
+      'CONFIG_REJECTED', 422,
+      { reason: 'erpnext-unsupported-version', versionMajor, supportedMajors: [...SUPPORTED_VERSION_MAJORS] });
   }
 
-  // 10. FR-EAC-106/107 — ONE statement: version + company + Company account defaults + the set-once
+  // 10. #656 (R13) — the integration user must be able to READ what the sweep will poll for this org
+  // (its currently-owned domains + the ledgers), or the org's read-models stay silently empty. Same
+  // 5s / no-retry budget as the handshake; a missing read refuses with every doctype named, an
+  // unreachable site is a 502. Domains employed after activation are not covered here.
+  const { data: owned, error: ownedError } = await serviceClient
+    .from('external_domain_ownership')
+    .select('domain')
+    .eq('org_id', profile.org_id)
+    .eq('external_tier', 'erpnext');
+  if (ownedError) {
+    console.error('external_domain_ownership load failed', ownedError);
+    return errorResponse('Could not read this organization\'s ERPNext domains; no connection was activated.', 'INTERNAL', 500);
+  }
+
+  let missingReads: ReadPermFailure[];
+  try {
+    missingReads = await probeActivationReadPermissions({
+      fetchImpl: fetch,
+      creds: { apiKey, apiSecret },
+      siteUrl: binding.site_url,
+      ownedDomains: ((owned ?? []) as Array<{ domain: string }>).map((r) => r.domain),
+    });
+  } catch (err) {
+    console.error('erpnext read-permission probe failed', err);
+    return errorResponse(
+      'Could not check the ERPNext user\'s permissions on that site; no connection was activated.',
+      'external-unreachable', 502);
+  }
+  if (missingReads.length > 0) {
+    return errorResponse(
+      `The ERPNext integration user cannot read: ${missingReads.map((f) => f.name).join(', ')}. ` +
+        'Grant read access to these and try again. No connection was activated.',
+      'CONFIG_REJECTED', 422,
+      { reason: 'erpnext-missing-read-permissions', missing: missingReads.map((f) => f.name) });
+  }
+
+  // 11. FR-EAC-106/107 — ONE statement: version + company + Company account defaults + the set-once
   // stamp. Replaces the direct PATCH so activation cannot land partially.
   const { data: activatedAt, error: activateError } = await serviceClient.rpc('activate_external_binding', {
     p_org_id: profile.org_id,
@@ -367,7 +424,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('Failed to activate the ERPNext connection', 'INTERNAL', 500);
   }
 
-  // 11. Audit log
+  // 12. Audit log
   const { error: auditError } = await serviceClient.rpc('log_audit', {
     p_action: 'integration.set_company',
     p_org_id: profile.org_id,
@@ -383,7 +440,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   });
   if (auditError) console.error('log_audit failed', auditError);
 
-  // 12. Return success
+  // 13. Return success
   const responseBody: SetCompanyResponse = { ok: true, companyId, versionMajor, activatedAt: activatedAt ?? null };
   return json(responseBody);
 }

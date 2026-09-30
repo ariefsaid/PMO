@@ -25,6 +25,10 @@ export interface FetchCall {
   headers: Headers;
   bodyText?: string;
   bodyJson?: unknown;
+  /** The request's redirect mode — lets a test prove a caller refuses to follow redirects (#655). */
+  redirect: RequestRedirect;
+  /** The request's abort signal — lets a slow fake honour the caller's deadline (no leaked timers). */
+  signal: AbortSignal;
 }
 
 export interface RouteMatch {
@@ -145,6 +149,8 @@ export async function withFetchMock<T>(
       headers: request.headers,
       bodyText,
       bodyJson: bodyText ? safeJson(bodyText) : undefined,
+      redirect: request.redirect,
+      signal: request.signal,
     };
     calls.push(call);
 

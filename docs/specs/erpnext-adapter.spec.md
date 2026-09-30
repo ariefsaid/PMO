@@ -982,6 +982,21 @@ Each row ships a **reversible flip migration** (add mirror columns + RLS native-
   **Then** the binding is not activated (`activated_at` stays null) and money commands for that org are
   refused as config-rejected. (FR-ENA-012)
 
+- **AC-ENA-074** — Activation refuses an integration user who cannot read what the sweep will poll. **[Deno unit]**
+  **Given** an Admin selecting a Company on a supported ERPNext site,
+  **When** the integration user cannot read (401/403/404) one or more doctypes of the org's currently-owned
+  domains or the GL Entry / Payment Ledger Entry ledgers,
+  **Then** activation is refused with a 422 naming every unreadable doctype, `activated_at` stays null, and
+  an unreachable site during the probe is a 502 rather than a permission claim. Domains employed after
+  activation are not probed. (FR-ENA-084, R13; #656)
+  **And when** the probes together outlast the probe's total time budget (probes run a few at a time), the
+  in-flight probes are cancelled and activation is refused with a 502 — the Company lookup, the handshake
+  and the whole probe together end inside the browser's invoke timeout, so the dialog never reports a
+  failure while activation proceeds.
+  **And given** the caller holds the Admin (or Operator) role on a valid token **but** is not currently an
+  active member of the org (deactivated or banned), **then** the request is refused with a 403 before any
+  binding, credential or ERPNext read, and nothing is activated.
+
 ---
 
 ## 9. Traceability
@@ -1015,6 +1030,7 @@ Each row ships a **reversible flip migration** (add mirror columns + RLS native-
 | AC-ENA-071 | FR-ENA-080, FR-ENA-081, FR-ENA-083, NFR-ENA-FEED-001 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/erpnext/sweepCursor.test.ts` |
 | AC-ENA-072 | FR-ENA-170, FR-ENA-171, NFR-ENA-SEC-003/004 | pgTAP | `supabase/tests/erpnext_money_flip_rls.test.sql` (+ per-table §7 files) |
 | AC-ENA-073 | FR-ENA-012 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts` |
+| AC-ENA-074 | FR-ENA-084 | Deno unit | `supabase/functions/external-set-company/set-company.test.ts` (shipped handler: the missing-reads 422, the unreachable 502, the exhausted-budget 502, the inactive-caller 403); `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts` (probe scope, concurrency limit, total budget vs. the client invoke timeout — fake timers) |
 
 > NFR-ENA-SEC-001/002, CONTRACT-001, PERF-001/002, REV-001, DEVBED-001 are structural — proven transitively
 > (no-custom-app + secret-confinement + vocabulary-confinement + cached-map short-circuit + reversibility

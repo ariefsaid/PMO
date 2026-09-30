@@ -318,6 +318,10 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
         headers,
         body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
         signal: controller.signal,
+        // #655: the base URL is admin-nominated — never follow a redirect (the Authorization header
+        // would travel with it). Same policy as the connect-time probes in external-connect /
+        // external-set-company; a 3xx is refused below.
+        redirect: 'manual',
       });
     } catch (err) {
       if (attempt < maxRetries) {
@@ -330,6 +334,19 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext request failed', true);
     } finally {
       clearTimeout(deadline);
+    }
+
+    // #655: a redirect is a deterministic answer (not retried) and an AMBIGUOUS one for a create, so it
+    // is classified `external-unreachable` — the outbox reconciler, not this client, decides what landed.
+    // `opaqueredirect` is the fetch-spec form of a manual redirect (status 0); Deno/undici return the 3xx.
+    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+      console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
+      throw new ErpError(
+        res.status,
+        'external-unreachable',
+        `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
+        false,
+      );
     }
 
     if (res.status === 429 || res.status >= 500) {
