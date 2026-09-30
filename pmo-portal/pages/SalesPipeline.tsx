@@ -19,6 +19,7 @@ import {
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
@@ -60,6 +61,7 @@ const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
   const { t } = useTranslation();
+  const stageLabel = useSalesStageLabel();
   // FR-L10N-020: this page's STAGE/FUNNEL AGGREGATES (and total-weighted forecast) sum across
   // deals and so carry no record currency — the org default is the honest denomination for those.
   // Per-ROW deal figures (table Value/Weighted cells, kanban cards) render each deal's OWN currency
@@ -172,7 +174,7 @@ const SalesPipeline: React.FC = () => {
     const s = stageByStatus.get(col.statuses[0]);
     const weighted = s?.weighted_value ?? 0;
     return {
-      name: col.title,
+      name: stageLabel(col),
       dotColor: col.dotColor,
       prob: s ? formatPercent(s.win_probability) : undefined,
       // FR-L10N-020: a STAGE total sums across deals, so it has no record currency — org default.

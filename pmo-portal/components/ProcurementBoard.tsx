@@ -3,6 +3,8 @@ import { Kanban, KanbanColumn, KanbanCard } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { useTranslation } from 'react-i18next';
+import { useProcurementStageLabel } from '@/src/hooks/useProcurementStageLabel';
 import { PR_STAGES, stageIndexForStatus } from './procurement';
 
 interface ProcurementBoardProps {
@@ -67,6 +69,8 @@ const PrCard: React.FC<{
  * sits in the Vendor Quote column, the bar advanced on approval.)
  */
 const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpen, selectedId }) => {
+  const { t } = useTranslation();
+  const stageLabel = useProcurementStageLabel();
   // Bucket once: each in-flight request lands in exactly one stage column.
   const byStage: ProcurementWithRefs[][] = PR_STAGES.map(() => []);
   for (const pr of procurements) {
@@ -103,7 +107,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
         return (
           <div key={stage.key} data-testid={`prstage-${stage.key}`} className="flex min-w-0 flex-col">
             <KanbanColumn
-              title={stage.full}
+              title={stageLabel(stage)}
               // I2 — ONE board convention (matches the sales board): quiet
               // neutral upstream columns, the status hue only at the terminal.
               // The board groups ALL records by stage, so there is no single
@@ -121,7 +125,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
                   </span>
                 ) : undefined
               }
-              emptyMessage={`No requests at ${stage.full}`}
+              emptyMessage={t('procurement.stageEmpty', 'No requests at {{stage}}', { stage: stageLabel(stage) })}
             >
               {items.map((pr) => (
                 <PrCard

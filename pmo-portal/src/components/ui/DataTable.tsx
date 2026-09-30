@@ -173,7 +173,10 @@ export function DataTable<Row>({
     <div className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
       {isDesktop ? (
       /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
-      <div data-testid="dt-table-branch" className="overflow-x-auto">
+      // `relative` makes this scroller the containing block for the absolutely-positioned
+      // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
+      // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
+      <div data-testid="dt-table-branch" className="relative overflow-x-auto">
         <table className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
