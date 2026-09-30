@@ -23,13 +23,15 @@ import {
   type RowMenuItem,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
+import { ExportButton, withCurrencyColumn } from '@/src/components/export';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrencyCents, formatDateOnlyNumeric, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, formatDateOnlyNumeric, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -237,6 +239,9 @@ const SalesInvoices: React.FC = () => {
     },
   ];
 
+  // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only).
+  const exportColumns = withCurrencyColumn(columns, 'amount', (r) => r.currency);
+
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ invoice: inv }) });
@@ -325,6 +330,11 @@ const SalesInvoices: React.FC = () => {
             resultCount={filtered.length}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
+        )
+      }
+      exportAction={
+        state !== 'loading' && (
+          <ExportButton rows={filtered} columns={exportColumns} entity="Sales Invoices" />
         )
       }
     >
@@ -447,6 +457,10 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   pendingPush,
 }) => {
   const isEdit = !!invoice;
+  // The adornment follows the record's own currency when editing one; a create form has no record
+  // yet, so it falls back to the org's operating currency (#731). The hook is called unconditionally.
+  const orgCurrency = useOrgCurrency();
+  const moneyPrefix = currencySymbol(invoice?.currency ?? orgCurrency);
   // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
   // form is open (`{formTarget && …}`), so its mount IS the session: every retry of a failed submit
   // reuses this identity (the ERP doc a lost response already committed gets reconciled, not
@@ -591,7 +605,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               required
               min={0}
               step={0.01}
-              prefix="$"
+              prefix={moneyPrefix}
               className="w-32"
             />
             {lineItems.length > 1 && (

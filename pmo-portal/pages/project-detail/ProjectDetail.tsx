@@ -272,16 +272,13 @@ const ProjectDetail: React.FC = () => {
 
   return (
     <div>
-      {/* C-IMP-1: on mobile (< 768px) the top-bar breadcrumb is not visible, so
-          we surface the BackBar in-content so mobile users have an up/back escape.
-          Desktop keeps the breadcrumb-only pattern (I7). Single-render: one DOM
-          branch per breakpoint via useIsDesktop(), never dual-tree. */}
-      {!isDesktop && (
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
-      )}
-      {/* I7: no in-page BackBar / Breadcrumb on the success render — the top-bar
+      {/* C-IMP-1 / #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the
+          loaded record shows the in-page BackBar up to 920px (CSS-only via `phoneOnly`, same
+          rule as every other record page and this page's loading / not-found states). */}
+      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      {/* I7: no in-page Breadcrumb on the success render — above 920px the top-bar
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
-          Both are kept on the loading / not-found branches above. The shared header renders
+          The Breadcrumb is kept on the loading / not-found branches above. The shared header renders
           at every stage so a record's wayfinding is identical regardless of stage. */}
 
       {/* AC-IFW-RECORD-01 (Lens-D): pre-win layout — sales levers first so the deal

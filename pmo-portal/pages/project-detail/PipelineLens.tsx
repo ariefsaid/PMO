@@ -208,8 +208,9 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     },
     {
       label: t('projectDetail.pipeline.stat.decision', 'Decision'),
-      value: project.decided_at
-        ? formatDecisionDateNumeric(project.decided_at)
+      // A revived deal (Loss Tender -> Negotiation) keeps its old loss decided_at; it is undecided again.
+      value: project.contract_date || (project.status === 'Loss Tender' && project.decided_at)
+        ? formatDecisionDateNumeric(project)
         : t('projectDetail.pipeline.pending', 'Pending'),
     },
   ];
