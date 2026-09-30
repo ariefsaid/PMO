@@ -4,6 +4,7 @@ import { cn } from './cn';
 import { Button } from './Button';
 import { Icon } from './icons';
 import { useIsDesktop } from './useIsDesktop';
+import { acquireBackgroundInert } from './backgroundInert';
 
 export type ConfirmTone = 'default' | 'destructive';
 export type ConfirmSurface = 'modal' | 'popover';
@@ -49,7 +50,9 @@ export interface ConfirmDialogProps {
  * `role="dialog"`; `aria-modal`, `aria-labelledby`, `aria-describedby` wired;
  * focus moves to Cancel on open (safe default), focus restored to the trigger
  * on close; Esc + scrim-click call onCancel (blocked while loading); the
- * confirm is disabled while loading so the mutation can't double-fire.
+ * confirm is disabled while loading so the mutation can't double-fire. The app shell is
+ * `inert` while open (AC-A11Y-MODAL-001) so the page behind the dialog cannot be tabbed into or
+ * read by a screen reader — the same shared refcount EntityFormModal uses.
  */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
@@ -97,6 +100,16 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       triggerRef.current.focus();
       triggerRef.current = null;
     }
+  }, [open]);
+
+  // AC-A11Y-MODAL-001: the app behind the dialog goes `inert` while it is open (`aria-modal` alone
+  // is advisory — a screen reader could still browse the page). Declared AFTER the focus effect on
+  // purpose: on open the trigger is captured before the shell becomes inert; on close every cleanup
+  // (this un-inert included) runs before any effect body, so the focus-restore above lands on a
+  // trigger that is no longer inert (focusing an inert element is a silent no-op).
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
   }, [open]);
 
   // Focus trap: keep Tab/Shift+Tab cycling within the dialog's two buttons.

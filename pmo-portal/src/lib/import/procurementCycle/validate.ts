@@ -11,6 +11,7 @@
  */
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refValidate } from '@/src/lib/import/refLookup';
+import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import type { CaseGroup, CycleRow, ValidatedGroup, ValidatedRow } from './types';
 
 // ─── Lookups provided by caller ───────────────────────────────────────────────
@@ -50,22 +51,30 @@ function validateOptionalDate(raw: string | undefined, label: string): string | 
   return validateDate(raw, label);
 }
 
+/**
+ * #684 (AC-PLC-009): every procurement record amount is numeric(14,2). A sheet cell is read with the
+ * NEUTRAL import parser (dot decimal, optional comma grouping — never the viewer's display
+ * convention) and must fit two decimals; `commit.ts` writes the value this same parser returns.
+ */
+const AMOUNT_NOT_A_NUMBER = 'Amount must be a number with no more than 2 decimal places.';
+
+function amountError(raw: string): string | null {
+  const n = parseNeutralMoneyInputAtScale(raw, 2);
+  if (n === null) return AMOUNT_NOT_A_NUMBER;
+  if (n < 0) return 'Amount must be ≥ 0.';
+  return null;
+}
+
 /** Returns null if blank/absent or a valid non-negative number; error message otherwise. */
 function validateOptionalAmount(raw: string | undefined): string | null {
   if (!raw?.trim()) return null; // optional — absence is fine
-  const n = Number(raw.trim());
-  if (isNaN(n)) return 'Amount must be a number.';
-  if (n < 0) return 'Amount must be ≥ 0.';
-  return null;
+  return amountError(raw);
 }
 
 /** Returns null if blank/absent or a valid non-negative number; error if required and absent. */
 function validateRequiredAmount(raw: string | undefined): string | null {
   if (!raw?.trim()) return 'Amount is required.';
-  const n = Number(raw.trim());
-  if (isNaN(n)) return 'Amount must be a number.';
-  if (n < 0) return 'Amount must be ≥ 0.';
-  return null;
+  return amountError(raw);
 }
 
 function validateEnum(raw: string | undefined, allowed: readonly string[], label: string): string | null {
@@ -93,8 +102,8 @@ function validateTaxAmount(raw: string | undefined): string | null {
   if (!raw?.trim()) {
     return 'Tax amount is required for a VI row (enter 0 when there is no tax).';
   }
-  const n = Number(raw.trim());
-  if (!Number.isFinite(n)) return 'Tax amount must be a number.';
+  const n = parseNeutralMoneyInputAtScale(raw, 2);
+  if (n === null) return 'Tax amount must be a number with no more than 2 decimal places.';
   if (n < 0) return 'Tax amount must be ≥ 0.';
   return null;
 }

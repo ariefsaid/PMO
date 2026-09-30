@@ -3,8 +3,8 @@
 #
 # WHY THIS EXISTS. On 2026-08-24 a single session re-derived three things that already existed:
 # `0194` (a catalog-derived sweep of the exact RLS class being audited), `DD-ENTRA-1` (the Entra
-# option ruling), and the promote-gate stamp reader (`.claude/hooks/pre-pr-main-gate.sh`, reported as
-# "nothing reads it" after grepping three of the four places it could live). Each cost real work and
+# option ruling), and a hook that read a gate's stamp (reported as "nothing reads it" after
+# grepping three of the four places it could live). Each cost real work and
 # one produced a false issue. The habit failed repeatedly; a command does not.
 #
 # It searches the five places a prior answer hides — they are NOT the same place, which is the point:

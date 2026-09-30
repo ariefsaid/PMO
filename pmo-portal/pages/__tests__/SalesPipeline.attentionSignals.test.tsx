@@ -108,10 +108,6 @@ const lostProjectStale = {
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
-});
 
 const pipelineState: {
   data: { stages: unknown[]; projects: unknown[] } | undefined;
@@ -130,10 +126,6 @@ const lostState: { data: unknown[] } = { data: [] };
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
-}));
-
-vi.mock('@/src/hooks/usePipelineView', () => ({
-  usePipelineView: () => ['table', vi.fn()],
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
@@ -156,10 +148,13 @@ vi.mock('../../components/ProjectFormModal', () => ({
 
 import SalesPipeline from '../SalesPipeline';
 
+// list-working-set-return (#682): the view is URL-owned now — force table view via `?view=table`
+// (previously done by mocking the whole usePipelineView module, which also shadowed the
+// DEFAULT_PIPELINE_VIEW/PIPELINE_VIEWS exports listWorkingSet.ts imports directly).
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/sales?view=table']}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>

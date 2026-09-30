@@ -13,6 +13,8 @@ export interface KanbanColumnProps {
   children?: React.ReactNode;
   /** Shown when the column has no cards. */
   emptyMessage?: string;
+  /** Marks the column as the one a surrounding control (e.g. a funnel stage) has selected. */
+  selected?: boolean;
 }
 
 /** Base kanban column shell — sticky header, scrollable body. Surface issues
@@ -25,10 +27,19 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   totals,
   children,
   emptyMessage = 'No items',
+  selected = false,
 }) => {
   const empty = React.Children.count(children) === 0;
   return (
-    <div className="flex min-w-0 flex-col rounded-lg border border-border bg-secondary/50">
+    <div
+      data-selected={selected ? 'true' : undefined}
+      aria-current={selected ? 'true' : undefined}
+      className={cn(
+        'flex min-w-0 flex-col rounded-lg border',
+        // ring = the non-colour cue (matches the selected card treatment)
+        selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-border bg-secondary/50',
+      )}
+    >
       <div className="kcol-head-sticky border-b border-border px-3 pb-2.5 pt-[11px]">
         <div className="flex items-center gap-2">
           <span

@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — creates unique company name (Date.now()), CRUD journey creates/edits/archives own data; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, waitForFonts } from './helpers';
 
 /**
  * AC-CO-001  Companies CRUD — real user journey (binding BDD authoring principle).
@@ -187,6 +187,7 @@ test(
     // The toolbar (and its search) only render after the loading state clears.
     const search = page.getByRole('searchbox', { name: /Search companies/i });
     await expect(search).toBeVisible({ timeout: 10_000 });
+    await waitForFonts(page);
 
     const overflow = await page.evaluate(() => {
       const main = document.querySelector('main')!;

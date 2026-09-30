@@ -211,6 +211,29 @@ describe('KanbanStageIndicator strip edge-fade (AC-IXD-MOBILE-W4-PR3-C5-fade)', 
   });
 });
 
+// ─── KanbanStageIndicator selected-tab text contrast (Discover 2026-09-30) ─
+//
+// Regression: the selected tab label used raw `text-primary` at 11px — in dark mode
+// (#1f5fea on #1b1b1d) that is 3.18:1, failing AA. DESIGN.md's AA text variant for
+// primary-coloured text is `text-primary-text`.
+
+describe('KanbanStageIndicator selected tab uses the AA primary text token (AC-DISCOVER-STAGE-CONTRAST-001)', () => {
+  const stages = [
+    { title: 'Leads', dotColor: 'hsl(var(--muted-foreground))' },
+    { title: 'Quotation', dotColor: 'hsl(var(--muted-foreground))' },
+  ];
+
+  it('the selected tab carries text-primary-text and not raw text-primary; the inactive tab is unchanged', () => {
+    render(<KanbanStageIndicator stages={stages} activeIndex={1} />);
+    const active = screen.getByRole('button', { name: 'Quotation' });
+    expect(active).toHaveClass('text-primary-text');
+    expect(active.className.split(/\s+/)).not.toContain('text-primary');
+    const inactive = screen.getByRole('button', { name: 'Leads' });
+    expect(inactive).not.toHaveClass('text-primary-text');
+    expect(inactive).toHaveClass('text-muted-foreground');
+  });
+});
+
 // ─── SalesKanbanBoard swipe→indicator sync (Defect 1 regression) ─────────
 //
 // Regression: scroll events do NOT bubble in the DOM. The original listener was

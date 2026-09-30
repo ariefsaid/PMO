@@ -404,12 +404,27 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
   });
 
+  it.each([
+    ['loading', { isPending: true, isError: false }],
+    ['not-found', { isPending: false, isError: false }],
+    ['error', { isPending: false, isError: true }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(detailState, s);
+    renderPage();
+    const bar = screen.getByRole('button', { name: /Back to Procurement/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
+  });
+
   it('AC-NAV-007: "Back to Procurement" navigates to the Procurement module index (no tab)', async () => {
+    // Director ruling (2026-09-29): the destination stays canonical `/procurement` while a
+    // direct link with no captured list context now additionally carries validated clean
+    // return state.
     navigate.mockClear();
     detailState.isPending = true;
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /Back to Procurement/i }));
-    expect(navigate).toHaveBeenCalledWith('/procurement');
+    expect(navigate).toHaveBeenCalledWith('/procurement', { state: {} });
   });
 });
 

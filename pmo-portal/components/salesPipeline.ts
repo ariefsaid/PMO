@@ -1,6 +1,7 @@
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import type { StatusVariant } from '@/src/components/ui';
 import type { LifecycleStep } from '@/src/components/ui';
+import type { ListName } from '@/src/lib/listWorkingSet';
 import {
   PIPELINE_STATUSES,
   LOST_STATUSES,
@@ -23,7 +24,8 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
  * Terminal Won/Lost keep their outcome colors. Every dot is an `hsl(var(--…))` token.
  */
 export interface SalesColumn {
-  /** Display title (may differ from the enum, e.g. "Pre-Qual"). */
+  /** Display title (English default; may differ from the enum, e.g. "Pre-Qual"). Translated on the
+   *  board via `useSalesStageLabel()` keyed by `testId` — the enum itself never changes. */
   title: string;
   /** The project status enum value(s) this column collects. */
   statuses: string[];
@@ -35,37 +37,38 @@ export interface SalesColumn {
   terminal?: boolean;
 }
 
+/**
+ * The five open (non-terminal) funnel stages, in staleness order, as a literal
+ * tuple. The SALES_COLUMNS board and the list-return working-set codec both draw
+ * the open-stage set from here so a new stage stays in sync across list URLs and
+ * the funnel. `satisfies` keeps it a literal rather than widening to string[].
+ */
+export const OPEN_FUNNEL_STAGES = [
+  'Leads',
+  'PQ Submitted',
+  'Quotation Submitted',
+  'Tender Submitted',
+  'Negotiation',
+] as const satisfies readonly string[];
+export type OpenFunnelStage = (typeof OPEN_FUNNEL_STAGES)[number];
+
+/** Board titles for the open stages (may differ from the enum, e.g. "Pre-Qual"). */
+const OPEN_STAGE_TITLES: Record<OpenFunnelStage, string> = {
+  Leads: 'Leads',
+  'PQ Submitted': 'Pre-Qual',
+  'Quotation Submitted': 'Quotation',
+  'Tender Submitted': 'Tender',
+  Negotiation: 'Negotiation',
+};
+
 export const SALES_COLUMNS: readonly SalesColumn[] = [
-  {
-    title: 'Leads',
-    statuses: ['Leads'],
+  // Open stages come from OPEN_FUNNEL_STAGES; their dots are a quiet neutral (Batch-3 polish).
+  ...OPEN_FUNNEL_STAGES.map((stage) => ({
+    title: OPEN_STAGE_TITLES[stage],
+    statuses: [stage],
     dotColor: 'hsl(var(--muted-foreground))',
-    testId: 'stage-Leads',
-  },
-  {
-    title: 'Pre-Qual',
-    statuses: ['PQ Submitted'],
-    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was categorical violet)
-    testId: 'stage-PQ Submitted',
-  },
-  {
-    title: 'Quotation',
-    statuses: ['Quotation Submitted'],
-    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was off-palette cyan)
-    testId: 'stage-Quotation Submitted',
-  },
-  {
-    title: 'Tender',
-    statuses: ['Tender Submitted'],
-    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was categorical warning hue)
-    testId: 'stage-Tender Submitted',
-  },
-  {
-    title: 'Negotiation',
-    statuses: ['Negotiation'],
-    dotColor: 'hsl(var(--muted-foreground))',
-    testId: 'stage-Negotiation',
-  },
+    testId: `stage-${stage}`,
+  })),
   {
     title: 'Won',
     statuses: [...ON_HAND_STATUSES],
@@ -140,16 +143,22 @@ export function formatPercent(probability: number): string {
 }
 
 /**
- * Navigates to the deal's canonical detail route. Model B (ADR-0020): a project/opportunity has
- * ONE detail URL, `/projects/:id`, at every stage — so a pipeline drill goes to the same place
- * the Projects list does, and the stage-adaptive lens picks the pipeline view pre-win. The URL
- * is the single source of truth and the top-bar breadcrumb derives from it.
+ * Opens the deal's canonical detail route. Model B (ADR-0020): a project/opportunity has ONE
+ * detail URL, `/projects/:id`, at every stage — so a pipeline drill goes to the same place the
+ * Projects list does, and the stage-adaptive lens picks the pipeline view pre-win. The URL is the
+ * single source of truth and the top-bar breadcrumb derives from it.
+ *
+ * list-working-set-return (#682, AC-LRC-004): `open` is `useListReturn({list:'sales'}).openRecord`
+ * — the shared seam that captures the current Sales list URL + scroll position as validated
+ * return context. The explicit `'projects'` owner stamps that context onto the PROJECT record (a
+ * Sales list may open a Projects record; see `canCaptureFromList`), so only the project's
+ * PipelineLens Sales link can read it back — the structural Projects breadcrumb/BackBar never do.
  */
 export function openOpportunity(
-  navigate: (path: string) => void,
+  open: (path: string, owner?: ListName) => boolean,
   project: Pick<PipelineProject, 'id'>,
 ): void {
-  navigate(`/projects/${project.id}`);
+  open(`/projects/${project.id}`, 'projects');
 }
 
 /**

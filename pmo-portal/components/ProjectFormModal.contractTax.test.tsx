@@ -33,6 +33,8 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
 
+// #694: the create form reads the org currency for its money adornment.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({
     data: [{ id: 'c1', name: 'Innovate Corp', type: 'Client' }],

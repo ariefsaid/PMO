@@ -22,3 +22,59 @@ describe('FR-L10N-003 resolveLocale', () => {
     expect(resolveLocale({}, {})).toEqual({ locale: FALLBACK_LOCALE, numberLocale: FALLBACK_LOCALE, timezone: FALLBACK_TIMEZONE });
   });
 });
+
+// A stored preference the platform cannot use (hand-edited row, legacy value, trailing whitespace)
+// must never reach `Intl` — it throws RangeError and takes every date/money screen down with it.
+// An unusable value is treated as UNSET at its tier, so resolution falls through to the next one.
+describe('FR-L10N-003 resolveLocale falls back safely when a stored preference is unusable (#684)', () => {
+  it.each(['Mars/Olympus', 'Asia/Jakarta ', ' UTC', 'not a zone'])(
+    'an unusable profile timezone %j inherits the org default',
+    (timezone) => {
+      expect(resolveLocale({ timezone }, org({ defaultTimezone: 'UTC' })).timezone).toBe('UTC');
+    },
+  );
+
+  it.each(['Mars/Olympus', 'Asia/Jakarta ', ''])(
+    'an unusable org timezone %j resolves to FALLBACK_TIMEZONE for a user who inherits it',
+    (defaultTimezone) => {
+      expect(resolveLocale({ timezone: null }, org({ defaultTimezone })).timezone).toBe(FALLBACK_TIMEZONE);
+    },
+  );
+
+  it('an unusable profile AND org timezone resolves to FALLBACK_TIMEZONE', () => {
+    expect(resolveLocale({ timezone: 'Bad/Zone' }, org({ defaultTimezone: 'Also/Bad' })).timezone).toBe(FALLBACK_TIMEZONE);
+  });
+
+  it.each(['en_US', 'en-US ', 'zz-ZZ', 'not-a-locale-tag-at-all'])(
+    'an unusable profile number locale %j inherits the org default',
+    (numberLocale) => {
+      expect(resolveLocale({ numberLocale }, org({ defaultNumberLocale: 'id-ID' })).numberLocale).toBe('id-ID');
+    },
+  );
+
+  it.each(['en_US', 'id-ID ', 'zz-ZZ'])(
+    'an unusable org number locale %j falls back to the resolved language for an inheriting user',
+    (defaultNumberLocale) => {
+      expect(resolveLocale({ numberLocale: null }, org({ defaultLocale: 'id', defaultNumberLocale })).numberLocale).toBe('id');
+    },
+  );
+
+  it.each(['en ', 'en_US', 'zz'])(
+    'an unusable language %j at either tier resolves to FALLBACK_LOCALE',
+    (bad) => {
+      expect(resolveLocale({ locale: bad }, org({ defaultLocale: 'id' })).locale).toBe('id');
+      expect(resolveLocale({ locale: null }, org({ defaultLocale: bad })).locale).toBe(FALLBACK_LOCALE);
+      // The number locale derives from the SANITISED language, never the unusable one.
+      expect(resolveLocale({ locale: null }, org({ defaultLocale: bad })).numberLocale).toBe(FALLBACK_LOCALE);
+    },
+  );
+
+  it('usable explicit values are returned unchanged', () => {
+    expect(
+      resolveLocale(
+        { locale: 'id', numberLocale: 'en-US', timezone: 'America/New_York' },
+        org({ defaultLocale: 'en', defaultNumberLocale: 'id-ID', defaultTimezone: 'UTC' }),
+      ),
+    ).toEqual({ locale: 'id', numberLocale: 'en-US', timezone: 'America/New_York' });
+  });
+});

@@ -1,17 +1,22 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, navigateMock, useMeetingsSpy } = vi.hoisted(() => ({
+const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
     isError: false,
+    isPlaceholderData: false,
+    /** When true, the UNFILTERED query answers with react-query's kept-previous `[]` placeholder
+     *  (a refetch still in flight after Clear filters). */
+    unfilteredPlaceholder: false,
     refetch: vi.fn(),
   },
   mutations: {
@@ -25,30 +30,35 @@ const { listState, mutations, navigateMock, useMeetingsSpy } = vi.hoisted(() => 
     revokeGrant: { mutateAsync: vi.fn(), isPending: false },
     createActionItem: { mutateAsync: vi.fn(), isPending: false },
   },
-  navigateMock: vi.fn(),
   useMeetingsSpy: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useMeetings', () => ({
-  useMeetings: (params: unknown) => {
+  useMeetings: (params: { projectId?: string; search?: string } = {}) => {
     useMeetingsSpy(params);
-    return listState;
+    // list-working-set-return (#683): Meetings' search/project narrowing is a SERVER query
+    // (DD-MTG-5) — simulate that here so an AC-LRC-012 zero-match/clear-filters case is
+    // observable through the page, not just as a spy call.
+    const narrowed = Boolean(params.projectId || params.search);
+    if (!narrowed && listState.unfilteredPlaceholder) {
+      return { ...listState, data: [], isPlaceholderData: true };
+    }
+    return { ...listState, data: narrowed ? [] : listState.data };
   },
   useMeetingMutations: () => mutations,
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }], isPending: false }),
+  useProjects: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade' }], isPending: false }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useNavigate: () => navigateMock };
-});
+// list-working-set-return (#683): the page writes real router navigation for its `project`/`q`
+// URL state and for record-open return context, so `react-router` stays UNMOCKED — a LocationProbe
+// sibling (below) reads the real `useLocation()` to assert the resulting URL/state.
 
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -63,8 +73,8 @@ const seed = [
     title: 'Kickoff with Acme',
     occurred_at: '2026-08-20T09:00:00Z',
     location: 'Site office',
-    project_id: 'p1',
-    project: { id: 'p1', name: 'Harbour Upgrade', project_manager_id: null, pm: null },
+    project_id: '33333333-3333-4333-8333-333333333333',
+    project: { id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', project_manager_id: null, pm: null },
     created_by_id: 'u1',
     archived_at: null,
     is_template: false,
@@ -84,28 +94,55 @@ const seed = [
   },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+// list-working-set-return (#683): reads the REAL router location so tests can assert the URL
+// (filter/search round-trip) and the record-open return-context `location.state`.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+    >
+      {JSON.stringify(location.state ?? null)}
+    </div>
+  );
+};
+
+const renderPage = (role: Role = 'Admin', initialPath = '/meetings') => {
   realRole = role;
   return render(
     <ToastProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <Meetings />
       </MemoryRouter>
     </ToastProvider>,
   );
 };
 
+/** The shell's scroll container, sized so a restore has a real range to land in (jsdom has no layout). */
+const sizeMainScroll = (): HTMLElement => {
+  const main = document.querySelector<HTMLElement>('.main-scroll')!;
+  Object.defineProperties(main, {
+    scrollHeight: { configurable: true, value: 2000 },
+    clientHeight: { configurable: true, value: 400 },
+  });
+  return main;
+};
+
 beforeEach(() => {
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;
+  listState.isPlaceholderData = false;
+  listState.unfilteredPlaceholder = false;
   listState.refetch.mockClear();
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
-  navigateMock.mockClear();
   useMeetingsSpy.mockClear();
   realRole = 'Admin';
 });
@@ -124,7 +161,7 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
   it('a row activates into the /meetings/:id detail route', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Kickoff with Acme'));
-    expect(navigateMock).toHaveBeenCalledWith('/meetings/m1');
+    expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/meetings/m1');
   });
 
   it('the search box drives the SERVER query (DD-MTG-5 — notes are the find mechanism)', async () => {
@@ -189,5 +226,207 @@ describe('Meetings — states', () => {
     listState.isPending = true;
     renderPage();
     expect(screen.queryByText('Kickoff with Acme')).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005: meeting occurrence follows the profile timezone', () => {
+  afterEach(() => resetActiveLocale());
+
+  it('shows the occurrence wall time and day in the viewer timezone', () => {
+    listState.data = [{ ...seed[0], occurred_at: '2026-06-14T23:30:00Z' }];
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const { unmount } = renderPage();
+    expect(screen.getByText(/Jun 14, 2026, 11:30\sPM/)).toBeInTheDocument();
+    unmount();
+
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    renderPage();
+    expect(screen.getByText(/Jun 15, 2026, 06:30\sAM/)).toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow the PROFILE timezone, not the device zone', () => {
+  const originalTz = process.env.TZ;
+  const PINNED_NOW = new Date('2026-06-14T14:15:00Z'); // 21:15 Asia/Jakarta, 07:15 America/Los_Angeles
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(PINNED_NOW);
+    // Simulate a device/browser zone that DIFFERS from the resolved profile timezone (#684's
+    // reported scenario: profile Asia/Jakarta, browser America/Los_Angeles).
+    process.env.TZ = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.TZ = originalTz;
+    resetActiveLocale();
+  });
+
+  it('prefills "When" with the current wall time in the profile timezone (not the device zone)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    expect(when.value).toBe('2026-06-14T21:15');
+  });
+
+  it('submitting the unedited default keeps the same instant', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
+    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    const [input] = mutations.create.mutateAsync.mock.calls[0];
+    expect(input.occurred_at).toBe('2026-06-14T14:15:00.000Z');
+  });
+
+  it('clearing "When" blocks the create with a visible error (a meeting time is required)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
+    // Shown twice by design: the inline field error and the dialog's error summary banner.
+    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+// list-working-set-return (#683, AC-LRC-008): `project`/`q` round-trip through the URL, and
+// opening a row stamps a validated Meetings return context onto the navigation's router state.
+// The existing deferred SERVER search + newest-first query are unchanged (see Meetings.tsx).
+describe('Meetings index — list working set + return context (AC-LRC-008)', () => {
+  it('AC-LRC-001: a direct URL with ?project= restores the selected filter and queries the server for it', () => {
+    renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
+    );
+  });
+
+  it('AC-LRC-001: choosing a project filter writes ?project= to the URL', async () => {
+    renderPage('Admin');
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Filter by project/i),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toBe(
+        '?project=33333333-3333-4333-8333-333333333333',
+      ),
+    );
+  });
+
+  it('AC-LRC-008: opening a row stamps a validated Meetings return context onto the navigation state', async () => {
+    renderPage('Admin');
+    await userEvent.click(screen.getByText('Supplier dispute call'));
+    await waitFor(() => {
+      const probe = screen.getByTestId('location-probe');
+      expect(probe.dataset.pathname).toBe('/meetings/m2');
+      const state = JSON.parse(probe.textContent || 'null');
+      expect(state.pmoListReturn).toMatchObject({ list: 'meetings', path: '/meetings' });
+    });
+  });
+
+  // Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+  it('a zero-match server filter offers Clear filters, which restores the rows', async () => {
+    renderPage('Admin');
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Filter by project/i),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(await screen.findByText(/No meetings match/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(await screen.findByText('Kickoff with Acme')).toBeInTheDocument();
+    expect(screen.getByText('Supplier dispute call')).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: a direct URL with ?q= fills the search box and sends that term to the SERVER query', () => {
+    renderPage('Admin', '/meetings?q=pipeline');
+    expect(screen.getByLabelText(/Search meetings/i)).toHaveValue('pipeline');
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'pipeline' }));
+  });
+
+  it('FR-LRC-007: after Clear filters, the kept-previous empty result reads as loading — never "No meetings yet"', async () => {
+    renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
+    expect(await screen.findByText(/No meetings match/i)).toBeInTheDocument();
+
+    // The unfiltered refetch is still in flight: react-query keeps the previous `[]` as placeholder.
+    listState.unfilteredPlaceholder = true;
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.queryByText('No meetings yet')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No meetings match/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    // The toolbar stays mounted through the refetch (the search box keeps its focus/text).
+    expect(screen.getByLabelText(/Search meetings/i)).toBeInTheDocument();
+  });
+
+  it('AC-LRC-001: an unavailable ?project= stays the active, clearable choice (control agrees with the URL)', async () => {
+    const GONE = '99999999-9999-4999-8999-999999999999';
+    renderPage('Admin', `/meetings?project=${GONE}`);
+    const select = screen.getByLabelText(/Filter by project/i);
+    expect(select).toHaveValue(GONE);
+    expect(screen.getByRole('option', { name: 'Unavailable project', selected: true })).toBeInTheDocument();
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: GONE }));
+    expect(screen.getByText(/No meetings match/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.getByLabelText(/Filter by project/i)).toHaveValue('All');
+    expect(screen.queryByRole('option', { name: 'Unavailable project' })).not.toBeInTheDocument();
+  });
+
+  it('AC-LRC-008: a meeting created from a filtered list opens with that list as its return context', async () => {
+    mutations.create.mutateAsync.mockResolvedValue({ id: 'm-new' });
+    renderPage('Admin', '/meetings?q=kickoff');
+    await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/^Title/), 'Design review');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Create meeting/i }));
+    await waitFor(() => {
+      const probe = screen.getByTestId('location-probe');
+      expect(probe.dataset.pathname).toBe('/meetings/m-new');
+      const state = JSON.parse(probe.textContent || 'null');
+      expect(state.pmoListReturn).toMatchObject({ list: 'meetings', path: '/meetings?q=kickoff' });
+    });
+  });
+
+  it('FR-LRC-005: a return restores the captured scroll position only once real (non-placeholder) rows are ready', async () => {
+    listState.isPending = true;
+    const entry = {
+      pathname: '/meetings',
+      search: '',
+      state: { pmoListScrollRestore: { list: 'meetings', path: '/meetings', scrollTop: 300 } },
+    };
+    // A fresh element per render: re-rendering the SAME element would let React bail out.
+    const tree = () => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <div className="main-scroll">
+            <Meetings />
+          </div>
+        </MemoryRouter>
+      </ToastProvider>
+    );
+    const { rerender } = render(tree());
+    const main = sizeMainScroll();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    // Rows on screen, but they are the previous query's placeholder — still not this list's content.
+    listState.isPending = false;
+    listState.isPlaceholderData = true;
+    rerender(tree());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(main.scrollTop).toBe(0);
+
+    listState.isPlaceholderData = false;
+    rerender(tree());
+    await waitFor(() => expect(main.scrollTop).toBe(300));
+    expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();
   });
 });

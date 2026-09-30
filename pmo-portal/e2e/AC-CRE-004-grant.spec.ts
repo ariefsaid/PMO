@@ -40,9 +40,10 @@ async function readBalance(page: Page): Promise<number> {
   return n;
 }
 
-/** Sign the current session out via the ContextBar "Sign out" button, then wait for /login. */
+/** Sign the current session out via the account-menu Sign out item, then wait for /login. */
 async function signOut(page: Page) {
-  await page.getByRole('button', { name: /^sign out$/i }).click();
+  await page.getByRole('button', { name: /account menu/i }).click();
+  await page.getByRole('menuitem', { name: /^sign out$/i }).click();
   await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
 }
 
@@ -55,7 +56,10 @@ test(
     // ── Given: the Operator on /administration ──
     await signIn(page, 'operator@pmo.test');
     await page.goto('/administration');
-    // Wait for the Users directory + sections to settle (the Credits section is composed on the page).
+    // Administration's index redirects to Users (#676); a real Operator then clicks the "Credits"
+    // item in the in-page section nav to reach the Credits section.
+    await page.getByRole('link', { name: /^credits$/i }).click();
+    await expect(page).toHaveURL(/\/administration\/credits$/);
     await expect(page.getByRole('heading', { name: /^Credits$/ })).toBeVisible({ timeout: 20_000 });
 
     // Read the starting balance BEFORE granting (deterministic across re-runs — balance only grows).
@@ -82,6 +86,8 @@ test(
     await signOut(page);
     await signIn(page, 'admin@acme.test');
     await page.goto('/administration');
+    await page.getByRole('link', { name: /^credits$/i }).click();
+    await expect(page).toHaveURL(/\/administration\/credits$/);
     await expect(page.getByRole('heading', { name: /^Credits$/ })).toBeVisible({ timeout: 20_000 });
 
     // GOAL ORACLE: the grant persists — the Admin's balance readout reflects the Operator's grant.

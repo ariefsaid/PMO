@@ -22,6 +22,10 @@ export interface ExportButtonProps<Row> {
   disabled?: boolean;
   /** Optional extra class forwarded to the Button. */
   className?: string;
+  /** Button text. Defaults to `Export`; set it when a localized/custom label is needed. */
+  label?: string;
+  /** Optional callback fired when Export dispatches (e.g. to close a mobile disclosure). */
+  onExport?: () => void;
 }
 
 export function ExportButton<Row>({
@@ -30,6 +34,8 @@ export function ExportButton<Row>({
   entity,
   disabled,
   className,
+  label = 'Export',
+  onExport,
 }: ExportButtonProps<Row>) {
   const { exportXlsx, busy } = useExport();
   return (
@@ -37,11 +43,14 @@ export function ExportButton<Row>({
       variant="outline"
       disabled={disabled || busy || rows.length === 0}
       loading={busy}
-      onClick={() => void exportXlsx(rows, columns, entity)}
+      onClick={() => {
+        void exportXlsx(rows, columns, entity);
+        onExport?.();
+      }}
       className={className}
     >
       <Icon name="export" />
-      Export
+      {label}
     </Button>
   );
 }

@@ -44,6 +44,9 @@ test(
     // ── Given: the Operator on /administration › Features ──
     await signIn(page, 'operator@pmo.test');
     await page.goto('/administration');
+    // Administration's index lands on Users (#676); the Operator opens Features from the section nav.
+    await page.getByRole('main').getByRole('link', { name: /^features$/i }).click();
+    await expect(page).toHaveURL(/\/administration\/features$/);
     await expect(page.getByRole('heading', { name: /^Features$/ })).toBeVisible({ timeout: 20_000 });
 
     // PRE-CONDITION: ensure `incidents` is ENABLED first so the disable journey has a clean start.
@@ -63,7 +66,8 @@ test(
 
     // ── Then: an org member's next shell render hides the Incidents rail item ──
     // Sign out and back in as an org Admin (a role whose rail includes Incidents when enabled).
-    await page.getByRole('button', { name: /^sign out$/i }).click();
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /^sign out$/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await signIn(page, 'admin@acme.test');
 
@@ -76,10 +80,14 @@ test(
     await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
 
     // ── Re-enable: the Operator turns incidents back on ──
-    await page.getByRole('button', { name: /^sign out$/i }).click();
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /^sign out$/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await signIn(page, 'operator@pmo.test');
     await page.goto('/administration');
+    // Administration's index lands on Users (#676); the Operator opens Features from the section nav.
+    await page.getByRole('main').getByRole('link', { name: /^features$/i }).click();
+    await expect(page).toHaveURL(/\/administration\/features$/);
     await expect(page.getByRole('heading', { name: /^Features$/ })).toBeVisible({ timeout: 20_000 });
     const sw2 = incidentsSwitch(page);
     await expect(sw2).toHaveAttribute('aria-checked', 'false');
@@ -87,7 +95,8 @@ test(
     await expect(sw2).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
 
     // ── And: the rail item + route reappear for an org member ──
-    await page.getByRole('button', { name: /^sign out$/i }).click();
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /^sign out$/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await signIn(page, 'admin@acme.test');
 

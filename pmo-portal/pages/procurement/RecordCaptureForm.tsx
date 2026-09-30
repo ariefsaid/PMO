@@ -11,11 +11,12 @@
  * to none — captured by the user, not auto-wired.
  */
 import React, { useState } from 'react';
-import { Button, Icon, SelectField, useToast } from '@/src/components/ui';
+import { Button, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
+import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -308,11 +309,18 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [status, setStatus] = useState(cfg.defaultStatus);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amountStr, setAmountStr] = useState('');
+  const [amountError, setAmountError] = useState<string | undefined>(undefined);
   // #505: vendor-invoice tax facts. '' is "not answered yet", never a value (see vendorInvoiceTax.ts).
   // OD-TAX-1 (#548) then gave the org a PRE-SELECTION for this control — see the hook call below.
   // Unused by every other kind.
   const [taxTreatmentStr, setTaxTreatmentStr] = useState('');
   const [taxAmountStr, setTaxAmountStr] = useState('');
+  // #684: both money drafts group in the viewer's number convention as the user types.
+  const amountMask = useMoneyInputMask(amountStr, (next) => {
+    setAmountStr(next);
+    setAmountError(undefined);
+  });
+  const taxAmountMask = useMoneyInputMask(taxAmountStr, setTaxAmountStr);
   // [PD-5]: predecessor FK for payment — optional, defaults to none.
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -349,13 +357,21 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // #684 (AC-PLC-009): ONE parse of the amount draft, used for both the verdict and the write.
+    // A value the numeric(14,2) column would have to round is refused here, before any write.
+    const amountParse = cfg.showAmount ? parseRecordAmount(amountStr) : ({ ok: true, amount: null } as const);
+    if (!amountParse.ok) {
+      setAmountError(RECORD_AMOUNT_ERROR);
+      return;
+    }
+    const parsedAmount = amountParse.amount;
+
     // GR/VI confirm-before-commit hand-off (refactor: procurement-detail-dedup).
     // When `onStage` is provided we stage the parsed fields for the page's
     // ConfirmDialog INSTEAD of creating directly — no toast, no `onCreate`, no
     // `onClose` (the page closes the form once the staged write commits).
     if (onStage) {
       const refNum = referenceNumber.trim() || null;
-      const parsedAmount = amountStr.trim() === '' ? null : Number(amountStr.replace(/,/g, ''));
       if (kind === 'goods_receipt') {
         onStage({
           kind: 'createGR',
@@ -385,7 +401,6 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
     setSubmitting(true);
     try {
-      const parsedAmount = amountStr.trim() === '' ? null : Number(amountStr.replace(/,/g, ''));
       const refNum = referenceNumber.trim() || null;
       const dateVal = date || null;
       const statusVal = status || null;
@@ -501,12 +516,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             id={`${formId}-amount`}
             type="text"
             inputMode="decimal"
+            ref={amountMask.ref}
             value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
+            onChange={amountMask.onChange}
+            aria-invalid={amountError ? true : undefined}
+            aria-describedby={amountError ? `${formId}-amount-error` : undefined}
             placeholder="0.00"
             data-testid={cfg.amountTestId}
             className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
+          <FieldError id={`${formId}-amount-error`}>{amountError}</FieldError>
         </div>
       )}
 
@@ -539,8 +558,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               id={`${formId}-tax-amount`}
               type="text"
               inputMode="decimal"
+              ref={taxAmountMask.ref}
               value={taxAmountStr}
-              onChange={(e) => setTaxAmountStr(e.target.value)}
+              onChange={taxAmountMask.onChange}
               placeholder="0.00"
               data-testid={VI_FIELD_TEST_IDS.taxAmount}
               className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

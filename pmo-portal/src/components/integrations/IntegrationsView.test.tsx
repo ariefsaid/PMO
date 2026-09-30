@@ -3,9 +3,14 @@ import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { I18nextProvider } from 'react-i18next';
+import i18next from 'i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import React from 'react';
 import { IntegrationsView } from './IntegrationsView';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { IntegrationBinding, IntegrationHealth } from '@/src/lib/repositories/types';
 
@@ -15,10 +20,24 @@ vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({
 
 vi.mock('@/src/hooks/useIntegrations', () => ({
   useIntegrations: vi.fn(),
+  // Pure health-key constructor (AC-IRUX-009) — the view uses it to scope its local health query.
+  integrationHealthQueryKey: (orgId: string | undefined, tier: string) => [
+    'integrations',
+    'health',
+    orgId,
+    tier,
+  ],
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: vi.fn(),
+}));
+
+// #680 — connector identity: the production card reads org profiles through this hook to resolve
+// `connected_by` to a readable same-org display name (or a neutral fallback). Mocked so every test
+// controls the profile-read state and none reaches the real auth/repository hook.
+vi.mock('@/src/hooks/useTasks', () => ({
+  useAssignableProfiles: vi.fn(),
 }));
 
 // M365OrgApprovalCard (rendered on this surface) imports connectClient, which imports the browser
@@ -31,6 +50,7 @@ vi.mock('@/src/lib/m365/connectClient', () => ({
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
 import { useProjects } from '@/src/hooks/useProjects';
+import { useAssignableProfiles } from '@/src/hooks/useTasks';
 
 const mockBinding: IntegrationBinding = {
   org_id: 'org-1',
@@ -76,6 +96,42 @@ const baseExternalDomainReturn = {
   isStale: false,
 } as any;
 
+// #680 — default settled successful empty profile read so the existing suite never hits the real
+// hook. Each AC-ICI test overrides data/state explicitly.
+const emptyProfilesReturn = {
+  data: [],
+  isPending: false,
+  isError: false,
+  isSuccess: true,
+  isLoading: false,
+  isFetching: false,
+  status: 'success' as const,
+  dataUpdatedAt: 0,
+  error: null,
+  isPlaceholderData: false,
+  fetchStatus: 'idle',
+  isLoadingError: false,
+  isRefetchError: false,
+  errorUpdatedAt: 0,
+  failureCount: 0,
+  failureReason: null,
+  isPaused: false,
+  isRefetching: false,
+  isStale: false,
+  refetch: vi.fn(),
+} as any;
+
+beforeEach(() => {
+  vi.mocked(useAssignableProfiles).mockReturnValue(emptyProfilesReturn);
+});
+
+const profile = (id: string, full_name: string) => ({
+  id,
+  full_name,
+  org_id: 'org-1',
+  role: 'Admin',
+});
+
 const wrapWithRole = (role: string, ui: React.ReactElement) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -90,6 +146,7 @@ const wrapWithRole = (role: string, ui: React.ReactElement) => {
 afterEach(() => { vi.clearAllMocks(); cleanup(); });
 
 const bindingMapIntegrations = (overrides: Record<string, unknown> = {}) => ({
+  orgId: 'org-1',
   bindings: [mockBinding],
   isPending: false,
   isError: false,
@@ -151,7 +208,7 @@ describe('Admin ClickUp binding map (AC-IEM-013, AC-IEM-016)', () => {
   it('renders a neutral empty map when ClickUp is active with zero bindings', () => {
     vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'P1')] } as any);
     wrapWithRole('Admin', <IntegrationsView />);
-    expect(within(screen.getByTestId('integrations-connect-cards')).getByText('Active')).toBeInTheDocument();
+    expect(within(screen.getByTestId('integrations-connect-cards')).getByText('Connected')).toBeInTheDocument();
     expect(screen.getByTestId('clickup-binding-map-empty')).toHaveTextContent(/No PMO projects are bound to ClickUp yet/i);
     expect(screen.getByTestId('clickup-binding-map-empty')).not.toHaveClass('text-destructive');
   });
@@ -174,10 +231,11 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     expect(screen.getByText('ClickUp')).toBeInTheDocument();
     expect(screen.getByText('ERPNext')).toBeInTheDocument();
     expect(screen.getAllByText('Not connected')).toHaveLength(2);
-    const tierList = screen.getByTestId('integrations-tier-list');
-    expect(tierList).toBeInTheDocument();
-    expect(within(tierList).queryByRole('heading')).not.toBeInTheDocument();
-    expect(within(tierList).queryByRole('button')).toBeNull();
+    // AC-IRUX-007: empty ownership renders an explicit read-only empty state (not a blank section)
+    // and offers no write affordances.
+    expect(screen.getByTestId('integrations-tier-list')).toBeInTheDocument();
+    expect(within(screen.getByTestId('integrations-tier-list')).queryByRole('heading')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('integrations-tier-list')).queryByRole('button')).toBeNull();
   });
 
   it('M1 the loading skeleton renders inside the framed container (sibling-section idiom)', () => {
@@ -305,7 +363,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
       await waitFor(() => expect(screen.getByText('ERPNext')).toBeInTheDocument());
 
-      expect(screen.getByText('Active')).toBeInTheDocument();
+      expect(screen.getByText('Connected')).toBeInTheDocument();
       expect(screen.getByText(/Connected by/)).toBeInTheDocument();
       expect(screen.getByText(/Jan 1, 2026/)).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^connect clickup$/i })).not.toBeInTheDocument();
@@ -361,6 +419,31 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       expect(screen.getByText('Disconnected')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^connect clickup$/i })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^disconnect clickup$/i })).not.toBeInTheDocument();
+    });
+
+    it('AC-PLC-005: dates connection instants on the viewer-timezone calendar day', async () => {
+      const current = vi.mocked(useIntegrations)();
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...current,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup'
+          ? { ...mockBinding, status: 'disconnected', connected_at: '2026-06-14T23:30:00Z', disconnected_at: '2026-06-15T23:30:00Z' }
+          : undefined)),
+      } as any);
+      try {
+        setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+        const { unmount } = wrapWithRole('Admin', <IntegrationsView />);
+        await waitFor(() => expect(screen.getByText('Jun 15, 2026')).toBeInTheDocument());
+        expect(screen.getByText('Jun 14, 2026')).toBeInTheDocument();
+        unmount();
+
+        setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+        wrapWithRole('Admin', <IntegrationsView />);
+        await waitFor(() => expect(screen.getByText('Jun 16, 2026')).toBeInTheDocument());
+        expect(screen.getByText('Jun 15, 2026')).toBeInTheDocument();
+        expect(screen.queryByText('Jun 14, 2026')).not.toBeInTheDocument();
+      } finally {
+        resetActiveLocale();
+      }
     });
 
     it('opens Connect modal with tier-specific fields when Connect is clicked', async () => {
@@ -578,9 +661,13 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
 
       await waitFor(() => expect(vi.mocked(useIntegrations).mock.results[0].value.connect.mutateAsync).toHaveBeenCalled());
 
+      // NFR: the dialog surfaces FIXED generic task-level copy, never a raw transport/credential
+      // detail (the rejected error's message must not leak into the UI).
       await waitFor(() => {
         const dialogContent = screen.getByRole('dialog', { name: 'Connect ClickUp' });
-        expect(dialogContent).toHaveTextContent(/Invalid ClickUp token/);
+        expect(dialogContent).toHaveTextContent(/Could not connect/i);
+        expect(dialogContent).not.toHaveTextContent(/Invalid ClickUp token/);
+        expect(dialogContent).not.toHaveTextContent(/bad-token/);
       });
     });
   });
@@ -591,7 +678,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
 
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
 
-      expect(screen.getByText('Active')).toBeInTheDocument();
+      expect(screen.getByText('Connected')).toBeInTheDocument();
       expect(screen.getByText(/Connected by/)).toBeInTheDocument();
 
       expect(screen.queryByRole('button', { name: /^connect clickup$/i })).not.toBeInTheDocument();
@@ -639,7 +726,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
     });
 
-    it('renders connect cards + a scoped error banner on status-load failure (does not hide the panel)', async () => {
+    it('AC-IRUX-001 binding-read failure: connection state is unknown (not disconnected), Retry is offered, and the permitted Connect remains (no Disconnect from an unknown binding)', async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         bindings: [],
         isPending: false,
@@ -656,15 +743,71 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       wrapWithRole('Admin', <IntegrationsView />);
 
       // Design-review finding (graduated): a failed status load must NOT hide the Connect affordance.
-      // The scoped error banner shows AND the tier cards still render (status falls back to Not connected).
+      // The scoped error banner shows AND the tier cards still render.
       expect(screen.getByTestId('integrations-status-error')).toBeInTheDocument();
       expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
+      // AC-IRUX-001: connection state is labelled unknown per card, never Disconnected/Not connected.
+      expect(screen.getAllByText('Connection state unavailable')).toHaveLength(2);
+      expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
+      expect(screen.queryByText('Not connected')).not.toBeInTheDocument();
+      // Retry is offered per card and via the scoped banner.
+      expect(screen.getAllByRole('button', { name: /Retry status/i })).toHaveLength(2);
+      // The permitted Connect action remains reachable; Disconnect is never offered from an unknown binding.
       expect(screen.getByRole('button', { name: /^connect clickup$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^connect erpnext$/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^disconnect clickup$/i })).not.toBeInTheDocument();
     });
   });
 
-  describe('Health surface (AC-EAC-016)', () => {
-    it('shows last sync and error count when health data available', async () => {
+  describe('Health surface (AC-EAC-016 / AC-IRUX-003 / AC-IRUX-004)', () => {
+    const activeBinding = {
+      org_id: 'org-1',
+      external_tier: 'clickup',
+      site_url: 'https://api.clickup.com',
+      secret_ref: 'clickup_token_org_1',
+      status: 'active' as const,
+      connected_by: 'u1',
+      connected_at: '2026-01-01T00:00:00Z',
+      disconnected_at: null,
+    };
+    const baseReturn = (getHealthFn: unknown) => ({
+      orgId: 'org-1',
+      bindings: [activeBinding],
+      isPending: false,
+      isError: false,
+      isSuccess: true,
+      error: null,
+      refetch: vi.fn(),
+      connect: { mutateAsync: vi.fn(), isPending: false },
+      disconnect: { mutateAsync: vi.fn(), isPending: false },
+      getBinding: vi.fn((tier: string) => (tier === 'clickup' ? activeBinding : undefined)),
+      getHealth: getHealthFn,
+    });
+
+    it('AC-IRUX-002: a successful binding is labelled Connected, and absent connector identity is not shown as a blank field', async () => {
+      const binding = { ...activeBinding, connected_by: null };
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseReturn(vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: null, connected_at: binding.connected_at, last_sync: null, error_count: 0 })),
+        bindings: [binding],
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? binding : undefined)),
+      } as any);
+      wrapWithRole('Admin', <IntegrationsView />);
+      const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+      expect(card.getByText('Connected')).toBeInTheDocument();
+      // #680 (AC-ICI-002): an absent/blank actor now renders the translated neutral fallback on the
+      // always-present Connector line — never a blank field and never a raw actor value.
+      expect(card.getByText(/Connected by/i)).toBeInTheDocument();
+      expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
+    });
+
+    it('AC-IRUX-003: an unavailable health read names outbound work status as unknown', async () => {
+      vi.mocked(useIntegrations).mockReturnValue(baseReturn(vi.fn().mockRejectedValue(new Error('unavailable'))) as any);
+      wrapWithRole('Admin', <IntegrationsView />);
+      await waitFor(() => expect(screen.getByText(/Outbound work status unavailable/i)).toBeInTheDocument());
+      expect(screen.getByRole('button', { name: /Retry outbound status/i })).toBeInTheDocument();
+    });
+
+    it('AC-IRUX-004: a non-null watermark time is never rendered as a sync time or data-progress proof; outstanding outbound work is labelled and a live record check is offered', async () => {
       const mockGetHealth = vi.fn().mockResolvedValue({
         tier: 'clickup',
         status: 'active',
@@ -673,55 +816,149 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         last_sync: '2026-01-02T12:30:00Z',
         error_count: 3,
       });
-
-      vi.mocked(useIntegrations).mockReturnValue({
-        bindings: [{ org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com', secret_ref: 'clickup_token_org_1', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', disconnected_at: null }],
-        isPending: false,
-        isError: false,
-        isSuccess: true,
-        error: null,
-        refetch: vi.fn(),
-        connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
-        disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
-        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? { org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com', secret_ref: 'clickup_token_org_1', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', disconnected_at: null } : undefined)),
-        getHealth: mockGetHealth,
-      } as any);
-
+      vi.mocked(useIntegrations).mockReturnValue(baseReturn(mockGetHealth) as any);
       wrapWithRole('Admin', <IntegrationsView />);
 
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-      await waitFor(() => expect(screen.getByText(/Last sync/)).toBeInTheDocument());
-      expect(screen.getByText(/Jan 2, 2026/)).toBeInTheDocument();
-      expect(screen.getByText(/3 errors/)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/outbound items pending or need attention/i)).toBeInTheDocument());
+      // No last-sync claim and no rendered timestamp (the watermark row time is not a sync proof).
+      expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Jan 2, 2026/)).not.toBeInTheDocument();
+      // Outstanding outbound work is labelled as outstanding, never as all-errors.
+      expect(screen.getByText(/3 outbound items pending or need attention/i)).toBeInTheDocument();
+      // A live transferred record must be checked to prove usable data movement.
+      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
     });
 
-    it('shows zero errors when error_count is 0', async () => {
+    it('AC-IRUX-004: a null watermark with a single outstanding item renders the singular label and no sync-time claim', async () => {
       const mockGetHealth = vi.fn().mockResolvedValue({
         tier: 'clickup',
         status: 'active',
         connected_by: 'u1',
         connected_at: '2026-01-01T00:00:00Z',
-        last_sync: '2026-01-02T00:00:00Z',
-        error_count: 0,
+        last_sync: null,
+        error_count: 1,
       });
+      vi.mocked(useIntegrations).mockReturnValue(baseReturn(mockGetHealth) as any);
+      wrapWithRole('Admin', <IntegrationsView />);
 
+      await waitFor(() => expect(screen.getByText(/outbound item pending/i)).toBeInTheDocument());
+      expect(screen.getByText(/1 outbound item pending or needs attention/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+    });
+
+    it('AC-IRUX-003: one tier’s unavailable health leaves a healthy sibling’s recorded progress legible, with a Retry on the failed card', async () => {
+      const clickupBinding = activeBinding;
+      const erpnextBinding = { ...activeBinding, external_tier: 'erpnext' as const, config: { company: 'Acme Corp' } };
+      const getHealth = vi.fn().mockImplementation((tier: string) =>
+        tier === 'clickup'
+          ? Promise.resolve({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: null, error_count: 2 })
+          : Promise.reject(new Error('health read failed')),
+      );
       vi.mocked(useIntegrations).mockReturnValue({
-        bindings: [{ org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com', secret_ref: 'clickup_token_org_1', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', disconnected_at: null }],
+        orgId: 'org-1',
+        bindings: [clickupBinding, erpnextBinding],
         isPending: false,
         isError: false,
         isSuccess: true,
         error: null,
         refetch: vi.fn(),
-        connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
-        disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
-        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? { org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com', secret_ref: 'clickup_token_org_1', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', disconnected_at: null } : undefined)),
-        getHealth: mockGetHealth,
+        connect: { mutateAsync: vi.fn(), isPending: false },
+        disconnect: { mutateAsync: vi.fn(), isPending: false },
+        getBinding: vi.fn((tier: string) => {
+          if (tier === 'clickup') return clickupBinding;
+          if (tier === 'erpnext') return erpnextBinding;
+          return undefined;
+        }),
+        getHealth,
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
 
+      await waitFor(() => expect(screen.getByText(/2 outbound items pending or need attention/i)).toBeInTheDocument());
+      // The failed tier labels its own data-progress read unavailable and offers Retry, without
+      // blanking the healthy sibling’s progress.
+      const erpnextCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="erpnext"]')!);
+      expect(within(erpnextCard.getByText(/Outbound work status unavailable/i).closest('div')!).getByRole('button', { name: /Retry outbound status/i })).toBeInTheDocument();
+      const clickupCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+      const clickupHealthWrap = clickupCard.getByText(/2 outbound items/i).closest('div')!;
+      expect(clickupHealthWrap).toHaveTextContent(/check an actual transferred record/i);
+    });
+
+    it('AC-IRUX-003: a slow ERPNext read does not delay ClickUp outbound status', async () => {
+      const erpnextBinding = { ...activeBinding, external_tier: 'erpnext' as const, config: { company: 'Example Company' } };
+      const getHealth = vi.fn((tier: string) =>
+        tier === 'clickup'
+          ? Promise.resolve({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: activeBinding.connected_at, last_sync: null, error_count: 2 })
+          : new Promise<IntegrationHealth>(() => {}),
+      );
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseReturn(getHealth),
+        bindings: [activeBinding, erpnextBinding],
+        getBinding: vi.fn((tier: string) => tier === 'clickup' ? activeBinding : tier === 'erpnext' ? erpnextBinding : undefined),
+      } as any);
+      wrapWithRole('Admin', <IntegrationsView />);
+
+      const cards = screen.getByTestId('integrations-connect-cards');
+      const clickupCard = within(cards.querySelector('[data-tier="clickup"]')!);
+      const erpnextCard = within(cards.querySelector('[data-tier="erpnext"]')!);
+      await waitFor(() => expect(clickupCard.getByText(/2 outbound items pending/i)).toBeInTheDocument());
+      expect(erpnextCard.getByText(/Checking outbound work status/i)).toBeInTheDocument();
+    });
+
+    it('AC-IRUX-004: available health with zero outstanding work still reports a localized zero count, never a silent blank', async () => {
+      const mockGetHealth = vi.fn().mockResolvedValue({
+        tier: 'clickup',
+        status: 'active',
+        connected_by: 'u1',
+        connected_at: '2026-01-01T00:00:00Z',
+        last_sync: null,
+        error_count: 0,
+      });
+      vi.mocked(useIntegrations).mockReturnValue(baseReturn(mockGetHealth) as any);
+      wrapWithRole('Admin', <IntegrationsView />);
+
+      await waitFor(() => expect(screen.getByText(/0 outbound items pending or need attention/i)).toBeInTheDocument());
+      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
+    });
+
+    it('FR-IRUX-009: health tiers derive only from a successful binding read — a failed read cannot feed a health probe from stale cached data', async () => {
+      // bindings + getBinding advertise an active ClickUp binding (stale/cached), but the query is
+      // NOT a success (failed read).
+      const getHealth = vi.fn();
+      vi.mocked(useIntegrations).mockReturnValue({
+        bindings: [activeBinding],
+        isPending: false,
+        isError: true,
+        isSuccess: false,
+        error: new Error('binding read failed'),
+        refetch: vi.fn(),
+        connect: { mutateAsync: vi.fn(), isPending: false },
+        disconnect: { mutateAsync: vi.fn(), isPending: false },
+        getBinding: vi.fn(() => activeBinding),
+        getHealth,
+      } as any);
+      wrapWithRole('Admin', <IntegrationsView />);
+
+      // The card labels connection state unknown (AC-IRUX-001) and the health probe must NOT run.
+      expect(screen.getAllByText('Connection state unavailable')).toHaveLength(2);
+      expect(getHealth).not.toHaveBeenCalled();
+      expect(screen.queryByText(/outbound items pending/i)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('clickup-binding-map')).not.toBeInTheDocument();
+    });
+
+    it('FR-IRUX-010: the tier header reflows (flex-wrap) so the long activation status never overflows at 390px', async () => {
+      vi.mocked(useIntegrations).mockReturnValue(baseReturn(vi.fn().mockResolvedValue(null)) as any);
+      wrapWithRole('Admin', <IntegrationsView />);
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-      expect(screen.queryByText(/errors?/i)).not.toBeInTheDocument();
+      const card = screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!;
+      const header = card.querySelector('.flex');
+      expect(header).not.toBeNull();
+      expect(header!.className).toContain('flex-wrap');
+      const status = within(card as HTMLElement).getByText('Connected', { exact: true });
+      expect(status.className).toContain('whitespace-normal');
+      expect(status.className).toContain('max-w-full');
     });
   });
 });
@@ -770,7 +1007,7 @@ describe('OD-INT-6 ERPNext Company selection (org-level)', () => {
 
   it('OD-INT-6 shows connected-but-not-activated for ERPNext with no Company', async () => {
     wrapWithRole('Admin', <IntegrationsView />);
-    await waitFor(() => expect(screen.getByText('Connected — select a Company to activate')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Awaiting activation — select a Company to activate')).toBeInTheDocument());
     expect(screen.getByText(/ERP sync is paused until a Company is selected/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Select Company$/i })).toBeInTheDocument();
   });
@@ -840,5 +1077,513 @@ describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', (
     // A non-Admin sees the tier cards (read-only) but NOT the M365 org-approval block.
     expect(screen.queryByTestId('m365-org-approval')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /approve in microsoft 365/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)', () => {
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
+  });
+
+  it('labels the panel as organization-owned and separate from the personal route', async () => {
+    wrapWithRole('Admin', <IntegrationsView />);
+    const scope = await screen.findByTestId('integrations-owner-scope');
+    // The org surface labels its scope explicitly…
+    expect(scope).toHaveTextContent(/organization/i);
+    // …and states that a personal connection does not activate an organization integration
+    // (AC-ADMIA-006: never imply personal ⇒ org readiness).
+    expect(scope).toHaveTextContent(/does not activate an organization integration/i);
+  });
+
+  it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {
+    wrapWithRole('Admin', <IntegrationsView />);
+    const scope = await screen.findByTestId('integrations-owner-scope');
+    // The personal surface is referenced by its user-facing name "My integrations"…
+    expect(scope).toHaveTextContent(/My integrations/i);
+    // …and its raw route string must not leak into user-facing copy.
+    expect(scope.textContent).not.toContain('/integrations');
+  });
+});
+
+// ============================================================================
+// AC-IRUX-005 — ERPNext Company picker recovery states
+// ============================================================================
+describe('AC-IRUX-005 ERPNext Company picker states', () => {
+  const notActivated: IntegrationBinding = {
+    org_id: 'org-1',
+    external_tier: 'erpnext',
+    site_url: 'https://erp.example.com',
+    secret_ref: 'erpnext_token_org_1',
+    status: 'active',
+    connected_by: 'u1',
+    connected_at: '2026-01-01T00:00:00Z',
+    disconnected_at: null,
+    config: {},
+  };
+  const companyReturn = (overrides: Record<string, unknown> = {}) => ({
+    bindings: [notActivated],
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+    error: null,
+    refetch: vi.fn(),
+    connect: { mutateAsync: vi.fn(), isPending: false },
+    disconnect: { mutateAsync: vi.fn(), isPending: false },
+    getBinding: vi.fn((tier: string) => (tier === 'erpnext' ? notActivated : undefined)),
+    getHealth: vi.fn().mockResolvedValue(null),
+    erpnextCompanies: [{ name: 'Acme Corp' }],
+    isCompaniesPending: false,
+    isCompaniesError: false,
+    refetchCompanies: vi.fn(),
+    setCompany: { mutateAsync: vi.fn().mockResolvedValue({ ok: true }), isPending: false },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
+  });
+
+  it('AC-IRUX-005 opening the picker during Company loading shows a loading state and disables Activate', async () => {
+    vi.mocked(useIntegrations).mockReturnValue(companyReturn({ isCompaniesPending: true, erpnextCompanies: [] }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    fireEvent.click(await screen.findByRole('button', { name: /^Select Company$/i }));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    expect(screen.getByTestId('companies-loading')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Activate$/i })).toBeDisabled();
+  });
+
+  it('AC-IRUX-005 an unavailable Company read shows a generic error + Retry and disables Activate', async () => {
+    const refetchCompanies = vi.fn();
+    vi.mocked(useIntegrations).mockReturnValue(companyReturn({ isCompaniesError: true, erpnextCompanies: [], refetchCompanies }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    fireEvent.click(await screen.findByRole('button', { name: /^Select Company$/i }));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    expect(screen.getByText(/Companies unavailable/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Retry$/i }));
+    expect(refetchCompanies).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /^Activate$/i })).toBeDisabled();
+  });
+
+  it('AC-IRUX-005 a zero-Company result shows an explicit empty state and disables Activate', async () => {
+    vi.mocked(useIntegrations).mockReturnValue(companyReturn({ erpnextCompanies: [] }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    fireEvent.click(await screen.findByRole('button', { name: /^Select Company$/i }));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    expect(screen.getByText(/No Companies found/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Activate$/i })).toBeDisabled();
+  });
+
+  it('AC-IRUX-005 a failed activation keeps the dialog open, retains the selection, shows a generic error, and permits another attempt', async () => {
+    const setCompany = { mutateAsync: vi.fn().mockRejectedValue(new Error('boom')), isPending: false };
+    vi.mocked(useIntegrations).mockReturnValue(companyReturn({ setCompany }) as any);
+    const user = userEvent.setup();
+    wrapWithRole('Admin', <IntegrationsView />);
+    await user.click(await screen.findByRole('button', { name: /^Select Company$/i }));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    await user.click(screen.getByLabelText(/^Company$/i));
+    await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Acme Corp/i }));
+    await user.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toHaveTextContent(/Activation failed/i);
+    });
+    // Dialog stays open, selection survives (Activate still enabled), generic error visible.
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(/your selection was kept/i);
+    expect(screen.getByRole('button', { name: /^Activate$/i })).not.toBeDisabled();
+    expect(setCompany.mutateAsync).toHaveBeenCalledWith('Acme Corp');
+    // Another attempt is possible.
+    await user.click(screen.getByRole('button', { name: /^Activate$/i }));
+    expect(setCompany.mutateAsync).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ============================================================================
+// AC-IRUX-007 — employed-domain ownership loading / unavailable / empty states
+// ============================================================================
+describe('AC-IRUX-007 employed-domain ownership states', () => {
+  beforeEach(() => {
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
+  });
+
+  it('AC-IRUX-007 shows a loading state while ownership loads (read only)', () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: undefined, isPending: true, isError: false } as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    const tierList = screen.getByTestId('integrations-tier-list');
+    expect(within(tierList).queryByRole('button')).toBeNull();
+  });
+
+  it('AC-IRUX-007 unavailable ownership shows an explicit error + Retry and no write controls', () => {
+    const refetch = vi.fn();
+    vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: true, refetch } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByTestId('ownership-error')).toBeInTheDocument();
+    expect(screen.getByText(/Employed domains unavailable/i)).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /^Retry$/i });
+    fireEvent.click(retry);
+    expect(refetch).toHaveBeenCalled();
+    const tierList = screen.getByTestId('integrations-tier-list');
+    // Read-only section: the only button is the read Retry, never a mutation control.
+    expect(within(tierList).queryByRole('button', { name: /connect|disconnect|select/i })).toBeNull();
+  });
+
+  it('AC-IRUX-007 empty ownership shows an explicit empty state and no write controls', () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: false, isSuccess: true } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByText(/No employed domains set/i)).toBeInTheDocument();
+    const tierList = screen.getByTestId('integrations-tier-list');
+    expect(within(tierList).queryByRole('button')).toBeNull();
+  });
+});
+
+// ============================================================================
+// AC-IRUX-008 — disconnect failure keeps the dialog open and permits Retry
+// ============================================================================
+describe('AC-IRUX-008 disconnect failure recovery', () => {
+  it('keeps the confirm dialog open with a generic failure, relabels Retry, and allows another attempt without implying syncing stopped', async () => {
+    const disconnect = { mutateAsync: vi.fn().mockRejectedValue(new Error('boom')), isPending: false };
+    vi.mocked(useIntegrations).mockReturnValue({
+      bindings: [mockBinding],
+      isPending: false,
+      isError: false,
+      isSuccess: true,
+      error: null,
+      refetch: vi.fn(),
+      connect: { mutateAsync: vi.fn(), isPending: false },
+      disconnect,
+      getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockBinding : undefined)),
+      getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: null, error_count: 0 }),
+    } as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /^disconnect clickup$/i }));
+    const dialog = screen.getByRole('alertdialog');
+    const confirm = dialog.querySelector('button[class*="destructive"]') as HTMLButtonElement;
+    expect(confirm).toBeTruthy();
+    await user.click(confirm);
+
+    await waitFor(() => expect(disconnect.mutateAsync).toHaveBeenCalledWith('clickup'));
+    // Dialog stays open; generic failure is visible; no implication syncing stopped.
+    const dlg = screen.getByRole('alertdialog');
+    expect(dlg).toBeInTheDocument();
+    expect(dlg).toHaveTextContent(/Disconnect did not complete/i);
+    expect(dlg).toHaveTextContent(/connection and syncing may be unchanged/i);
+    // Confirm relabels to a retry and works.
+    const retry = within(dlg).getByRole('button', { name: /Try disconnect again/i });
+    await user.click(retry);
+    expect(disconnect.mutateAsync).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ============================================================================
+// AC-IRUX-010 — readiness copy renders in English and Bahasa; role gates hold.
+// Loads the REAL shipped catalogues so the assertions pin the actual labels.
+// ============================================================================
+const testEnCatalogue = JSON.parse(
+  readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'),
+);
+const testIdCatalogue = JSON.parse(
+  readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'),
+);
+
+function wrapWithRoleAndLocale(role: string, lng: string, ui: React.ReactElement) {
+  const i18n = i18next.createInstance();
+  return i18n
+    .init({
+      lng,
+      fallbackLng: 'en',
+      defaultNS: 'common',
+      resources: { en: { common: testEnCatalogue }, id: { common: testIdCatalogue } },
+    })
+    .then(() => {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return render(
+        <QueryClientProvider client={qc}>
+          <ImpersonationProvider realRole={role as any}>
+            <I18nextProvider i18n={i18n}>{ui}</I18nextProvider>
+          </ImpersonationProvider>
+        </QueryClientProvider>
+      );
+    });
+}
+
+describe('AC-IRUX-010 readiness copy in English and Bahasa (with role gates)', () => {
+  const notActivated = (overrides: Record<string, unknown> = {}) => ({
+    org_id: 'org-1',
+    external_tier: 'erpnext',
+    site_url: 'https://erp.example.com',
+    secret_ref: 'erpnext_token_org_1',
+    status: 'active',
+    connected_by: 'u1',
+    connected_at: '2026-01-01T00:00:00Z',
+    disconnected_at: null,
+    config: {},
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
+    vi.mocked(useIntegrations).mockReturnValue({
+      bindings: [notActivated()],
+      isPending: false,
+      isError: false,
+      isSuccess: true,
+      error: null,
+      refetch: vi.fn(),
+      connect: { mutateAsync: vi.fn(), isPending: false },
+      disconnect: { mutateAsync: vi.fn(), isPending: false },
+      getBinding: vi.fn((tier: string) => (tier === 'erpnext' ? notActivated() : undefined)),
+      getHealth: vi.fn().mockResolvedValue(null),
+      erpnextCompanies: [{ name: 'Acme Corp' }],
+      isCompaniesPending: false,
+      isCompaniesError: false,
+      setCompany: { mutateAsync: vi.fn(), isPending: false },
+    } as any);
+  });
+
+  it('renders English readiness copy for an Admin on an unactivated ERPNext binding', async () => {
+    await wrapWithRoleAndLocale('Admin', 'en', <IntegrationsView />);
+    expect(await screen.findByText('Awaiting activation — select a Company to activate')).toBeInTheDocument();
+    expect(screen.getByText(/ERP sync is paused until a Company is selected/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Select Company$/i })).toBeInTheDocument();
+  });
+
+  it('renders Bahasa readiness copy for an Admin on an unactivated ERPNext binding', async () => {
+    await wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />);
+    expect(await screen.findByText('Menunggu aktivasi — pilih Perusahaan untuk mengaktifkan')).toBeInTheDocument();
+    expect(screen.getByText(/Sinkronisasi ERP dijeda sampai sebuah Perusahaan dipilih/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Pilih Perusahaan$/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Pilih Perusahaan$/i }));
+    expect(screen.getByRole('dialog', { name: 'Pilih Perusahaan ERPNext' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Perusahaan')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aktifkan' })).toBeInTheDocument();
+  });
+
+  it('renders Bahasa readiness copy for the unknown binding state', async () => {
+    vi.mocked(useIntegrations).mockReturnValue({
+      bindings: [],
+      isPending: false,
+      isError: true,
+      isSuccess: false,
+      error: new Error('x'),
+      refetch: vi.fn(),
+      connect: { mutateAsync: vi.fn(), isPending: false },
+      disconnect: { mutateAsync: vi.fn(), isPending: false },
+      getBinding: vi.fn(() => undefined),
+      getHealth: vi.fn().mockResolvedValue(null),
+    } as any);
+    await wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />);
+    expect(await screen.findAllByText('Status koneksi tidak tersedia')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Muat ulang status$/i })).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /^Hubungkan ClickUp$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Coba lagi$/i })).toBeInTheDocument();
+  });
+
+  it('a read-only viewer in Bahasa sees the truthful state text but no mutation controls', async () => {
+    await wrapWithRoleAndLocale('Engineer', 'id', <IntegrationsView />);
+    expect(await screen.findByText('Menunggu aktivasi — pilih Perusahaan untuk mengaktifkan')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Pilih Perusahaan$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Aktifkan$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Connect ERPNext$/i })).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// AC-IRUX-006 — ClickUp binding map: per-source loading / unavailable states with
+// Unknown (never PMO-native) rows and source-specific Retry.
+// ============================================================================
+describe('AC-IRUX-006 ClickUp binding map source states', () => {
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'P1')], isPending: false, isError: false, refetch: vi.fn() } as any);
+  });
+
+  it('AC-IRUX-006 lists loading shows a source notice and Unknown rows, never PMO-native', () => {
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({ isListsPending: true }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByText(/Loading ClickUp lists…/i)).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /P1.*Unknown/i })).toBeInTheDocument();
+    expect(screen.queryByText(/PMO-native/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-IRUX-006 lists unavailable shows a generic notice + Retry wired to refetchLists, rows Unknown', () => {
+    const refetchLists = vi.fn();
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({ isListsError: true, refetchLists }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByText(/ClickUp lists are unavailable/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Retry lists/i }));
+    expect(refetchLists).toHaveBeenCalled();
+    expect(screen.getByRole('row', { name: /P1.*Unknown/i })).toBeInTheDocument();
+    expect(screen.queryByText(/PMO-native/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-IRUX-006 project-bindings unavailable shows a generic notice + Retry wired to refetchBindings, rows Unknown', () => {
+    const refetchBindings = vi.fn();
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({ isBindingsError: true, isBindingsPending: false, refetchBindings }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByText(/Project bindings are unavailable/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Retry bindings/i }));
+    expect(refetchBindings).toHaveBeenCalled();
+    expect(screen.getByRole('row', { name: /P1.*Unknown/i })).toBeInTheDocument();
+  });
+
+  it('AC-IRUX-006 project-bindings loading shows a source notice', () => {
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({ isBindingsPending: true }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByText(/Loading project bindings…/i)).toBeInTheDocument();
+  });
+
+  it('AC-IRUX-006 projects unavailable shows a generic notice + Retry wired to projectsQuery.refetch', () => {
+    const projectsRefetch = vi.fn();
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: true, refetch: projectsRefetch } as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByText(/Projects are unavailable/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Retry projects/i }));
+    expect(projectsRefetch).toHaveBeenCalled();
+  });
+
+  it('AC-IRUX-006 a healthy map still displays Bound and PMO-native classifications', () => {
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'Harbor Upgrade'), project('p2', 'Office Fitout')], isPending: false, isError: false } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      projectBindings: [{ id: 'b1', org_id: 'org-1', project_id: 'p1', external_tier: 'clickup', external_container_id: 'l1', config: {}, linked_by: null, linked_at: null, disconnected_at: null }],
+      clickupLists: [{ id: 'l1', name: 'Harbor List', space_name: 'Delivery', folder_name: null }],
+    }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByRole('row', { name: /Harbor Upgrade.*Harbor List.*Bound/i })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Office Fitout.*PMO-native/i })).toBeInTheDocument();
+  });
+
+  it.each(['isListsError', 'isBindingsError'])('AC-IRUX-006 cached map rows become Unknown when %s is true', (failedSource) => {
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      projectBindings: [{ id: 'b1', org_id: 'org-1', project_id: 'p1', external_tier: 'clickup', external_container_id: 'l1', config: {}, linked_by: null, linked_at: null, disconnected_at: null }],
+      clickupLists: [{ id: 'l1', name: 'Cached List', space_name: 'Delivery', folder_name: null }],
+      [failedSource]: true,
+    }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    const row = screen.getByRole('row', { name: /P1/i });
+    expect(row).toHaveTextContent('Unknown');
+    expect(row).not.toHaveTextContent('Cached List');
+    expect(row).not.toHaveTextContent('Bound');
+  });
+});
+
+// ============================================================================
+// #680 — Readable organization connector identity (AC-ICI-001..004)
+// The card resolves `connected_by` against the org-scoped profile source and shows a readable name
+// or a translated neutral fallback — never the raw actor value. Profile-read state is display-only
+// and must not change the independently derived binding/health/authorization states.
+// ============================================================================
+describe('AC-ICI readable organization connector identity (#680)', () => {
+  const activeClickUp = (player: Record<string, unknown> = {}) => ({
+    ...bindingMapIntegrations(),
+    bindings: [mockBinding],
+    getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockBinding : undefined)),
+    getHealth: vi.fn().mockResolvedValue({
+      tier: 'clickup',
+      status: 'active',
+      connected_by: mockBinding.connected_by,
+      connected_at: mockBinding.connected_at,
+      last_sync: null,
+      error_count: 0,
+    }),
+    ...player,
+  } as any);
+
+  it('AC-ICI-001 resolves a same-org profile name beside the connection date, never the raw actor', () => {
+    vi.mocked(useAssignableProfiles).mockReturnValue({ ...emptyProfilesReturn, data: [profile('u1', 'Ada Lovelace')] } as any);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+    wrapWithRole('Admin', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    // The readable display name is shown…
+    expect(card.getByText('Ada Lovelace')).toBeInTheDocument();
+    // …beside the existing formatted connection date…
+    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+    // …and the raw technical actor value is never interpolated.
+    expect(card.queryByText('u1', { exact: true })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['an unmatched actor', { connected_by: 'actor-999' }, [profile('u1', 'Ada Lovelace')]],
+    ['a whitespace-only profile name', { connected_by: 'u1' }, [profile('u1', '   ')]],
+    ['a missing actor', { connected_by: null }, []],
+  ])('AC-ICI-002 %s shows the neutral fallback, keeps the date, and hides the raw actor', (_label, bp, profiles) => {
+    const binding = { ...mockBinding, ...(bp as object) };
+    vi.mocked(useAssignableProfiles).mockReturnValue({ ...emptyProfilesReturn, data: profiles as any } as any);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp({
+      bindings: [binding],
+      getBinding: vi.fn((tier: string) => (tier === 'clickup' ? binding : undefined)),
+    }));
+    wrapWithRole('Admin', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    // The translated neutral fallback is shown…
+    expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
+    // …beside the retained connection date…
+    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+    // …and the raw actor value is never rendered.
+    const actor = (bp as { connected_by: string | null }).connected_by;
+    if (actor) expect(card.queryByText(actor, { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('AC-ICI-002 shows the translated fallback in Bahasa and never the English string', async () => {
+    vi.mocked(useAssignableProfiles).mockReturnValue(emptyProfilesReturn);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+    await wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    expect(card.getByText('Pengguna sebelumnya atau tidak tersedia')).toBeInTheDocument();
+    expect(card.queryByText('Former or unavailable user')).not.toBeInTheDocument();
+    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['pending', { data: undefined, isPending: true, isError: false, isSuccess: false }],
+    ['errored', { data: undefined, isPending: false, isError: true, isSuccess: false }],
+  ])('AC-ICI-003 a %s profile read keeps binding, health, and allowed actions truthful', async (_state, qs) => {
+    vi.mocked(useAssignableProfiles).mockReturnValue({ ...emptyProfilesReturn, ...(qs as object) } as any);
+    vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+    wrapWithRole('Admin', <IntegrationsView />);
+    const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+    // …the separately derived health read stays truthful (await the async read)…
+    await waitFor(() => expect(card.getByText(/0 outbound items pending or need attention/i)).toBeInTheDocument());
+    // The identity display has a safe fallback…
+    expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
+    // …while the independent binding state stays Connected…
+    expect(card.getByText('Connected')).toBeInTheDocument();
+    // …and the Admin's already-permitted control remains available.
+    expect(card.getByRole('button', { name: /^disconnect clickup$/i })).toBeInTheDocument();
+    // Neither case relabels the binding as unavailable/disconnected.
+    expect(card.queryByText('Connection state unavailable')).not.toBeInTheDocument();
+    expect(card.queryByText('Disconnected')).not.toBeInTheDocument();
+  });
+
+  it('AC-ICI-004 a read-only Engineer at 390px in Bahasa sees fallback + date and no management controls', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    try {
+      vi.mocked(useAssignableProfiles).mockReturnValue(emptyProfilesReturn);
+      vi.mocked(useIntegrations).mockReturnValue(activeClickUp());
+      await wrapWithRoleAndLocale('Engineer', 'id', <IntegrationsView />);
+      const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+      // Translated fallback + retained date sit inside the card's metadata container…
+      const fallback = card.getByText('Pengguna sebelumnya atau tidak tersedia');
+      const metadata = fallback.closest('.flex.flex-wrap')!;
+      expect(metadata).toHaveTextContent(/Jan 1, 2026/);
+      expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+      // …and the read-only viewer gets no management controls.
+      expect(card.queryByRole('button', { name: /^hubungkan clickup$/i })).not.toBeInTheDocument();
+      expect(card.queryByRole('button', { name: /^putuskan koneksi clickup$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^pilih perusahaan$/i })).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
   });
 });

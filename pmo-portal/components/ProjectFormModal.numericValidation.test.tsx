@@ -13,7 +13,7 @@
  * assert the two-sided contract for each AC.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -30,8 +30,14 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectFormModal from './ProjectFormModal';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 // ── Stubs for the two FK-fetching hooks ────────────────────────────────────
+// #694: the create form reads the org currency for its money adornment.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({
     data: [{ id: 'c1', name: 'Innovate Corp', type: 'Client' }],
@@ -77,7 +83,11 @@ async function fillRequired() {
   await userEvent.click(option);
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  setActiveLocale(EN_LOCALE);
+});
+afterEach(() => resetActiveLocale());
 
 // ── AC-W3-NUM-001 ────────────────────────────────────────────────────────────
 
@@ -151,5 +161,85 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 4820000 });
+  });
+
+  it('AC-PLC-009: rejects an en-US amount with three decimal places before the project write', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234');
+    await stateTaxBasis();
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/valid non-negative amount with no more than 2 decimal places/i, {
+      selector: 'span[role="alert"]',
+    })).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: parses id-ID grouping as 1234 before the project write', async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234');
+    await stateTaxBasis();
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 1234 });
+  });
+});
+
+describe('#684 AC-PLC-010: the estimated-value error distinguishes a FORMAT mistake from a real precision loss', () => {
+  it("under id-ID, English-style separators (1,234.56) report the SEPARATOR mistake, not '2 decimal places'", async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1,234.56');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/for example 1\.234,56/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(screen.queryByText(/no more than 2 decimal places/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('under id-ID, a pasted dot-grouped amount (1234567.89) reports the SEPARATOR mistake', async () => {
+    setActiveLocale(ID_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    const field = screen.getByLabelText(/estimated value/i);
+    field.focus();
+    await userEvent.paste('1234567.89');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    // The message's example is a FIXED reference amount in the viewer's convention ("1.234,56"),
+    // never an echo of the user's own (malformed) input — the pasted value could itself be
+    // ambiguous, which is why it needed correcting in the first place.
+    expect(await screen.findByText(/for example 1\.234,56/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(screen.queryByText(/no more than 2 decimal places/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('under en-US, id-ID-style separators (1.234,56) report the SEPARATOR mistake, not the precision message', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234,56');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/for example 1,234\.56/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(screen.queryByText(/no more than 2 decimal places/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a genuine 3-decimal-place amount under en-US still reports the PRECISION message (regression)', async () => {
+    setActiveLocale(EN_LOCALE);
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1.234');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findByText(/no more than 2 decimal places/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router';
+import { useParams, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -26,6 +26,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { useAuth } from '@/src/auth/useAuth';
 import {
   useMeeting,
@@ -37,8 +38,12 @@ import {
 import { useProjects } from '@/src/hooks/useProjects';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
-import { formatDateTime, formatDate } from '@/src/lib/format';
-import { toDatetimeLocalValue } from '@/src/lib/datetimeLocal';
+import {
+  formatDateTime,
+  formatDateOnly,
+  instantToZonedDatetimeLocal,
+  zonedDatetimeLocalToInstant,
+} from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -67,7 +72,6 @@ const attendeeName = (a: MeetingAttendeeWithRefs): string =>
 const MeetingDetail: React.FC = () => {
   const { t } = useTranslation();
   const { meetingId } = useParams<{ meetingId: string }>();
-  const navigate = useNavigate();
   const may = usePermission();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -119,7 +123,11 @@ const MeetingDetail: React.FC = () => {
   // task — the affordance explains itself instead of 42501-ing (fail-closed 'pmo' when unknown).
   const tasksExternal = routeTaskWrite(meeting?.project_id ?? undefined) === 'external';
 
-  const goBack = () => navigate('/meetings');
+  // list-working-set-return (#683, AC-LRC-008): return to the validated Meetings list context
+  // (project filter + search + scroll) when opened from that list; a direct/copied link falls back
+  // to the bare index.
+  const { returnToList } = useListReturn({ list: 'meetings' });
+  const goBack = () => returnToList();
   const backLabel = t('meetingDetail.backToMeetings', 'Meetings');
 
   const onMutationError = (err: unknown) => {
@@ -131,7 +139,7 @@ const MeetingDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label={backLabel} onBack={goBack} />
+        <BackBar label={backLabel} phoneOnly onBack={goBack} />
         <div data-testid="meeting-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -142,7 +150,7 @@ const MeetingDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label={backLabel} onBack={goBack} />
+        <BackBar label={backLabel} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('meetingDetail.error.title', "Couldn't load meeting")}
@@ -156,7 +164,7 @@ const MeetingDetail: React.FC = () => {
   if (!meeting) {
     return (
       <>
-        <BackBar label={backLabel} onBack={goBack} />
+        <BackBar label={backLabel} phoneOnly onBack={goBack} />
         <div data-testid="meeting-not-found">
           <ListState
             variant="empty"
@@ -252,7 +260,8 @@ const MeetingDetail: React.FC = () => {
       await archive.mutateAsync(meeting.id);
       toast(t('meetingDetail.toast.archived', 'Meeting archived'), meeting.title, 'success');
       setArchiveOpen(false);
-      navigate('/meetings');
+      // AC-LRC-008: return to the same filtered/searched list context, not a bare index reset.
+      returnToList();
     } catch (err) {
       onMutationError(err);
     }
@@ -263,7 +272,8 @@ const MeetingDetail: React.FC = () => {
       await remove.mutateAsync(meeting.id);
       toast(t('meetingDetail.toast.deleted', 'Meeting deleted'), meeting.title, 'success');
       setDeleteOpen(false);
-      navigate('/meetings');
+      // AC-LRC-008: return to the same filtered/searched list context, not a bare index reset.
+      returnToList();
     } catch (err) {
       onMutationError(err);
       setDeleteOpen(false);
@@ -468,7 +478,7 @@ const MeetingDetail: React.FC = () => {
                     <span className="text-muted-foreground">{task.assignee.full_name}</span>
                   )}
                   {task.end_date && (
-                    <span className="text-muted-foreground">{formatDate(task.end_date)}</span>
+                    <span className="text-muted-foreground">{formatDateOnly(task.end_date)}</span>
                   )}
                 </li>
               ))}
@@ -812,6 +822,11 @@ const makeEditValidate =
     const errors: Partial<Record<keyof EditFormValues, string>> = {};
     if (!v.title.trim())
       errors.title = t('meetingDetail.form.errors.titleRequired', 'Meeting title is required.');
+    // A meeting's time is required (#684): a cleared or unparseable "When" must block the save,
+    // never silently keep the meeting's old time — `zonedDatetimeLocalToInstant` returns null for
+    // both cases.
+    if (!zonedDatetimeLocalToInstant(v.occurredAt))
+      errors.occurredAt = t('meetingDetail.form.errors.whenInvalid', 'Enter a valid date and time.');
     return errors;
   };
 
@@ -840,7 +855,7 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
   const form = useEntityForm<EditFormValues>({
     initialValues: {
       title: meeting.title,
-      occurredAt: toDatetimeLocalValue(new Date(meeting.occurred_at)),
+      occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)),
       location: meeting.location ?? '',
       projectId: meeting.project_id ?? '',
     },
@@ -861,9 +876,12 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       try {
+        // `validate` already blocked submit when this is null (#684) — never reached with a
+        // cleared/unparseable value, so there is no silent fallback to the meeting's old time.
+        const instant = zonedDatetimeLocalToInstant(values.occurredAt)!;
         await onSave({
           title: values.title.trim(),
-          occurred_at: new Date(values.occurredAt).toISOString(),
+          occurred_at: instant.toISOString(),
           location: values.location.trim() || null,
           project_id: values.projectId || null,
         });
@@ -890,9 +908,12 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
-      errorSummary={
-        form.errors.title ? [{ fieldId: titleField.id, message: form.errors.title }] : undefined
-      }
+      errorSummary={[
+        form.errors.title ? { fieldId: titleField.id, message: form.errors.title } : null,
+        form.errors.occurredAt
+          ? { fieldId: occurredField.id, message: form.errors.occurredAt }
+          : null,
+      ].filter((item): item is { fieldId: string; message: string } => item !== null)}
       submitError={saveError}
     >
       <FormSection legend={t('meetingDetail.form.sections.details', 'Details')}>
@@ -914,6 +935,7 @@ const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
             value={occurredField.value}
             onChange={occurredField.onChange}
             onBlur={occurredField.onBlur}
+            error={occurredField.error}
           />
           <TextField
             id={locationField.id}

@@ -13,6 +13,7 @@ import {
   Icon,
   useToast,
   CompanyNameLink,
+  MobileToolbarDisclosure,
   type Column,
   type RowMenuItem,
   TaxBasisLabel,
@@ -20,7 +21,6 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
-import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -33,7 +33,12 @@ import {
 } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
-import { useProjectView } from '@/src/hooks/useProjectView';
+import { readProjectView, writeProjectView } from '@/src/hooks/useProjectView';
+import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
+import { currentMonthToken, parseListWorkingSet } from '@/src/lib/listWorkingSet';
+import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
+import type { ProjectView } from '@/src/hooks/useProjectView';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
@@ -48,6 +53,7 @@ import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -58,9 +64,6 @@ import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
 type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
 const FILTERS: StatusFilter[] = ['All', 'My Projects', 'Ongoing', 'Completed', 'at-risk'];
 
-/** Values accepted as ?filter= URL params. Any unrecognised param falls back to the role default. */
-const VALID_URL_FILTERS = new Set<StatusFilter>(FILTERS);
-
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
@@ -69,8 +72,6 @@ const Projects: React.FC = () => {
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
   const isEngineer = effectiveRole === 'Engineer';
   // B-11 fix: an IC's "My Projects" means projects they are ASSIGNED to (have a task on),
@@ -84,8 +85,12 @@ const Projects: React.FC = () => {
     [myTasks],
   );
   const { data, isPending, isError, refetch } = useProjects();
-  const { data: clientCompanies = [] } = useClientCompanies();
-  const { data: projectManagers = [] } = useProjectManagers();
+  const clientCompaniesResult = useClientCompanies();
+  const projectManagersResult = useProjectManagers();
+  // Stable array references so the option-list/import useMemos (which list them as deps)
+  // don't recompute every render when a query is still resolving to `undefined`.
+  const clientCompanies = useMemo(() => clientCompaniesResult.data ?? [], [clientCompaniesResult.data]);
+  const projectManagers = useMemo(() => projectManagersResult.data ?? [], [projectManagersResult.data]);
   const { create, updateHeader, archive } = useProjectMutations();
 
   const canCreate = may('create', 'project');
@@ -93,26 +98,50 @@ const Projects: React.FC = () => {
   const canArchive = may('archive', 'project');
   const canRowWrite = canEdit || canArchive;
 
-  const [view, setView] = useProjectView();
-
-  // AC-IXD-DASH-W5-C2A: URL search-param read-on-mount convention. A ?filter=<value> param
-  // drills directly into the requested filter segment (e.g. from a dashboard KPI link).
-  // Backward-compatible: no param => role-based default (Engineers default to "My Projects",
-  // all others to "All"). Unrecognised values fall back to the role default silently.
+  // list-working-set-return (#682): `filter`/`client`/`pm`/`q`/`view` are URL-owned. The URL is
+  // authoritative for supported keys; the role default (Engineer keeps "My Projects") and the
+  // persisted session view are the fallback, materialized once the role default is known
+  // (`defaultsReady`). B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs
+  // who want their own assigned work, not the full org project list; all other roles default to
+  // "All". `effectiveRole` is used so an impersonated-as-Engineer session gets the scoped default.
   const roleDefault: StatusFilter = effectiveRole === 'Engineer' ? 'My Projects' : 'All';
-  const urlFilter = searchParams.get('filter') as StatusFilter | null;
-  const initialFilter: StatusFilter =
-    urlFilter && VALID_URL_FILTERS.has(urlFilter) ? urlFilter : roleDefault;
+  const { workingSet, setWorkingSet } = useListWorkingSet('projects', {
+    sessionView: readProjectView(),
+    projectsDefaultFilter: roleDefault,
+    defaultsReady: effectiveRole != null,
+  });
+  // Search stays LOCAL text written to the URL after a pause (useUrlSearchInput's search
+  // contract) — never bound straight to `workingSet.q`.
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
+    setWorkingSet((ws) => ({ ...ws, q })),
+  );
+  const { openRecord } = useListReturn({ list: 'projects', contentReady: !isPending && !isError });
 
-  // B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs who
-  // want their own assigned work, not the full org project list. All other roles
-  // default to "All" (unscoped manager view). `effectiveRole` is used here so that
-  // an impersonated-as-Engineer session also gets the scoped default, matching the
-  // intent of "what would an Engineer see?" consistently.
-  const [filter, setFilter] = useState<StatusFilter>(initialFilter);
-  const [filterClient, setFilterClient] = useState('All');
-  const [filterPM, setFilterPM] = useState('All');
-  const [search, setSearch] = useState('');
+  const filter = workingSet.filter;
+  const filterClient = workingSet.client;
+  const filterPM = workingSet.pm;
+  const view = workingSet.view;
+  const onViewChange = (v: ProjectView) => {
+    writeProjectView(v);
+    setWorkingSet((ws) => ({ ...ws, view: v }));
+  };
+  // #716: the calendar month is URL-owned (`month=YYYY-MM`, current month omitted), so a Back
+  // return from a record lands on the month the user was reviewing.
+  const calendarCursor = useMemo(() => {
+    const [y, m] = (workingSet.month ?? currentMonthToken()).split('-').map(Number);
+    return { year: y, month: m - 1 };
+  }, [workingSet.month]);
+  const onCalendarCursorChange = (next: MonthCursor) =>
+    setWorkingSet((ws) => ({
+      ...ws,
+      month: `${next.year}-${String(next.month + 1).padStart(2, '0')}`,
+    }));
+  // Mobile disclosure state (FR-PRJUX-003): Filters closes after a selection; More actions
+  // closes after an export dispatch but is deliberately left OPEN when an Import wizard opens
+  // (the wizard must stay mounted for its own lifecycle — DD-BIMP-3). Both are controlled here
+  // so the mobile toolbar can drive them.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   // null = closed; true = the create-deal modal is open.
   const [createOpen, setCreateOpen] = useState(false);
   // null = closed; { project } = edit modal open.
@@ -163,7 +192,14 @@ const Projects: React.FC = () => {
         }
       })
       .filter((p) => filterClient === 'All' || p.client_id === filterClient)
-      .filter((p) => filterPM === 'All' || p.project_manager_id === filterPM)
+      // FR-PRJUX-005: three explicit PM branches — All bypasses; the sentinel matches
+      // ONLY `project_manager_id == null`; a real ID matches equality. An unnamed-but-
+      // ASSIGNED profile therefore never reads as unassigned.
+      .filter((p) => {
+        if (filterPM === 'All') return true;
+        if (filterPM === UNASSIGNED_PROJECT_MANAGER) return p.project_manager_id == null;
+        return p.project_manager_id === filterPM;
+      })
       .filter(
         (p) =>
           !q ||
@@ -229,30 +265,55 @@ const Projects: React.FC = () => {
     () => makeBudgetImportDescriptor(all.map((p) => ({ id: p.id, name: p.name })), budgetImportBatchId),
     [all, budgetImportBatchId],
   );
+  // FR-PRJUX-004/005: every PM option carries a nonempty visible label. A blank-name
+  // assigned profile renders `Unnamed user · <short ID>` (still filters by its real ID);
+  // the genuinely-unassigned filter is a non-ID sentinel, never a profile ID.
   const pmFilterOptions = useMemo(
     () => [
       { value: 'All', label: t('projects.filters.allManagers', 'All managers') },
-      ...projectManagers.map((u) => ({ value: u.id, label: u.full_name })),
+      {
+        value: UNASSIGNED_PROJECT_MANAGER,
+        label: t('projects.unassigned', 'Unassigned'),
+      },
+      ...projectManagers.map((u) => ({
+        value: u.id,
+        label: projectManagerLabel({
+          managerId: u.id,
+          fullName: u.full_name,
+          unassignedLabel: t('projects.unassigned', 'Unassigned'),
+          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+        }),
+      })),
     ],
     [projectManagers, t],
   );
 
   const filtersActive =
     filter !== 'All' || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
+  const hasNonDefaultFilter =
+    filter !== roleDefault || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
 
+  // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
+  // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
+  // PM, and search — ONE working-set update plus the search reset (#683), so the URL and
+  // controls move together and no second event drops the first call. Keeps the view.
   const clearFilters = () => {
-    setFilter('All');
-    setFilterClient('All');
-    setFilterPM('All');
     setSearch('');
+    setWorkingSet(() =>
+      parseListWorkingSet('projects', '', {
+        projectsDefaultFilter: roleDefault,
+        sessionView: readProjectView(),
+      }),
+    );
   };
 
-  // Row/card drill is a plain react-router navigate (AC-NAV-006) — no tab.
-  // `source` distinguishes the table/list row path from every card-shaped surface
-  // (cards, kanban, calendar) for `project_detail_opened` (2026-07-13 wiring plan).
+  // Row/card drill captures the current list URL + scroll as validated return context
+  // via `openRecord` (AC-LRC-003) — the canonical `/projects/:id` route is unchanged
+  // (AC-NAV-006, no tab). `source` distinguishes the table/list row path from every
+  // card-shaped surface (cards, kanban, calendar) for `project_detail_opened`.
   const onOpen = (p: ProjectWithRefs, source: 'list' | 'card' = 'list') => {
     trackProjectDetailOpened('/projects/:projectId', source);
-    navigate(`/projects/${p.id}`);
+    openRecord(`/projects/${p.id}`);
   };
 
   // ── rowMenu: Edit (→ editHeader modal) + Archive (→ confirm) ───────────────
@@ -290,9 +351,11 @@ const Projects: React.FC = () => {
     <ProjectFormModal
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
-        await create.mutateAsync(input);
+        const row = await create.mutateAsync(input);
         toast(t('projects.toast.created', 'Project created'), input.name, 'success');
         setCreateOpen(false);
+        // Opens the new record with this list as its return context (#688 AC-RAM-006, #682).
+        openRecord(`/projects/${row.id}`);
       }}
       onError={(err) => {
         const { headline, detail } = classifyMutationError(err);
@@ -339,7 +402,7 @@ const Projects: React.FC = () => {
                 {p.code ?? p.id.slice(0, 8)}
               </div>
               {p.customer_contract_ref && (
-                <div className="truncate font-mono text-[11px] text-muted-foreground/80">
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
                   {p.customer_contract_ref}
                 </div>
               )}
@@ -371,22 +434,36 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
-      exportValue: (p) => p.pm?.full_name ?? '',
+      // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
+      // and is never exported as "unassigned".
+      exportValue: (p) =>
+        projectManagerLabel({
+          managerId: p.project_manager_id,
+          fullName: p.pm?.full_name,
+          unassignedLabel: t('projects.unassigned', 'Unassigned'),
+          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+        }),
       // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
       // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
-      cell: (p) => (
-        <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
-          >
-            {(p.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase()}
+      cell: (p) => {
+        const label = projectManagerLabel({
+          managerId: p.project_manager_id,
+          fullName: p.pm?.full_name,
+          unassignedLabel: t('projects.unassigned', 'Unassigned'),
+          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+        });
+        return (
+          <span className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+            >
+              {(label.trim().charAt(0) || '?').toUpperCase()}
+            </span>
+            <span className="whitespace-normal leading-tight">{label}</span>
           </span>
-          <span className="whitespace-normal leading-tight">
-            {p.pm?.full_name ?? t('projects.unassigned', 'Unassigned')}
-          </span>
-        </span>
-      ),
+        );
+      },
     },
     {
       key: 'status',
@@ -571,11 +648,252 @@ const Projects: React.FC = () => {
     );
   }
 
+  // ── Phone-width (below md) mobile toolbar (FR-PRJUX-001) ────────────────
+  // Keeps status, search, the selected view, and New project visible while grouping the
+  // secondary filters and bulk actions behind named disclosures. Only rendered in the
+  // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
+  // it into cards.
+  const secondaryCount =
+    (filterClient !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
+  const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
+  const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
+
+  const moreActionsChildren = [
+    <ExportButton
+      key="export"
+      rows={filtered}
+      columns={columns}
+      entity="Projects"
+      label={t('projects.export', 'Export')}
+      onExport={() => setMoreOpen(false)}
+    />,
+    // ImportButton is internally permission-gated (returns null for a non-create real
+    // role). Opening its wizard must NOT close/unmount this More disclosure — the wizard
+    // stays mounted for its own lifecycle (DD-BIMP-3) — so no close is wired here.
+    <ImportButton
+      key="import"
+      entity="project"
+      descriptor={importDescriptor}
+      onImported={() => void refetch()}
+      label={t('projects.import', 'Import')}
+    />,
+    <ImportButton
+      key="importBudget"
+      entity="budgetLine"
+      label={t('projects.importBudgets', 'Import budgets')}
+      descriptor={budgetImportDescriptor}
+      onImported={() => void refetch()}
+    />,
+  ].filter((c): c is React.ReactElement => c !== null);
+
+  const mobileToolbar = (
+    <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
+      {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
+      <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+        <ViewToggle<StatusFilter>
+          options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
+          value={filter}
+          onChange={(v) => {
+            setWorkingSet((ws) => ({ ...ws, filter: v }));
+            trackFilterApplied('status', FILTERS.length, 'projects');
+          }}
+          ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
+        />
+      </div>
+
+      {/* search + selected view */}
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchMini
+          placeholder={t('projects.search.placeholder', 'Search projects…')}
+          aria-label={t('projects.search.ariaLabel', 'Search projects')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          searchSurface="projects-list"
+          module="projects"
+          resultCount={filtered.length}
+          containerClassName="min-w-0 flex-1 basis-40"
+        />
+        {/* The 4-option view toggle can exceed a 360px row; keep it reachable within the
+            toolbar without page bleed — it scrolls inside this bounded container. */}
+        <div className="ml-auto min-w-0 max-w-full overflow-x-auto">
+          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
+            options={[
+              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
+              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
+              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
+              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
+            ]}
+            value={view}
+            onChange={onViewChange}
+            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
+          />
+        </div>
+      </div>
+
+      {/* filters + more actions disclosures */}
+      <div className="flex flex-wrap items-center gap-2">
+        {!isEngineer && (
+          <MobileToolbarDisclosure
+            label={t('projects.mobile.filters', 'Filters')}
+            count={secondaryCount}
+            open={filtersOpen}
+            closeOnSelectChange
+            onOpenChange={(next) => {
+              setFiltersOpen(next);
+              if (next) setMoreOpen(false);
+            }}
+          >
+            <div className="w-full min-w-0 space-y-3">
+              <div className="w-full min-w-0 space-y-1">
+                <SelectField
+                  label={t('projects.filters.customerLabel', 'Filter by customer')}
+                  value={filterClient}
+                  onChange={(v) => {
+                    setWorkingSet((ws) => ({ ...ws, client: v }));
+                    trackFilterApplied('customer', customerFilterOptions.length, 'projects');
+                  }}
+                  options={customerFilterOptions}
+                  fullWidth
+                />
+                {clientCompaniesResult.isPending && (
+                  <p className="text-[12px] text-muted-foreground">
+                    {t('projects.mobile.loading', 'Loading options…')}
+                  </p>
+                )}
+                {!clientCompaniesResult.isPending && clientCompaniesResult.isError && (
+                  <div className="flex items-center gap-2">
+                    <p role="alert" className="text-[12px] text-destructive">
+                      {t('projects.mobile.error', "Couldn't load options")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => clientCompaniesResult.refetch?.()}
+                      className="text-[12px] font-semibold text-primary underline-offset-2 hover:underline"
+                    >
+                      {t('projects.mobile.retry', 'Retry')}
+                    </button>
+                  </div>
+                )}
+                {!clientCompaniesResult.isPending && !clientCompaniesResult.isError &&
+                  clientCompaniesResult.isSuccess && clientCompanies.length === 0 && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {t('projects.mobile.noOptions', 'No options available')}
+                    </p>
+                  )}
+              </div>
+
+              <div className="w-full min-w-0 space-y-1">
+                <SelectField
+                  label={t('projects.filters.pmLabel', 'Filter by project manager')}
+                  value={filterPM}
+                  onChange={(v) => {
+                    setWorkingSet((ws) => ({ ...ws, pm: v }));
+                    trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
+                  }}
+                  options={pmFilterOptions}
+                  fullWidth
+                />
+                {projectManagersResult.isPending && (
+                  <p className="text-[12px] text-muted-foreground">
+                    {t('projects.mobile.loading', 'Loading options…')}
+                  </p>
+                )}
+                {!projectManagersResult.isPending && projectManagersResult.isError && (
+                  <div className="flex items-center gap-2">
+                    <p role="alert" className="text-[12px] text-destructive">
+                      {t('projects.mobile.error', "Couldn't load options")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => projectManagersResult.refetch?.()}
+                      className="text-[12px] font-semibold text-primary underline-offset-2 hover:underline"
+                    >
+                      {t('projects.mobile.retry', 'Retry')}
+                    </button>
+                  </div>
+                )}
+                {!projectManagersResult.isPending && !projectManagersResult.isError &&
+                  projectManagersResult.isSuccess && projectManagers.length === 0 && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {t('projects.mobile.noOptions', 'No options available')}
+                    </p>
+                  )}
+              </div>
+            </div>
+          </MobileToolbarDisclosure>
+        )}
+
+        {moreActionsChildren.length > 0 && (
+          <MobileToolbarDisclosure
+            label={t('projects.mobile.more', 'More actions')}
+            open={moreOpen}
+            onOpenChange={(next) => {
+              setMoreOpen(next);
+              if (next) setFiltersOpen(false);
+            }}
+          >
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+              {moreActionsChildren}
+            </div>
+          </MobileToolbarDisclosure>
+        )}
+      </div>
+
+      {/* active secondary-filter chips + Clear all (AC-PRJUX-002) */}
+      {hasNonDefaultFilter && (
+        <div
+          data-testid="active-filter-chips"
+          aria-label={t('projects.mobile.activeCount', 'Active filters')}
+          className="flex flex-wrap items-center gap-2"
+        >
+          {filterClient !== 'All' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
+              <span className="font-medium text-muted-foreground">
+                {t('projects.mobile.customer', 'Customer')}: {selectedCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
+              </span>
+              <button
+                type="button"
+                aria-label={`${t('projects.mobile.removeCustomer', 'Remove customer filter')}: ${selectedCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
+                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
+                onClick={() => setWorkingSet((ws) => ({ ...ws, client: 'All' }))}
+              >
+                <Icon name="x" className="size-3" />
+              </button>
+            </span>
+          )}
+          {filterPM !== 'All' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
+              <span className="font-medium text-muted-foreground">
+                {t('projects.mobile.manager', 'Project manager')}: {selectedPm?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
+              </span>
+              <button
+                type="button"
+                aria-label={`${t('projects.mobile.removeManager', 'Remove project manager filter')}: ${selectedPm?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
+                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
+                onClick={() => setWorkingSet((ws) => ({ ...ws, pm: 'All' }))}
+              >
+                <Icon name="x" className="size-3" />
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-[12.5px] font-semibold text-primary underline-offset-2 hover:underline"
+          >
+            {t('projects.mobile.clearAll', 'Clear all')}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
       description={pageDescription}
       primaryAction={primaryAction}
+      mobileToolbar={mobileToolbar}
       filters={
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
@@ -585,7 +903,7 @@ const Projects: React.FC = () => {
             options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
             value={filter}
             onChange={(v) => {
-              setFilter(v);
+              setWorkingSet((ws) => ({ ...ws, filter: v }));
               trackFilterApplied('status', FILTERS.length, 'projects');
             }}
             ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
@@ -619,7 +937,7 @@ const Projects: React.FC = () => {
               label={t('projects.filters.customerLabel', 'Filter by customer')}
               value={filterClient}
               onChange={(v) => {
-                setFilterClient(v);
+                setWorkingSet((ws) => ({ ...ws, client: v }));
                 trackFilterApplied('customer', customerFilterOptions.length, 'projects');
               }}
               options={customerFilterOptions}
@@ -630,7 +948,7 @@ const Projects: React.FC = () => {
               label={t('projects.filters.pmLabel', 'Filter by project manager')}
               value={filterPM}
               onChange={(v) => {
-                setFilterPM(v);
+                setWorkingSet((ws) => ({ ...ws, pm: v }));
                 trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
               }}
               options={pmFilterOptions}
@@ -640,35 +958,23 @@ const Projects: React.FC = () => {
         ) : undefined
       }
       exportAction={
-        <ExportButton rows={filtered} columns={columns} entity="Projects" />
+        <ExportButton rows={filtered} columns={columns} entity="Projects" label={t('projects.export', 'Export')} />
       }
       view={
-        /*
-          A-MIN-1 (updated, AC-MOB-VT): Wave-0 hid the entire toggle below md because Table+Cards
-          were the only options and DataTable auto-renders cards on mobile (toggle was a no-op).
-          Now that Calendar (day-agenda) and Kanban (horizontal-scroll) have real mobile renders,
-          those views need to be reachable on phones. Fix: hide only the Table option below md via
-          `wrapperClassName="hidden md:block"` on the Table ViewOption. Cards / Calendar / Kanban
-          are always visible. Desktop (≥md) shows all four unchanged.
-          NOTE: Must use wrapperClassName, NOT optionClassName. cn() is clsx-only (no tailwind-
-          merge), so `hidden` on the button itself conflicts with the button's base `inline-flex`
-          class — both land in the class string and `inline-flex` wins, leaving the option visible.
-          A wrapper <span> has no competing display value, so `hidden` takes effect correctly.
-        */
+        /* All four views remain reachable; DataTable reflows Table into cards below md. */
         <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
           options={[
             {
               value: 'table',
               label: t('projects.view.table', 'Table'),
               icon: 'table',
-              wrapperClassName: 'hidden md:block',
             },
             { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
             { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
             { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
           ]}
           value={view}
-          onChange={setView}
+          onChange={onViewChange}
           ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
         />
       }
@@ -678,6 +984,7 @@ const Projects: React.FC = () => {
             entity="project"
             descriptor={importDescriptor}
             onImported={() => void refetch()}
+            label={t('projects.import', 'Import')}
           />
           <ImportButton
             entity="budgetLine"
@@ -695,9 +1002,11 @@ const Projects: React.FC = () => {
         <ProjectCalendarView
           projects={filtered}
           milestoneDates={milestoneDates}
+          cursor={calendarCursor}
+          onCursorChange={onCalendarCursorChange}
           onOpenProject={(id) => {
             trackProjectDetailOpened('/projects/:projectId', 'card');
-            navigate(`/projects/${id}`);
+            openRecord(`/projects/${id}`);
           }}
         />
       ) : view === 'table' ? (

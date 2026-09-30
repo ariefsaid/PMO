@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ContextBar } from '../ContextBar';
@@ -12,7 +13,8 @@ import { ContextBar } from '../ContextBar';
  * unread-count query + inbox popover — so the bell is reinstated, gated behind
  * `agentAssistant`. This test now asserts the HONESTY property that matters:
  * while the flag is off (its real test-env default), no dead no-op bell
- * renders; the core navigation affordances stay present either way.
+ * renders; the core navigation affordances stay present either way (via the
+ * single account menu for the personal command).
  */
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -44,10 +46,12 @@ describe('ContextBar — dead-affordance honesty (B-5, AC-W2-IXD-008)', () => {
     expect(screen.queryByRole('button', { name: /notification/i })).not.toBeInTheDocument();
   });
 
-  it('AC-W2-IXD-008: the ContextBar still has the core navigation affordances (regression guard)', () => {
+  it('AC-W2-IXD-008: the ContextBar still has the core navigation affordances (regression guard)', async () => {
     renderBar();
-    // ⌘K, sign-out, and user chip must still be present.
+    // ⌘K, and the account menu (the sole home of sign-out and identity navigation) must be present.
     expect(screen.getByRole('button', { name: /command palette/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /profile & preferences/i })).toBeInTheDocument();
   });
 });

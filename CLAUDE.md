@@ -108,18 +108,19 @@ of an RLS gap forces "can anyone reach it?", which is the `role_table_grants` jo
 stopped two dead layers being ranked above the one live one.
 
 ## Quality gates & checkpoints (binding)
-- **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
-  pushing ANY PR, run **`npm run verify`** — **13 gates** as of 2026-08-20, and the list grows, so
-  ⚑ **read `pmo-portal/package.json`'s `verify` script rather than trusting a count written here**
-  (this line said "8 gates" long after it was 13). Mirrors CI's `verify` job from `pmo-portal/`. Targeted/per-file test runs are for the inner TDD loop only — they MISS
-  cross-component breakage (a change to a shared component silently breaks every *other* test that renders
-  it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
-  transition; subagent briefs MUST mandate it as their final gate.
-- **Pre-push PR→`main` simulation (binding, owner directive 2026-07-24):** before creating, pushing, or
-  refreshing any PR targeting `main`, run **`scripts/verify-main-pr.sh`** from the repo root. It runs the
-  whole verify gate, Deno boot/unit suites, a fresh local Supabase stack, every pgTAP test, and the complete
-  Playwright/visual portfolio with `CI=true`, then runs the served-function smoke last. Targeted failing-spec
-  reruns and `scripts/e2e-local.sh` are inner-loop tools, never substitutes for this promotion gate.
+- **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
+  `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
+  served-fn smoke), which runs automatically on the PR. Don't repeat the full suite on the shared Mac; run
+  the local final gate below. Targeted runs can MISS cross-component breakage — that is why CI's full suite,
+  not a local green, decides the merge. Heavy e2e for a PR to `dev` only via
+  `scripts/ci-e2e.sh <branch>` (once per PR, for shared-code or milestone-closing PRs; it enforces the caps
+  and needs `--owner-ok` beyond them — CI fair-use rule shared with MOS). `scripts/verify-main-pr.sh`
+  reproduces CI's PR-to-`main` run locally; use it only to diagnose a CI failure CI could not report (e.g. a
+  job that timed out before printing). **Local final gate** (every builder and brief, before a PR): `npm run
+  typecheck`, `npx eslint --max-warnings=0 <touched files>`, `npx vitest run --changed origin/dev` (every test
+  that imports anything you changed — this is what still catches shared-component breakage), the touched e2e
+  journeys (`scripts/e2e-local.sh <fragment>`), and `supabase test db` for DB changes — vitest/typecheck under
+  `scripts/with-test-lock.sh`, DB work under `scripts/with-db-lock.sh`.
 - **⛔ NOT DONE UNTIL GREEN — enforced, not advised (2026-07-17).** A task is not complete while any
   test is red. **Never** weaken, skip, delete, or re-implement a test to get green — fix the code; if a
   test is genuinely wrong, say so explicitly and stop. Dispatched agents violated this **5×** (claimed
@@ -150,7 +151,7 @@ stopped two dead layers being ranked above the one live one.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
-- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke. Push CI is `main`-ONLY (dev/feature are PR-gated → no duplicate verify); `integration` fires once per change (the PR→`main`) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
+- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke. Push CI is `main`-ONLY (dev/feature are PR-gated → no duplicate verify); `integration` fires automatically on the PR→`main`, and on a PR→`dev` only when dispatched via `scripts/ci-e2e.sh` and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
 - **PRs:** one per issue — *for code*. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
   CI paths-ignores them, so a docs PR gates on nothing and is pure ceremony (a docs PR reports "no checks
@@ -281,8 +282,8 @@ schema you did not migrate — producing **false REDs and false GREENs** alike. 
 `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
 **Three machine-global locks now exist**, sharing one core (`scripts/lib/flock-run.sh`): `with-db-lock.sh`
 (shared Supabase stack) · `with-erpnext-lock.sh` (ERPNext dev bed) · `with-test-lock.sh` (the heavy vitest
-suite — **on a shared machine run `npm run verify:locked`, not bare `npm run verify`**, so only ONE full suite
-runs at a time; under concurrent runs unrelated tests fail on timeout, and *contention moves while a real
+suite — **if you ever run the full suite locally, use `npm run verify:locked`, not bare `npm run verify`**, so only ONE full suite
+runs at a time (shared with MOS via `$HOME/.pmo-test.lock`); under concurrent runs unrelated tests fail on timeout, and *contention moves while a real
 regression stays put*. Bare `verify` stays lock-free because CI is a single dedicated runner). **When a command needs more
 than one, acquire in this order, outermost first: `erpnext → db → test`.** Each is re-entrancy-safe via its own
 `*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. Stack wedged under load

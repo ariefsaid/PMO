@@ -3,9 +3,25 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+// useIsOperator is queried by Rail's real-Operator Administration footer; default to false
+// (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+// useIsOperator statically imports the repositories index (→ orgFeatures → FEATURE_KEYS).
+// Spread the real features module (the pattern the other Rail suites use) so that chain resolves
+// FEATURE_KEYS; without it, this suite uniquely errors on the features mock missing the export.
+vi.mock('@/src/lib/features', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/src/lib/features')>();
+  return { ...real };
+});
+
 import { Rail } from '../Rail';
 
 let effectiveRole = 'Executive';
+
+// S6 entitlement rewire: m365_integration defaults OFF (FEATURE_ENV_DEFAULT false), so the personal
+// "My integrations" rail item is hidden for every role here. The per-test override below lets a
+// dedicated test opt that entitlement on and assert the disambiguated label (AC-ADMIA-006).
+let featureOverrides: Record<string, boolean> = {};
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
@@ -37,6 +53,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
       import_export: true,
       agent_assistant: false,
       user_views: false,
+      ...featureOverrides,
     },
     isPending: false,
     isError: false,
@@ -162,6 +179,18 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(dash).toHaveAttribute('aria-current', 'page');
   });
 
+  // AC-ADMIA-006: the PERSONAL connect rail item is labelled "My integrations" (agreeing with the
+  // breadcrumb + H1) — never the bare "Integrations", which would blur it with the ORGANIZATION
+  // surface at /administration/integrations.
+  it('AC-ADMIA-006: the personal rail item is labelled "My integrations" when the m365 entitlement is on', () => {
+    effectiveRole = 'Executive';
+    featureOverrides = { m365_integration: true };
+    renderRail();
+    expect(screen.getByRole('link', { name: /my integrations/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Integrations$/i })).not.toBeInTheDocument();
+    featureOverrides = {};
+  });
+
   it('onNavigate callback fires when a nav link is clicked', async () => {
     effectiveRole = 'Executive';
     const onNavigate = vi.fn();
@@ -174,26 +203,25 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(onNavigate).toHaveBeenCalledOnce();
   });
 
-  // Profile language settings slice (supports AC-L10N-060): the rail link is visible to EVERY
-  // role and carries the `/settings/profile` href (discoverability on desktop + the mobile drawer).
-  it('AC-L10N-060 support: Profile settings link is visible to every role with href=/settings/profile', () => {
-    for (const role of ['Executive', 'Engineer']) {
+  // AC-ACCT-001 (retired placement): Profile & preferences is NO LONGER a primary rail item — the
+  // personal surface lives in the account menu. Assert it is absent from the rail for EVERY role,
+  // including while `/settings/profile` is the current route (the account-menu link owns it now).
+  it('AC-ACCT-001: Profile & preferences is absent from the rail for every role and current route', () => {
+    for (const role of ['Executive', 'Engineer', 'Finance', 'Project Manager', 'Admin']) {
       effectiveRole = role;
       const { unmount } = renderRail();
-      const link = screen.getByRole('link', { name: /profile settings/i });
-      expect(link).toHaveAttribute('href', '/settings/profile');
+      expect(screen.queryByRole('link', { name: /profile & preferences/i })).toBeNull();
+      expect(screen.queryByText(/profile settings/i)).toBeNull();
       unmount();
     }
-  });
-
-  it('AC-L10N-060 support: Profile settings link carries aria-current=page on /settings/profile', () => {
+    // Even when the profile URL is current, no rail item is marked active for it.
     effectiveRole = 'Executive';
     render(
       <MemoryRouter initialEntries={['/settings/profile']}>
         <Rail />
       </MemoryRouter>
     );
-    const link = screen.getByRole('link', { name: /profile settings/i });
-    expect(link).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('link', { name: /profile & preferences/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /profile settings/i })).toBeNull();
   });
 });

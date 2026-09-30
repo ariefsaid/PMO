@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -55,6 +55,13 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import CompanyDetail from './CompanyDetail';
 
+// list-working-set-return (#683): reads the URL a Companies-index Route landed on, so a return
+// test can tell "the bare index" apart from "the SAME filtered/searched URL".
+const CompaniesIndexProbe: React.FC = () => {
+  const location = useLocation();
+  return <div data-testid="companies-index-probe">Companies index{location.search}</div>;
+};
+
 const company = {
   id: 'co1',
   org_id: 'org-1',
@@ -71,7 +78,31 @@ const renderPage = (role: Role = 'Admin') => {
       <MemoryRouter initialEntries={['/companies/co1']}>
         <Routes>
           <Route path="/companies/:companyId" element={<CompanyDetail />} />
-          <Route path="/companies" element={<div>Companies index</div>} />
+          <Route path="/companies" element={<CompaniesIndexProbe />} />
+          <Route path="/contacts/:contactId" element={<div>Contact page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
+  );
+};
+
+// list-working-set-return (#683, AC-LRC-006): the record was opened FROM a narrowed Companies
+// list (captured in router state), so Back must return to that filtered URL, not the bare index.
+const renderPageWithReturnContext = (role: Role = 'Admin') => {
+  realRole = role;
+  return render(
+    <ToastProvider>
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/companies/co1',
+            state: { pmoListReturn: { list: 'companies', path: '/companies?type=Vendor' } },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/companies/:companyId" element={<CompanyDetail />} />
+          <Route path="/companies" element={<CompaniesIndexProbe />} />
           <Route path="/contacts/:contactId" element={<div>Contact page</div>} />
         </Routes>
       </MemoryRouter>
@@ -120,6 +151,18 @@ describe('CompanyDetail', () => {
     const retry = screen.getByRole('button', { name: /retry|try again/i });
     await userEvent.click(retry);
     expect(detailState.refetch).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['loading', { data: undefined, isPending: true, isError: false }],
+    ['not-found', { data: null, isPending: false, isError: false }],
+    ['error', { data: undefined, isPending: false, isError: true }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(detailState, s);
+    renderPage();
+    const bar = screen.getByRole('button', { name: /back to companies/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
   });
 
   it('CW-4b: Back returns to the Companies list', async () => {
@@ -186,5 +229,57 @@ describe('CompanyDetail', () => {
     renderPage('Engineer');
     expect(screen.getByText(/don't have access to companies/i)).toBeInTheDocument();
     expect(screen.queryByTestId('record-header')).toBeNull();
+  });
+});
+
+// list-working-set-return (#683, AC-LRC-006): the mobile BackBar honours a validated captured
+// Companies context and falls back to the bare index for a direct/copied link.
+describe('CompanyDetail — list-return context (AC-LRC-006)', () => {
+  it('AC-LRC-010: a direct/copied link (no captured context) Back returns to the bare Companies index', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /back to companies/i }));
+    expect(screen.getByTestId('companies-index-probe')).toHaveTextContent('Companies index');
+    expect(screen.getByTestId('companies-index-probe').textContent).toBe('Companies index');
+  });
+
+  it('AC-LRC-006: a record opened from a narrowed Companies list returns to that SAME filtered URL', async () => {
+    renderPageWithReturnContext();
+    await userEvent.click(screen.getByRole('button', { name: /back to companies/i }));
+    expect(screen.getByTestId('companies-index-probe')).toHaveTextContent(
+      'Companies index?type=Vendor',
+    );
+  });
+
+  it('AC-LRC-006: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
+    renderPageWithReturnContext();
+    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /archive company/i }));
+    await screen.findByTestId('companies-index-probe');
+    expect(screen.getByTestId('companies-index-probe')).toHaveTextContent(
+      'Companies index?type=Vendor',
+    );
+  });
+
+  it('AC-LRC-010: a captured context belonging to a DIFFERENT list is ignored — Back falls back to the index', async () => {
+    render(
+      <ToastProvider>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/companies/co1',
+              state: { pmoListReturn: { list: 'contacts', path: '/contacts?company=co9' } },
+            },
+          ]}
+        >
+          <Routes>
+            <Route path="/companies/:companyId" element={<CompanyDetail />} />
+            <Route path="/companies" element={<CompaniesIndexProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /back to companies/i }));
+    expect(screen.getByTestId('companies-index-probe').textContent).toBe('Companies index');
   });
 });

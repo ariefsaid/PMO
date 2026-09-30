@@ -6,7 +6,13 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
-import { formatCurrency, formatDate, parseMoneyInput, pct } from '@/src/lib/format';
+import {
+  formatCurrency,
+  formatInstantDate,
+  formatMoneyInputValue,
+  parseMoneyInputAtScale,
+  pct,
+} from '@/src/lib/format';
 import {
   fetchBudgetProjection,
   fetchBudgetPushStatus,
@@ -48,8 +54,13 @@ export interface BudgetProjectionProps {
   projectId: string;
 }
 
-/** Where an Admin fixes the category↔ERP-account map (a section of the Administration page). */
-const ACCOUNT_MAP_HREF = '/administration#budget-account-map';
+/**
+ * Where an Admin fixes the category↔ERP-account map. AC-ADMIA-003: the canonical Accounting route is
+ * now `/administration/accounting#budget-account-map` — the shell treats `/administration#budget-account-map`
+ * as a compatibility alias that redirects (preserving the fragment), so the banner targets the canonical URL
+ * directly rather than taking a redundant history-hop through the alias.
+ */
+const ACCOUNT_MAP_HREF = '/administration/accounting#budget-account-map';
 
 const CATEGORY_LABELS: Record<string, string> = {}; // reserved for future per-org relabeling; identity today.
 const labelFor = (c: string) => CATEGORY_LABELS[c] ?? c;
@@ -236,7 +247,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
 
   const openEdit = (row: BudgetProjectionCellRow) => {
     setEditingCategory(row.category);
-    setEtcInput(String(row.pmoEtc));
+    setEtcInput(formatMoneyInputValue(row.pmoEtc));
     setEtcError(null);
   };
   const closeEdit = useCallback((category: BudgetCategory) => {
@@ -247,9 +258,9 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
 
   const saveEdit = async (category: BudgetCategory) => {
     if (fiscalYear === null) return; // unreachable: the edit affordance is not offered without a year
-    const parsed = parseMoneyInput(etcInput);
+    const parsed = parseMoneyInputAtScale(etcInput, 2);
     if (parsed === null || parsed < 0) {
-      setEtcError('Enter a valid, non-negative amount');
+      setEtcError('Enter a valid, non-negative amount with no more than 2 decimal places');
       return;
     }
     try {
@@ -553,7 +564,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               weigh, and `as_of` has been stored on every snapshot row since 0101 and rendered by
               nothing. Absent (no reading on record) nothing is claimed — the cells themselves say so. */}
           {actualsAsOf && (
-            <p className="mt-1 text-[12px] text-muted-foreground">Actuals as of {formatDate(actualsAsOf)}</p>
+            <p className="mt-1 text-[12px] text-muted-foreground">Actuals as of {formatInstantDate(actualsAsOf)}</p>
           )}
           {/* ⚑ NEW-1 (rendered re-verification) — the I-9 fix made this an unconditional
               `overflow-x-auto`, which regressed the AC-MOBILE-OVERFLOW-001 gate (the whole page panned
@@ -620,6 +631,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                               value={etcInput}
                               onChange={setEtcInput}
                               error={etcError}
+                              localeAware
                               className="w-[110px]"
                             />
                             <div className="flex gap-1.5">

@@ -29,7 +29,7 @@ import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrencyCents, formatDateNumeric } from '@/src/lib/format';
+import { formatCurrencyCents, formatDateOnlyNumeric, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -43,18 +43,36 @@ import type { CommandIntent } from '@/src/lib/repositories/types';
 type StatusFilter = 'All' | SalesInvoiceStatus;
 const STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'Paid', 'Cancelled'];
 
-/** Line item type for the invoice form. */
+/** Line item as submitted: numeric, ready for the create command. */
 interface LineItem {
   item_code: string;
   qty: number;
   rate: number;
 }
 
+/**
+ * Line item as edited. The rate is money, so it stays the user's locale-formatted DRAFT until
+ * submit (#684) — converting on every keystroke would drop an unfinished decimal separator.
+ */
+interface LineItemDraft {
+  item_code: string;
+  qty: number;
+  rate: string;
+}
+
 interface FormValues {
   customerId: string;
   projectId: string | null;
-  lineItems: LineItem[];
+  lineItems: LineItemDraft[];
 }
+
+const EMPTY_LINE: LineItemDraft = { item_code: '', qty: 1, rate: '0' };
+
+/**
+ * #684 (AC-PLC-009): the ONE parse of a rate draft, used by `validate` and by the submit. Rates are
+ * scale-2 money, so a value that would need rounding is refused rather than silently changed.
+ */
+const parseRate = (raw: string): number | null => parseMoneyInputAtScale(raw, 2);
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
@@ -64,9 +82,12 @@ const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   } else {
     for (let i = 0; i < v.lineItems.length; i++) {
       const item = v.lineItems[i];
+      const rate = parseRate(item.rate);
       if (!item.item_code.trim()) errors.lineItems = `Line ${i + 1}: Item code is required.`;
       if (item.qty <= 0) errors.lineItems = `Line ${i + 1}: Quantity must be positive.`;
-      if (item.rate < 0) errors.lineItems = `Line ${i + 1}: Rate cannot be negative.`;
+      if (rate === null) {
+        errors.lineItems = `Line ${i + 1}: Enter a valid rate with no more than 2 decimal places.`;
+      } else if (rate < 0) errors.lineItems = `Line ${i + 1}: Rate cannot be negative.`;
     }
   }
   return errors;
@@ -185,7 +206,8 @@ const SalesInvoices: React.FC = () => {
           {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} /> : null}
         </span>
       ),
-      exportValue: (inv) => inv.amount?.toString() ?? '',
+      // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
+      exportValue: (inv) => inv.amount ?? '',
     },
     {
       key: 'erp_outstanding_amount',
@@ -196,12 +218,12 @@ const SalesInvoices: React.FC = () => {
           {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
         </span>
       ),
-      exportValue: (inv) => inv.erp_outstanding_amount?.toString() ?? '',
+      exportValue: (inv) => inv.erp_outstanding_amount ?? '',
     },
     {
       key: 'invoice_date',
       header: 'Date',
-      cell: (inv) => (inv.invoice_date ? formatDateNumeric(new Date(inv.invoice_date)) : '—'),
+      cell: (inv) => (inv.invoice_date ? formatDateOnlyNumeric(inv.invoice_date) : '—'),
       exportValue: (inv) => inv.invoice_date ?? '',
     },
     {
@@ -209,7 +231,7 @@ const SalesInvoices: React.FC = () => {
       header: 'Due Date',
       cell: (inv) => {
         const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date);
-        return due ? formatDateNumeric(new Date(due)) : '—';
+        return due ? formatDateOnlyNumeric(due) : '—';
       },
       exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date) ?? '',
     },
@@ -434,7 +456,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     initialValues: {
       customerId: '',
       projectId: null,
-      lineItems: [{ item_code: '', qty: 1, rate: 0 }],
+      lineItems: [EMPTY_LINE],
     },
     validate,
     idPrefix: 'sales-invoice-form',
@@ -460,7 +482,14 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const input = { customerId: values.customerId, projectId: values.projectId, lineItems: values.lineItems };
+      const lineItems: LineItem[] = [];
+      for (const item of values.lineItems) {
+        const rate = parseRate(item.rate);
+        // Unreachable after `validate`, which applies the same parse.
+        if (rate === null) return;
+        lineItems.push({ item_code: item.item_code, qty: item.qty, rate });
+      }
+      const input = { customerId: values.customerId, projectId: values.projectId, lineItems };
       try {
         if (isEdit && invoice) await onUpdate(invoice.id, input);
         else await onCreate(input, intent);
@@ -485,10 +514,10 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   // SUBMITTED values were different objects — the user's typed lines were dropped and an invoice
   // worth $0 would have posted for someone who typed $25,000.
   const lineItems = form.values.lineItems;
-  const addLineItem = () => form.setValue('lineItems', [...lineItems, { item_code: '', qty: 1, rate: 0 }]);
+  const addLineItem = () => form.setValue('lineItems', [...lineItems, EMPTY_LINE]);
   const removeLineItem = (index: number) =>
     form.setValue('lineItems', lineItems.filter((_, i) => i !== index));
-  const updateLineItem = (index: number, field: keyof LineItem, value: string | number) =>
+  const updateLineItem = (index: number, field: keyof LineItemDraft, value: string | number) =>
     form.setValue('lineItems', lineItems.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
 
   return (
@@ -556,8 +585,9 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             />
             <NumberField
               label="Rate"
-              value={String(item.rate)}
-              onChange={(v) => updateLineItem(index, 'rate', Number(v))}
+              value={item.rate}
+              onChange={(v) => updateLineItem(index, 'rate', v)}
+              localeAware
               required
               min={0}
               step={0.01}

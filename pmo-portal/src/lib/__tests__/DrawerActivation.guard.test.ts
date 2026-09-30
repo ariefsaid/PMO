@@ -50,7 +50,10 @@ function readPage(rel: string): string {
  * row clicks — not a Drawer open state.
  */
 function usesNavigateForRowActivation(src: string): boolean {
-  return src.includes('useNavigate') || src.includes('navigate(');
+  // Pages that adopted the shared list-return seam (#681–#683) navigate through
+  // `useListReturn().openRecord(...)`, which calls the router internally — still a route
+  // navigation, never a Drawer.
+  return src.includes('useNavigate') || src.includes('navigate(') || /\bopenRecord\(/.test(src);
 }
 
 /**
@@ -84,6 +87,12 @@ function hasDrawerWiredToRowActivation(src: string): boolean {
 }
 
 describe('AC-G3D-GUARD-2: primary lists use navigation, not Drawer, for row activation', () => {
+  it('the navigation heuristic accepts router or seam navigation and rejects neither', () => {
+    expect(usesNavigateForRowActivation('const navigate = useNavigate();')).toBe(true);
+    expect(usesNavigateForRowActivation('onActivate={(r) => openRecord(`/x/${r.id}`)}')).toBe(true);
+    expect(usesNavigateForRowActivation('onActivate={(r) => setSelected(r)}')).toBe(false);
+  });
+
   it('Projects.tsx uses useNavigate for row activation (not a Drawer open state)', () => {
     const src = readPage('pmo-portal/pages/Projects.tsx');
     expect(usesNavigateForRowActivation(src)).toBe(true);

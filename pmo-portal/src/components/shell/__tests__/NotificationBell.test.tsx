@@ -33,7 +33,6 @@ vi.mock('@/src/lib/db/notifications', () => ({
 }));
 
 import { NotificationBell } from '../NotificationBell';
-import { ThemeToggle } from '../ThemeToggle';
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
@@ -234,21 +233,18 @@ describe('NotificationBell', () => {
     expect(dot).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('F1: the bell resolves the SAME rest-state color token as ThemeToggle (both themes) — mirrors its class construction', async () => {
+  it('F1: the bell is a quiet shell control at rest in both light and dark DOM states', async () => {
     listUnreadCount.mockResolvedValue(0);
     document.documentElement.classList.remove('dark');
     const { unmount } = render(
       <MemoryRouter>
         <NotificationBell />
-        <ThemeToggle />
       </MemoryRouter>,
     );
     const bell = await screen.findByRole('button', { name: /notifications/i });
-    const theme = screen.getByRole('button', { name: /switch to dark theme/i });
-    // Both icon buttons are quiet shell controls at rest: `text-muted-foreground`, never
-    // `text-foreground` (that class only applies on :hover) — mirrors ThemeToggle exactly.
+    // A quiet top-bar control: `text-muted-foreground` at rest, never `text-foreground`
+    // (that class only applies on :hover). Mirrors the retired ThemeToggle construction.
     expect(bell).toHaveClass('text-muted-foreground');
-    expect(theme).toHaveClass('text-muted-foreground');
     expect(bell.className).not.toMatch(/(?<!hover:)(?<!focus-visible:)(?<!:)\btext-foreground\b/);
     unmount();
 
@@ -256,7 +252,6 @@ describe('NotificationBell', () => {
     render(
       <MemoryRouter>
         <NotificationBell />
-        <ThemeToggle />
       </MemoryRouter>,
     );
     const bellDark = await screen.findByRole('button', { name: /notifications/i });

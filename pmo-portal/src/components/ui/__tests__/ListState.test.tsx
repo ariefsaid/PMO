@@ -62,6 +62,13 @@ describe('ListState', () => {
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(onRetry).toHaveBeenCalled();
   });
+
+  it('error: headline uses the AA destructive-text token class, no inline hard-coded colour (dark-mode contrast)', () => {
+    render(<ListState variant="error" title="Could not load projects" />);
+    const headline = screen.getByText('Could not load projects');
+    expect(headline).toHaveClass('text-destructive-text');
+    expect(headline.getAttribute('style') ?? '').not.toMatch(/color|hsl/i);
+  });
 });
 
 describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () => {

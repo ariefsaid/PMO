@@ -1,12 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
-const { meetingState, attendeesState, grantsState, actionItemsState, mutations, navigateMock, routeTaskWriteMock } =
+const { meetingState, attendeesState, grantsState, actionItemsState, mutations, routeTaskWriteMock } =
   vi.hoisted(() => ({
     meetingState: {
       data: null as unknown,
@@ -28,7 +29,6 @@ const { meetingState, attendeesState, grantsState, actionItemsState, mutations, 
       revokeGrant: { mutateAsync: vi.fn(), isPending: false },
       createActionItem: { mutateAsync: vi.fn(), isPending: false },
     },
-    navigateMock: vi.fn(),
     routeTaskWriteMock: vi.fn(() => 'pmo'),
   }));
 
@@ -49,11 +49,13 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: currentUserId, org_id: 'org-1' } }),
 }));
 
+// list-working-set-return (#683): BackBar/archive/delete now navigate via the real router
+// (useListReturn), so `useNavigate` stays UNMOCKED — only `useParams` is pinned, since these
+// tests render MeetingDetail directly rather than through a matched `/meetings/:meetingId` route.
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return {
     ...actual,
-    useNavigate: () => navigateMock,
     useParams: () => ({ meetingId: 'm1' }),
   };
 });
@@ -117,6 +119,28 @@ const renderPage = (role: Role = 'Engineer') => {
   );
 };
 
+// list-working-set-return (#683): reads the URL a Meetings-index Route landed on, for the
+// AC-LRC-008 return-context tests below (a plain <MeetingDetail /> above has no Routes to land
+// anywhere, so those tests route it properly instead).
+const MeetingsIndexProbe: React.FC = () => {
+  const location = useLocation();
+  return <div data-testid="meetings-index-probe">Meetings index{location.search}</div>;
+};
+
+const renderRouted = (initialEntry: string | { pathname: string; state?: unknown }, role: Role = 'Engineer') => {
+  realRole = role;
+  return render(
+    <ToastProvider>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path="/meetings/:meetingId" element={<MeetingDetail />} />
+          <Route path="/meetings" element={<MeetingsIndexProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
+  );
+};
+
 beforeEach(() => {
   meetingState.data = { ...baseMeeting };
   meetingState.isPending = false;
@@ -129,7 +153,6 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
-  navigateMock.mockClear();
   routeTaskWriteMock.mockReset();
   routeTaskWriteMock.mockReturnValue('pmo');
   currentUserId = 'author-1';
@@ -337,6 +360,18 @@ describe('MeetingDetail — states', () => {
     expect(meetingState.refetch).toHaveBeenCalled();
   });
 
+  it.each([
+    ['loading', { isPending: true, isError: false, data: null }],
+    ['not-found', { isPending: false, isError: false, data: null }],
+    ['error', { isPending: false, isError: true, data: null }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(meetingState, s);
+    renderPage('Engineer');
+    const bar = screen.getByRole('button', { name: /^back to /i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
+  });
+
   it('Admin header carries Archive + Delete', () => {
     renderPage('Admin');
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
@@ -348,5 +383,127 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByTestId('meeting-edit')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-delete')).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFILE timezone, not the device zone', () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    // Simulate a device/browser zone that DIFFERS from the resolved profile timezone (#684's
+    // reported scenario: profile Asia/Jakarta, browser America/Los_Angeles).
+    process.env.TZ = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    meetingState.data = { ...baseMeeting, occurred_at: '2026-06-14T14:15:00Z' }; // 21:15 Jakarta, 07:15 LA
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+    resetActiveLocale();
+  });
+
+  it('prefills "When" with the same wall time the header displays, in the profile timezone', async () => {
+    renderPage('Engineer');
+    expect(screen.getByText(/09:15\s?PM/i)).toBeInTheDocument(); // header, profile-zone wall time
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    expect(when.value).toBe('2026-06-14T21:15');
+  });
+
+  it('submitting the unedited default keeps the same instant', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    const call = mutations.update.mutateAsync.mock.calls[0][0];
+    expect(call.patch.occurred_at).toBe('2026-06-14T14:15:00.000Z');
+  });
+
+  it('editing to 10:00 saves 10:00 in the profile timezone', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    // fireEvent-style direct value set + change, mirroring datetime-local input semantics.
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.type(when, '2026-06-14T10:00');
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    const call = mutations.update.mutateAsync.mock.calls[0][0];
+    // 10:00 Asia/Jakarta (UTC+7) is 03:00Z.
+    expect(call.patch.occurred_at).toBe('2026-06-14T03:00:00.000Z');
+  });
+
+  it('clearing "When" blocks the save with a visible error, and never falls back to the old time', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-edit'));
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    when.focus();
+    await userEvent.clear(when);
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    // Shown twice by design: the inline field error and the dialog's error summary banner.
+    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+// list-working-set-return (#683, AC-LRC-008): the mobile BackBar honours a validated captured
+// Meetings context and falls back to the bare index for a direct/copied link; archive/delete
+// success also return to the same filtered context (not a bare reset).
+describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
+  it('AC-LRC-010: a direct/copied link (no captured context) Back returns to the bare Meetings index', async () => {
+    renderRouted('/meetings/m1', 'Admin');
+    await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
+    expect(screen.getByTestId('meetings-index-probe')).toHaveTextContent('Meetings index');
+    expect(screen.getByTestId('meetings-index-probe').textContent).toBe('Meetings index');
+  });
+
+  it('AC-LRC-008: a record opened from a narrowed Meetings list returns to that SAME filtered URL', async () => {
+    renderRouted(
+      {
+        pathname: '/meetings/m1',
+        state: {
+          pmoListReturn: {
+            list: 'meetings',
+            path: '/meetings?project=33333333-3333-4333-8333-333333333333',
+          },
+        },
+      },
+      'Admin',
+    );
+    await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
+    expect(screen.getByTestId('meetings-index-probe')).toHaveTextContent(
+      'Meetings index?project=33333333-3333-4333-8333-333333333333',
+    );
+  });
+
+  it('AC-LRC-008: archive-success returns to the SAME filtered list context, not a bare reset', async () => {
+    renderRouted(
+      {
+        pathname: '/meetings/m1',
+        state: { pmoListReturn: { list: 'meetings', path: '/meetings?q=kickoff' } },
+      },
+      'Admin',
+    );
+    await userEvent.click(screen.getByTestId('meeting-archive'));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /archive meeting/i }));
+    await screen.findByTestId('meetings-index-probe');
+    expect(screen.getByTestId('meetings-index-probe')).toHaveTextContent('Meetings index?q=kickoff');
+  });
+
+  it('AC-LRC-008: delete-success returns to the SAME filtered list context, not a bare reset', async () => {
+    renderRouted(
+      {
+        pathname: '/meetings/m1',
+        state: { pmoListReturn: { list: 'meetings', path: '/meetings?q=kickoff' } },
+      },
+      'Admin',
+    );
+    await userEvent.click(screen.getByTestId('meeting-delete'));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete meeting/i }));
+    await screen.findByTestId('meetings-index-probe');
+    expect(screen.getByTestId('meetings-index-probe')).toHaveTextContent('Meetings index?q=kickoff');
   });
 });

@@ -9,6 +9,7 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
+import { MemoryRouter, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -33,14 +34,39 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import BudgetAccountMap from './BudgetAccountMap';
 
-const renderPage = (role: Role = 'Admin') => {
+/**
+ * Router-driven fragment navigation control (AC-ADMIA-004). The focus/scroll behavior is keyed to
+ * the ROUTER hash (the single source of truth), so these tests navigate a MemoryRouter — while the
+ * panel stays mounted and loaded — rather than mutating the global `window.location.hash`.
+ */
+const FragmentNav: React.FC = () => {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => navigate({ pathname: '/administration/accounting', hash: '#budget-account-map' })}
+      >
+        go-fragment
+      </button>
+      <button type="button" onClick={() => navigate({ pathname: '/administration/accounting', hash: '' })}>
+        clear-fragment
+      </button>
+    </>
+  );
+};
+
+const renderPage = (role: Role = 'Admin', initial = '/administration/accounting') => {
   realRole = role;
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider>
-        <BudgetAccountMap />
-      </ToastProvider>
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={[initial]}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ToastProvider>
+          <BudgetAccountMap />
+          <FragmentNav />
+        </ToastProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 };
 
@@ -150,6 +176,52 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     renderPage('Admin');
     await screen.findByText('Labor');
     expect(document.getElementById('budget-account-map')).not.toBeNull();
+  });
+
+  // ── AC-ADMIA-004 (fragment deep-link): the canonical accounting link ships with
+  //    `#budget-account-map`, and the shell preserves that fragment across the redirect.
+  //
+  //    A reference click on an in-page anchor makes the browser scroll; a route navigation that
+  //    lands on the fragment (History API replace + async panel mount) does NOT auto-scroll. The
+  //    route-mounted panel must scroll/focus its own deep-link target once mounted, without
+  //    trapping focus or adding a new visual token.
+  //
+  //    ⚑ The ROUTER hash (useLocation) is the source of truth, so these tests drive the fragment
+  //    through MemoryRouter navigation — never `window.location.hash`.
+  it('AC-ADMIA-004 deep-links via #budget-account-map: the map scrolls into view and receives focus', async () => {
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    renderPage('Admin', '/administration/accounting#budget-account-map');
+    await screen.findByText('Labor');
+    const section = document.getElementById('budget-account-map')!;
+    await waitFor(() => expect(document.activeElement).toBe(section));
+    expect(scrollSpy).toHaveBeenCalled();
+    scrollSpy.mockRestore();
+  });
+
+  it('AC-ADMIA-004: a MemoryRouter fragment navigation while the panel is mounted+loaded focuses the map', async () => {
+    const user = userEvent.setup();
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    renderPage('Admin', '/administration/accounting'); // no fragment — panel mounts + loads
+    await screen.findByText('Labor');
+    const section = document.getElementById('budget-account-map')!;
+    // No fragment yet → no focus steal.
+    expect(document.activeElement).not.toBe(section);
+
+    // Change the fragment via the router while the panel remains mounted and loaded.
+    await user.click(screen.getByRole('button', { name: 'go-fragment' }));
+    await waitFor(() => expect(document.activeElement).toBe(section));
+    expect(scrollSpy).toHaveBeenCalled();
+
+    // Clearing the fragment again must not steal focus a second time.
+    await user.click(screen.getByRole('button', { name: 'clear-fragment' }));
+    expect(document.activeElement).not.toBe(section);
+    scrollSpy.mockRestore();
+  });
+
+  it('AC-ADMIA-004 without the fragment, the map does not steal focus', async () => {
+    renderPage('Admin');
+    await screen.findByText('Labor');
+    expect(document.activeElement).not.toBe(document.getElementById('budget-account-map'));
   });
 
   it('I-8 an UNMAPPED category is marked as blocking every push, not merely "Not mapped"', async () => {

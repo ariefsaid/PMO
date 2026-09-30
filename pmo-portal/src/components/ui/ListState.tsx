@@ -21,6 +21,8 @@ export interface ListStateProps {
   action?: ActionSpec;
   /** Error-state retry handler (error-recovery: cause + fix + retry). */
   onRetry?: () => void;
+  /** Override the retry label for the current locale. */
+  retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
   rows?: number;
   className?: string;
@@ -51,6 +53,7 @@ export const ListState: React.FC<ListStateProps> = ({
   icon = 'inbox',
   action,
   onRetry,
+  retryLabel = 'Retry',
   rows = 5,
   className,
   testId,
@@ -97,7 +100,7 @@ export const ListState: React.FC<ListStateProps> = ({
         <Icon name="alert" className="size-5 shrink-0 text-destructive" />
         <div className="flex-1">
           {title && (
-            <div className="text-[13.5px] font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
+            <div className="text-[13.5px] font-semibold text-destructive-text">
               {title}
             </div>
           )}
@@ -106,7 +109,7 @@ export const ListState: React.FC<ListStateProps> = ({
         {onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry}>
             <Icon name="refresh" />
-            Retry
+            {retryLabel}
           </Button>
         )}
       </div>

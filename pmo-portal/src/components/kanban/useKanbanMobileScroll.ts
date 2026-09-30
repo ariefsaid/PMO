@@ -71,7 +71,8 @@ export function useKanbanMobileScroll(): KanbanMobileScroll {
     const col = colRefs.current[index];
     if (!scrollEl || !col) return;
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    scrollEl.scrollTo({ left: col.offsetLeft, behavior: prefersReduced ? 'instant' : 'smooth' });
+    // `?.`: this also runs on mount for a deep-linked stage, and older webviews/jsdom lack scrollTo.
+    scrollEl.scrollTo?.({ left: col.offsetLeft, behavior: prefersReduced ? 'instant' : 'smooth' });
     setActiveStageIndex(index);
   }, []);
 

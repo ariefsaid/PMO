@@ -1,15 +1,23 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { create } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { create } } }));
 
 import { makeProjectImportDescriptor } from '../projectDescriptor';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const companies = [{ id: 'co-1', name: 'Acme Corp' }];
 const managers = [{ id: 'pm-1', name: 'Jane Manager' }];
 
 describe('makeProjectImportDescriptor', () => {
-  beforeEach(() => create.mockClear());
+  beforeEach(() => {
+    create.mockClear();
+    setActiveLocale(EN_LOCALE);
+  });
+  afterEach(() => resetActiveLocale());
   const d = makeProjectImportDescriptor(companies, managers);
   const field = (k: string) => d.fields.find((f) => f.key === k)!;
 
@@ -115,6 +123,24 @@ describe('makeProjectImportDescriptor', () => {
         contract_value: 4820000,
         tax_amount: 530200,
       });
+    });
+
+    it('AC-PLC-009: project sheet money stays neutral and scale-2 under both viewer locales', () => {
+      for (const locale of [EN_LOCALE, ID_LOCALE]) {
+        setActiveLocale(locale);
+        expect(field('contract_value').validate('1.23')).toBeNull();
+        expect(field('tax_amount').validate('1.23')).toBeNull();
+        expect(field('contract_value').validate('1.234')).toMatch(/2 decimal|two decimal/i);
+        expect(field('tax_amount').validate('1.234')).toMatch(/2 decimal|two decimal/i);
+        expect(d.toInput(row({ contract_value: '1.23', tax_amount: '1.23' }))).toMatchObject({
+          contract_value: 1.23,
+          tax_amount: 1.23,
+        });
+        expect(d.toInput(row({ contract_value: '4,820,000', tax_amount: '530,200' }))).toMatchObject({
+          contract_value: 4820000,
+          tax_amount: 530200,
+        });
+      }
     });
   });
 

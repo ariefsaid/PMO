@@ -23,15 +23,22 @@ import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 /** react-query cache key for the org tax default — shared so the Admin write can invalidate it. */
 export const ORG_TAX_DEFAULT_KEY = 'org-tax-default';
 
-export function useOrgTaxDefault(): TaxTreatment | undefined {
+/**
+ * The query behind `useOrgTaxDefault`, exposed for the ONE caller that must tell "still loading"
+ * from "the read failed" (the Admin panel, #695). Forms keep the value-only hook below.
+ */
+export function useOrgTaxDefaultQuery() {
   const { currentUser } = useAuth();
-  const { data } = useQuery<TaxTreatment | null>({
+  return useQuery<TaxTreatment | null>({
     queryKey: [ORG_TAX_DEFAULT_KEY, currentUser?.org_id],
     queryFn: () => repositories.orgSettings.getTaxDefault(),
     enabled: Boolean(currentUser),
     staleTime: Infinity,
   });
-  return data ?? undefined;
+}
+
+export function useOrgTaxDefault(): TaxTreatment | undefined {
+  return useOrgTaxDefaultQuery().data ?? undefined;
 }
 
 /**

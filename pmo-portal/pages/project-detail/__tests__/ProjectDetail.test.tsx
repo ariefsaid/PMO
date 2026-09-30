@@ -17,6 +17,9 @@ const seed = [
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
 const committedSpendState = { data: 2_350_000 };
+// The by-id opportunity read (the fallback for a record outside the active cache) — mutable so a test
+// can fail it independently of the list read.
+const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
 const { roleBox, desktopBox, projectMutations, projectTransition } = vi.hoisted(() => ({
@@ -75,7 +78,7 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 // projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
 // avoid needing a QueryClient.
 vi.mock('@/src/lib/db/opportunity', () => ({
-  useOpportunity: () => ({ data: undefined, isPending: false }),
+  useOpportunity: () => oppState,
 }));
 // MilestoneStrip now mounts in the header area — stub its hooks to avoid network.
 vi.mock('@/src/hooks/useMilestones', () => ({
@@ -124,7 +127,10 @@ vi.mock('react-router', async (orig) => {
 // after a tab click (which goes to /projects/:projectId/:tab) keeps rendering ProjectDetail.
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-const renderAt = (path: string) =>
+// list-working-set-return (#682, AC-LRC-003): a plain string entry is the direct-link case (no
+// captured list context); an { pathname, state } entry lets a test seed a validated
+// `pmoListReturn` context as though the record were opened from a narrowed Projects list.
+const renderAt = (path: string | { pathname: string; state?: unknown }) =>
   render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
@@ -143,6 +149,11 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
+    projectsState.refetch.mockReset();
+    oppState.data = undefined;
+    oppState.isPending = false;
+    oppState.isError = false;
+    oppState.refetch.mockReset();
     committedSpendState.data = 2_350_000;
     roleBox.value = 'Project Manager';
     desktopBox.value = true;
@@ -246,6 +257,16 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
   });
 
+  it('AC-LRC-003: a tab switch forwards the current location.state so return context survives it', async () => {
+    const capturedState = { pmoListReturn: { list: 'projects' as const, path: '/projects?filter=Ongoing' } };
+    renderAt({ pathname: '/projects/p1', state: capturedState });
+    await userEvent.click(screen.getByRole('tab', { name: 'Procurement' }));
+    expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', {
+      replace: true,
+      state: capturedState,
+    });
+  });
+
   it('switches to the real Tasks tab and shows its empty register (AC-TASK-001)', async () => {
     // B-9 (AC-W2-IA-004): tab is now URL-driven — navigate directly to the :tab deep-link.
     // (The mocked `useNavigate` is a vi.fn() no-op, so clicking the tab does not change the
@@ -315,11 +336,66 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
   });
 
+  it('#695: when BOTH project reads fail it shows a load error with Retry, never "Project not found"', async () => {
+    projectsState.data = undefined as unknown as ProjectWithRefs[];
+    projectsState.isError = true;
+    oppState.isError = true;
+    renderAt('/projects/p1');
+    expect(screen.queryByText(/Project not found/i)).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(/Couldn.t load this project/i);
+    // The escape route stays; and Retry re-runs BOTH reads.
+    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    // #707: like the loading / not-found states, the error state's Back bar is phone-only.
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(projectsState.refetch).toHaveBeenCalledTimes(1);
+    expect(oppState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('#695: a failed by-id read on a list miss is a load error too — absence cannot be claimed from a failed read', () => {
+    projectsState.data = [];
+    oppState.isError = true;
+    renderAt('/projects/p1');
+    expect(screen.queryByText(/Project not found/i)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['loading', { data: undefined as unknown as ProjectWithRefs[], isPending: true }],
+    ['not-found', { data: [] as ProjectWithRefs[], isPending: false }],
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+    Object.assign(projectsState, s);
+    renderAt('/projects/does-not-exist');
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
+  });
+
   it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {
+    // Director ruling (2026-09-29): the destination stays canonical `/projects` while a direct
+    // link with no captured list context now additionally carries validated clean return state.
     projectsState.data = [];
     renderAt('/projects/does-not-exist');
     await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
-    expect(navigate).toHaveBeenCalledWith('/projects');
+    expect(navigate).toHaveBeenCalledWith('/projects', { state: {} });
+  });
+
+  it('AC-LRC-003: "Back to Projects" returns to the captured Projects list URL when opened from a narrowed list', async () => {
+    // Mobile BackBar only — the desktop parent breadcrumb reads the same context in App.tsx.
+    desktopBox.value = false;
+    renderAt({
+      pathname: '/projects/p1',
+      state: { pmoListReturn: { list: 'projects', path: '/projects?filter=Ongoing' } },
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
+    expect(navigate).toHaveBeenCalledWith(
+      '/projects?filter=Ongoing',
+      expect.objectContaining({
+        state: expect.not.objectContaining({ pmoListReturn: expect.anything() }),
+      }),
+    );
   });
 
   it('C-IMP-1: BackBar is present on the success render on mobile (< 768px viewport)', () => {

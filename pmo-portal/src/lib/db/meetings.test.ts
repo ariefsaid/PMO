@@ -124,7 +124,7 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     expect(h.calls.eq.filter((c) => (c as unknown[])[0] === 'project_id')).toEqual([]);
   });
 
-  it('searches notes_search with websearch semantics on the simple config (FR-MTG-011)', async () => {
+  it('searches notes_search with websearch semantics on the simple config (FR-MTG-011; #708 supersedes fallback-only substring)', async () => {
     h.queue[0] = { data: [], error: null };
     await listMeetings({ search: 'pipeline -old' });
     expect(h.calls.textSearch).toContainEqual([
@@ -132,7 +132,82 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
       'pipeline -old',
       { type: 'websearch', config: 'simple' },
     ]);
-    expect(h.calls.or).toEqual([]);
+    // #708: the substring leg ALWAYS runs alongside full-text (it used to be an infra-fault-only
+    // fallback), so a partial word matches like the other list searches.
+    expect(h.calls.or).toHaveLength(1);
+    expect(String(h.calls.or[0])).toContain('title.ilike.');
+    expect(String(h.calls.or[0])).toContain('notes_text.ilike.');
+  });
+
+  describe('#708 — search is the union of the full-text leg and the substring leg', () => {
+    const row = (id: string, occurred_at: string, title = id) => ({ id, title, occurred_at });
+
+    it('#708: a partial word ("coord") finds "coordination" through the substring leg', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: [], error: null }); // full-text: no whole-word match for "coord"
+      h.queue.push({ data: [row('m1', '2026-09-01T10:00:00Z', 'Site coordination')], error: null });
+      const rows = await listMeetings({ search: 'coord' });
+      expect(h.calls.textSearch).toHaveLength(1);
+      expect(String(h.calls.or[0])).toContain('title.ilike."%coord%"');
+      expect(rows.map((r) => r.id)).toEqual(['m1']);
+    });
+
+    it('#708: a search of only wildcard/escape symbols runs no substring leg (never "%%" = every row)', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: [], error: null }); // full-text only
+      const rows = await listMeetings({ search: ' %_*\\ ' });
+      expect(h.calls.textSearch).toHaveLength(1);
+      expect(h.calls.or).toEqual([]);
+      expect(rows).toEqual([]);
+    });
+
+    it('#708: the union de-duplicates by id and is ordered newest-first', async () => {
+      h.queue.length = 0;
+      h.queue.push({
+        data: [row('a', '2026-09-02T00:00:00Z'), row('b', '2026-09-01T00:00:00Z')],
+        error: null,
+      });
+      h.queue.push({
+        data: [row('b', '2026-09-01T00:00:00Z'), row('c', '2026-09-03T00:00:00Z')],
+        error: null,
+      });
+      const rows = await listMeetings({ search: 'plan' });
+      expect(rows.map((r) => r.id)).toEqual(['c', 'a', 'b']);
+    });
+
+    it('#708: the merged result is re-capped to MEETING_LIST_CAP, keeping the newest', async () => {
+      const at = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString();
+      h.queue.length = 0;
+      h.queue.push({
+        data: Array.from({ length: 150 }, (_, i) => row(`f${i}`, at(i))),
+        error: null,
+      });
+      h.queue.push({
+        data: Array.from({ length: 150 }, (_, i) => row(`s${i}`, at(1000 + i))),
+        error: null,
+      });
+      const rows = await listMeetings({ search: 'plan' });
+      expect(rows).toHaveLength(MEETING_LIST_CAP);
+      expect(rows[0].id).toBe('s149');
+      // All 150 (newer) substring rows survive; only the 50 newest full-text rows fill the rest.
+      expect(rows.filter((r) => r.id.startsWith('s'))).toHaveLength(150);
+      expect(rows.filter((r) => r.id.startsWith('f'))).toHaveLength(50);
+    });
+
+    it('#708: a full-text error returns the substring leg alone', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: null, error: { message: 'fts unavailable' } });
+      h.queue.push({ data: [row('s1', '2026-09-01T00:00:00Z')], error: null });
+      const rows = await listMeetings({ search: 'plan' });
+      expect(rows.map((r) => r.id)).toEqual(['s1']);
+    });
+
+    it('#708: a substring error throws with the code preserved, even when full-text succeeded', async () => {
+      h.queue.length = 0;
+      h.queue.push({ data: [row('a', '2026-09-01T00:00:00Z')], error: null });
+      h.queue.push({ data: null, error: { message: 'denied', code: '42501' } });
+      await expect(listMeetings({ search: 'plan' })).rejects.toMatchObject({ code: '42501' });
+    });
   });
 
   it('falls back to ilike over title + notes_text when the FTS PATH itself errors (infra fault)', async () => {
@@ -147,6 +222,78 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     expect(String(h.calls.or[0])).toContain('title.ilike.');
     expect(String(h.calls.or[0])).toContain('notes_text.ilike.');
     expect(rows[0].title).toBe('Fallback hit');
+  });
+
+  describe('the ilike fallback term is user-controlled (search box or URL ?q=) and cannot add conditions', () => {
+    /** Split a PostgREST logic-tree body at its top-level commas, honouring quoted values. */
+    const splitConditions = (body: string): string[] => {
+      const out: string[] = [];
+      let cur = '';
+      let depth = 0;
+      let quoted = false;
+      for (let i = 0; i < body.length; i++) {
+        const c = body[i];
+        if (quoted) {
+          if (c === '\\') {
+            cur += c + body[++i];
+            continue;
+          }
+          if (c === '"') quoted = false;
+          cur += c;
+          continue;
+        }
+        if (c === '"') quoted = true;
+        else if (c === '(') depth++;
+        else if (c === ')') depth--;
+        else if (c === ',' && depth === 0) {
+          out.push(cur);
+          cur = '';
+          continue;
+        }
+        if (depth < 0) throw new Error(`unbalanced ")" in ${body}`);
+        cur += c;
+      }
+      if (quoted || depth !== 0) throw new Error(`unterminated filter: ${body}`);
+      out.push(cur);
+      return out;
+    };
+    const CONDITION = /^(title|notes_text)\.ilike\."((?:[^"\\]|\\.)*)"$/;
+    const unescape = (v: string) => v.replace(/\\(.)/g, '$1');
+
+    const fallbackFilter = async (search: string): Promise<string> => {
+      h.queue.length = 0;
+      h.queue.push({ data: null, error: { message: 'fts unavailable' } });
+      h.queue.push({ data: [], error: null });
+      await listMeetings({ search });
+      expect(h.calls.or.length).toBe(1);
+      return String(h.calls.or[0]);
+    };
+
+    it('a term shaped like a filter stays ONE quoted value per column (no extra condition)', async () => {
+      const body = await fallbackFilter('x,is_template.eq.true)');
+      const conditions = splitConditions(body);
+      expect(conditions).toHaveLength(2);
+      const parsed = conditions.map((c) => c.match(CONDITION));
+      expect(parsed.map((m) => m?.[1])).toEqual(['title', 'notes_text']);
+      // The user's text survives inside the quoted value — searched for, never parsed. (The LIKE
+      // single-character wildcard `_` is neutralised to a space, as before.)
+      for (const m of parsed) expect(unescape(m![2])).toBe('%x,is template.eq.true)%');
+    });
+
+    it('quotes and backslashes in the term cannot close the quoted value', async () => {
+      const body = await fallbackFilter('a"),is_template.eq.true,title.ilike.("b\\');
+      const conditions = splitConditions(body);
+      expect(conditions).toHaveLength(2);
+      for (const c of conditions) expect(c).toMatch(CONDITION);
+    });
+
+    it('a NUL (and other control characters) never reach the filter', async () => {
+      const body = await fallbackFilter('plan\u0000ning\u0007');
+      expect(body).not.toMatch(/\p{Cc}/u);
+      const conditions = splitConditions(body);
+      expect(conditions).toHaveLength(2);
+      for (const c of conditions) expect(c).toMatch(CONDITION);
+    });
   });
 
   it('a non-search query error is NOT retried — it throws with the code preserved', async () => {

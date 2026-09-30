@@ -47,6 +47,9 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 
 let testRole: string = 'Finance';
 
+// useIsOperator is queried by Rail's real-Operator Administration footer; default to false
+// (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
 
 const renderRailAs = (role: string) => {

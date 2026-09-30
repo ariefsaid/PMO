@@ -102,4 +102,55 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
       await screen.findByText(/does not restate any existing figure/i),
     ).toBeInTheDocument();
   });
+
+  it('#695: a rejected default read shows an error with Retry, not a skeleton that never resolves', async () => {
+    getTaxDefault.mockRejectedValue(new Error('network down'));
+    renderPanel('Admin');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn.t load the default tax treatment/i);
+    expect(screen.queryByTestId('org-tax-default-loading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('org-tax-default-select')).not.toBeInTheDocument();
+
+    // Retry re-runs the read; a recovered read replaces the error with the control.
+    getTaxDefault.mockResolvedValue('inclusive');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(select().value).toBe('inclusive'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('#695: a failed BACKGROUND refetch after a good read keeps the working control — the error replaces nothing', async () => {
+    renderPanel('Admin');
+    await waitFor(() => expect(select().value).toBe('exclusive'));
+    // The save succeeds, the invalidation refetch that follows it fails.
+    getTaxDefault.mockRejectedValue(new Error('network down'));
+    await userEvent.selectOptions(select(), 'inclusive');
+    await waitFor(() => expect(getTaxDefault).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(setTaxDefault).toHaveBeenCalledWith('inclusive'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(select()).toBeInTheDocument();
+  });
+
+  it('#695: a read that resolves with NO value is an error with Retry, not a skeleton that never resolves', async () => {
+    getTaxDefault.mockResolvedValue(null);
+    renderPanel('Admin');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn.t load the default tax treatment/i);
+    expect(screen.queryByTestId('org-tax-default-loading')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('AC-RAM-005: while the new default is being written, the control is disabled so a second change cannot race it', async () => {
+    let finishWrite: () => void = () => {};
+    setTaxDefault.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishWrite = resolve;
+      }),
+    );
+    renderPanel('Admin');
+    await waitFor(() => expect(select().value).toBe('exclusive'));
+
+    await userEvent.selectOptions(select(), 'inclusive');
+    await waitFor(() => expect(select()).toBeDisabled());
+
+    finishWrite();
+    await waitFor(() => expect(select()).toBeEnabled());
+  });
 });

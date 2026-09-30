@@ -59,22 +59,15 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
 }));
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
-});
-
-// Force table view so we can inspect filtered rows easily.
-vi.mock('@/src/hooks/usePipelineView', () => ({
-  usePipelineView: () => ['table', vi.fn()] as ['table', ReturnType<typeof vi.fn>],
-}));
-
 import SalesPipeline from '../../pages/SalesPipeline';
 
+// list-working-set-return (#682): the page's view is now URL-owned; force table view via `?view=`
+// (previously done by mocking the whole usePipelineView module, which also shadowed the
+// DEFAULT_PIPELINE_VIEW/PIPELINE_VIEWS exports listWorkingSet.ts imports directly).
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/sales?view=table']}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>
@@ -194,5 +187,48 @@ describe('AC-JR-W4-03: Funnel stage click scopes the table', () => {
 
     expect(screen.queryByText('Leads Project Alpha')).not.toBeInTheDocument();
     expect(screen.getByText('Tender Project Beta')).toBeInTheDocument();
+  });
+});
+
+describe('AC-SFA-002: funnel selection stays in sync via click, Enter, and Space', () => {
+  const assertTenderOnly = () => {
+    expect(screen.getByText('Tender Project Beta')).toBeInTheDocument();
+    expect(screen.queryByText('Leads Project Alpha')).not.toBeInTheDocument();
+    expect(screen.queryByText('PQ Project Delta')).not.toBeInTheDocument();
+    expect(screen.queryByText('Negotiation Project Gamma')).not.toBeInTheDocument();
+  };
+
+  const tenderButton = () =>
+    within(screen.getByLabelText('Pipeline summary')).getByRole('button', {
+      name: /Tender/,
+    });
+
+  it('AC-SFA-002: clicking the Tender stage selects it; aria-pressed matches the filtered list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'false');
+    await user.click(tenderButton());
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'true');
+    assertTenderOnly();
+  });
+
+  it('AC-SFA-002: pressing Enter on the Tender stage selects it; aria-pressed matches the filtered list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'false');
+    tenderButton().focus();
+    await user.keyboard('{Enter}');
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'true');
+    assertTenderOnly();
+  });
+
+  it('AC-SFA-002: pressing Space on the Tender stage selects it; aria-pressed matches the filtered list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'false');
+    tenderButton().focus();
+    await user.keyboard(' ');
+    expect(tenderButton()).toHaveAttribute('aria-pressed', 'true');
+    assertTenderOnly();
   });
 });

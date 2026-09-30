@@ -13,7 +13,7 @@
  * Coverage: Projects, Procurement, Incidents pages (all three ship a status ViewToggle).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -113,6 +113,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
 // ── Page imports (after mocks) ───────────────────────────────────────────────
 import Projects from '../Projects';
 import Procurement from '../Procurement';
+import { readProcurementView } from '@/src/hooks/useProcurementView';
 import Incidents from '../Incidents';
 
 const renderProjects = () =>
@@ -167,39 +168,29 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
   });
 });
 
-// ── A-MIN-1: Table/Cards view toggle hidden below md ─────────────────────────
-describe('A-MIN-1: Table/Cards view toggle is hidden below md (desktop-only)', () => {
+// ── AC-MOB-VT: Projects keeps every view reachable below md ──────────────────
+describe('AC-MOB-VT: Projects view toggle remains reachable below md', () => {
   beforeEach(() => sessionStorage.clear());
 
-  it('Projects (A-MIN-1 updated, AC-MOB-VT): Table option is hidden via a wrapper element, not via a class on the button itself', () => {
+  it('Projects (A-MIN-1 updated, AC-MOB-VT): Table stays visible below md (no hidden wrapper)', () => {
     renderProjects();
     const viewToggle = screen.getByRole('tablist', { name: /projects view/i });
-    // After the AC-MOB-VT round-2 fix, the *entire* toggle is always visible (Calendar +
-    // Kanban need to be reachable on mobile). Only the Table option is hidden below md.
-    // The tablist itself is NOT wrapped in a hidden container.
+    // FR-PRJUX-001 (round-3): the Projects phone toolbar exposes ALL four views below md —
+    // Table included (DataTable reflows it into cards). Neither the toggle nor the Table tab
+    // nor any per-option wrapper carries `hidden`.
     const toggleParent = viewToggle.parentElement;
     expect(toggleParent).not.toBeNull();
     expect(toggleParent!.className).not.toContain('hidden');
 
-    // The Table tab button must NOT carry 'hidden' directly on itself —
-    // that conflicts with the base `inline-flex` class in ViewToggle (clsx-only cn means
-    // both classes land and `inline-flex` wins at runtime, so the option stays visible).
     const tableTab = Array.from(viewToggle.querySelectorAll('[role="tab"]')).find(
       (el) => el.textContent?.trim() === 'Table',
     ) as HTMLElement | undefined;
     expect(tableTab).toBeDefined();
     expect(tableTab!.className).not.toContain('hidden');
-
-    // Instead, the Table button must sit inside a wrapper element (between the button
-    // and the tablist) that carries 'hidden' + a 'md:' restore class.
-    // A wrapper with no competing display utility is the only safe hide given clsx-only cn.
+    // No hidden wrapper between the Table button and the tablist either.
     const wrapperEl = tableTab!.parentElement;
     expect(wrapperEl).not.toBeNull();
-    expect(wrapperEl).not.toBe(viewToggle); // wrapper is NOT the tablist itself
-    const wrapperCls = wrapperEl!.className;
-    expect(wrapperCls).toContain('hidden');
-    const hasMdRestore = wrapperCls.includes('md:inline-flex') || wrapperCls.includes('md:flex') || wrapperCls.includes('md:block');
-    expect(hasMdRestore).toBe(true);
+    expect(wrapperEl!.className).not.toContain('hidden');
   });
 
   it('Projects: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {
@@ -210,13 +201,21 @@ describe('A-MIN-1: Table/Cards view toggle is hidden below md (desktop-only)', (
     expect(scrollWrapper!.className).not.toContain('hidden');
   });
 
-  it('Procurement: the "Procurement view" tablist is inside a hidden/md:block wrapper (A-MIN-1)', () => {
+  it('Procurement (A-MIN-1 superseded by #715, AC-PVT-001): the view toggle is present and operable below md (no hidden wrapper)', () => {
     renderProcurement();
     const viewToggle = screen.getByRole('tablist', { name: /procurement view/i });
-    const wrapper = viewToggle.parentElement;
-    expect(wrapper).not.toBeNull();
-    expect(wrapper!.className).toContain('hidden');
-    expect(wrapper!.className).toMatch(/md:block|md:contents/);
+    // #715: a phone user must be able to leave the last-used view, so neither the tablist's
+    // wrapper nor any ancestor up to the page carries `hidden`.
+    for (let el: HTMLElement | null = viewToggle; el && el !== document.body; el = el.parentElement) {
+      expect(el.className, `${el.tagName} must not hide the toggle`).not.toMatch(/(^|\s|:)hidden(\s|$)/);
+    }
+    const tabs = Array.from(viewToggle.querySelectorAll<HTMLElement>('[role="tab"]'));
+    expect(tabs.map((t) => t.textContent?.trim())).toEqual(['Table', 'Board']);
+    // Operable: clicking Board reaches the page's view handler, which persists the choice (this
+    // file stubs useNavigate, so the URL flip itself is owned by e2e AC-PVT-001).
+    expect(readProcurementView()).toBe('table');
+    fireEvent.click(tabs[1]);
+    expect(readProcurementView()).toBe('board');
   });
 
   it('Procurement: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {

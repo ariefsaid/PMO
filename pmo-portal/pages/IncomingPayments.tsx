@@ -28,7 +28,7 @@ import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/sr
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrencyCents, formatDateNumeric } from '@/src/lib/format';
+import { formatCurrencyCents, formatDateOnlyNumeric, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant } from '@/src/lib/status/statusVariants';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
@@ -49,11 +49,25 @@ interface FormValues {
   date: string;
 }
 
+/**
+ * #684 (AC-PLC-009): both payment amounts are stored as numeric(14,2). This ONE locale-aware
+ * scale-2 parse decides validity and produces the submitted number, so the two cannot disagree and
+ * a value the column would round is refused before the write.
+ */
+function parsePaymentAmount(raw: string): number | null {
+  const n = parseMoneyInputAtScale(raw, 2);
+  return n !== null && n > 0 ? n : null;
+}
+
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.customerId.trim()) errors.customerId = 'Customer is required.';
-  if (Number(v.paidAmount) <= 0) errors.paidAmount = 'Paid amount must be positive.';
-  if (Number(v.receivedAmount) <= 0) errors.receivedAmount = 'Received amount must be positive.';
+  if (parsePaymentAmount(v.paidAmount) === null) {
+    errors.paidAmount = 'Paid amount must be positive, with no more than 2 decimal places.';
+  }
+  if (parsePaymentAmount(v.receivedAmount) === null) {
+    errors.receivedAmount = 'Received amount must be positive, with no more than 2 decimal places.';
+  }
   if (!v.date) errors.date = 'Date is required.';
   return errors;
 };
@@ -189,12 +203,13 @@ const IncomingPayments: React.FC = () => {
           {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
         </span>
       ),
-      exportValue: (p) => p.amount?.toString() ?? '',
+      // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
+      exportValue: (p) => p.amount ?? '',
     },
     {
       key: 'date',
       header: 'Date',
-      cell: (p) => (p.date ? formatDateNumeric(new Date(p.date)) : '—'),
+      cell: (p) => (p.date ? formatDateOnlyNumeric(p.date) : '—'),
       exportValue: (p) => p.date ?? '',
     },
   ];
@@ -418,11 +433,15 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
 
     e.preventDefault();
     void form.handleSubmit(async (values) => {
+      const paidAmount = parsePaymentAmount(values.paidAmount);
+      const receivedAmount = parsePaymentAmount(values.receivedAmount);
+      // Unreachable after `validate`, which applies the same parse — kept so the types prove it.
+      if (paidAmount === null || receivedAmount === null) return;
       const input = {
         customerId: values.customerId,
         salesInvoiceId: values.salesInvoiceId,
-        paidAmount: Number(values.paidAmount),
-        receivedAmount: Number(values.receivedAmount),
+        paidAmount,
+        receivedAmount,
         date: values.date,
       };
       try {
@@ -487,6 +506,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix="$"
             error={paidAmountField.error}
+            localeAware
           />
           <NumberField
             label="Received Amount"
@@ -497,6 +517,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix="$"
             error={receivedAmountField.error}
+            localeAware
           />
           <TextField
             label="Date"

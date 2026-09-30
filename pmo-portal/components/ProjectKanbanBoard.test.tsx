@@ -57,11 +57,11 @@ function mkProject(overrides: Partial<ProjectWithRefs> & { id: string; name: str
 }
 
 const projects: ProjectWithRefs[] = [
-  mkProject({ id: 'p1', name: 'Alpha Build', status: 'Won, Pending KoM', client: { name: 'Acme Corp' }, pm: { full_name: 'Alice PM' }, contract_value: 1_000_000, currency: 'USD', tax_treatment: 'exclusive' }),
-  mkProject({ id: 'p2', name: 'Beta Deploy', status: 'Ongoing Project', client: { name: 'Beta LLC' }, pm: { full_name: 'Bob PM' }, contract_value: 2_000_000, currency: 'USD' }),
-  mkProject({ id: 'p3', name: 'Gamma Maintain', status: 'On Hold', client: { name: 'Gamma Inc' }, pm: { full_name: 'Alice PM' }, contract_value: 500_000, currency: 'USD' }),
-  mkProject({ id: 'p4', name: 'Delta Close', status: 'Close Out', client: { name: 'Delta Co' }, pm: { full_name: 'Bob PM' }, contract_value: 3_000_000, currency: 'USD' }),
-  mkProject({ id: 'p5', name: 'Internal Labs', status: 'Internal Project', pm: { full_name: 'Alice PM' }, contract_value: 0, currency: 'USD' }),
+  mkProject({ id: 'p1', name: 'Alpha Build', status: 'Won, Pending KoM', client: { name: 'Acme Corp' }, project_manager_id: 'pm-alice', pm: { full_name: 'Alice PM' }, contract_value: 1_000_000, currency: 'USD', tax_treatment: 'exclusive' }),
+  mkProject({ id: 'p2', name: 'Beta Deploy', status: 'Ongoing Project', client: { name: 'Beta LLC' }, project_manager_id: 'pm-bob', pm: { full_name: 'Bob PM' }, contract_value: 2_000_000, currency: 'USD' }),
+  mkProject({ id: 'p3', name: 'Gamma Maintain', status: 'On Hold', client: { name: 'Gamma Inc' }, project_manager_id: 'pm-alice', pm: { full_name: 'Alice PM' }, contract_value: 500_000, currency: 'USD' }),
+  mkProject({ id: 'p4', name: 'Delta Close', status: 'Close Out', client: { name: 'Delta Co' }, project_manager_id: 'pm-bob', pm: { full_name: 'Bob PM' }, contract_value: 3_000_000, currency: 'USD' }),
+  mkProject({ id: 'p5', name: 'Internal Labs', status: 'Internal Project', project_manager_id: 'pm-alice', pm: { full_name: 'Alice PM' }, contract_value: 0, currency: 'USD' }),
 ];
 
 /** Lifecycle column order + the project that belongs in each. */
@@ -168,6 +168,20 @@ describe('ProjectKanbanBoard', () => {
     expect(within(ongoingCol).getByText('Beta Deploy')).toBeInTheDocument();
     expect(within(ongoingCol).getByText('Beta LLC')).toBeInTheDocument();
     expect(within(ongoingCol).getByText('Bob PM')).toBeInTheDocument();
+  });
+
+  it('FR-PRJUX-004/005: Kanban keeps the unnamed-assigned vs unassigned polarity distinct', () => {
+    const polarity = [
+      mkProject({ id: 'pa', name: 'Blank PM Card', status: 'Won, Pending KoM', project_manager_id: 'aaaaaaaa-bbbb', pm: { full_name: '   ' } }),
+      mkProject({ id: 'pb', name: 'No PM Card', status: 'Ongoing Project', project_manager_id: null }),
+    ];
+    renderBoard(polarity);
+    const won = screen.getByTestId('kanban-col-won');
+    expect(within(won).getByText('Unnamed user · aaaaaaaa')).toBeInTheDocument();
+    const ongoing = screen.getByTestId('kanban-col-ongoing');
+    expect(within(ongoing).getByText('Unassigned')).toBeInTheDocument();
+    // The assigned-blank card must NOT read as unassigned.
+    expect(within(won).queryByText('Unassigned')).not.toBeInTheDocument();
   });
 
   it('AC-PK-004: empty list renders all five columns with no cards', () => {

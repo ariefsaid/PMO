@@ -46,6 +46,9 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: orgFeaturesState.value }),
 }));
 
+// useIsOperator is queried by Rail's real-Operator Administration footer; default to false
+// (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
 import { FEATURE_ENV_DEFAULT } from '@/src/lib/features';
 

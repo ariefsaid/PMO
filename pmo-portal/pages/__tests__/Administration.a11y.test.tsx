@@ -1,7 +1,7 @@
 /**
  * AC-A11Y-001 — axe-clean administration surface (ops-admin-surface S6 capstone).
  *
- * Renders the FULLY-COMPOSED `/administration` page (Users + Credits + Usage + Features) for an
+ * Renders the route-backed Administration shell at its selected canonical destination for an
  * Operator AND a non-Operator org-Admin, at desktop width and at 390px (mobile), and asserts
  * axe-core reports NO `critical`/`serious` WCAG-AA violations on either persona/viewport.
  *
@@ -10,7 +10,7 @@
  * `alertdialog`, and toasts are `aria-live`. Any blocking finding here fails CI before it ships.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -34,7 +34,7 @@ const { listState, mutations, isOperatorState } = vi.hoisted(() => ({
     invite: { mutateAsync: vi.fn(), isPending: false },
     setStatus: { mutateAsync: vi.fn(), isPending: false },
   },
-  isOperatorState: { value: false },
+  isOperatorState: { value: false, pending: false },
 }));
 
 vi.mock('@/src/hooks/useUsers', () => ({
@@ -44,7 +44,14 @@ vi.mock('@/src/hooks/useUsers', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));
-vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
+vi.mock('@/src/auth/useIsOperator', () => ({
+  useIsOperator: () => isOperatorState.value,
+  useOperatorMembership: () => ({
+    isOperator: isOperatorState.value,
+    isPending: isOperatorState.pending,
+    isError: false,
+  }),
+}));
 vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({
     data: [
@@ -71,19 +78,26 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     credits: { getOrgBalance: vi.fn().mockResolvedValue(1250), grant: vi.fn().mockResolvedValue(undefined) },
     orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
+    orgSettings: { getTaxDefault: vi.fn().mockResolvedValue('exclusive') },
   },
 }));
+vi.mock('@/src/lib/repositories/budgetProjection', () => ({
+  listBudgetCategoryAccountMap: vi.fn().mockResolvedValue([]),
+  createBudgetCategoryAccountMapRow: vi.fn(),
+  updateBudgetCategoryAccountMapRow: vi.fn(),
+  deleteBudgetCategoryAccountMapRow: vi.fn(),
+}));
 
-import AdminUsers from '../AdminUsers';
+import Administration from '../Administration';
 
-const renderComposed = () => {
+const renderComposed = (path = '/administration/users') => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <ImpersonationProvider realRole="Admin">
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[path]}>
           <ToastProvider>
-            <AdminUsers />
+            <Administration />
           </ToastProvider>
         </MemoryRouter>
       </ImpersonationProvider>
@@ -99,11 +113,13 @@ afterEach(() => {
 
 beforeEach(() => {
   isOperatorState.value = false;
+  isOperatorState.pending = false;
 });
 
 async function expectNoBlockingViolations(container: HTMLElement) {
-  // Let the async balance query settle so axe audits the final DOM (avoids a post-test act warning).
-  await waitFor(() => expect(container.querySelector('[data-testid="org-credit-balance"]')).toBeInTheDocument());
+  // Let the route-backed shell settle so axe audits the selected panel's final DOM (avoids a
+  // post-test act warning without requiring an unrelated Credits query to mount).
+  await waitFor(() => expect(container.querySelector('h1')).not.toBeNull());
   const { blocking, advisory } = await axeViolations(container);
   if (advisory.length) {
     // Visibility only — advisories don't fail the gate yet.
@@ -113,37 +129,110 @@ async function expectNoBlockingViolations(container: HTMLElement) {
 }
 
 describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
+  const settledPanel = async (section: string, container: HTMLElement) => {
+    await waitFor(() => {
+      switch (section) {
+        case 'users':
+          expect(screen.getByText('Engineer One')).toBeInTheDocument();
+          break;
+        case 'integrations':
+          expect(screen.getByTestId('integrations-owner-scope')).toBeInTheDocument();
+          expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
+          break;
+        case 'accounting':
+          expect(screen.getByTestId('org-tax-default-select')).toBeInTheDocument();
+          expect(container.querySelector('#budget-account-map')).not.toBeNull();
+          break;
+        case 'credits':
+          expect(screen.getByTestId('org-credit-balance')).toBeInTheDocument();
+          break;
+        case 'usage':
+          expect(screen.getAllByRole('table').length).toBeGreaterThan(0);
+          break;
+        case 'features':
+          expect(screen.getAllByRole('switch').length).toBeGreaterThan(0);
+          break;
+      }
+    });
+  };
+
+  for (const [section, operator] of [
+    ['users', false],
+    ['integrations', false],
+    ['accounting', false],
+    ['credits', false],
+    ['usage', true],
+    ['features', true],
+  ] as const) {
+    for (const width of [1280, 390]) {
+      it(`AC-A11Y-001: settled ${section} panel at ${width}px has no blocking violations`, async () => {
+        isOperatorState.value = operator;
+        Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: width });
+        const { container } = renderComposed(`/administration/${section}`);
+        await waitFor(() =>
+          expect(container.querySelector(`[data-testid="administration-panel-${section}"]`)).not.toBeNull(),
+        );
+        await settledPanel(section, container);
+        await expectNoBlockingViolations(container);
+      });
+    }
+  }
+
   it('AC-A11Y-001: Operator view at desktop width has no critical/serious violations', async () => {
     isOperatorState.value = true;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
   });
 
   it('AC-A11Y-001: Operator view at 390px (mobile) has no critical/serious violations', async () => {
     isOperatorState.value = true;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 390 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
   });
 
   it('AC-A11Y-001: org-Admin (non-Operator) view at desktop width has no critical/serious violations', async () => {
     isOperatorState.value = false;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
   });
 
   it('AC-A11Y-001: org-Admin (non-Operator) view at 390px (mobile) has no critical/serious violations', async () => {
     isOperatorState.value = false;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 390 });
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/users');
     await expectNoBlockingViolations(container);
+  });
+
+  it('AC-A11Y-001: the org-Admin (non-Operator) direct Usage denial is axe-clean and mounts no panel', async () => {
+    isOperatorState.value = false;
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
+    const { container } = renderComposed('/administration/usage');
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/Operator-only/i),
+    );
+    await expectNoBlockingViolations(container);
+    // The denial never mounts the Operator panel/query.
+    expect(container.querySelector('[data-testid="administration-panel-usage"]')).toBeNull();
+  });
+
+  it('AC-A11Y-001: the Operator-membership pending state is axe-clean with no premature denial', async () => {
+    isOperatorState.value = false;
+    isOperatorState.pending = true;
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
+    const { container } = renderComposed('/administration/usage');
+    await waitFor(() => expect(screen.getByText(/checking your Administration access/i)).toBeInTheDocument());
+    await expectNoBlockingViolations(container);
+    // Pending shows a status, not a denial alert and not the panel.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-testid="administration-panel-usage"]')).toBeNull();
   });
 
   it('AC-A11Y-001: the Feature toggles are real role="switch" controls (Operator)', () => {
     isOperatorState.value = true;
-    const { container } = renderComposed();
+    const { container } = renderComposed('/administration/features');
     const switches = container.querySelectorAll('[role="switch"]');
     expect(switches.length).toBeGreaterThan(0);
     switches.forEach((s) => {

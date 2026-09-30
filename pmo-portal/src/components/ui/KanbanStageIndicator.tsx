@@ -28,7 +28,7 @@ export interface KanbanStageIndicatorProps {
  *   - has an `aria-hidden` decorative dot for the stage color
  *   - is ≥44px tall via `.touch-target` (WCAG 2.5.5)
  *
- * Tokens: `primary` active dot, `muted-foreground` inactive text, `border` divider,
+ * Tokens: `primary-text` (AA) active label, `primary` underline, `muted-foreground` inactive text, `border` divider,
  * `card` bg, `secondary` active tint — all from DESIGN.md. No new tokens.
  */
 export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
@@ -60,7 +60,7 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
               // Touch target — ≥44px height on coarse pointers (WCAG 2.5.5)
               'touch-target relative flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2 text-[11px] font-semibold leading-tight transition-colors',
               isActive
-                ? 'text-primary'
+                ? 'text-primary-text'
                 : 'text-muted-foreground hover:text-foreground',
               // Left border separator (except first)
               i > 0 && 'border-l border-border',

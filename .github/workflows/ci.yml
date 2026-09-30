@@ -102,10 +102,12 @@ jobs:
           node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
-          node scripts/check-promote-stamp.mjs --self-test
           node scripts/check-redirect-targets.mjs
           bash scripts/check-e2e-isolation.sh --self-test
+          node scripts/check-e2e-fonts-ready.mjs --self-test
+          node scripts/check-e2e-fonts-ready.mjs
           bash scripts/check-nul-bytes.sh --self-test
+          bash scripts/ci-e2e.sh --self-test
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
@@ -246,7 +248,13 @@ jobs:
     # is redundant. PRs targeting dev get pgTAP only via the `pgtap` job above (fast lane — see
     # tiering comment below).
     # Make this a REQUIRED status check in branch protection so a red e2e can't be merged.
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    # Also runnable on demand for any branch (Actions → CI → "Run workflow", or
+    # `gh workflow run ci.yml --ref <branch>`), so a PR to `dev` can get its e2e proof on a
+    # GitHub runner instead of the shared local stack. Trigger it once per PR, after local
+    # fixes are done — not per fix round.
+    # Trade-off: a dispatch runs branch code with the job's secrets without a PR audit trail;
+    # only write-access collaborators can dispatch (fork PRs never receive secrets).
+    if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:

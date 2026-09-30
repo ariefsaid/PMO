@@ -22,4 +22,31 @@ describe('Application route table', () => {
     expect(route?.path).toBe('/settings/profile');
     expect(React.isValidElement(route?.element)).toBe(true);
   });
+
+  it('AC-ADMIA-001/003: every Administration destination resolves to a real route element', () => {
+    const paths = [
+      '/administration',
+      '/administration/users',
+      '/administration/integrations',
+      '/administration/accounting',
+      '/administration/credits',
+      '/administration/usage',
+      '/administration/features',
+    ];
+
+    for (const path of paths) {
+      const matches = matchRoutes(appRouteConfig, path);
+      const route = matches?.[matches.length - 1]?.route;
+      expect(route?.path, path).not.toBe('*');
+      expect(React.isValidElement(route?.element), path).toBe(true);
+    }
+  });
+
+  it('AC-ADMIA-003: an unknown Administration section resolves to its section fallback, not the global catch-all', () => {
+    const matches = matchRoutes(appRouteConfig, '/administration/unknown');
+    const route = matches?.[matches.length - 1]?.route;
+
+    expect(route?.path).toBe('/administration/:section');
+    expect(React.isValidElement(route?.element)).toBe(true);
+  });
 });

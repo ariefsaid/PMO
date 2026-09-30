@@ -13,11 +13,14 @@
  * Assert it is a LOCAL date whose `getDate()` / `getMonth()` / `getFullYear()`
  * match the ISO string, not UTC getUTCDate() / etc.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 // ── Capture the Date values passed to each cell ──────────────────────────────
 
 const cellValues: unknown[] = [];
+// Every row array handed to the worksheet, so a test can inspect the raw (typed) cell values.
+const addedRows: unknown[][] = [];
 const mockCell = {
   set value(v: unknown) { cellValues.push(v); },
   numFmt: '',
@@ -29,7 +32,7 @@ vi.mock('exceljs', () => {
     set font(_f: unknown) { /* no-op */ },
   };
   const Worksheet = {
-    addRow: vi.fn(() => Row),
+    addRow: vi.fn((r: unknown[]) => { addedRows.push(r); return Row; }),
   };
   class Workbook {
     addWorksheet() { return Worksheet; }
@@ -82,5 +85,39 @@ describe('AC-W2-3-03: xlsx export date cell — no UTC day-shift', () => {
     // No dates should be captured for non-ISO-date values.
     const dates = cellValues.filter((v): v is Date => v instanceof Date);
     expect(dates.length).toBe(0);
+  });
+});
+
+describe('AC-PLC-008: export cells stay typed and neutral under either display locale', () => {
+  beforeEach(() => {
+    cellValues.length = 0;
+    addedRows.length = 0;
+  });
+  afterEach(() => resetActiveLocale());
+
+  it('keeps a number a number and an ISO date a typed date for id-ID and en-US viewers', async () => {
+    const snapshots: Array<{ number: unknown; date: Date }> = [];
+    for (const locale of [
+      { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' },
+      { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' },
+    ]) {
+      setActiveLocale(locale);
+      cellValues.length = 0;
+      addedRows.length = 0;
+      await toWorkbookBuffer({
+        sheetName: 'Test',
+        header: ['Name', 'Amount', 'Date'],
+        body: [['Project Alpha', 1234.5, '2026-06-14']],
+      });
+      const dataRow = addedRows[1];
+      const date = cellValues.find((v): v is Date => v instanceof Date)!;
+      expect(typeof dataRow[1]).toBe('number');
+      expect(mockCell.numFmt).toBe('yyyy-mm-dd');
+      snapshots.push({ number: dataRow[1], date });
+    }
+    expect(snapshots[0].number).toBe(1234.5);
+    expect(snapshots[1].number).toBe(1234.5);
+    expect(snapshots[0].date.getTime()).toBe(snapshots[1].date.getTime());
+    expect(snapshots[0].date.getDate()).toBe(14);
   });
 });

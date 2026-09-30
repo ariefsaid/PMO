@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import SalesPipeline from './SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -32,8 +32,6 @@ const pipelineState: {
   refetch: ReturnType<typeof vi.fn>;
 } = { data: { stages: seedStages, projects: seedProjects }, isPending: false, isError: false, refetch: vi.fn() };
 
-const navigate = vi.fn();
-
 const lostState: { data: Array<Record<string, unknown>>; isPending: boolean; isError: boolean } = {
   data: [],
   isPending: false,
@@ -59,19 +57,31 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
 }));
-// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => navigate };
-});
+// list-working-set-return (#682): the page writes URL changes through the real router navigate
+// (one replace per event), so tests read the REAL location to assert the URL and the record-open
+// return-context `location.state` instead of mocking navigation away.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+      data-state={JSON.stringify(location.state ?? null)}
+    />
+  );
+};
 
 // The pipeline-board journeys are a manager viewing/forecasting the pipeline; render under a
 // PM real role so the A-4 Sales view-gate (Admin·Exec·PM·Finance) shows the board.
 // ToastProvider is required because the B-3 CTA uses useToast() on deal creation.
-const renderPage = () =>
+// list-working-set-return (#682): the list-return seam captures context only from the list's own
+// canonical index path (`/sales`), so the default entry must be `/sales`, not `/`.
+const renderPage = (initialPath = '/sales') =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>
@@ -81,7 +91,6 @@ const renderPage = () =>
 
 beforeEach(() => {
   sessionStorage.clear();
-  navigate.mockClear();
   pipelineState.data = { stages: seedStages, projects: seedProjects };
   pipelineState.isPending = false;
   pipelineState.isError = false;
@@ -214,17 +223,98 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
 
 describe('SalesPipeline drill-down (Model B canonical route)', () => {
   // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
-  it('AC-IXD-PROJ-001: clicking a card navigates to the canonical /projects/:id detail route', () => {
+  // Director ruling (2026-09-29): the destination stays canonical `/projects/p2` while the
+  // record-open now additionally carries validated Sales list-return context.
+  it('AC-IXD-PROJ-001 / AC-LRC-004: clicking a card navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
-    expect(navigate).toHaveBeenCalledWith('/projects/p2');
+    const probe = screen.getByTestId('location-probe');
+    await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
+    const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
+    expect(state.pmoListReturn).toMatchObject({ list: 'sales' });
   });
 
-  it('AC-IXD-PROJ-001: a table row click navigates to the canonical /projects/:id detail route', async () => {
+  it('AC-IXD-PROJ-001 / AC-LRC-004: a table row click navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
-    expect(navigate).toHaveBeenCalledWith('/projects/p2');
+    const probe = screen.getByTestId('location-probe');
+    await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
+    const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
+    expect(state.pmoListReturn).toMatchObject({ list: 'sales' });
+  });
+});
+
+// list-working-set-return (#682): AC-LRC-001/002 for Sales — `scope`/`status`/`q`/`view` are
+// URL-owned. The owning pure-codec proof lives in src/lib/listWorkingSet.test.ts; here we prove
+// the component renders the URL-backed working set and writes ONE replace per event.
+describe('SalesPipeline list working set — AC-LRC-001/002', () => {
+  it('AC-LRC-001: renders the URL-backed working set (scope + search + view) and refresh/copy reproduces it', () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?scope=Lost&q=Coastal&view=table');
+    // The URL-driven scope segment is selected.
+    expect(screen.getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+    // The URL-driven search is present in the search box.
+    expect(screen.getByLabelText(/Search projects/i)).toHaveValue('Coastal');
+    // The URL-driven view renders the table.
+    expect(screen.getAllByRole('row').length).toBeGreaterThan(0);
+  });
+
+  it('AC-LRC-001: a control change writes ONE replace of the list URL (no history entry per click)', async () => {
+    renderPage('/sales?view=table');
+    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    const toggle = screen.getByRole('tablist', { name: /Project scope/i });
+    expect(within(toggle).getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+    // View change persists AND writes the URL in one event (board renders). Scope is meaningful
+    // only for the table view (#682 Director ruling, 2026-09-29 — see the dedicated describe
+    // block below), so it resets to Open on this same switch rather than surviving untouched.
+    await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
+    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+  });
+});
+
+// #682 Director ruling (2026-09-29): the Board is the open pipeline by stage and has no scope.
+// Switching Table → Board resets scope to Open in the working set's single write, so the URL no
+// longer carries an inert `scope`; a direct/copied board URL with a stale scope parses to Open
+// the same way. Switching back to Table then shows Open, never the scope that was active before.
+describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
+  it('switching Table (Lost) → Board resets scope to Open and drops it from the URL; switching back to Table shows Open', async () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?view=table&scope=Lost');
+    expect(screen.getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
+    // The board renders (no scope segmented control at all — it is table-only).
+    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: /Project scope/i })).not.toBeInTheDocument();
+    // The URL no longer carries the inert scope.
+    const probe = screen.getByTestId('location-probe');
+    expect(probe.dataset.search).not.toContain('scope=Lost');
+    expect(new URLSearchParams(probe.dataset.search).get('scope')).toBeNull();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+  });
+
+  it('a direct/copied `?view=kanban&scope=Lost` URL parses to Open scope (Board renders; Table then shows Open)', async () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?view=kanban&scope=Lost');
+    expect(screen.getByRole('tab', { name: /^Board$/i })).toHaveAttribute('aria-selected', 'true');
+    // The lost deal still appears on the board (its own terminal Lost column) — the stale scope
+    // never hid it, because the board never applied it in the first place.
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
   });
 });
 
@@ -251,5 +341,104 @@ describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () =>
     await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
     expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
+  });
+});
+
+// list-working-set-return (#683): a filtered table zero-match offers a Clear filters action
+// (scope/stage/search all reset); the genuine empty-collection state above carries none.
+// Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
+describe('SalesPipeline table zero-match', () => {
+  it('a Lost-scope search with no matches says so (not "No lost projects") and Clear filters restores the rows and the scope', async () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
+    // Lost projects DO exist — the search excluded them, so the scope-empty copy would be false.
+    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No lost projects/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+// #697: in Board view a funnel stage selection used to mark the stage pressed and change nothing
+// else (the stage filter only narrows the Table). The selection now takes the board to that stage's
+// column (the same jump the mobile stage tabs make) and marks the column.
+describe('SalesPipeline Board stage selection (#697)', () => {
+  const scrollToSpy = vi.fn();
+  beforeEach(() => {
+    scrollToSpy.mockClear();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      writable: true,
+      value: scrollToSpy,
+    });
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
+  });
+
+  const funnelStage = (name: RegExp) =>
+    within(screen.getByLabelText('Pipeline summary')).getByRole('button', { name });
+
+  it('#697: selecting a stage in Board view brings that stage column into view and marks it', async () => {
+    renderPage('/sales?view=kanban');
+    const stageNav = screen.getByRole('navigation', { name: /Pipeline stage navigation/i });
+    expect(within(stageNav).getByRole('button', { name: 'Leads' })).toHaveAttribute('aria-current', 'true');
+    expect(scrollToSpy).not.toHaveBeenCalled();
+
+    await userEvent.click(funnelStage(/^Tender/));
+
+    // The board jumped: the programmatic scroll ran on the board's scroller and the indicator
+    // moved to the selected stage's column.
+    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
+    expect(within(stageNav).getByRole('button', { name: 'Tender' })).toHaveAttribute('aria-current', 'true');
+    expect(within(stageNav).getByRole('button', { name: 'Leads' })).not.toHaveAttribute('aria-current');
+    // The selected column carries a visible mark; the others do not.
+    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
+    expect(screen.getByTestId('stage-Leads').querySelector('[data-selected="true"]')).toBeNull();
+    // Not colour-only: the selected column is announced (aria-current) and carries a ring cue.
+    const selectedColumn = screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]');
+    expect(selectedColumn).toHaveAttribute('aria-current', 'true');
+    expect(selectedColumn).toHaveClass('ring-2');
+    expect(screen.getByTestId('stage-Leads').querySelector('[aria-current="true"]')).toBeNull();
+  });
+
+  it('#697: selecting a different stage moves again; deselecting clears the mark', async () => {
+    renderPage('/sales?view=kanban');
+    await userEvent.click(funnelStage(/^Tender/));
+    await userEvent.click(funnelStage(/^Negotiation/));
+    const stageNav = screen.getByRole('navigation', { name: /Pipeline stage navigation/i });
+    await waitFor(() =>
+      expect(within(stageNav).getByRole('button', { name: 'Negotiation' })).toHaveAttribute('aria-current', 'true'),
+    );
+    expect(scrollToSpy).toHaveBeenCalledTimes(2);
+
+    await userEvent.click(funnelStage(/^Negotiation/)); // toggle off
+    expect(document.querySelector('[data-selected="true"]')).toBeNull();
+  });
+
+  it('#697: a board opened with ?status= already selected lands on that stage column', async () => {
+    renderPage('/sales?view=kanban&status=Tender%20Submitted');
+    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
+  });
+
+  it('#697: a scroller without scrollTo (old webview) still opens on the selected stage without throwing', () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, writable: true, value: undefined });
+    renderPage('/sales?view=kanban&status=Tender%20Submitted');
+    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
   });
 });

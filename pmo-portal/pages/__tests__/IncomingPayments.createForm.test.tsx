@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -87,6 +87,10 @@ vi.mock('react-router', async (importOriginal) => {
 });
 
 import IncomingPayments from '../IncomingPayments';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = () =>
   render(
@@ -113,7 +117,9 @@ beforeEach(() => {
   hoisted.navigateMock.mockClear();
   hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
+  setActiveLocale(EN_LOCALE);
 });
+afterEach(() => resetActiveLocale());
 
 describe('IncomingPayments — a Finance user can actually record a receipt (BLOCK 1)', () => {
   it('offers the org\'s real client companies in the customer picker', async () => {
@@ -197,6 +203,44 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
         paidAmount: 750,
         receivedAmount: 750,
       }),
+    );
+  });
+
+  it('AC-PLC-009: rejects en-US payment amounts with excess precision before creating', async () => {
+    setActiveLocale(EN_LOCALE);
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    for (const label of [/Paid Amount/, /Received Amount/]) {
+      const field = screen.getByLabelText(label);
+      await user.clear(field);
+      await user.type(field, '1.234');
+    }
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    // The shared dialog renders BOTH a summary alert and each field's own alert; target the fields'.
+    expect(
+      await screen.findAllByText(/amount.*decimal/i, { selector: 'span[role="alert"]' }),
+    ).toHaveLength(2);
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: persists id-ID grouped payment amounts as 1234', async () => {
+    setActiveLocale(ID_LOCALE);
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    for (const label of [/Paid Amount/, /Received Amount/]) {
+      const field = screen.getByLabelText(label);
+      await user.clear(field);
+      await user.type(field, '1.234');
+    }
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(hoisted.createPaymentMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ paidAmount: 1234, receivedAmount: 1234 }),
     );
   });
 

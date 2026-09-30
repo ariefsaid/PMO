@@ -4,6 +4,17 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ 2026-09-29 — enterprise UI/UX readiness milestone COMPLETE on `dev` (not promoted)
+
+Signed brief `docs/design/2026-09-26-enterprise-coherence-brief.md`: #685 (#691), #689 (#698), #681 (#703),
+#687 (#706), #683 (#709), #684 (#710), #688 (#712), #682 (#717); umbrella #679 closed. The full CI e2e lane
+(chromium + serial) went green via #725, which fixed seven drifted journeys and a real list-seam race (a filter
+picked just before a debounced search write was dropped). `main` and production are untouched by this
+milestone. **Code-ready is not RIS-ready:** RIS stays unproven until a real RIS org Admin exercises live
+Microsoft 365 and ERPNext. Open follow-ups: #690, #692–#697, #700, #701, #704, #707, #708, #711, #713, #715,
+#716; external-access map #720 (API/MCP), PWA #718, record history #719. **CI fair use (owner, shared with MOS):**
+heavy e2e only via `scripts/ci-e2e.sh` (#726).
+
 ### ⚑⚑⚑ CURRENT STATE (2026-09-08) — v0.10.0 is LIVE; what is left is owner-held facts and the RIS test paths
 
 **Live in production (2026-09-11, owner-instructed):** release **v0.10.1** (`b9a84459`) — Cloudflare
@@ -338,12 +349,14 @@ BEHIND `dev`, content identical).
   un-destructured resolve-with-`error`, supabase-js's ordinary failure mode). Failures now reach
   `error_events`, and therefore Telegram, rather than a console line nobody reads.
 - ~~**`enforce_automation_owner_cap` race**~~ ✅ **CLOSED #401** — per-owner `FOR UPDATE` + `SECURITY DEFINER`,
-  proven by a real two-session `dblink` test (`55P03` under a short `lock_timeout`). ⚑ Still bypassable by
-  UN-ARCHIVING (the trigger is BEFORE INSERT only) — that half is open.
+  proven by a real two-session `dblink` test (`55P03` under a short `lock_timeout`). The un-archive half
+  (the trigger was BEFORE INSERT only) is ✅ **closed by `0221` (2026-09-30)** — the cap also runs on an
+  un-archive; `0111` AUDIT-M1 cases 6-8.
 - ~~**`set_project_contract_value` accepts negative**~~ ✅ **CLOSED #401** — RPC guard + column CHECK.
   ⚑ `>= 0` alone was NOT enough: **`NaN >= 0` is TRUE in Postgres** and PostgREST coerces `"NaN"` from a
   quoted string, poisoning `sum()` org-wide. Shipped as `>= 0 and < 'Infinity'::numeric`.
-  🔴 **The INSERT-side gap is still OPEN and live in prod** — see the CURRENT FOCUS block.
+  The INSERT-side gap noted here at the time was ✅ closed by the create-path SoD work
+  (`0174`, `0179`–`0184`, promoted 2026-07-30).
 - ~~**`spike-rls.yml`** — only `npm install` → `npm ci` remains.~~ ✅ **CLOSED BY DELETION 2026-07-28** —
   the workflow and `spike/agent-native-rls/` no longer exist (owner-approved; ADR-0036 §8, its only
   reason to exist, closed 2026-07-03). Do not go looking for this file.
@@ -485,12 +498,10 @@ It does **not** shorten an already-issued JWT's life. **Offboarding is not "solv
 token lifetime is a separate auth-side decision.
 
 **⛔ Still open after Part B (found in passing, deliberately not fixed here):**
-- `approved_timesheet_for_push` — the precedent this slice followed — checks the resolved actor's
-  `profiles.status` and applies `is_active_member()` **only when there is a JWT**, so its `p_actor`
-  (service-role sweep) path never gets `0095`'s `banned_until` check. A raw-banned approver's sheet can
-  still be pushed by the backstop. One-line fix: use `is_active_member(coalesce(auth.uid(), p_actor))`.
-  Not touched here because it is outside the fifteen and changing the sweep's gate deserves its own
-  caller analysis.
+- ~~`approved_timesheet_for_push` applied `is_active_member()` only with a JWT, so the sweep path
+  missed `0095`'s `banned_until`.~~ **Fixed by `0220` (2026-09-30):** the resolved actor's whole standing
+  is checked on both paths; `0143` AC-TSP-013 covers a raw-banned actor on the real sweep path (it
+  clears the JWT first — the earlier sweep cases ran with a leftover JWT and exercised the JWT path).
 - `0178` closed `transition_project` / `set_project_contract_value` with a bare `'not authorized'`
   message, so an offboarded user's money-path refusal is still indistinguishable from a role denial
   (FR-AMG-004). The fifteen carry the distinguishing message; those two do not.
@@ -626,10 +637,9 @@ this very entry asserted a control that was not in the tree. Caught by running t
 and getting `No such file or directory`. Landed separately; **a doc claiming a guard is not a guard**. Both gates also now **fail closed on a zero-file scan** — `check-migration-collisions.sh` used
 to print `OK (0 files)` and exit 0 on an empty directory.
 
-**Branch-deletion caveat (still open, owner call):** `redesign/design-system` holds the exploration
+**Branch-deletion caveat — RESOLVED 2026-09-29 without loss:** the branch became the tag `archive/redesign-design-system`, which holds the exploration
 artifacts ADR-0068 references (`design-mockups/redesign/{diverge,converge,reskin}/` + 3 port plans),
-deliberately not promoted. Deletable **if** losing those sketches is acceptable; no citation depends
-on it.
+deliberately not promoted. Nothing was lost; no citation depends on the branch.
 
 
 ### ⚑⚑ LESSONS — 2026-07-29, the promote (read before adding a foreign key or an e2e spec)

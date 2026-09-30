@@ -5,7 +5,8 @@ import { signIn } from './helpers';
 // AC-AUTH-006 — Sign-out returns to /login (FR-AUTH-023)
 test('sign-out returns to /login and blocks re-entry', async ({ page }) => {
   await signIn(page, 'pm@acme.test');
-  await page.getByRole('button', { name: /sign out/i }).click();
+  await page.getByRole('button', { name: /account menu/i }).click();
+  await page.getByRole('menuitem', { name: /sign out/i }).click();
   await expect(page).toHaveURL(/\/login$/);
 
   await page.goto('/');

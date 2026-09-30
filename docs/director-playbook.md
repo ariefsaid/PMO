@@ -119,9 +119,9 @@ never write app code yourself — you delegate and **verify**.
 
 Inside a **signed milestone brief** the Director chains these **without pausing at issue boundaries**;
 the owner reviews at milestone boundaries. Unsigned ad-hoc issues keep the classic per-issue checkpoint.
-Either way the Director still runs the binding gates itself before ship (`npm run verify:locked`,
-mutation checks, rendered verification, `verify-main-pr.sh` at promotes) — **the ADW's green is the
-factory's inner loop, not a phase gate.**
+Either way the Director still owns the binding gates before ship (CI green on every PR — the full
+suite runs there — mutation checks, rendered verification) — **the ADW's green is the factory's inner
+loop, not a phase gate.**
 
 **Parallelism** is a separate axis from routing: several ADWs can run at once (each in its own worktree,
 DB work under `scripts/with-db-lock.sh`). The owner may still *explicitly* opt into a **parallel push** (a transient burst, e.g. to
@@ -167,12 +167,13 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
 - One **branch per issue** off an **up-to-date `dev`** — NOT `main`. Work lands on `dev`; `dev`→`main` is a
   separate gated promote (`CLAUDE.md` Branch flow). Branching off `main` also means CI verifies the wrong
   merge commit. Branch names: `feat/`, `chore/`, `test/`, `perf/`.
-- `release-engineer` runs the **full fresh verification before pushing**: from `pmo-portal/` —
-  `typecheck`, `lint:ci`, `test`, `build`, and **`npx playwright test` against a live stack** (start
-  Supabase; it's the behavioral guard) + `supabase test db` for DB changes. No push without green e2e.
-- For every PR targeting `main`, those gates are one binding command from the repo root:
-  **`scripts/verify-main-pr.sh`**. Run it before creating, pushing, or refreshing the promotion PR;
-  targeted or failing-spec reruns never substitute for its full `CI=true` portfolio.
+- `release-engineer` pushes only with fresh evidence from the **local final gate** (CLAUDE.md): typecheck,
+  lint on touched files, `vitest run --changed origin/dev`, the touched e2e journeys, and `supabase test db`
+  for DB changes. The full suite runs in CI on the PR and decides the merge — never merge on a red or unrun
+  check.
+- For a PR targeting `main`, CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
+  served-fn smoke) runs automatically and is the promotion gate. `scripts/verify-main-pr.sh` reproduces it
+  locally — use it only to diagnose a CI failure CI could not report.
 - **Never force-push. Never `git add -A`.** Stage the issue's files explicitly.
 - `release-engineer` opens the PR and **stops**. The **Director** approves & merges within the signed
   spec (`gh pr merge <n> --squash`), then performs the ordered cleanup below. Remote branch deletion

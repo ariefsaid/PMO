@@ -24,15 +24,25 @@
  * The old single `/procurement/:id` entry is replaced by four explicit tab entries.
  */
 // @e2e-isolation: read-only — viewport sweep + bleed measurement; login + nav to seeded routes; no DB writes.
-import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { test, expect, type Page, type Locator } from '@playwright/test';
+import { signIn, grantM365EntitlementFixture, stubM365StatusUnavailable, waitForFonts } from './helpers';
 
 // Known seed ids (stable across local + cloud — supabase/seed.sql).
 const MERIDIAN = '41000000-0000-0000-0000-000000000001';
 // SP2401-001 "PV Modules — Meridian 4.2 MW" — richest seeded procurement case (PR/RFQ/PO/PAY + events)
 const PROC_SHOWCASE = '61000000-0000-0000-0000-000000000001';
+// AC-RAM-003 (#688): P011 "Highfield Bridge Survey" — a pre-win seed row, read only here — is where a
+// RIS Admin's first project lives (pipeline lens). The on-hand MERIDIAN routes cover the delivery lens.
+const PIPELINE_LENS = '40000000-0000-0000-0000-000000000011';
 
-const ROUTES: { path: string; label: string }[] = [
+const ROUTES: {
+  path: string;
+  label: string;
+  /** Page-scoped read fixtures installed after sign-in, before navigation. */
+  prepare?: (page: Page) => Promise<void>;
+  /** Must be visible before measuring — guards against sweeping an empty shell. */
+  ready?: (page: Page) => Locator;
+}[] = [
   { path: '/', label: 'dashboard' },
   { path: '/my-tasks', label: 'my-tasks' },
   { path: '/sales', label: 'sales-pipeline' },
@@ -40,6 +50,7 @@ const ROUTES: { path: string; label: string }[] = [
   { path: `/projects/${MERIDIAN}/overview`, label: 'project-overview' },
   { path: `/projects/${MERIDIAN}/budget`, label: 'project-budget' },
   { path: `/projects/${MERIDIAN}/tasks`, label: 'project-tasks' },
+  { path: `/projects/${PIPELINE_LENS}`, label: 'project-pipeline-lens (AC-RAM-003)', ready: (p) => p.getByLabel('Project stage journey') },
   { path: '/procurement', label: 'procurement-list' },
   // AC-PR-027: the procurement-detail tabbed shell — all four tabs swept.
   // Each tab renders distinct content (stepper+timeline / line-items / ledger / quotes).
@@ -57,6 +68,15 @@ const ROUTES: { path: string; label: string }[] = [
   { path: '/companies', label: 'companies' },
   { path: '/contacts', label: 'contacts' },
   { path: '/administration', label: 'administration' },
+  {
+    path: '/integrations',
+    label: 'personal-integrations (AC-RAM-003)',
+    prepare: async (p) => {
+      await grantM365EntitlementFixture(p);
+      await stubM365StatusUnavailable(p);
+    },
+    ready: (p) => p.getByTestId('m365-connection-card'),
+  },
   // Legal pages (FR-LEG-029): public bare pages, swept at 390/360px for no-bleed.
   { path: '/terms', label: 'terms' },
   { path: '/privacy', label: 'privacy' },
@@ -103,10 +123,13 @@ test.describe('AC-MOBILE-OVERFLOW-001 no horizontal bleed @mobile', () => {
       test(`AC-MOBILE-OVERFLOW-001 ${route.label} @${width}`, async ({ page }) => {
         await page.setViewportSize({ width, height: 844 });
         await signIn(page, 'admin@acme.test');
+        await route.prepare?.(page);
         await page.goto(route.path);
+        if (route.ready) await expect(route.ready(page)).toBeVisible({ timeout: 20_000 });
         // Let async data + charts settle so we measure steady state, not the mount flash.
         await page.waitForLoadState('networkidle').catch(() => {});
         await page.waitForTimeout(1500);
+        await waitForFonts(page);
 
         const bleeders = await findBleeders(page, width);
         expect(

@@ -4,7 +4,7 @@
  * `@/src/lib/repositories/budgetProjection` is mocked; usePermission reads the real JWT role via the
  * mocked `useEffectiveRole`.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -49,6 +49,10 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 import BudgetProjection from './BudgetProjection';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 // ⚑ H-4 (audit r3): the client under test is a Jul–Jun one, so its ERPNext `Fiscal Year` doctype is
 // NAMED '2025-2026' — and `budget_version_erp_mirror.fiscal_year` / `erp_actuals_snapshot.fiscal_year`
@@ -120,7 +124,9 @@ beforeEach(() => {
   categoryYearsMock.mockReset();
   categoryYearsMock.mockResolvedValue(phasing({}));
   realRole = 'Finance';
+  setActiveLocale(EN_LOCALE);
 });
+afterEach(() => resetActiveLocale());
 
 describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
   it('renders the category row: PMO budget, ERP actuals, PMO ETC, projected final, variance, utilization', async () => {
@@ -314,6 +320,18 @@ describe('BudgetProjection — an unread ledger is not a zero (NEW-4)', () => {
     renderPage();
     await screen.findByText('Labor');
     expect(screen.getByText(/actuals as of/i)).toBeInTheDocument();
+  });
+
+  it('AC-PLC-005: dates the actuals reading on the viewer-timezone calendar day', async () => {
+    fetchMock.mockResolvedValue([{ ...ROW, actualsAsOf: '2026-06-14T23:30:00.000Z' }]);
+    setActiveLocale({ ...EN_LOCALE, timezone: 'UTC' });
+    const { unmount } = renderPage();
+    expect(await screen.findByText(/actuals as of jun 14, 2026/i)).toBeInTheDocument();
+    unmount();
+
+    setActiveLocale({ ...EN_LOCALE, timezone: 'Asia/Jakarta' });
+    renderPage();
+    expect(await screen.findByText(/actuals as of jun 15, 2026/i)).toBeInTheDocument();
   });
 
   it('NEW-4 claims no "as of" date when there is no reading to date', async () => {
@@ -596,7 +614,9 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     ]);
     renderPage();
     const link = await screen.findByRole('link', { name: /account map/i });
-    expect(link).toHaveAttribute('href', expect.stringContaining('/administration'));
+    // AC-ADMIA-003: the banner is the canonical org-level entry point to the map — it must target
+    // the exact Accounting route + fragment, not merely any /administration path.
+    expect(link).toHaveAttribute('href', '/administration/accounting#budget-account-map');
   });
 
   it('NEW-6 renders no category list when the failure has nothing to do with the map', async () => {
@@ -682,6 +702,33 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
     await user.type(field, '40000');
     await user.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 40000));
+  });
+
+  it('AC-PLC-009: rejects an en-US ETC amount with excess precision before the projection write', async () => {
+    setActiveLocale(EN_LOCALE);
+    const user = userEvent.setup();
+    renderPage('Finance');
+    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
+    const field = screen.getByLabelText(/estimate to complete/i);
+    await user.clear(field);
+    await user.type(field, '1.234');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(upsertEtcMock).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: parses id-ID ETC grouping as 1234 before the projection write', async () => {
+    setActiveLocale(ID_LOCALE);
+    const user = userEvent.setup();
+    renderPage('Finance');
+    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
+    const field = screen.getByLabelText(/estimate to complete/i);
+    await user.clear(field);
+    await user.type(field, '1.234');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 1234));
   });
 
   it('an Engineer (not OD-BUDGET-3) sees the ETC read-only — no edit affordance', async () => {

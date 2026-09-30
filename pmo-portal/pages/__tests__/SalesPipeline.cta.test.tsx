@@ -32,8 +32,6 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
   useLostDeals: () => ({ data: [] }),
 }));
-vi.mock('@/src/hooks/usePipelineView', () => ({ usePipelineView: () => ['table', vi.fn()] }));
-
 // Stub the create modal (tested elsewhere).
 vi.mock('../../components/ProjectFormModal', () => ({
   default: ({ onClose }: { onClose: () => void }) => (

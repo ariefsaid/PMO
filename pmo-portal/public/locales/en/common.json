@@ -1,5 +1,25 @@
 {
   "admin": {
+    "access": {
+      "checking": "Checking your Administration access…",
+      "checkEntry": "Check Administration access",
+      "denied": "Administration is an Admin, Executive, or platform Operator area. You don't have access.",
+      "operatorOnly": "Operator-only access: Usage and Features are available to platform Operators.",
+      "verifyError": "Could not verify access",
+      "verifyErrorSub": "Try again to open Administration controls."
+    },
+    "nav": {
+      "accounting": "Accounting setup",
+      "ariaLabel": "Administration sections",
+      "credits": "Credits",
+      "description": "Organization setup and governance.",
+      "features": "Features",
+      "integrations": "Organization integrations",
+      "platform": "Platform",
+      "title": "Administration",
+      "usage": "Usage",
+      "users": "Users"
+    },
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
       "description": "The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.",
@@ -13,6 +33,175 @@
       "value": {
         "exclusive": "Exclusive — tax is on top of the amount",
         "inclusive": "Inclusive — the amount already includes tax"
+      },
+      "loadError": {
+        "title": "Couldn't load the default tax treatment"
+      }
+    },
+    "retry": "Retry",
+    "loadErrorSub": "The request failed. Check your connection and try again.",
+    "roles": {
+      "engineer": "Engineer",
+      "projectManager": "Project Manager",
+      "finance": "Finance",
+      "executive": "Executive",
+      "admin": "Admin"
+    },
+    "users": {
+      "blocked": "Administration is an Admin-only area. You don’t have access to user management.",
+      "execReadOnly": "You can view the user directory, but only an Admin can add, edit, or disable users.",
+      "allUsers": "All users",
+      "search": {
+        "placeholder": "Search by name or email…",
+        "label": "Search users"
+      },
+      "invite": "Invite user",
+      "columns": {
+        "user": "User",
+        "role": "Role",
+        "status": "Status",
+        "manager": "Manager"
+      },
+      "status": {
+        "active": "Active",
+        "disabled": "Disabled"
+      },
+      "noManager": "No manager",
+      "menu": {
+        "editRole": "Edit role",
+        "changeManager": "Change manager",
+        "reEnable": "Re-enable",
+        "disable": "Disable"
+      },
+      "toast": {
+        "roleUpdated": "Role updated",
+        "roleUpdatedDetail": "{{name}} is now {{role}}.",
+        "managerUpdated": "Manager updated",
+        "managerUpdatedDetail": "Updated the reporting line for {{name}}.",
+        "disabled": "User disabled",
+        "disabledDetail": "{{name}} can no longer sign in.",
+        "reEnabled": "User re-enabled",
+        "reEnabledDetail": "{{name}} can sign in again.",
+        "inviteSent": "Invite sent",
+        "inviteSentDetail": "{{email}} has been invited as {{role}}."
+      },
+      "inviteError": {
+        "duplicateEmail": "That person is already in your workspace.",
+        "unauthorized": "You don't have permission to invite users.",
+        "invalidRole": "Choose a valid role.",
+        "unknownOrg": "That organization doesn't exist."
+      },
+      "error": {
+        "title": "Couldn't load users"
+      },
+      "empty": {
+        "title": "No users yet",
+        "sub": "People appear here once they are invited to the workspace."
+      },
+      "noMatch": {
+        "title": "No users match your search",
+        "sub": "Try a different name or email."
+      },
+      "roleConfirm": {
+        "title": "Change {{name}}'s role to {{role}}?",
+        "fallbackTitle": "Change role?",
+        "description": "This changes what they can see and do across the whole workspace, effective immediately. The change is recorded against your account.",
+        "confirm": "Change role"
+      },
+      "disableConfirm": {
+        "title": "Disable {{name}}?",
+        "fallbackTitle": "Disable user?",
+        "description": "They will no longer be able to sign in. You can re-enable them at any time.",
+        "confirm": "Disable"
+      },
+      "page": {
+        "description": "Manage users’ role, status, and reporting line. Administration is Admin-only; role changes are high-impact and recorded."
+      },
+      "inviteForm": {
+        "subtitleOperator": "Invite someone by email — they'll set their own password and role takes effect immediately.",
+        "subtitle": "Invite someone to your workspace by email — they'll set their own password.",
+        "legend": "Invite details",
+        "email": "Email",
+        "roleHelper": "Determines what this person can see and do once they sign in.",
+        "emailRequired": "Email is required.",
+        "emailInvalid": "Enter a valid email address."
+      },
+      "roleForm": {
+        "title": "Edit role",
+        "subtitle": "Set the workspace role for {{name}}",
+        "submit": "Save role",
+        "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
+      },
+      "managerForm": {
+        "title": "Change manager",
+        "subtitle": "Set the line manager for {{name}}",
+        "submit": "Save manager",
+        "legend": "Reporting line",
+        "label": "Manager",
+        "noun": "person",
+        "placeholder": "Assign a manager…",
+        "search": "Search people…",
+        "hint": "Used for timesheet-approval routing.",
+        "clear": "Clear manager"
+      }
+    },
+    "credits": {
+      "grant": "Grant credits",
+      "orgBalance": "Org balance",
+      "unit": "credits",
+      "error": {
+        "title": "Couldn't load balance"
+      },
+      "toast": {
+        "granted": "Credits granted",
+        "grantedDetail": "The org balance has been updated."
+      },
+      "form": {
+        "subtitle": "Add credits to the org pool. Takes effect immediately.",
+        "legend": "Grant details",
+        "amount": "Amount",
+        "amountHelper": "Must be greater than zero.",
+        "note": "Note",
+        "noteHelper": "Optional context recorded against the grant."
+      },
+      "amountRequired": "Amount is required.",
+      "amountPositive": "Grant amount must be positive."
+    },
+    "budgetMap": {
+      "sectionLabel": "Budget category to ERP account map",
+      "title": "Budget account map",
+      "description": "Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.",
+      "columns": {
+        "category": "Category",
+        "erpAccount": "ERP account",
+        "actions": "Actions"
+      },
+      "unmapped": "Not mapped — blocks every push",
+      "edit": "Edit {{category}}",
+      "map": "Map {{category}}",
+      "unmap": "Unmap {{category}}",
+      "error": {
+        "title": "Couldn't load the account map"
+      },
+      "toast": {
+        "unmapped": "Category unmapped",
+        "saved": "Account map saved"
+      },
+      "confirm": {
+        "title": "Unmap {{category}}?",
+        "fallbackTitle": "Unmap category?",
+        "description": "The category will have no ERP account. Pushing a budget with a non-zero amount in this category will fail closed until it is mapped again.",
+        "confirm": "Unmap"
+      },
+      "form": {
+        "editTitle": "Edit {{category}} mapping",
+        "editSubtitle": "Change the ERP account this category pushes to",
+        "createSubtitle": "Choose the ERP account this category pushes to",
+        "save": "Save mapping",
+        "legend": "Account",
+        "placeholder": "e.g. 5100 - Direct Costs",
+        "required": "An ERP account is required.",
+        "conflict": "{{account}} is already mapped to {{category}}."
       }
     }
   },
@@ -134,6 +323,22 @@
     "unknownRequester": "Unknown requester",
     "weekOf": "Week of"
   },
+  "combobox": {
+    "search": {
+      "label": "Search {{noun}}s",
+      "placeholder": "Search {{noun}}s…"
+    },
+    "loading": "Loading {{noun}}s…",
+    "error": {
+      "title": "Couldn't load {{noun}}s.",
+      "retry": "Retry"
+    },
+    "listLabel": "{{noun}}s",
+    "empty": {
+      "withQuery": "No {{noun}} matches \"{{query}}\".",
+      "bare": "No {{noun}} matches."
+    }
+  },
   "companies": {
     "accessDenied": {
       "sub": "The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.",
@@ -198,6 +403,7 @@
       "errorTitle": "Couldn't load companies"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different type or clear the search.",
       "emptyTitle": "No companies match your filters"
     },
@@ -472,7 +678,8 @@
     "descriptionMeetingsLink": "Meetings module",
     "filters": {
       "allCompanies": "All companies",
-      "companyLabel": "Filter by company"
+      "companyLabel": "Filter by company",
+      "unavailableCompany": "Unavailable company"
     },
     "form": {
       "company": {
@@ -525,6 +732,7 @@
       "errorTitle": "Couldn't load contacts"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different company or clear the search.",
       "emptyTitle": "No contacts match your filters"
     },
@@ -623,6 +831,9 @@
     },
     "title": "Executive Dashboard"
   },
+  "funnel": {
+    "scrollableRegion": "Stage summary, scrollable horizontally"
+  },
   "meetingDetail": {
     "action": {
       "button": "Action",
@@ -680,7 +891,8 @@
       "editSubtitle": "Update this meeting record",
       "editTitle": "Edit meeting",
       "errors": {
-        "titleRequired": "Meeting title is required."
+        "titleRequired": "Meeting title is required.",
+        "whenInvalid": "Enter a valid date and time."
       },
       "location": {
         "label": "Location"
@@ -763,11 +975,13 @@
     "description": "Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.",
     "filters": {
       "allProjects": "All projects",
-      "projectLabel": "Filter by project"
+      "projectLabel": "Filter by project",
+      "unavailableProject": "Unavailable project"
     },
     "form": {
       "errors": {
-        "titleRequired": "Meeting title is required."
+        "titleRequired": "Meeting title is required.",
+        "whenInvalid": "Enter a valid date and time."
       },
       "location": {
         "label": "Location",
@@ -802,6 +1016,7 @@
       "errorTitle": "Couldn't load meetings"
     },
     "table": {
+      "clearFilters": "Clear filters",
       "emptySub": "Try a different project or clear the search.",
       "emptyTitle": "No meetings match",
       "rowLabel": "Open {{title}}"
@@ -869,6 +1084,7 @@
     "lifecycleLabel": "Lifecycle",
     "listLabel": "Procurement requests",
     "noMatch": {
+      "clearFilters": "Clear filters",
       "sub": "Try a different status, search term, or clear the filters.",
       "title": "No requests match your filters"
     },
@@ -877,6 +1093,15 @@
       "label": "Filter requests",
       "placeholder": "Filter requests…"
     },
+    "stage": {
+      "gr": "Goods Receipt",
+      "paid": "Payment",
+      "po": "Purchase Order",
+      "pr": "Purchase Request",
+      "vi": "Vendor Invoice",
+      "vq": "Vendor Quote"
+    },
+    "stageEmpty": "No requests at {{stage}}",
     "statusFilterLabel": "Status filter",
     "title": {
       "orgWide": "Procurement",
@@ -1162,6 +1387,7 @@
         "title": "Archive {{name}}?"
       },
       "contractValue": "Contract value",
+      "invalidContractValue": "Enter a valid non-negative amount with no more than 2 decimal places.",
       "contractValueConfirm": {
         "body": "You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax.",
         "confirm": "Change and record",
@@ -1616,7 +1842,63 @@
         "updated": "Work order updated",
         "valueSet": "Work order value set"
       }
+    },
+    "loadError": {
+      "title": "Couldn't load this project",
+      "sub": "The request failed. Check your connection and try again.",
+      "retry": "Retry"
     }
+  },
+  "projectForm": {
+    "value": {
+      "helper": "Estimate, pre-win. Editable by Admin, Executive, and PM.",
+      "formatError": "Use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals — for example {{example}}."
+    },
+    "title": {
+      "create": "New project",
+      "edit": "Edit project"
+    },
+    "subtitle": {
+      "create": "Create a project",
+      "edit": "Update the project header details"
+    },
+    "submit": {
+      "create": "Create project",
+      "edit": "Save project"
+    },
+    "section": {
+      "project": "Project",
+      "schedule": "Schedule"
+    },
+    "name": {
+      "label": "Project name",
+      "placeholder": "e.g. Harborside Terminal — Civil Works",
+      "required": "Project name is required."
+    },
+    "client": {
+      "label": "Client company",
+      "placeholder": "Select a company…",
+      "search": "Search companies…",
+      "noun": "company",
+      "required": "Select a client company."
+    },
+    "pm": {
+      "label": "Project manager",
+      "placeholder": "Assign a PM…",
+      "noun": "manager"
+    },
+    "code": {
+      "label": "Project code",
+      "placeholder": "e.g. OPP-2041"
+    },
+    "stage": {
+      "label": "Origination stage",
+      "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."
+    },
+    "estimatedValue": "Estimated value",
+    "expectedStart": "Expected start",
+    "expectedEnd": "Expected end",
+    "taxRequiredHint": "State the tax treatment and the tax amount for this contract value — enter 0 if there is no tax. Without it the work-order drawdown compares this ceiling against order values on an unknown basis."
   },
   "projects": {
     "actions": {
@@ -1634,7 +1916,8 @@
       "pm": "PM",
       "progress": "Progress",
       "project": "Project",
-      "status": "Status"
+      "status": "Status",
+      "committed": "Committed"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
@@ -1686,6 +1969,56 @@
       "calendar": "Calendar",
       "cards": "Cards",
       "table": "Table"
+    },
+    "unnamedUser": "Unnamed user",
+    "export": "Export",
+    "import": "Import",
+    "mobile": {
+      "filters": "Filters",
+      "more": "More actions",
+      "activeCount": "Active filters",
+      "customer": "Customer",
+      "manager": "Project manager",
+      "removeCustomer": "Remove customer filter",
+      "removeManager": "Remove project manager filter",
+      "clearAll": "Clear all",
+      "loading": "Loading options…",
+      "noOptions": "No options available",
+      "error": "Couldn't load options",
+      "retry": "Retry",
+      "unavailable": "Unavailable selection"
+    },
+    "card": {
+      "delivery": "Delivery",
+      "deliveryPercent": "Delivery {{percent}}%",
+      "budgetUsedPercent": "Budget used {{percent}}%",
+      "budgetSummary": "{{spent}} of {{budget}} budget",
+      "committedPercent": "Committed: {{percent}}% of contract",
+      "actualPercent": "Actual spend: {{percent}}% of contract",
+      "editProject": "Edit {{name}}"
+    },
+    "kanban": {
+      "won": "Won",
+      "ongoing": "Ongoing",
+      "onHold": "On Hold",
+      "closeOut": "Close Out",
+      "internal": "Internal",
+      "board": "Projects kanban board",
+      "empty": "No projects in {{stage}}",
+      "swipe": "Swipe for more →"
+    },
+    "status": {
+      "leads": "Leads",
+      "pqSubmitted": "PQ Submitted",
+      "quotationSubmitted": "Quotation Submitted",
+      "tenderSubmitted": "Tender Submitted",
+      "negotiation": "Negotiation",
+      "wonPendingKom": "Won, Pending KoM",
+      "ongoingProject": "Ongoing Project",
+      "onHold": "On Hold",
+      "closeOut": "Close Out",
+      "lossTender": "Loss Tender",
+      "internalProject": "Internal Project"
     }
   },
   "sales": {
@@ -1741,6 +2074,7 @@
     },
     "summaryLabel": "Pipeline summary",
     "tableEmpty": {
+      "clearFilters": "Clear filters",
       "lost": {
         "sub": "Projects marked lost will appear here.",
         "title": "No lost projects"
@@ -1764,9 +2098,24 @@
     },
     "viewToggleLabel": "Pipeline view",
     "weightedForecast": "Weighted pipeline forecast",
-    "winProbability": "Win probability"
+    "winProbability": "Win probability",
+    "board": {
+      "ariaLabel": "Sales pipeline board",
+      "weightedShort": "{{value}} wtd"
+    },
+    "stage": {
+      "leads": "Leads",
+      "preQual": "Pre-Qual",
+      "quotation": "Quotation",
+      "tender": "Tender",
+      "negotiation": "Negotiation",
+      "lost": "Lost"
+    }
   },
   "shell": {
+    "backBar": {
+      "label": "Back to {{label}}"
+    },
     "breadcrumb": {
       "label": "Breadcrumb"
     },
@@ -1778,11 +2127,14 @@
       "openCommandPalette": "Open command palette",
       "openNavigation": "Open navigation menu",
       "privacy": "Privacy",
+      "returnToAdmin": "Return to Admin",
       "searchPlaceholder": "Search or jump to…",
       "signOut": "Sign out",
       "terms": "Terms",
-      "viewAsRoleHeading": "View as role",
-      "viewAsRoleInline": "View as role:"
+      "themeDark": "Dark",
+      "themeHeading": "Theme",
+      "themeLight": "Light",
+      "viewAsRoleHeading": "View as role"
     },
     "drawer": {
       "close": "Close navigation menu",
@@ -1796,7 +2148,7 @@
       "dashboard": "Dashboard",
       "incidents": "Incidents",
       "incomingPayments": "Incoming Payments",
-      "integrations": "Integrations",
+      "integrations": "My integrations",
       "meetings": "Meetings",
       "myTasks": "My Tasks",
       "procurement": "Procurement",
@@ -1805,7 +2157,7 @@
       "sales": "Sales Pipeline",
       "salesInvoices": "Sales Invoices",
       "timesheets": "Timesheets",
-      "profileSettings": "Profile settings"
+      "profileSettings": "Profile & preferences"
     },
     "notifications": {
       "empty": "No notifications yet.",
@@ -1841,10 +2193,6 @@
     },
     "skipLink": {
       "mainContent": "Skip to main content"
-    },
-    "themeToggle": {
-      "switchToDark": "Switch to dark theme",
-      "switchToLight": "Switch to light theme"
     }
   },
   "task": {
@@ -1936,23 +2284,211 @@
     "unknownProject": "Unknown Project",
     "weekOf": "Week of"
   },
+  "integrations": {
+    "organization": {
+      "scope": "Organization integrations connect your team’s external services. They are separate from your personal connections in My integrations — a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.",
+      "readiness": {
+        "connected": "Connected",
+        "disconnected": "Disconnected",
+        "notConnected": "Not connected",
+        "connectedBy": "Connected by",
+        "connectedAt": "Connected",
+        "connectedByUnavailable": "Former or unavailable user",
+        "disconnectedAt": "Disconnected",
+        "connectAction": "Connect {{service}}",
+        "disconnectAction": "Disconnect {{service}}",
+        "clickupLocation": "ClickUp is US-hosted SaaS — task-domain data resides with ClickUp",
+        "erpLocation": "Self-hosted ERP — data resides on your ERPNext instance",
+        "retry": "Retry",
+        "bindUnknown": "Connection state unavailable",
+        "bindUnavailableTitle": "Couldn't read connection status",
+        "bindUnavailableSub": "Connection state is unknown right now. Try reading it again, or connect if you have not yet.",
+        "bindRetry": "Retry status",
+        "erpActivation": {
+          "pending": "Awaiting activation — select a Company to activate",
+          "pausedNote": "ERP sync is paused until a Company is selected.",
+          "select": "Select Company",
+          "selectRequired": "Select a Company to activate.",
+          "title": "Select ERPNext Company",
+          "subtitle": "Choose the Company from your ERPNext instance to activate the integration",
+          "companyLabel": "Company",
+          "companyNoun": "company",
+          "placeholder": "Select a Company...",
+          "activate": "Activate",
+          "loading": "Loading Companies…",
+          "unavailableTitle": "Companies unavailable",
+          "unavailableSub": "Your ERPNext Companies could not be read. Try again to activate the integration.",
+          "emptyTitle": "No Companies found",
+          "emptySub": "Create a Company in ERPNext before activating this integration.",
+          "activateFailed": "Activation failed. Your selection was kept; you can try again."
+        },
+        "health": {
+          "loading": "Checking outbound work status…",
+          "unavailableTitle": "Outbound work status unavailable",
+          "unavailableSub": "Outstanding outbound work could not be read. Try again.",
+          "retry": "Retry outbound status",
+          "outstandingOne": "{{count}} outbound item pending or needs attention",
+          "outstandingMany": "{{count}} outbound items pending or need attention",
+          "liveRecordCheck": "To confirm data is usable, check an actual transferred record, not the connection alone.",
+          "outstandingZero": "0 outbound items pending or need attention"
+        },
+        "map": {
+          "title": "ClickUp binding map",
+          "empty": "No PMO projects are bound to ClickUp yet. Projects remain PMO-native until an admin links them.",
+          "caption": "PMO projects and their ClickUp List bindings",
+          "projectColumn": "PMO project",
+          "listColumn": "ClickUp List",
+          "statusColumn": "Status",
+          "bound": "Bound",
+          "pmoNative": "PMO-native",
+          "untrackedTitle": "ClickUp Lists PMO does not track",
+          "untrackedAria": "Untracked ClickUp Lists",
+          "untrackedNote": "PMO does not track",
+          "listsLoading": "Loading ClickUp lists…",
+          "listsUnavailable": "ClickUp lists are unavailable, so project-to-List bindings cannot be determined.",
+          "listsRetry": "Retry lists",
+          "bindingsLoading": "Loading project bindings…",
+          "bindingsUnavailable": "Project bindings are unavailable, so ClickUp connections cannot be determined.",
+          "bindingsRetry": "Retry bindings",
+          "projectsLoading": "Loading projects…",
+          "projectsUnavailable": "Projects are unavailable, so the project breakdown cannot be determined.",
+          "projectsRetry": "Retry projects",
+          "listUnavailable": "List unavailable",
+          "unknown": "Unknown"
+        },
+        "ownership": {
+          "title": "Employed domains (source of truth)",
+          "loading": "Checking employed domains…",
+          "unavailableTitle": "Employed domains unavailable",
+          "unavailableSub": "Your source-of-truth domains could not be read. Try again.",
+          "emptyTitle": "No employed domains set",
+          "emptySub": "No external source-of-truth domains are configured for this organization.",
+          "ownsDomains_one": "Owns {{count}} domain as source of truth.",
+          "ownsDomains_other": "Owns {{count}} domains as source of truth."
+        },
+        "disconnect": {
+          "title": "Disconnect?",
+          "titleService": "Disconnect {{service}}?",
+          "description": "Existing synced data is retained; syncing stops. You can reconnect later with the same or different credentials.",
+          "action": "Disconnect",
+          "failedTitle": "Disconnect did not complete",
+          "failedSub": "The service could not be disconnected. Existing synced data is retained; connection and syncing may be unchanged. Try again.",
+          "retryConfirm": "Try disconnect again"
+        },
+        "connect": {
+          "connectFailed": "Could not connect. Check the details and try again.",
+          "subtitle": "Enter your {{service}} credentials to establish the connection",
+          "credentials": "Credentials",
+          "tokenLabel": "Personal API token",
+          "urlLabel": "Instance URL",
+          "keyLabel": "API Key",
+          "secretLabel": "API Secret",
+          "tokenRequired": "Personal API token is required.",
+          "urlRequired": "Instance URL is required.",
+          "keyRequired": "API Key is required.",
+          "secretRequired": "API Secret is required."
+        }
+      }
+    },
+    "personal": {
+      "description": "Connect your personal Microsoft 365 account so PMO Portal can reach the content your account has access to. This is separate from your organization’s Administration integrations.",
+      "title": "My integrations"
+    },
+    "personalM365": {
+      "heading": "Microsoft 365",
+      "state": {
+        "loading": "Checking Microsoft 365 connection status…",
+        "notConnected": "Not connected. Connect your own Microsoft 365 account to let PMO Portal access the OneDrive files, Teams, and calendar information available through your account.",
+        "connected": "Connected. You can disconnect any time.",
+        "connectedSince": "Connected since {{date}}. You can disconnect any time.",
+        "organizationApproved": "Your organization has approved the PMO Portal app in Microsoft 365. Connect your own Microsoft 365 account to continue.",
+        "reconnect": "The Microsoft 365 connection expired. Please reconnect to continue.",
+        "revoked": "The Microsoft 365 connection was revoked. Connect again to continue.",
+        "unknown": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again."
+      },
+      "action": {
+        "connect": "Connect Microsoft 365",
+        "reconnect": "Reconnect Microsoft 365",
+        "disconnect": "Disconnect"
+      },
+      "confirm": {
+        "title": "Disconnect Microsoft 365?",
+        "description": "Disconnecting removes this Microsoft 365 account connection. PMO Portal can no longer access the OneDrive files, Teams, and calendar information available through this account until you reconnect. You can reconnect at any time.",
+        "cancel": "Cancel",
+        "confirm": "Disconnect"
+      },
+      "errors": {
+        "notEntitled": "Your organization isn't enabled for the Microsoft 365 integration yet.",
+        "disabledMember": "Your account access has been disabled. Please contact your administrator.",
+        "bannedMember": "Your account is suspended. Please contact your administrator.",
+        "organizationApprovalRequired": "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365.",
+        "forbidden": "Approving the PMO Portal app in Microsoft 365 is restricted to organization administrators and platform operators.",
+        "unauthorized": "Your session expired. Refresh the page and try again.",
+        "connectionStale": "The Microsoft 365 connection expired. Please reconnect.",
+        "connectionRevoked": "The Microsoft 365 connection was revoked. Connect again to continue.",
+        "notConnected": "Microsoft 365 isn't connected.",
+        "tokenExchangeFailed": "Microsoft declined the connection. Please try again.",
+        "invalidState": "The connection request expired. Please try again.",
+        "scopeInsufficient": "The connection needs additional permissions. Connect again to grant them.",
+        "badRequest": "The request was invalid. Please try again.",
+        "graphError": "Microsoft Graph is unavailable right now. Please try again shortly.",
+        "internalError": "Something went wrong on our end. Please try again.",
+        "disconnectFailureHeadline": "We couldn't confirm the disconnect. The last confirmed status is still connected.",
+        "disconnectFailureGuidance": "You can retry or cancel.",
+        "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+        "generic": "Microsoft 365 could not be connected. Please try again."
+      }
+    },
+    "m365OrgApproval": {
+      "heading": "Microsoft 365",
+      "badge": "Organization approval",
+      "description": "Approve the PMO Portal app for your organization in Microsoft 365. This one-time step lets your team connect their own Microsoft 365 accounts to PMO Portal.",
+      "approve": "Approve in Microsoft 365",
+      "approving": "Opening Microsoft 365…",
+      "errorFallback": "Could not start Microsoft 365 organization approval."
+    }
+  },
   "profileSettings": {
     "loading": "Loading profile…",
-    "title": "Profile settings",
-    "description": "Choose the language used for buttons, labels, and messages in this portal.",
+    "title": "Profile & preferences",
+    "description": "Choose your language, number format, and timezone for this portal.",
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
+      "effective": "Effective language: {{value}}",
       "options": {
         "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
-      },
-      "inheritHint": "Organization default follows your organization’s setting. Choose a language below to override it."
+      }
+    },
+    "number": {
+      "label": "Number format",
+      "help": "Preview: {{value}}",
+      "effective": "Effective number format: {{value}}",
+      "options": {
+        "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{value}}",
+        "id": "Indonesian (1.234.567,89)",
+        "en": "English (1,234,567.89)"
+      }
+    },
+    "timezone": {
+      "label": "Timezone",
+      "placeholder": "Select a timezone",
+      "search": "Search timezones…",
+      "noun": "timezone",
+      "effective": "Effective timezone: {{value}}",
+      "options": {
+        "inherit": "Organization default",
+        "inheritWithEffective": "Organization default — {{timezone}}"
+      }
     },
     "save": "Save",
     "saving": "Saving your preference…",
     "saved": "Preferences saved",
-    "error": "Could not save your preference. Please try again."
+    "error": "Could not save your preferences. Please try again.",
+    "invalidTimezone": "Choose a valid timezone before saving."
   }
 }

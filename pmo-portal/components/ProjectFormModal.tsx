@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import type { TFunction } from 'i18next';
 import {
   EntityFormModal,
   TextField,
@@ -11,14 +14,19 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
-import { parseMoneyInput } from '@/src/lib/format';
 import {
-  TAX_TREATMENT_OPTIONS,
-  TAX_TREATMENT_PLACEHOLDER,
-  CONTRACT_TAX_REQUIRED_HINT,
-  parseTaxFacts,
-} from '@/src/lib/taxTreatment';
+  currencySymbol,
+  formatMoneyInputValue,
+  moneyInputErrorKind,
+  numberSymbols,
+  parseMoneyInput,
+  parseMoneyInputAtScale,
+} from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { CONTRACT_TAX_REQUIRED_HINT, parseTaxFacts } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
+import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { projectIconColor } from './projects';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -94,29 +102,43 @@ function needsTaxBasis(valueRaw: string): boolean {
   return n !== null && n > 0;
 }
 
-const ORIGINATION_OPTIONS = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: s }));
-
 /**
  * "Estimated value" is OPTIONAL (a pre-win estimate may be unset). Blank → valid (unset).
- * Non-blank must parse (via the SAME `parseMoneyInput` used to persist — Wave 3 input integrity)
- * to a finite, non-negative number; otherwise an inline error blocks the submit.
+ * Non-blank must parse (via the same locale-aware scale-2 parser used to persist — Wave 3 input
+ * integrity) to a finite, non-negative number; otherwise an inline error blocks the submit.
+ *
+ * #684 AC-PLC-010/FR-PLC-010: a value that fails to parse AT ALL (wrong separators for the
+ * viewer's convention — `1,234.56` under `id-ID`, or a pasted `1234567.89` whose grouping matches
+ * neither convention) is a FORMAT mistake, not a precision one — it is told apart from a value
+ * that parses correctly but carries more fractional digits than the target column can store, and
+ * each gets its own message naming what actually went wrong.
  */
-function moneyError(raw: string): string | undefined {
+function moneyError(raw: string, t: TFunction, locale = getNumberLocale()): string | undefined {
   if (!raw.trim()) return undefined; // optional — blank is fine
-  const n = parseMoneyInput(raw);
-  return n === null || n < 0
-    ? 'Enter a valid non-negative number (e.g. 1,500,000).'
-    : undefined;
+  const n = parseMoneyInputAtScale(raw, 2, locale);
+  if (n !== null && n >= 0) return undefined;
+  if (moneyInputErrorKind(raw, 2, locale) === 'format') {
+    const { decimal, group } = numberSymbols(locale);
+    return t('projectForm.value.formatError', {
+      defaultValue: 'Use "{{group}}" to group thousands and "{{decimal}}" for decimals — for example {{example}}.',
+      group,
+      decimal,
+      example: formatMoneyInputValue(1234.56, locale),
+    });
+  }
+  return t('projectDetail.header.invalidContractValue', 'Enter a valid non-negative amount with no more than 2 decimal places.');
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.name.trim()) errors.name = 'Project name is required.';
-  if (!v.clientId) errors.clientId = 'Select a client company.';
-  const valueErr = moneyError(v.value);
-  if (valueErr) errors.value = valueErr;
-  return errors;
-};
+const makeValidate =
+  (t: TFunction) =>
+  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+    const errors: Partial<Record<keyof FormValues, string>> = {};
+    if (!v.name.trim()) errors.name = t('projectForm.name.required', 'Project name is required.');
+    if (!v.clientId) errors.clientId = t('projectForm.client.required', 'Select a client company.');
+    const valueErr = moneyError(v.value, t);
+    if (valueErr) errors.value = valueErr;
+    return errors;
+  };
 
 export interface ProjectFormModalProps {
   /** Omit (or 'create') for a new project; 'editHeader' to edit an existing project. */
@@ -140,6 +162,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onError,
 }) => {
   const isEdit = mode === 'editHeader';
+  const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
+  const originationOptions = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: statusLabel(s) }));
+  const validate = useMemo(() => makeValidate(t), [t]);
+  const taxOptions = useTaxTreatmentOptions();
   const { data: clients = [], isError: clientsError } = useClientCompanies();
   const { data: managers = [], isError: pmError } = useProjectManagers();
 
@@ -191,6 +218,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // no new figure for a default to describe, and pre-selecting there would put the CURRENT org
   // setting on an OLD row's basis — the read-time inference OD-TAX-1 forbids outright.
   const orgTaxDefault = useOrgTaxDefault();
+  // #694: a new project takes the org's currency (migration 0187), so that is the adornment.
+  const moneyPrefix = currencySymbol(useOrgCurrency());
   useTaxTreatmentPreselect(
     orgTaxDefault,
     form.values.taxTreatment,
@@ -207,7 +236,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     return clients.map((c) => ({
       value: c.id,
       label: c.name,
-      sub: 'Client',
+      sub: t('companies.type.client', 'Client'),
       initials: initialsOf(c.name),
       color: projectIconColor(),
     }));
@@ -259,7 +288,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             start_date: values.startDate || null,
             end_date: values.endDate || null,
           };
-          const contractValue = parseMoneyInput(values.value) ?? 0;
+          const contractValue = parseMoneyInputAtScale(values.value, 2) ?? 0;
           // #513: the basis travels WITH the value or the value is 0. `CreateProjectInput` is a
           // union on exactly this rule, so the branch below is not defensive style — it is the only
           // shape that compiles, and a non-zero value with no basis cannot be built here.
@@ -295,11 +324,13 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit project' : 'New project'}
+      title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
       subtitle={
-        isEdit ? 'Update the project header details' : 'Create a project'
+        isEdit
+          ? t('projectForm.subtitle.edit', 'Update the project header details')
+          : t('projectForm.subtitle.create', 'Create a project')
       }
-      submitLabel={isEdit ? 'Save project' : 'Create project'}
+      submitLabel={isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -307,22 +338,22 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       submitDisabled={!form.isComplete || taxIncomplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
-      <FormSection legend="Project">
+      <FormSection legend={t('projectForm.section.project', 'Project')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Project name"
+            label={t('projectForm.name.label', 'Project name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Harborside Terminal — Civil Works"
+            placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal — Civil Works')}
             fullWidth
           />
 
           <Combobox
-            label="Client company"
+            label={t('projectForm.client.label', 'Client company')}
             required
             value={form.values.clientId}
             selectedOption={
@@ -335,14 +366,14 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               setClientLabel(opt.label);
             }}
             loadOptions={loadClients}
-            placeholder="Select a company…"
-            searchPlaceholder="Search companies…"
-            noun="company"
+            placeholder={t('projectForm.client.placeholder', 'Select a company…')}
+            searchPlaceholder={t('projectForm.client.search', 'Search companies…')}
+            noun={t('projectForm.client.noun', 'company')}
             error={form.errors.clientId}
           />
 
           <Combobox
-            label="Project manager"
+            label={t('projectForm.pm.label', 'Project manager')}
             value={form.values.pmId}
             selectedOption={
               form.values.pmId && pmLabel
@@ -354,40 +385,41 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               setPmLabel(opt.label);
             }}
             loadOptions={loadManagers}
-            placeholder="Assign a PM…"
-            noun="manager"
+            placeholder={t('projectForm.pm.placeholder', 'Assign a PM…')}
+            noun={t('projectForm.pm.noun', 'manager')}
           />
 
           {isEdit ? (
             <TextField
               id={codeField.id}
-              label="Project code"
+              label={t('projectForm.code.label', 'Project code')}
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              placeholder="e.g. OPP-2041"
+              placeholder={t('projectForm.code.placeholder', 'e.g. OPP-2041')}
               mono
             />
           ) : (
             <>
               <SelectField
                 id={statusField.id}
-                label="Origination stage"
+                label={t('projectForm.stage.label', 'Origination stage')}
                 value={statusField.value}
                 onChange={(v) => statusField.onChange(v as ProjectStatus)}
-                options={ORIGINATION_OPTIONS}
-                helper="On-hand is reached only by winning a project in the pipeline, never created directly."
+                options={originationOptions}
+                helper={t('projectForm.stage.helper', 'On-hand is reached only by winning a project in the pipeline, never created directly.')}
               />
               <NumberField
                 id={valueField.id}
-                label="Estimated value"
-                prefix="$"
+                label={t('projectForm.estimatedValue', 'Estimated value')}
+                prefix={moneyPrefix}
                 value={valueField.value}
                 onChange={valueField.onChange}
                 onBlur={valueField.onBlur}
                 error={valueField.error}
+                localeAware
                 placeholder="0"
-                helper="Estimate, pre-win. Editable by Admin, Executive, and PM."
+                helper={t('projectForm.value.helper', 'Estimate, pre-win. Editable by Admin, Executive, and PM.')}
               />
               {/* #513: asked ONLY once a non-zero value is entered — a project originated at 0
                   states nothing and is asked nothing (migration 0197's conditional CHECK). No
@@ -398,22 +430,23 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 <>
                   <SelectField
                     id={taxTreatmentField.id}
-                    label="Tax treatment"
+                    label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
                     required
                     value={taxTreatmentField.value}
                     onChange={taxTreatmentField.onChange}
-                    placeholder={TAX_TREATMENT_PLACEHOLDER}
-                    options={TAX_TREATMENT_OPTIONS}
+                    placeholder={taxOptions.placeholder}
+                    options={taxOptions.options}
                     data-testid="project-tax-treatment"
                   />
                   <NumberField
                     id={taxAmountField.id}
-                    label="Tax amount"
+                    label={t('projectDetail.header.taxAmount', 'Tax amount')}
                     required
-                    prefix="$"
+                    prefix={moneyPrefix}
                     value={taxAmountField.value}
                     onChange={taxAmountField.onChange}
                     onBlur={taxAmountField.onBlur}
+                    localeAware
                     placeholder="0"
                     data-testid="project-tax-amount"
                   />
@@ -422,7 +455,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                       data-testid="project-tax-required-hint"
                       className="col-span-full text-[12px] text-muted-foreground"
                     >
-                      {CONTRACT_TAX_REQUIRED_HINT}
+                      {t('projectForm.taxRequiredHint', CONTRACT_TAX_REQUIRED_HINT)}
                     </p>
                   )}
                 </>
@@ -432,18 +465,18 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         </FormGrid>
       </FormSection>
 
-      <FormSection legend="Schedule">
+      <FormSection legend={t('projectForm.section.schedule', 'Schedule')}>
         <FormGrid>
           <TextField
             id={startField.id}
-            label="Expected start"
+            label={t('projectForm.expectedStart', 'Expected start')}
             type="date"
             value={startField.value}
             onChange={startField.onChange}
           />
           <TextField
             id={endField.id}
-            label="Expected end"
+            label={t('projectForm.expectedEnd', 'Expected end')}
             type="date"
             value={endField.value}
             onChange={endField.onChange}

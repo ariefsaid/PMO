@@ -76,7 +76,11 @@ test(
     await expect(page.getByRole('heading', { name: editedName })).toBeVisible({ timeout: 15_000 });
 
     // ── Step 3: AC-PRJ-005 — Executive archives the deal ───────────────────────
-    await page.getByRole('button', { name: /sign out/i }).click().catch(() => {});
+    // Sign out through the account menu, asserting the login page explicitly BEFORE
+    // changing persona (no swallowed click, no weaker proxy).
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: /sign out/i }).click();
+    await expect(page).toHaveURL(/\/login$/, { timeout: 15_000 });
     await login(page, 'exec@acme.test');
     await page.goto('/sales');
     await openPipelineCard(page, editedName);

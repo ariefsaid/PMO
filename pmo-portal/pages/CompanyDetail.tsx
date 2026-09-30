@@ -26,6 +26,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import {
   useCompany,
   useCompanyMutations,
@@ -38,7 +39,7 @@ import {
   useContactMutations,
 } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDate } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { companyTypeVariant, workflowVariant, crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
@@ -111,7 +112,12 @@ const CompanyDetail: React.FC = () => {
   const canArchive = may('archive', 'company');
   const canCreateContact = may('create', 'contact');
 
-  const goBack = () => navigate('/companies');
+  // list-working-set-return (#683, AC-LRC-006): the mobile BackBar returns to the validated
+  // Companies list context (filter + search + scroll) when the record was opened from that list,
+  // and falls back to the bare index for a direct/copied link. The desktop parent breadcrumb reads
+  // the same context via App.tsx's `contextualListReturnNavigation`.
+  const { returnToList } = useListReturn({ list: 'companies' });
+  const goBack = () => returnToList();
 
   // A-5 page view-gate (before the hooks-dependent branches; the hooks above already ran so
   // Rules of Hooks hold) — a denied role gets the shared access-denied surface.
@@ -132,7 +138,7 @@ const CompanyDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
         <div data-testid="company-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -144,7 +150,7 @@ const CompanyDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('companyDetail.error.title', "Couldn't load company")}
@@ -160,7 +166,7 @@ const CompanyDetail: React.FC = () => {
   if (!company) {
     return (
       <>
-        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} onBack={goBack} />
+        <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
         <div data-testid="company-not-found">
           <ListState
             variant="empty"
@@ -186,8 +192,10 @@ const CompanyDetail: React.FC = () => {
       await archive.mutateAsync(company.id);
       toast(t('companyDetail.toast.archived', 'Company archived'), company.name, 'success');
       setArchiveOpen(false);
-      // Archived records drop out of the default directory — return there.
-      navigate('/companies');
+      // Archived records drop out of the default directory. AC-LRC-006: return to the SAME
+      // filtered/searched list context (not a bare index reset) — the archived row simply drops
+      // out of the resulting set, shown truthfully.
+      returnToList();
     } catch (err) {
       onMutationError(err);
     }
@@ -570,7 +578,7 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
 const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatDate(iso);
+  return formatInstantDate(iso);
 };
 
 /**

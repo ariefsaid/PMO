@@ -14,8 +14,7 @@
  *   • a manifest entry absent from the real surface is STALE (the `check-e2e-skips.mjs` rule: a stale
  *     allowlist entry is itself a defect).
  *
- * Run with `--self-test` to prove it can redden on both. Same shape as check-promote-stamp.mjs /
- * check-e2e-skips.mjs.
+ * Run with `--self-test` to prove it can redden on both. Same shape as check-e2e-skips.mjs.
  *
  * Usage:  node scripts/check-isolation-denominator.mjs
  *         node scripts/check-isolation-denominator.mjs --self-test

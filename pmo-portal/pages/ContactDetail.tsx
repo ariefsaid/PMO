@@ -25,11 +25,12 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { useContact, useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDate } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { ContactInput } from '@/src/lib/db/contacts';
@@ -89,7 +90,12 @@ const ContactDetail: React.FC = () => {
     [companies],
   );
 
-  const goBack = () => navigate('/contacts');
+  // list-working-set-return (#683, AC-LRC-007): return to the validated Contacts list context
+  // (filter + search + scroll) when opened from that list; a direct/copied link falls back to the
+  // bare index. The Contact→Company related link below stays a PLAIN Link (no captured state) so
+  // it never carries Contacts list context onto the company record.
+  const { returnToList } = useListReturn({ list: 'contacts' });
+  const goBack = () => returnToList();
 
   if (!canView) {
     return (
@@ -108,7 +114,7 @@ const ContactDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
         <div data-testid="contact-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -120,7 +126,7 @@ const ContactDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('contactDetail.error.title', "Couldn't load contact")}
@@ -136,7 +142,7 @@ const ContactDetail: React.FC = () => {
   if (!contact) {
     return (
       <>
-        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
+        <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
         <div data-testid="contact-not-found">
           <ListState
             variant="empty"
@@ -164,7 +170,8 @@ const ContactDetail: React.FC = () => {
       await archive.mutateAsync(contact.id);
       toast(t('contactDetail.toast.archived', 'Contact archived'), contact.full_name, 'success');
       setArchiveOpen(false);
-      navigate('/contacts');
+      // AC-LRC-007: return to the same filtered/searched list context, not a bare index reset.
+      returnToList();
     } catch (err) {
       onMutationError(err);
     }
@@ -320,7 +327,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
 const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatDate(iso);
+  return formatInstantDate(iso);
 };
 
 /** Returns the route to the related object for an activity, or null when neither id is set.

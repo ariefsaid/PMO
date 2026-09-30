@@ -121,10 +121,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
 // real query. ⛑ At line-start on purpose — an earlier automated insert landed it INSIDE the
 // vi.mock call below, which parses as a syntax error rather than a wrong value.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useProcurementView', () => ({
-  useProcurementView: () => ['table', vi.fn()] as ['table', () => void],
-}));
-
 // ── Imports after mocks ──────────────────────────────────────────────────────
 import { FinanceDashboard, ReadyToPayTable } from '../FinanceDashboard';
 import ProcurementPage from '@/pages/Procurement';  // @/* maps to pmo-portal root per tsconfig paths

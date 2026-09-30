@@ -48,10 +48,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   }),
 }));
 
-vi.mock('@/src/hooks/useProjectView', () => ({
-  useProjectView: () => ['table', vi.fn()] as ['table', () => void],
-}));
-
 vi.mock('@/src/hooks/useMyTasks', () => ({
   useMyTasks: () => myTasksState,
 }));

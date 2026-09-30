@@ -13,7 +13,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDate, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -211,7 +211,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
       key: 'orderDate',
       header: t('projectDetail.workOrders.column.orderDate', 'Order date'),
       colClassName: 'hidden lg:table-cell',
-      cell: (row) => <span>{formatDate(row.order_date)}</span>,
+      cell: (row) => <span>{formatDateOnly(row.order_date)}</span>,
     },
     {
       key: 'actions',
@@ -252,7 +252,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                 onClick={() => setPending({ row, to: 'Cancelled' })}
               >
                 {t('projectDetail.workOrders.action.cancel', 'Cancel')}

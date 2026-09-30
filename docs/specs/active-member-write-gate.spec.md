@@ -145,7 +145,7 @@ Three things in the sections above were wrong or imprecise, found by reading the
 the resolved actor's `profiles.status` and applies `is_active_member()` **only when there is a JWT** —
 so its `p_actor` path never gets `0095`'s `banned_until` check. `0180` carries the whole rule on both
 paths (`AC-AMG-005` pins it: a raw-banned Admin passed as `p_actor_id` is refused). `approved_timesheet_for_push`
-itself is **not** changed by this slice and still has that narrower shape — see `docs/backlog.md`.
+itself was **not** changed by this slice; `0220` (2026-09-30) later gave it the same whole-standing check.
 
 ## 5. Out of scope
 

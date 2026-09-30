@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -58,6 +58,10 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import ProjectBudget from './ProjectBudget';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = (projectId = 'p-1') =>
   render(
@@ -132,7 +136,9 @@ function resetState() {
 beforeEach(() => {
   vi.clearAllMocks();
   resetState();
+  setActiveLocale(EN_LOCALE);
 });
+afterEach(() => resetActiveLocale());
 
 // ---------------------------------------------------------------------------
 // Core states (AC-726, NFR-BV-UI-001)
@@ -452,6 +458,34 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     });
   });
 
+  it('AC-PLC-009: rejects an en-US line item amount with excess precision before creating it', async () => {
+    setActiveLocale(EN_LOCALE);
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    await userEvent.type(screen.getByPlaceholderText(/Amount/i), '1.234');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(mockCreateLineItem).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: parses id-ID line item grouping as 1234 before creating it', async () => {
+    setActiveLocale(ID_LOCALE);
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    await userEvent.type(screen.getByPlaceholderText(/Amount/i), '1.234');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+
+    expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      item: expect.objectContaining({ budgeted_amount: 1234 }),
+    });
+  });
+
   it('can cancel the add line item form', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
@@ -701,6 +735,24 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
       expect(mockUpdateLineItem).toHaveBeenCalledWith({
         id: 'li-1',
         patch: expect.objectContaining({ fiscal_year: '2027' }),
+      }),
+    );
+  });
+
+  it('AC-PLC-009: an id-ID viewer can re-save an existing fractional amount unchanged', async () => {
+    setActiveLocale(ID_LOCALE);
+    const user = userEvent.setup();
+    versionsState.data = [
+      { ...draftVersion, line_items: [{ ...draftVersion.line_items[0], budgeted_amount: 1234.5 }] },
+    ];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /edit line item Labor/i }));
+    expect(screen.getByRole('textbox', { name: /^amount$/i })).toHaveValue('1.234,5');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() =>
+      expect(mockUpdateLineItem).toHaveBeenCalledWith({
+        id: 'li-1',
+        patch: expect.objectContaining({ budgeted_amount: 1234.5 }),
       }),
     );
   });

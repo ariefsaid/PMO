@@ -60,9 +60,6 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDeliverySummary: () => deliveryState,
 }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
-vi.mock('@/src/hooks/useProjectView', () => ({
-  useProjectView: () => ['table', vi.fn()],
-}));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),

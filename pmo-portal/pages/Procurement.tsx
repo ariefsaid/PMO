@@ -17,7 +17,6 @@ import { ImportButton } from '@/src/components/import';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
-import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -32,8 +31,12 @@ import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
-import { useProcurementView } from '@/src/hooks/useProcurementView';
-import { lifecycleSteps, pillVariantForStatus, stageLabelForStatus, openPR } from '../components/procurement';
+import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcurementView';
+import type { ProcurementView } from '@/src/hooks/useProcurementView';
+import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
+import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
+import { lifecycleSteps, pillVariantForStatus, stageLabelForStatus } from '../components/procurement';
 
 /** Status filter segments (the IA-3 stage SegFilter; "All" + the four reporting buckets
  *  + the B-2 "Needs approval" segment for Finance/PM).
@@ -55,11 +58,6 @@ type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Vendor Invo
 const ALL_FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Vendor Invoiced', 'Paid'];
 /** Roles that can approve procurement requests (Requested → Approved/Rejected per OD-PROC-1). */
 const APPROVAL_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
-
-/** Values accepted as ?status= URL params. Any unrecognised param falls back to "All". */
-const VALID_URL_STATUSES = new Set<StatusFilter>([
-  'All', 'Needs approval', 'Open', 'Ordered', 'Paid', 'Vendor Invoiced',
-]);
 
 const OPEN_STATUSES = new Set<string>([
   'Draft',
@@ -91,13 +89,26 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
   }
 }
 
+/**
+ * list-working-set-return (#682): the working set's `status` is either an exact lifecycle-status
+ * drill (`statusMode: 'exact'` — a single reachable status like `Draft`, never widened into a
+ * segment) or a broad segment (`statusMode: 'group'` — one of the six `StatusFilter` buckets
+ * `matchesFilter` already knows). This preserves the codec's exact/group distinction
+ * (`src/lib/listWorkingSet.ts`) at the row-filtering layer.
+ */
+function matchesWorkingSetStatus(
+  status: string,
+  ws: { status: string; statusMode: 'exact' | 'group' },
+): boolean {
+  if (ws.statusMode === 'exact') return status === ws.status;
+  return matchesFilter(status, ws.status as StatusFilter);
+}
+
 const ProcurementPage: React.FC = () => {
   const { t } = useTranslation();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
   const userId = currentUser?.id;
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const may = usePermission();
 
   // A-3 / OD-W2-1: an Engineer has no Procurement nav; when they reach /procurement the page is
@@ -141,15 +152,25 @@ const ProcurementPage: React.FC = () => {
   );
 
   const create = useCreateProcurement();
-  const [view, setView] = useProcurementView();
-  const [search, setSearch] = useState('');
-  // AC-IXD-DASH-W5-C2A: URL search-param read-on-mount convention. A ?status=<value> param
-  // drills directly into the requested filter segment (e.g. from a Finance dashboard KPI link).
-  // Backward-compatible: no param => "All" default. Unrecognised values fall back to "All".
-  const urlStatus = searchParams.get('status') as StatusFilter | null;
-  const [filter, setFilter] = useState<StatusFilter>(
-    urlStatus && VALID_URL_STATUSES.has(urlStatus) ? urlStatus : 'All',
+  // list-working-set-return (#682): `status`/`q`/`view` are URL-owned. The codec's own
+  // exact/group status distinction (AC-IXD-DASH-W5-C2A dashboard drills) is preserved by
+  // `matchesWorkingSetStatus`; the role gate on which segments are OFFERED (FILTERS below)
+  // stays independent of the URL parse (a role sees only its own segment tabs regardless of
+  // what an out-of-role `?status=` link requests — a request from the wrong role's dashboard
+  // just shows no tab selected, the same as before this migration).
+  const { workingSet, setWorkingSet } = useListWorkingSet('procurement', {
+    sessionView: readProcurementView(),
+  });
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
+    setWorkingSet((ws) => ({ ...ws, q })),
   );
+  const { openRecord } = useListReturn({ list: 'procurement', contentReady: !isPending && !isError });
+
+  const view = workingSet.view;
+  const onViewChange = (v: ProcurementView) => {
+    writeProcurementView(v);
+    setWorkingSet((ws) => ({ ...ws, view: v }));
+  };
   const [showNew, setShowNew] = useState(false);
   const [showCycleImport, setShowCycleImport] = useState(false);
 
@@ -186,7 +207,7 @@ const ProcurementPage: React.FC = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all
-      .filter((p) => matchesFilter(p.status as string, filter))
+      .filter((p) => matchesWorkingSetStatus(p.status as string, workingSet))
       .filter(
         (p) =>
           !q ||
@@ -194,13 +215,14 @@ const ProcurementPage: React.FC = () => {
           (p.code ?? '').toLowerCase().includes(q),
       )
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [all, search, filter]);
+  }, [all, search, workingSet]);
 
   // Board view opens a PR from a card-shaped surface; the table view's row click lives
-  // in ProcurementListRow (its own boundary — 'list' source).
+  // in ProcurementListRow (its own boundary — 'list' source), which threads the same
+  // `openRecord` (AC-LRC-005) rather than this page's own.
   const onOpen = (p: ProcurementWithRefs) => {
     trackProcurementDetailOpened('/procurement/:procurementId', 'card');
-    openPR(navigate, p);
+    openRecord(`/procurement/${p.id}`);
   };
 
   const columns: Column<ProcurementWithRefs>[] = [
@@ -284,6 +306,20 @@ const ProcurementPage: React.FC = () => {
         ? 'empty'
         : undefined;
 
+  // AC-LRC-012: both zero-match branches below only render when `all.length > 0` (the genuine
+  // collection-empty case is `state === 'empty'` above), so a zero-match result here is always a
+  // filtered zero-match — clearing status + search is always safe.
+  const clearListFilters = () => {
+    setSearch('');
+    setWorkingSet(() => parseListWorkingSet('procurement', '', { sessionView: readProcurementView() }));
+  };
+
+  // The SegFilter only ever highlights a GROUP-mode segment; an exact lifecycle-status drill
+  // (e.g. a `?status=Draft` dashboard link, statusMode 'exact') selects no visible tab — same as
+  // an out-of-role `?status=Needs+approval` request selecting no tab for a non-approver.
+  const filterValue: StatusFilter =
+    workingSet.statusMode === 'group' ? (workingSet.status as StatusFilter) : ('' as StatusFilter);
+
   return (
     <ListPage
       title={
@@ -321,9 +357,9 @@ const ProcurementPage: React.FC = () => {
             <div data-testid="status-filter-scroll" className="min-w-0 flex-1 overflow-x-auto scroll-fade-x">
               <ViewToggle<StatusFilter>
                 options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
-                value={filter}
+                value={filterValue}
                 onChange={(v) => {
-                  setFilter(v);
+                  setWorkingSet((ws) => ({ ...ws, status: v, statusMode: 'group' }));
                   trackFilterApplied('status', FILTERS.length, 'procurement');
                 }}
                 ariaLabel={t('procurement.statusFilterLabel', 'Status filter')}
@@ -375,19 +411,17 @@ const ProcurementPage: React.FC = () => {
       }
       view={
         state !== 'loading' && (
-          /* A-MIN-1: below md DataTable force-renders cards (no table/board possible),
-             so hide the Table/Board toggle — it would be a state-lie. */
-          <div className="hidden md:block">
-            <ViewToggle<'table' | 'board'>
-              options={[
-                { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
-                { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
-              ]}
-              value={view}
-              onChange={setView}
-              ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
-            />
-          </div>
+          /* #715: the Table/Board switch stays reachable on phones (it drives the URL-owned view),
+             so a phone user is never stuck in the last-used view. Supersedes A-MIN-1. */
+          <ViewToggle<'table' | 'board'>
+            options={[
+              { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
+              { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
+            ]}
+            value={view}
+            onChange={onViewChange}
+            ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
+          />
         )
       }
     >
@@ -443,6 +477,7 @@ const ProcurementPage: React.FC = () => {
               'procurement.noMatch.sub',
               'Try a different status, search term, or clear the filters.',
             )}
+            action={{ label: t('procurement.noMatch.clearFilters', 'Clear filters'), onClick: clearListFilters }}
           />
         ) : (
           <ProcurementBoard procurements={filtered} onOpen={onOpen} />
@@ -461,6 +496,7 @@ const ProcurementPage: React.FC = () => {
               'procurement.noMatch.sub',
               'Try a different status, search term, or clear the filters.',
             )}
+            action={{ label: t('procurement.noMatch.clearFilters', 'Clear filters'), onClick: clearListFilters }}
           />
         ) : (
           <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement requests')}>
@@ -483,7 +519,7 @@ const ProcurementPage: React.FC = () => {
               t('procurement.toast.created.detail', 'Add line items and quotations next'),
               'success',
             );
-            navigate(`/procurement/${id}`);
+            openRecord(`/procurement/${id}`);
           }}
           onError={(err) => {
             const { headline, detail } = classifyMutationError(err);

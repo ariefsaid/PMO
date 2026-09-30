@@ -167,7 +167,8 @@ color/semantic token for a first-class dark theme.** Every value below is copied
 ### Status / semantic (the dot/bar hue) + their AA text variants
 | Token | Light | Dark | Role |
 |---|---|---|---|
-| `--destructive` | `0 72% 50%` | `0 80% 62%` | destructive dot/bar/button fill |
+| `--destructive` | `0 72% 50%` | `0 80% 62%` | destructive dot/bar + `text-destructive` (error text) |
+| `--destructive-solid` | `0 72% 50%` | `0 80% 46%` | solid destructive BUTTON fill ONLY (AC-RAM-004) |
 | `--destructive-foreground` | `0 0% 100%` | `0 0% 100%` | white-on-destructive |
 | `--warning` | `40 96% 50%` | `43 90% 58%` | warning dot/bar |
 | `--warning-foreground` | `28 95% 33%` | `43 92% 64%` | AA amber text on warning tint |
@@ -437,6 +438,9 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 White `card`, `lg` radius, ~11px padding, faint rest shadow; hover lift + `muted-foreground/35%` border;
 active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill. 26px icon,
 name + customer, ~15px/700 tabular value, win-% chip, foot row (age + owner avatar + mini status pill).
+For project cards, the title uses the text-column width beside the icon and wraps without a line clamp;
+status follows the complete title, before client/code. Grid project cards retain their two-line title
+and top-right status placement.
 Columns in a horizontal-scroll grid of `minmax(258px, 1fr)` tracks with scroll-snap (one column per
 gesture on touch) + a right-edge mask fade. **ONE `ProjectCard` + ONE `KanbanBoard`** drive every board.
 
@@ -451,12 +455,30 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Rail:** `--rail-w: 224px`, `card`/sunken bg, right `border`. Brand block (56px). Grouped items under
   Overline labels. **Nav item:** 36px tall, `sm` radius, 13.5px/500, 17px stroke-2 icon, optional quiet
   count. Hover → `accent`; active → `primary/10%` bg + `--nav-active-text` (AA blue) + 600 +
-  `aria-current="page"`. Foot holds Settings + the non-destination Assistant toggle (`aria-pressed`).
+  `aria-current="page"`. Personal profile, language, theme, and sign out live in the account menu;
+  the non-destination Assistant toggle uses `aria-pressed`.
 - **Top bar:** `--header-h: 56px`, `background` bg, bottom `border`. Mobile menu + breadcrumb (`muted` →
   `foreground` on hover, `>` separators, bold current) + spacer + `cmdk` search (`⌘K`) + icon button with
   a `destructive` notification dot + user chip (avatar gradient + name/role, hidden on phone).
 - **Mobile:** below 920px the rail collapses (`--rail-w: 0`); hamburger appears; `cmdk` shrinks to an
   icon. (Two breakpoints: 920px rail-collapse, 768px table→card reflow.)
+- **Route-backed setup:** Administration section links are native navigation links. The selected
+  section, breadcrumb, panel heading, and URL use one label and one route; compatibility redirects
+  do not add a history stop. Personal **My integrations** remains distinct from organization setup.
+  When an async panel owns a URL fragment, focus and scroll its target after the panel mounts.
+  A background access refresh keeps a settled panel visible; pending access applies only before
+  membership resolves, and an unavailable check has a recoverable error state.
+
+### Organization integration readiness
+- A connection, service activation, outbound queue state, and verified data movement are separate
+  facts. A connected binding receives a neutral **Connected** status; it never implies a successful
+  transfer. Only a trustworthy success event may be labeled as the last successful sync.
+- Read each service and each supporting map source independently. A slow or failed source shows an
+  explicit loading or unavailable state with a source-specific retry; it cannot turn known sibling
+  data into an empty or disconnected claim. The Admin's next permitted recovery action stays nearby.
+- Keep credential, Company activation, and disconnect failures in their originating dialog. Preserve
+  entered values and selections for retry, and describe the outcome conservatively until the write
+  actually succeeds. Use the same status, card, button, and dialog primitives in both languages.
 
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary`, 28px buttons, "on" = white `background` pill +
@@ -467,14 +489,12 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 ### Overlays
 - **Popover menu:** `popover` bg, `border`, `lg` radius, overlay shadow, 5px padding; 32px items, `accent`
   hover, `danger` items in `destructive-text`, hairline separator.
-- **Modal dialog — error + focus rules (locked 2026-07-28, OD-FORM-A11Y).** Three rules. ⚑ **Rules 1 and 2
-  are already TRUE of every dialog** — they live inside `EntityFormModal` and every consumer inherits them
-  with no opt-in. **Rule 3 is a rule, not yet a fact:** it needs the consumer to pass `submitError`, and
-  only **2 of 18** consumers do (`pages/Companies.tsx`, `pages/Contacts.tsx`). The other 16 still show a
-  rejected save the old way. Do not read rule 3 as describing the app as it stands — the rollout is
-  tracked in `docs/backlog.md`. (Caught by the step-7 acceptance pass, 2026-07-28: this section
-  originally read "binding on every dialog", which was true of 1+2 and false of 3. A design-system rule
-  stated as universal without a rollout tracker reads as a completed fact to the next person.)
+- **Modal dialog — error + focus rules (locked 2026-07-28, OD-FORM-A11Y).** Rules 1 and 2 live inside
+  `EntityFormModal` and every consumer inherits them with no opt-in. Rule 3 requires the consumer to pass
+  `submitError` or to keep an equivalent persistent error in the dialog. The rollout is now guarded by
+  `src/lib/__tests__/entityFormModal.saveErrorCoverage.test.ts`: every consumer is wired or carries a
+  reasoned exemption, and stale exemptions fail. The previous “2 of 18” rollout count described the
+  2026-07-28 state and is no longer current.
   1. **Blur-surfaced errors must never drive focus; only submit-surfaced ones do.** Validation-on-blur plus
      "focus the first invalid field" composes into a keyboard trap (WCAG 2.1.2) — the user can never leave
      the field. Focusing the first invalid field on **submit** is correct and stays.
@@ -485,6 +505,9 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
      `text-destructive`, headline in `text-destructive-text`, body in `muted-foreground`; `role="alert"`,
      `tabIndex={-1}`, and focus returns to the region (never to the submit button — that risks an
      accidental re-submit). It states that nothing was saved and that the entries are intact.
+     **Text on a destructive tint always uses `destructive-text`, never `destructive`** — `destructive`
+     is reviewed only against `canvas`/`raised` backgrounds and fails WCAG AA on the `destructive/[0.07]`
+     tint (found live on the M365 disconnect-failure alert, issue #689, fixed by this same rule).
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
 - **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
@@ -510,6 +533,12 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Do** reserve violet/status hues for non-interactive meaning — never as action colors.
 - **Do** route every status/severity/category pill through `src/lib/status/statusVariants.ts`.
 - **Do** open every primary entity as a routable `/x/:id` page (The Record-Open Rule, §7).
+- **Do** give every item of a responsive `grid`/`flex` layout an explicit `min-w-0` the moment ANY
+  descendant is intrinsically wide and un-wrappable (a `LifecycleStepper`-style scroll row, a mono id,
+  `whitespace-nowrap`): the CSS default `min-width: auto` floors the shared track/item at that
+  descendant's content-based minimum, overflowing a narrow viewport, even when a nested
+  `overflow-hidden` sits several levels further down (AC-RAM-003, #688 — `PipelineLens`'s two-card
+  grid panned to 618px at 390px before this).
 
 ### Don't:
 - **Don't** ship the "AI SaaS marketing" aesthetic (dark+purple-gradients, neon, glassmorphism, hero
@@ -562,6 +591,13 @@ Fixed grammar: **[title + count] … [primary "New &lt;Entity&gt;"]**, then a to
 (icon segmented); status filters left as text chips — visually distinct. Implemented as `ListPage`
 (`src/components/ui/ListPage.tsx`): named slots `title / description / count / primaryAction` +
 `banner / filters / search / secondaryFilter / exportAction / importAction / view`.
+At phone width, a list may use the `mobileToolbar` slot to keep status, search, and the current view
+visible while grouping secondary controls in labelled inline disclosures. Opening one disclosure
+closes its sibling on click; an outside pointer-down must not collapse the first panel before the
+user's click reaches the second trigger. Keep the panels in document flow and their actions reachable.
+Escape and outside interaction close the active panel; a closed, inert shell dialog does not block
+dismissal. Restore focus after an action unmounts its panel, while preserving focus on another
+control the user intentionally selected.
 
 ### Approvals (one inbox)
 `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one
@@ -634,10 +670,25 @@ Light (text token → on surface → ratio) and Dark:
 `--primary-text` bright-blue split (the reskin `--ds-primary-text`, already prototyped) landing with the
 surface slices — **not a token-layer concern**. Until then, surface agents MUST use the AA `-text` tokens
 (`--nav-active-text`, `--status-*-text`, `--destructive-text`, `--success-text`) for blue/status TEXT.
-**Unverified solids (not in the §0 table):** the solid BUTTON fills `--primary` (light `53.3%` L) and
-`--destructive` (light `50%` / dark `62%` L) with white text were not contrast-verified in §0 — §0's
-AA-passing solids are darker `-solid` variants (primary-solid 47%/52%, destructive-solid 44%/46%) the app
-has not yet split out. Treat solid status-button contrast as pending the surface slices.
+**Unverified solid (not in the §0 table):** the solid `--primary`-BUTTON fill (light `53.3%` L) with
+white text was not contrast-verified in §0 — the app has not yet split `--primary`/`-solid` the way
+`--destructive` now is (below). Treat solid `--primary`-button light contrast as pending the surface
+slices.
+**Dark `--destructive` — CLOSED (AC-RAM-004, #688, 2026-09-29; REGRESSED-THEN-FIXED same day).**
+Measured 3.58:1 with white button text (`0 80% 62%`, e.g. the organization-integrations "Disconnect"
+button) — sub-AA. The first fix darkened `--destructive` ITSELF to the `-solid` target (`0 80% 46%`).
+That broke `text-destructive` (error text, ~30 callsites) and the status dot/bar, which both rely on
+the brighter raw hue for THEIR OWN contrast against the dark canvas — dark error text fell to ~3.5:1,
+sub-AA. Corrected same day by actually splitting the token: a dedicated **`--destructive-solid`**
+(light `0 72% 50%` — same as raw `--destructive`, light was never flagged as failing; dark `0 80% 46%`)
+used ONLY by the solid destructive Button fill (`buttonClasses.ts`'s `destructive` variant); raw
+`--destructive` restored to `0 80% 62%` in dark so `text-destructive`/the dot/bar keep their original
+AA-on-canvas contrast. White button text on `--destructive-solid` now ~5.38:1. Same class of gap as
+the raw-`text-primary`/`text-success`-as-TEXT rule above — also fixed at three more callsites in the
+same pass (`StatTiles` positive-tone value, the milestone-phase "Current" badge + its Edit-progress
+link, the active in-page `Tabs` label): all now use their `-text` token instead of the raw hue.
+Deterministic gates: `src/components/ui/__tests__/destructiveSolidToken.test.ts` (token split + Button
+wiring) + `e2e/AC-RAM-004-ris-admin-axe.spec.ts` (rendered axe, both themes).
 
 **Avatar categorical solids — CLOSED (2026-07-06 audits → fixed 2026-07-07).** The `Avatar` in
 `pages/AdminUsers.tsx` renders bold WHITE initials on a raw categorical hue picked from
@@ -645,6 +696,17 @@ has not yet split out. Treat solid status-button contrast as pending the surface
 2.96:1, raw `--warning` 1.96:1) failed AA as a solid white-text fill. Fixed via dedicated `--avatar-1..5`
 tokens (same H/S family, darkened L) — see the "Avatar categorical solids" table above. Deterministic gate:
 `AdminUsers.avatarContrast.test.ts` (`AC-A11Y-AVATAR-001`).
+
+**Milestone card, narrow-card readability — CLOSED (AC-RAM-004, #688, round 3, 2026-09-29).** A
+grid of secondary metric cards (e.g. `MilestoneStrip`'s `milestone-card-grid`) must size its
+columns off the grid's OWN rendered width, not a viewport breakpoint — a card embedded in a
+narrower record-layout column (e.g. `ProjectDetail`'s two-column `lg:grid-cols-[minmax(0,1fr)_340px]`)
+can be far narrower than the viewport implies, and a fixed column count (`xl:grid-cols-4`) will
+squeeze the title until it has no readable width left. Prefer CSS `auto-fit`/`minmax` (a
+content-driven floor per card) over a viewport-keyed column count; keep the title on one column
+and its secondary metric (the effective %) in a reserved column beside it, sized so the floor
+covers both plus the card's own padding and any corner affordance (the `⋯` menu) — narrow cards
+should drop a column before a title runs out of room, never squeeze the title to fit one.
 
 **Status dots** are graphical (≥3:1) and always paired with a text label (WCAG-exempt); light
 success-dot 3.92 / warn-dot 3.17 / neutral-dot 4.22 on canvas; dark dots already clear 3:1 at the vivid
@@ -669,6 +731,36 @@ buttons and landmarks. **Keyboard:** tab order follows DOM; overlays add focus m
 **Coherence-Wave invariants:** every new record page carries a focus-managed heading + breadcrumb + Back;
 `RecordActionZone` keeps the primary action in the keyboard path and above the fold; status pills stay
 dot+label (never color-only).
+
+**Scrollable regions (2026-09-28):** a horizontally scrolling region with no focusable children gets
+`role="group"`, a label, and `tabIndex={0}` — otherwise a keyboard user has no way to reach its overflow
+(axe `scrollable-region-focusable`). Skip this when the region already contains its own focusable
+children (e.g. `Funnel` stages rendered with `onSelect`); adding it there would only insert a redundant
+tab stop ahead of the first real control.
+**When the scroll viewport already carries `role="list"` (2026-09-29, `LifecycleStepper` bar variant,
+AC-RAM-004):** don't put `role="group"` on that same element — a `listitem` child requires a `list`
+ancestor, so swapping the role breaks `aria-required-parent`. Add a wrapping `role="group"`/`tabIndex={0}`
+div one level OUT, and drop `aria-label` from it (leave the label on the inner `role="list"`) — an
+`aria-label` on both would give `getByLabel(label)` two matches for one component.
+
+**Bottom-aligned row indicators (2026-09-28, `Funnel` bars):** a fixed top margin and a bare
+`margin-top: auto` each solve only half of "pin an indicator to the bottom of every card in a
+stretched row, with a guaranteed minimum gap above it": a fixed margin loses cross-row alignment the
+moment one sibling's content wraps taller, and `margin-top: auto` alone collapses to a 0px gap
+whenever every sibling's natural height is already equal (the common case, since a flex column with
+no imposed extra height gives an auto margin nothing to consume). Use both together — a fixed
+padding-floor (e.g. `pt-2`) on a transparent wrapper for the minimum gap, plus `mt-auto` on that same
+wrapper for the cross-row alignment — and never put the padding on the indicator's own visible/filled
+element, or the fill color paints through the gap.
+
+**Focus ring inside a scrolling ancestor (2026-09-28, `Funnel` stages):** the global outward
+`:focus-visible` ring (2px width, 2px offset) assumes its element's nearest scrolling ancestor has
+`overflow: visible`. Setting only `overflow-x: auto` on an ancestor still computes `overflow-y` to
+`auto` too (the CSS overflow spec forces the paired axis once either axis leaves `visible`), so that
+ancestor clips the ring's top/bottom edge along with everything else it clips. A focusable element
+whose nearest scrolling ancestor is itself the clip boundary (not a further-out page scroller) must
+draw its ring INWARD instead — `focus-visible:outline-offset-[-2px]` with the same width/color
+token — so the ring never crosses into the ancestor's own clip region on any side.
 
 ---
 

@@ -17,14 +17,19 @@ import {
   type Column,
   TaxBasisLabel,
 } from '@/src/components/ui';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../components/SalesKanbanBoard';
-import { usePipelineView } from '@/src/hooks/usePipelineView';
+import { readPipelineView, writePipelineView } from '@/src/hooks/usePipelineView';
+import type { PipelineView } from '@/src/hooks/usePipelineView';
+import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
+import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import {
   SALES_COLUMNS,
   weightedValue,
@@ -34,6 +39,7 @@ import {
   daysSince,
   isNeedsAttention,
   ATTENTION_THRESHOLD_DAYS,
+  type OpenFunnelStage,
 } from '../components/salesPipeline';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -55,6 +61,7 @@ const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
   const { t } = useTranslation();
+  const stageLabel = useSalesStageLabel();
   // FR-L10N-020: this page's STAGE/FUNNEL AGGREGATES (and total-weighted forecast) sum across
   // deals and so carry no record currency — the org default is the honest denomination for those.
   // Per-ROW deal figures (table Value/Weighted cells, kanban cards) render each deal's OWN currency
@@ -79,25 +86,39 @@ const SalesPipeline: React.FC = () => {
   // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
   const { data: lostDeals, isError: lostError, refetch: refetchLost } = useLostDeals();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [view, setView] = usePipelineView();
-  const [search, setSearch] = useState('');
-  const [scope, setScope] = useState<DealScope>('Open');
+  // list-working-set-return (#682): `scope`/`status`/`q`/`view` are URL-owned. D-1
+  // (AC-JR-W3B-05) dashboard drill-links via `?status=` keep working — the codec normalizes
+  // a contradictory `scope=Lost&status=<open stage>` to Open (AC-LRC-002).
+  const { workingSet, setWorkingSet } = useListWorkingSet('sales', {
+    sessionView: readPipelineView(),
+  });
+  // Search stays LOCAL text written to the URL after a pause — see useUrlSearchInput's contract.
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
+    setWorkingSet((ws) => ({ ...ws, q })),
+  );
+  const { openRecord } = useListReturn({ list: 'sales', contentReady: !isPending && !isError });
 
-  // D-1 (AC-JR-W3B-05): seed stageIndex from ?status= so drill-links from
-  // ProjectedMarginBars land pre-filtered. Index is derived from OPEN_COLUMNS
-  // (the same source the Funnel uses) so the two filters stay in sync.
-  const initialStageIndex = useMemo(() => {
-    const statusParam = searchParams.get('status');
-    if (!statusParam) return null;
-    const idx = OPEN_COLUMNS.findIndex((c) => c.statuses.includes(statusParam));
-    return idx >= 0 ? idx : null;
-  }, [searchParams]);
+  const scope = workingSet.scope;
+  const view = workingSet.view;
+  const onViewChange = (v: PipelineView) => {
+    writePipelineView(v);
+    setWorkingSet((ws) => ({ ...ws, view: v }));
+  };
 
+  /** The funnel stage currently selected from the URL, or null when none is. */
+  const selectedStatus: OpenFunnelStage | null =
+    (workingSet.status as OpenFunnelStage | '') || null;
   /** Index into OPEN_COLUMNS for the currently selected funnel stage (null = no stage filter). */
-  const [stageIndex, setStageIndex] = useState<number | null>(initialStageIndex);
-  /** The status string for the selected funnel stage, or null when no stage is selected. */
-  const selectedStatus = stageIndex !== null ? OPEN_COLUMNS[stageIndex]?.statuses[0] ?? null : null;
+  const stageIndex = useMemo(
+    () =>
+      selectedStatus === null
+        ? null
+        : (() => {
+            const idx = OPEN_COLUMNS.findIndex((c) => c.statuses.includes(selectedStatus));
+            return idx >= 0 ? idx : null;
+          })(),
+    [selectedStatus],
+  );
 
   const openProjects = useMemo(() => data?.projects ?? [], [data]);
   const lost = useMemo(() => lostDeals ?? [], [lostDeals]);
@@ -153,7 +174,7 @@ const SalesPipeline: React.FC = () => {
     const s = stageByStatus.get(col.statuses[0]);
     const weighted = s?.weighted_value ?? 0;
     return {
-      name: col.title,
+      name: stageLabel(col),
       dotColor: col.dotColor,
       prob: s ? formatPercent(s.win_probability) : undefined,
       // FR-L10N-020: a STAGE total sums across deals, so it has no record currency — org default.
@@ -173,7 +194,7 @@ const SalesPipeline: React.FC = () => {
     'Needs attention': t('sales.scope.needsAttention', 'Needs attention'),
   };
 
-  const onOpen = (p: PipelineProject) => openOpportunity(navigate, p);
+  const onOpen = (p: PipelineProject) => openOpportunity(openRecord, p);
 
   const tableColumns: Column<PipelineProject>[] = [
     {
@@ -366,6 +387,27 @@ const SalesPipeline: React.FC = () => {
     );
   }, [kanbanProjects, search]);
 
+  // AC-LRC-012: this DataTable's `empty` branch only renders when the collection has data (the
+  // genuine collection-empty case is `state === 'empty'` below), so a zero-match here is a
+  // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
+  // nothing is active (e.g. no open deals but lost ones exist) would be a no-op, so no action then.
+  const filtersActive = search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
+  // The Lost / Needs-attention copy ("No lost projects") is true only when the SCOPE itself is
+  // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
+  // (AC-LRC-012) — the scope-empty sentence would deny rows that exist.
+  const narrowedWithinScope = search.trim() !== '' || stageIndex !== null;
+  // AC-LRC-012 (Board): the board has no scope/stage filter of its own (only search narrows
+  // `kanbanProjects` to `kanbanFiltered`), so a zero-match here is always a search zero-match, not
+  // the genuine-empty state (`state === 'empty'` above already covers no open AND no lost deals).
+  const boardZeroMatch = kanbanFiltered.length === 0;
+  // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
+  // controls move together (no second event drops the first call). Shared by the table's
+  // DataTable `emptyAction` and the board's zero-match ListState below.
+  const clearFilters = () => {
+    setSearch('');
+    setWorkingSet(() => parseListWorkingSet('sales', '', { sessionView: readPipelineView() }));
+  };
+
   // ── States ────────────────────────────────────────────────────────────────
   // Empty only when there are no open AND no lost deals (a lost-only org still has a Pipeline).
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
@@ -434,16 +476,19 @@ const SalesPipeline: React.FC = () => {
             </div>
           ) : state === undefined ? (
             <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="mb-4">
-              {/* Narrow viewports scroll the band horizontally so the five stages stay
-                  readable rather than crushing below their min track width (§2 reflow). */}
-              <div className="overflow-x-auto">
-                <Funnel
-                  stages={funnelStages}
-                  className="min-w-[640px]"
-                  selectedIndex={stageIndex ?? undefined}
-                  onSelect={(i) => setStageIndex((prev) => (prev === i ? null : i))}
-                />
-              </div>
+              {/* Narrow viewports scroll the band locally; the shared Funnel owns its own
+                  min-track scroll viewport so each stage's exact amount stays in its stage. */}
+              <Funnel
+                stages={funnelStages}
+                selectedIndex={stageIndex ?? undefined}
+                onSelect={(i) => {
+                  const nextStatus = OPEN_COLUMNS[i]?.statuses[0] as OpenFunnelStage | undefined;
+                  setWorkingSet((ws) => ({
+                    ...ws,
+                    status: ws.status === nextStatus ? '' : (nextStatus ?? ''),
+                  }));
+                }}
+              />
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
                 <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
                 <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
@@ -461,7 +506,7 @@ const SalesPipeline: React.FC = () => {
           <ViewToggle<DealScope>
             options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
             value={scope}
-            onChange={setScope}
+            onChange={(v) => setWorkingSet((ws) => ({ ...ws, scope: v }))}
             ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
           />
         )
@@ -491,7 +536,7 @@ const SalesPipeline: React.FC = () => {
               { value: 'table', label: t('sales.view.table', 'Table'), icon: 'table' },
             ]}
             value={view}
-            onChange={setView}
+            onChange={onViewChange}
             ariaLabel={t('sales.viewToggleLabel', 'Pipeline view')}
           />
         )
@@ -521,8 +566,20 @@ const SalesPipeline: React.FC = () => {
         />
       )}
 
-      {state === undefined && view === 'kanban' && (
-        <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} />
+      {/* AC-LRC-012: a search that matches no card on the Board shows the same zero-match copy
+          + Clear filters as the Table (state === 'empty' above already covers the genuine
+          no-open-AND-no-lost pipeline, which keeps its own create-first-project state). */}
+      {state === undefined && view === 'kanban' && boardZeroMatch && (
+        <ListState
+          variant="empty"
+          title={t('sales.tableEmpty.search.title', 'No projects match your search')}
+          sub={t('sales.tableEmpty.search.sub', 'Try a different name or customer.')}
+          action={{ label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }}
+        />
+      )}
+
+      {state === undefined && view === 'kanban' && !boardZeroMatch && (
+        <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
       )}
 
       {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (
@@ -543,22 +600,27 @@ const SalesPipeline: React.FC = () => {
           rowLabel={(r) => `${t('sales.openRow', 'Open')} ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={
-            scope === 'Lost'
+            !narrowedWithinScope && scope === 'Lost'
               ? t('sales.tableEmpty.lost.title', 'No lost projects')
-              : scope === 'Needs attention'
+              : !narrowedWithinScope && scope === 'Needs attention'
                 ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
                 : t('sales.tableEmpty.search.title', 'No projects match your search')
           }
           emptySub={
-            scope === 'Lost'
+            !narrowedWithinScope && scope === 'Lost'
               ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
-              : scope === 'Needs attention'
+              : !narrowedWithinScope && scope === 'Needs attention'
                 ? t(
                     'sales.tableEmpty.needsAttention.sub',
                     'No project has been untouched for {{days}}+ days — pipeline is active.',
                     { days: String(ATTENTION_THRESHOLD_DAYS) },
                   )
                 : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')
+          }
+          emptyAction={
+            filtersActive
+              ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
+              : undefined
           }
         />
       )}

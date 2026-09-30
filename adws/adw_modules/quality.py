@@ -30,11 +30,13 @@ deciding.
 
 from __future__ import annotations
 
+import fcntl
+import os
 import shlex
 import subprocess
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, IO
 
 from .data_types import (EventRecord, QualityCheckResult, QualityCheckSpec, QualityResult,
                          VerifyOutput)
@@ -59,6 +61,34 @@ def _check_dir(run, name: str) -> Path:
     return path
 
 
+def _text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
+
+
+def _acquire_lock(path: str, wait_seconds: int) -> IO[str] | None:
+    """Take the machine-global advisory lock, polling up to `wait_seconds`.
+
+    Same file and same fcntl.flock protocol as scripts/lib/flock-run.sh, so it excludes (and is
+    excluded by) every `with-*-lock.sh` user. The kernel drops the lock when the handle closes
+    or the process dies. Returns None when the wait was exhausted.
+    """
+    handle = open(path, "w")
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            handle.write(f"pid={os.getpid()} started={time.strftime('%H:%M:%S')}\n")
+            handle.flush()
+            return handle
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                handle.close()
+                return None
+            time.sleep(1)
+
+
 def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
     phase = run.phases[-1]
     output_dir = _check_dir(run, spec.name)
@@ -71,7 +101,20 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
     clock = time.monotonic()
     stdout = ""
     stderr = ""
+    lock = None
     try:
+        # An outer holder (the run itself under with-test-lock.sh / verify:locked) already owns the
+        # lock: re-acquiring through a new file description would block on our own parent.
+        if spec.lock_path and env.get("PMO_TEST_LOCK_HELD") != "1":
+            # Queue for the lock OUTSIDE the command's timeout: time spent behind another
+            # suite is not the suite's time (#704).
+            lock = _acquire_lock(spec.lock_path, spec.lock_wait_seconds)
+            if lock is None:
+                raise TimeoutError(f"gave up after {spec.lock_wait_seconds}s waiting for the "
+                                   f"shared lock {spec.lock_path}")
+            env["PMO_TEST_LOCK_HELD"] = "1"   # so a self-wrapping child does not re-acquire it
+            run.console.note(f"quality {spec.name}: lock acquired after "
+                             f"{time.monotonic() - clock:.0f}s wait")
         completed = subprocess.run(
             spec.argv,
             cwd=run.repo_root,
@@ -83,15 +126,22 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
         returncode = completed.returncode
         stdout = completed.stdout
         stderr = completed.stderr
+    except TimeoutError as error:
+        returncode = 75                    # EX_TEMPFAIL, as flock-run.sh
+        stderr = str(error)
     except subprocess.TimeoutExpired as error:
         returncode = 124
-        stdout = error.stdout or ""
-        stderr = (error.stderr or "") + f"\nTimed out after {spec.timeout_seconds}s."
+        # TimeoutExpired carries bytes even under text=True (CPython quirk).
+        stdout = _text(error.stdout)
+        stderr = _text(error.stderr) + f"\nTimed out after {spec.timeout_seconds}s."
     except OSError as error:
         # A missing binary lands here as exit 127 with the real message — no
         # pre-flight probe needed, and none wanted.
         returncode = 127
         stderr = str(error)
+    finally:
+        if lock is not None:
+            lock.close()                   # releases the flock
 
     duration = time.monotonic() - clock
     output_artifact.write_text(
@@ -135,10 +185,12 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
 # ── Blocks ────────────────────────────────────────────────────────────────────
 # Replace every argv below. See the banner at the top of this file.
 
-# PMO wiring: app commands run from pmo-portal/ (CLAUDE.md). The vitest suite is heavy and the
-# machine is shared, so `test` goes through scripts/with-test-lock.sh — one full suite at a time;
-# the timeout covers waiting on the lock. These are the inner-loop gates; the full 8-gate
-# `npm run verify:locked` stays the Director's pre-PR concern, not a per-fix-loop cost.
+# PMO wiring: app commands run from pmo-portal/ (CLAUDE.md). `test` runs only the tests affected by the
+# branch's changes (`vitest --changed origin/dev`: every test that imports a changed module), the same
+# local final gate CLAUDE.md sets for every builder; CI's full suite on the PR decides the merge. It holds
+# the lock scripts/with-test-lock.sh uses (~/.pmo-test.lock, PMO_TEST_LOCK override, shared with MOS),
+# and the timeout starts once the lock is held (#704). No `origin/dev` ref → the full suite, the safe
+# direction.
 
 def test(run) -> QualityCheckResult:
     """Run the project's test suite. The highest-value block to wire up first."""
@@ -146,8 +198,13 @@ def test(run) -> QualityCheckResult:
         name="test",
         area="frontend",
         operation="build",
-        argv=["scripts/with-test-lock.sh", "bash", "-c", "cd pmo-portal && npm test"],
-        timeout_seconds=1200,
+        argv=["bash", "-c",
+              "cd pmo-portal && if git rev-parse -q --verify origin/dev >/dev/null; "
+              "then npx vitest run --changed origin/dev --passWithNoTests; else npm test; fi"],
+        # The lock is taken by _run BEFORE this clock starts, so the budget is the suite's alone
+        # (#704).
+        lock_path=os.environ.get("PMO_TEST_LOCK") or str(Path.home() / ".pmo-test.lock"),
+        timeout_seconds=3600,  # full-suite fallback measured 628-1081s under load; wait is outside
     ), run)
 
 

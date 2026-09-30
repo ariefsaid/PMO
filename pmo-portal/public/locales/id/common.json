@@ -1,5 +1,25 @@
 {
   "admin": {
+    "access": {
+      "checking": "Memeriksa akses Administrasi Anda…",
+      "checkEntry": "Periksa akses Administrasi",
+      "denied": "Administrasi adalah area Admin, Executive, atau Operator platform. Anda tidak memiliki akses.",
+      "operatorOnly": "Akses khusus Operator: Pemakaian dan Fitur hanya tersedia untuk Operator platform.",
+      "verifyError": "Tidak dapat memverifikasi akses",
+      "verifyErrorSub": "Coba lagi untuk membuka kontrol Administrasi."
+    },
+    "nav": {
+      "accounting": "Pengaturan akuntansi",
+      "ariaLabel": "Bagian administrasi",
+      "credits": "Kredit",
+      "description": "Pengaturan dan tata kelola organisasi.",
+      "features": "Fitur",
+      "integrations": "Integrasi organisasi",
+      "platform": "Platform",
+      "title": "Administrasi",
+      "usage": "Pemakaian",
+      "users": "Pengguna"
+    },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
       "description": "Basis awal untuk nilai kontrak, work order, atau invoice baru. Siapa pun yang mencatatnya bisa mengubahnya di formulir.",
@@ -13,6 +33,175 @@
       "value": {
         "exclusive": "Exclusive — pajak ditambahkan di atas nilai",
         "inclusive": "Inclusive — nilai sudah termasuk pajak"
+      },
+      "loadError": {
+        "title": "Gagal memuat perlakuan pajak default"
+      }
+    },
+    "retry": "Coba lagi",
+    "loadErrorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+    "roles": {
+      "engineer": "Engineer",
+      "projectManager": "Manajer proyek",
+      "finance": "Keuangan",
+      "executive": "Eksekutif",
+      "admin": "Admin"
+    },
+    "users": {
+      "blocked": "Administrasi hanya untuk Admin. Anda tidak memiliki akses ke manajemen pengguna.",
+      "execReadOnly": "Anda dapat melihat direktori pengguna, tetapi hanya Admin yang dapat menambah, mengedit, atau menonaktifkan pengguna.",
+      "allUsers": "Semua pengguna",
+      "search": {
+        "placeholder": "Cari berdasarkan nama atau email…",
+        "label": "Cari pengguna"
+      },
+      "invite": "Undang pengguna",
+      "columns": {
+        "user": "Pengguna",
+        "role": "Role",
+        "status": "Status",
+        "manager": "Manajer"
+      },
+      "status": {
+        "active": "Aktif",
+        "disabled": "Nonaktif"
+      },
+      "noManager": "Tanpa manajer",
+      "menu": {
+        "editRole": "Edit role",
+        "changeManager": "Ubah manajer",
+        "reEnable": "Aktifkan kembali",
+        "disable": "Nonaktifkan"
+      },
+      "toast": {
+        "roleUpdated": "Role diperbarui",
+        "roleUpdatedDetail": "{{name}} sekarang {{role}}.",
+        "managerUpdated": "Manajer diperbarui",
+        "managerUpdatedDetail": "Atasan {{name}} diperbarui.",
+        "disabled": "Pengguna dinonaktifkan",
+        "disabledDetail": "{{name}} tidak dapat lagi masuk.",
+        "reEnabled": "Pengguna diaktifkan kembali",
+        "reEnabledDetail": "{{name}} dapat masuk lagi.",
+        "inviteSent": "Undangan terkirim",
+        "inviteSentDetail": "{{email}} telah diundang sebagai {{role}}."
+      },
+      "inviteError": {
+        "duplicateEmail": "Orang tersebut sudah ada di organisasi Anda.",
+        "unauthorized": "Anda tidak memiliki izin untuk mengundang pengguna.",
+        "invalidRole": "Pilih role yang valid.",
+        "unknownOrg": "Organisasi tersebut tidak ada."
+      },
+      "error": {
+        "title": "Gagal memuat pengguna"
+      },
+      "empty": {
+        "title": "Belum ada pengguna",
+        "sub": "Orang akan muncul di sini setelah diundang ke organisasi."
+      },
+      "noMatch": {
+        "title": "Tidak ada pengguna yang cocok dengan pencarian",
+        "sub": "Coba nama atau email lain."
+      },
+      "roleConfirm": {
+        "title": "Ubah role {{name}} menjadi {{role}}?",
+        "fallbackTitle": "Ubah role?",
+        "description": "Ini mengubah apa yang dapat mereka lihat dan lakukan di seluruh organisasi, berlaku segera. Perubahan dicatat atas akun Anda.",
+        "confirm": "Ubah role"
+      },
+      "disableConfirm": {
+        "title": "Nonaktifkan {{name}}?",
+        "fallbackTitle": "Nonaktifkan pengguna?",
+        "description": "Mereka tidak akan bisa masuk lagi. Anda dapat mengaktifkannya kembali kapan saja.",
+        "confirm": "Nonaktifkan"
+      },
+      "page": {
+        "description": "Kelola role, status, dan atasan langsung pengguna. Administrasi hanya untuk Admin; perubahan role berdampak besar dan dicatat."
+      },
+      "inviteForm": {
+        "subtitleOperator": "Undang seseorang lewat email — mereka akan menetapkan kata sandi sendiri dan role langsung berlaku.",
+        "subtitle": "Undang seseorang ke organisasi Anda lewat email — mereka akan menetapkan kata sandi sendiri.",
+        "legend": "Detail undangan",
+        "email": "Email",
+        "roleHelper": "Menentukan apa yang dapat dilihat dan dilakukan orang ini setelah masuk.",
+        "emailRequired": "Email wajib diisi.",
+        "emailInvalid": "Masukkan alamat email yang valid."
+      },
+      "roleForm": {
+        "title": "Edit role",
+        "subtitle": "Tetapkan role organisasi untuk {{name}}",
+        "submit": "Simpan role",
+        "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu."
+      },
+      "managerForm": {
+        "title": "Ubah manajer",
+        "subtitle": "Tetapkan manajer langsung untuk {{name}}",
+        "submit": "Simpan manajer",
+        "legend": "Atasan langsung",
+        "label": "Manajer",
+        "noun": "orang",
+        "placeholder": "Tetapkan manajer…",
+        "search": "Cari orang…",
+        "hint": "Digunakan untuk perutean persetujuan timesheet.",
+        "clear": "Hapus manajer"
+      }
+    },
+    "credits": {
+      "grant": "Berikan kredit",
+      "orgBalance": "Saldo organisasi",
+      "unit": "kredit",
+      "error": {
+        "title": "Gagal memuat saldo"
+      },
+      "toast": {
+        "granted": "Kredit diberikan",
+        "grantedDetail": "Saldo organisasi telah diperbarui."
+      },
+      "form": {
+        "subtitle": "Tambahkan kredit ke pool organisasi. Berlaku segera.",
+        "legend": "Detail pemberian",
+        "amount": "Jumlah",
+        "amountHelper": "Harus lebih besar dari nol.",
+        "note": "Catatan",
+        "noteHelper": "Konteks opsional yang dicatat pada pemberian ini."
+      },
+      "amountRequired": "Jumlah wajib diisi.",
+      "amountPositive": "Jumlah pemberian harus positif."
+    },
+    "budgetMap": {
+      "sectionLabel": "Peta kategori anggaran ke akun ERP",
+      "title": "Peta akun anggaran",
+      "description": "Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat dikirim ke ERP. Kategori yang belum dipetakan memblokir pengiriman SELURUH anggaran, bukan hanya baris itu.",
+      "columns": {
+        "category": "Kategori",
+        "erpAccount": "Akun ERP",
+        "actions": "Aksi"
+      },
+      "unmapped": "Belum dipetakan — memblokir setiap pengiriman",
+      "edit": "Edit {{category}}",
+      "map": "Petakan {{category}}",
+      "unmap": "Hapus pemetaan {{category}}",
+      "error": {
+        "title": "Gagal memuat peta akun"
+      },
+      "toast": {
+        "unmapped": "Pemetaan kategori dihapus",
+        "saved": "Peta akun disimpan"
+      },
+      "confirm": {
+        "title": "Hapus pemetaan {{category}}?",
+        "fallbackTitle": "Hapus pemetaan kategori?",
+        "description": "Kategori ini tidak akan memiliki akun ERP. Pengiriman anggaran dengan jumlah bukan nol pada kategori ini akan ditolak hingga dipetakan kembali.",
+        "confirm": "Hapus pemetaan"
+      },
+      "form": {
+        "editTitle": "Edit pemetaan {{category}}",
+        "editSubtitle": "Ubah akun ERP tujuan pengiriman kategori ini",
+        "createSubtitle": "Pilih akun ERP tujuan pengiriman kategori ini",
+        "save": "Simpan pemetaan",
+        "legend": "Akun",
+        "placeholder": "mis. 5100 - Biaya Langsung",
+        "required": "Akun ERP wajib diisi.",
+        "conflict": "{{account}} sudah dipetakan ke {{category}}."
       }
     }
   },
@@ -134,6 +323,22 @@
     "unknownRequester": "Peminta tidak diketahui",
     "weekOf": "Minggu"
   },
+  "combobox": {
+    "search": {
+      "label": "Cari {{noun}}",
+      "placeholder": "Cari {{noun}}…"
+    },
+    "loading": "Memuat {{noun}}…",
+    "error": {
+      "title": "Gagal memuat {{noun}}.",
+      "retry": "Coba lagi"
+    },
+    "listLabel": "{{noun}}",
+    "empty": {
+      "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\".",
+      "bare": "Tidak ada {{noun}} yang cocok."
+    }
+  },
   "companies": {
     "accessDenied": {
       "sub": "Direktori perusahaan adalah master data bersama untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
@@ -198,6 +403,7 @@
       "errorTitle": "Gagal memuat perusahaan"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba tipe lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada perusahaan yang cocok dengan filter"
     },
@@ -472,7 +678,8 @@
     "descriptionMeetingsLink": "modul Rapat",
     "filters": {
       "allCompanies": "Semua perusahaan",
-      "companyLabel": "Filter berdasarkan perusahaan"
+      "companyLabel": "Filter berdasarkan perusahaan",
+      "unavailableCompany": "Perusahaan tidak tersedia"
     },
     "form": {
       "company": {
@@ -525,6 +732,7 @@
       "errorTitle": "Gagal memuat kontak"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba perusahaan lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada kontak yang cocok dengan filter"
     },
@@ -623,6 +831,9 @@
     },
     "title": "Dashboard Eksekutif"
   },
+  "funnel": {
+    "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
+  },
   "meetingDetail": {
     "action": {
       "button": "Action",
@@ -680,7 +891,8 @@
       "editSubtitle": "Perbarui data rapat ini",
       "editTitle": "Edit rapat",
       "errors": {
-        "titleRequired": "Judul rapat wajib diisi."
+        "titleRequired": "Judul rapat wajib diisi.",
+        "whenInvalid": "Masukkan tanggal dan waktu yang valid."
       },
       "location": {
         "label": "Lokasi"
@@ -763,11 +975,13 @@
     "description": "Rapat bernotulen dengan peserta dan action item. Anda melihat rapat yang Anda hadiri, tulis, atau dibagikan kepada Anda.",
     "filters": {
       "allProjects": "Semua proyek",
-      "projectLabel": "Filter berdasarkan proyek"
+      "projectLabel": "Filter berdasarkan proyek",
+      "unavailableProject": "Proyek tidak tersedia"
     },
     "form": {
       "errors": {
-        "titleRequired": "Judul rapat wajib diisi."
+        "titleRequired": "Judul rapat wajib diisi.",
+        "whenInvalid": "Masukkan tanggal dan waktu yang valid."
       },
       "location": {
         "label": "Lokasi",
@@ -802,6 +1016,7 @@
       "errorTitle": "Gagal memuat rapat"
     },
     "table": {
+      "clearFilters": "Hapus filter",
       "emptySub": "Coba proyek lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada rapat yang cocok",
       "rowLabel": "Buka {{title}}"
@@ -869,6 +1084,7 @@
     "lifecycleLabel": "Siklus",
     "listLabel": "Permintaan pengadaan",
     "noMatch": {
+      "clearFilters": "Hapus filter",
       "sub": "Coba status atau kata kunci lain, atau hapus filter.",
       "title": "Tidak ada permintaan yang cocok dengan filter"
     },
@@ -877,6 +1093,15 @@
       "label": "Filter permintaan",
       "placeholder": "Filter permintaan…"
     },
+    "stage": {
+      "gr": "Penerimaan Barang",
+      "paid": "Pembayaran",
+      "po": "Purchase Order",
+      "pr": "Permintaan Pembelian",
+      "vi": "Invoice Vendor",
+      "vq": "Penawaran Vendor"
+    },
+    "stageEmpty": "Tidak ada permintaan pada tahap {{stage}}",
     "statusFilterLabel": "Filter status",
     "title": {
       "orgWide": "Pengadaan",
@@ -1162,6 +1387,7 @@
         "title": "Arsipkan {{name}}?"
       },
       "contractValue": "Nilai kontrak",
+      "invalidContractValue": "Masukkan jumlah non-negatif yang valid dengan maksimal 2 angka desimal.",
       "contractValueConfirm": {
         "body": "Anda mengubah nilai kontrak proyek yang sudah menang dari <1>{{from}}</1> menjadi <3>{{to}}</3>, dinyatakan sebagai <5></5> dengan pajak <7>{{tax}}</7>.",
         "confirm": "Ubah dan catat",
@@ -1616,7 +1842,63 @@
         "updated": "Work Order diperbarui",
         "valueSet": "Nilai Work Order ditetapkan"
       }
+    },
+    "loadError": {
+      "title": "Gagal memuat proyek ini",
+      "sub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "retry": "Coba lagi"
     }
+  },
+  "projectForm": {
+    "value": {
+      "helper": "Estimasi, sebelum menang. Dapat diedit oleh Admin, Eksekutif, dan PM.",
+      "formatError": "Gunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal — misalnya {{example}}."
+    },
+    "title": {
+      "create": "Proyek baru",
+      "edit": "Edit proyek"
+    },
+    "subtitle": {
+      "create": "Buat proyek",
+      "edit": "Perbarui detail header proyek"
+    },
+    "submit": {
+      "create": "Buat proyek",
+      "edit": "Simpan proyek"
+    },
+    "section": {
+      "project": "Proyek",
+      "schedule": "Jadwal"
+    },
+    "name": {
+      "label": "Nama proyek",
+      "placeholder": "mis. Terminal Pelabuhan — Pekerjaan Sipil",
+      "required": "Nama proyek wajib diisi."
+    },
+    "client": {
+      "label": "Perusahaan klien",
+      "placeholder": "Pilih perusahaan…",
+      "search": "Cari perusahaan…",
+      "noun": "perusahaan",
+      "required": "Pilih perusahaan klien."
+    },
+    "pm": {
+      "label": "Manajer proyek",
+      "placeholder": "Tetapkan PM…",
+      "noun": "manajer"
+    },
+    "code": {
+      "label": "Kode proyek",
+      "placeholder": "mis. OPP-2041"
+    },
+    "stage": {
+      "label": "Tahap awal",
+      "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di pipeline, tidak pernah dibuat langsung."
+    },
+    "estimatedValue": "Nilai estimasi",
+    "expectedStart": "Perkiraan mulai",
+    "expectedEnd": "Perkiraan selesai",
+    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini — isi 0 jika tidak ada pajak. Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui."
   },
   "projects": {
     "actions": {
@@ -1634,7 +1916,8 @@
       "pm": "PM",
       "progress": "Progres",
       "project": "Proyek",
-      "status": "Status"
+      "status": "Status",
+      "committed": "Komitmen"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
@@ -1686,6 +1969,56 @@
       "calendar": "Kalender",
       "cards": "Kartu",
       "table": "Tabel"
+    },
+    "unnamedUser": "Pengguna tanpa nama",
+    "export": "Ekspor",
+    "import": "Impor",
+    "mobile": {
+      "filters": "Filter",
+      "more": "Aksi lainnya",
+      "activeCount": "Filter aktif",
+      "customer": "Klien",
+      "manager": "Manajer proyek",
+      "removeCustomer": "Hapus filter klien",
+      "removeManager": "Hapus filter manajer proyek",
+      "clearAll": "Hapus semua",
+      "loading": "Memuat opsi…",
+      "noOptions": "Tidak ada opsi",
+      "error": "Gagal memuat opsi",
+      "retry": "Coba lagi",
+      "unavailable": "Pilihan tidak tersedia"
+    },
+    "card": {
+      "delivery": "Penyelesaian",
+      "deliveryPercent": "Penyelesaian {{percent}}%",
+      "budgetUsedPercent": "Anggaran terpakai {{percent}}%",
+      "budgetSummary": "{{spent}} dari anggaran {{budget}}",
+      "committedPercent": "Komitmen: {{percent}}% dari kontrak",
+      "actualPercent": "Realisasi: {{percent}}% dari kontrak",
+      "editProject": "Edit {{name}}"
+    },
+    "kanban": {
+      "won": "Menang",
+      "ongoing": "Berjalan",
+      "onHold": "Ditunda",
+      "closeOut": "Penutupan",
+      "internal": "Internal",
+      "board": "Papan kanban proyek",
+      "empty": "Tidak ada proyek pada tahap {{stage}}",
+      "swipe": "Geser untuk melihat lainnya →"
+    },
+    "status": {
+      "leads": "Prospek",
+      "pqSubmitted": "Pra-kualifikasi diajukan",
+      "quotationSubmitted": "Penawaran diajukan",
+      "tenderSubmitted": "Tender diajukan",
+      "negotiation": "Negosiasi",
+      "wonPendingKom": "Menang, menunggu KoM",
+      "ongoingProject": "Proyek berjalan",
+      "onHold": "Ditunda",
+      "closeOut": "Penutupan",
+      "lossTender": "Tender kalah",
+      "internalProject": "Proyek internal"
     }
   },
   "sales": {
@@ -1741,6 +2074,7 @@
     },
     "summaryLabel": "Ringkasan pipeline",
     "tableEmpty": {
+      "clearFilters": "Hapus filter",
       "lost": {
         "sub": "Proyek yang ditandai kalah akan muncul di sini.",
         "title": "Tidak ada proyek yang kalah"
@@ -1764,9 +2098,24 @@
     },
     "viewToggleLabel": "Tampilan pipeline",
     "weightedForecast": "Proyeksi pipeline tertimbang",
-    "winProbability": "Peluang menang"
+    "winProbability": "Peluang menang",
+    "board": {
+      "ariaLabel": "Papan pipeline penjualan",
+      "weightedShort": "{{value}} tertimbang"
+    },
+    "stage": {
+      "leads": "Prospek",
+      "preQual": "Pra-kualifikasi",
+      "quotation": "Penawaran",
+      "tender": "Tender",
+      "negotiation": "Negosiasi",
+      "lost": "Kalah"
+    }
   },
   "shell": {
+    "backBar": {
+      "label": "Kembali ke {{label}}"
+    },
     "breadcrumb": {
       "label": "Breadcrumb"
     },
@@ -1778,11 +2127,14 @@
       "openCommandPalette": "Buka palet perintah",
       "openNavigation": "Buka menu navigasi",
       "privacy": "Privasi",
+      "returnToAdmin": "Kembali ke Admin",
       "searchPlaceholder": "Cari atau lompat ke…",
       "signOut": "Keluar",
       "terms": "Ketentuan",
-      "viewAsRoleHeading": "Lihat sebagai role",
-      "viewAsRoleInline": "Lihat sebagai role:"
+      "themeDark": "Gelap",
+      "themeHeading": "Tema",
+      "themeLight": "Terang",
+      "viewAsRoleHeading": "Lihat sebagai role"
     },
     "drawer": {
       "close": "Tutup menu navigasi",
@@ -1796,7 +2148,7 @@
       "dashboard": "Dashboard",
       "incidents": "Insiden",
       "incomingPayments": "Pembayaran Masuk",
-      "integrations": "Integrasi",
+      "integrations": "Integrasi saya",
       "meetings": "Rapat",
       "myTasks": "Tugas Saya",
       "procurement": "Pengadaan",
@@ -1805,7 +2157,7 @@
       "sales": "Pipeline Penjualan",
       "salesInvoices": "Invoice Penjualan",
       "timesheets": "Timesheet",
-      "profileSettings": "Pengaturan Profil"
+      "profileSettings": "Profil & preferensi"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
@@ -1841,10 +2193,6 @@
     },
     "skipLink": {
       "mainContent": "Langsung ke konten utama"
-    },
-    "themeToggle": {
-      "switchToDark": "Ganti ke tema gelap",
-      "switchToLight": "Ganti ke tema terang"
     }
   },
   "task": {
@@ -1936,23 +2284,211 @@
     "unknownProject": "Proyek tidak diketahui",
     "weekOf": "Minggu"
   },
+  "integrations": {
+    "organization": {
+      "scope": "Integrasi organisasi menghubungkan layanan eksternal untuk seluruh tim Anda. Ini terpisah dari koneksi pribadi Anda di Integrasi saya — koneksi pribadi tidak mengaktifkan integrasi organisasi. Gunakan kontrol di samping setiap layanan untuk terhubung, mengaktifkan, atau memutuskan koneksi.",
+      "readiness": {
+        "connected": "Terhubung",
+        "disconnected": "Terputus",
+        "notConnected": "Belum terhubung",
+        "connectedBy": "Dihubungkan oleh",
+        "connectedAt": "Terhubung",
+        "connectedByUnavailable": "Pengguna sebelumnya atau tidak tersedia",
+        "disconnectedAt": "Terputus",
+        "connectAction": "Hubungkan {{service}}",
+        "disconnectAction": "Putuskan {{service}}",
+        "clickupLocation": "ClickUp adalah layanan SaaS yang dihosting di AS — data tugas berada di ClickUp",
+        "erpLocation": "ERP yang dihosting sendiri — data berada di instans ERPNext Anda",
+        "retry": "Coba lagi",
+        "bindUnknown": "Status koneksi tidak tersedia",
+        "bindUnavailableTitle": "Tidak dapat membaca status koneksi",
+        "bindUnavailableSub": "Status koneksi tidak diketahui saat ini. Coba baca lagi, atau hubungkan jika Anda belum melakukannya.",
+        "bindRetry": "Muat ulang status",
+        "erpActivation": {
+          "pending": "Menunggu aktivasi — pilih Perusahaan untuk mengaktifkan",
+          "pausedNote": "Sinkronisasi ERP dijeda sampai sebuah Perusahaan dipilih.",
+          "select": "Pilih Perusahaan",
+          "selectRequired": "Pilih Perusahaan untuk mengaktifkan.",
+          "title": "Pilih Perusahaan ERPNext",
+          "subtitle": "Pilih Perusahaan dari instans ERPNext Anda untuk mengaktifkan integrasi",
+          "companyLabel": "Perusahaan",
+          "companyNoun": "perusahaan",
+          "placeholder": "Pilih Perusahaan...",
+          "activate": "Aktifkan",
+          "loading": "Memuat Perusahaan…",
+          "unavailableTitle": "Perusahaan tidak tersedia",
+          "unavailableSub": "Perusahaan ERPNext Anda tidak dapat dibaca. Coba lagi untuk mengaktifkan integrasi.",
+          "emptyTitle": "Tidak ada Perusahaan ditemukan",
+          "emptySub": "Buat sebuah Perusahaan di ERPNext sebelum mengaktifkan integrasi ini.",
+          "activateFailed": "Aktivasi gagal. Pilihan Anda tetap tersimpan; Anda dapat mencoba lagi."
+        },
+        "health": {
+          "loading": "Memeriksa status pekerjaan keluar…",
+          "unavailableTitle": "Status pekerjaan keluar tidak tersedia",
+          "unavailableSub": "Pekerjaan keluar yang belum selesai tidak dapat dibaca. Coba lagi.",
+          "retry": "Muat ulang status keluar",
+          "outstandingOne": "{{count}} item keluar tertunda atau perlu perhatian",
+          "outstandingMany": "{{count}} item keluar tertunda atau perlu perhatian",
+          "liveRecordCheck": "Untuk memastikan data dapat digunakan, periksa catatan yang benar-benar ditransfer, bukan hanya koneksinya.",
+          "outstandingZero": "0 item keluar tertunda atau perlu perhatian"
+        },
+        "map": {
+          "title": "Peta pemetaan ClickUp",
+          "empty": "Belum ada proyek PMO yang ditautkan ke ClickUp. Proyek tetap dikelola di PMO sampai admin menautkannya.",
+          "caption": "Proyek PMO dan pemetaannya ke Daftar ClickUp",
+          "projectColumn": "Proyek PMO",
+          "listColumn": "Daftar ClickUp",
+          "statusColumn": "Status",
+          "bound": "Tertaut",
+          "pmoNative": "Dikelola PMO",
+          "untrackedTitle": "Daftar ClickUp yang tidak dilacak PMO",
+          "untrackedAria": "Daftar ClickUp yang tidak dilacak",
+          "untrackedNote": "tidak dilacak PMO",
+          "listsLoading": "Memuat daftar ClickUp…",
+          "listsUnavailable": "Daftar ClickUp tidak tersedia, sehingga pemetaan proyek-ke-List tidak dapat ditentukan.",
+          "listsRetry": "Muat ulang daftar",
+          "bindingsLoading": "Memuat pemetaan proyek…",
+          "bindingsUnavailable": "Pemetaan proyek tidak tersedia, sehingga koneksi ClickUp tidak dapat ditentukan.",
+          "bindingsRetry": "Muat ulang pemetaan",
+          "projectsLoading": "Memuat proyek…",
+          "projectsUnavailable": "Proyek tidak tersedia, sehingga rincian proyek tidak dapat ditentukan.",
+          "projectsRetry": "Muat ulang proyek",
+          "listUnavailable": "Daftar tidak tersedia",
+          "unknown": "Tidak diketahui"
+        },
+        "ownership": {
+          "title": "Domain yang digunakan (sumber kebenaran)",
+          "loading": "Memeriksa domain yang digunakan…",
+          "unavailableTitle": "Domain yang digunakan tidak tersedia",
+          "unavailableSub": "Domain sumber kebenaran Anda tidak dapat dibaca. Coba lagi.",
+          "emptyTitle": "Belum ada domain yang digunakan",
+          "emptySub": "Belum ada domain sumber kebenaran eksternal yang dikonfigurasi untuk organisasi ini.",
+          "ownsDomains_one": "Memiliki {{count}} domain sebagai sumber kebenaran.",
+          "ownsDomains_other": "Memiliki {{count}} domain sebagai sumber kebenaran."
+        },
+        "disconnect": {
+          "title": "Putuskan koneksi?",
+          "titleService": "Putuskan {{service}}?",
+          "description": "Data yang sudah disinkronkan tetap tersimpan; sinkronisasi berhenti. Anda dapat menghubungkan kembali nanti dengan kredensial yang sama atau berbeda.",
+          "action": "Putuskan",
+          "failedTitle": "Pemutusan tidak selesai",
+          "failedSub": "Layanan tidak dapat diputuskan. Data yang sudah disinkronkan tetap tersimpan; koneksi dan sinkronisasi mungkin tidak berubah. Coba lagi.",
+          "retryConfirm": "Coba putuskan lagi"
+        },
+        "connect": {
+          "connectFailed": "Tidak dapat terhubung. Periksa detail dan coba lagi.",
+          "subtitle": "Masukkan kredensial {{service}} untuk membuat koneksi",
+          "credentials": "Kredensial",
+          "tokenLabel": "Token API pribadi",
+          "urlLabel": "URL instans",
+          "keyLabel": "Kunci API",
+          "secretLabel": "Rahasia API",
+          "tokenRequired": "Token API pribadi wajib diisi.",
+          "urlRequired": "URL instans wajib diisi.",
+          "keyRequired": "Kunci API wajib diisi.",
+          "secretRequired": "Rahasia API wajib diisi."
+        }
+      }
+    },
+    "personal": {
+      "description": "Hubungkan akun Microsoft 365 pribadi Anda agar PMO Portal dapat mengakses konten yang tersedia melalui akun Anda. Ini terpisah dari integrasi Administrasi organisasi Anda.",
+      "title": "Integrasi saya"
+    },
+    "personalM365": {
+      "heading": "Microsoft 365",
+      "state": {
+        "loading": "Memeriksa status koneksi Microsoft 365…",
+        "notConnected": "Belum terhubung. Hubungkan akun Microsoft 365 Anda sendiri agar PMO Portal dapat mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun Anda.",
+        "connected": "Terhubung. Anda dapat memutuskan koneksi kapan saja.",
+        "connectedSince": "Terhubung sejak {{date}}. Anda dapat memutuskan koneksi kapan saja.",
+        "organizationApproved": "Organisasi Anda telah menyetujui aplikasi PMO Portal di Microsoft 365. Hubungkan akun Microsoft 365 Anda sendiri untuk melanjutkan.",
+        "reconnect": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melanjutkan.",
+        "revoked": "Koneksi Microsoft 365 telah dicabut. Hubungkan kembali untuk melanjutkan.",
+        "unknown": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi."
+      },
+      "action": {
+        "connect": "Hubungkan Microsoft 365",
+        "reconnect": "Hubungkan ulang Microsoft 365",
+        "disconnect": "Putuskan koneksi"
+      },
+      "confirm": {
+        "title": "Putuskan koneksi Microsoft 365?",
+        "description": "Memutuskan koneksi akan menghapus koneksi akun Microsoft 365 ini. PMO Portal tidak dapat lagi mengakses file OneDrive, Teams, dan informasi kalender yang tersedia melalui akun ini sampai Anda menghubungkannya kembali. Anda dapat menghubungkannya kembali kapan saja.",
+        "cancel": "Batal",
+        "confirm": "Putuskan koneksi"
+      },
+      "errors": {
+        "notEntitled": "Organisasi Anda belum mengaktifkan integrasi Microsoft 365.",
+        "disabledMember": "Akses akun Anda telah dinonaktifkan. Hubungi administrator Anda.",
+        "bannedMember": "Akun Anda ditangguhkan. Hubungi administrator Anda.",
+        "organizationApprovalRequired": "Organisasi Anda belum menyetujui aplikasi PMO Portal. Minta administrator menyetujuinya di Microsoft 365.",
+        "forbidden": "Penyetujuan aplikasi PMO Portal di Microsoft 365 hanya dapat dilakukan oleh administrator organisasi dan operator platform.",
+        "unauthorized": "Sesi Anda telah berakhir. Muat ulang halaman lalu coba lagi.",
+        "connectionStale": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang.",
+        "connectionRevoked": "Koneksi Microsoft 365 telah dicabut. Hubungkan kembali untuk melanjutkan.",
+        "notConnected": "Microsoft 365 belum terhubung.",
+        "tokenExchangeFailed": "Microsoft menolak koneksi. Silakan coba lagi.",
+        "invalidState": "Permintaan koneksi telah kedaluwarsa. Silakan coba lagi.",
+        "scopeInsufficient": "Koneksi memerlukan izin tambahan. Hubungkan kembali untuk memberikan izin tersebut.",
+        "badRequest": "Permintaan tidak valid. Silakan coba lagi.",
+        "graphError": "Microsoft Graph sedang tidak tersedia. Silakan coba lagi sebentar lagi.",
+        "internalError": "Terjadi kesalahan di sisi kami. Silakan coba lagi.",
+        "disconnectFailureHeadline": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung.",
+        "disconnectFailureGuidance": "Anda dapat mencoba lagi atau membatalkan.",
+        "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.",
+        "generic": "Microsoft 365 tidak dapat dihubungkan. Silakan coba lagi."
+      }
+    },
+    "m365OrgApproval": {
+      "heading": "Microsoft 365",
+      "badge": "Persetujuan organisasi",
+      "description": "Setujui aplikasi PMO Portal untuk organisasi Anda di Microsoft 365. Langkah satu kali ini memungkinkan tim Anda menghubungkan akun Microsoft 365 mereka sendiri ke PMO Portal.",
+      "approve": "Setujui di Microsoft 365",
+      "approving": "Membuka Microsoft 365…",
+      "errorFallback": "Tidak dapat memulai persetujuan organisasi Microsoft 365."
+    }
+  },
   "profileSettings": {
     "loading": "Memuat profil…",
-    "title": "Pengaturan Profil",
-    "description": "Pilih bahasa yang digunakan untuk tombol, label, dan pesan di portal ini.",
+    "title": "Profil & preferensi",
+    "description": "Pilih bahasa, format angka, dan zona waktu untuk portal ini.",
     "language": {
       "label": "Bahasa antarmuka",
       "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
+      "effective": "Bahasa aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
+        "inheritWithEffective": "Default organisasi — {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
-      },
-      "inheritHint": "Default organisasi mengikuti pengaturan organisasi Anda. Pilih bahasa di bawah untuk menimpanya."
+      }
+    },
+    "number": {
+      "label": "Format angka",
+      "help": "Pratinjau: {{value}}",
+      "effective": "Format angka aktif: {{value}}",
+      "options": {
+        "inherit": "Default organisasi",
+        "inheritWithEffective": "Default organisasi — {{value}}",
+        "id": "Indonesia (1.234.567,89)",
+        "en": "Inggris (1,234,567.89)"
+      }
+    },
+    "timezone": {
+      "label": "Zona waktu",
+      "placeholder": "Pilih zona waktu",
+      "search": "Cari zona waktu…",
+      "noun": "zona waktu",
+      "effective": "Zona waktu aktif: {{value}}",
+      "options": {
+        "inherit": "Default organisasi",
+        "inheritWithEffective": "Default organisasi — {{timezone}}"
+      }
     },
     "save": "Simpan",
     "saving": "Menyimpan preferensi Anda…",
     "saved": "Preferensi disimpan",
-    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi."
+    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
+    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
   }
 }

@@ -1,29 +1,6 @@
 // @e2e-isolation: read-only — entitlement is a route-scoped fixture; no DB writes, no shared-user mutation.
-import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
-
-/**
- * The seed intentionally leaves m365_integration disabled. Make this spec's own read fixture
- * entitled without mutating the shared org row: route the authenticated org_features read and add
- * only the feature this page needs. The page/context teardown removes the route after each test.
- */
-async function useEntitledM365Fixture(page: Page) {
-  await page.route('**/rest/v1/org_features*', async (route) => {
-    const response = await route.fetch();
-    if (!response.ok()) {
-      await route.fulfill({ response });
-      return;
-    }
-    const rows = (await response.json()) as Array<{ feature_key?: string; enabled?: boolean }>;
-    await route.fulfill({
-      response,
-      json: [
-        ...rows.filter((row) => row.feature_key !== 'm365_integration'),
-        { feature_key: 'm365_integration', enabled: true },
-      ],
-    });
-  });
-}
+import { test, expect } from '@playwright/test';
+import { login, grantM365EntitlementFixture } from './helpers';
 
 // AC-M365SEP-018 — the Microsoft callback's redirect targets resolve to REAL pages.
 //
@@ -91,7 +68,7 @@ for (const { param, label, confirmation, raw } of [
   test(`AC-M365SEP-018: callback return ?${param} resolves on a real page (${label})`, async ({
     page,
   }) => {
-    await useEntitledM365Fixture(page);
+    await grantM365EntitlementFixture(page);
     await login(page, PM);
     await page.goto(`/integrations?${param}`);
 

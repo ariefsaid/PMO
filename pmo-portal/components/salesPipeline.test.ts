@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  OPEN_FUNNEL_STAGES,
   SALES_COLUMNS,
   weightedValue,
   pillVariantForStatus,
@@ -22,6 +23,18 @@ const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
 });
 
 describe('salesPipeline presentation helpers (AC-SP-204)', () => {
+  it('the open board columns are OPEN_FUNNEL_STAGES in order, with their stable stage test ids', () => {
+    const open = SALES_COLUMNS.filter((c) => !c.terminal);
+    expect(open.map((c) => c.statuses)).toEqual(OPEN_FUNNEL_STAGES.map((stage) => [stage]));
+    expect(open.map((c) => c.testId)).toEqual([
+      'stage-Leads',
+      'stage-PQ Submitted',
+      'stage-Quotation Submitted',
+      'stage-Tender Submitted',
+      'stage-Negotiation',
+    ]);
+  });
+
   // Model B (ADR-0020, AC-IXD-PROJ-007): the terminal "Won / Lost" column is split into separate
   // "Won" and "Lost" terminal columns so a Loss Tender deal is reachable as its own column.
   it('AC-IXD-PROJ-007: SALES_COLUMNS are the five open stages + separate terminal Won and Lost columns', () => {
@@ -92,10 +105,13 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
   });
 
   // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
-  it('AC-IXD-PROJ-001: openOpportunity navigates to the canonical /projects/:id detail route', () => {
-    const navigate = vi.fn();
-    openOpportunity(navigate, project({ id: 'abc', name: 'Acme Deal' }));
-    expect(navigate).toHaveBeenCalledWith('/projects/abc');
+  // Director ruling (2026-09-29): openOpportunity now takes the shared list-return `openRecord`
+  // opener (not a bare navigate) so the destination + owner it requests can be asserted; the
+  // resulting router navigation/state is useListReturn's own concern, proven in its own tests.
+  it('AC-IXD-PROJ-001 / AC-LRC-004: openOpportunity opens the canonical /projects/:id route, owned by "projects"', () => {
+    const open = vi.fn(() => true);
+    openOpportunity(open, project({ id: 'abc', name: 'Acme Deal' }));
+    expect(open).toHaveBeenCalledWith('/projects/abc', 'projects');
   });
 
   it('AC-SP-208: dealJourneySteps marks done/current/upcoming from the pipeline index', () => {

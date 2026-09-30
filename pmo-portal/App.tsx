@@ -12,6 +12,7 @@ import { AnalyticsProvider } from '@/src/lib/analytics';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import LoginPage from '@/src/auth/LoginPage';
 import TermsPage from './pages/Terms';
 import PrivacyPage from './pages/Privacy';
@@ -22,7 +23,7 @@ import {
   Rail,
   ContextBar,
   CommandPalette,
-  modulesForRole,
+  modulesForRoleWithOperator,
   agentEntityForPath,
   breadcrumbForPath,
   recordLabelForPath,
@@ -49,6 +50,8 @@ import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
+import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
+import { useReturnNavigate } from '@/src/hooks/useListReturn';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -75,7 +78,7 @@ const ContactsPage = React.lazy(() => import('./pages/Contacts'));
 const ContactDetailPage = React.lazy(() => import('./pages/ContactDetail'));
 const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
-const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
+const AdministrationPage = React.lazy(() => import('./pages/Administration'));
 const IntegrationsPage = React.lazy(() => import('./pages/Integrations'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
@@ -99,6 +102,17 @@ const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 const SalesDetailRedirect: React.FC = () => {
   const { opportunityId = '' } = useParams<{ opportunityId: string }>();
   return <Navigate to={`/projects/${opportunityId}`} replace />;
+};
+
+/** Compatibility entry for the former all-in-one Administration page. */
+const AdministrationEntryRedirect: React.FC = () => {
+  const { hash } = useLocation();
+  return (
+    <Navigate
+      to={hash === '#budget-account-map' ? '/administration/accounting#budget-account-map' : '/administration/users'}
+      replace
+    />
+  );
 };
 
 /**
@@ -148,7 +162,16 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/meetings', element: <MeetingsPage /> },
   { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
   { path: '/reports', element: <PlaceholderPage title="Reports" /> },
-  { path: '/administration', element: <AdminUsersPage /> },
+  { path: '/administration', element: <AdministrationEntryRedirect /> },
+  { path: '/administration/users', element: <AdministrationPage /> },
+  { path: '/administration/integrations', element: <AdministrationPage /> },
+  { path: '/administration/accounting', element: <AdministrationPage /> },
+  { path: '/administration/credits', element: <AdministrationPage /> },
+  { path: '/administration/usage', element: <AdministrationPage /> },
+  { path: '/administration/features', element: <AdministrationPage /> },
+  // Keep malformed/deprecated Administration section links inside the Administration shell so
+  // they can be replaced with Users instead of falling through to the global 404 route.
+  { path: '/administration/:section', element: <AdministrationPage /> },
   // Finance section.
   { path: '/sales-invoices', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
@@ -178,7 +201,8 @@ export const AppRoutes: React.FC = () => (
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 const ShellChrome: React.FC = () => {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -229,6 +253,13 @@ const ShellChrome: React.FC = () => {
     () => [...(pipeline?.projects ?? []), ...(lostDeals ?? [])],
     [pipeline, lostDeals],
   );
+  const contextualParent = useMemo(() => {
+    return contextualListReturnNavigation(pathname, location.state);
+  }, [location.state, pathname]);
+
+  // Desktop breadcrumb navigation pushes the same clean return entry the mobile BackBar uses:
+  // the validated list path plus its one-shot scroll-restore state (no pmoListReturn on the list).
+  const breadcrumbNavigate = useReturnNavigate();
 
   // The shell already has enough cached record data to render the detail breadcrumb before a lazy
   // page chunk mounts. Publish that same identity before paint so an immediate Assistant turn made
@@ -279,7 +310,7 @@ const ShellChrome: React.FC = () => {
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
     if (pathname === '/settings/profile') {
-      return [{ label: t('shell.nav.profileSettings', 'Profile settings') }];
+      return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
@@ -320,11 +351,19 @@ const ShellChrome: React.FC = () => {
       (pathname.startsWith('/meetings/') && !meetingsPending) ||
       (pathname.startsWith('/sales/') && !pipelinePending) ||
       (pathname.startsWith('/views/') && !userViewsPending);  // I3 (FR-VR-053)
-    return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
+    return breadcrumbForPath(
+      pathname,
+      recordLabel,
+      breadcrumbNavigate,
+      recordResolved,
+      recordStatusGroup,
+      contextualParent,
+    );
   }, [
     pathname,
+    contextualParent,
     t,
-    navigate,
+    breadcrumbNavigate,
     projects,
     procurements,
     incidents,
@@ -353,10 +392,17 @@ const ShellChrome: React.FC = () => {
     return deriveRailActiveOverride(pathname, statusGroup);
   }, [pathname, projects, opportunities]);
 
-  // AC-W3-N3: filter Navigate items by the viewer's REAL role so ⌘K matches the rail.
-  // A denied role (e.g. Engineer) never sees Sales/Procurement/Companies/Administration.
-  // Read the real role non-throwing; deny-by-default when outside the provider (no Navigate items).
+  // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
+  // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
+  // gains Administration. Outside the provider there are no Navigate items.
   const realRole = useOptionalRealRole();
+  // AC-ADMIA-002: a REAL server-confirmed platform Operator gains Administration in ⌘K regardless
+  // of base role. Sourced from the settled `useIsOperator()` projection — never effective/preview
+  // role — so a plain Engineer stays hidden. Fail-closed (false) while loading.
+  const operatorMembership = useOperatorMembership();
+  const isOperator = operatorMembership.isOperator;
+  const needsOperatorRecovery = Boolean(realRole) && operatorMembership.isError &&
+    realRole !== UserRole.Admin && realRole !== UserRole.Executive;
 
   // Palette items: the Records group (cached record index) above the Navigate
   // group (module index routes). The palette filters/caps/ranks both uniformly;
@@ -365,19 +411,28 @@ const ShellChrome: React.FC = () => {
   const paletteItems = useMemo<PaletteItem[]>(
     () => [
       ...recordSearch.records,
-      ...(realRole ? modulesForRole(realRole as UserRole) : []).map((m) => ({
+      ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : []).map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
-        title: m.label,
+        title: m.module === 'administration'
+          ? t('shell.nav.administration', 'Administration')
+          : m.label,
         icon: m.icon,
         run: () => navigate(m.path),
       })),
+      ...(needsOperatorRecovery ? [{
+        id: 'nav-administration-check',
+        group: 'Navigate' as const,
+        title: t('admin.access.checkEntry', 'Check Administration access'),
+        icon: 'admin' as const,
+        run: () => navigate('/administration/users'),
+      }] : []),
       // "Views" group — appended after "Navigate" when the feature is on (FR-VR-070..071)
       ...(isFeatureEnabled('userViews')
         ? buildViewsPaletteItems(userViewsList, navigate)
         : []),
     ],
-    [navigate, recordSearch.records, realRole, userViewsList]
+    [navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, t, userViewsList]
   );
 
   return (
@@ -387,6 +442,7 @@ const ShellChrome: React.FC = () => {
           <Rail
             onNavigate={() => setRailOpen(false)}
             railActiveOverride={railActiveOverride}
+            operatorAccessError={needsOperatorRecovery}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
             onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
             // A2: thread open state so aria-pressed reflects the actual panel state (WCAG 4.1.2).

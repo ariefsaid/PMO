@@ -2,6 +2,7 @@ import React, { useId } from 'react';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
+import { useMoneyInputMask } from './useMoneyInputMask';
 
 // ---------------------------------------------------------------------------
 // Shared form field primitives (crud-components §2.1 / §2.2). Strictly
@@ -231,6 +232,8 @@ export const TextField: React.FC<TextFieldProps> = ({
 export interface NumberFieldProps extends Omit<TextFieldProps, 'mono' | 'type'> {
   /** Leading adornment (e.g. "$"). */
   prefix?: string;
+  /** Group valid money drafts using the active number locale while preserving partial decimals. */
+  localeAware?: boolean;
 }
 
 /**
@@ -248,47 +251,56 @@ export const NumberField: React.FC<NumberFieldProps> = ({
   fullWidth,
   hideLabel,
   prefix,
+  localeAware,
   className,
   ...rest
-}) => (
-  <FieldShell
-    id={rest.id}
-    label={label}
-    required={required}
-    helper={helper}
-    error={error}
-    fullWidth={fullWidth}
-    hideLabel={hideLabel}
-  >
-    {(ctl) => (
-      <div className="relative">
-        {prefix && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute left-[10px] top-1/2 -translate-y-1/2 text-[13.5px] text-muted-foreground"
-          >
-            {prefix}
-          </span>
-        )}
-        <input
-          {...rest}
-          {...ctl}
-          type="text"
-          inputMode="decimal"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn(
-            inputBase,
-            'tabular text-right',
-            prefix && 'pl-[22px]',
-            error && inputInvalid,
-            className,
+}) => {
+  const mask = useMoneyInputMask(value, onChange, !!localeAware);
+
+  return (
+    <FieldShell
+      id={rest.id}
+      label={label}
+      required={required}
+      helper={helper}
+      error={error}
+      fullWidth={fullWidth}
+      hideLabel={hideLabel}
+    >
+      {(ctl) => (
+        <div className="relative">
+          {prefix && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute left-[10px] top-1/2 -translate-y-1/2 text-[13.5px] text-muted-foreground"
+            >
+              {prefix}
+            </span>
           )}
-        />
-      </div>
-    )}
-  </FieldShell>
-);
+          <input
+            {...rest}
+            {...ctl}
+            ref={mask.ref}
+            type="text"
+            inputMode="decimal"
+            value={value}
+            onChange={mask.onChange}
+            className={cn(
+              inputBase,
+              'tabular text-right',
+              prefix && 'pl-[22px]',
+              error && inputInvalid,
+              className,
+            )}
+            // A currency CODE adornment ("IDR") is wider than a single glyph ("$"): reserve room
+            // per character so a long value never runs under it (#694).
+            style={prefix && prefix.length > 1 ? { paddingLeft: `${14 + prefix.length * 8}px`, ...rest.style } : rest.style}
+          />
+        </div>
+      )}
+    </FieldShell>
+  );
+};
 
 // ---- TextArea -------------------------------------------------------------
 

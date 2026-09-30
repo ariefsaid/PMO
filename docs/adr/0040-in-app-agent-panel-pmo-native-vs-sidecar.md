@@ -306,7 +306,7 @@ small, ordinary tenant entities on our stack (see Forward plan).
 
 ### Disposition
 - **PR #209 — closed unmerged** (2026-07-03). The app remains byte-identical (the epic was flag-off).
-- **Branch `feat/agent-native-adoption` — retained as a reference archive.** Do not delete; do not merge.
+- **Branch `feat/agent-native-adoption` — retained as a reference archive.** Do not merge. Since 2026-09-29 it is kept as the tag `archive/agent-native-adoption` (same commits; the branch itself was removed in a cleanup).
 - **What to MINE from the branch** (proven patterns worth porting, all under `pmo/agent-native/`):
   - `server/middleware/deputy.ts` — JWT verify + `AsyncLocalStorage` deputy seam (`runWithDeputy()`).
   - `server/lib/read-allowlist.ts` — entity/column allowlist for agent reads.

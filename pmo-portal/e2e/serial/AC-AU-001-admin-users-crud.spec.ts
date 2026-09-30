@@ -169,7 +169,10 @@ test(
     await page.goto('/administration');
 
     // GOAL ORACLE: an Admin-only gate is shown and the directory rows are NOT rendered.
-    await expect(page.getByText(/Admin-only area/i)).toBeVisible({ timeout: 10_000 });
+    // Copy since #676: "Administration is an Admin, Executive, or platform Operator area."
+    await expect(
+      page.getByText(/Administration is an Admin, Executive, or platform Operator area/i),
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('button', { name: /invite user/i })).not.toBeVisible();
   },
 );

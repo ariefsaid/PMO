@@ -35,6 +35,12 @@ export interface AppShellProps {
 }
 
 /**
+ * Class of the shell's `<main>` scroll container. index.css styles it, and the list-return seam
+ * (`useListReturn`) captures and restores its `scrollTop`.
+ */
+export const MAIN_SCROLL_CLASS = 'main-scroll';
+
+/**
  * The CSS-grid app shell: rail / header / main. `main` is a
  * programmatically-focusable landmark (skip-link target + focus-on-route-
  * change). ≤920px: the rail collapses (--rail-w:0 via index.css media query)
@@ -222,7 +228,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         // Companies toolbar search at 375px). min-w-0 lets the track constrain
         // the content so inner `overflow-x-auto` scrollers handle their own width.
         // C3: inert while the mobile drawer is open.
-        className="main-scroll min-w-0 overflow-y-auto overflow-x-hidden bg-secondary/35 outline-none"
+        className={`${MAIN_SCROLL_CLASS} min-w-0 overflow-y-auto overflow-x-hidden bg-secondary/35 outline-none`}
         style={{ gridArea: 'main' }}
         inert={railOpen || undefined}
       >

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -63,6 +63,10 @@ vi.mock('react-router', async (importOriginal) => {
 });
 
 import SalesInvoices from '../SalesInvoices';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+
+const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = () =>
   render(
@@ -91,7 +95,9 @@ beforeEach(() => {
   hoisted.createMutate.mockClear();
   hoisted.navigateMock.mockClear();
   hoisted.salesInvoicesState.data = [];
+  setActiveLocale(EN_LOCALE);
 });
+afterEach(() => resetActiveLocale());
 
 describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 1)', () => {
   it('offers the org\'s real client companies in the customer picker', async () => {
@@ -154,6 +160,39 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
       // BLOCK 2 (ADR-0058): the form session's command identity rides along with the body.
       intent: { id: expect.any(String), idempotencyKey: expect.any(String) },
     });
+  });
+
+  it('AC-PLC-009: rejects an en-US sales-invoice rate with excess precision before creating', async () => {
+    setActiveLocale(EN_LOCALE);
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
+    const rate = screen.getByLabelText(/Rate/);
+    await user.clear(rate);
+    await user.type(rate, '1.234');
+    await user.click(screen.getByRole('button', { name: 'Create invoice' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/rate|decimal/i);
+    expect(hoisted.createMutate).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLC-009: persists an id-ID grouped sales-invoice rate as 1234', async () => {
+    setActiveLocale(ID_LOCALE);
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
+    const rate = screen.getByLabelText(/Rate/);
+    await user.clear(rate);
+    await user.type(rate, '1.234');
+    await user.click(screen.getByRole('button', { name: 'Create invoice' }));
+
+    expect(hoisted.createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ items: [{ item_code: 'ITEM-001', qty: 1, rate: 1234 }] }),
+    );
   });
 
   it('submits every line the user added, not just the first', async () => {

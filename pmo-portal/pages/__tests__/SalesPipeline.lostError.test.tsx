@@ -56,13 +56,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
 }));
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
-});
-vi.mock('@/src/hooks/usePipelineView', () => ({
-  usePipelineView: () => ['table', vi.fn()],
-}));
 vi.mock('@/src/auth/impersonation', () => ({
   ImpersonationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
@@ -70,10 +63,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import SalesPipeline from '../SalesPipeline';
 
+// list-working-set-return (#682): the scope ViewToggle only renders in table view (kanban
+// already shows every column); the view is URL-owned now, so force it via `?view=table`.
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/sales?view=table']}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>

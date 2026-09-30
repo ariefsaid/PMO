@@ -145,7 +145,11 @@ class QualityCheckSpec(BaseModel):
     area: QualityArea
     operation: QualityOperation
     argv: list[str]
-    timeout_seconds: int = 120
+    timeout_seconds: int = 120      # the COMMAND's budget; never includes waiting for `lock_path`
+    # A machine-global advisory lock (the same fcntl.flock file scripts/with-*-lock.sh use) to
+    # hold while the command runs. Acquired BEFORE the timeout clock starts (#704).
+    lock_path: Optional[str] = None
+    lock_wait_seconds: int = 10_800  # give up waiting on a wedged holder (exit 75, EX_TEMPFAIL)
 
 
 class QualityCheckResult(BaseModel):

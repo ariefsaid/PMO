@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -13,6 +13,7 @@ import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects'
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
@@ -58,11 +59,12 @@ function tabFromParam(param: string | undefined): PTab {
 const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
   const may = usePermission();
   const { t } = useTranslation();
-  const { data, isPending } = useProjects();
+  const { data, isPending, refetch: refetchProjects } = useProjects();
   const { updateHeader } = useProjectMutations();
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
@@ -89,7 +91,12 @@ const ProjectDetail: React.FC = () => {
   // Fallback by-id fetch for a record NOT in the active projects cache (a pre-win / lost deal
   // lives in the Sales Pipeline partition). Only fired when the cache misses, so on-hand records
   // (the common path) cost no extra query.
-  const { data: opp, isPending: oppPending } = useOpportunity(cached ? undefined : projectId);
+  const {
+    data: opp,
+    isPending: oppPending,
+    isError: oppError,
+    refetch: refetchOpp,
+  } = useOpportunity(cached ? undefined : projectId);
   const { data: committedSpend = 0 } = useProjectCommittedSpend(projectId || null);
 
   // A pre-win/lost record's full row comes from the opportunity fetch; map it onto the
@@ -146,13 +153,17 @@ const ProjectDetail: React.FC = () => {
   const isDeliveryForward = !hasFinanceView(realRole);
   const setTab = (next: PTab) => {
     trackProjectTabViewed(next);
-    navigate(`/projects/${projectId}/${next}`, { replace: true });
+    // list-working-set-return (#682): forward the current router state so a captured
+    // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
+    navigate(`/projects/${projectId}/${next}`, { replace: true, state: location.state });
   };
 
-  // Back to the Projects index — a plain navigate, no tab (AC-NAV-007). The
-  // breadcrumb resolves the record name from the cached list in App.tsx, so no
-  // per-page label hydration is needed once the tab layer is gone.
-  const goBack = () => navigate('/projects');
+  // Back to the Projects index (AC-NAV-007/AC-LRC-003): `returnToList` navigates to the
+  // captured Projects list URL when the record was opened from a narrowed list, and falls
+  // back to the bare index with clean state for a direct/copied link. The desktop parent
+  // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
+  const { returnToList } = useListReturn({ list: 'projects' });
+  const goBack = () => returnToList('projects');
 
   const openEditProject = () => setEditOpen(true);
   const closeEditProject = () => setEditOpen(false);
@@ -172,14 +183,33 @@ const ProjectDetail: React.FC = () => {
     if (isPending || oppPending) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
           <ListState variant="loading" rows={6} />
+        </>
+      );
+    }
+    // #695: absence cannot be claimed from a FAILED read. A by-id fetch that errored says nothing
+    // about whether the record exists, so it is a load error with Retry - never "not found".
+    if (oppError) {
+      return (
+        <>
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          <ListState
+            variant="error"
+            title={t('projectDetail.loadError.title', "Couldn't load this project")}
+            sub={t('projectDetail.loadError.sub', 'The request failed. Check your connection and try again.')}
+            retryLabel={t('projectDetail.loadError.retry', 'Retry')}
+            onRetry={() => {
+              void refetchProjects();
+              void refetchOpp();
+            }}
+          />
         </>
       );
     }
     return (
       <>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           icon="inbox"
@@ -269,7 +299,7 @@ const ProjectDetail: React.FC = () => {
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
-            <PipelineLens project={project} />
+            <PipelineLens project={project} locationState={location.state} />
           </div>
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).

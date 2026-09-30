@@ -90,6 +90,23 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
   await expect(page).toHaveURL(/\/$/);
 }
 
+/**
+ * Wait for web fonts to settle before a spec MEASURES layout (#713).
+ *
+ * The app's Inter faces use `font-display: swap`: text is first laid out in the fallback face and
+ * re-laid-out when Inter arrives, so a `boundingBox()` / `getBoundingClientRect()` / `scrollWidth`
+ * read in that window can see a different text width than the settled page and flip a result that
+ * sits at a column boundary. Call this AFTER the content under test is visible (a face is only
+ * requested once text using it is laid out — `document.fonts.ready` resolves immediately when
+ * nothing has been requested yet) and BEFORE the first measurement.
+ * `scripts/check-e2e-fonts-ready.mjs` fails verify for a geometry-measuring spec that omits it.
+ */
+export async function waitForFonts(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+}
+
 /** Alias for signIn — used by data-layer e2e specs (AC-4xx). */
 export const login = signIn;
 
@@ -241,4 +258,57 @@ export async function openPipelineCard(page: Page, dealName: string, within?: Lo
     await card.click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/, { timeout: 3_000 });
   }).toPass({ timeout: 30_000 });
+}
+
+// -----------------------------------------------------------------------
+// Personal Microsoft 365 card fixtures (read-only: no DB write, edge fn mocked).
+// -----------------------------------------------------------------------
+
+/**
+ * The seed intentionally leaves `m365_integration` disabled. Entitle THIS page only by rewriting the
+ * authenticated `org_features` read — the shared org row is never mutated and the route dies with the
+ * page. Call after signIn and before the navigation that must see the card.
+ */
+export async function grantM365EntitlementFixture(page: Page): Promise<void> {
+  await page.route('**/rest/v1/org_features*', async (route) => {
+    const response = await route.fetch();
+    if (!response.ok()) {
+      await route.fulfill({ response });
+      return;
+    }
+    const rows = (await response.json()) as Array<{ feature_key?: string; enabled?: boolean }>;
+    await route.fulfill({
+      response,
+      json: [
+        ...rows.filter((row) => row.feature_key !== 'm365_integration'),
+        { feature_key: 'm365_integration', enabled: true },
+      ],
+    });
+  });
+}
+
+/**
+ * Answers the personal card's `m365-token-custody` call with a 500 so the card settles on its
+ * "status unknown" state (AC-M365-023) instead of depending on whether edge functions are served —
+ * they are not, in the ordinary lanes (docs/e2e-parallel-conventions.md). Mocked, so a spec using it
+ * stays `read-only`.
+ */
+export async function stubM365StatusUnavailable(page: Page): Promise<void> {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'POST, OPTIONS',
+  };
+  await page.route('**/functions/v1/m365-token-custody', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: cors });
+      return;
+    }
+    await route.fulfill({
+      status: 500,
+      headers: cors,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'INTERNAL_ERROR', message: 'stubbed' }),
+    });
+  });
 }

@@ -16,6 +16,7 @@ const { integrations } = vi.hoisted(() => ({
     unlinkProject: vi.fn(),
     listProjectBindings: vi.fn(),
     listCompanies: vi.fn(),
+    setCompany: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations } }));
@@ -23,7 +24,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 
-import { useIntegrations } from './useIntegrations';
+import { useIntegrations, integrationHealthQueryKey } from './useIntegrations';
 import type { IntegrationBinding, ConnectCredential, IntegrationHealth, ClickUpListItem, LinkInput, LinkResponse, UnlinkInput, UnlinkResponse, ProjectBinding } from '@/src/lib/repositories/types';
 
 const wrap = (client: QueryClient) =>
@@ -81,6 +82,7 @@ beforeEach(() => {
   integrations.unlinkProject.mockResolvedValue(mockUnlinkResponse);
   integrations.listProjectBindings.mockResolvedValue(mockProjectBindings);
   integrations.listCompanies.mockResolvedValue([{ name: 'Acme Corp' }]);
+  integrations.setCompany.mockResolvedValue({ ok: true, companyId: 'Acme Corp' });
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -110,7 +112,10 @@ describe('useIntegrations', () => {
 
     expect(integrations.connectIntegration).toHaveBeenCalledWith('org-1', credential);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'bindings', 'org-1'] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1', 'clickup'] });
+    // Shared prefix contract: connect refreshes the whole org-wide health family (AC-IRUX-009),
+    // not an exact old per-tier key.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1'] });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1', 'clickup'] });
   });
 
   it('AC-EAC-007: disconnectIntegration calls repository and invalidates queries', async () => {
@@ -125,7 +130,9 @@ describe('useIntegrations', () => {
 
     expect(integrations.disconnectIntegration).toHaveBeenCalledWith('org-1', 'clickup');
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'bindings', 'org-1'] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1', 'clickup'] });
+    // Shared prefix contract: disconnect refreshes the whole org-wide health family (AC-IRUX-009).
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1'] });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1', 'clickup'] });
   });
 
   it('getBinding returns binding for a specific tier from cached list', async () => {
@@ -135,6 +142,25 @@ describe('useIntegrations', () => {
 
     const binding = result.current.getBinding('clickup');
     expect(binding).toEqual(mockBinding);
+  });
+
+  it('AC-IRUX-001: failed binding refresh disables external list and Company reads despite cached active bindings', async () => {
+    const client = freshClient();
+    client.setQueryData(['integrations', 'bindings', 'org-1'], [
+      mockBinding,
+      { ...mockBinding, external_tier: 'erpnext' },
+    ]);
+    integrations.listBindings.mockRejectedValue(new Error('unavailable'));
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    integrations.listProjectLists.mockClear();
+    integrations.listCompanies.mockClear();
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['integrations', 'clickup-lists', 'org-1'] });
+      await client.invalidateQueries({ queryKey: ['integrations', 'erpnext-companies', 'org-1'] });
+    });
+    expect(integrations.listProjectLists).not.toHaveBeenCalled();
+    expect(integrations.listCompanies).not.toHaveBeenCalled();
   });
 
   it('getHealth returns health data for a specific tier', async () => {
@@ -270,5 +296,74 @@ describe('useIntegrations', () => {
     renderHook(() => useIntegrations(), { wrapper: wrap(client) });
 
     await waitFor(() => expect(integrations.listCompanies).toHaveBeenCalledWith('org-1', 'erpnext'));
+  });
+
+  // --- Issue #677: org-scoped health cache identity + mutation refresh (AC-IRUX-009) ---
+
+  it('AC-IRUX-009: the exported health-key helper scopes each service by active org', () => {
+    expect(integrationHealthQueryKey('org-1', 'clickup')).toEqual([
+      'integrations',
+      'health',
+      'org-1',
+      'clickup',
+    ]);
+    expect(integrationHealthQueryKey('org-2', 'erpnext')).toEqual([
+      'integrations',
+      'health',
+      'org-2',
+      'erpnext',
+    ]);
+  });
+
+  it('AC-IRUX-009: different organizations yield different health query keys', () => {
+    const a = integrationHealthQueryKey('org-1', 'clickup');
+    const b = integrationHealthQueryKey('org-2', 'clickup');
+    expect(a).not.toEqual(b);
+    // Other-org invalidations must never reach this org's health cache
+    expect(b[2]).not.toBe(a[2]);
+  });
+
+  it('AC-IRUX-009: connect invalidates bindings AND the org-wide health-key prefix', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.orgId).toBe('org-1');
+
+    await act(async () => {
+      await result.current.connect.mutateAsync({ tier: 'clickup', credential: { token: 't' } });
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'bindings', 'org-1'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1'] });
+  });
+
+  it('AC-IRUX-009: disconnect invalidates bindings AND the org-wide health-key prefix', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.disconnect.mutateAsync('clickup');
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'bindings', 'org-1'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1'] });
+  });
+
+  it('AC-IRUX-009: setCompany (activation) invalidates bindings AND the org-wide health-key prefix', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.setCompany.mutateAsync('Acme Corp');
+    });
+
+    expect(integrations.setCompany).toHaveBeenCalledWith('org-1', 'erpnext', 'Acme Corp');
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'bindings', 'org-1'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1'] });
   });
 });

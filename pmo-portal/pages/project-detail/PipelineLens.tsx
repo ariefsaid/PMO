@@ -19,7 +19,7 @@ import {
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDateNumeric } from '@/src/lib/format';
+import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
 import {
   transitionProject,
   LEGAL_PROJECT_TRANSITIONS,
@@ -32,6 +32,7 @@ import {
   dealJourneySteps,
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { listReturnNavigation } from '@/src/lib/listReturnContext';
 
 // ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
 // class as the raw `project.status` rendered in the StatusPill beside them, and as
@@ -47,6 +48,15 @@ const NEXT_PIPELINE_LABEL: Record<string, string> = {
 export interface PipelineLensProps {
   /** The canonical project/opportunity row (the active detail record). */
   project: ProjectWithRefs;
+  /**
+   * The owning route's `location.state` (list-working-set-return, #682, FR-LRC-006). Read ONLY
+   * to resolve the quiet Sales Pipeline link's destination via `listReturnNavigation(…, 'sales')`
+   * — a captured Sales context (only a Sales Pipeline open stamps one; see `canCaptureFromList`)
+   * targets that same filtered Sales URL, otherwise the link falls back to bare `/sales`. Passed
+   * down rather than read via `useLocation()` here so this component keeps rendering standalone
+   * outside a Router (several tests mount it without one).
+   */
+  locationState?: unknown;
 }
 
 /**
@@ -59,7 +69,7 @@ export interface PipelineLensProps {
  * above this lens in `ProjectDetail`; this panel owns only the deal-specific surfaces (stats,
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
-const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
+const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -199,7 +209,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
     {
       label: t('projectDetail.pipeline.stat.decision', 'Decision'),
       value: project.decided_at
-        ? formatDateNumeric(new Date(project.decided_at))
+        ? formatDecisionDateNumeric(project.decided_at)
         : t('projectDetail.pipeline.pending', 'Pending'),
     },
   ];
@@ -208,9 +218,15 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
     <div>
       <StatTiles tiles={stats} columns={5} className="mb-4" />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* AC-RAM-003 (#688): base grid-cols-1 (explicit, matches the stacked mobile intent) +
+          min-w-0 on EACH grid item. Without it, a grid item's default min-width:auto falls back
+          to its content-based minimum size — which, for the Journey card, is the LifecycleStepper's
+          un-wrapped step row (flex, no wrap, summed children) — forcing the shared single-column
+          track to that width and overflowing the viewport at phone width. min-w-0 lets the track
+          shrink to the container's width; the stepper's own overflow-x-auto then scrolls instead. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Opportunity journey */}
-        <Card>
+        <Card className="min-w-0">
           <CardHead>{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
           <CardPad>
             <LifecycleStepper
@@ -223,7 +239,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
 
         {/* Next actions — wrapped in RecordActionZone so the advance/decide verb is sticky
             on desktop (never below the fold per DESIGN.md §7 RecordActionZone molecule). */}
-        <RecordActionZone>
+        <RecordActionZone className="min-w-0">
         <Card>
           {/* N10 (OD-W5-C3-B): wrap CardHead in a focusable div; the focus moves here
               programmatically after an Advance/Lost transition so a keyboard/SR user is
@@ -390,9 +406,13 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 transitions (Lost) it is the primary remaining affordance. One-Blue-compliant:
                 a text link (not a solid button). Keyboard-reachable via standard focus order.
                 Uses a plain <a> (not react-router Link) so the component mounts outside a
-                Router context without breaking (the Sales route is a top-level navigation). */}
+                Router context without breaking (the Sales route is a top-level navigation).
+                list-working-set-return (#682, FR-LRC-006): the href is the captured Sales list
+                URL when this project was opened FROM a narrowed Sales Pipeline, otherwise the
+                bare index — `listReturnNavigation` is the single validated resolver, same as
+                the mobile BackBar / desktop breadcrumb elsewhere in the seam. */}
             <a
-              href="/sales"
+              href={listReturnNavigation(locationState, 'sales').path}
               className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}

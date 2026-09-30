@@ -10,7 +10,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
-const { procState, viewState } = vi.hoisted(() => ({
+const { procState } = vi.hoisted(() => ({
   procState: {
     // One Requested row; filtering by Paid will yield 0 matches
     data: [
@@ -30,8 +30,6 @@ const { procState, viewState } = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
-  // Force board view so we see the board rendering path
-  viewState: { view: 'board' as const, setView: vi.fn() },
 }));
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -49,16 +47,14 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProcurementView', () => ({
-  useProcurementView: () => [viewState.view, viewState.setView],
-  readProcurementView: () => 'board',
-}));
-
 import Procurement from '../Procurement';
 
+// list-working-set-return (#682): view is URL-owned now — force board view via `?view=board`
+// (previously done by mocking the whole useProcurementView module, which also shadowed the
+// DEFAULT_PROCUREMENT_VIEW/PROCUREMENT_VIEWS exports listWorkingSet.ts imports directly).
 const renderPage = (search = '') =>
   render(
-    <MemoryRouter initialEntries={[`/procurement${search}`]}>
+    <MemoryRouter initialEntries={[`/procurement?view=board${search.replace(/^\?/, '&')}`]}>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
           <Procurement />
