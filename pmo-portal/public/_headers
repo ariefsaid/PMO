@@ -1,0 +1,5 @@
+# Cloudflare Pages response headers (copied into dist/ by Vite). Proof: test/securityHeaders.test.ts.
+# No page of the app may be shown inside a frame — in particular the OAuth consent screen (#728).
+/*
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
