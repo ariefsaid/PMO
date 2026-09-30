@@ -4,6 +4,16 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ 2026-09-30 (later) — second promote to `main` (#755, merge `ba13b76e`); production and the hosted DB untouched
+
+`main` == `dev`. Adds #735, #732, #731, #585, #728 (owner CLI over Supabase OAuth + consent page +
+API-client guard 0222, runbook `docs/runbooks/pmo-cli.md`), #655/#656 (ERPNext: no redirects, read-permission
+probe before activation, active-member caller), and #754 (all eleven verify guards now run in CI; leaner local
+and CI load). Open issues triaged the same day (13 closed). **Owner-gated next:** push 0219–0222 to the hosted
+project; enable the OAuth server there and register the CLI client (runbook); `main` → `production` FE promote.
+Before RIS activates ERPNext: its integration user needs read on the owned domains' doctypes + GL Entry +
+Payment Ledger Entry.
+
 ### ⚑ 2026-09-30 — promoted to `main` (#743, merge `37380e17`); production and the hosted DB untouched
 
 `main` == `dev` (trees identical). Carries the milestone below, the 16-issue follow-up batch
