@@ -44,9 +44,8 @@ test(
   async ({ page }) => {
     const runId = Date.now();
     const prTitle = `E2E-PR-${runId}`;
-    // Retry-isolation: the line-item description is unique per attempt too (runId is
-    // recomputed when Playwright re-runs the test body on a retry), so a Draft PR
-    // left behind by a flaked attempt-1 (shared DB, CI retries=2) can never
+    // Run-isolation: the line-item description is unique per run too (runId), so a Draft PR
+    // left behind by an earlier run on the shared, un-reset local DB can never
     // strict-mode-collide with this attempt's line-item cell assertion.
     const itemDesc = `Welding wire 1.2mm ${runId}`;
 

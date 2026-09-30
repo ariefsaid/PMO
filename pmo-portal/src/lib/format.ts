@@ -21,7 +21,7 @@ export const PLATFORM_CURRENCY = 'USD';
 // ⛔ THE LOCALE IS PART OF THE KEY. Without it the FIRST locale rendered poisons every later
 // render of the same shape+currency: a language switch then produces the old locale's output with
 // no error and nothing thrown. `format.locale.test.ts` plants exactly that mutation.
-const formatterCache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat>();
+const formatterCache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat>();
 
 function numberFormatterFor(
   shape: string,
@@ -372,21 +372,21 @@ export function formatInstantDate(iso: string | null | undefined): string {
 }
 
 /**
- * Numeric display of a project decision date (`decided_at`, #700).
+ * Numeric display of a project's decision date (#700, #732).
  *
- * On a win the RPC writes `decided_at = contract_date::timestamptz` — a CALENDAR date wearing an
- * instant, which lands exactly on midnight UTC. Formatting that through the viewer's timezone shows
- * the previous day to anyone behind UTC. So: a date-only value, or an instant at exactly 00:00:00.000
- * UTC, is that calendar day for every viewer; any other instant (a loss records `now()`) is a real
- * moment and still follows the viewer's profile timezone.
+ * A win records the customer contract date in `contract_date` (a DATE) and copies it into
+ * `decided_at` as `contract_date::timestamptz`. That copy is midnight UTC only while the database
+ * session zone is UTC, so it is NOT a reliable calendar date. Both columns are written together by
+ * the win RPC, and `contract_date` is only ever set by a win: when present it is the decision date
+ * and is shown as a calendar day, never shifted by the viewer's timezone. Without it (a loss stamps
+ * `decided_at = now()`) the decision is a real instant and follows the viewer's profile timezone.
  */
-export function formatDecisionDateNumeric(iso: string | null | undefined): string {
-  if (parseDateOnly(iso)) return formatDateOnlyNumeric(iso);
-  const instant = parseInstant(iso);
-  if (instant && instant.getTime() % 86_400_000 === 0) {
-    return formatDateOnlyNumeric(instant.toISOString().slice(0, 10));
-  }
-  return formatInstantDateNumeric(iso);
+export function formatDecisionDateNumeric(decision: {
+  contract_date?: string | null;
+  decided_at?: string | null;
+}): string {
+  if (decision.contract_date) return formatDateOnlyNumeric(decision.contract_date);
+  return formatInstantDateNumeric(decision.decided_at);
 }
 
 /** Numeric calendar date derived from an ISO instant in the viewer's resolved timezone. */
@@ -672,4 +672,17 @@ export function formatUtcDayMonthYear(d: Date): string {
   }).formatToParts(d);
   const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${find('day')} ${find('month')} '${find('year')}`;
+}
+
+/** Joins a short list with the UI language's conjunction — "15 and 16" / "15 dan 16" (#656: the
+ *  activation dialog's supported-versions list). Keyed by locale like every formatter here. */
+export function formatList(items: readonly string[]): string {
+  const locale = getDateLocale();
+  const key = `l|${locale}|conjunction`;
+  let formatter = formatterCache.get(key) as Intl.ListFormat | undefined;
+  if (!formatter) {
+    formatter = new Intl.ListFormat(locale, { type: 'conjunction' });
+    formatterCache.set(key, formatter);
+  }
+  return formatter.format(items);
 }

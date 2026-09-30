@@ -2320,7 +2320,9 @@
           "unavailableSub": "Perusahaan ERPNext Anda tidak dapat dibaca. Coba lagi untuk mengaktifkan integrasi.",
           "emptyTitle": "Tidak ada Perusahaan ditemukan",
           "emptySub": "Buat sebuah Perusahaan di ERPNext sebelum mengaktifkan integrasi ini.",
-          "activateFailed": "Aktivasi gagal. Pilihan Anda tetap tersimpan; Anda dapat mencoba lagi."
+          "activateFailed": "Aktivasi gagal. Pilihan Anda tetap tersimpan; Anda dapat mencoba lagi.",
+          "missingReads": "Pengguna integrasi ERPNext tidak dapat membaca: {{doctypes}}. Berikan akses baca untuk semuanya di ERPNext, lalu aktifkan lagi. Pilihan Anda tetap tersimpan.",
+          "unsupportedVersion": "ERPNext {{version}} tidak didukung — PMO mendukung ERPNext {{supported}}. Tidak ada yang diaktifkan."
         },
         "health": {
           "loading": "Memeriksa status pekerjaan keluar…",
@@ -2490,5 +2492,20 @@
     "saved": "Preferensi disimpan",
     "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
     "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
+  },
+  "oauthConsent": {
+    "allow": "Izinkan",
+    "brand": "PMO Portal",
+    "decideError": "Jawaban Anda tidak dapat dikirim.",
+    "deny": "Tolak",
+    "explain": "{{client}} akan dapat membaca dan mengubah catatan PMO atas nama Anda, dengan izin yang sama persis dengan izin Anda. Aplikasi ini tidak dapat melakukan apa pun yang tidak dapat Anda lakukan sendiri.",
+    "loadError": "Permintaan masuk ini tidak dapat dimuat.",
+    "loading": "Memuat permintaan masuk…",
+    "loopback": "Setelah Anda menjawab, Anda akan kembali ke program di komputer ini.",
+    "missingRequest": "Permintaan masuk ini tidak lengkap.",
+    "restart": "Mulai proses masuk lagi dari aplikasi yang mengarahkan Anda ke sini.",
+    "returning": "Mengembalikan Anda ke aplikasi…",
+    "signedInAs": "Masuk sebagai {{email}}",
+    "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   }
 }

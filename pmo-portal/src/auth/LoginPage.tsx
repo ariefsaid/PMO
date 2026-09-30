@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
@@ -11,6 +11,7 @@ import {
 } from '../lib/analytics';
 import { HELP_URL } from '../lib/legalConfig';
 import { AppVersion } from '../components/AppVersion';
+import { returnPathFrom } from './returnTo';
 
 // -----------------------------------------------------------------------
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -64,6 +65,8 @@ const LoginPage: React.FC = () => {
   const { signInWithPassword, signInWithMagicLink, signInWithMicrosoft, resendEmailConfirmation } =
     useAuth();
   const navigate = useNavigate();
+  // AC-CLI-012: where RequireAuth was sending the user (e.g. the OAuth consent screen), if safe.
+  const returnPath = returnPathFrom(useLocation().state);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,7 +97,7 @@ const LoginPage: React.FC = () => {
       return;
     }
     trackAuthLoginSucceeded('password');
-    navigate('/', { replace: true });
+    navigate(returnPath ?? '/', { replace: true });
   };
 
   const onResend = async () => {

@@ -2,12 +2,18 @@ import { defineConfig, devices } from '@playwright/test';
 import os from 'node:os';
 import path from 'node:path';
 
+// E2E_CONSENT_LANE=0 drops the `consent` project AND its analytics-enabled :3100 dev server — for
+// local runs that don't touch those specs (scripts/e2e-local.sh sets it). CI never sets it.
+const consentLane = process.env.E2E_CONSENT_LANE !== '0';
+
 // Acceptance (BDD) layer. Each spec maps 1:1 to an AC-### from docs/specs/*.spec.md.
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // No retries anywhere: a real failure runs once (not 3x), and a flake fails instead of being
+  // retried green — which is also why no lane passes --fail-on-flaky-tests any more.
+  retries: 0,
   // #306: session-injection removes the per-spec bcrypt that forced workers:1. If CI surfaces
   // shared-DB DATA-race flakes (not auth), revert to `process.env.CI ? 1` — the auth-reuse win
   // stands regardless; DB data isolation is a separate follow-up.
@@ -23,7 +29,8 @@ export default defineConfig({
   outputDir: path.join(os.tmpdir(), 'pmo-portal-test-results'),
   use: {
     baseURL: 'http://localhost:3000',
-    trace: 'on-first-retry',
+    // With retries 0, 'on-first-retry' would never record; keep the trace of every failure.
+    trace: 'retain-on-failure',
     // Retained only on failure so local/CI runs stay light; these are the CI diagnostics that let
     // `npx playwright show-trace`/the report reconstruct a failing spec's DOM without re-running it.
     screenshot: 'only-on-failure',
@@ -68,7 +75,7 @@ export default defineConfig({
       testMatch: /e2e\/serial\/.*\.spec\.ts/,
       fullyParallel: false,
     },
-    {
+    ...(consentLane ? [{
       // AC-CON-003/AC-CON-012 run against a SECOND dev server with analytics actually ENABLED.
       // Without it the specs are vacuous: getAnalyticsConfig() disables analytics whenever
       // VITE_POSTHOG_KEY is not a valid phc_ key, which it never is in e2e — so "no request to
@@ -78,7 +85,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:3100' },
       testMatch: /AC-CON-(003|012)-.*\.spec\.ts|AC-VISUAL-CHECKBOX-001-.*\.spec\.ts/,
       fullyParallel: false,
-    },
+    }] : []),
   ],
   webServer: [
     {
@@ -89,7 +96,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
     },
-    {
+    ...(consentLane ? [{
       // Analytics-ENABLED lane for AC-CON-003 only. The key is a syntactically valid throwaway (it
       // must satisfy isValidPosthogKey); the host is unroutable on purpose, so every PostHog request
       // is trivially identifiable and is intercepted by the spec rather than actually leaving.
@@ -103,6 +110,6 @@ export default defineConfig({
         VITE_POSTHOG_KEY: 'phc_e2econsentlanefakekey00000',
         VITE_POSTHOG_HOST: 'https://ph-e2e.invalid',
       },
-    },
+    }] : []),
   ],
 });

@@ -26,15 +26,14 @@ const PROJECT_ID = '40000000-0000-0000-0000-000000000013';
 const PROJECT_NAME = 'Seabridge Terminal Delivery';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 
-// Retry-idempotency (root cause of this spec's promote-integration failures): CI runs `retries: 2`
-// on ONE shared DB with NO db-reset between attempts. This journey asserts P013's milestone strip is
-// EMPTY (the create-from-empty path) but its own first attempt CREATES a milestone — so a transient
-// flake on attempt 1 (e.g. a 15s timeout under 4-worker load) poisons every retry's empty-state
-// assertion (line ~51), turning a recoverable flake into a hard, deterministic failure. Delete
+// Rerun-idempotency (root cause of this spec's promote-integration failures): runs share ONE DB with
+// no db-reset between them (CI retried on it; local runs skip the reset by default). This journey
+// asserts P013's milestone strip is EMPTY (the create-from-empty path) but each run CREATES a
+// milestone — so any earlier run poisons the next one's empty-state assertion (line ~51). Delete
 // P013's milestones (service-role, RLS-bypassing; tasks.milestone_id ON DELETE SET NULL un-groups
-// them) before EACH attempt so every retry starts pristine and a transient flake self-heals.
-// No-op locally without the service key (a `supabase db reset` already gives a pristine P013, and
-// local retries=0), so the spec stays runnable without it.
+// them) before EACH run so it starts pristine.
+// No-op without the service key (then reset first: `scripts/e2e-local.sh --reset`), so the spec
+// stays runnable without it.
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) return;

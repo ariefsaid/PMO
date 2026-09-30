@@ -54,6 +54,7 @@ For each power, **Does** says what it changes or reads, **Invoke** says the supp
 - **Invoke:** Call `operator_set_domain_ownership(p_org_id, p_tier, p_domain, p_action)` through the authenticated guarded RPC path, where `p_action` is `employ` or `release`.
 - **Who may:** An active platform Operator only; the RPC validates the target organization.
 - **Audited today:** **Not currently audited** for this direct RPC. The separate integration path below has its own audit events and is not interchangeable with this entry point.
+- **ERPNext note:** ERPNext activation (Company selection, `external-set-company`) checks that the integration user can read the doctypes of the domains the organization owns **at activation time** (plus the ledgers); a domain employed after activation is not checked, so grant that user read access to the new domain's doctypes first.
 
 ### Organization creation
 

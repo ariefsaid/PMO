@@ -11,6 +11,7 @@
  * imports `repositories` and never changes.
  */
 import { toAppError, AppError } from '@/src/lib/appError';
+import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import {
@@ -282,13 +283,18 @@ async function wrap<T>(fn: () => Promise<T>): Promise<T> {
  *  the same pattern as `m365/connectClient.ts`, `db/adminUsers.ts` and `adapterSeam/dispatchClient.ts`.
  *  Without this the admin sees "Edge Function returned a non-2xx status code" instead of the reason.
  *  (#650 AC-EAC-115: the Company-selection refusal reasons must reach the Company dialog.) */
-async function throwInvokeError(error: unknown): Promise<never> {
+async function throwInvokeError(
+  error: unknown,
+  decorate?: (appError: AppError, body: unknown) => void,
+): Promise<never> {
   const context = (error as { context?: Response } | null | undefined)?.context;
   if (context && typeof context.clone === 'function') {
     try {
       const body = (await context.clone().json()) as { error?: string; message?: string };
       if (typeof body.message === 'string' && body.message.trim() !== '') {
-        throw new AppError(body.message, body.error);
+        const appError = new AppError(body.message, body.error);
+        decorate?.(appError, body);
+        throw appError;
       }
     } catch (parsed) {
       if (parsed instanceof AppError) throw parsed;
@@ -961,7 +967,11 @@ const integrationsImpl: IntegrationsRepository = {
           body: { tier: 'erpnext', companyId },
         }),
       );
-      if (error) await throwInvokeError(error);
+      // #656: an actionable refusal (missing reads / unsupported version) rides along for the dialog.
+      if (error) await throwInvokeError(error, (appError, body) => {
+        const refusal = parseErpActivationRefusal(body);
+        if (refusal) withErpActivationRefusal(appError, refusal);
+      });
       return data as { ok: true; companyId: string };
     });
   },

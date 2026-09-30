@@ -18,6 +18,7 @@ import TermsPage from './pages/Terms';
 import PrivacyPage from './pages/Privacy';
 import ResetPasswordPage from '@/src/auth/ResetPasswordPage';
 import UpdatePasswordPage from '@/src/auth/UpdatePasswordPage';
+import OAuthConsentPage from '@/src/auth/OAuthConsentPage';
 import {
   AppShell,
   Rail,
@@ -543,6 +544,9 @@ const App: React.FC = () => (
                 <Route path="/update-password" element={<UpdatePasswordPage />} />
                 <Route element={<RequireAuth />}>
                   <Route element={<RequireInviteAccepted />}>
+                    {/* #728: Supabase's OAuth server sends the browser here to approve an outside
+                        client (the PMO CLI). Signed-in only, but outside the app shell. */}
+                    <Route path="/oauth/consent" element={<OAuthConsentPage />} />
                     <Route path="/*" element={<Shell />} />
                   </Route>
                 </Route>

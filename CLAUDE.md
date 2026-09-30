@@ -119,8 +119,11 @@ stopped two dead layers being ranked above the one live one.
   job that timed out before printing). **Local final gate** (every builder and brief, before a PR): `npm run
   typecheck`, `npx eslint --max-warnings=0 <touched files>`, `npx vitest run --changed origin/dev` (every test
   that imports anything you changed — this is what still catches shared-component breakage), the touched e2e
-  journeys (`scripts/e2e-local.sh <fragment>`), and `supabase test db` for DB changes — vitest/typecheck under
-  `scripts/with-test-lock.sh`, DB work under `scripts/with-db-lock.sh`.
+  journeys (`scripts/e2e-local.sh <fragment>`), and for DB changes only the touched pgTAP files
+  (`supabase test db <files>`; CI's `pgtap` job is the full proof) — vitest/typecheck under
+  `scripts/with-test-lock.sh`, DB work under `scripts/with-db-lock.sh`. `db reset` (and `e2e-local.sh --reset`)
+  only when your branch adds/changes a migration or seed. Reviewers and release-engineer read the builder's
+  gate evidence and re-run only a targeted check they doubt — no outer re-verify chains.
 - **⛔ NOT DONE UNTIL GREEN — enforced, not advised (2026-07-17).** A task is not complete while any
   test is red. **Never** weaken, skip, delete, or re-implement a test to get green — fix the code; if a
   test is genuinely wrong, say so explicitly and stop. Dispatched agents violated this **5×** (claimed
@@ -151,7 +154,7 @@ stopped two dead layers being ranked above the one live one.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
-- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke. Push CI is `main`-ONLY (dev/feature are PR-gated → no duplicate verify); `integration` fires automatically on the PR→`main`, and on a PR→`dev` only when dispatched via `scripts/ci-e2e.sh` and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
+- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke (the only re-test of the merged result). `integration` fires automatically on the PR→`main`, and on a PR→`dev` only when dispatched via `scripts/ci-e2e.sh` (a dispatch skips `verify` + pgTAP — the PR ran them) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
 - **PRs:** one per issue — *for code*. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
   CI paths-ignores them, so a docs PR gates on nothing and is pure ceremony (a docs PR reports "no checks
@@ -276,10 +279,10 @@ with `git branch -d <branch>` (use `-D` only after the exact-tip checks for a ve
 finally delete the still-matching repository-owned remote branch with `git push origin --delete <branch>`.
 Never remove a worktree or branch merely because it looks stale.
 
-**⚑ Chain reset+test as ONE lock hold (binding).** Serializing the two commands *separately* is not enough: a
-sibling worktree's reset landing **between** your `db reset` and your `supabase test db` leaves you testing a
-schema you did not migrate — producing **false REDs and false GREENs** alike. Always:
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
+**⚑ Chain reset+test as ONE lock hold (binding).** When you reset (your branch adds/changes a migration or
+seed), serializing the two commands *separately* is not enough: a sibling worktree's reset landing **between**
+your `db reset` and your `supabase test db` leaves you testing a schema you did not migrate — producing **false
+REDs and false GREENs** alike. So: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'`.
 **Three machine-global locks now exist**, sharing one core (`scripts/lib/flock-run.sh`): `with-db-lock.sh`
 (shared Supabase stack) · `with-erpnext-lock.sh` (ERPNext dev bed) · `with-test-lock.sh` (the heavy vitest
 suite — **if you ever run the full suite locally, use `npm run verify:locked`, not bare `npm run verify`**, so only ONE full suite

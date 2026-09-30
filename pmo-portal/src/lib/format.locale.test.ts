@@ -13,6 +13,7 @@ import {
   formatRelativeTime,
   currencySymbol,
   parseMoneyInput,
+  formatList,
 } from './format';
 
 /** Intl inserts NBSP/narrow-NBSP between symbol and digits in several locales; assertions are
@@ -165,4 +166,21 @@ describe('what the locale must NOT reach', () => {
     expect(parseMoneyInput('')).toBeNull();
   });
 
+});
+
+// #656 — a short list joined in the UI language (the activation dialog's supported-versions list).
+describe('formatList joins in the UI language', () => {
+  it('uses the UI language\'s conjunction, and switches with it (the locale is part of the cache key)', () => {
+    setActiveLocale(EN);
+    expect(formatList(['15', '16'])).toBe('15 and 16');
+    expect(formatList(['15', '16', '17'])).toBe('15, 16, and 17');
+    setActiveLocale(ID);
+    expect(formatList(['15', '16'])).toBe('15 dan 16');
+  });
+
+  it('a single item is itself, and an empty list is empty', () => {
+    setActiveLocale(EN);
+    expect(formatList(['15'])).toBe('15');
+    expect(formatList([])).toBe('');
+  });
 });

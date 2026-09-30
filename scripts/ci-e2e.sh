@@ -75,4 +75,7 @@ echo "ci-e2e: branch=$branch pr=#$pr today=$today on_branch=$on_branch busy=$bus
 [ "$dry" -eq 1 ] && exit 0
 
 printf '%s\t%s\t%s#%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" "$REPO" "$branch" "$pr" "$kind" "$quote" >>"$LOG"
-gh workflow run "$WF" -R "$REPO" --ref "$branch"
+# A dispatch skips `verify` and pgTAP (the PR's own run covered both); with no PR, nothing ran
+# pgTAP on this branch yet, so ask for it.
+pgtap=false; [ "$pr" = "-" ] && pgtap=true
+gh workflow run "$WF" -R "$REPO" --ref "$branch" -f run_pgtap="$pgtap"

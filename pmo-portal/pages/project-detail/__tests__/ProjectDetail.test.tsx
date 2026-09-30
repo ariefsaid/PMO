@@ -318,12 +318,10 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
-  it('I7: the success render drops the redundant in-page BackBar + Breadcrumb', () => {
+  it('I7: the success render drops the redundant in-page Breadcrumb (Back bar is phone-only, see C-IMP-1)', () => {
     renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    // I7: the top-bar breadcrumb owns wayfinding — no in-page BackBar...
-    expect(screen.queryByRole('button', { name: /Back to Projects/i })).toBeNull();
-    // ...and no in-page Breadcrumb nav landmark.
+    // I7: the top-bar breadcrumb owns wayfinding above 920px — no in-page Breadcrumb nav landmark.
     expect(screen.queryByRole('navigation', { name: /breadcrumb/i })).toBeNull();
     // the project name appears exactly once (the header), not duplicated by a crumb
     expect(screen.getAllByText('Innovate Corp HQ Fit-Out')).toHaveLength(1);
@@ -398,16 +396,23 @@ describe('ProjectDetail shell (decomposition)', () => {
     );
   });
 
-  it('C-IMP-1: BackBar is present on the success render on mobile (< 768px viewport)', () => {
-    desktopBox.value = false;
+  it('C-IMP-1 / #735: the loaded record renders the Back bar phone-only — visible up to 920px (incl. 800px), hidden above', () => {
+    // The 920px rule matches every other record page: the bar is CSS-gated
+    // (`hidden max-[920px]:flex`), not JS-gated on the 768px useIsDesktop split — so at
+    // 800px (>= 768, <= 920) the bar is visible and the top-bar breadcrumb (hidden
+    // <= 920px) is not the only way back. Above 920px the class hides it (breadcrumb owns it).
+    desktopBox.value = true; // 800px is "desktop" by the 768px hook — the bar must still render
     renderAt('/projects/p1');
-    // On mobile, the success render must include the in-content back affordance.
-    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    const back = screen.getByRole('button', { name: /Back to Projects/i });
+    expect(back).toBeInTheDocument();
+    expect(back.parentElement!.className).toContain('hidden');
+    expect(back.parentElement!.className).toContain('max-[920px]:flex');
   });
 
-  it('C-IMP-1: BackBar is absent on the success render on desktop (>= 768px viewport)', () => {
-    desktopBox.value = true;
+  it('C-IMP-1 / #735: the loaded record also renders the phone-only Back bar below 768px', () => {
+    desktopBox.value = false;
     renderAt('/projects/p1');
-    expect(screen.queryByRole('button', { name: /Back to Projects/i })).toBeNull();
+    const back = screen.getByRole('button', { name: /Back to Projects/i });
+    expect(back.parentElement!.className).toContain('max-[920px]:flex');
   });
 });

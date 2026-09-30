@@ -53,7 +53,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               // C3: the separator is hidden at mobile alongside its parent link.
               <span
                 aria-hidden
-                className="opacity-50 max-[921px]:hidden [&_svg]:size-3.5"
+                className="opacity-50 max-[920px]:hidden [&_svg]:size-3.5"
               >
                 <Icon name="chev" />
               </span>
@@ -68,13 +68,13 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 {label}
               </span>
             ) : (
-              // C3: parent crumb links are hidden at ≤921px — the BackBar and
-              // drawer nav provide those escape routes on mobile.
+              // C3: parent crumb links hide at exactly the breakpoint where the phoneOnly
+              // BackBar shows (max-[920px]), so no width has neither way back (#735).
               <button
                 type="button"
                 onClick={part.onClick}
                 aria-label={part.ariaLabel}
-                className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[921px]:hidden"
+                className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
               >
                 {label}
               </button>

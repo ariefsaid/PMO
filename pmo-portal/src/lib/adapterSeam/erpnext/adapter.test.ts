@@ -431,3 +431,26 @@ describe('erpnext/adapter — reads (listChangesSinceWatermark deferred to slice
     await expect(adapter.getByExternalId('companies', 'Supplier:Ghost')).resolves.toBeNull();
   });
 });
+
+describe('erpnext/adapter — redirect policy on the dispatch path (#655)', () => {
+  it('a create POST answered with a redirect is refused as external-unreachable, sent once, never followed', async () => {
+    const calls: Array<{ method: string; redirect?: RequestRedirect }> = [];
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', redirect: init?.redirect });
+      return new Response(null, { status: 307, headers: { Location: 'https://elsewhere.example/' } });
+    };
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: {
+        'purchase-order': { toBody: (rec) => ({ items: rec.items }), fromDoc: () => ({ id: 'placeholder' }) },
+      },
+    });
+    const adapter = createErpAdapter(deps);
+    await expect(adapter.commit({
+      domain: 'procurement',
+      operation: 'create',
+      record: { id: 'pmo-po-1', erp_doc_kind: 'purchase-order', items: [{ item_code: 'X', qty: 1 }] },
+    })).rejects.toMatchObject({ code: 'external-unreachable' });
+    // One POST, no submit/re-fetch after it, and fetch was told not to follow the redirect.
+    expect(calls).toEqual([{ method: 'POST', redirect: 'manual' }]);
+  });
+});

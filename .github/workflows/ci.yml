@@ -2,13 +2,11 @@ name: CI
 
 on:
   push:
-    # PUSH CI on `main` ONLY (post-merge smoke). `dev`/feature branches are intentionally
-    # excluded: every change reaches them via a PR that already runs `verify`, and `dev` is
-    # otherwise only force-synced to `main` (identical, already-gated content) — so a push
-    # trigger there would just re-run `verify` on verified content. Net: `verify` runs once
-    # per PR + one main post-merge smoke, not ~4× per change. (`integration` is PR→main only.)
+    # PUSH CI on `main` ONLY: a post-merge `verify` smoke of what actually landed. `main`'s
+    # protection is not strict (a PR can merge on a stale base) and Dependabot / release-please
+    # merge there directly, so this is the only re-test of the merged result. `dev`/feature
+    # branches are PR-gated → no push trigger there.
     branches: [main]
-    # Skip CI on docs/markdown-only changes (no code/test/migration touched).
     paths-ignore:
       - 'docs/**'
       - 'review/**'
@@ -30,10 +28,17 @@ on:
   #
   # So one workflow owns these names and always runs on a PR. The cost is that a docs-only PR runs
   # the full suite; that is rare (docs go direct to `dev` per CLAUDE.md) and correctness beats CI
-  # minutes. The `push` trigger below KEEPS its paths-ignore — push has no required checks, so
-  # skipping it there is free.
+  # minutes.
   pull_request:
-  workflow_dispatch: {}
+  # Dispatched only via scripts/ci-e2e.sh, for a PR to `dev` whose PR run already did `verify` +
+  # `pgtap` — so a dispatch runs `integration` alone and skips its pgTAP step unless `run_pgtap`
+  # (ci-e2e.sh sets it when the branch has no PR, i.e. nothing ran pgTAP on it yet).
+  workflow_dispatch:
+    inputs:
+      run_pgtap:
+        description: Also run pgTAP (set when no PR's pgtap job covers this branch)
+        type: boolean
+        default: false
 
 # Least privilege: the workflow only reads the repo (checkout + diff); it never writes
 # contents, issues, PRs, or packages.
@@ -58,13 +63,17 @@ defaults:
 #               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
 #               here — cheap, and this job must stand alone as the merge-gate proof.)
 # push main   → `verify` smoke only (pgtap/integration skipped — see their `if`).
-# No push CI on dev/feature branches (PR-gated) → no duplicate `verify` runs.
+# dispatch    → `integration` only, pgTAP skipped (scripts/ci-e2e.sh; the PR already ran
+#               `verify` + `pgtap`).
+# No push CI at all (PR-gated) → no duplicate `verify` runs.
 # Integration trims: Playwright browsers cached + Supabase starts without the
 # CI-unused containers (studio/realtime/vector). `pgtap` uses the same trim.
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
   verify:
+    # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran verify.
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,17 +81,6 @@ jobs:
           # Full history so the changed-lines coverage gate can diff against the
           # PR base ref.
           fetch-depth: 0
-      # Fail fast on duplicate migration prefixes (parallel-agent renumber races) —
-      # a clear one-liner here instead of a confusing db-reset/pgTAP error later.
-      - name: Migration prefix collision check
-        working-directory: .
-        run: bash scripts/check-migration-collisions.sh
-      - name: E2E isolation-tag check
-        working-directory: .
-        run: bash scripts/check-e2e-isolation.sh
-      - name: NUL byte check (tracked text files)
-        working-directory: .
-        run: bash scripts/check-nul-bytes.sh .
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -96,19 +94,27 @@ jobs:
       - name: Parallel-agent infra tests
         working-directory: .
         run: node --test scripts/parallel-infra.test.mjs
+      # The PMO command-line client (#728): PKCE/state, allow-lists, no-delete, the DD-API-3 write
+      # guards, refresh-on-expiry and the 0600 credentials file. Fake Supabase on an ephemeral
+      # port + temp dirs only — no DB, no network.
+      - name: PMO CLI tests
+        working-directory: .
+        run: node --test scripts/pmo.test.mjs scripts/register-oauth-client.test.mjs
       - name: CI integration-order test
         working-directory: .
         run: |
           node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
-          node scripts/check-redirect-targets.mjs
           bash scripts/check-e2e-isolation.sh --self-test
-          node scripts/check-e2e-fonts-ready.mjs --self-test
-          node scripts/check-e2e-fonts-ready.mjs
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
       - run: npm ci
+      # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
+      # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
+      # typecheck/tests so a guard failure surfaces first.
+      - name: Repo guards (check:guards)
+        run: npm run check:guards
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
         # Build-time devDependencies (vite/esbuild/vitest/etc.) never enter the bundle, so an
@@ -126,6 +132,8 @@ jobs:
         continue-on-error: true
       - name: Typecheck
         run: npm run typecheck
+      - name: Lint
+        run: npm run lint:ci
       - name: Unit tests (+ coverage)
         run: npm run test:coverage
       - name: Changed-lines coverage gate (≥80%)
@@ -144,8 +152,6 @@ jobs:
             --min 80
       - name: Build
         run: npm run build
-      - name: Lint
-        run: npm run lint:ci
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
@@ -203,14 +209,9 @@ jobs:
 
       # Fail fast on duplicate migration prefixes — the clear one-liner version of
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
+      # (The other repo guards run once, in `verify` — see check:guards.)
       - name: Migration prefix collision check
         run: bash scripts/check-migration-collisions.sh
-      - name: E2E isolation-tag check
-        working-directory: .
-        run: bash scripts/check-e2e-isolation.sh
-      - name: NUL byte check (tracked text files)
-        working-directory: .
-        run: bash scripts/check-nul-bytes.sh .
 
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
@@ -266,14 +267,13 @@ jobs:
 
       # Fail fast on duplicate migration prefixes — the clear one-liner version of
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
+      # Kept here (also in check:guards) because both fail this job's own later steps: a prefix
+      # collision breaks db reset, a mis-tagged spec races the e2e lanes.
       - name: Migration prefix collision check
         run: bash scripts/check-migration-collisions.sh
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
-      - name: NUL byte check (tracked text files)
-        working-directory: .
-        run: bash scripts/check-nul-bytes.sh .
 
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
@@ -302,8 +302,10 @@ jobs:
       - name: Reset DB (migrations + seed)
         run: supabase db reset --yes
 
-      # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
+      # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs. Skipped on a dispatch: the PR's
+      # `pgtap` job already ran it (ci-e2e.sh sets run_pgtap when there is no PR).
       - name: pgTAP integration tests
+        if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
         run: supabase test db
 
       # Extract the anon key + API URL from the local stack and write them into the file
@@ -374,9 +376,11 @@ jobs:
           # reporters to the file: the human-readable output vanishes from the CI log AND the list text
           # corrupts the JSON the skip gate parses. (Self-inflicted 2026-07-25 — a failing run showed no
           # failing test name at all.) The env var routes json to a file and leaves list on stdout.
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --fail-on-flaky-tests --reporter=list,json
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --fail-on-flaky-tests --reporter=list,json
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --fail-on-flaky-tests --reporter=list,json
+          # No retries (playwright.config.ts `retries: 0`): a real failure fails once, with a trace
+          # (`retain-on-failure`) — never re-run 3x, and no retry can mask a flake.
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --reporter=list,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
 
       # ⚑ Green-by-absence gate. A SKIPPED test is not a passing one, and skips are invisible in a
       # green tick — the last main run skipped 200. AC-INV-001 sat in that 200 for months (its guard
@@ -409,7 +413,7 @@ jobs:
           SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
         run: |
           printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
-          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium --fail-on-flaky-tests'
+          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium'
 
       - name: Upload Playwright report
         if: failure()

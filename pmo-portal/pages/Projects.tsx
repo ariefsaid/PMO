@@ -18,7 +18,7 @@ import {
   type RowMenuItem,
   TaxBasisLabel,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
 import { useTranslation } from 'react-i18next';
@@ -579,6 +579,9 @@ const Projects: React.FC = () => {
     },
   ];
 
+  // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
+  const exportColumns = withCurrencyColumn(columns, 'contract', (r) => r.currency);
+
   // ── States ──────────────────────────────────────────────────────────────
   const primaryAction = newProjectAction(
     canCreate,
@@ -662,7 +665,7 @@ const Projects: React.FC = () => {
     <ExportButton
       key="export"
       rows={filtered}
-      columns={columns}
+      columns={exportColumns}
       entity="Projects"
       label={t('projects.export', 'Export')}
       onExport={() => setMoreOpen(false)}
@@ -958,7 +961,7 @@ const Projects: React.FC = () => {
         ) : undefined
       }
       exportAction={
-        <ExportButton rows={filtered} columns={columns} entity="Projects" label={t('projects.export', 'Export')} />
+        <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
       }
       view={
         /* All four views remain reachable; DataTable reflows Table into cards below md. */

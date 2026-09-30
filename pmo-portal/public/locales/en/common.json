@@ -2320,7 +2320,9 @@
           "unavailableSub": "Your ERPNext Companies could not be read. Try again to activate the integration.",
           "emptyTitle": "No Companies found",
           "emptySub": "Create a Company in ERPNext before activating this integration.",
-          "activateFailed": "Activation failed. Your selection was kept; you can try again."
+          "activateFailed": "Activation failed. Your selection was kept; you can try again.",
+          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Grant it read access to these in ERPNext, then activate again. Your selection was kept.",
+          "unsupportedVersion": "ERPNext {{version}} is not supported — PMO supports ERPNext {{supported}}. Nothing was activated."
         },
         "health": {
           "loading": "Checking outbound work status…",
@@ -2490,5 +2492,20 @@
     "saved": "Preferences saved",
     "error": "Could not save your preferences. Please try again.",
     "invalidTimezone": "Choose a valid timezone before saving."
+  },
+  "oauthConsent": {
+    "allow": "Allow",
+    "brand": "PMO Portal",
+    "decideError": "Your answer could not be sent.",
+    "deny": "Deny",
+    "explain": "{{client}} will be able to read and change PMO records as you, with exactly your permissions. It can do nothing you cannot do yourself.",
+    "loadError": "This sign-in request could not be loaded.",
+    "loading": "Loading the sign-in request…",
+    "loopback": "After you answer, you return to a program on this computer.",
+    "missingRequest": "This sign-in request is incomplete.",
+    "restart": "Start the sign-in again from the application that sent you here.",
+    "returning": "Returning you to the application…",
+    "signedInAs": "Signed in as {{email}}",
+    "title": "Allow {{client}} to access your PMO account?"
   }
 }
