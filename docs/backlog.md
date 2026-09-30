@@ -4,7 +4,16 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑ 2026-09-29 — enterprise UI/UX readiness milestone COMPLETE on `dev` (not promoted)
+### ⚑ 2026-09-30 — promoted to `main` (#743, merge `37380e17`); production and the hosted DB untouched
+
+`main` == `dev` (trees identical). Carries the milestone below, the 16-issue follow-up batch
+(#729 #730 #733 #734 #736 #737 #738 #741), the two security fixes found by the public-docs audit
+(#739 migration 0220, #740 migration 0221), preference validation (0219), and the CI changes (#726, #727,
+#742 — CI is now the full-suite gate for PRs to `main` too; this was the first promote decided by CI alone).
+**Owner-gated next:** push 0219–0221 to the hosted project (read the org preference values first, read-only)
+and the `main` → `production` FE promote. Open follow-ups from the batch: #728 (seeding CLI), #731, #732, #735.
+
+### ⚑ 2026-09-29 — enterprise UI/UX readiness milestone COMPLETE on `dev` (promoted 2026-09-30, above)
 
 Signed brief `docs/design/2026-09-26-enterprise-coherence-brief.md`: #685 (#691), #689 (#698), #681 (#703),
 #687 (#706), #683 (#709), #684 (#710), #688 (#712), #682 (#717); umbrella #679 closed. The full CI e2e lane
