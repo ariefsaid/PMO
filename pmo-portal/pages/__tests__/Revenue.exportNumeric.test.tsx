@@ -16,7 +16,8 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { buildExportRows, toWorkbookBuffer } from '@/src/lib/export';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
-// ⚑ Neither page mounts an Export button today, so there is no click to drive. The shipped
+// ⚑ The button-driven path (click → download) is proved in Revenue.exportAndCurrency.test.tsx (#731);
+// this file reads the numeric cell types directly. The shipped
 // `columns` (with their real `exportValue`s) are captured off the DataTable the page renders, then
 // pushed through the same buildExportRows → toWorkbookBuffer path `useExport` runs.
 const table = vi.hoisted(() => ({ props: null as null | { rows: unknown[]; columns: unknown[] } }));
