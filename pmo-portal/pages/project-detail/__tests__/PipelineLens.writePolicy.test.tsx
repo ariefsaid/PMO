@@ -126,7 +126,8 @@ describe('AC-PLC-005: the decision date follows the profile timezone', () => {
   afterEach(() => resetActiveLocale());
 
   it('shows decided_at on the calendar day of the viewer timezone', () => {
-    const decided = { ...dealRow, decided_at: '2026-06-14T23:30:00Z' } as ProjectWithRefs;
+    // A lost deal: the only undecided-by-contract row whose decided_at is shown (#732).
+    const decided = { ...dealRow, status: 'Loss Tender', decided_at: '2026-06-14T23:30:00Z' } as ProjectWithRefs;
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     const { unmount } = renderLens(decided);
     expect(screen.getByText('6/14/2026')).toBeInTheDocument();
@@ -137,13 +138,61 @@ describe('AC-PLC-005: the decision date follows the profile timezone', () => {
     expect(screen.getByText('6/15/2026')).toBeInTheDocument();
   });
 
+  // #732: a win writes decided_at = contract_date::timestamptz, so the stored instant is midnight UTC
+  // ONLY on a UTC database session. Model a UTC+7 session (2026-09-01 00:00 +07 = 2026-08-31T17:00Z):
+  // decided_at is NOT midnight UTC, yet the tile must still show the contract date for every viewer.
   it.each(['America/Los_Angeles', 'Etc/GMT+8', 'Asia/Jakarta', 'UTC'])(
-    '#700: a decision date derived from a calendar date (midnight UTC) shows that calendar day for a %s viewer',
+    '#732: a won project shows its contract_date, not a shifted decided_at instant, for a %s viewer',
     (timezone) => {
-      const decided = { ...dealRow, decided_at: '2026-09-01T00:00:00+00:00' } as ProjectWithRefs;
+      const won = {
+        ...dealRow,
+        status: 'Won, Pending KoM',
+        contract_date: '2026-09-01',
+        decided_at: '2026-08-31T17:00:00+00:00',
+      } as ProjectWithRefs;
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone });
-      renderLens(decided);
+      renderLens(won);
       expect(screen.getByText('9/1/2026')).toBeInTheDocument();
     },
   );
+
+  it('#732: a won project on a UTC session (decided_at at midnight UTC) still shows its contract_date', () => {
+    const won = {
+      ...dealRow,
+      status: 'Won, Pending KoM',
+      contract_date: '2026-09-01',
+      decided_at: '2026-09-01T00:00:00+00:00',
+    } as ProjectWithRefs;
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Etc/GMT+8' });
+    renderLens(won);
+    expect(screen.getByText('9/1/2026')).toBeInTheDocument();
+  });
+
+  it('#732: a lost project (no contract_date) keeps the instant path, even at midnight UTC', () => {
+    // A loss stamps now(); it is a real moment, so it follows the viewer timezone. There is no
+    // calendar-date special case for an instant that merely happens to land on 00:00:00Z.
+    const lost = {
+      ...dealRow,
+      status: 'Loss Tender',
+      contract_date: null,
+      decided_at: '2026-09-01T00:00:00+00:00',
+    } as ProjectWithRefs;
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Etc/GMT+8' });
+    renderLens(lost);
+    expect(screen.getByText('8/31/2026')).toBeInTheDocument();
+  });
+
+  it('#732: a lost deal revived to Negotiation shows Pending, not its old loss date', () => {
+    // Loss Tender -> Negotiation keeps the loss's decided_at on the row; the deal is undecided again.
+    const revived = {
+      ...dealRow,
+      status: 'Negotiation',
+      contract_date: null,
+      decided_at: '2026-08-15T09:30:00+00:00',
+    } as ProjectWithRefs;
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Etc/GMT+8' });
+    renderLens(revived);
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.queryByText('8/15/2026')).not.toBeInTheDocument();
+  });
 });

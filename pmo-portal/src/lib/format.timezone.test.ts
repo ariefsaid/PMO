@@ -42,32 +42,32 @@ describe('profile-timezone date formatting', () => {
     expect(numericDate).toBe('6/14/2026');
   });
 
-  describe('#700 formatDecisionDateNumeric — a decision date derived from a calendar date', () => {
-    // `decided_at` is `contract_date::timestamptz` on a win: midnight UTC, i.e. a CALENDAR date
-    // wearing an instant. UTC+7 / UTC-8 / UTC bracket the date line on both sides.
+  describe('#700/#732 formatDecisionDateNumeric — contract_date on a win, the instant on a loss', () => {
+    // UTC+7 / UTC-8 / UTC bracket the date line on both sides.
     const zones = ['Asia/Jakarta', 'Etc/GMT+8', 'America/Los_Angeles', 'UTC'];
 
-    it.each(zones)('#700: 2026-09-01 midnight UTC renders as 9/1/2026 for a %s viewer', (timezone) => {
+    it.each(zones)('#732: a won row shows contract_date as-is for a %s viewer, whatever decided_at holds', (timezone) => {
       setActiveLocale({ ...EN, timezone });
-      expect(formatDecisionDateNumeric('2026-09-01T00:00:00+00:00')).toBe('9/1/2026');
-      expect(formatDecisionDateNumeric('2026-09-01T00:00:00.000Z')).toBe('9/1/2026');
-      expect(formatDecisionDateNumeric('2026-09-01')).toBe('9/1/2026');
+      // decided_at as cast by a UTC+7 session (17:00Z the previous day), by a UTC session, and by a UTC-8 session.
+      for (const decided_at of ['2026-08-31T17:00:00+00:00', '2026-09-01T00:00:00+00:00', '2026-09-01T08:00:00+00:00']) {
+        expect(formatDecisionDateNumeric({ contract_date: '2026-09-01', decided_at })).toBe('9/1/2026');
+      }
     });
 
-    it.each(zones)('#700: the instant path is untouched — a real 23:30Z instant still follows a %s viewer', (timezone) => {
+    it.each(zones)('#700: the instant path is untouched — a loss instant still follows a %s viewer', (timezone) => {
       setActiveLocale({ ...EN, timezone });
       const expected = formatInstantDateNumeric('2026-06-14T23:30:00Z');
-      expect(formatDecisionDateNumeric('2026-06-14T23:30:00Z')).toBe(expected);
+      expect(formatDecisionDateNumeric({ contract_date: null, decided_at: '2026-06-14T23:30:00Z' })).toBe(expected);
     });
 
-    it('#700: an instant one second past midnight UTC is a real instant, not a calendar date', () => {
+    it('#732: with no contract_date, an instant at exactly midnight UTC is a real instant (no calendar-date heuristic)', () => {
       setActiveLocale({ ...EN, timezone: 'Etc/GMT+8' });
-      expect(formatDecisionDateNumeric('2026-09-01T00:00:01Z')).toBe('8/31/2026');
+      expect(formatDecisionDateNumeric({ decided_at: '2026-09-01T00:00:00Z' })).toBe('8/31/2026');
     });
 
     it('#700: blank and invalid input render an em-dash', () => {
-      expect(formatDecisionDateNumeric(null)).toBe('—');
-      expect(formatDecisionDateNumeric('nope')).toBe('—');
+      expect(formatDecisionDateNumeric({ contract_date: null, decided_at: null })).toBe('—');
+      expect(formatDecisionDateNumeric({ decided_at: 'nope' })).toBe('—');
     });
   });
 
