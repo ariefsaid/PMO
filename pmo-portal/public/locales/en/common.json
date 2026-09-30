@@ -1093,6 +1093,15 @@
       "label": "Filter requests",
       "placeholder": "Filter requests…"
     },
+    "stage": {
+      "gr": "Goods Receipt",
+      "paid": "Payment",
+      "po": "Purchase Order",
+      "pr": "Purchase Request",
+      "vi": "Vendor Invoice",
+      "vq": "Vendor Quote"
+    },
+    "stageEmpty": "No requests at {{stage}}",
     "statusFilterLabel": "Status filter",
     "title": {
       "orgWide": "Procurement",

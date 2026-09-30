@@ -1093,6 +1093,15 @@
       "label": "Filter permintaan",
       "placeholder": "Filter permintaan…"
     },
+    "stage": {
+      "gr": "Penerimaan Barang",
+      "paid": "Pembayaran",
+      "po": "Purchase Order",
+      "pr": "Permintaan Pembelian",
+      "vi": "Invoice Vendor",
+      "vq": "Penawaran Vendor"
+    },
+    "stageEmpty": "Tidak ada permintaan pada tahap {{stage}}",
     "statusFilterLabel": "Filter status",
     "title": {
       "orgWide": "Pengadaan",

@@ -100,7 +100,7 @@ export const ListState: React.FC<ListStateProps> = ({
         <Icon name="alert" className="size-5 shrink-0 text-destructive" />
         <div className="flex-1">
           {title && (
-            <div className="text-[13.5px] font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
+            <div className="text-[13.5px] font-semibold text-destructive-text">
               {title}
             </div>
           )}
