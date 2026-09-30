@@ -27,7 +27,7 @@ A **seam** is the public boundary you test at. **Test only at pre-agreed seams**
 3. **GREEN — minimal code to pass.** No speculative features (YAGNI).
 4. **Verify GREEN.** Test passes, others still pass, output pristine. Test fails? Fix the **code**, not the test — never bend an assertion to the app's current state.
 5. **REFACTOR.** Staying green, adding no behavior.
-6. **Repeat.** Final gate before any claim of done: the FULL `npm run verify` (8 gates), never just touched files.
+6. **Repeat.** Final gate before any claim of done: the local final gate in CLAUDE.md (typecheck, lint on touched files, `vitest run --changed origin/dev`, touched e2e journeys, `supabase test db` for DB changes); CI's full `verify` decides the merge.
 
 ## Anti-patterns
 - **Implementation-coupled** — mocks internal collaborators, asserts through a side channel. Tell: breaks on refactor when behavior hasn't changed.
@@ -45,4 +45,4 @@ Never fix a bug without a test that **reproduces** it first.
 Code before test · test after implementation · test passes immediately · can't explain why it failed · "I'll add tests later" · "already manually tested it" · "keep as reference" · sunk-cost keeping of unverified code · "TDD is dogmatic, I'm being pragmatic".
 
 ## Before marking complete
-Every new function has a test · you watched each fail for the right reason · minimal code to pass · full `npm run verify` green with fresh evidence · real code · edge/error cases covered. Can't check every box? You skipped TDD — start over.
+Every new function has a test · you watched each fail for the right reason · minimal code to pass · the local final gate green with fresh evidence · real code · edge/error cases covered. Can't check every box? You skipped TDD — start over.

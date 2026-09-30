@@ -20,13 +20,6 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(gh pr create *)",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-pr-main-gate.sh\"",
-            "timeout": 15,
-            "statusMessage": "Checking the PR-to-main gate\u2026"
-          },
-          {
-            "type": "command",
             "if": "Bash(git push *)",
             "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-push-collision-gate.sh\"",
             "timeout": 30,

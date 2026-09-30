@@ -71,10 +71,10 @@ npm run e2e
 For an inner-loop browser run with a reset DB and CI feature flags:
 `scripts/e2e-local.sh` from repo root.
 
-Before creating, pushing, or refreshing any PR targeting `main`, the authoritative
-full local promotion gate is `scripts/verify-main-pr.sh` from repo root. It runs the
-whole verify + Deno + pgTAP + every Playwright/visual case with `CI=true`, and keeps
-the served-function smoke last so its teardown cannot poison ordinary e2e requests.
+The PR→`main` gate is CI's `verify` + `integration` run on that PR. To reproduce it
+locally (diagnosis only), `scripts/verify-main-pr.sh` from repo root runs the whole
+verify + Deno + pgTAP + every Playwright/visual case with `CI=true`, and keeps the
+served-function smoke last so its teardown cannot poison ordinary e2e requests.
 
 **Design doc:** `docs/superpowers/specs/2026-07-11-e2e-parallel-isolation-design.md`
 **Plan:** `docs/superpowers/plans/2026-07-11-e2e-parallel-isolation.md`

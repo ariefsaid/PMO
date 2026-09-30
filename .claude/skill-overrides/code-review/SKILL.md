@@ -39,7 +39,7 @@ Each smell reads *what it is* → *how to fix*; match against the diff:
 
 ### 4. Domain gates (report pass/fail, don't hand-wave)
 - Coverage **≥80%** on changed lines; tests assert behavior (not inflate numbers).
-- `npm run verify` from `pmo-portal/` green — the FULL 8 gates, fresh evidence.
+- The local final gate green with fresh evidence (CLAUDE.md); CI's full `verify` is the merge gate — never approve a merge on a red or unrun CI check.
 - RLS on every business table touched; `org_id` seam intact; reversible migrations.
 
 ### 5. Aggregate & record
