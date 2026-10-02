@@ -4,6 +4,13 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ 2026-10-02 — RIS connected to its ERPNext on the hosted project (owner yes); next build #758
+
+Connected and activated through the UI (ERPNext 16). Service-side, audited: four domains employed (companies,
+procurement, revenue, timesheets), timesheet activity type and receivable account set, party onboarding adopted
+13 customers/suppliers. Still manual per project: the ERP project mapping (no UI or writer yet). **Next: #758
+(end customer alongside the client) — ahead of RIS project seeding.**
+
 ### ⚑ 2026-09-30 (later) — second promote to `main` (#755); **v0.13.0 LIVE: production == main == `fc1aee72`** (owner yes); hosted DB at 0222; all 22 edge fns at `fc1aee72` (health verified)
 
 `main` == `dev`. Adds #735, #732, #731, #585, #728 (owner CLI over Supabase OAuth + consent page +
