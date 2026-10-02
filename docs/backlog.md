@@ -10,6 +10,11 @@ Connected and activated through the UI (ERPNext 16). Service-side, audited: four
 procurement, revenue, timesheets), timesheet activity type and receivable account set, party onboarding adopted
 13 customers/suppliers. Still manual per project: the ERP project mapping (no UI or writer yet). **Next: #758
 (end customer alongside the client) — ahead of RIS project seeding.**
+First-client gap review filed as issues: #759 #760 #762–#777 (withholding on receipts, ERP item lines, project
++ vendor ref on purchase pushes, management report, down payment/progress billing (G5), receipt-date due date,
+multi-account budget map, external procurement refs, project tags, project-code numbering, in-app ERP project
+link + setup checklist, contacts adopt, declined outcome, expense claims (G2), two UI polish). RIS-specific setup
+and decisions are tracked privately with the client, not in this repo.
 
 ### ⚑ 2026-09-30 (later) — second promote to `main` (#755); **v0.13.0 LIVE: production == main == `fc1aee72`** (owner yes); hosted DB at 0222; all 22 edge fns at `fc1aee72` (health verified)
 
