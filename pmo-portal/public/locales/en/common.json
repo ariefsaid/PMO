@@ -337,7 +337,8 @@
     "empty": {
       "withQuery": "No {{noun}} matches \"{{query}}\".",
       "bare": "No {{noun}} matches."
-    }
+    },
+    "clear": "Clear {{noun}}"
   },
   "companies": {
     "accessDenied": {
@@ -1614,7 +1615,8 @@
       "start": "Start",
       "status": "Status",
       "targetEnd": "Target end",
-      "unassigned": "Unassigned"
+      "unassigned": "Unassigned",
+      "endCustomer": "End customer"
     },
     "scurve": {
       "backfillCaveat": "Completion dates before today are estimated; live tracking starts now.",
@@ -1898,7 +1900,13 @@
     "estimatedValue": "Estimated value",
     "expectedStart": "Expected start",
     "expectedEnd": "Expected end",
-    "taxRequiredHint": "State the tax treatment and the tax amount for this contract value — enter 0 if there is no tax. Without it the work-order drawdown compares this ceiling against order values on an unknown basis."
+    "taxRequiredHint": "State the tax treatment and the tax amount for this contract value — enter 0 if there is no tax. Without it the work-order drawdown compares this ceiling against order values on an unknown basis.",
+    "endCustomer": {
+      "label": "End customer",
+      "placeholder": "Select a company…",
+      "search": "Search companies…",
+      "noun": "company"
+    }
   },
   "projects": {
     "actions": {
@@ -1917,7 +1925,8 @@
       "progress": "Progress",
       "project": "Project",
       "status": "Status",
-      "committed": "Committed"
+      "committed": "Committed",
+      "endCustomer": "End customer"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
@@ -1942,7 +1951,9 @@
       "customerLabel": "Filter by customer",
       "myProjects": "My Projects",
       "ongoing": "Ongoing",
-      "pmLabel": "Filter by project manager"
+      "pmLabel": "Filter by project manager",
+      "allEndCustomers": "All end customers",
+      "endCustomerLabel": "Filter by end customer"
     },
     "importBudgets": "Import budgets",
     "noPhasesYet": "No phases yet",
@@ -1986,7 +1997,9 @@
       "noOptions": "No options available",
       "error": "Couldn't load options",
       "retry": "Retry",
-      "unavailable": "Unavailable selection"
+      "unavailable": "Unavailable selection",
+      "endCustomer": "End customer",
+      "removeEndCustomer": "Remove end customer filter"
     },
     "card": {
       "delivery": "Delivery",
@@ -2034,7 +2047,8 @@
       "stage": "Stage",
       "value": "Value",
       "weighted": "Weighted",
-      "winPct": "Win %"
+      "winPct": "Win %",
+      "endCustomer": "End customer"
     },
     "description": "Track projects in the sales pipeline and forecast revenue.",
     "empty": {

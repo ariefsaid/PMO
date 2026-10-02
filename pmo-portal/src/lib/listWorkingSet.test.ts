@@ -27,7 +27,7 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('projects', '')).toEqual({
       filter: 'All',
       client: 'All',
-      pm: 'All',
+      pm: 'All', endClient: 'All',
       q: '',
       view: 'table',
     });
@@ -94,7 +94,7 @@ describe('list working-set URL codec', () => {
     expect(projects).toEqual({
       filter: 'at-risk',
       client: CLIENT_ID,
-      pm: PM_ID,
+      pm: PM_ID, endClient: 'All',
       q: 'review',
       view: 'calendar',
     });
@@ -305,7 +305,7 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('projects', params)).toEqual({
       filter: 'All',
       client: CLIENT_ID,
-      pm: PM_ID,
+      pm: PM_ID, endClient: 'All',
       q: '✓',
       view: 'table',
     });
@@ -344,7 +344,7 @@ describe('list working-set URL codec', () => {
       const value = encodeURIComponent(invalid);
       expect(parseListWorkingSet('projects', `?pm=${value}&client=${value}`), invalid).toMatchObject({
         client: 'All',
-        pm: 'All',
+        pm: 'All', endClient: 'All',
       });
       expect(parseListWorkingSet('contacts', `?company=${value}`).company, invalid).toBe('All');
       expect(parseListWorkingSet('meetings', `?project=${value}`).project, invalid).toBe('All');
@@ -432,7 +432,7 @@ describe('list working-set URL codec', () => {
       {
         filter: 'All',
         client: 'All',
-        pm: 'All',
+        pm: 'All', endClient: 'All',
         q: '',
         view: 'table',
       } satisfies ProjectsWorkingSet,
@@ -441,7 +441,7 @@ describe('list working-set URL codec', () => {
   });
 
   it('AC-LRC-001: writes view explicitly whenever it differs from the effective stored view', () => {
-    const base = { filter: 'All', client: 'All', pm: 'All', q: '' } as const;
+    const base = { filter: 'All', client: 'All', pm: 'All', endClient: 'All', q: '' } as const;
     // Default view over a nondefault session view must be explicit, or the fallback snaps back.
     expect(
       serializeListWorkingSet('projects', '', { ...base, view: 'table' }, { sessionView: 'calendar' })
@@ -494,7 +494,7 @@ describe('list working-set URL codec', () => {
 });
 
 describe('Projects calendar month in the working set (#716, AC-LRC-003)', () => {
-  const base = { filter: 'All', client: 'All', pm: 'All', q: '' } as const;
+  const base = { filter: 'All', client: 'All', pm: 'All', endClient: 'All', q: '' } as const;
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 15)); // September 2026 (local)

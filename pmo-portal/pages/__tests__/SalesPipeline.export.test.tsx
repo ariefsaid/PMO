@@ -124,6 +124,7 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
     expect(header).toEqual([
       'Project',
       'Customer',
+      'End customer',
       'Stage',
       'Value',
       'Currency',
@@ -133,7 +134,7 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
       'Last touch',
     ]);
     // Currency sits immediately after Value and immediately before Weighted.
-    expect(header.indexOf('Currency')).toBe(4);
+    expect(header.indexOf('Currency')).toBe(5);
 
     const byProject = new Map(
       (body as (string | number)[][]).map((row) => [row[0], row]),
@@ -141,18 +142,18 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
 
     const usd = byProject.get('Deal 1') as (string | number)[];
     expect(usd).toBeDefined();
-    expect(usd[4]).toBe('USD');
-    expect(usd[3]).toBe(10000);
-    expect(typeof usd[3]).toBe('number');
-    expect(usd[5]).toBe(5000);
-    expect(typeof usd[5]).toBe('number');
+    expect(usd[5]).toBe('USD');
+    expect(usd[4]).toBe(10000);
+    expect(typeof usd[4]).toBe('number');
+    expect(usd[6]).toBe(5000);
+    expect(typeof usd[6]).toBe('number');
 
     const idr = byProject.get('Deal 2') as (string | number)[];
     expect(idr).toBeDefined();
-    expect(idr[4]).toBe('IDR');
-    expect(idr[3]).toBe(1234);
-    expect(typeof idr[3]).toBe('number');
-    expect(idr[5]).toBe(308.5);
-    expect(typeof idr[5]).toBe('number');
+    expect(idr[5]).toBe('IDR');
+    expect(idr[4]).toBe(1234);
+    expect(typeof idr[4]).toBe('number');
+    expect(idr[6]).toBe(308.5);
+    expect(typeof idr[6]).toBe('number');
   });
 });

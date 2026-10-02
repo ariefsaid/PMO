@@ -25,7 +25,7 @@
 -- condition that MAKES qualification mandatory, at the moment that condition is introduced.
 
 begin;
-select plan(2);
+select plan(3);
 
 -- The known-ambiguous set. Every pair here REQUIRES `alias:target!constraint_name(cols)` in any
 -- PostgREST embed. Verified qualified in the DAL as of 2026-07-29.
@@ -63,7 +63,14 @@ select set_eq(
             -- embeds profiles from work_orders (the table has no client code yet), so there is no
             -- unqualified embed to break. Whatever ships first MUST use
             -- `alias:profiles!work_orders_<column>_fkey(...)`.
-            ('work_orders -> profiles') $$,
+            ('work_orders -> profiles'),
+            -- 0223 (#758): `projects` gained `end_client_id` next to the existing `client_id`, so
+            -- `projects -> companies` is now a multi-FK pair. Both projects→companies embeds in the
+            -- DAL were qualified in the same branch (src/lib/db/projects.ts SELECT and
+            -- src/lib/db/opportunity.ts SELECT name !projects_client_id_fkey and
+            -- !projects_end_client_id_fkey). An unqualified `client:companies(name)` here would be
+            -- a PGRST201 runtime error on every projects/opportunity read — see AC-EMBED-003.
+            ('projects -> companies') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '
@@ -82,6 +89,19 @@ select set_eq(
   'src/lib/db/opportunity.ts MUST both embed profiles as '
   '!projects_project_manager_id_fkey. Dropping one of these FKs would make the qualification '
   'unnecessary but not wrong; adding a third demands another review of both call sites.'
+);
+
+-- 0223 (#758): the specific new multi-FK pair, asserted by name — every projects→companies embed
+-- must name one of these constraints or PostgREST returns PGRST201.
+select set_eq(
+  $$ select conname::text from pg_constraint
+      where conrelid = 'public.projects'::regclass
+        and confrelid = 'public.companies'::regclass
+        and contype = 'f' $$,
+  $$ values ('projects_client_id_fkey'), ('projects_end_client_id_fkey') $$,
+  'AC-EMBED-003 projects has exactly TWO FKs to companies — so every projects/opportunity companies '
+  'embed in the DAL must be qualified as !projects_client_id_fkey or !projects_end_client_id_fkey. '
+  'Adding a third would demand another review of both call sites.'
 );
 
 select * from finish();

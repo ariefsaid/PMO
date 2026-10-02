@@ -31,6 +31,7 @@ import {
   useProjectMutations,
   useProjectsMilestoneDates,
 } from '@/src/hooks/useProjects';
+import { useCompanies } from '@/src/hooks/useCompanies';
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { readProjectView, writeProjectView } from '@/src/hooks/useProjectView';
@@ -86,10 +87,14 @@ const Projects: React.FC = () => {
   );
   const { data, isPending, isError, refetch } = useProjects();
   const clientCompaniesResult = useClientCompanies();
+  // #758: the end-customer filter lists ALL the org's companies (not just Client-type), so it
+  // uses the broad useCompanies() cache.
+  const companiesResult = useCompanies();
   const projectManagersResult = useProjectManagers();
   // Stable array references so the option-list/import useMemos (which list them as deps)
   // don't recompute every render when a query is still resolving to `undefined`.
   const clientCompanies = useMemo(() => clientCompaniesResult.data ?? [], [clientCompaniesResult.data]);
+  const allCompanies = useMemo(() => companiesResult.data ?? [], [companiesResult.data]);
   const projectManagers = useMemo(() => projectManagersResult.data ?? [], [projectManagersResult.data]);
   const { create, updateHeader, archive } = useProjectMutations();
 
@@ -119,6 +124,7 @@ const Projects: React.FC = () => {
 
   const filter = workingSet.filter;
   const filterClient = workingSet.client;
+  const filterEndCustomer = workingSet.endClient;
   const filterPM = workingSet.pm;
   const view = workingSet.view;
   const onViewChange = (v: ProjectView) => {
@@ -192,6 +198,8 @@ const Projects: React.FC = () => {
         }
       })
       .filter((p) => filterClient === 'All' || p.client_id === filterClient)
+      // #758: end-customer filter mirrors the client filter on the nullable end_client_id.
+      .filter((p) => filterEndCustomer === 'All' || p.end_client_id === filterEndCustomer)
       // FR-PRJUX-005: three explicit PM branches — All bypasses; the sentinel matches
       // ONLY `project_manager_id == null`; a real ID matches equality. An unnamed-but-
       // ASSIGNED profile therefore never reads as unassigned.
@@ -210,7 +218,7 @@ const Projects: React.FC = () => {
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
     return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
-  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
+  }, [all, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -246,6 +254,15 @@ const Projects: React.FC = () => {
       ...clientCompanies.map((c) => ({ value: c.id, label: c.name })),
     ],
     [clientCompanies, t],
+  );
+  // #758: the end-customer filter uses ALL the org's companies (the end customer need not be a
+  // Client-type company).
+  const endCustomerFilterOptions = useMemo(
+    () => [
+      { value: 'All', label: t('projects.filters.allEndCustomers', 'All end customers') },
+      ...allCompanies.map((c) => ({ value: c.id, label: c.name })),
+    ],
+    [allCompanies, t],
   );
   const importDescriptor = useMemo(
     () =>
@@ -289,9 +306,9 @@ const Projects: React.FC = () => {
   );
 
   const filtersActive =
-    filter !== 'All' || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
+    filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
   const hasNonDefaultFilter =
-    filter !== roleDefault || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
+    filter !== roleDefault || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
 
   // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
   // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
@@ -429,6 +446,23 @@ const Projects: React.FC = () => {
         </div>
       ),
       // Hide below 1280px — frees ~120px so Progress+Action columns fit at 1180px
+      colClassName: 'hidden xl:table-cell',
+    },
+    {
+      // #758: the end customer (the company the work is ultimately for) — optional, rendered as
+      // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
+      key: 'end-customer',
+      header: t('projects.columns.endCustomer', 'End customer'),
+      exportValue: (p) => p.end_client?.name ?? '',
+      cell: (p) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <CompanyNameLink
+            companyId={p.end_client_id}
+            name={p.end_client?.name ?? null}
+            className="text-[13px]"
+          />
+        </div>
+      ),
       colClassName: 'hidden xl:table-cell',
     },
     {
@@ -657,8 +691,9 @@ const Projects: React.FC = () => {
   // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
   // it into cards.
   const secondaryCount =
-    (filterClient !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
+    (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
   const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
+  const selectedEndCustomer = endCustomerFilterOptions.find((o) => o.value === filterEndCustomer);
   const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
 
   const moreActionsChildren = [
@@ -787,6 +822,44 @@ const Projects: React.FC = () => {
 
               <div className="w-full min-w-0 space-y-1">
                 <SelectField
+                  label={t('projects.filters.endCustomerLabel', 'Filter by end customer')}
+                  value={filterEndCustomer}
+                  onChange={(v) => {
+                    setWorkingSet((ws) => ({ ...ws, endClient: v }));
+                    trackFilterApplied('end_customer', endCustomerFilterOptions.length, 'projects');
+                  }}
+                  options={endCustomerFilterOptions}
+                  fullWidth
+                />
+                {companiesResult.isPending && (
+                  <p className="text-[12px] text-muted-foreground">
+                    {t('projects.mobile.loading', 'Loading options…')}
+                  </p>
+                )}
+                {!companiesResult.isPending && companiesResult.isError && (
+                  <div className="flex items-center gap-2">
+                    <p role="alert" className="text-[12px] text-destructive">
+                      {t('projects.mobile.error', "Couldn't load options")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => companiesResult.refetch?.()}
+                      className="text-[12px] font-semibold text-primary underline-offset-2 hover:underline"
+                    >
+                      {t('projects.mobile.retry', 'Retry')}
+                    </button>
+                  </div>
+                )}
+                {!companiesResult.isPending && !companiesResult.isError &&
+                  companiesResult.isSuccess && allCompanies.length === 0 && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {t('projects.mobile.noOptions', 'No options available')}
+                    </p>
+                  )}
+              </div>
+
+              <div className="w-full min-w-0 space-y-1">
+                <SelectField
                   label={t('projects.filters.pmLabel', 'Filter by project manager')}
                   value={filterPM}
                   onChange={(v) => {
@@ -879,6 +952,21 @@ const Projects: React.FC = () => {
               </button>
             </span>
           )}
+          {filterEndCustomer !== 'All' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
+              <span className="font-medium text-muted-foreground">
+                {t('projects.mobile.endCustomer', 'End customer')}: {selectedEndCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
+              </span>
+              <button
+                type="button"
+                aria-label={`${t('projects.mobile.removeEndCustomer', 'Remove end customer filter')}: ${selectedEndCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
+                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
+                onClick={() => setWorkingSet((ws) => ({ ...ws, endClient: 'All' }))}
+              >
+                <Icon name="x" className="size-3" />
+              </button>
+            </span>
+          )}
           <button
             type="button"
             onClick={clearFilters}
@@ -944,6 +1032,17 @@ const Projects: React.FC = () => {
                 trackFilterApplied('customer', customerFilterOptions.length, 'projects');
               }}
               options={customerFilterOptions}
+              className="w-auto"
+            />
+            <SelectField
+              hideLabel
+              label={t('projects.filters.endCustomerLabel', 'Filter by end customer')}
+              value={filterEndCustomer}
+              onChange={(v) => {
+                setWorkingSet((ws) => ({ ...ws, endClient: v }));
+                trackFilterApplied('end_customer', endCustomerFilterOptions.length, 'projects');
+              }}
+              options={endCustomerFilterOptions}
               className="w-auto"
             />
             <SelectField
@@ -1103,6 +1202,8 @@ const Projects: React.FC = () => {
             client_id: editTarget.client_id,
             project_manager_id: editTarget.project_manager_id,
             clientName: editTarget.client?.name ?? null,
+            end_client_id: editTarget.end_client_id,
+            endClientName: editTarget.end_client?.name ?? null,
             pmName: editTarget.pm?.full_name ?? null,
             start_date: editTarget.start_date,
             end_date: editTarget.end_date,

@@ -28,6 +28,8 @@ export type CompanyTypeFilter = 'All' | 'Internal' | 'Client' | 'Vendor';
 export interface ProjectsWorkingSet {
   filter: ProjectFilter;
   client: string;
+  /** The end-customer company UUID (issue #758), mirroring `client`. */
+  endClient: string;
   pm: string;
   q: string;
   view: ProjectView;
@@ -312,6 +314,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
         options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER,
       ),
       client: referenceValue(params.get('client')),
+      endClient: referenceValue(params.get('endClient')),
       pm: referenceValue(params.get('pm'), [UNASSIGNED_PROJECT_MANAGER]),
       q: searchValue(params),
       view: viewValue(params, 'projects', options.sessionView),
@@ -321,6 +324,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       const omitFilter = options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER;
       putParam(params, 'filter', value.filter, omitFilter);
       putParam(params, 'client', value.client, 'All');
+      putParam(params, 'endClient', value.endClient, 'All');
       putParam(params, 'pm', value.pm, 'All');
       putParam(params, 'q', value.q);
       putView(params, 'projects', value.view, options.sessionView);

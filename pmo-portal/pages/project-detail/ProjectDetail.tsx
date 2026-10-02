@@ -380,6 +380,8 @@ const ProjectDetail: React.FC = () => {
             client_id: project.client_id,
             project_manager_id: project.project_manager_id,
             clientName: project.client?.name ?? null,
+            end_client_id: project.end_client_id,
+            endClientName: project.end_client?.name ?? null,
             pmName: project.pm?.full_name ?? null,
             start_date: project.start_date,
             end_date: project.end_date,

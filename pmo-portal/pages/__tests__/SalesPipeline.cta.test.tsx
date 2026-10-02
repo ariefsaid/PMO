@@ -41,6 +41,9 @@ vi.mock('../../components/ProjectFormModal', () => ({
   ),
 }));
 
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [{ id: 'c9', name: 'Asset Owner', type: 'Client' }], isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [], isPending: false }),
   useClientCompanies: () => ({ data: [] }),

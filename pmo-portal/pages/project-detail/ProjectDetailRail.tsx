@@ -60,6 +60,14 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
           </RailSectionLabel>
           <dl className="divide-y divide-border/70 border-y border-border/70">
             <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client?.name ?? notSet} />
+            {/* #758: the end customer shows ONLY when set — an optional value, so an unset one
+                is omitted rather than rendered as "Not set". */}
+            {project.end_client && (
+              <DetailRow
+                label={t('projectDetail.rail.endCustomer', 'End customer')}
+                value={project.end_client.name}
+              />
+            )}
             <DetailRow
               label={t('projectDetail.rail.projectManager', 'Project manager')}
               value={project.pm?.full_name ?? t('projectDetail.rail.unassigned', 'Unassigned')}
