@@ -150,7 +150,9 @@ const SalesPipeline: React.FC = () => {
     if (!q) return base;
     return base.filter(
       (p) =>
-        p.name.toLowerCase().includes(q) || (p.client_name ?? '').toLowerCase().includes(q),
+        p.name.toLowerCase().includes(q) ||
+        (p.client_name ?? '').toLowerCase().includes(q) ||
+        (p.end_client_name ?? '').toLowerCase().includes(q),
     );
   }, [openProjects, lost, scope, search, selectedStatus]);
 
@@ -226,6 +228,13 @@ const SalesPipeline: React.FC = () => {
       header: t('sales.column.customer', 'Customer'),
       cell: (r) => r.client_name ?? '—',
       exportValue: (r) => r.client_name ?? '',
+    },
+    {
+      // #758: the end customer (who the work is ultimately for), projected by the RPC, nullable.
+      key: 'end-customer',
+      header: t('sales.column.endCustomer', 'End customer'),
+      cell: (r) => r.end_client_name ?? '—',
+      exportValue: (r) => r.end_client_name ?? '',
     },
     {
       key: 'stage',
@@ -383,7 +392,9 @@ const SalesPipeline: React.FC = () => {
     if (!q) return kanbanProjects;
     return kanbanProjects.filter(
       (p) =>
-        p.name.toLowerCase().includes(q) || (p.client_name ?? '').toLowerCase().includes(q),
+        p.name.toLowerCase().includes(q) ||
+        (p.client_name ?? '').toLowerCase().includes(q) ||
+        (p.end_client_name ?? '').toLowerCase().includes(q),
     );
   }, [kanbanProjects, search]);
 

@@ -16,16 +16,31 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects } = vi.hoisted(() => ({
+const { milestoneDatesForProjects, repoCreate, repoUpdateHeader } = vi.hoisted(() => ({
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
+  repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
+  repoUpdateHeader: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     milestone: { milestoneDatesForProjects },
+    project: {
+      create: repoCreate,
+      updateHeader: repoUpdateHeader,
+      archive: vi.fn(),
+      delete: vi.fn(),
+      setContractValue: vi.fn(),
+    },
   },
 }));
 
-import { useProjects, useClientCompanies, useProjectManagers, useProjectsMilestoneDates } from './useProjects';
+import {
+  useProjects,
+  useClientCompanies,
+  useProjectManagers,
+  useProjectsMilestoneDates,
+  useProjectMutations,
+} from './useProjects';
 import { listProjects } from '@/src/lib/db/projects';
 import { listClientCompanies } from '@/src/lib/db/companies';
 import { listProjectManagers } from '@/src/lib/db/profiles';
@@ -103,5 +118,46 @@ describe('useProjectsMilestoneDates', () => {
     );
     expect(result.current.isPending).toBe(true);
     expect(milestoneDatesForProjects).not.toHaveBeenCalled();
+  });
+});
+
+describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
+  it('AC-EC-003: a project create invalidates sales-pipeline and lost-deals (plus projects/opportunity)', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: Wrapper });
+    repoCreate.mockClear();
+    await result.current.create.mutateAsync({
+      name: 'X', status: 'Leads', client_id: null, end_client_id: null,
+      project_manager_id: null, contract_value: 0, start_date: null, end_date: null,
+    });
+    const keys = spy.mock.calls.flatMap((c) => (c[0]?.queryKey ?? []) as string[]);
+    expect(keys).toContain('projects');
+    expect(keys).toContain('opportunity');
+    expect(keys).toContain('sales-pipeline');
+    expect(keys).toContain('lost-deals');
+  });
+
+  it('AC-EC-003: a header update invalidates sales-pipeline and lost-deals too', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: Wrapper });
+    repoUpdateHeader.mockClear();
+    await result.current.updateHeader.mutateAsync({
+      id: 'p1',
+      input: {
+        name: 'Y', code: null, client_id: null, end_client_id: null,
+        project_manager_id: null, start_date: null, end_date: null,
+      },
+    });
+    const keys = spy.mock.calls.flatMap((c) => (c[0]?.queryKey ?? []) as string[]);
+    expect(keys).toContain('sales-pipeline');
+    expect(keys).toContain('lost-deals');
   });
 });

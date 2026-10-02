@@ -73,6 +73,9 @@ const proj = (id: string, name: string, contract_value: number, currency: string
   pm: { full_name: 'Alice PM' }, customer_contract_ref: null, contract_date: null, decided_at: null,
   tax_treatment: 'exclusive',
 });
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
     data: [proj('pr-usd', 'Alpha USD', 1_000_000, 'USD'), proj('pr-idr', 'Beta IDR', 15_000_000_000, 'IDR')],

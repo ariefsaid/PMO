@@ -66,6 +66,13 @@ export interface PipelineProject {
   id: string;
   name: string;
   client_name: string | null;
+  /**
+   * The deal's END customer name (companies.end_client_id resolution, #758) — the company the
+   * work is ultimately for, which may differ from the invoiced client. Populated for both open
+   * pipeline rows (get_sales_pipeline() projects it) and lost deals (useLostDeals full row).
+   */
+  end_client_id?: string | null;
+  end_client_name?: string | null;
   status: ProjectStatus;
   contract_value: number;
   /**

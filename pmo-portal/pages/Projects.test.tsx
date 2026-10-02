@@ -64,6 +64,13 @@ const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
 // rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
 // vi.mock call it parses as a syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+// #758: the end-customer filter + form list ALL the org's companies via useCompanies().
+const { companiesState } = vi.hoisted(() => ({
+  companiesState: { data: [] as { id: string; name: string; type: string }[], isError: false },
+}));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => companiesState,
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),
@@ -603,5 +610,56 @@ describe('Projects list working set — AC-LRC-001/002', () => {
       'aria-selected',
       'true',
     );
+  });
+});
+
+describe('#758 — End customer column + filter on the Projects list (AC-EC-003)', () => {
+  // UUIDs: the URL working set only accepts a reference value that parses as a UUID.
+  const END_A = '9c9c9c9c-0000-4000-8000-0000000000a1';
+  const END_B = '9c9c9c9c-0000-4000-8000-0000000000b2';
+  const withEnd = [
+    { ...seed[0], end_client_id: END_A, end_client: { name: 'Asset Owner Alpha' } },
+    { ...seed[1], end_client_id: END_B, end_client: { name: 'Site Owner Beta' } },
+    { ...seed[2], end_client_id: null, end_client: null },
+  ];
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = withEnd as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    companiesState.data = [
+      { id: END_A, name: 'Asset Owner Alpha', type: 'Client' },
+      { id: END_B, name: 'Site Owner Beta', type: 'Vendor' },
+    ];
+  });
+  afterEach(() => {
+    companiesState.data = [];
+  });
+
+  it('AC-EC-003: the table shows an End customer column with each project’s end customer', () => {
+    renderPage();
+    expect(screen.getByRole('columnheader', { name: /^End customer$/ })).toBeInTheDocument();
+    expect(screen.getAllByText('Asset Owner Alpha').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Site Owner Beta').length).toBeGreaterThan(0);
+  });
+
+  it('AC-EC-003: ?endClient=<id> narrows the list to that end customer’s projects', () => {
+    renderPage('Project Manager', `/projects?filter=All&endClient=${END_B}`);
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
+    expect(screen.queryByText('Regional Services Program')).not.toBeInTheDocument();
+  });
+
+  it('AC-EC-003: choosing an end customer in the filter narrows the rows and writes endClient to the URL', async () => {
+    renderPage('Project Manager', '/projects?filter=All');
+    const select = screen.getByRole('combobox', { name: /filter by end customer/i });
+    // Lists ALL the org's companies, not only Client-type (Site Owner Beta is a Vendor).
+    expect(within(select).getByRole('option', { name: 'Site Owner Beta' })).toBeInTheDocument();
+    await userEvent.selectOptions(select, END_A);
+    expect(screen.getByTestId('location-probe').dataset.search).toContain(`endClient=${END_A}`);
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
+    expect(screen.queryByText('Regional Services Program')).not.toBeInTheDocument();
   });
 });

@@ -14,6 +14,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
+import { useCompanies } from '@/src/hooks/useCompanies';
 import {
   currencySymbol,
   formatMoneyInputValue,
@@ -65,6 +66,9 @@ export interface ProjectFormInitial {
   client_id: string | null;
   project_manager_id: string | null;
   clientName?: string | null;
+  /** The end customer (#758) — nullable like the client; `endClientName` seeds the chip label. */
+  end_client_id?: string | null;
+  endClientName?: string | null;
   pmName?: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -74,6 +78,7 @@ interface FormValues {
   name: string;
   code: string;
   clientId: string | null;
+  endClientId: string | null;
   pmId: string | null;
   status: ProjectStatus;
   value: string;
@@ -169,12 +174,16 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const taxOptions = useTaxTreatmentOptions();
   const { data: clients = [], isError: clientsError } = useClientCompanies();
   const { data: managers = [], isError: pmError } = useProjectManagers();
+  // #758: the end customer can be ANY of the org's companies (not just Client-type), so it uses
+  // the broad useCompanies() cache rather than useClientCompanies().
+  const { data: allCompanies = [], isError: endCustomersError } = useCompanies();
 
   const form = useEntityForm<FormValues>({
     initialValues: {
       name: initial?.name ?? '',
       code: initial?.code ?? '',
       clientId: initial?.client_id ?? null,
+      endClientId: initial?.end_client_id ?? null,
       pmId: initial?.project_manager_id ?? null,
       status: 'Leads',
       value: '',
@@ -195,6 +204,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // separate fetch (seeded from initial for edit, then updated on selection).
   const [clientLabel, setClientLabel] = useState<string | null>(initial?.clientName ?? null);
   const [pmLabel, setPmLabel] = useState<string | null>(initial?.pmName ?? null);
+  const [endClientLabel, setEndClientLabel] = useState<string | null>(initial?.endClientName ?? null);
 
   const nameField = form.fieldProps('name');
   const codeField = form.fieldProps('code');
@@ -252,6 +262,17 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     }));
   };
 
+  const loadEndCustomers = async (): Promise<ComboboxOption[]> => {
+    if (endCustomersError) throw new Error('end customer load failed');
+    return allCompanies.map((c) => ({
+      value: c.id,
+      label: c.name,
+      sub: t(`companies.type.${c.type.toLowerCase()}`, c.type),
+      initials: initialsOf(c.name),
+      color: projectIconColor(),
+    }));
+  };
+
   // The error summary anchors the name field (a stable id); the client error renders
   // inline on the Combobox (its trigger id is component-generated). Both fields still
   // show their own inline role="alert" message — the summary is the focus-management
@@ -274,6 +295,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             name: values.name.trim(),
             code: values.code.trim() || null,
             client_id: values.clientId,
+            end_client_id: values.endClientId,
             project_manager_id: values.pmId,
             start_date: values.startDate || null,
             end_date: values.endDate || null,
@@ -284,6 +306,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             name: values.name.trim(),
             status: values.status,
             client_id: values.clientId,
+            end_client_id: values.endClientId,
             project_manager_id: values.pmId,
             start_date: values.startDate || null,
             end_date: values.endDate || null,
@@ -370,6 +393,31 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             searchPlaceholder={t('projectForm.client.search', 'Search companies…')}
             noun={t('projectForm.client.noun', 'company')}
             error={form.errors.clientId}
+          />
+
+          {/* #758: optional end customer (the company the work is ultimately for). NOT required;
+              lists the org's companies; clearable back to null. Sits directly after Client. */}
+          <Combobox
+            label={t('projectForm.endCustomer.label', 'End customer')}
+            value={form.values.endClientId}
+            selectedOption={
+              form.values.endClientId && endClientLabel
+                ? { value: form.values.endClientId, label: endClientLabel, initials: initialsOf(endClientLabel), color: projectIconColor() }
+                : null
+            }
+            onChange={(v, opt) => {
+              form.setValue('endClientId', v);
+              setEndClientLabel(opt.label);
+            }}
+            onClear={() => {
+              form.setValue('endClientId', null);
+              setEndClientLabel(null);
+            }}
+            clearable
+            loadOptions={loadEndCustomers}
+            placeholder={t('projectForm.endCustomer.placeholder', 'Select a company…')}
+            searchPlaceholder={t('projectForm.endCustomer.search', 'Search companies…')}
+            noun={t('projectForm.endCustomer.noun', 'company')}
           />
 
           <Combobox
