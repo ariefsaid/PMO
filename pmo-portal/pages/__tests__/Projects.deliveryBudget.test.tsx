@@ -26,6 +26,9 @@ vi.mock('../../components/ProjectStatusControl', () => ({
   default: () => null,
 }));
 
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [] }),
@@ -150,7 +153,8 @@ describe('Projects delivery progress + budget used', () => {
     renderPage();
 
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
-    const budgetCell = within(noMilestonesRow).getAllByRole('cell')[7];
+    // [8] = Budget used — the added End customer column (after Customer) shifted the indices left.
+    const budgetCell = within(noMilestonesRow).getAllByRole('cell')[8];
     expect(within(budgetCell).getByText('—')).toBeInTheDocument();
     expect(within(budgetCell).queryByText(/\$0 of \$0 budget/i)).not.toBeInTheDocument();
   });

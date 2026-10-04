@@ -38,6 +38,9 @@ const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
     data: [{ id: 'p1', name: 'Alpha Project', code: 'PRJ-001', status: 'Ongoing Project',

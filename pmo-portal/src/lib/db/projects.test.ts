@@ -125,10 +125,23 @@ describe('listProjects', () => {
     // can. The real guard is supabase/tests/postgrest_embed_ambiguity_guard.test.sql, which fails
     // the moment a new FK makes any embed ambiguous. This line only stops a silent revert.
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, client:companies(name), pm:profiles!projects_project_manager_id_fkey(full_name)',
+      '*, client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)',
     );
     expect(result[0].client?.name).toBe('Innovate Corp');
     expect(result[0].pm?.full_name).toBe('Alice Manager');
+  });
+
+  // AC-EC-002/#758: the SELECT resolves the end customer by its FK name, and the row carries it.
+  it('AC-EC-002: listProjects resolves the end customer relation by FK-qualified embed', async () => {
+    const rows = [{
+      id: '40000000-0000-0000-0000-000000000001', name: 'Subcontractor Fit-Out',
+      status: 'Ongoing Project', client_id: 'c2', end_client_id: 'c9', project_manager_id: 'a2',
+      contract_value: 100000, budget: 90000, spent: 20000,
+      client: { name: 'Main Contractor' }, end_client: { name: 'Asset Owner' }, pm: { full_name: 'Alice Manager' },
+    }];
+    makeBuilder({ data: rows, error: null });
+    const result = await listProjects();
+    expect(result[0].end_client?.name).toBe('Asset Owner');
   });
 
   it('sends no org_id (RLS scopes it) (FR-DAL-004)', async () => {
@@ -223,6 +236,7 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
       name: 'Harborside Terminal',
       status: 'Leads',
       client_id: 'c2',
+      end_client_id: 'c9',
       project_manager_id: 'a2',
       contract_value: 4820000,
       tax_treatment: 'exclusive',
@@ -236,6 +250,7 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
       name: 'Harborside Terminal',
       status: 'Leads',
       client_id: 'c2',
+      end_client_id: 'c9',
       project_manager_id: 'a2',
       contract_value: 4820000,
     });
@@ -243,6 +258,22 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
     expect(JSON.stringify(calls.insert)).not.toContain('org_id');
     expect(calls.single).toBe(1);
     expect(row.id).toBe('new');
+  });
+
+  it('AC-EC-002: createProject sends end_client_id as NULL when cleared/unset', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'new' }, error: null });
+    await createProject({
+      name: 'Internal R&D',
+      status: 'Internal Project',
+      client_id: null,
+      end_client_id: null,
+      project_manager_id: null,
+      contract_value: 0,
+      start_date: null,
+      end_date: null,
+    });
+    const insert = calls.insert[0] as Record<string, unknown>;
+    expect(insert.end_client_id).toBeNull();
   });
 
   it('AC-PRJ-003: an on-hand origination status is rejected client-side (win-transition only)', async () => {
@@ -253,6 +284,7 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
         name: 'Bad',
         status: 'Ongoing Project',
         client_id: 'c2',
+        end_client_id: null,
         project_manager_id: null,
         contract_value: 0,
         start_date: null,
@@ -269,6 +301,7 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
         name: 'X',
         status: 'Leads',
         client_id: null,
+        end_client_id: null,
         project_manager_id: null,
         contract_value: 0,
         start_date: null,
@@ -285,6 +318,7 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
       name: 'Renamed',
       code: 'OPP-2041',
       client_id: 'c3',
+      end_client_id: 'c9',
       project_manager_id: 'a2',
       start_date: '2026-01-06',
       end_date: '2026-12-18',
@@ -295,6 +329,7 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
       name: 'Renamed',
       code: 'OPP-2041',
       client_id: 'c3',
+      end_client_id: 'c9',
       project_manager_id: 'a2',
     });
     // contract_value and status are NOT part of the header patch (SoD-gated / RPC-only).
@@ -304,6 +339,21 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
     expect(JSON.stringify(patch)).not.toContain('org_id');
   });
 
+  it('AC-EC-002: updateProjectHeader sends end_client_id as NULL when cleared', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Y',
+      code: null,
+      client_id: null,
+      end_client_id: null,
+      project_manager_id: null,
+      start_date: null,
+      end_date: null,
+    });
+    const patch = calls.update[0] as Record<string, unknown>;
+    expect(patch.end_client_id).toBeNull();
+  });
+
   it('AC-PRJ-004: throws AppError with code on a denied update', async () => {
     makeWriteBuilder({ data: null, error: { message: 'denied', code: '42501' } });
     await expect(
@@ -311,6 +361,7 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
         name: 'Y',
         code: null,
         client_id: null,
+        end_client_id: null,
         project_manager_id: null,
         start_date: null,
         end_date: null,
@@ -324,6 +375,7 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
       name: 'Y',
       code: null,
       client_id: null,
+      end_client_id: null,
       project_manager_id: null,
       start_date: null,
       end_date: null,
@@ -463,6 +515,7 @@ describe('AC-PRJ-003 createProject — contract-value tax basis (#513, migration
       name: 'Harborside Terminal',
       status: 'Leads',
       client_id: 'c2',
+      end_client_id: null,
       project_manager_id: 'a2',
       contract_value: 4820000,
       tax_treatment: 'inclusive',
@@ -490,6 +543,7 @@ describe('AC-PRJ-003 createProject — contract-value tax basis (#513, migration
       name: 'Internal R&D',
       status: 'Internal Project',
       client_id: null,
+      end_client_id: null,
       project_manager_id: null,
       contract_value: 0,
       start_date: null,
@@ -508,6 +562,7 @@ describe('AC-PRJ-003 createProject — contract-value tax basis (#513, migration
       name: 'Harborside Terminal',
       status: 'Leads',
       client_id: 'c2',
+      end_client_id: null,
       project_manager_id: null,
       contract_value: 1000,
       tax_treatment: 'exclusive',

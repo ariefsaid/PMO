@@ -38,7 +38,8 @@ vi.mock('@/src/lib/repositories', () => ({
         {
           id: 'lost-1', name: 'Lost Deal Delta', status: 'Loss Tender',
           contract_value: 450000, currency: 'IDR', tax_treatment: 'inclusive',
-          client: { name: 'Delta Co' }, last_update: '2026-08-01T00:00:00Z', project_manager: null,
+          client: { name: 'Delta Co' }, end_client_id: '75800000-0000-0000-0000-0000000000a1',
+          end_client: { name: 'EC Delta' }, last_update: '2026-08-01T00:00:00Z', project_manager: null,
         },
       ]),
     },
@@ -151,6 +152,17 @@ describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
       name: 'Lost Deal Delta',
       tax_treatment: 'inclusive',
       currency: 'IDR',
+    });
+  });
+
+  // AC-EC-003 (#758): the lost scope obeys the same end-customer UI contract as the open feed —
+  // the hand-written mapping resolves the full row's end-customer name.
+  it('AC-EC-003: useLostDeals maps end_client?.name into end_client_name for the lost scope', async () => {
+    const { result } = renderHook(() => useLostDeals(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]).toMatchObject({
+      end_client_id: '75800000-0000-0000-0000-0000000000a1',
+      end_client_name: 'EC Delta',
     });
   });
 });

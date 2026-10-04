@@ -3724,6 +3724,7 @@ export type Database = {
           currency: string
           customer_contract_ref: string | null
           decided_at: string | null
+          end_client_id: string | null
           end_date: string | null
           id: string
           import_batch_id: string | null
@@ -3754,6 +3755,7 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          end_client_id?: string | null
           end_date?: string | null
           id?: string
           import_batch_id?: string | null
@@ -3784,6 +3786,7 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          end_client_id?: string | null
           end_date?: string | null
           id?: string
           import_batch_id?: string | null
@@ -3814,6 +3817,13 @@ export type Database = {
             columns: ["contract_value_set_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_end_client_id_fkey"
+            columns: ["end_client_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
@@ -4935,6 +4945,17 @@ export type Database = {
         Args: { version_id: string }
         Returns: undefined
       }
+      activate_external_binding: {
+        Args: {
+          p_actor_id: string
+          p_company: string
+          p_config_patch: Json
+          p_external_tier: string
+          p_org_id: string
+          p_version_major: number
+        }
+        Returns: string
+      }
       actor_authorization_state: {
         Args: { p_org_id: string; p_user_id: string }
         Returns: Json
@@ -4959,6 +4980,7 @@ export type Database = {
         Returns: undefined
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
+      api_client_request_guard: { Args: never; Returns: undefined }
       approved_timesheet_for_push: {
         Args: { p_actor?: string; p_timesheet_id: string }
         Returns: {
@@ -5384,6 +5406,10 @@ export type Database = {
           p_secret_value: string
         }
         Returns: string
+      }
+      deactivate_external_binding: {
+        Args: { p_actor_id: string; p_external_tier: string; p_org_id: string }
+        Returns: number
       }
       delete_vault_secret: {
         Args: { p_secret_name: string }
@@ -5948,6 +5974,7 @@ export type Database = {
         }
         Returns: string
       }
+      seed_org_defaults: { Args: { p_org_id: string }; Returns: undefined }
       select_procurement_quote: {
         Args: { p_quotation_id: string }
         Returns: undefined
@@ -5965,6 +5992,15 @@ export type Database = {
           org_id: string
           to_status: string
         }[]
+      }
+      set_external_binding_site_url: {
+        Args: {
+          p_actor_id: string
+          p_external_tier: string
+          p_org_id: string
+          p_site_url: string
+        }
+        Returns: string
       }
       set_project_contract_value: {
         Args: {

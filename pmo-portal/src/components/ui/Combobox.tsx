@@ -60,6 +60,9 @@ export interface ComboboxProps {
   searchPlaceholder?: string;
   /** Noun for the empty/error copy, e.g. "company". */
   noun?: string;
+  /** Show a clear (x) affordance on a selected value; `onClear` resets to null. */
+  clearable?: boolean;
+  onClear?: () => void;
   disabled?: boolean;
   className?: string;
 }
@@ -79,6 +82,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
   createLabel = 'Create',
   searchPlaceholder,
   noun = 'option',
+  clearable,
+  onClear,
   disabled,
   className,
 }) => {
@@ -300,8 +305,27 @@ export const Combobox: React.FC<ComboboxProps> = ({
           ) : (
             <span className="flex-1 text-left text-muted-foreground">{placeholder}</span>
           )}
+          {/* Reserves the clear button's 24px slot left of the chevron so the label truncates
+              before it instead of running under it (the button is absolutely positioned). */}
+          {clearable && value && <span aria-hidden="true" className="w-6 shrink-0" />}
           <Icon name="chev" className="size-[15px] shrink-0 rotate-90 text-muted-foreground" />
         </button>
+        {clearable && value && (
+          <button
+            type="button"
+            aria-label={t('combobox.clear', { defaultValue: 'Clear {{noun}}', noun })}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear?.();
+              setOpen(false);
+              setQuery('');
+              triggerRef.current?.focus();
+            }}
+            className="absolute right-[33px] top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <Icon name="x" className="size-3" />
+          </button>
+        )}
       </div>
 
       <FieldError id={errId}>{error}</FieldError>

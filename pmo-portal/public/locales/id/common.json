@@ -337,7 +337,8 @@
     "empty": {
       "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\".",
       "bare": "Tidak ada {{noun}} yang cocok."
-    }
+    },
+    "clear": "Hapus {{noun}}"
   },
   "companies": {
     "accessDenied": {
@@ -1614,7 +1615,8 @@
       "start": "Mulai",
       "status": "Status",
       "targetEnd": "Target selesai",
-      "unassigned": "Belum ditugaskan"
+      "unassigned": "Belum ditugaskan",
+      "endCustomer": "Pelanggan akhir"
     },
     "scurve": {
       "backfillCaveat": "Tanggal penyelesaian sebelum hari ini adalah estimasi; pelacakan langsung dimulai sekarang.",
@@ -1898,7 +1900,13 @@
     "estimatedValue": "Nilai estimasi",
     "expectedStart": "Perkiraan mulai",
     "expectedEnd": "Perkiraan selesai",
-    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini — isi 0 jika tidak ada pajak. Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui."
+    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini — isi 0 jika tidak ada pajak. Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui.",
+    "endCustomer": {
+      "label": "Pelanggan akhir",
+      "placeholder": "Pilih perusahaan…",
+      "search": "Cari perusahaan…",
+      "noun": "perusahaan"
+    }
   },
   "projects": {
     "actions": {
@@ -1917,7 +1925,8 @@
       "progress": "Progres",
       "project": "Proyek",
       "status": "Status",
-      "committed": "Komitmen"
+      "committed": "Komitmen",
+      "endCustomer": "Pelanggan akhir"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
@@ -1942,7 +1951,9 @@
       "customerLabel": "Filter berdasarkan klien",
       "myProjects": "Proyek Saya",
       "ongoing": "Berjalan",
-      "pmLabel": "Filter berdasarkan manajer proyek"
+      "pmLabel": "Filter berdasarkan manajer proyek",
+      "allEndCustomers": "Semua pelanggan akhir",
+      "endCustomerLabel": "Saring berdasarkan pelanggan akhir"
     },
     "importBudgets": "Impor anggaran",
     "noPhasesYet": "Belum ada fase",
@@ -1986,7 +1997,9 @@
       "noOptions": "Tidak ada opsi",
       "error": "Gagal memuat opsi",
       "retry": "Coba lagi",
-      "unavailable": "Pilihan tidak tersedia"
+      "unavailable": "Pilihan tidak tersedia",
+      "endCustomer": "Pelanggan akhir",
+      "removeEndCustomer": "Hapus filter pelanggan akhir"
     },
     "card": {
       "delivery": "Penyelesaian",
@@ -2034,7 +2047,8 @@
       "stage": "Tahap",
       "value": "Nilai",
       "weighted": "Tertimbang",
-      "winPct": "% menang"
+      "winPct": "% menang",
+      "endCustomer": "Pelanggan akhir"
     },
     "description": "Pantau proyek di pipeline penjualan dan proyeksikan pendapatan.",
     "empty": {

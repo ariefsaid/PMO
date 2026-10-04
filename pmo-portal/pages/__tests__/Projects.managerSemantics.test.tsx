@@ -32,6 +32,9 @@ vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null })
 vi.mock('../../components/ProjectCalendarView', () => ({
   default: () => <div data-testid="project-calendar-view" />,
 }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [] }),

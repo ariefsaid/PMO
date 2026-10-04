@@ -44,6 +44,9 @@ const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
   },
   deliverySummaryState: { p1: { deliveryPct: 50, committedSpend: 2_100_000, budget: 4_700_000 } },
 }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),

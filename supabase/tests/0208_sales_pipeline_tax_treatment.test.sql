@@ -27,20 +27,27 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into pipeline_stage_config (org_id, status, win_probability) values
   ('02080000-0000-0000-0000-000000000001', 'Tender Submitted', 0.500);
 
+-- An end-customer company for the org's own subcontractor framing (#758) — the whole point of
+-- the end-customer projection is that it can differ from the invoiced client, so the fixture
+-- names it distinctly.
+insert into companies (id, org_id, name, type) values
+  ('02080000-0000-0000-0000-0000000000c1','02080000-0000-0000-0000-000000000001','Pipeline End Customer','Client');
+
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent, tax_treatment, tax_amount)
+                      contract_value, budget, spent, tax_treatment, tax_amount, end_client_id)
 values
   ('08200000-0000-0000-0000-000000000001', '02080000-0000-0000-0000-000000000001',
    'INCL1', 'Inclusive Deal', 'Tender Submitted',
-   '02080000-0000-0000-0000-0000000000a1', 1200000, 0, 0, 'inclusive', 120000),
+   '02080000-0000-0000-0000-0000000000a1', 1200000, 0, 0, 'inclusive', 120000,
+   '02080000-0000-0000-0000-0000000000c1'),
   ('08200000-0000-0000-0000-000000000002', '02080000-0000-0000-0000-000000000001',
    'EXCL1', 'Exclusive Deal', 'Tender Submitted',
-   '02080000-0000-0000-0000-0000000000a1',  950000, 0, 0, 'exclusive',  95000),
+   '02080000-0000-0000-0000-0000000000a1',  950000, 0, 0, 'exclusive',  95000, null),
   -- Zero value, no basis: 0197 allows NULL only here, and the FE renders NOTHING for it rather
   -- than inventing a basis the database deliberately does not hold.
   ('08200000-0000-0000-0000-000000000003', '02080000-0000-0000-0000-000000000001',
    'NULL1', 'Unpriced Deal', 'Tender Submitted',
-   '02080000-0000-0000-0000-0000000000a1',       0, 0, 0, null, null);
+   '02080000-0000-0000-0000-0000000000a1',       0, 0, 0, null, null, null);
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -91,7 +98,7 @@ select is(
 select is(
   (select array_agg(k order by k)
      from jsonb_object_keys(((public.get_sales_pipeline())->'projects'->0)::jsonb) k),
-  array['client_name','contract_value','currency','id','last_update','name','pm_name','status','tax_treatment','win_probability'],
+  array['client_name','contract_value','currency','end_client_id','end_client_name','id','last_update','name','pm_name','status','tax_treatment','win_probability'],
   'AC-TAX-305 the recreate preserves the FULL projects projection, not just the new column'
 );
 

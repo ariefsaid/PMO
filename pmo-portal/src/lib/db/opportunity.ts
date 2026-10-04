@@ -33,6 +33,7 @@ export const OPPORTUNITY_COLUMNS = [
   'status',
   'client_id',
   'project_manager_id',
+  'end_client_id',
   'contract_value',
   // The money-shape columns. `currency` is required by every formatCurrency call on the header;
   // the tax trio travels with it so the contract figure keeps its basis (OD-TAX-1 — a money value
@@ -53,17 +54,19 @@ export type OpportunityRow = Pick<
   (typeof OPPORTUNITY_COLUMNS)[number]
 > & {
   client: { name: string } | null;
+  /** The end customer, when set (#758) — nullable like client. */
+  end_client: { name: string } | null;
   pm: { full_name: string } | null;
 };
 
 const SELECT =
   OPPORTUNITY_COLUMNS.join(', ') +
   ', ' +
-  // ⚑ Constraint-qualified: `projects` has TWO FKs to `profiles` since 0177 added
-  // `contract_value_set_by` next to `project_manager_id`, and PostgREST rejects an ambiguous
-  // embed. This is the PRE-WIN fallback path, so leaving it unqualified broke the canonical
-  // detail route for every pipeline record while the active-list query looked fine.
-  'client:companies(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
+  // ⚑ Constraint-qualified: `projects` now has TWO FKs to `companies` (client_id + end_client_id,
+  // migration 0223) and TWO to `profiles` (project_manager_id + contract_value_set_by), and
+  // PostgREST rejects an ambiguous embed. This is the PRE-WIN fallback path, so leaving any of
+  // these unqualified breaks the canonical detail route for every pipeline record.
+  'client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Fetch one opportunity by id, or null when absent / not visible to the caller. */
 export async function getOpportunity(id: string): Promise<OpportunityRow | null> {
