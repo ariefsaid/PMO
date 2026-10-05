@@ -116,7 +116,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
 
     const filterRegion = screen.getByRole('region', { name: 'Filter by status' });
     expect(filterRegion).toHaveAttribute('tabindex', '0');
-    expect(filterRegion).toHaveClass('max-w-full', 'overflow-x-auto');
+    expect(filterRegion).toHaveClass('min-w-0', 'max-w-full', 'overflow-x-auto');
     expect(within(filterRegion).getByRole('tablist', { name: 'Filter by status' })).toBeInTheDocument();
   });
 
