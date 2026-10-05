@@ -209,7 +209,7 @@ const SalesInvoices: React.FC = () => {
           <span className="tabular text-right font-mono text-[13px]">
             {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
           </span>
-          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} /> : null}
+          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
         </span>
       ),
       // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).

@@ -437,6 +437,14 @@ describe('AC-PRJ-007 deleteProject (hard delete, Admin-only)', () => {
 });
 
 describe('AC-PRJ-006 setProjectContractValue (SoD-gated RPC, ADR-0019)', () => {
+  it('AC-DPP-001: carries the exact base fraction to the witnessed contract writer', async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    await setProjectContractValue({ id: 'p1', value: 1110, taxTreatment: 'inclusive', taxAmount: 110,
+      taxRate: 12, taxBaseNumerator: 11, taxBaseDenominator: 12 });
+    expect(mockRpc).toHaveBeenCalledWith('set_project_contract_value', expect.objectContaining({
+      p_tax_rate: 12, p_tax_base_numerator: 11, p_tax_base_denominator: 12,
+    }));
+  });
   it('AC-PRJ-006: calls the set_project_contract_value RPC with p_id + p_value, NEVER org_id', async () => {
     mockRpc.mockResolvedValue({ error: null });
     await setProjectContractValue({

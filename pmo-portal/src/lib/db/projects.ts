@@ -97,6 +97,8 @@ export interface ProjectContractTaxColumns {
   tax_amount: number;
   /** Authored tax percentage (e.g. 11 for PPN 11%). null = not recorded — never 0%. */
   tax_rate?: number | null;
+  tax_base_numerator?: number;
+  tax_base_denominator?: number;
   /** ERPNext taxes-and-charges template name; absent for a standalone org. */
   tax_template?: string | null;
 }
@@ -227,6 +229,8 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
           tax_amount: input.tax_amount,
           tax_rate: input.tax_rate ?? null,
           tax_template: input.tax_template ?? null,
+          ...(input.tax_base_numerator !== undefined ? { tax_base_numerator: input.tax_base_numerator } : {}),
+          ...(input.tax_base_denominator !== undefined ? { tax_base_denominator: input.tax_base_denominator } : {}),
         }
       : {};
   const { data, error } = await supabase
@@ -343,6 +347,8 @@ export interface SetProjectContractValueInput {
   taxAmount: number;
   /** Authored tax percentage (e.g. 11 for PPN 11%). null/undefined = not recorded — never 0%. */
   taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
   /** ERPNext taxes-and-charges template name; absent for a standalone org. */
   taxTemplate?: string | null;
 }
@@ -374,6 +380,8 @@ export async function setProjectContractValue(
     p_tax_amount: input.taxAmount,
     p_tax_rate: input.taxRate ?? undefined,
     p_tax_template: input.taxTemplate ?? undefined,
+    ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
+    ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
   });
   if (error) throwWrite(error as PostgrestErrorLike);
 }

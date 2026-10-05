@@ -2235,6 +2235,18 @@
       "choose": "— choose —",
       "exclusive": "Exclusive — tax is on top of the amount",
       "inclusive": "Inclusive — the amount already includes tax"
+    },
+    "details": {
+      "unknownRate": "rate not recorded",
+      "unknownBase": "DPP not recorded"
+    },
+    "fields": {
+      "nominalRate": "Nominal tax rate (%)",
+      "base": "Tax base (DPP)",
+      "rateHint": "Leave blank when the rate is not recorded; enter the tax amount instead.",
+      "baseHint": "1 means the full price. For a reduced base, enter a fraction such as 11/12.",
+      "rateError": "Enter a rate from 0 to 100 with no more than 3 decimal places.",
+      "baseError": "Use a positive fraction no greater than 1, such as 11/12."
     }
   },
   "timesheets": {

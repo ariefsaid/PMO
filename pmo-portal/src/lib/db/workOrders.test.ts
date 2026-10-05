@@ -204,6 +204,14 @@ describe('updateWorkOrder', () => {
 });
 
 describe('setWorkOrderValue', () => {
+  it('AC-DPP-001: carries nominal rate and exact fraction through the witnessed work order writer', async () => {
+    await setWorkOrderValue({ id: 'wo-1', value: 1110, taxTreatment: 'inclusive', taxAmount: 110,
+      taxRate: 12, taxBaseNumerator: 11, taxBaseDenominator: 12 });
+    expect(h.calls.rpc).toEqual([['set_work_order_value', {
+      p_id: 'wo-1', p_value: 1110, p_tax_treatment: 'inclusive', p_tax_amount: 110,
+      p_tax_rate: 12, p_tax_base_numerator: 11, p_tax_base_denominator: 12,
+    }]]);
+  });
   it('sends the value and its basis in ONE call to the sole witnessed writer', async () => {
     await setWorkOrderValue({
       id: 'wo-1',

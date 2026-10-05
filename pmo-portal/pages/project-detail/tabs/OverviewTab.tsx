@@ -83,7 +83,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
           value: formatCurrency(contract, project.currency),
           // OD-TAX-1 §2 — the delivery-role lens shows the same ceiling as the header strip, so it
           // states the same basis, read off this project's own row.
-          sub: <TaxBasisLabel treatment={project.tax_treatment} testId="overview-contract-tax-basis" />,
+          sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="overview-contract-tax-basis" />,
         },
         {
           label: t('projectDetail.overview.finance.committed', 'Committed'),
@@ -156,7 +156,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                   {formatCurrency(contract, project.currency)}
                 </span>
                 <TaxBasisLabel
-                  treatment={project.tax_treatment}
+                  treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
                   testId="overview-contract-value-tax-basis"
                 />
                 {isOnHand && (

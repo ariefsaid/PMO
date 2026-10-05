@@ -14,6 +14,7 @@ import { grToBody, grFromDoc } from './goodsReceipt.ts';
 import { mrToBody, mrFromDoc } from './materialRequest.ts';
 import { rfqToBody, rfqFromDoc } from './rfq.ts';
 import { supplierQuotationToBody, supplierQuotationFromDoc } from './supplierQuotation.ts';
+import { siToBody, siFromDoc } from './salesInvoice.ts';
 
 const CTX: ErpCtx = {
   refs: { supplier: 'Spike Supplier', po: 'PUR-ORD-2026-00001' },
@@ -30,6 +31,29 @@ const CTX: ErpCtx = {
 function rec(fields: Record<string, unknown>): PmoRecord {
   return { id: 'pmo-1', ...fields };
 }
+
+describe('ERP tax ownership', () => {
+  it('AC-DPP-003: SI and PI leave tax template selection and tax calculation to ERP defaults', () => {
+    const record = rec({ items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }],
+      tax_rate: 12, tax_amount: 110, tax_base_numerator: 11, tax_base_denominator: 12,
+      tax_template: 'PMO-supplied value must not override ERP configuration' });
+    expect(siToBody(record, { ...CTX, refs: { customer: 'Customer' } })).toEqual({
+      customer: 'Customer', items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }],
+    });
+    expect(piToBody(record, CTX)).toEqual({
+      supplier: 'Spike Supplier', items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }],
+    });
+    for (const fromDoc of [siFromDoc, piFromDoc]) {
+      const mirrored = fromDoc({ name: 'ERP-INVOICE', grand_total: '1110.03',
+        total_taxes_and_charges: '110.03', outstanding_amount: '1110.03',
+        taxes_and_charges: 'ERP configured template' });
+      expect(mirrored.amount).toBe('1110.03');
+      expect(mirrored.tax_amount).toBe('110.03');
+      expect(mirrored.tax_template).toBe('ERP configured template');
+      expect(mirrored.tax_rate).toBeUndefined();
+    }
+  });
+});
 
 describe('erpnext/bodies — R9-frozen toBody', () => {
   it('R9 §1 purchaseInvoice.ts: {supplier, items:[{item_code,qty,rate}]}', () => {

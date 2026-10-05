@@ -1,4 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
@@ -32,7 +34,6 @@ import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
   CONTRACT_TAX_REQUIRED_HINT,
-  parseTaxFacts,
 } from '@/src/lib/taxTreatment';
 import type { ProjectWithRefs, TaxTreatment } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
@@ -57,6 +58,9 @@ interface PendingContractValue {
   value: number;
   taxTreatment: TaxTreatment;
   taxAmount: number;
+  taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
 }
 
 export interface ProjectDetailHeaderProps {
@@ -108,6 +112,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // RPC demands the basis on every set for the same reason: restating the value restates the basis.
   const [taxTreatmentDraft, setTaxTreatmentDraft] = useState('');
   const [taxAmountDraft, setTaxAmountDraft] = useState('');
+  const taxFields = useStandaloneTaxFields(valueDraft, taxTreatmentDraft, taxAmountDraft, setTaxAmountDraft, project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate), `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
   // The audit-confirm holds the pending new value + its basis until the user confirms the SoD action.
   const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
 
@@ -167,7 +172,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       // OD-TAX-1 §2: the ceiling states its basis. From THIS project's stored `tax_treatment` —
       // never the org default, which pre-selects a form and is never read to interpret a row. A
       // NULL treatment (0197 pairs it with a zero contract value) renders nothing at all.
-      sub: <TaxBasisLabel treatment={project.tax_treatment} testId="contract-tile-tax-basis" />,
+      sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />,
     },
     { label: t('projectDetail.header.tile.committed', 'Committed'), value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
@@ -190,6 +195,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     setValueDraft(formatMoneyInputValue(contract));
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
+    taxFields.setRateRaw(project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate));
+    taxFields.setBaseRaw(`${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
     setValueEditing(true);
   };
 
@@ -205,7 +212,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // the guard inside `onValueSave`, so the button state and the write guard cannot disagree.
   // The same locale-aware scale-2 parse drives eligibility and the eventual RPC payload.
   const parsedValue = parseMoneyInputAtScale(valueDraft, 2);
-  const parsedTax = parseTaxFacts(taxTreatmentDraft, taxAmountDraft);
+  const parsedTax = taxFields.facts;
   const valueDraftError = valueDraft.trim() && (parsedValue === null || parsedValue < 0)
     ? t('projectDetail.header.invalidContractValue', 'Enter a valid non-negative amount with no more than 2 decimal places.')
     : undefined;
@@ -334,11 +341,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               data-testid="contract-tax-treatment"
             />
           </div>
+          <TaxRateFields fields={taxFields} />
           <div className="w-[160px]">
             <NumberField
               label={t('projectDetail.header.taxAmount', 'Tax amount')}
               prefix={currencySymbol(project.currency)}
               value={taxAmountDraft}
+              readOnly={taxFields.hasRate}
               onChange={setTaxAmountDraft}
               localeAware
               data-testid="contract-tax-amount"
@@ -376,7 +385,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           {/* OD-TAX-1 §2 — the SoD row's own copy of the figure states its basis too. Two figures
               on one screen with one caption between them is how a reader ends up applying the
               wrong basis to the wrong number. */}
-          <TaxBasisLabel treatment={project.tax_treatment} testId="contract-value-tax-basis" />
+          <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-value-tax-basis" />
           {canEditValue && isFinanceForward ? (
             <Button
               variant="outline"
@@ -508,7 +517,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 components={{
                   1: <b className="tabular text-foreground" />,
                   3: <b className="tabular text-foreground" />,
-                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} className="text-[13px] text-foreground" />,
+                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} taxRate={pendingValue.taxRate} taxBaseNumerator={pendingValue.taxBaseNumerator} taxBaseDenominator={pendingValue.taxBaseDenominator} className="text-[13px] text-foreground" />,
                   7: <b className="tabular text-foreground" />,
                 }}
               />

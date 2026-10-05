@@ -198,7 +198,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     {
       label: t('projectDetail.pipeline.stat.value', 'Value'),
       value: formatCurrency(value, currency),
-      sub: <TaxBasisLabel treatment={project.tax_treatment} />,
+      sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
     },
     { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
     { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
@@ -329,7 +329,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
                     values={{ amount: formatCurrency(value, currency) }}
                     components={{
                       1: <strong className="font-semibold tabular" />,
-                      3: <TaxBasisLabel treatment={project.tax_treatment} />,
+                      3: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
                     }}
                   />
                 </div>

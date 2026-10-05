@@ -256,7 +256,7 @@ const SalesPipeline: React.FC = () => {
       cell: (r) => (
         <span className="inline-flex items-baseline gap-1.5">
           {formatCurrency(r.contract_value, r.currency)}
-          <TaxBasisLabel treatment={r.tax_treatment} />
+          <TaxBasisLabel treatment={r.tax_treatment} taxRate={r.tax_rate} taxBaseNumerator={r.tax_base_numerator} taxBaseDenominator={r.tax_base_denominator} />
         </span>
       ),
       exportValue: (r) => r.contract_value,

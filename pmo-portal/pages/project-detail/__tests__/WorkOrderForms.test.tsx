@@ -142,10 +142,31 @@ describe('WorkOrderFormModal — create', () => {
       orderValue: 500_000,
       taxTreatment: 'exclusive',
       taxAmount: 55_000,
+      taxRate: null,
+      taxBaseNumerator: 1,
+      taxBaseDenominator: 1,
       orderDate: null,
       startDate: null,
       endDate: null,
     });
+  });
+
+  it('AC-DPP-001: submits the nominal rate and authored fraction with calculated tax', async () => {
+    renderCreate();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Reduced base');
+    await user.type(screen.getByTestId('wo-order-value'), '1000');
+    await user.selectOptions(screen.getByTestId('wo-tax-treatment'), 'exclusive');
+    await user.type(screen.getByLabelText('Nominal tax rate (%)'), '12');
+    await user.clear(screen.getByLabelText('Tax base (DPP)'));
+    await user.type(screen.getByLabelText('Tax base (DPP)'), '11/12');
+    expect(screen.getByTestId('wo-tax-amount')).toHaveValue('110');
+    expect(screen.getByTestId('wo-tax-amount')).toHaveAttribute('readonly');
+    await user.click(screen.getByRole('button', { name: 'Create draft' }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
+      orderValue: 1000, taxTreatment: 'exclusive', taxAmount: 110,
+      taxRate: 12, taxBaseNumerator: 11, taxBaseDenominator: 12,
+    }));
   });
 
   it('AC-PLC-009: rejects an en-US order value with excess precision before creating the draft', async () => {
@@ -256,6 +277,9 @@ describe('WorkOrderValueModal', () => {
       value: 300_000,
       taxTreatment: 'inclusive',
       taxAmount: 30_000,
+      taxRate: null,
+      taxBaseNumerator: 1,
+      taxBaseDenominator: 1,
     });
   });
 

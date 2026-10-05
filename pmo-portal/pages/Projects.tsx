@@ -534,7 +534,7 @@ const Projects: React.FC = () => {
       cell: (p) => (
         <span className="inline-flex flex-wrap items-baseline gap-1.5">
           {formatCurrency(p.contract_value, p.currency)}
-          <TaxBasisLabel treatment={p.tax_treatment} />
+          <TaxBasisLabel treatment={p.tax_treatment} taxRate={p.tax_rate} taxBaseNumerator={p.tax_base_numerator} taxBaseDenominator={p.tax_base_denominator} />
         </span>
       ),
     },

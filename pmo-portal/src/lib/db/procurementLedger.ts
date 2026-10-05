@@ -55,6 +55,10 @@ export interface LedgerRow {
    * wearing one.
    */
   taxTreatment: string | null;
+  taxBaseUnknown?: boolean;
+  taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
   /** Status label for the StatusPill. */
   status: string;
   /** StatusPill variant derived from status. */
@@ -144,6 +148,7 @@ function makeRow(
   currency: string,
   files?: EmbeddedFileRow[],
   taxTreatment?: string | null,
+  taxRate?: number | null, taxBaseNumerator?: number, taxBaseDenominator?: number, taxBaseUnknown?: boolean,
 ): LedgerRow {
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
@@ -163,6 +168,7 @@ function makeRow(
     recordId,
     currency,
     taxTreatment: taxTreatment ?? null,
+    taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
   };
 }
 
@@ -288,7 +294,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vi.status,
         vi.currency,
         (vi as unknown as { files?: EmbeddedFileRow[] }).files,
-        vi.tax_treatment,          // OD-TAX-1 §2 — the invoice's OWN basis, 0196 NOT NULL
+        vi.tax_treatment, vi.tax_rate, vi.tax_base_numerator, vi.tax_base_denominator, vi.erp_docstatus != null, // OD-TAX-1 §2 — the invoice's OWN basis, 0196 NOT NULL
       ),
     );
   }

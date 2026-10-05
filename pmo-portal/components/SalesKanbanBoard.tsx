@@ -68,7 +68,7 @@ const DealCard: React.FC<{
                 It sits IMMEDIATELY after the contract value and before the weighted figure — a
                 label whose job is to remove ambiguity must not sit where it could be read as
                 qualifying the number next to it instead. */}
-            <TaxBasisLabel treatment={project.tax_treatment} />
+            <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
             <span className="text-[11px] text-muted-foreground tabular">
               {t('sales.board.weightedShort', {
                 defaultValue: '{{value}} wtd',

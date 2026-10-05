@@ -269,6 +269,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
         value: 5140000,
         taxTreatment: 'exclusive',
         taxAmount: 565400,
+        taxRate: null, taxBaseNumerator: 1, taxBaseDenominator: 1,
       }),
     );
   });
@@ -303,6 +304,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await waitFor(() =>
       expect(projectMutations.setContractValue.mutateAsync).toHaveBeenCalledWith({
         id: 'p1', value: 1234, taxTreatment: 'exclusive', taxAmount: 0,
+        taxRate: null, taxBaseNumerator: 1, taxBaseDenominator: 1,
       }),
     );
   });

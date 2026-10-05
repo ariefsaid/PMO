@@ -122,7 +122,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
       row.amount != null ? (
         <span className="inline-flex items-baseline justify-end gap-1.5">
           <span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span>
-          <TaxBasisLabel treatment={row.taxTreatment} />
+          <TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} />
         </span>
       ) : (
         <span className="text-[12px] text-muted-foreground">—</span>
