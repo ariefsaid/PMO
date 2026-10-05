@@ -1,4 +1,4 @@
--- 0232_workflow_notifications.test.sql — AC-WFN-001..004 (#788).
+-- 0237_workflow_notifications.test.sql — AC-WFN-001..004 (#788).
 begin;
 select plan(13);
 

@@ -1,4 +1,4 @@
--- 0232_workflow_notifications.sql — in-app notifications for workflow hand-offs (#788, AC-WFN-001..004).
+-- 0237_workflow_notifications.sql — in-app notifications for workflow hand-offs (#788, AC-WFN-001..004).
 -- Reuses public.notifications (0048). Rows are written ONLY by the AFTER triggers below (SECURITY
 -- DEFINER); a client can still insert only its own row (notifications_insert pins owner_id = auth.uid()).
 --   • procurement  Draft→Requested        → every active same-org user whose role may approve (OD-PROC-1:
