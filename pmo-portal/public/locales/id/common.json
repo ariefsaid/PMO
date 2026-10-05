@@ -2038,6 +2038,11 @@
       "internalProject": "Proyek internal"
     }
   },
+  "revenueByProject": {
+    "currencyErrorSub": "Coba lagi untuk melihat pendapatan.",
+    "currencyErrorTitle": "Mata uang organisasi tidak dapat dimuat",
+    "subtitle": "Pendapatan per proyek, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
+  },
   "sales": {
     "accessDenied": {
       "sub": "Pipeline Penjualan tersedia untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",

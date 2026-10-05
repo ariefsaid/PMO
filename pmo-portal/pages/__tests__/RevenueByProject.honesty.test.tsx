@@ -1,7 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { I18nextProvider } from 'react-i18next';
+import { createInstance } from 'i18next';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -23,13 +27,18 @@ const hoisted = vi.hoisted(() => ({
     isPending: false,
     isError: false,
   },
+  orgCurrencyState: { currency: 'USD', isResolved: true, isError: false },
 }));
 const revenueState = hoisted.revenueState;
+const orgCurrencyState = hoisted.orgCurrencyState;
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => orgCurrencyState.currency,
+  useOrgCurrencyState: () => orgCurrencyState,
+}));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useRevenuePerProject: () => revenueState,
 }));
@@ -40,21 +49,51 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import RevenueByProject from '../RevenueByProject';
 
+const testI18n = createInstance();
+const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as {
+  revenueByProject: { subtitle: string };
+};
+const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as {
+  revenueByProject: { subtitle: string };
+};
+const englishSubtitle = enCatalogue.revenueByProject.subtitle;
+const indonesianSubtitle = idCatalogue.revenueByProject.subtitle;
+
+beforeAll(async () => {
+  await testI18n.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    defaultNS: 'common',
+    resources: {
+      en: { common: enCatalogue },
+      id: { common: idCatalogue },
+    },
+    interpolation: { escapeValue: false },
+    react: { useSuspense: false },
+  });
+});
+
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Executive">
-      <MemoryRouter>
-        <ToastProvider>
-          <RevenueByProject />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <I18nextProvider i18n={testI18n}>
+      <ImpersonationProvider realRole="Executive">
+        <MemoryRouter>
+          <ToastProvider>
+            <RevenueByProject />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </I18nextProvider>,
   );
 
-beforeEach(() => {
+beforeEach(async () => {
+  await testI18n.changeLanguage('en');
   revenueState.data = undefined;
   revenueState.isPending = false;
   revenueState.isError = false;
+  orgCurrencyState.currency = 'USD';
+  orgCurrencyState.isResolved = true;
+  orgCurrencyState.isError = false;
 });
 
 describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)', () => {
@@ -101,5 +140,43 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     expect(screen.getByText('No revenue data yet')).toBeInTheDocument();
     expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('AC-801-001: describes the unassigned invoices in English and Indonesian without exposing a setting key', async () => {
+    const { unmount } = renderPage();
+    expect(screen.getByText(englishSubtitle)).toBeInTheDocument();
+    expect(screen.queryByText(/process_gates\.require_project_on_si/)).not.toBeInTheDocument();
+
+    unmount();
+    await testI18n.changeLanguage('id');
+    renderPage();
+
+    expect(screen.getByText(indonesianSubtitle)).toBeInTheDocument();
+    expect(screen.queryByText(/process_gates\.require_project_on_si/)).not.toBeInTheDocument();
+  });
+
+  it('AC-802-001: does not render USD labels while the non-USD organization currency is unresolved', () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', total_amount: 4_000, open_ar: 2_500, invoice_count: 2 },
+    ];
+    orgCurrencyState.currency = 'USD'; // useOrgCurrency's pending placeholder
+    orgCurrencyState.isResolved = false;
+
+    renderPage();
+
+    expect(screen.queryAllByText(/^\$4,000(?:\.00)?$/)).toHaveLength(0);
+    expect(screen.getAllByTestId('kpi-skeleton').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('AC-802-001: formats resolved organization totals with the org currency', () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', total_amount: 4_000, open_ar: 2_500, invoice_count: 2 },
+    ];
+    orgCurrencyState.currency = 'IDR';
+
+    renderPage();
+
+    expect(screen.getAllByText(/IDR[\s\u00a0]?4,000(?:\.00)?/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryAllByText(/^\$4,000(?:\.00)?$/)).toHaveLength(0);
   });
 });
