@@ -252,6 +252,7 @@ import {
   getRevenueByProject,
   submitSalesInvoiceSod,
 } from '@/src/lib/db/revenue';
+import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
   CommandIntent,
   Repositories,
@@ -279,6 +280,7 @@ import type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  ReportsRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -1013,6 +1015,11 @@ const integrationsImpl: IntegrationsRepository = {
   },
 };
 
+const reports: ReportsRepository = {
+  managementPack: (range) => wrap(() => getManagementPackFacts(range)),
+  recordProgress: (input) => wrap(() => recordProjectProgress(input)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -1040,6 +1047,7 @@ export const repositories: Repositories = {
   externalDomainOwnership,
   erpSnapshots,
   integrations: integrationsImpl,
+  reports,
 };
 
 export type {
@@ -1068,5 +1076,6 @@ export type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  ReportsRepository,
   IntegrationsRepository,
 } from './types';

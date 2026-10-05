@@ -66,7 +66,9 @@ export type Entity =
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'employeeLink'
-  | 'pushHold';
+  | 'pushHold'
+  | 'managementPack'
+  | 'projectProgress';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -444,6 +446,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // UX ONLY: the RPC is the enforcement authority (ADR-0016).
   pushHold: {
     manage: allow(ADMIN),
+  },
+  // #765 (DD-MMP-4): the management pack mirrors the revenue READ set (salesInvoice.view). RLS on
+  // sales_invoices admits every active member; the FE is stricter, exactly as for the invoice lists.
+  managementPack: {
+    view: allow(MASTER_DATA),
+  },
+  // #765 (DD-MMP-4): a project's month-end percent complete. Mirrors migration 0243's
+  // `may_record_project_progress`: Finance rank and above on any project, or the project's own PM.
+  // UX ONLY — record_project_progress + RLS are the authority (ADR-0016).
+  projectProgress: {
+    edit: (role, ctx) =>
+      has(MONEY_AUTHORITY, role) ||
+      (role === 'Project Manager' &&
+        !!ctx.currentUserId &&
+        ctx.record?.project_manager_id === ctx.currentUserId),
   },
 };
 

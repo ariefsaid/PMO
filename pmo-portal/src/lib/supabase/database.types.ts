@@ -3760,6 +3760,64 @@ export type Database = {
           },
         ]
       }
+      project_progress_entries: {
+        Row: {
+          created_at: string
+          entered_at: string
+          entered_by: string | null
+          id: string
+          month: string
+          note: string | null
+          org_id: string
+          pct_complete: number
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          entered_at?: string
+          entered_by?: string | null
+          id?: string
+          month: string
+          note?: string | null
+          org_id?: string
+          pct_complete: number
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          entered_at?: string
+          entered_by?: string | null
+          id?: string
+          month?: string
+          note?: string | null
+          org_id?: string
+          pct_complete?: number
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_progress_entries_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_progress_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_progress_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           archived_at: string | null
@@ -5568,6 +5626,10 @@ export type Database = {
       }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_management_pack: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: Json
+      }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_project_drawdown: {
@@ -5779,6 +5841,7 @@ export type Database = {
         }
         Returns: string
       }
+      may_record_project_progress: { Args: { p_project_id: string }; Returns: boolean }
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
@@ -5906,6 +5969,10 @@ export type Database = {
         }[]
       }
       org_credit_balance: { Args: { p_org_id: string }; Returns: number }
+      org_current_month: {
+        Args: { p_at: string; p_timezone: string }
+        Returns: string
+      }
       org_feature_enabled: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
@@ -6017,6 +6084,15 @@ export type Database = {
         Returns: boolean
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
+      record_project_progress: {
+        Args: {
+          p_month: string
+          p_note?: string
+          p_pct_complete: number
+          p_project_id: string
+        }
+        Returns: undefined
+      }
       record_outbox_ref: {
         Args: {
           p_domain: string

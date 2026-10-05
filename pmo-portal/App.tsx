@@ -81,7 +81,6 @@ const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
 const AdministrationPage = React.lazy(() => import('./pages/Administration'));
 const IntegrationsPage = React.lazy(() => import('./pages/Integrations'));
-const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
 const UserViewRenderer = React.lazy(() => import('./pages/UserViewRenderer'));
@@ -92,6 +91,7 @@ const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
+const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
@@ -162,7 +162,7 @@ export const appRouteConfig: RouteObject[] = [
   //   exist for every role; the detail renders a calm not-found for an unshared meeting.
   { path: '/meetings', element: <MeetingsPage /> },
   { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
-  { path: '/reports', element: <PlaceholderPage title="Reports" /> },
+  { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },

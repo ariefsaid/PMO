@@ -5,10 +5,8 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
-import { Button } from '@/src/components/ui/Button';
-import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
-import { Tooltip } from '@/src/components/ui/Tooltip';
+import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { formatCurrency } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -29,7 +27,6 @@ import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval'
 import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
-import { trackComingSoonClicked } from '@/src/lib/analytics';
 
 const ExecutiveDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -216,30 +213,7 @@ const ExecutiveDashboard: React.FC = () => {
             'dashboard.subtitle.desktop',
             'Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.',
           )}
-          actions={
-            // Board pack export is deferred (OD-UX-3): a visibly-disabled "coming soon" affordance,
-            // never a no-op CTA that fakes a "Generating…" success. A real export lands with the
-            // Reports module. Mirrors the Documents "Attach file" / Admin "Add user" deferred pattern —
-            // a disabled button doesn't fire hover/focus, so the explanatory tooltip wraps a span.
-            <Tooltip content={t('dashboard.boardPack.tooltip', 'Board pack export arrives with Reports')}>
-              {/* coming_soon_clicked (2026-07-13 wiring plan — demand signal): the
-                  Button itself stays genuinely disabled; the wrapping span's click
-                  still reports intent, since a `disabled` button cannot dispatch one. */}
-              <span
-                className="inline-flex"
-                onClick={() => trackComingSoonClicked('board-pack-export', 'dashboard')}
-              >
-                <Button
-                  variant="outline"
-                  disabled
-                  aria-label={t('dashboard.boardPack.ariaLabel', 'Board pack (coming soon)')}
-                >
-                  <Icon name="export" />
-                  {t('dashboard.boardPack.label', 'Board pack')}
-                </Button>
-              </span>
-            </Tooltip>
-          }
+          actions={<BoardPackAction />}
         />
 
         {/* KPI band — reflows 6 → 3 → 2 → 1 at 1180 / 920 / 560 (mockup breakpoints).
