@@ -9,6 +9,8 @@ export interface SalesInvoiceRow {
   org_id: string;
   project_id: string | null;
   customer_id: string | null;
+  /** #781 (AC-FIN-001): the customer's company NAME, resolved in the same read (never rendered as the opaque `customer_id`). Null when the relation is missing. */
+  customer_name: string | null;
   si_number: string | null;
   reference_number: string | null;
   invoice_date: string | null;
@@ -49,6 +51,8 @@ export interface IncomingPaymentRow {
   id: string;
   org_id: string;
   customer_id: string | null;
+  /** #781 (AC-FIN-001): the customer's company NAME, resolved in the same read (never rendered as the opaque `customer_id`). Null when the relation is missing. */
+  customer_name: string | null;
   sales_invoice_id: string | null;
   ip_number: string | null;
   reference_number: string | null;
@@ -103,14 +107,16 @@ function throwWrite(error: PostgrestErrorLike): never {
  * consult the same oracle as the RPC, or it offers a "Submit" that 403s (round-6 re-audit NIT 1).
  */
 const SALES_INVOICE_SELECT =
-  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days), sales_invoice_authors(user_id)';
+  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name), sales_invoice_authors(user_id)';
 
-/** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set flattened). */
+/** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set + customer name flattened). */
 function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
   const authors = (row.sales_invoice_authors as Array<{ user_id: string }> | null) ?? [];
+  const companies = row.companies as { erp_payment_terms_days: number | null; name: string | null } | null;
   return {
     ...row,
-    erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
+    erp_payment_terms_days: companies?.erp_payment_terms_days ?? null,
+    customer_name: companies?.name ?? null,
     author_user_ids: authors.map((a) => a.user_id),
     // erp_due_date will be populated when ERP mirror includes it (future enhancement)
     erp_due_date: null,
@@ -164,6 +170,24 @@ export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | nul
 }
 
 /**
+ * The incoming-payment projection every IP read shares, embedding the customer's company NAME in
+ * the SAME read (AC-FIN-001). The join is explicit-FK qualified (`incoming_payments_customer_id_fkey`)
+ * exactly like `projects.ts` — PostgREST embeds break when the target gains a second FK to the same
+ * row, and the inline `references public.companies(id)` in migration 0123 yields that default name.
+ */
+const INCOMING_PAYMENT_SELECT =
+  '*, customer:companies!incoming_payments_customer_id_fkey(name)';
+
+/** One joined IP row → the flat `IncomingPaymentRow` (customer name flattened). */
+function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow {
+  const customer = row.customer as { name: string | null } | null;
+  return {
+    ...row,
+    customer_name: customer?.name ?? null,
+  } as unknown as IncomingPaymentRow;
+}
+
+/**
  * List all incoming payments in the caller's org (RLS scopes org).
  * Optional `customerId` filters to one customer.
  * Ordered by date desc then created_at desc, with an `id` tiebreaker so the scan is stable.
@@ -175,7 +199,7 @@ export async function listIncomingPayments(
   params?: { customerId?: string } & PageParams,
 ): Promise<IncomingPaymentRow[]> {
   const build = (from: number, to: number) => {
-    let query = supabase.from('incoming_payments').select('*');
+    let query = supabase.from('incoming_payments').select(INCOMING_PAYMENT_SELECT);
     if (params?.customerId) query = query.eq('customer_id', params.customerId);
     return query
       .order('date', { ascending: false })
@@ -188,11 +212,12 @@ export async function listIncomingPayments(
   if (range) {
     const { data, error } = await build(range.from, range.to);
     if (error) throwWrite(error);
-    return (data ?? []) as IncomingPaymentRow[];
+    return ((data ?? []) as Array<Record<string, unknown>>).map(toIncomingPaymentRow);
   }
-  return fetchAllPages<IncomingPaymentRow>((from, to) =>
-    build(from, to) as unknown as PromiseLike<PageResult<IncomingPaymentRow>>,
+  const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
+  return data.map(toIncomingPaymentRow);
 }
 
 /**
@@ -200,9 +225,14 @@ export async function listIncomingPayments(
  * RLS scopes the row to the caller's org.
  */
 export async function getIncomingPayment(id: string): Promise<IncomingPaymentRow | null> {
-  const { data, error } = await supabase.from('incoming_payments').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('incoming_payments')
+    .select(INCOMING_PAYMENT_SELECT)
+    .eq('id', id)
+    .maybeSingle();
   if (error) throwWrite(error);
-  return (data ?? null) as IncomingPaymentRow | null;
+  if (!data) return null;
+  return toIncomingPaymentRow(data as Record<string, unknown>);
 }
 
 /**

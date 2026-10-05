@@ -26,6 +26,7 @@ const invoice = (over: Partial<SalesInvoiceRow>): SalesInvoiceRow =>
     org_id: 'org-1',
     project_id: null,
     customer_id: 'cust-1',
+    customer_name: 'Acme Energy',
     si_number: 'ACC-SINV-0001',
     reference_number: null,
     invoice_date: '2026-07-01',
