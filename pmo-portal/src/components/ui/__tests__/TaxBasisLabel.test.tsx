@@ -10,6 +10,21 @@ import { TaxBasisLabel } from '../TaxBasisLabel';
  * issue's own test note names).
  */
 describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1)', () => {
+  it('AC-DPP-002: shows the nominal rate and the exact authored DPP fraction', () => {
+    render(<TaxBasisLabel treatment="exclusive" taxRate={12} taxBaseNumerator={11} taxBaseDenominator={12} />);
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN 12% · DPP 11/12');
+  });
+
+  it('AC-DPP-002: states an unknown historical rate without inventing an effective or nominal rate', () => {
+    render(<TaxBasisLabel treatment="inclusive" taxRate={null} taxBaseNumerator={1} taxBaseDenominator={1} />);
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('incl. PPN · rate not recorded · DPP 1/1');
+    expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('0%');
+  });
+  it('AC-DPP-002: an ERP mirror without base facts qualifies DPP as unknown', () => {
+    render(<TaxBasisLabel treatment="inclusive" taxRate={null} taxBaseUnknown />);
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('DPP not recorded');
+    expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('DPP 1/1');
+  });
   it('renders "incl. PPN" for an inclusive row', () => {
     render(<TaxBasisLabel treatment="inclusive" />);
     expect(screen.getByTestId('tax-basis')).toHaveTextContent('incl. PPN');

@@ -1,4 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
@@ -25,7 +27,7 @@ import {
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { CONTRACT_TAX_REQUIRED_HINT, parseTaxFacts } from '@/src/lib/taxTreatment';
+import { CONTRACT_TAX_REQUIRED_HINT } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -237,7 +239,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     (v) => form.setValue('taxTreatment', v),
     !isEdit,
   );
-  const parsedTax = parseTaxFacts(form.values.taxTreatment, form.values.taxAmount);
+  const taxFields = useStandaloneTaxFields(form.values.value, form.values.taxTreatment, form.values.taxAmount, (v) => form.setValue('taxAmount', v));
+  const parsedTax = taxFields.facts;
   const taxIncomplete = taxRequired && parsedTax === null;
   const startField = form.fieldProps('startDate');
   const endField = form.fieldProps('endDate');
@@ -318,7 +321,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           // shape that compiles, and a non-zero value with no basis cannot be built here.
           let input: CreateProjectInput;
           if (contractValue > 0) {
-            const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
+            const tax = taxFields.facts;
             // Unreachable through the UI (Create is disabled, and this shares `parseTaxFacts` with
             // the predicate that disables it) — but a bare `return` would make a future regression a
             // DEAD BUTTON with no message. Unreachable code that fails loudly costs nothing.
@@ -333,6 +336,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               contract_value: contractValue,
               tax_treatment: tax.taxTreatment,
               tax_amount: tax.taxAmount,
+              tax_rate: tax.taxRate, tax_base_numerator: tax.taxBaseNumerator, tax_base_denominator: tax.taxBaseDenominator,
             };
           } else {
             input = { ...base, contract_value: 0 };
@@ -477,6 +481,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   src/lib/taxTreatment.ts, shared with the vendor-invoice forms. */}
               {taxRequired && (
                 <>
+                  <div className="col-span-full"><TaxRateFields fields={taxFields} /></div>
                   <SelectField
                     id={taxTreatmentField.id}
                     label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
@@ -493,6 +498,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                     required
                     prefix={moneyPrefix}
                     value={taxAmountField.value}
+                    readOnly={taxFields.hasRate}
                     onChange={taxAmountField.onChange}
                     onBlur={taxAmountField.onBlur}
                     localeAware

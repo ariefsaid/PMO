@@ -42,6 +42,8 @@ export const OPPORTUNITY_COLUMNS = [
   'tax_treatment',
   'tax_amount',
   'tax_rate',
+  'tax_base_numerator',
+  'tax_base_denominator',
   'customer_contract_ref',
   'contract_date',
   'decided_at',

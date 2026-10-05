@@ -25,6 +25,9 @@ export interface SalesInvoiceRow {
    * an undeclared column is invisible to every caller and to the compiler alike.
    */
   tax_treatment: string;
+  tax_rate?: number | null;
+  tax_base_numerator?: number;
+  tax_base_denominator?: number;
   erp_outstanding_amount: number | null;
   status: 'Draft' | 'Submitted' | 'Unpaid' | 'Paid' | 'Cancelled';
   erp_docstatus: number | null;

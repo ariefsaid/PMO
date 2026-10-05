@@ -1,3 +1,5 @@
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 /**
  * RecordCaptureForm — inline per-phase capture form for the four new ERP-canonical
  * record types (PR / RFQ / PO / Payment).
@@ -21,7 +23,6 @@ import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
   VI_TAX_REQUIRED_HINT,
-  parseVendorInvoiceTax,
   taxIsPmoAuthored,
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
@@ -263,6 +264,9 @@ export interface StagedVI {
    *  at commit with P0001 after the user has already confirmed. */
   taxTreatment: TaxTreatment;
   taxAmount: number;
+  taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
 }
 
 export type StagedRecord = StagedGR | StagedVI;
@@ -315,6 +319,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   // Unused by every other kind.
   const [taxTreatmentStr, setTaxTreatmentStr] = useState('');
   const [taxAmountStr, setTaxAmountStr] = useState('');
+  const taxFields = useStandaloneTaxFields(amountStr, taxTreatmentStr, taxAmountStr, setTaxAmountStr);
   // #684: both money drafts group in the viewer's number convention as the user types.
   const amountMask = useMoneyInputMask(amountStr, (next) => {
     setAmountStr(next);
@@ -343,7 +348,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const parsedTax = !isVendorInvoice
     ? null
     : pmoAuthorsTax
-      ? parseVendorInvoiceTax(taxTreatmentStr, taxAmountStr)
+      ? taxFields.facts
       : ERP_AUTHORED_TAX;
   const taxIncomplete = isVendorInvoice && parsedTax === null;
 
@@ -394,6 +399,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           amount: parsedAmount,
           taxTreatment: parsedTax.taxTreatment,
           taxAmount: parsedTax.taxAmount,
+          ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
         });
       }
       return;
@@ -534,6 +540,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           recovers it (migration 0196). Hidden entirely on a flipped org, where the ERP owns the
           answer (`taxIsPmoAuthored`). The copy + testids are single-sourced in vendorInvoiceTax.ts /
           vendorInvoiceTestIds.ts, so the two entry points cannot drift. */}
+      {pmoAuthorsTax && <TaxRateFields fields={taxFields} />}
       {pmoAuthorsTax && (
         <div className="flex flex-wrap gap-3">
           <div className="min-w-[180px] flex-1">
@@ -560,6 +567,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               inputMode="decimal"
               ref={taxAmountMask.ref}
               value={taxAmountStr}
+              readOnly={taxFields.hasRate}
               onChange={taxAmountMask.onChange}
               placeholder="0.00"
               data-testid={VI_FIELD_TEST_IDS.taxAmount}

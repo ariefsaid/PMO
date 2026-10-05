@@ -2235,6 +2235,18 @@
       "choose": "— pilih —",
       "exclusive": "Exclusive — pajak ditambahkan di atas jumlahnya",
       "inclusive": "Inclusive — jumlahnya sudah termasuk pajak"
+    },
+    "details": {
+      "unknownRate": "tarif belum dicatat",
+      "unknownBase": "DPP belum dicatat"
+    },
+    "fields": {
+      "nominalRate": "Tarif pajak nominal (%)",
+      "base": "Dasar pengenaan pajak (DPP)",
+      "rateHint": "Kosongkan jika tarif belum dicatat; masukkan nilai pajak.",
+      "baseHint": "1 berarti harga penuh. Untuk dasar lain, masukkan pecahan seperti 11/12.",
+      "rateError": "Masukkan tarif 0 sampai 100 dengan maksimal 3 angka desimal.",
+      "baseError": "Gunakan pecahan positif maksimal 1, seperti 11/12."
     }
   },
   "timesheets": {

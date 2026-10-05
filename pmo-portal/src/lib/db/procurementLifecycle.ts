@@ -298,6 +298,8 @@ interface VendorInvoiceTaxInput {
   taxAmount: number;
   /** Authored tax percentage (e.g. 11 for PPN 11%). null/undefined = not recorded — never 0%. */
   taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
   /** ERPNext "Purchase Taxes and Charges Template" name; absent for a standalone org. */
   taxTemplate?: string | null;
 }
@@ -336,6 +338,8 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Procurem
     p_tax_amount: input.taxAmount,
     p_tax_rate: input.taxRate ?? undefined,
     p_tax_template: input.taxTemplate ?? undefined,
+    ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
+    ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -376,6 +380,8 @@ export async function captureVendorInvoice(
     p_tax_amount: input.taxAmount,
     p_tax_rate: input.taxRate ?? undefined,
     p_tax_template: input.taxTemplate ?? undefined,
+    ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
+    ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

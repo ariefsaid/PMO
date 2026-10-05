@@ -94,6 +94,9 @@ export interface PipelineProject {
    * basis from a current setting silently re-interprets every historical row.
    */
   tax_treatment: string | null;
+  tax_rate?: number | null;
+  tax_base_numerator?: number;
+  tax_base_denominator?: number;
   win_probability: number;
   /**
    * ISO timestamp of the last update to this project row (projects.last_update).

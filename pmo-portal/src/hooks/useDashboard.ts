@@ -101,6 +101,7 @@ export function useLostDeals() {
         contract_value: r.contract_value,
         currency: r.currency,
         tax_treatment: r.tax_treatment,
+        tax_rate: r.tax_rate, tax_base_numerator: r.tax_base_numerator, tax_base_denominator: r.tax_base_denominator,
         win_probability: 0,
         // #758: the end customer rides the full row into the lost scope so the pipeline's
         // end-customer column/search stay consistent across open and lost deals.

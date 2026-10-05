@@ -1,3 +1,5 @@
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 /**
  * ProcurementDecisionZone — the DecisionCard region of the procurement detail
  * (refactor: procurement-detail-dedup). Lifted verbatim out of the
@@ -38,7 +40,6 @@ import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
   VI_TAX_REQUIRED_HINT,
-  parseVendorInvoiceTax,
   taxIsPmoAuthored,
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
@@ -402,6 +403,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   // chose. OD-TAX-1 (#548) pre-selects it from the org setting — see the hook call below.
   const [taxTreatmentStr, setTaxTreatmentStr] = React.useState('');
   const [taxAmtStr, setTaxAmtStr] = React.useState('');
+  const taxFields = useStandaloneTaxFields(amtStr, taxTreatmentStr, taxAmtStr, setTaxAmtStr);
   // #684: both money drafts group in the viewer's number convention as the user types.
   const amtMask = useMoneyInputMask(amtStr, (next) => {
     setAmtStr(next);
@@ -415,7 +417,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   // `taxIsPmoAuthored`. Asking and then discarding is worse than not asking, and that is what an
   // earlier round of #505 did.
   const pmoAuthorsTax = taxIsPmoAuthored();
-  const tax = pmoAuthorsTax ? parseVendorInvoiceTax(taxTreatmentStr, taxAmtStr) : ERP_AUTHORED_TAX;
+  const tax = pmoAuthorsTax ? taxFields.facts : ERP_AUTHORED_TAX;
 
   // OD-TAX-1 (#548): pre-select the org default into this NEW invoice's basis. Off on a flipped
   // org, where the controls are not rendered and the ERP owns the answer.
@@ -439,6 +441,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       amount: amt,
       taxTreatment: tax.taxTreatment,
       taxAmount: tax.taxAmount,
+      ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
     });
   };
 
@@ -503,6 +506,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             Hidden entirely on a flipped org, where the ERP owns the answer (`taxIsPmoAuthored`). */}
         {pmoAuthorsTax && (
         <>
+        <TaxRateFields fields={taxFields} />
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
           Tax treatment
           <select
@@ -524,6 +528,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             inputMode="decimal"
             ref={taxAmtMask.ref}
             value={taxAmtStr}
+            readOnly={taxFields.hasRate}
             onChange={taxAmtMask.onChange}
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}

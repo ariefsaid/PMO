@@ -2914,6 +2914,8 @@ export type Database = {
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -2939,6 +2941,8 @@ export type Database = {
           reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment: string
@@ -2964,6 +2968,8 @@ export type Database = {
           reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount?: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string
@@ -3741,6 +3747,8 @@ export type Database = {
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
           tax_amount: number | null
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string | null
@@ -3772,6 +3780,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           tax_amount?: number | null
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string | null
@@ -3803,6 +3813,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           tax_amount?: number | null
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string | null
@@ -4348,6 +4360,8 @@ export type Database = {
           si_number: string | null
           status: string
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -4372,6 +4386,8 @@ export type Database = {
           si_number?: string | null
           status?: string
           tax_amount: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment: string
@@ -4396,6 +4412,8 @@ export type Database = {
           si_number?: string | null
           status?: string
           tax_amount?: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string
@@ -4830,6 +4848,8 @@ export type Database = {
           start_date: string | null
           status: Database["public"]["Enums"]["work_order_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -4858,6 +4878,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
           tax_amount: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment: string
@@ -4886,6 +4908,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
           tax_amount?: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string
@@ -5027,6 +5051,16 @@ export type Database = {
         Args: { p_fiscal_year: string }
         Returns: string
       }
+      calculate_standalone_tax_amount: {
+        Args: {
+          p_amount: number
+          p_denominator: number
+          p_numerator: number
+          p_rate: number
+          p_treatment: string
+        }
+        Returns: number
+      }
       can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
       capture_vendor_invoice: {
         Args: {
@@ -5037,6 +5071,8 @@ export type Database = {
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
           p_tax_rate?: number
           p_tax_template?: string
           p_tax_treatment?: string
@@ -5061,6 +5097,8 @@ export type Database = {
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -5179,6 +5217,8 @@ export type Database = {
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
           p_tax_rate?: number
           p_tax_template?: string
           p_tax_treatment?: string
@@ -5203,6 +5243,8 @@ export type Database = {
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -5535,6 +5577,8 @@ export type Database = {
           si_number: string | null
           status: string
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -6009,6 +6053,8 @@ export type Database = {
         Args: {
           p_id: string
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
           p_tax_rate?: number
           p_tax_template?: string
           p_tax_treatment?: string
@@ -6020,6 +6066,9 @@ export type Database = {
         Args: {
           p_id: string
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
+          p_tax_rate?: number
           p_tax_treatment?: string
           p_value: number
         }
@@ -6047,6 +6096,8 @@ export type Database = {
           si_number: string | null
           status: string
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string

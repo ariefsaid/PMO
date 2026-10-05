@@ -125,6 +125,9 @@ type PendingConfirm =
        *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
       taxTreatment: TaxTreatment;
       taxAmount: number;
+      taxRate?: number | null;
+      taxBaseNumerator?: number;
+      taxBaseDenominator?: number;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -613,6 +616,7 @@ const ProcurementDetails: React.FC = () => {
           // #505: forwarded from the staged capture — required by the mutation's type.
           taxTreatment: pendingConfirm.taxTreatment,
           taxAmount: pendingConfirm.taxAmount,
+          taxRate: pendingConfirm.taxRate, taxBaseNumerator: pendingConfirm.taxBaseNumerator, taxBaseDenominator: pendingConfirm.taxBaseDenominator,
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);

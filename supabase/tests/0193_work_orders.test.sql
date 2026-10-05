@@ -146,7 +146,8 @@ select is(
      where table_schema = 'public' and table_name = 'work_orders'
        and grantee = 'authenticated' and privilege_type = 'INSERT'),
   array['client_po_number','created_at','currency','description','end_date','id','order_date',
-        'order_value','org_id','project_id','start_date','tax_amount','tax_rate','tax_template',
+        'order_value','org_id','project_id','start_date','tax_amount','tax_base_denominator',
+        'tax_base_numerator','tax_rate','tax_template',
         'tax_treatment','title'],
   'AC-WO-011 the INSERT grant is exactly the BODY — status, wo_number and every witness/stamp column are withheld');
 
@@ -155,8 +156,8 @@ select is(
      where table_schema = 'public' and table_name = 'work_orders'
        and grantee = 'authenticated' and privilege_type = 'UPDATE'),
   array['client_po_number','description','end_date','order_date','start_date',
-        'tax_rate','tax_template','title'],
-  'AC-WO-012 the UPDATE grant is the body list MINUS order_value, tax_treatment and tax_amount (and minus status / currency / wo_number / every stamp) — that omission IS the SoD control, now covering the tax basis too (§5)');
+        'tax_template','title'],
+  'AC-WO-012 the UPDATE grant is the body list MINUS order_value, tax_treatment, tax_amount and tax_rate (and minus status / currency / wo_number / every stamp) — that omission IS the SoD control, now covering the tax basis too (§5)');
 
 select is(has_column_privilege('authenticated','public.work_orders','order_value','UPDATE'), false,
   'AC-WO-012 …stated directly: authenticated may NOT UPDATE order_value, so set_work_order_value is the only remaining writer');
@@ -665,7 +666,7 @@ reset role;
 
 select is(has_function_privilege('anon','public.transition_work_order(uuid, public.work_order_status, boolean)','EXECUTE'), false,
   'AC-WO-092 anon holds no EXECUTE on transition_work_order');
-select is(has_function_privilege('anon','public.set_work_order_value(uuid, numeric, text, numeric)','EXECUTE'), false,
+select is(has_function_privilege('anon','public.set_work_order_value(uuid, numeric, text, numeric, numeric, integer, integer)','EXECUTE'), false,
   'AC-WO-093 anon holds no EXECUTE on set_work_order_value');
 
 -- ⚑ THE PREMISE THIS SLICE RESTS ON. The minter is an internal-only helper: a direct PostgREST call
