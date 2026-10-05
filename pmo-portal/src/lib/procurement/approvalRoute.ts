@@ -2,10 +2,11 @@ import type { TFunction } from 'i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 
 /**
- * #803 approval routing — the FE mirror of `public.spend_approval_route` (migration 0242, ADR-0075).
+ * #803 approval routing — the FE mirror of `public.spend_approval_route` (migration 0243, ADR-0075).
  * UX ONLY (ADR-0016): `transition_procurement` is the authority. Pure — no I/O, no React.
  */
-export type ApprovalRouteKind = 'project' | 'org' | 'flat';
+/** `admin`: a senior set is configured but nobody in it can act, so only an Admin decides (DD-APR-4). */
+export type ApprovalRouteKind = 'project' | 'org' | 'admin' | 'flat';
 
 export type ApprovalRouteReason =
   | 'within_budget'
@@ -13,7 +14,9 @@ export type ApprovalRouteReason =
   | 'no_category'
   | 'no_active_budget'
   | 'currency_mismatch'
-  | 'exceeds_line';
+  | 'exceeds_line'
+  | 'budget_changed'
+  | 'amount_invalid';
 
 export interface ApprovalRouteApprover {
   id: string;
@@ -47,6 +50,12 @@ export function mayDecideRoutedApproval(
 
 /** One line telling a viewer who is not routed this request who decides it, and why (FR-APR-031). */
 export function approvalRouteNote(route: ApprovalRoute, category: string | null, t: TFunction): string {
+  if (route.route === 'admin') {
+    return t(
+      'procurementDetail.route.adminOnly',
+      'Approval for this request needs an Admin: no one in the senior approver set can act on it.',
+    );
+  }
   const names = route.approvers
     .map((a) => a.fullName)
     .join(t('procurementDetail.route.nameJoiner', ' or '));
@@ -70,6 +79,16 @@ export function approvalRouteNote(route: ApprovalRoute, category: string | null,
     why = t(
       'procurementDetail.route.why.noCategory',
       'it has no budget category, so it cannot be checked against the project budget.',
+    );
+  } else if (route.reason === 'budget_changed') {
+    why = t(
+      'procurementDetail.route.why.budgetChanged',
+      'the project budget it fits was activated after it was submitted, or by the person deciding it.',
+    );
+  } else if (route.reason === 'amount_invalid') {
+    why = t(
+      'procurementDetail.route.why.amountInvalid',
+      'its amount includes a negative value, so it cannot be checked against the project budget.',
     );
   } else if (route.reason === 'no_active_budget') {
     why = t('procurementDetail.route.why.noActiveBudget', 'the project has no active budget.');

@@ -1297,8 +1297,11 @@
         "noCategory": "it has no budget category, so it cannot be checked against the project budget.",
         "noActiveBudget": "the project has no active budget.",
         "currencyMismatch": "its currency differs from the project budget's currency.",
-        "escalated": "the project's own approver cannot approve it."
-      }
+        "escalated": "the project's own approver cannot approve it.",
+        "budgetChanged": "the project budget it fits was activated after it was submitted, or by the person deciding it.",
+        "amountInvalid": "its amount includes a negative value, so it cannot be checked against the project budget."
+      },
+      "adminOnly": "Approval for this request needs an Admin: no one in the senior approver set can act on it."
     }
   },
   "projectDetail": {

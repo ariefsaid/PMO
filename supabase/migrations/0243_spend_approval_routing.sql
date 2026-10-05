@@ -1,4 +1,4 @@
--- 0242_spend_approval_routing.sql — #803 approval routing by budget.
+-- 0243_spend_approval_routing.sql — #803 approval routing by budget.
 -- Spec: docs/specs/approval-routing-by-budget.spec.md · ADR-0075 · Plan: docs/plans/2026-10-06-approval-routing-by-budget.md
 -- Proven by supabase/tests/spend_approvers_config.test.sql, spend_approval_classify.test.sql,
 --   spend_approval_enforce.test.sql, spend_approval_inputs_frozen.test.sql, spend_approval_line_lock.test.sql,
@@ -8,22 +8,31 @@
 -- SoD-a, SoD-b and role matrix verbatim and gains ONE extra refusal (§7). With no spend_approvers rows the
 -- behaviour is exactly 0180's.
 --
+-- Refined by docs/decisions.md DD-APR-3..5 (the inputs that decide a route cannot be steered by the person
+-- the route favours): a budget activated by the decider, or after submission, routes to the senior set; a
+-- configured senior set nobody can act on means Admin only; amounts route up, never down.
+--
 -- §1 procurements.budget_category · §2 holds_spend_approval_authority · §3 spend_approvers (+RLS, stamp, audit)
--- §4 procurement_request_amount · §5 spend_approval_route (THE rule; #775/#788 reuse it)
+-- §4 procurement_request_amount + procurement_submitted_at + non-negative amounts
+-- §5 spend_approval_route (THE rule; #775/#788 reuse it)
 -- §6 get_procurement_approval_routes (UI read) · §7 transition_procurement · §8 routing inputs frozen
 -- §9 notify_procurement_transition (#788 recipients follow the route)
 --
 -- ── REVERSE (manual, in this order — not `db reset`; prod data may exist) ───────────────────────────
---   -- §9: re-create notify_procurement_transition from THIS file's §9 text minus every line marked `0242`,
+--   -- §9: re-create notify_procurement_transition from THIS file's §9 text minus every line marked `0243`,
 --   --     restoring the plain `and p.role in ('Admin','Project Manager','Finance','Executive')` filter.
 --   drop trigger if exists procurements_routing_inputs_frozen on public.procurements;
 --   drop function if exists public.assert_procurement_routing_inputs_frozen();
---   -- §7: re-create transition_procurement from THIS file's §7 text minus every line marked `0242`
+--   -- §7: re-create transition_procurement from THIS file's §7 text minus every line marked `0243`
 --   --     (the five extra declare vars, the widened select-into, the routing block). What remains is
 --   --     0180's body. Reverse by editing this text, never by "re-applying migration NNN".
 --   drop function if exists public.get_procurement_approval_routes(uuid[]);
---   drop function if exists public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid);
+--   drop function if exists public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid, uuid, timestamptz);
+--   drop function if exists public.procurement_submitted_at(uuid);
 --   drop function if exists public.procurement_request_amount(uuid);
+--   alter table public.procurement_items drop constraint if exists procurement_items_rate_nonneg;
+--   alter table public.procurement_items drop constraint if exists procurement_items_quantity_nonneg;
+--   alter table public.procurements      drop constraint if exists procurements_total_value_nonneg;
 --   drop table if exists public.spend_approvers;   -- drops its policies and triggers
 --   drop function if exists public.audit_spend_approver_change();
 --   drop function if exists public.holds_spend_approval_authority(user_role);
@@ -119,16 +128,41 @@ create trigger spend_approvers_audit
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- §4 — request amount = greater of header total and Σ line items (DD-APR-2). App-raised requests keep
 -- total_value = 0 until a quote is selected, so header-only would route a large request as "within".
+-- DD-APR-5 (amounts route up, never down): a negative header or a negative line makes the amount NULL —
+-- not trustworthy — and §5 routes a NULL amount to the senior set. New rows cannot be negative (the CHECKs
+-- below); the NULL path is for rows that predate them, which NOT VALID deliberately does not re-check.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
+alter table public.procurements      add constraint procurements_total_value_nonneg   check (total_value >= 0) not valid;
+alter table public.procurement_items add constraint procurement_items_quantity_nonneg check (quantity >= 0)    not valid;
+alter table public.procurement_items add constraint procurement_items_rate_nonneg     check (rate >= 0)        not valid;
+
 create or replace function public.procurement_request_amount(p_procurement_id uuid) returns numeric
   language sql stable security invoker set search_path = public, pg_temp as $$
-  select greatest(p.total_value,
-                  coalesce((select sum(i.amount) from public.procurement_items i where i.procurement_id = p.id), 0))
+  select case
+           when p.total_value < 0
+             or exists (select 1 from public.procurement_items i where i.procurement_id = p.id and i.amount < 0)
+           then null
+           else greatest(p.total_value,
+                         coalesce((select sum(i.amount) from public.procurement_items i where i.procurement_id = p.id), 0))
+         end
     from public.procurements p
    where p.id = p_procurement_id
 $$;
 revoke all on function public.procurement_request_amount(uuid) from public, anon;
 grant execute on function public.procurement_request_amount(uuid) to authenticated;
+
+-- DD-APR-3: when the request was (last) submitted — the latest →Requested status event. The event log is
+-- written only by transition_procurement (no client write grant, 0194), so a client cannot move it. A row
+-- that never passed through a submission (imported or seeded straight into Requested) has none: NULL, and
+-- only the decider half of DD-APR-3 applies to it. Not created_at, which a client may update.
+create or replace function public.procurement_submitted_at(p_procurement_id uuid) returns timestamptz
+  language sql stable security invoker set search_path = public, pg_temp as $$
+  select max(e.created_at)
+    from public.procurement_status_events e
+   where e.procurement_id = p_procurement_id and e.to_status = 'Requested'
+$$;
+revoke all on function public.procurement_submitted_at(uuid) from public, anon;
+grant execute on function public.procurement_submitted_at(uuid) to authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- §5 — THE rule (FR-APR-010…015). Record-agnostic so #775 (claims) calls it unchanged and #788 reads its
@@ -137,6 +171,16 @@ grant execute on function public.procurement_request_amount(uuid) to authenticat
 -- read below filters org_id = p_org_id explicitly.
 -- Eligibility = active profile (status — the caller path cannot read auth.users; the transition's own
 -- assert_is_active_member() still refuses an out-of-band ban) + approval rank + not the requester.
+--
+-- DD-APR-3 inputs (both optional, so a caller with no decider or no submission still gets a route):
+--   p_decider_id   — who is deciding. A within-line request whose Active budget version this person
+--                    activated routes to the senior set. The activator is read from the audit trail
+--                    (0178 audits every budget_versions update, actor = auth.uid()). Under the UI path the
+--                    caller can read that trail only as an Admin, so a non-Admin's hint may miss this half;
+--                    transition_procurement (owner) always sees it, and it is the authority.
+--   p_submitted_at — when the request was submitted. A version activated after it routes to the senior set.
+-- Routes: 'project' / 'org' name approver_ids; 'admin' = a senior set is configured but nobody in it can act,
+-- so only an Admin may decide (DD-APR-4); 'flat' = nothing configured → OD-PROC-1 matrix.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 create or replace function public.spend_approval_route(
   p_org_id       uuid,
@@ -144,25 +188,31 @@ create or replace function public.spend_approval_route(
   p_category     public.budget_category,
   p_amount       numeric,
   p_currency     text,
-  p_requester_id uuid
+  p_requester_id uuid,
+  p_decider_id   uuid        default null,
+  p_submitted_at timestamptz default null
 ) returns table (route text, reason text, approver_ids uuid[], line_budget numeric, line_used numeric)
   language plpgsql stable security invoker set search_path = public, pg_temp as $$
 declare
-  v_reason   text;
-  v_budget   numeric;
-  v_used     numeric;
-  v_currency text;
-  v_foreign  boolean;
-  v_rows     int;
-  v_eligible uuid[];
+  v_reason       text;
+  v_budget       numeric;
+  v_used         numeric;
+  v_currency     text;
+  v_foreign      boolean;
+  v_rows         int;
+  v_eligible     uuid[];
+  v_version      uuid;
+  v_activated_at timestamptz;
 begin
-  -- 1. Classify (DD-APR-2).
+  -- 1. Classify (DD-APR-2). A missing or negative amount can never be "within" (DD-APR-5).
   if p_project_id is null then
     v_reason := 'no_project';
   elsif p_category is null then
     v_reason := 'no_category';
+  elsif p_amount is null or p_amount < 0 then
+    v_reason := 'amount_invalid';
   else
-    select v.currency into v_currency
+    select v.id, v.currency, v.activated_at into v_version, v_currency, v_activated_at
       from public.budget_versions v
      where v.org_id = p_org_id and v.project_id = p_project_id and v.status = 'Active';
     if not found then
@@ -174,19 +224,35 @@ begin
        where v.org_id = p_org_id and v.project_id = p_project_id and v.status = 'Active'
          and li.category = p_category;
       -- Reserved (ADR-0034) ∪ Committed (OD-BUDGET-2) on this line. The request being decided is
-      -- 'Requested', so it is never in its own sum.
-      select coalesce(sum(public.procurement_request_amount(pr.id)), 0),
+      -- 'Requested', so it is never in its own sum. DD-APR-5: each request counts at least zero, so a
+      -- negative row that predates the CHECKs cannot make room on the line.
+      select coalesce(sum(greatest(0, pr.total_value,
+               coalesce((select sum(i.amount) from public.procurement_items i where i.procurement_id = pr.id), 0))), 0),
              coalesce(bool_or(pr.currency is distinct from v_currency), false)
         into v_used, v_foreign
         from public.procurements pr
        where pr.org_id = p_org_id and pr.project_id = p_project_id and pr.budget_category = p_category
          and pr.status in ('Approved','Vendor Quoted','Quote Selected','Ordered','Received','Vendor Invoiced','Paid');
+      -- Explicit `<=` for "within": anything not provably within (a NULL included) is not within.
       if p_currency is distinct from v_currency or v_foreign then
         v_reason := 'currency_mismatch';
-      elsif v_used + p_amount > v_budget then
-        v_reason := 'exceeds_line';
+      elsif v_used + p_amount <= v_budget then
+        -- DD-APR-3: the budget the request fits must not have been set by the decider, or after submission.
+        if (p_submitted_at is not null and v_activated_at > p_submitted_at)
+           or (p_decider_id is not null and exists (
+                 select 1 from public.audit_events a
+                  where a.org_id = p_org_id and a.entity_id = v_version
+                    and a.action = 'budget_version.update'
+                    and a.detail->>'to_status' = 'Active'
+                    and a.detail->>'from_status' is distinct from 'Active'
+                    and a.actor_id = p_decider_id))
+        then
+          v_reason := 'budget_changed';
+        else
+          v_reason := 'within_budget';
+        end if;
       else
-        v_reason := 'within_budget';
+        v_reason := 'exceeds_line';
       end if;
     end if;
   end if;
@@ -213,24 +279,29 @@ begin
     -- configured, nobody eligible → escalate to the senior set (FR-APR-014)
   end if;
 
-  -- 3. The senior set (FR-APR-012/015).
-  select coalesce(array_agg(sa.profile_id order by sa.profile_id) filter (
+  -- 3. The senior set (FR-APR-012/015). DD-APR-4: the flat matrix applies only when no senior set is
+  -- configured at all; a configured set with nobody eligible leaves the decision to an Admin.
+  select count(*),
+         coalesce(array_agg(sa.profile_id order by sa.profile_id) filter (
            where sa.profile_id is distinct from p_requester_id
              and pf.status = 'active'
              and pf.org_id = p_org_id
              and public.holds_spend_approval_authority(pf.role)), '{}')
-    into v_eligible
+    into v_rows, v_eligible
     from public.spend_approvers sa
     join public.profiles pf on pf.id = sa.profile_id
    where sa.org_id = p_org_id and sa.project_id is null;
   if cardinality(v_eligible) > 0 then
     return query select 'org'::text, v_reason, v_eligible, v_budget, v_used;
     return;
+  elsif v_rows > 0 then
+    return query select 'admin'::text, v_reason, '{}'::uuid[], v_budget, v_used;
+    return;
   end if;
   return query select 'flat'::text, v_reason, null::uuid[], v_budget, v_used;
 end; $$;
-revoke all on function public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid) from public, anon;
-grant execute on function public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid) to authenticated;
+revoke all on function public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid, uuid, timestamptz) from public, anon;
+grant execute on function public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid, uuid, timestamptz) to authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- §6 — the UI read (FR-APR-021): one call for every listed Requested request. SECURITY INVOKER — RLS on
@@ -246,15 +317,19 @@ returns table (procurement_id uuid, route text, reason text, approvers jsonb,
          a.amount, r.line_budget, r.line_used
     from public.procurements p
     cross join lateral (select public.procurement_request_amount(p.id) as amount) a
+    -- Decider = the viewer, unless the viewer is the requester (who never decides: SoD-a), so the hint
+    -- answers "may I decide this?" with the same DD-APR-3 inputs the transition uses.
     cross join lateral public.spend_approval_route(p.org_id, p.project_id, p.budget_category,
-                                                   a.amount, p.currency, p.requested_by_id) r
+                                                   a.amount, p.currency, p.requested_by_id,
+                                                   nullif(auth.uid(), p.requested_by_id),
+                                                   public.procurement_submitted_at(p.id)) r
    where p.id = any (p_ids) and p.status = 'Requested'
 $$;
 revoke all on function public.get_procurement_approval_routes(uuid[]) from public, anon;
 grant execute on function public.get_procurement_approval_routes(uuid[]) to authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
--- §7 — transition_procurement: 0180's body VERBATIM plus the lines marked `0242`. Order is load-bearing:
+-- §7 — transition_procurement: 0180's body VERBATIM plus the lines marked `0243`. Order is load-bearing:
 -- active-member gate → org → legality → SoD-a → SoD-b → ROUTING (new) → role matrix. Routing sits AFTER
 -- SoD-a so the requester is refused by SoD whoever is named, and BEFORE the matrix so it only narrows.
 -- create-or-replace keeps the existing ACL (0185 revoked anon; authenticated EXECUTE unchanged).
@@ -266,11 +341,11 @@ declare
   v_org         uuid;
   v_requester   uuid;
   v_approver    uuid;
-  v_project     uuid;                    -- 0242
-  v_category    public.budget_category;  -- 0242
-  v_currency    text;                    -- 0242
-  v_amount      numeric;                 -- 0242
-  v_route       record;                  -- 0242
+  v_project     uuid;                    -- 0243
+  v_category    public.budget_category;  -- 0243
+  v_currency    text;                    -- 0243
+  v_amount      numeric;                 -- 0243
+  v_route       record;                  -- 0243
   v_role        user_role := auth_role();
   v_uid         uuid      := auth.uid();
   v_is_admin    boolean;
@@ -295,9 +370,9 @@ begin
   v_is_admin := (v_role = 'Admin');
 
   select status, org_id, requested_by_id, approved_by_id,
-         project_id, budget_category, currency                       -- 0242
+         project_id, budget_category, currency                       -- 0243
     into v_from, v_org, v_requester, v_approver,
-         v_project, v_category, v_currency                           -- 0242
+         v_project, v_category, v_currency                           -- 0243
     from public.procurements where id = p_id for update;
   if v_from is null then
     raise exception 'procurement not found' using errcode = 'P0002';
@@ -323,32 +398,38 @@ begin
     raise exception 'separation of duties: approver cannot pay own procurement' using errcode = '42501';
   end if;
 
-  -- 0242 (#803, FR-APR-010…019): approval routing by budget. Narrows who may decide; never widens.
+  -- 0243 (#803, FR-APR-010…019): approval routing by budget. Narrows who may decide; never widens.
   -- The line lock serializes concurrent approvals on one (project, category) so two cannot both spend
   -- the same headroom (FR-APR-018). The classify statement below runs AFTER the lock is held, so its
   -- snapshot sees any approval that committed while we waited (READ COMMITTED, volatile caller).
-  if v_from = 'Requested' and p_to in ('Approved','Rejected') then                         -- 0242
-    if v_project is not null and v_category is not null then                               -- 0242
-      perform pg_advisory_xact_lock(                                                       -- 0242
-        hashtextextended('spend-line:' || v_project::text || ':' || v_category::text, 0)); -- 0242
-    end if;                                                                                -- 0242
-    v_amount := public.procurement_request_amount(p_id);                                   -- 0242
-    select * into v_route                                                                  -- 0242
-      from public.spend_approval_route(v_org, v_project, v_category, v_amount, v_currency, v_requester); -- 0242
-    -- coalesce: a NULL here must refuse, never pass (an `if` on NULL does not fire).      -- 0242
-    if v_route.route <> 'flat' and not v_is_admin                                          -- 0242
-       and not coalesce(v_uid = any (v_route.approver_ids), false) then                    -- 0242
-      raise exception 'approval routing: % requires a named approver', v_route.reason     -- 0242
-        using errcode = '42501';                                                           -- 0242
-    end if;                                                                                -- 0242
-    perform public.log_audit('procurement.approval_route', v_org, v_uid, p_id,             -- 0242
-      jsonb_build_object(                                                                  -- 0242
-        'to', p_to::text, 'route', v_route.route, 'reason', v_route.reason,                -- 0242
-        'request_amount', v_amount, 'line_budget', v_route.line_budget,                    -- 0242
-        'line_used', v_route.line_used, 'budget_category', v_category::text,               -- 0242
-        'break_glass', (v_route.route <> 'flat' and v_is_admin                             -- 0242
-                        and not coalesce(v_uid = any (v_route.approver_ids), false))));    -- 0242
-  end if;                                                                                  -- 0242
+  if v_from = 'Requested' and p_to in ('Approved','Rejected') then                         -- 0243
+    if v_project is not null and v_category is not null then                               -- 0243
+      perform pg_advisory_xact_lock(                                                       -- 0243
+        hashtextextended('spend-line:' || v_project::text || ':' || v_category::text, 0)); -- 0243
+    end if;                                                                                -- 0243
+    v_amount := public.procurement_request_amount(p_id);                                   -- 0243
+    select * into v_route                                                                  -- 0243
+      from public.spend_approval_route(v_org, v_project, v_category, v_amount, v_currency, v_requester, -- 0243
+             v_uid, public.procurement_submitted_at(p_id));                                -- 0243
+    -- coalesce: a NULL here must refuse, never pass (an `if` on NULL does not fire). A NULL route is  -- 0243
+    -- treated as the senior route (DD-APR-5): only a named approver or an Admin passes.  -- 0243
+    if coalesce(v_route.route, 'senior') <> 'flat' and not v_is_admin                      -- 0243
+       and not coalesce(v_uid = any (v_route.approver_ids), false) then                    -- 0243
+      if v_route.route = 'admin' then                                                      -- 0243
+        raise exception 'approval routing: % requires an Admin (no senior approver is eligible)', -- 0243
+          v_route.reason using errcode = '42501';                                          -- 0243
+      end if;                                                                              -- 0243
+      raise exception 'approval routing: % requires a named approver',                    -- 0243
+        coalesce(v_route.reason, 'unknown') using errcode = '42501';                       -- 0243
+    end if;                                                                                -- 0243
+    perform public.log_audit('procurement.approval_route', v_org, v_uid, p_id,             -- 0243
+      jsonb_build_object(                                                                  -- 0243
+        'to', p_to::text, 'route', v_route.route, 'reason', v_route.reason,                -- 0243
+        'request_amount', v_amount, 'line_budget', v_route.line_budget,                    -- 0243
+        'line_used', v_route.line_used, 'budget_category', v_category::text,               -- 0243
+        'break_glass', (coalesce(v_route.route, 'senior') <> 'flat' and v_is_admin         -- 0243
+                        and not coalesce(v_uid = any (v_route.approver_ids), false))));    -- 0243
+  end if;                                                                                  -- 0243
 
   if not v_is_admin then
     declare v_is_requester boolean := (v_uid is not null and v_uid = v_requester);
@@ -426,7 +507,7 @@ begin
 end; $$;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
--- §8 — FR-APR-020: once submitted, the routing inputs are fixed for every RLS-subject caller. Server
+-- §8 — FR-APR-020: once submitted, the routing inputs (project, category, header total, currency) are fixed for every RLS-subject caller. Server
 -- paths (SECURITY DEFINER owned by a BYPASSRLS role — select_procurement_quote, the importer, the ERP
 -- read-model writers) are exempt through actor_bypasses_rls(), the 0174 idiom. Rejected is editable
 -- because the requester reworks it back to Draft.
@@ -449,6 +530,11 @@ begin
     raise exception 'procurements.total_value cannot change after the request is submitted: approval routing was decided on it'
       using errcode = '42501';
   end if;
+  -- No client holds an UPDATE grant on currency today; this keeps the freeze if one is ever added.
+  if new.currency is distinct from old.currency then
+    raise exception 'procurements.currency cannot change after the request is submitted: approval routing was decided on it'
+      using errcode = '42501';
+  end if;
   return new;
 end; $$;
 revoke all on function public.assert_procurement_routing_inputs_frozen() from public, anon, authenticated;
@@ -459,9 +545,9 @@ create trigger procurements_routing_inputs_frozen
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- §9 — FR-APR-040 (#788 seam): "awaits approval" goes to the people the route lets decide. 0237's body
--- VERBATIM except the Draft→Requested recipient set (lines marked `0242`): when spend_approval_route names
--- approvers, they are the recipients; on route `flat` (nothing configured, or nobody eligible) 0237's
--- OD-PROC-1 role list still applies. Same function, same inputs as §7 — the rule has one copy. The route
+-- VERBATIM except the Draft→Requested recipient set (lines marked `0243`): when spend_approval_route names
+-- approvers, they are the recipients; on route `admin` (a senior set nobody can act on, DD-APR-4) the
+-- org's Admins; on route `flat` (nothing configured) 0237's OD-PROC-1 role list still applies. Same function, same inputs as §7 — the rule has one copy. The route
 -- is read at submit time; §7 re-reads it at decision time, so a line that filled up in between escalates
 -- the decision (the senior set may then decide a request whose notice went to the project approver).
 -- create-or-replace keeps 0237's trigger and its revoked ACL.
@@ -469,23 +555,24 @@ create trigger procurements_routing_inputs_frozen
 create or replace function public.notify_procurement_transition() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare r record;
-        v_route record;                                                                    -- 0242
+        v_route record;                                                                    -- 0243
 begin
   if new.status is not distinct from old.status then return new; end if;
   if new.status = 'Requested' and old.status = 'Draft' then
-    select * into v_route                                                                  -- 0242
-      from public.spend_approval_route(new.org_id, new.project_id, new.budget_category,   -- 0242
-             public.procurement_request_amount(new.id), new.currency, new.requested_by_id); -- 0242
+    select * into v_route                                                                  -- 0243
+      from public.spend_approval_route(new.org_id, new.project_id, new.budget_category,   -- 0243
+             public.procurement_request_amount(new.id), new.currency, new.requested_by_id); -- 0243
     -- Approver population = transition_procurement's Requested→Approved/Rejected arm (OD-PROC-1) minus the requester (SoD-a).
     -- ⚑ MIRRORS the role list in public.transition_procurement (0180 — Admin short-circuits its role check;
     -- Project Manager/Finance/Executive are its v_allowed_roles). A change there MUST change this list too.
     for r in select p.id from public.profiles p
               where p.org_id = new.org_id
                 and p.id is distinct from new.requested_by_id
-                and case when v_route.route is distinct from 'flat'                       -- 0242
-                         then p.id = any (v_route.approver_ids)                           -- 0242
-                         else p.role in ('Admin','Project Manager','Finance','Executive') -- 0242
-                    end                                                                    -- 0242
+                and case coalesce(v_route.route, 'admin')                                  -- 0243
+                      when 'flat'  then p.role in ('Admin','Project Manager','Finance','Executive') -- 0243
+                      when 'admin' then p.role = 'Admin'                                   -- 0243
+                      else p.id = any (v_route.approver_ids)                               -- 0243
+                    end                                                                    -- 0243
     loop
       perform public.notify_workflow_user(new.org_id, r.id, 'Procurement awaiting your approval',
         new.title, 'info', 'procurement_case', new.id, new.title);

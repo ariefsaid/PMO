@@ -50,7 +50,8 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
   - Nobody configured for the route's set → the OD-PROC-1 flat matrix applies, exactly as today.
   - Project approver(s) configured but none **eligible** (the only one is the requester, is no longer active, or no
     longer holds approval rank) → escalate to the senior set.
-  - Senior set configured but none eligible → the flat matrix applies.
+  - Senior set configured but none eligible → only an Admin may decide (route `admin`; break-glass, audited). The
+    flat matrix is the fallback only when no senior set is configured at all. (Ruled: `docs/decisions.md` DD-APR-4.)
   - *Eligible* = active member of the org (`profiles.status = 'active'`), holds approval rank (role rank ≥
     Project Manager, ADR-0070), and is not the requester.
 - **DD-APR-4 — Reject follows the same route as Approve.** OD-PROC-1 pairs them; a person who may not approve a
@@ -59,11 +60,21 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
   decide a routed request from the request page; SoD-a still applies; the audit row records `break_glass = true`.
   A routed request does not appear in an Admin's "awaiting you" lists unless they are named.
 - **DD-APR-6 — Routing inputs are fixed once submitted.** After a request leaves Draft (and until it is sent back to
-  Draft from Rejected), a client may not change its project, budget category or header total. Server-side paths
+  Draft from Rejected), a client may not change its project, budget category, header total or currency. Server-side paths
   that set the total from a selected quote are unaffected and do **not** re-route (see owner question Q1).
 - **DD-APR-7 — Configuration lives in one table, Admin-only.** `spend_approvers(org_id, project_id null|uuid,
   profile_id)`: a row with a project names an approver for that project; a row without a project names a member of
   the org's senior set. Any number of people per set; the client names one per project and two for the senior set.
+
+**Ruled refinements** (`docs/decisions.md` DD-APR-3..5, 2026-10-06; the ledger's numbers are not this section's
+proposal numbers): the inputs that decide a route cannot be steered by the person the route favours.
+- *A budget you just changed doesn't route to you* (ledger DD-APR-3): when the project's Active budget version was
+  activated by the person deciding, or after the request was submitted, a within-line request routes to the senior
+  set (reason `budget_changed`).
+- *A configured senior set nobody can act on means Admin, not everyone* (ledger DD-APR-4): see DD-APR-3 above.
+- *Amounts route up, never down* (ledger DD-APR-5): a negative header or line amount, or an unknown amount, routes
+  to the senior set (reason `amount_invalid`); a request never counts below zero in line used; a NULL route is
+  treated as the senior route. New header totals, line quantities and rates cannot be negative.
 
 ## 4. Functional requirements (EARS)
 
@@ -84,8 +95,8 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
 
 ### Routing (server — `transition_procurement`)
 - **FR-APR-010** When a procurement moves `Requested → Approved` or `Requested → Rejected`, the system shall
-  classify it with exactly one reason: `no_project`, `no_category`, `no_active_budget`, `currency_mismatch`,
-  `exceeds_line` or `within_budget`, per DD-APR-2.
+  classify it with exactly one reason: `no_project`, `no_category`, `amount_invalid`, `no_active_budget`,
+  `currency_mismatch`, `exceeds_line`, `budget_changed` or `within_budget`, per DD-APR-2 and the ruled refinements.
 - **FR-APR-011** The system shall compute line budget, line used and request amount exactly as DD-APR-2 states.
 - **FR-APR-012** When the reason is `within_budget`, the system shall route to the project's eligible approvers;
   otherwise it shall route to the org's eligible senior set (eligibility per DD-APR-3).
@@ -93,11 +104,13 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
   apply the OD-PROC-1 flat matrix (route `flat`).
 - **FR-APR-014** While the project has rows but no eligible approver and the reason is `within_budget`, the system
   shall route to the senior set (route `org`, reason still `within_budget`).
-- **FR-APR-015** While the senior set has no eligible member when it is the target, the system shall apply the
-  flat matrix (route `flat`).
+- **FR-APR-015** While the senior set is the target and has rows but no eligible member, the system shall let only an
+  Admin decide (route `admin`, no approvers; the Admin's decision is audited `break_glass = true`). While the senior
+  set has no rows at all, the system shall apply the flat matrix (route `flat`).
 - **FR-APR-016** When the route is `project` or `org` and the caller is not an Admin and not in the eligible set,
   the system shall refuse with SQLSTATE `42501` and the message `approval routing: <reason> requires a named
-  approver`. SoD-a (requester ≠ approver), the active-member gate and the OD-PROC-1 role matrix shall still apply,
+  approver`; when the route is `admin` and the caller is not an Admin, with `approval routing: <reason> requires an
+  Admin (no senior approver is eligible)`. A NULL route is treated as a senior route, never as `flat`. SoD-a (requester ≠ approver), the active-member gate and the OD-PROC-1 role matrix shall still apply,
   unchanged and in their current order.
 - **FR-APR-017** Where the caller is an Admin, the system shall allow the decision regardless of route (DD-APR-5).
 - **FR-APR-018** When two approvals on the same project + category line run concurrently, the system shall
@@ -106,12 +119,22 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
   `audit_events` row `procurement.approval_route` with `to`, `route`, `reason`, `request_amount`, `line_budget`,
   `line_used`, `budget_category`, `break_glass`.
 - **FR-APR-020** While a procurement's status is neither Draft nor Rejected, the system shall refuse a change to
-  `project_id`, `budget_category` or `total_value` by any caller subject to RLS, with SQLSTATE `42501` and the
+  `project_id`, `budget_category`, `total_value` or `currency` by any caller subject to RLS, with SQLSTATE `42501` and the
   message `procurements.<column> cannot change after the request is submitted: approval routing was decided on it`.
   Server-side (RLS-bypassing) writers such as quote selection are unaffected.
 - **FR-APR-021** The system shall expose `get_procurement_approval_routes(p_ids uuid[])` (SECURITY INVOKER) that
   returns, for each listed procurement the caller can see that is `Requested`: route, reason, approvers (id +
-  name), request amount, line budget, line used — computed by the same function `transition_procurement` uses.
+  name), request amount, line budget, line used — computed by the same function `transition_procurement` uses,
+  with the viewer as the decider (unless the viewer is the requester).
+- **FR-APR-022** When a request would be `within_budget` and the project's Active budget version was activated after
+  the request's latest submission (its latest `→ Requested` status event), or the deciding user activated it (the
+  `budget_version.update` audit row with `to_status = Active`), the system shall classify it `budget_changed`, which
+  routes to the senior set. A request with no submission event is judged on the decider half only.
+- **FR-APR-023** When a request's header total or any line amount is negative, the request amount shall be unknown
+  (NULL) and the request shall be classified `amount_invalid`; when the route function is given a NULL or negative
+  amount directly, likewise. In line used, each request shall count `greatest(0, header, Σ lines)`. New rows shall
+  satisfy `total_value >= 0`, `quantity >= 0`, `rate >= 0` (CHECK constraints added NOT VALID, so rows that predate
+  them are not re-checked).
 
 ### Front end (UX only — the server is the authority, ADR-0016)
 - **FR-APR-030** The procurement detail page shall offer Approve/Reject only when the existing gates hold **and**
@@ -130,10 +153,11 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
 
 ### Seams
 - **FR-APR-040 (#788 notification seam)** The recipients of "a purchase request awaits approval" shall be the
-  `approver_ids` returned by `public.spend_approval_route` (or, for route `flat`, the OD-PROC-1 role population).
+  `approver_ids` returned by `public.spend_approval_route` (or, for route `admin`, the org's Admins; for route
+  `flat`, the OD-PROC-1 role population).
   This issue writes no notification code; #788 calls that function rather than re-deriving the rule.
 - **FR-APR-041 (#775 reuse seam)** `public.spend_approval_route(org, project, category, amount, currency,
-  requester)` takes no procurement-specific argument. #775 calls it for an expense claim with the claim's own
+  requester, decider default null, submitted_at default null)` takes no procurement-specific argument. #775 calls it for an expense claim with the claim's own
   values, and extends **only that function's** "line used" sum to include claims in their approved/paid states.
 
 ## 5. Non-functional requirements
@@ -194,8 +218,18 @@ pgTAP files live in `supabase/tests/`; unit tests in `pmo-portal/`.
 - **AC-APR-009** *Given* a project whose only named approver raised the request, *when* a Finance user outside the
   senior set approves, *then* 42501 `approval routing: within_budget requires a named approver`; *when* a senior-set
   member approves, *then* it succeeds. (FR-APR-014)
-- **AC-APR-010** *Given* a senior set whose only member is disabled, *when* a PM approves an overhead request,
-  *then* it succeeds (flat fallback). (FR-APR-015)
+- **AC-APR-010** *Given* a senior set whose members are disabled or demoted, *when* a PM or an Executive approves
+  an overhead request, *then* 42501 `approval routing: no_project requires an Admin (no senior approver is
+  eligible)`; *when* an Admin approves, *then* it succeeds and the audit row records route `admin`,
+  `break_glass = true`. (FR-APR-015)
+- **AC-APR-022** *Given* a project approver who activates a bigger budget after a request was submitted, or who
+  activated the budget themselves, *when* they approve, *then* 42501 `approval routing: budget_changed requires a
+  named approver`; *given* a budget someone else activated after submission, *then* the same; *given* a budget
+  someone else activated before submission, *then* the project approver approves. (FR-APR-022) — *mutation-worthy*
+- **AC-APR-023** *Given* a request with a negative line or a negative header, *then* its amount is NULL and it is
+  classified `amount_invalid` (route `org`) and the project approver cannot approve it; *given* a request already
+  on the line whose amounts are negative, *then* it counts 0 in line used; new negative totals, quantities and rates
+  are refused 23514. (FR-APR-023) — *mutation-worthy*
 - **AC-APR-013** *Given* a routed within-budget request, *when* a non-named PM rejects, *then* 42501; *when* the
   named approver rejects, *then* status `Rejected`. (DD-APR-4)
 - **AC-APR-014** *Given* a routed request, *when* an Admin (not named) approves, *then* it succeeds and the audit
@@ -204,7 +238,7 @@ pgTAP files live in `supabase/tests/`; unit tests in `pmo-portal/`.
   records route `project`, reason `within_budget`, request amount 400, line budget 1000, line used 0. (FR-APR-019)
 
 **Inputs frozen — `spend_approval_inputs_frozen.test.sql`**
-- **AC-APR-018** *Given* a `Requested` request, *when* a PM changes its project, budget category or header total,
+- **AC-APR-018** *Given* a `Requested` request, *when* a PM changes its project, budget category, header total or currency,
   *then* each is refused 42501 with the column-named message; *when* the PM changes its title, *then* it succeeds;
   *when* a PM changes the project of a `Draft` request, *then* it succeeds; *when* a quote is selected through
   `select_procurement_quote` on a `Vendor Quoted` request, *then* `total_value` takes the quote amount. (FR-APR-020)

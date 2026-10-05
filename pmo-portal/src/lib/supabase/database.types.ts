@@ -6096,6 +6096,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: number
       }
+      procurement_submitted_at: {
+        Args: { p_procurement_id: string }
+        Returns: string
+      }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
@@ -6274,9 +6278,11 @@ export type Database = {
           p_amount: number
           p_category: Database["public"]["Enums"]["budget_category"]
           p_currency: string
+          p_decider_id?: string
           p_org_id: string
           p_project_id: string
           p_requester_id: string
+          p_submitted_at?: string
         }
         Returns: {
           approver_ids: string[]

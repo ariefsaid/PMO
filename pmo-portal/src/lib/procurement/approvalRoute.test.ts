@@ -39,6 +39,12 @@ describe('AC-APR-030 mayDecideRoutedApproval', () => {
   it('AC-APR-030: an Admin keeps break-glass', () => {
     expect(mayDecideRoutedApproval(route(), 'u-x', true)).toBe(true);
   });
+  it('AC-APR-010: a request only an Admin may decide is not decidable by a non-Admin', () => {
+    expect(mayDecideRoutedApproval(route({ route: 'admin', approvers: [] }), 'u-x', false)).toBe(false);
+  });
+  it('AC-APR-010: a request only an Admin may decide is decidable by an Admin', () => {
+    expect(mayDecideRoutedApproval(route({ route: 'admin', approvers: [] }), 'u-x', true)).toBe(true);
+  });
 });
 
 describe('AC-APR-030 approvalRouteNote', () => {
@@ -60,6 +66,21 @@ describe('AC-APR-030 approvalRouteNote', () => {
   it('AC-APR-030: an escalated within-budget request says the project approver cannot act', () => {
     expect(approvalRouteNote(route({ route: 'org' }), 'Materials', t)).toContain(
       "the project's own approver cannot approve it.",
+    );
+  });
+  it('AC-APR-010: a request only an Admin may decide says so instead of naming nobody', () => {
+    expect(approvalRouteNote(route({ route: 'admin', reason: 'no_project', approvers: [] }), null, t)).toBe(
+      'Approval for this request needs an Admin: no one in the senior approver set can act on it.',
+    );
+  });
+  it('DD-APR-3: a budget changed under the request says why it went to the senior set', () => {
+    expect(approvalRouteNote(route({ route: 'org', reason: 'budget_changed' }), 'Materials', t)).toContain(
+      'activated after it was submitted, or by the person deciding it',
+    );
+  });
+  it('DD-APR-5: a negative amount says why it went to the senior set', () => {
+    expect(approvalRouteNote(route({ route: 'org', reason: 'amount_invalid' }), 'Materials', t)).toContain(
+      'includes a negative value',
     );
   });
   it('AC-APR-030: over-line names the category', () => {

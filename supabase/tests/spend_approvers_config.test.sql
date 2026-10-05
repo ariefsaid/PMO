@@ -1,6 +1,6 @@
 -- spend_approvers_config.test.sql — #803 spend-approver configuration.
 -- AC-APR-016 (Admin-only writes, rank floor, same-org, stamped org, no client created_by),
--- AC-APR-017 (audit), AC-APR-020 (org isolation). Migration: 0242_spend_approval_routing.sql.
+-- AC-APR-017 (audit), AC-APR-020 (org isolation). Migration: 0243_spend_approval_routing.sql.
 begin;
 select plan(14);
 

@@ -30,4 +30,10 @@ describe('AC-APR-032 awaiting-you respects approval routing', () => {
     const list = [row('own', undefined, { requested_by_id: 'u-me' }), row('draft', undefined, { status: 'Draft' })];
     expect(pendingProcurementApprovals(list, 'u-me')).toEqual([]);
   });
+
+  it('AC-APR-010: an admin-routed request awaits every Admin, and only Admins; Admins still skip named routes', () => {
+    const list = [row('admin', routed([], 'admin')), row('theirs', routed(['u-other']))];
+    expect(pendingProcurementApprovals(list, 'u-adm', true).map((r) => r.id)).toEqual(['admin']);
+    expect(pendingProcurementApprovals(list, 'u-me', false)).toEqual([]);
+  });
 });

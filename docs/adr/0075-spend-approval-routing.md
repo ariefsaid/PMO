@@ -35,12 +35,15 @@ already shipped in `transition_procurement` (active-member gate, SoD-a, SoD-b, r
 4. **Evaluated at approve time, under a per-line lock.** The decision reads the line at the moment of approval,
    inside `pg_advisory_xact_lock` keyed on (project, category), so two concurrent approvals cannot both spend the
    same headroom.
-5. **Fail toward the senior set, then to the flat matrix.** Anything that makes "within budget" unknowable (no
-   category, no Active budget, mixed currency) routes to the senior set. A configured set with nobody eligible
-   escalates (project → senior set) or falls back (senior set → flat matrix), so a request can never be left with
-   no possible approver.
-6. **Inputs are fixed once submitted.** A trigger refuses client changes to project, category and header total
-   after Draft, so the inputs the routing decided on cannot be swapped underneath it.
+5. **Fail toward the senior set, then to an Admin.** Anything that makes "within budget" unknowable (no category,
+   no Active budget, mixed currency, a negative or unknown amount) routes to the senior set. A configured project set
+   with nobody eligible escalates to the senior set; a configured senior set with nobody eligible leaves the decision
+   to an Admin (break-glass, audited). The flat matrix applies only when no senior set is configured at all, so a
+   request can never be left with no possible approver (`docs/decisions.md` DD-APR-4).
+6. **Inputs are fixed once submitted, and cannot be steered by the decider.** A trigger refuses client changes to
+   project, category, header total and currency after Draft. A budget version activated by the decider, or after
+   the request was submitted, routes to the senior set; amounts never count below zero and new ones cannot be
+   negative (`docs/decisions.md` DD-APR-3, DD-APR-5).
 
 ## Consequences
 

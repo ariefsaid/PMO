@@ -1,7 +1,7 @@
 -- spend_approval_inputs_frozen.test.sql — #803 FR-APR-020: once submitted, the inputs approval routing
 -- decided on cannot be changed by a client; the server's quote selection still can change the total.
 begin;
-select plan(8);
+select plan(10);
 
 insert into organizations (id, name, default_currency) values ('02344000-0000-0000-0000-00000000000a','APR Frz Org','IDR');
 insert into auth.users (id, email) values
@@ -34,6 +34,17 @@ select throws_ok($$ update procurements set budget_category = 'Labor' where id =
 select throws_ok($$ update procurements set total_value = 999 where id = '02344000-0000-0000-0000-000000000401' $$,
   '42501', 'procurements.total_value cannot change after the request is submitted: approval routing was decided on it',
   'AC-APR-018: the header total of a submitted request is fixed');
+-- Currency: no client may change it at all (column grant), and should that grant ever appear, the
+-- routing freeze still holds once the request is submitted.
+select throws_ok($$ update procurements set currency = 'EUR' where id = '02344000-0000-0000-0000-000000000401' $$,
+  '42501', 'permission denied for table procurements',
+  'AC-APR-018: a client holds no grant to change a request''s currency');
+reset role;
+grant update (currency) on public.procurements to authenticated;
+set local role authenticated;
+select throws_ok($$ update procurements set currency = 'EUR' where id = '02344000-0000-0000-0000-000000000401' $$,
+  '42501', 'procurements.currency cannot change after the request is submitted: approval routing was decided on it',
+  'AC-APR-018: the currency of a submitted request is fixed');
 select lives_ok($$ update procurements set title = 'Renamed' where id = '02344000-0000-0000-0000-000000000401' $$,
   'AC-APR-018: a non-routing column is still editable');
 select lives_ok($$ update procurements set project_id = '02344000-0000-0000-0000-000000000102' where id = '02344000-0000-0000-0000-000000000402' $$,

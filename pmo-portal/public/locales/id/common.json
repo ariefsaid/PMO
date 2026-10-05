@@ -1292,8 +1292,11 @@
         "noCategory": "kategori anggarannya belum diisi, jadi tidak dapat dicek terhadap anggaran proyek.",
         "noActiveBudget": "proyek belum memiliki anggaran aktif.",
         "currencyMismatch": "mata uangnya berbeda dari mata uang anggaran proyek.",
-        "escalated": "penyetuju proyek tidak dapat menyetujui permintaan ini."
-      }
+        "escalated": "penyetuju proyek tidak dapat menyetujui permintaan ini.",
+        "budgetChanged": "anggaran proyek yang menampungnya diaktifkan setelah permintaan diajukan, atau oleh orang yang memutuskannya.",
+        "amountInvalid": "nilainya mengandung angka negatif, jadi tidak dapat dicek terhadap anggaran proyek."
+      },
+      "adminOnly": "Persetujuan permintaan ini memerlukan Admin: tidak ada anggota penyetuju senior yang dapat memprosesnya."
     },
     "groupRef": {
       "label": "Ref. grup",
