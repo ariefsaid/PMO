@@ -3417,6 +3417,7 @@ export type Database = {
         Row: {
           approval_notes: string | null
           approved_by_id: string | null
+          budget_category: Database["public"]["Enums"]["budget_category"] | null
           code: string | null
           created_at: string
           currency: string
@@ -3440,6 +3441,9 @@ export type Database = {
         Insert: {
           approval_notes?: string | null
           approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
           code?: string | null
           created_at?: string
           currency?: string
@@ -3463,6 +3467,9 @@ export type Database = {
         Update: {
           approval_notes?: string | null
           approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
           code?: string | null
           created_at?: string
           currency?: string
@@ -4498,6 +4505,62 @@ export type Database = {
             columns: ["work_order_id"]
             isOneToOne: false
             referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spend_approvers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          profile_id: string
+          project_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          profile_id: string
+          project_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          profile_id?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spend_approvers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approvers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approvers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approvers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -5569,6 +5632,18 @@ export type Database = {
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
+      get_procurement_approval_routes: {
+        Args: { p_ids: string[] }
+        Returns: {
+          approvers: Json
+          line_budget: number
+          line_used: number
+          procurement_id: string
+          reason: string
+          request_amount: number
+          route: string
+        }[]
+      }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_project_drawdown: {
         Args: { p_project_id: string }
@@ -5656,6 +5731,10 @@ export type Database = {
         Returns: boolean
       }
       holds_profile_admin_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      holds_spend_approval_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
       }
@@ -5971,6 +6050,10 @@ export type Database = {
         }
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
+      procurement_request_amount: {
+        Args: { p_procurement_id: string }
+        Returns: number
+      }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
@@ -6144,6 +6227,23 @@ export type Database = {
         Returns: undefined
       }
       si_submit_clearance_ttl: { Args: never; Returns: string }
+      spend_approval_route: {
+        Args: {
+          p_amount: number
+          p_category: Database["public"]["Enums"]["budget_category"]
+          p_currency: string
+          p_org_id: string
+          p_project_id: string
+          p_requester_id: string
+        }
+        Returns: {
+          approver_ids: string[]
+          line_budget: number
+          line_used: number
+          reason: string
+          route: string
+        }[]
+      }
       submit_sales_invoice: {
         Args: { p_si_id: string }
         Returns: {
@@ -6282,8 +6382,8 @@ export type Database = {
         | "On Hold"
         | "Close Out"
         | "Loss Tender"
-        | "Declined"
         | "Internal Project"
+        | "Declined"
       task_priority: "Urgent" | "High" | "Normal" | "Low"
       task_status: "To Do" | "In Progress" | "Done" | "Blocked"
       timesheet_status: "Draft" | "Submitted" | "Approved" | "Rejected"
@@ -6474,8 +6574,8 @@ export const Constants = {
         "On Hold",
         "Close Out",
         "Loss Tender",
-        "Declined",
         "Internal Project",
+        "Declined",
       ],
       task_priority: ["Urgent", "High", "Normal", "Low"],
       task_status: ["To Do", "In Progress", "Done", "Blocked"],

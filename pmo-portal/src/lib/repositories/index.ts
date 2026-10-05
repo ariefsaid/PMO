@@ -74,6 +74,7 @@ import {
 } from '@/src/lib/db/agentAttachments';
 import { createAgentThread } from '@/src/lib/db/agentThreads';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
+import { listSpendApprovers, addSpendApprover, removeSpendApprover } from '@/src/lib/db/spendApprovers';
 import { listUsers, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
 import { isOperator } from '@/src/lib/db/operators';
 import {
@@ -829,6 +830,9 @@ const orgSettings: OrgSettingsRepository = {
   setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
+  listSpendApprovers: () => wrap(() => listSpendApprovers()),
+  addSpendApprover: (profileId, projectId) => wrap(() => addSpendApprover(profileId, projectId)),
+  removeSpendApprover: (id) => wrap(() => removeSpendApprover(id)),
 };
 
 const credits: CreditsRepository = {

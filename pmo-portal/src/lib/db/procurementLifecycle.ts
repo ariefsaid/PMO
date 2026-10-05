@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementRow, ProcurementWithRefs } from './procurements';
+import { attachApprovalRoutes } from './approvalRoutes';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §1.6)
@@ -199,7 +200,8 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
     .eq('id', id)
     .single();
   if (error) throwRpc(error);
-  return data as unknown as ProcurementDetail;
+  const [withRoute] = await attachApprovalRoutes([data as unknown as ProcurementDetail]);
+  return withRoute;
 }
 
 // ---------------------------------------------------------------------------
