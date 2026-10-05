@@ -2918,6 +2918,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -2945,6 +2946,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2972,6 +2974,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3988,6 +3991,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -4007,6 +4011,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4026,6 +4031,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4118,6 +4124,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -4137,6 +4144,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4156,6 +4164,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -5187,6 +5196,7 @@ export type Database = {
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
+          p_external_ref?: string
           p_invoice_date: string
           p_notes?: string
           p_procurement_id: string
@@ -5208,6 +5218,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5331,6 +5342,7 @@ export type Database = {
       create_procurement_invoice: {
         Args: {
           p_amount?: number
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5354,6 +5366,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5457,6 +5470,7 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5473,6 +5487,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5494,6 +5509,7 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5510,6 +5526,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5893,6 +5910,19 @@ export type Database = {
       next_project_number: {
         Args: { p_at?: string; p_client_id: string; p_org: string }
         Returns: string
+      }
+      notify_workflow_user: {
+        Args: {
+          p_body: string
+          p_entity_id: string
+          p_entity_type: string
+          p_label: string
+          p_org: string
+          p_owner: string
+          p_severity: string
+          p_title: string
+        }
+        Returns: undefined
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
       operator_agent_run_stats: {

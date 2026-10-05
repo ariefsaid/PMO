@@ -1,9 +1,12 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, TaxBasisLabel, type StatTile } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, TaxBasisLabel, Button, type StatTile } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { useSalesInvoices } from '@/src/hooks/useRevenue';
+import { calculateProjectInvoiceSummary } from '@/src/lib/projectInvoicing';
+import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
 import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summary';
@@ -34,6 +37,118 @@ function signedCurrency(value: number, currency: string): string {
   if (value < 0) return `−${formatCurrency(Math.abs(value), currency)}`;
   return formatCurrency(value, currency);
 }
+
+const ProjectInvoicingSummary: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation();
+  const invoicesQuery = useSalesInvoices(project.id);
+  const summary = invoicesQuery.data
+    ? calculateProjectInvoiceSummary({
+        contractAmount: project.contract_value,
+        contractCurrency: project.currency,
+        contractTreatment: project.tax_treatment,
+        invoices: invoicesQuery.data,
+      })
+    : null;
+  const summaryReady = !invoicesQuery.isPending && !invoicesQuery.isError && summary !== null;
+  const unavailable = t('projectDetail.overview.invoicing.unavailable', 'Unavailable');
+  const displayMoney = (value: number | null | undefined): string => {
+    if (value == null || !Number.isFinite(value)) return unavailable;
+    try {
+      return formatCurrency(value, project.currency);
+    } catch {
+      return unavailable;
+    }
+  };
+  const contractValue = isTaxTreatment(project.tax_treatment)
+    ? displayMoney(project.contract_value)
+    : unavailable;
+  const invoicedValue = summaryReady ? displayMoney(summary.invoicedToDate) : unavailable;
+  const remainingValue = summaryReady ? displayMoney(summary.remainingToInvoice) : unavailable;
+
+  return (
+    <section
+      data-testid="project-invoicing-summary"
+      aria-label={t('projectDetail.overview.invoicing.title', 'Invoicing against contract')}
+      className="border-y border-border py-4"
+    >
+      <h2 className="mb-3 text-[14px] font-semibold text-foreground">
+        {t('projectDetail.overview.invoicing.title', 'Invoicing against contract')}
+      </h2>
+      <dl className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="min-w-0">
+          <dt className="text-[12px] font-semibold text-muted-foreground">
+            {t('projectDetail.overview.invoicing.contract', 'Contract value')}
+          </dt>
+          <dd className="mt-0.5 break-words text-[15px] font-bold tabular text-foreground">
+            {contractValue}
+          </dd>
+          {isTaxTreatment(project.tax_treatment) && (
+            <dd className="mt-0.5">
+              <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-contract-basis" />
+            </dd>
+          )}
+        </div>
+        <div className="min-w-0">
+          <dt className="text-[12px] font-semibold text-muted-foreground">
+            {t('projectDetail.overview.invoicing.invoicedToDate', 'Invoiced to date')}
+          </dt>
+          <dd className="mt-0.5 break-words text-[15px] font-bold tabular text-foreground">
+            {invoicesQuery.isPending ? '—' : invoicedValue}
+          </dd>
+          {summaryReady && (
+            <dd className="mt-0.5">
+              <TaxBasisLabel treatment={summary.taxTreatment} showDetails={false} testId="project-invoiced-basis" />
+            </dd>
+          )}
+        </div>
+        <div className="min-w-0">
+          <dt className="text-[12px] font-semibold text-muted-foreground">
+            {t('projectDetail.overview.invoicing.remaining', 'Remaining to invoice')}
+          </dt>
+          <dd className="mt-0.5 break-words text-[15px] font-bold tabular text-foreground">
+            {invoicesQuery.isPending ? '—' : remainingValue}
+          </dd>
+          {summaryReady && (
+            <dd className="mt-0.5">
+              <TaxBasisLabel treatment={summary.taxTreatment} showDetails={false} testId="project-remaining-basis" />
+            </dd>
+          )}
+        </div>
+      </dl>
+      {invoicesQuery.isPending && (
+        <p className="mt-3 text-[12px] text-muted-foreground" role="status" aria-live="polite">
+          {t('projectDetail.overview.invoicing.loading', 'Loading invoice totals…')}
+        </p>
+      )}
+      {invoicesQuery.isError && (
+        <div className="mt-3 flex flex-wrap items-center gap-3" role="alert">
+          <span className="text-[12px] text-muted-foreground">
+            {t('projectDetail.overview.invoicing.error', "Couldn't load invoice totals.")}
+          </span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void invoicesQuery.refetch()}>
+            {t('projectDetail.overview.invoicing.retry', 'Retry')}
+          </Button>
+        </div>
+      )}
+      {summaryReady && (
+        <p className="mt-3 text-[12px] text-muted-foreground" data-testid="project-invoicing-scope">
+          {t(
+            'projectDetail.overview.invoicing.scopeNote',
+            'Counts invoices linked to this project. Invoices raised in the ERP without a project are not included.',
+          )}
+        </p>
+      )}
+      {!invoicesQuery.isPending && !invoicesQuery.isError && !summaryReady && (
+        <p className="mt-3 text-[12px] text-muted-foreground" role="status">
+          {t(
+            'projectDetail.overview.invoicing.unavailableDetail',
+            'Invoice totals cannot be compared with this contract currency or tax basis.',
+          )}
+        </p>
+      )}
+    </section>
+  );
+};
 
 /**
  * Phase 5 (T14-T18): densified Overview tab.
@@ -107,8 +222,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
     : [];
 
   // D15: financial-summary visibility — delivery lens only (on-hand ∪ internal projects).
-  const group = showFinanceSummary ? projectStatusGroup(project.status as never) : null;
-  const isDelivery = group === 'onHand' || group === 'internal';
+  const group = projectStatusGroup(project.status as never);
+  const isDelivery = showFinanceSummary && (group === 'onHand' || group === 'internal');
   const isOnHand = showFinanceSummary ? ON_HAND_STATUSES.includes(project.status as string) : false;
 
   // T14/T15 — Procurement summary (client-side filter by project_id)
@@ -131,6 +246,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
   return (
     <div className="space-y-8">
+      {group === 'onHand' && <ProjectInvoicingSummary project={project} />}
       {/* Row 1. `[&>*]:min-w-0`: grid items default to min-width:auto, which lets a card
           whose min-content (a long title / unbroken number) exceeds the track refuse to
           shrink → the card bleeds ~14px past the viewport at 390px (AC-MOBILE-OVERFLOW-001). */}

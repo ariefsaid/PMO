@@ -1,7 +1,8 @@
 -- 0242_spend_approval_routing.sql — #803 approval routing by budget.
 -- Spec: docs/specs/approval-routing-by-budget.spec.md · ADR-0075 · Plan: docs/plans/2026-10-06-approval-routing-by-budget.md
 -- Proven by supabase/tests/spend_approvers_config.test.sql, spend_approval_classify.test.sql,
---   spend_approval_enforce.test.sql, spend_approval_inputs_frozen.test.sql, spend_approval_line_lock.test.sql.
+--   spend_approval_enforce.test.sql, spend_approval_inputs_frozen.test.sql, spend_approval_line_lock.test.sql,
+--   spend_approval_notify.test.sql.
 --
 -- Routing NARROWS OD-PROC-1; it never widens it. transition_procurement keeps 0180's active-member gate,
 -- SoD-a, SoD-b and role matrix verbatim and gains ONE extra refusal (§7). With no spend_approvers rows the
@@ -10,8 +11,11 @@
 -- §1 procurements.budget_category · §2 holds_spend_approval_authority · §3 spend_approvers (+RLS, stamp, audit)
 -- §4 procurement_request_amount · §5 spend_approval_route (THE rule; #775/#788 reuse it)
 -- §6 get_procurement_approval_routes (UI read) · §7 transition_procurement · §8 routing inputs frozen
+-- §9 notify_procurement_transition (#788 recipients follow the route)
 --
 -- ── REVERSE (manual, in this order — not `db reset`; prod data may exist) ───────────────────────────
+--   -- §9: re-create notify_procurement_transition from THIS file's §9 text minus every line marked `0242`,
+--   --     restoring the plain `and p.role in ('Admin','Project Manager','Finance','Executive')` filter.
 --   drop trigger if exists procurements_routing_inputs_frozen on public.procurements;
 --   drop function if exists public.assert_procurement_routing_inputs_frozen();
 --   -- §7: re-create transition_procurement from THIS file's §7 text minus every line marked `0242`
@@ -452,3 +456,46 @@ revoke all on function public.assert_procurement_routing_inputs_frozen() from pu
 create trigger procurements_routing_inputs_frozen
   before update on public.procurements
   for each row execute function public.assert_procurement_routing_inputs_frozen();
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════════
+-- §9 — FR-APR-040 (#788 seam): "awaits approval" goes to the people the route lets decide. 0237's body
+-- VERBATIM except the Draft→Requested recipient set (lines marked `0242`): when spend_approval_route names
+-- approvers, they are the recipients; on route `flat` (nothing configured, or nobody eligible) 0237's
+-- OD-PROC-1 role list still applies. Same function, same inputs as §7 — the rule has one copy. The route
+-- is read at submit time; §7 re-reads it at decision time, so a line that filled up in between escalates
+-- the decision (the senior set may then decide a request whose notice went to the project approver).
+-- create-or-replace keeps 0237's trigger and its revoked ACL.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════════
+create or replace function public.notify_procurement_transition() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+declare r record;
+        v_route record;                                                                    -- 0242
+begin
+  if new.status is not distinct from old.status then return new; end if;
+  if new.status = 'Requested' and old.status = 'Draft' then
+    select * into v_route                                                                  -- 0242
+      from public.spend_approval_route(new.org_id, new.project_id, new.budget_category,   -- 0242
+             public.procurement_request_amount(new.id), new.currency, new.requested_by_id); -- 0242
+    -- Approver population = transition_procurement's Requested→Approved/Rejected arm (OD-PROC-1) minus the requester (SoD-a).
+    -- ⚑ MIRRORS the role list in public.transition_procurement (0180 — Admin short-circuits its role check;
+    -- Project Manager/Finance/Executive are its v_allowed_roles). A change there MUST change this list too.
+    for r in select p.id from public.profiles p
+              where p.org_id = new.org_id
+                and p.id is distinct from new.requested_by_id
+                and case when v_route.route is distinct from 'flat'                       -- 0242
+                         then p.id = any (v_route.approver_ids)                           -- 0242
+                         else p.role in ('Admin','Project Manager','Finance','Executive') -- 0242
+                    end                                                                    -- 0242
+    loop
+      perform public.notify_workflow_user(new.org_id, r.id, 'Procurement awaiting your approval',
+        new.title, 'info', 'procurement_case', new.id, new.title);
+    end loop;
+  elsif old.status = 'Requested' and new.status = 'Approved' then
+    perform public.notify_workflow_user(new.org_id, new.requested_by_id, 'Your procurement was approved',
+      coalesce(nullif(btrim(new.approval_notes), ''), new.title), 'info', 'procurement_case', new.id, new.title);
+  elsif old.status = 'Requested' and new.status = 'Rejected' then
+    perform public.notify_workflow_user(new.org_id, new.requested_by_id, 'Your procurement was rejected',
+      coalesce(nullif(btrim(new.rejection_notes), ''), new.title), 'warning', 'procurement_case', new.id, new.title);
+  end if;
+  return new;
+end; $$;

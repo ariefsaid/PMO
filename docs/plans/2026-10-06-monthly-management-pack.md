@@ -1,11 +1,11 @@
 # Plan: monthly management pack (issue #765)
 
 > **Spec:** [`docs/specs/monthly-management-pack.spec.md`](../specs/monthly-management-pack.spec.md) (AC-MMP-001..017,
-> DD-MMP-1..6 proposals). **ADR:** [ADR-0075](../adr/0075-management-pack-recognition-is-an-estimate.md).
+> DD-MMP-1..6 proposals). **ADR:** [ADR-0076](../adr/0076-management-pack-recognition-is-an-estimate.md).
 > **Executor:** bounded code + FE slice → SSSF ADW (`--builder fe_builder --reviewer fe_reviewer`). Not money-path:
 > no money moves, no outbox command, no SoD gate. Security-auditor still reviews the new table + RPCs.
-> **Migration number:** `0235`. `0232`–`0234` are claimed by in-flight branches (#770, #805, #796). If `0235` is
-> taken when you start, run `scripts/renumber-migration.sh 0235 <next>` after Task 2 — never hand-rename.
+> **Migration number:** `0243` (Director-assigned; `0232`–`0242` are taken). If it is taken by the time you start,
+> run `scripts/renumber-migration.sh 0243 <next>` after Task 2 — never hand-rename.
 
 ## 1. Design
 
@@ -67,7 +67,7 @@ Invoices in a currency other than the contract's → an `otherCurrency` row (bil
 - One round trip; response size O(projects + invoice-months + entries). New index
   `sales_invoices (org_id, invoice_date)`; table index `(org_id, project_id, month)`; FK index on `entered_by`.
 - Window capped at 24 months server-side.
-- Duplicate logic surfaced, not fixed here: the net-of-tax CASE now lives in 4 SQL bodies (ADR-0075 follow-up);
+- Duplicate logic surfaced, not fixed here: the net-of-tax CASE now lives in 4 SQL bodies (ADR-0076 follow-up);
   the on-hand status list is duplicated between SQL and `ON_HAND_STATUSES` (comment cross-references both);
   `getRevenueByProject` sums gross and across currencies (OBS-MMP-002 — separate ticket).
 
@@ -75,9 +75,9 @@ Invoices in a currency other than the contract's → an `otherCurrency` row (bil
 
 | Path | Change |
 |---|---|
-| `supabase/tests/0235_management_pack.test.sql` | new pgTAP (AC-MMP-001..005) |
-| `supabase/migrations/0235_management_pack.sql` | new: table, triggers, RLS, grants, 5 functions, index |
-| `supabase/migrations/rollback/0235_management_pack_down.sql` | new: reverse |
+| `supabase/tests/0243_management_pack.test.sql` | new pgTAP (AC-MMP-001..005) |
+| `supabase/migrations/0243_management_pack.sql` | new: table, triggers, RLS, grants, 5 functions, index |
+| `supabase/migrations/rollback/0243_management_pack_down.sql` | new: reverse |
 | `pmo-portal/src/lib/supabase/database.types.ts` | regenerated |
 | `pmo-portal/src/lib/db/managementPack.ts` (+ `.test.ts`) | new DAL |
 | `pmo-portal/src/lib/reports/months.ts` (+ `.test.ts`) | new month arithmetic |
@@ -100,7 +100,7 @@ Invoices in a currency other than the contract's → an `otherCurrency` row (bil
 
 | AC | Owning layer | Canonical proof |
 |---|---|---|
-| AC-MMP-001 | pgTAP | `supabase/tests/0235_management_pack.test.sql` |
+| AC-MMP-001 | pgTAP | `supabase/tests/0243_management_pack.test.sql` |
 | AC-MMP-002 | pgTAP | same |
 | AC-MMP-003 | pgTAP | same |
 | AC-MMP-004 | pgTAP | same |
@@ -125,10 +125,10 @@ mark is always written as `String.fromCharCode(0xfeff)` (never a pasted invisibl
 
 ### Task 1 — pgTAP contract first (RED) · AC-MMP-001..005
 
-Create `supabase/tests/0235_management_pack.test.sql`:
+Create `supabase/tests/0243_management_pack.test.sql`:
 
 ```sql
--- 0235_management_pack.test.sql — #765. Migration under test: 0235_management_pack.sql.
+-- 0243_management_pack.test.sql — #765. Migration under test: 0243_management_pack.sql.
 -- Every denial asserts errcode AND message (0193's oracle discipline). No assertion reads function source.
 -- Cast: FIN a1 Finance · PM a2 (P1's PM) · PM2 a3 · ENG a4 · OFF a5 Finance, disabled · XORG b1 Admin, org B.
 begin;
@@ -329,20 +329,20 @@ select * from finish();
 rollback;
 ```
 
-Verify RED: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0235_management_pack.test.sql'`
+Verify RED: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0243_management_pack.test.sql'`
 Expect: failure at the `project_progress_entries` insert (relation does not exist).
 
 ### Task 2 — migration + rollback (GREEN) · AC-MMP-001..005
 
-Create `supabase/migrations/0235_management_pack.sql`:
+Create `supabase/migrations/0243_management_pack.sql`:
 
 ```sql
--- 0235_management_pack.sql — #765 monthly management pack (ADR-0075, DD-MMP-1..6).
+-- 0243_management_pack.sql — #765 monthly management pack (ADR-0076, DD-MMP-1..6).
 -- Adds: project_progress_entries (a project's month-end percent complete, a management ESTIMATE — never pushed
 -- to any external system), its writer record_project_progress, the reader get_management_pack, the helpers
 -- org_current_month / may_record_project_progress / stamp_project_progress_entry, and an (org_id, invoice_date)
 -- index on sales_invoices. No SECURITY DEFINER anywhere: both RPCs run as the caller so RLS remains the
--- tenancy boundary. Reversible via supabase/migrations/rollback/0235_management_pack_down.sql.
+-- tenancy boundary. Reversible via supabase/migrations/rollback/0243_management_pack_down.sql.
 
 -- §1 the table ─────────────────────────────────────────────────────────────────────────────────────
 create table public.project_progress_entries (
@@ -367,7 +367,7 @@ create index project_progress_entries_org_project_month_idx
 create index project_progress_entries_entered_by_idx on public.project_progress_entries (entered_by);
 
 comment on table public.project_progress_entries is
-  '#765 / ADR-0075: a project''s cumulative percent complete at a month end. A management estimate that '
+  '#765 / ADR-0076: a project''s cumulative percent complete at a month end. A management estimate that '
   'switches the project to progress-basis recognition in the management pack from that month. Never a ledger '
   'entry; never pushed to an external system.';
 
@@ -457,7 +457,7 @@ end; $$;
 revoke all     on function public.record_project_progress(uuid, date, numeric, text) from public, anon;
 grant  execute on function public.record_project_progress(uuid, date, numeric, text) to authenticated;
 
--- §8 the reader. Returns FACTS; the series arithmetic lives in buildManagementPack (ADR-0075).
+-- §8 the reader. Returns FACTS; the series arithmetic lives in buildManagementPack (ADR-0076).
 --   • invoice statuses = REVENUE_STATUSES (src/lib/db/revenue.ts) — a positive allow-list.
 --   • net-of-tax CASE byte-identical to get_project_drawdown (0197 §3).
 --   • on-hand list = ON_HAND_STATUSES (src/lib/db/projectTransitions.ts); keep the two in step.
@@ -556,10 +556,10 @@ grant  execute on function public.get_management_pack(date, date) to authenticat
 create index if not exists sales_invoices_org_invoice_date_idx on public.sales_invoices (org_id, invoice_date);
 ```
 
-Create `supabase/migrations/rollback/0235_management_pack_down.sql`:
+Create `supabase/migrations/rollback/0243_management_pack_down.sql`:
 
 ```sql
--- Reverses 0235_management_pack.sql. Order: functions that read the table, the table (takes its policies,
+-- Reverses 0243_management_pack.sql. Order: functions that read the table, the table (takes its policies,
 -- triggers and indexes with it), then the helpers and the sales_invoices index.
 drop function if exists public.get_management_pack(date, date);
 drop function if exists public.record_project_progress(uuid, date, numeric, text);
@@ -570,7 +570,7 @@ drop function if exists public.org_current_month(text, timestamptz);
 drop index if exists public.sales_invoices_org_invoice_date_idx;
 ```
 
-Verify GREEN: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0235_management_pack.test.sql supabase/tests/0005_force_rls.test.sql'`
+Verify GREEN: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0243_management_pack.test.sql supabase/tests/0005_force_rls.test.sql'`
 Expect: all 40 pass, and 0005's FORCE-RLS invariant still passes.
 Mutation check (required): temporarily change `may_record_project_progress`'s `p.project_manager_id = auth.uid()`
 to `true`, re-run — assertions 31 and 32 MUST go red. Revert, re-run green.
@@ -645,7 +645,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 
 /**
- * #765 — facts for the monthly management pack (ADR-0075). One SECURITY INVOKER RPC: RLS scopes the org,
+ * #765 — facts for the monthly management pack (ADR-0076). One SECURITY INVOKER RPC: RLS scopes the org,
  * the server normalises every amount to NET of tax and buckets invoices by `invoice_date` month. The time
  * series is derived client-side by `buildManagementPack` (src/lib/reports/managementPack.ts).
  */
@@ -903,7 +903,7 @@ import { addDays, addMonths, daysInclusive, monthEnd, monthsBetween } from './mo
 import type { ManagementPackFacts, PackFactsProgress, PackFactsProject } from '@/src/lib/db/managementPack';
 
 /**
- * #765 — the monthly management pack, derived from server facts (ADR-0075, DD-MMP-1..5).
+ * #765 — the monthly management pack, derived from server facts (ADR-0076, DD-MMP-1..5).
  * Every figure is NET of tax, in the row's own currency, in integer cents (NFR-MMP-002).
  */
 export type Cents = number;
@@ -1606,12 +1606,12 @@ GREEN: `scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run src/c
 ### Task 11 — `reports` repository · supports AC-MMP-012..016
 
 1. In `pmo-portal/src/lib/repositories/index.test.ts`, the expected key list at line 182: add `'reports'`, and append
-   to the comment above it: `'reports' from #765 (migration 0235), the monthly management pack.`
+   to the comment above it: `'reports' from #765 (migration 0243), the monthly management pack.`
    RED: `scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run src/lib/repositories/index.test.ts'`.
 2. In `pmo-portal/src/lib/repositories/types.ts` add, directly before `/** The assembled set of repositories … */`:
 
 ```ts
-/** #765 — the monthly management pack (ADR-0075). */
+/** #765 — the monthly management pack (ADR-0076). */
 export interface ReportsRepository {
   /** Facts for the pack from ONE SECURITY INVOKER RPC; RLS scopes the org. */
   managementPack(range: ManagementPackRange): Promise<ManagementPackFacts>;
@@ -1734,7 +1734,7 @@ import type { Role } from './AuthContext';
 
 const ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
 
-describe('AC-MMP-012 management pack policy (mirrors migration 0235)', () => {
+describe('AC-MMP-012 management pack policy (mirrors migration 0243)', () => {
   it('AC-MMP-012: the pack is visible to the revenue read set and not to Engineers', () => {
     expect(ROLES.filter((r) => can('view', 'managementPack', { realRole: r })))
       .toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
@@ -1763,7 +1763,7 @@ the `pushHold` entry:
   managementPack: {
     view: allow(MASTER_DATA),
   },
-  // #765 (DD-MMP-4): a project's month-end percent complete. Mirrors migration 0235's
+  // #765 (DD-MMP-4): a project's month-end percent complete. Mirrors migration 0243's
   // `may_record_project_progress`: Finance rank and above on any project, or the project's own PM.
   // UX ONLY — record_project_progress + RLS are the authority (ADR-0016).
   projectProgress: {
@@ -2841,7 +2841,7 @@ Mutation check (required, then revert): in `buildRow` make `recognisedToDateAt` 
 1. `cd pmo-portal && npm run typecheck`
 2. `cd pmo-portal && npx eslint --max-warnings=0 pages/ManagementPack.tsx pages/ExecutiveDashboard.tsx App.tsx src/components/reports src/components/export/useExport.ts src/components/shell/Rail.tsx src/lib/reports src/lib/export src/lib/db/managementPack.ts src/hooks/useManagementPack.ts src/auth/policy.ts src/lib/repositories`
 3. `scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run --changed origin/dev'`
-4. `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0235_management_pack.test.sql supabase/tests/0005_force_rls.test.sql'`
+4. `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0243_management_pack.test.sql supabase/tests/0005_force_rls.test.sql'`
 5. `scripts/with-db-lock.sh scripts/e2e-local.sh AC-MMP-016`
 6. `cd pmo-portal && npm run check:i18n`
 

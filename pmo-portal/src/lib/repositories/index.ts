@@ -535,14 +535,18 @@ const procurement: ProcurementRepository = {
     wrap(() => createProcurementDocument(procurementId, input)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
   // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
-  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent) =>
+  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
           { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-request' },
           intent,
         ).then((res) => res.canonical as unknown as PurchaseRequestRow)
-      : wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
+      : wrap(() =>
+          externalRef
+            ? createPurchaseRequest(procurementId, referenceNumber, status, date, amount, undefined, undefined, undefined, externalRef)
+            : createPurchaseRequest(procurementId, referenceNumber, status, date, amount),
+        ),
   createRfq: (procurementId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
@@ -551,14 +555,18 @@ const procurement: ProcurementRepository = {
           intent,
         ).then((res) => res.canonical as unknown as RfqRow)
       : wrap(() => createRfq(procurementId, referenceNumber, status, date, amount)),
-  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount, intent) =>
+  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
           { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-order' },
           intent,
         ).then((res) => res.canonical as unknown as PurchaseOrderRow)
-      : wrap(() => createPurchaseOrder(procurementId, referenceNumber, status, date, amount)),
+      : wrap(() =>
+          externalRef
+            ? createPurchaseOrder(procurementId, referenceNumber, status, date, amount, undefined, undefined, undefined, externalRef)
+            : createPurchaseOrder(procurementId, referenceNumber, status, date, amount),
+        ),
   createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(

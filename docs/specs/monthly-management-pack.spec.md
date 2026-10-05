@@ -1,12 +1,12 @@
 # Spec: monthly management pack (issue #765)
 
 > **Status:** Draft — 2026-10-06. **Plan:** [`docs/plans/2026-10-06-monthly-management-pack.md`](../plans/2026-10-06-monthly-management-pack.md).
-> **ADR:** [ADR-0075](../adr/0075-management-pack-recognition-is-an-estimate.md).
+> **ADR:** [ADR-0076](../adr/0076-management-pack-recognition-is-an-estimate.md).
 > **Builds on:** OD-TAX-1 + migration 0197 (net-of-tax normalisation), DD-CUR-6 (per-currency, never
 > converted), OD-WO-1 (a project IS the contract), ADR-0048 (ERP is the ledger), the revenue read rule
 > (`policy.ts` `salesInvoice.view` = Admin · Executive · PM · Finance; RLS = any active org member),
 > OD-UX-3 + DD-RPT-1 (the `/reports` placeholder and the "Board pack (coming soon)" button wait for this).
-> **Decisions proposed here (Director to rule):** DD-MMP-1..6 in §3.
+> **Decisions:** DD-MMP-1..6 in §3 — accepted by the Director 2026-10-06 (`docs/decisions.md`).
 
 ## 1. Job story
 
@@ -32,8 +32,8 @@ Read 2026-10-06 (client material lives outside this repo; nothing is copied here
   reader in the planning tool set); the above comes from their financial statements, the accountant's
   ledger extract, the workbook's sheet structure, and the model audit. The Director may re-confirm by
   opening the monthly report's revenue sheet before build; nothing below changes unless it shows a
-  monthly percent-complete column, in which case DD-MMP-1's override becomes the default (one-line
-  change in `buildManagementPack`).
+  monthly percent-complete column, in which case DD-MMP-1's override becomes the expected practice (no
+  code change — the same entries drive it).
 
 **Consequence.** Pure billing basis would make "unbilled" always zero, and the issue asks for it. So:
 billing basis by default (matches their books exactly), plus an optional month-end **percent complete**
@@ -67,7 +67,7 @@ recognition); budget versions (cost side only). No monthly progress history exis
 - **DD-MMP-5 — every figure is net of tax, in the contract's own currency.** Invoices and contract value
   are normalised with 0197's formula (`inclusive → value − tax`). Invoices in another currency than the
   contract form their own row; totals are per currency, never converted (DD-CUR-6).
-- **DD-MMP-6 — the pack is a management estimate, not a ledger** (ADR-0075). It never writes to ERPNext
+- **DD-MMP-6 — the pack is a management estimate, not a ledger** (ADR-0076). It never writes to ERPNext
   and never claims to equal the GL beyond billing basis.
 
 ## 4. Requirements (EARS)
@@ -103,8 +103,8 @@ recognition); budget versions (cost side only). No monthly progress history exis
   and month, carrying a Currency column and a Tax basis column on every row, numbers as numbers.
 - **FR-MMP-013** While the organisation's `revenue` module is enabled, the system shall show a
   "Management pack" navigation entry to Admin, Executive, PM and Finance, and the dashboard "Board pack"
-  control shall link to the pack; while it is disabled, `/reports` redirects to the dashboard and the
-  dashboard control stays as today.
+  control shall open the pack for those roles; while it is disabled, `/reports` redirects to the
+  dashboard and the dashboard control stays as today.
 - **FR-MMP-014** If the start month is after the as-at month or more than 23 months before it, then the
   system shall refuse the request with a message naming the allowed window.
 - **FR-MMP-015** The system shall report how many counted-status invoices have no invoice date and are
@@ -128,7 +128,8 @@ recognition); budget versions (cost side only). No monthly progress history exis
 - **NFR-MMP-003 (tenancy/security)** Read RPC is SECURITY INVOKER (RLS is the boundary); no definer
   functions; new table has FORCE RLS, `is_active_member()` on every policy, the 0074 org stamp trigger,
   column-level grants, no anon access.
-- **NFR-MMP-004 (reversibility)** Migration ships with `supabase/migrations/rollback/<n>_management_pack_down.sql`.
+- **NFR-MMP-004 (reversibility)** Migration `0243` ships with
+  `supabase/migrations/rollback/0243_management_pack_down.sql`.
 - **NFR-MMP-005 (i18n)** Every new string has English and Indonesian catalogue entries; `/reports` joins
   the launch-scope route list (DD-I18N-9).
 - **NFR-MMP-006 (honest states)** Loading shows skeletons; a failed load shows an error, never a 0.
@@ -184,15 +185,16 @@ Owning layer per ADR-0010 in brackets.
 - **AC-MMP-012** [unit] Given each role, Then Admin, Executive, PM and Finance see the pack and Engineer
   sees the no-access message; "Record progress" shows for Finance, Executive and Admin on every project,
   for a PM only on projects they manage, and never for an Engineer.
-- **AC-MMP-013** [unit] Given the pack is loading, Then skeletons show; failed, Then the error message
-  shows and no KPI reads 0; no projects, Then the empty message shows.
+- **AC-MMP-013** [unit] Given the pack is loading, Then no figures show; failed, Then the error message
+  shows and no figure reads 0; refused for its window, Then the allowed-range message shows; no projects,
+  Then the empty message shows.
 - **AC-MMP-014** [unit] Given the Record progress dialog, Then it pre-fills the as-at month, shows the
   milestone delivery % as helper text when known, refuses −1, 101 and 33.333 with the range message, and
   on a valid save calls the writer with the month as `YYYY-MM-01` and closes.
 - **AC-MMP-015** [unit] Given the `revenue` module on, Then Finance sees a "Management pack" rail link to
   `/reports`, Engineer does not, `/reports` resolves to the pack behind the `revenue` gate, and the
-  dashboard "Board pack" is a link to `/reports` for permitted roles; Given it off, Then the dashboard
-  control is the existing disabled one.
+  dashboard "Board pack" button opens `/reports` for permitted roles; Given it off (or a role that cannot
+  see the pack), Then the dashboard control is the existing disabled one.
 - **AC-MMP-016** [e2e] Given a uniquely named ongoing project with a 1,000,000 net contract and a 250,000
   invoice this month, When Finance opens Management pack from the rail, picks this month, records 50%
   progress and exports CSV, Then the project row shows invoiced to date 250,000, recognised to date

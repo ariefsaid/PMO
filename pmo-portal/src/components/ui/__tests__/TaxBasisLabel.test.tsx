@@ -35,6 +35,13 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
     expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
   });
 
+  it('AC-UNB-001: states only the comparison basis for a normalized aggregate', () => {
+    render(<TaxBasisLabel treatment="exclusive" showDetails={false} />);
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('rate not recorded');
+    expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('DPP');
+  });
+
   it('renders NOTHING for a NULL treatment — 0197 pairs NULL with a zero value, so there is no basis to state', () => {
     const { container } = render(<TaxBasisLabel treatment={null} />);
     expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();

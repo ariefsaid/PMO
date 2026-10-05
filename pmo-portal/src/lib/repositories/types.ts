@@ -397,6 +397,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #769: optional parent-group number (`external_ref`). PMO-owned path only — never forwarded to the ERP. */
+    externalRef?: string | null,
   ): Promise<PurchaseRequestRow>;
   /** Create an RFQ record via RPC (mints RFQ#). */
   createRfq(
@@ -417,6 +419,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #769: optional parent-group number (`external_ref`). PMO-owned path only — never forwarded to the ERP. */
+    externalRef?: string | null,
   ): Promise<PurchaseOrderRow>;
   /** Create a payment record via RPC (mints PAY#). invoiceId is nullable (FR-PR-004b). */
   createPayment(

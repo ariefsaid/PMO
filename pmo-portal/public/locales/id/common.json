@@ -1168,7 +1168,7 @@
     "raiseRequest": "Ajukan permintaan",
     "search": {
       "label": "Filter permintaan",
-      "placeholder": "Filter permintaan…"
+      "placeholder": "Filter permintaan atau referensi…"
     },
     "stage": {
       "gr": "Penerimaan Barang",
@@ -1294,6 +1294,11 @@
         "currencyMismatch": "mata uangnya berbeda dari mata uang anggaran proyek.",
         "escalated": "penyetuju proyek tidak dapat menyetujui permintaan ini."
       }
+    },
+    "groupRef": {
+      "label": "Ref. grup",
+      "optional": "(opsional)",
+      "placeholder": "mis. PRQ-0026100001"
     }
   },
   "projectDetail": {
@@ -1614,6 +1619,18 @@
         "readOnly": "Hanya lihat",
         "spend": "Pengeluaran",
         "title": "Ringkasan keuangan"
+      },
+      "invoicing": {
+        "contract": "Nilai kontrak",
+        "error": "Total invoice gagal dimuat.",
+        "invoicedToDate": "Invoice sampai saat ini",
+        "loading": "Memuat total invoice…",
+        "remaining": "Sisa yang perlu ditagih",
+        "retry": "Coba lagi",
+        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk.",
+        "title": "Penagihan terhadap kontrak",
+        "unavailable": "Tidak tersedia",
+        "unavailableDetail": "Total invoice tidak dapat dibandingkan dengan mata uang atau basis pajak kontrak ini."
       },
       "procSummary": {
         "closed": "Ditutup",

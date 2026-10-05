@@ -2857,3 +2857,12 @@ For approval routing by budget (#803; spec `docs/specs/approval-routing-by-budge
   project's budget line), one signature from any member of the set is enough. Revisit if the client wants both.
 - **DD-APR-2 — one line, all years.** "Within budget" compares against the project's active budget line for the
   category across all fiscal years combined, the same basis spend is already counted on.
+
+## DD-MMP-1..6 — monthly management pack (Director, 2026-10-06)
+
+Accepted as proposed in `docs/specs/monthly-management-pack.spec.md` §3 (#765, ADR-0076): recognition on the
+billing basis with an optional month-end percent complete (DD-MMP-1); planned revenue = net contract value
+straight-line by calendar day between start and end (DD-MMP-2); unbilled is a running balance, backlog per
+month, neither clamped (DD-MMP-3); read by the existing revenue read set (DD-MMP-4); every figure net of tax
+in the contract's own currency, totals per currency, never converted (DD-MMP-5); the pack is a management
+estimate and never writes to the ERP (DD-MMP-6).
