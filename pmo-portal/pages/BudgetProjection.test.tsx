@@ -12,6 +12,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 import { RAW_ADAPTER_TOKEN } from '@/src/lib/adapterSeam/pushErrorCopy';
 import type { BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 
@@ -129,6 +130,14 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
+  it('AC-CAT-005: localizes Special expenses in the projection without changing its amounts', async () => {
+    fetchMock.mockResolvedValue([{ ...ROW, category: 'Special expenses' }]);
+    render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><BudgetProjection projectId="proj-1" /></ToastProvider></QueryClientProvider></MemoryRouter></BahasaProvider>);
+    expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
+    expect(screen.getByText('$100,000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Biaya khusus ETC' })).toBeInTheDocument();
+  });
+
   it('renders the category row: PMO budget, ERP actuals, PMO ETC, projected final, variance, utilization', async () => {
     renderPage();
     expect(await screen.findByText('Labor')).toBeInTheDocument();

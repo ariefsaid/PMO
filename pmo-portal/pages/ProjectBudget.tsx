@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -20,20 +21,12 @@ import {
 } from '@/src/components/ui';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
-import type { Enums } from '@/src/lib/supabase/database.types';
+import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const BUDGET_CATEGORIES: Array<Enums<'budget_category'>> = [
-  'Labor',
-  'Materials',
-  'Subcontractors',
-  'Equipment',
-  'Permits & Fees',
-  'Overheads',
-  'Contingency',
-];
+const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -90,6 +83,9 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   updateIsPending = false,
   onSaveError,
 }) => {
+  const { t } = useTranslation();
+  const categoryLabel = (category: string) => category === 'Special expenses'
+    ? t('budget.category.specialExpenses', 'Special expenses') : category;
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
@@ -190,7 +186,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
   return (
-    <div className="mt-4 overflow-x-auto">
+    <div className="relative mt-4 overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr>
@@ -226,7 +222,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   >
                     {BUDGET_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
-                        {c}
+                        {categoryLabel(c)}
                       </option>
                     ))}
                   </select>
@@ -313,7 +309,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
                     className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={`Delete line item ${li.category}`}
+                    aria-label={`Delete line item ${categoryLabel(li.category)}`}
                     disabled={updateIsPending}
                   >
                     Delete
@@ -323,7 +319,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
             ) : (
               // --- Read row with Edit affordance ---
               <tr key={li.id} className="border-b border-border/70 last:border-b-0">
-                <td className="px-3 py-2">{li.category}</td>
+                <td className="px-3 py-2">{categoryLabel(li.category)}</td>
                 <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
                 {/* ⚑ An un-phased line SAYS SO. A blank cell would read as "we forgot"; un-phased is a
                     real, deliberate state with a consequence (a multi-fiscal-year project cannot push
@@ -343,7 +339,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     size="sm"
                     onClick={() => openEdit(li)}
                     className="text-primary hover:bg-primary/10"
-                    aria-label={`Edit line item ${li.category}`}
+                    aria-label={`Edit line item ${categoryLabel(li.category)}`}
                   >
                     Edit
                   </Button>
@@ -352,7 +348,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
                     className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={`Delete line item ${li.category}`}
+                    aria-label={`Delete line item ${categoryLabel(li.category)}`}
                   >
                     Delete
                   </Button>
@@ -371,7 +367,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 >
                   {BUDGET_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
-                      {c}
+                      {categoryLabel(c)}
                     </option>
                   ))}
                 </select>
@@ -512,6 +508,9 @@ const VersionCard: React.FC<VersionCardProps> = ({
   updateIsPending,
   onLineItemSaveError,
 }) => {
+  const { t } = useTranslation();
+  const categoryLabel = (category: string) => category === 'Special expenses'
+    ? t('budget.category.specialExpenses', 'Special expenses') : category;
   return (
     <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -609,7 +608,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
               <tbody>
                 {version.line_items.map((li) => (
                   <tr key={li.id} className="border-b border-border/70 last:border-b-0">
-                    <td className="px-3 py-2">{li.category}</td>
+                    <td className="px-3 py-2">{categoryLabel(li.category)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {li.fiscal_year ?? <span className="italic">Un-phased</span>}

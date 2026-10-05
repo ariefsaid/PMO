@@ -135,7 +135,8 @@ export enum BudgetCategory {
     Equipment = 'Equipment',
     Permits = 'Permits & Fees',
     Overheads = 'Overheads',
-    Contingency = 'Contingency'
+    Contingency = 'Contingency',
+    SpecialExpenses = 'Special expenses'
 }
 
 export interface BudgetVersion {
