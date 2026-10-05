@@ -159,6 +159,16 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(screen.getByRole('button', { name: 'Clone to revise' })).toHaveClass('text-primary-text');
   });
 
+  it('keeps active status and total visibly separated when the version-card header wraps', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    renderPage();
+
+    const header = screen.getByTestId('version-card').firstElementChild;
+    expect(header).toHaveClass('flex-wrap', 'gap-x-3', 'gap-y-2');
+    expect(screen.getByText('$4,700,000')).toHaveClass('ml-auto', 'shrink-0', 'whitespace-nowrap');
+  });
+
   it('keeps the budget line-item scroll region keyboard-accessible', async () => {
     budgetState.data = draftVersion.total;
     versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];

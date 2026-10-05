@@ -134,6 +134,14 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     expect(await screen.findByRole('heading', { name: 'Pembayaran Masuk' })).toBeInTheDocument();
   });
 
+  it('AC-L10N-B01 renders the payment form section label from the shipped Bahasa catalogue', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByText('Detail pembayaran')).toBeInTheDocument();
+  });
+
   it('offers the org\'s real client companies in the customer picker', async () => {
     const user = userEvent.setup();
     renderPage();

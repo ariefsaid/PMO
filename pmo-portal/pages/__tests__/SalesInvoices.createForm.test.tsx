@@ -117,10 +117,38 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(within(filterRegion).getByRole('tablist', { name: 'Filter by status' })).toBeInTheDocument();
   });
 
+  it('groups the invoice amount and its tax-basis note for narrow card layouts', () => {
+    hoisted.salesInvoicesState.data = [
+      {
+        id: 'si-1',
+        si_number: 'ACC-SINV-0001',
+        status: 'Draft',
+        amount: 12345678900,
+        currency: 'IDR',
+        tax_treatment: 'exclusive',
+        tax_rate: 11,
+        erp_docstatus: 1,
+      },
+    ];
+    renderPage();
+
+    const taxBasis = screen.getByText(/excl\. PPN/);
+    expect(taxBasis.parentElement).toHaveClass('w-full', 'flex-col', 'items-end');
+  });
+
   it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
     await financeTestI18n.changeLanguage('id');
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Faktur Penjualan' })).toBeInTheDocument();
+  });
+
+  it('AC-L10N-B01 renders invoice form section labels from the shipped Bahasa catalogue', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByText('Detail faktur')).toBeInTheDocument();
+    expect(screen.getByText('Item faktur')).toBeInTheDocument();
   });
 
   it('offers the org\'s real client companies in the customer picker', async () => {

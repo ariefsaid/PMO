@@ -125,6 +125,8 @@
 
 # ── Saved user views (#789): the personal list and its empty/error/mutation states.
 /views                         pages/MyViewsPage.tsx
+/views/new                     pages/ViewBuilderPage.tsx src/components/builder/PanelList.tsx src/components/builder/PanelEditorForm.tsx src/components/builder/ViewPreview.tsx src/components/builder/AIComposerModal.tsx
+/views/:viewId/edit            pages/ViewBuilderPage.tsx src/components/builder/PanelList.tsx src/components/builder/PanelEditorForm.tsx src/components/builder/ViewPreview.tsx src/components/builder/AIComposerModal.tsx
 
 # ── Administration (AC-ADMIA-001/006): the organization setup & governance home (route-backed IA).
 #    The six canonical child routes and the compatibility alias /administration all render the same

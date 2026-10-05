@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListState, GateNotice, Button, StatusPill, NumberField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import {
@@ -65,16 +66,6 @@ const ACCOUNT_MAP_HREF = '/administration/accounting#budget-account-map';
 
 const CATEGORY_LABELS: Record<string, string> = {}; // reserved for future per-org relabeling; identity today.
 const labelFor = (c: string) => CATEGORY_LABELS[c] ?? c;
-const CATEGORY_TRANSLATION_KEYS: Record<string, string> = {
-  Labor: 'budgetCategoryLabor',
-  Materials: 'budgetCategoryMaterials',
-  Subcontractors: 'budgetCategorySubcontractors',
-  Equipment: 'budgetCategoryEquipment',
-  'Permits & Fees': 'budgetCategoryPermitsFees',
-  Overheads: 'budgetCategoryOverheads',
-  Contingency: 'budgetCategoryContingency',
-  'Special expenses': 'budgetCategorySpecialExpenses',
-};
 
 /**
  * ⚑ C-1/C-2 — the em-dash is not a formatting choice, it is a STATEMENT, and a bare one reads as "we
@@ -149,10 +140,7 @@ const BLOCKED_STATES = new Set(['failed', 'held', 'never-pushed', 'unstamped-act
 
 const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   const { t } = useTranslation();
-  const translatedCategory = (category: string) => {
-    const key = CATEGORY_TRANSLATION_KEYS[category];
-    return key ? t(`financeCopy.${key}`, labelFor(category)) : labelFor(category);
-  };
+  const translatedCategory = (category: string) => budgetCategoryLabel(labelFor(category), t);
   const may = usePermission();
   const canEditEtc = may('edit', 'budgetLine');
   const { toast } = useToast();
@@ -481,7 +469,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         <div>
           <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('financeCopy.budgetProjection', "Budget projection")}</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            PMO&rsquo;s forward view — actuals from the ERP ledger, your own estimate to complete.
+            {t('financeCopy.budgetProjectionIntro', 'PMO’s forward view — actuals from the ERP ledger, your own estimate to complete.')}
           </p>
         </div>
         {fiscalYears.length > 0 ? (
@@ -556,8 +544,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               actually posted. Both column names and this note exist so neither can be read as the
               other. */}
           <p className="mt-3.5 text-[12px] text-muted-foreground">
-            &ldquo;Actuals to date&rdquo; below is what the ERP general ledger has posted. It will differ from the
-            &ldquo;Actual&rdquo; column on the budget versions above, which is what PMO recorded on each budget line.
+            {t('financeCopy.budgetProjectionActualsProvenance', '“Actuals to date” below is what the ERP general ledger has posted. It will differ from the “Actual” column on the budget versions above, which is what PMO recorded on each budget line.')}
           </p>
           {/* ⚑ NEW-4 — the actuals column's PROVENANCE. An undated figure is not one an operator can
               weigh, and `as_of` has been stored on every snapshot row since 0101 and rendered by
@@ -583,9 +570,9 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               <thead className="hidden sm:table-header-group">
                 <tr>
                   <TH>{t('financeCopy.category', "Category")}</TH>
-                  <TH align="right">Budget (PMO)</TH>
-                  <TH align="right">Actuals to date (ERP ledger)</TH>
-                  <TH align="right">ETC (PMO)</TH>
+                  <TH align="right">{t('financeCopy.budgetPMO', 'Budget (PMO)')}</TH>
+                  <TH align="right">{t('financeCopy.actualsToDateERPLedger', 'Actuals to date (ERP ledger)')}</TH>
+                  <TH align="right">{t('financeCopy.eTCPMO', 'ETC (PMO)')}</TH>
                   <TH align="right">{t('financeCopy.projectedFinal', "Projected final")}</TH>
                   <TH align="right">{t('financeCopy.variance', "Variance")}</TH>
                   <TH align="right">{t('financeCopy.utilization', "Utilization")}</TH>

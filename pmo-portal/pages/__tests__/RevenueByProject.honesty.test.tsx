@@ -198,4 +198,21 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     expect(screen.getByText('IDR\u00a012.345')).toBeInTheDocument();
     expect(screen.getByText('2 faktur')).toBeInTheDocument();
   });
+
+  it('AC-L10N-B03 uses localized singular and plural invoice counts in both catalogues', async () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', total_amount: 1_000, open_ar: 0, invoice_count: 1 },
+      { project_id: 'p2', project_name: 'Beta', total_amount: 2_000, open_ar: 0, invoice_count: 2 },
+    ];
+
+    const { unmount } = renderPage();
+    expect(screen.getByText('1 invoice')).toBeInTheDocument();
+    expect(screen.getByText('2 invoices')).toBeInTheDocument();
+
+    unmount();
+    await testI18n.changeLanguage('id');
+    renderPage();
+    expect(screen.getByText('1 faktur')).toBeInTheDocument();
+    expect(screen.getByText('2 faktur')).toBeInTheDocument();
+  });
 });

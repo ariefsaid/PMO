@@ -43,8 +43,8 @@ import type { CommandIntent } from '@/src/lib/repositories/types';
 type StatusFilter = 'All' | IncomingPaymentStatus;
 const STATUS_FILTERS: StatusFilter[] = ['All', 'Scheduled', 'Paid'];
 
-function incomingPaymentStatusLabel(status: string, t: (key: string, fallback: string) => string): string {
-  const labels: Record<string, string> = {
+function incomingPaymentStatusLabel(status: StatusFilter, t: (key: string, fallback: string) => string): string {
+  const labels: Record<StatusFilter, string> = {
     All: t('financeCopy.statusAll', 'All'),
     Scheduled: t('financeCopy.statusScheduled', 'Scheduled'),
     Paid: t('financeCopy.statusPaid', 'Paid'),
@@ -503,7 +503,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
           <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
       )}
-      <FormSection legend="Payment details">
+      <FormSection legend={t('financeCopy.paymentDetails', 'Payment details')}>
         <FormGrid>
           <Combobox
             label={t('financeCopy.customer', "Customer")}

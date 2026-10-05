@@ -140,7 +140,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><BudgetProjection projectId="proj-1" /></ToastProvider></QueryClientProvider></MemoryRouter></BahasaProvider>);
     expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
     expect(screen.getByText('$100,000')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit Biaya khusus ETC' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ubah Biaya khusus ETC' })).toBeInTheDocument();
   });
 
   it('AC-L10N-B01 renders budget categories in Bahasa from the shipped catalogue', async () => {

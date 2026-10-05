@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
   formatCurrency,
   formatMoneyInputValue,
@@ -27,20 +28,6 @@ import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 // Constants
 // ---------------------------------------------------------------------------
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
-
-function budgetCategoryLabel(category: Enums<'budget_category'>, t: (key: string, fallback: string) => string): string {
-  const labels: Record<Enums<'budget_category'>, string> = {
-    Labor: t('financeCopy.budgetCategoryLabor', 'Labor'),
-    Materials: t('financeCopy.budgetCategoryMaterials', 'Materials'),
-    Subcontractors: t('financeCopy.budgetCategorySubcontractors', 'Subcontractors'),
-    Equipment: t('financeCopy.budgetCategoryEquipment', 'Equipment'),
-    'Permits & Fees': t('financeCopy.budgetCategoryPermitsFees', 'Permits & Fees'),
-    Overheads: t('financeCopy.budgetCategoryOverheads', 'Overheads'),
-    Contingency: t('financeCopy.budgetCategoryContingency', 'Contingency'),
-    'Special expenses': t('budget.category.specialExpenses', 'Special expenses'),
-  };
-  return labels[category];
-}
 
 function budgetStatusLabel(status: Enums<'budget_status'>, t: (key: string, fallback: string) => string): string {
   const labels: Record<Enums<'budget_status'>, string> = {
@@ -334,7 +321,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
                     className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={`Delete line item ${budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}`}
+                    aria-label={t('financeCopy.deleteBudgetLineItemNamed', 'Delete line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
                     disabled={updateIsPending}
                   >
                     {t('financeCopy.delete', "Delete")}</Button>
@@ -363,7 +350,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     size="sm"
                     onClick={() => openEdit(li)}
                     className="text-primary-text hover:bg-primary/10"
-                    aria-label={`Edit line item ${li.category}`}
+                    aria-label={t('financeCopy.editBudgetLineItemNamed', 'Edit line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
                   >
                     {t('financeCopy.edit', "Edit")}</Button>
                   <Button
@@ -371,7 +358,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
                     className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={`Delete line item ${budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}`}
+                    aria-label={t('financeCopy.deleteBudgetLineItemNamed', 'Delete line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
                   >
                     {t('financeCopy.delete', "Delete")}</Button>
                 </td>
@@ -530,13 +517,13 @@ const VersionCard: React.FC<VersionCardProps> = ({
   const { t } = useTranslation();
   return (
     <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3">
           <span className="font-mono text-[13px] text-muted-foreground">v{version.version}</span>
           <span className="font-semibold">{version.name}</span>
           <StatusBadge status={version.status} />
         </div>
-        <span className="font-bold tabular">{formatCurrency(version.total, version.currency)}</span>
+        <span className="ml-auto shrink-0 whitespace-nowrap font-bold tabular">{formatCurrency(version.total, version.currency)}</span>
       </div>
 
       {/* Actions gated by role (cosmetic — RLS is the real gate). Each action
@@ -619,7 +606,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
                       than none. */}
                   <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
                   <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
-                  <TH align="right">Actual (PMO recorded)</TH>
+                  <TH align="right">{t('financeCopy.actualPmoRecorded', 'Actual (PMO recorded)')}</TH>
                 </tr>
               </thead>
               <tbody>

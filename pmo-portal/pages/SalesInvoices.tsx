@@ -217,11 +217,11 @@ const SalesInvoices: React.FC = () => {
       // row, so no invoice total may be bare. The basis is the row's own; the org default
       // pre-selects a form and is never read here.
       cell: (inv) => (
-        <span className="inline-flex items-baseline justify-end gap-1.5">
+        <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:items-baseline md:justify-end md:gap-1.5">
           <span className="tabular text-right font-mono text-[13px]">
             {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
           </span>
-          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
+          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
         </span>
       ),
       // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
@@ -576,7 +576,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
           <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
       )}
-      <FormSection legend="Invoice details">
+      <FormSection legend={t('financeCopy.invoiceDetails', 'Invoice details')}>
         <FormGrid>
           <Combobox
             label={t('financeCopy.customer', "Customer")}
@@ -600,7 +600,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         </FormGrid>
       </FormSection>
 
-      <FormSection legend="Line items">
+      <FormSection legend={t('financeCopy.lineItemsSection', 'Line items')}>
         {lineItems.map((item, index) => (
           <div key={index} className="flex flex-col sm:flex-row gap-2 mb-2">
             <TextField
