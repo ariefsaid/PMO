@@ -929,6 +929,17 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
 
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
+  const contactRefs: Record<string, string | null> = {};
+  if (deps.command.record.erp_doc_kind === 'contact') {
+    const companyId = deps.command.record.company_id;
+    if (typeof companyId !== 'string' || !companyId) throw new AppError('Contact company is required', 'commit-rejected');
+    await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, 'companies', companyId);
+    const externalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', companyId);
+    const match = externalId?.match(/^(Customer|Supplier):(.+)$/);
+    if (!match) throw new AppError('Contact company must be mapped to ERPNext', 'commit-rejected');
+    contactRefs.contact_party_type = match[1];
+    contactRefs.contact_party_name = match[2];
+  }
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
@@ -963,9 +974,18 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
+    },
+    validateAuthoringPartyIdentity: async (command) => {
+      const kind = command.record.erp_doc_kind;
+      if (command.domain !== 'companies' || !['contact', 'customer', 'supplier'].includes(String(kind))) return;
+      const oppositeTable = kind === 'contact' ? 'companies' : 'contacts';
+      const { data: opposite, error: identityError } = await deps.serviceClient.from(oppositeTable)
+        .select('id').eq('org_id', deps.orgId).eq('id', command.record.id).maybeSingle();
+      if (identityError) throw new AppError(identityError.message, identityError.code);
+      if (opposite) throw new AppError('This record identity already belongs to another party type', 'commit-rejected');
     },
     afterSubmitHook: deps.afterSubmitHook,
     afterCancelHook: deps.afterCancelHook,

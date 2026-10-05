@@ -47,6 +47,9 @@ export interface ErpAdapterDeps {
    *  the `after-submit-before-mirror` fault seam, wired by the edge fn, task 2.14). Optional — a
    *  production caller that never arms the fault gate can omit it (a true no-op). */
   afterSubmitHook?: () => Promise<void>;
+  /** Checks shared company/contact identity only when authoring is actually attempted.
+   * Completed outbox recovery converges its stored result without calling commit. */
+  validateAuthoringPartyIdentity?: (command: AdapterCommand) => Promise<void>;
   /** ⚑ HIGH-1 — fires immediately after an amend's CANCEL succeeds and BEFORE the replacement create
    *  (the `after-cancel-before-create` fault seam, FR-ENA-003). This is the window in which the
    *  predecessor is a tombstone and its replacement does not exist yet; for an `upsertOnGrain` kind that
@@ -447,6 +450,7 @@ function budgetedDeps(command: AdapterCommand, deps: ErpAdapterDeps): ErpAdapter
 
 async function commitErpCommand(command: AdapterCommand, rawDeps: ErpAdapterDeps): Promise<CommandResult> {
   const deps = budgetedDeps(command, rawDeps);
+  await deps.validateAuthoringPartyIdentity?.(command);
   if (command.operation === 'create') return commitCreate(command, deps);
   if (command.operation === 'transition') return commitTransition(command, deps);
   if (command.operation === 'delete') {

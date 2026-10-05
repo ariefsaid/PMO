@@ -940,6 +940,7 @@ export type Database = {
           company_id: string
           created_at: string
           email: string | null
+          erp_modified: string | null
           full_name: string
           id: string
           notes: string | null
@@ -952,6 +953,7 @@ export type Database = {
           company_id: string
           created_at?: string
           email?: string | null
+          erp_modified?: string | null
           full_name: string
           id?: string
           notes?: string | null
@@ -964,6 +966,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           email?: string | null
+          erp_modified?: string | null
           full_name?: string
           id?: string
           notes?: string | null

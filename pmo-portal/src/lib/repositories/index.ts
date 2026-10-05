@@ -208,6 +208,7 @@ import {
   cleanupStorageObject as cleanupProcurementFileObject,
 } from '@/src/lib/db/procurementFiles';
 import {
+  type ContactRow,
   listContacts,
   listContactsByCompany,
   getContact,
@@ -760,7 +761,11 @@ const contact: ContactRepository = {
   list: (params) => wrap(() => listContacts(params)),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
-  create: (input) => wrap(() => createContact(input)),
+  create: async (input) => {
+    if (routeDomainWrite('companies') !== 'external') return wrap(() => createContact(input));
+    const result = await dispatchCreate('companies', {...input, erp_doc_kind: 'contact'}, undefined);
+    return result.canonical as unknown as ContactRow;
+  },
   update: (id, input) => wrap(() => updateContact(id, input)),
   archive: (id) => wrap(() => archiveContact(id)),
   delete: (id) => wrap(() => deleteContact(id)),
