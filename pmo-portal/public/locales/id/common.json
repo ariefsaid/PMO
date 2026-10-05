@@ -1639,7 +1639,6 @@
     "rail": {
       "actionsAriaLabel": "Tindakan panel proyek",
       "ariaLabel": "Panel detail proyek",
-      "code": "Kode",
       "customer": "Klien",
       "customerPoRef": "Ref PO klien",
       "detailsHeading": "Detail",
@@ -1926,10 +1925,7 @@
       "placeholder": "Tetapkan PM…",
       "noun": "manajer"
     },
-    "code": {
-      "label": "Kode proyek",
-      "placeholder": "mis. OPP-2041"
-    },
+    "code": {},
     "stage": {
       "label": "Tahap awal",
       "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di pipeline, tidak pernah dibuat langsung."

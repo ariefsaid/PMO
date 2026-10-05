@@ -1639,7 +1639,6 @@
     "rail": {
       "actionsAriaLabel": "Project rail actions",
       "ariaLabel": "Project details rail",
-      "code": "Code",
       "customer": "Customer",
       "customerPoRef": "Customer PO ref",
       "detailsHeading": "Details",
@@ -1926,10 +1925,7 @@
       "placeholder": "Assign a PM…",
       "noun": "manager"
     },
-    "code": {
-      "label": "Project code",
-      "placeholder": "e.g. OPP-2041"
-    },
+    "code": {},
     "stage": {
       "label": "Origination stage",
       "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."
