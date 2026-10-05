@@ -1,7 +1,7 @@
 /**
  * Sales Invoice `toBody`/`fromDoc` — R9-P3a spike §1 frozen
  * (docs/spikes/2026-07-14-erpnext-si-pe-receive-fields.md). `toBody` sends exactly
- * `{customer, items:[{item_code,qty,rate}], project?}`; ERPNext SERVER-DERIVES `debit_to`
+ * `{customer, items:[{item_code,qty,rate}], project?, po_no?, po_date?}`; ERPNext SERVER-DERIVES `debit_to`
  * (← default_receivable_account), `items[].income_account` (← default_income_account), `company`,
  * `posting_date`/`due_date`, currency, cost_center, warehouse, and all totals — the adapter sends
  * NEITHER account (OQ-SAR-1 #1). `project` (NOT cost_center) is the ERP dimension that realizes
@@ -23,6 +23,12 @@ export function siToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   // binding's ERP-project→PMO map) and supplies it in ctx.refs.project. Header `project` suffices (it
   // propagates to both GL legs on submit). Omitted when no project (gate OFF / inbound-adopted).
   if (ctx.refs.project) body.project = ctx.refs.project;
+  // The dispatch factory resolves the invoice/work-order/project fallback before outbox hashing.
+  const reference = typeof rec.reference_number === 'string' ? rec.reference_number.trim() : '';
+  if (reference) {
+    body.po_no = reference;
+    if (typeof rec.po_date === 'string' && rec.po_date.trim()) body.po_date = rec.po_date.trim();
+  }
   return body;
 }
 
