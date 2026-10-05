@@ -28,13 +28,13 @@ set local request.jwt.claims = '{"sub":"ab410000-0000-0000-0000-0000000000a1","r
 select throws_ok(
   $$ update budget_line_items set budget_version_id = 'ab412222-0000-0000-0000-000000000002'
      where id = 'ab413333-0000-0000-0000-000000000001' $$,
-  'P0001', null,
+  'P0001', 'a budget line cannot move to another version',
   'AC-731: a line cannot be moved out of an Active version into a Draft');
 
 select throws_ok(
   $$ update budget_line_items set budget_version_id = 'ab412222-0000-0000-0000-000000000001'
      where id = 'ab413333-0000-0000-0000-000000000002' $$,
-  'P0001', null,
+  'P0001', 'a budget line cannot move to another version',
   'AC-731: a line cannot be moved out of a Draft into an Active version');
 
 select lives_ok(
