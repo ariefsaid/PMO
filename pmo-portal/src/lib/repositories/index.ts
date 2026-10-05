@@ -238,6 +238,8 @@ import {
   setOrgTaxDefault,
   getOrgProjectNumberPattern,
   setOrgProjectNumberPattern,
+  getOrgProjectClassificationOptions,
+  setOrgProjectClassificationOptions,
 } from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
@@ -818,6 +820,8 @@ const orgFeature: OrgFeatureRepository = {
 const orgSettings: OrgSettingsRepository = {
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
   setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
+  getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),
+  setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
 };

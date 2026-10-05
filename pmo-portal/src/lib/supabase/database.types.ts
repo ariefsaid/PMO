@@ -2541,6 +2541,8 @@ export type Database = {
           lifecycle_state: string | null
           name: string
           project_number_pattern: string | null
+          sector_options: string[]
+          service_line_options: string[]
         }
         Insert: {
           created_at?: string
@@ -2553,6 +2555,8 @@ export type Database = {
           lifecycle_state?: string | null
           name: string
           project_number_pattern?: string | null
+          sector_options?: string[]
+          service_line_options?: string[]
         }
         Update: {
           created_at?: string
@@ -2565,6 +2569,8 @@ export type Database = {
           lifecycle_state?: string | null
           name?: string
           project_number_pattern?: string | null
+          sector_options?: string[]
+          service_line_options?: string[]
         }
         Relationships: []
       }
@@ -3754,6 +3760,8 @@ export type Database = {
       projects: {
         Row: {
           archived_at: string | null
+          award_type: string | null
+          bidding_entity: string | null
           budget: number
           client_id: string | null
           code: string | null
@@ -3772,10 +3780,13 @@ export type Database = {
           import_key: string | null
           imported_at: string | null
           last_update: string
+          location: string | null
           name: string
           org_id: string
           pmo_project_number: string
           project_manager_id: string | null
+          sector: string | null
+          service_line: string | null
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
@@ -3788,6 +3799,8 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          award_type?: string | null
+          bidding_entity?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -3806,10 +3819,13 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           last_update?: string
+          location?: string | null
           name: string
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null
+          sector?: string | null
+          service_line?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -3822,6 +3838,8 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          award_type?: string | null
+          bidding_entity?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -3840,10 +3858,13 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           last_update?: string
+          location?: string | null
           name?: string
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null
+          sector?: string | null
+          service_line?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -6204,6 +6225,10 @@ export type Database = {
           p_to: Database["public"]["Enums"]["work_order_status"]
         }
         Returns: undefined
+      }
+      valid_project_classification_options: {
+        Args: { p_options: string[] }
+        Returns: boolean
       }
     }
     Enums: {

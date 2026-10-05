@@ -192,7 +192,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1, migration 0207)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['getProjectNumberPattern', 'getTaxDefault', 'setProjectNumberPattern', 'setTaxDefault'].sort());
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {

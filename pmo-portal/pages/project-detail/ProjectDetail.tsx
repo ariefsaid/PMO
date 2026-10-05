@@ -26,7 +26,7 @@ import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import WorkOrdersTab from './tabs/WorkOrdersTab';
-import ProjectDetailRail from './ProjectDetailRail';
+import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
@@ -299,6 +299,7 @@ const ProjectDetail: React.FC = () => {
           <div className="mb-8">
             <PipelineLens project={project} locationState={location.state} />
           </div>
+          <ProjectClassificationSummary project={project} />
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).
               M2: when empty, collapse to a single-line affordance so the sales levers stay above
@@ -375,6 +376,7 @@ const ProjectDetail: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
+            ...project,
             id: project.id,
             name: project.name,
             code: project.code,

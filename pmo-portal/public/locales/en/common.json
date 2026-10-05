@@ -23,7 +23,8 @@
       "platform": "Platform",
       "title": "Administration",
       "usage": "Usage",
-      "users": "Users"
+      "users": "Users",
+      "projects": "Project setup"
     },
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
@@ -2897,5 +2898,34 @@
     "generatingView": "Generating your view…",
     "generating": "Generating…",
     "generate": "Generate"
+  },
+  "projectClassification": {
+    "title": "Classification",
+    "serviceLine": "Service line",
+    "sector": "Sector",
+    "location": "Location",
+    "awardType": "Award type",
+    "biddingEntity": "Bidding entity",
+    "notSet": "Not set",
+    "tender": "Tender",
+    "direct": "Direct award",
+    "alone": "Alone",
+    "consortium": "Consortium",
+    "unavailable": "Options could not be loaded. Reopen this form to retry.",
+    "loadError": "Couldn't load classification options",
+    "saved": "Classification options saved",
+    "retained": "Existing project classifications stay recorded.",
+    "setupHelp": "Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.",
+    "serviceLines": "Service lines",
+    "sectors": "Sectors",
+    "onePerLine": "One option per line. Leave empty to offer no options.",
+    "save": "Save options",
+    "adminOnly": "Only an Admin can change these options.",
+    "all": "All",
+    "filterServiceLine": "Filter by service line",
+    "filterSector": "Filter by sector",
+    "filterAwardType": "Filter by award type",
+    "filterBiddingEntity": "Filter by bidding entity",
+    "filterLocation": "Filter by location"
   }
 }

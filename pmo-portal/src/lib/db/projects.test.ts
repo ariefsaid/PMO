@@ -612,3 +612,27 @@ describe('AC-PRJ-003 createProject — contract-value tax basis (#513, migration
     });
   });
 });
+
+describe('AC-TAG-002 project classification writes', () => {
+  const tags = { service_line: 'Engineering', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'consortium' };
+  const base = { name: 'Classified project', status: 'Leads' as const, client_id: 'c1', project_manager_id: null, start_date: null, end_date: null };
+  it('persists all five authored classifications on creation without accepting an org from the caller', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'p1' }, error: null });
+    await createProject({ ...base, contract_value: 0, ...tags });
+    expect(calls.insert).toEqual([expect.objectContaining(tags)]);
+    expect(calls.insert[0]).not.toHaveProperty('org_id');
+  });
+  it('updates all five classification fields through the existing header write', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', { ...base, code: null, ...tags });
+    expect(calls.update).toEqual([expect.objectContaining(tags)]);
+    expect(calls.update[0]).not.toHaveProperty('contract_value');
+    expect(calls.update[0]).not.toHaveProperty('status');
+  });
+  it('sends explicit nulls when an editor clears optional classifications', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    const cleared = { service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
+    await updateProjectHeader('p1', { ...base, code: null, ...cleared });
+    expect(calls.update).toEqual([expect.objectContaining(cleared)]);
+  });
+});

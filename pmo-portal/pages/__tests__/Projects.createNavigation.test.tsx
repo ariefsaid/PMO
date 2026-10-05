@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * AC-RAM-006 (#688) / FR-RAM-009 — creating a project from /projects opens its canonical record.
  * Matrix cell R6 × O6 (docs/specs/ris-admin-route-matrix.spec.md). The F-4 ruling (2026-09-28,
