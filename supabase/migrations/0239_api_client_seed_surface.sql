@@ -1,4 +1,4 @@
--- 0232_api_client_seed_surface.sql — an active-Admin tier in the OAuth API-client guard for `pmo load`
+-- 0239_api_client_seed_surface.sql — an active-Admin tier in the OAuth API-client guard for `pmo load`
 -- (#796, ADR-0074, spec docs/specs/client-starting-data-cli.spec.md). Amends 0222.
 --
 -- OD-SEED-5 lets the owner load a client's won projects at their real stage, with contract value, and
@@ -18,7 +18,7 @@
 -- Lists mirrored by scripts/pmo.mjs (ALLOWED_TABLES / READ_ONLY_TABLES / ALLOWED_RPCS / LOAD_TABLES /
 -- LOAD_RPCS); scripts/pmo.test.mjs (AC-CLI-015, AC-CSD-014) fails if they drift.
 -- Proof: supabase/tests/api_client_seed_surface.test.sql (AC-CSD-013) + api_client_request_guard.test.sql.
--- Rollback (staged, not automatic): supabase/migrations/rollback/0232_api_client_seed_surface_down.sql
+-- Rollback (staged, not automatic): supabase/migrations/rollback/0239_api_client_seed_surface_down.sql
 
 create or replace function public.api_client_request_guard()
   returns void

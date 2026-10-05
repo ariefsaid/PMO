@@ -7,7 +7,7 @@
 ## 0. Preconditions (Director, before dispatch)
 
 1. #770 is merged to `dev` (the load passes `service_line`, `sector`, `location`, `award_type`,
-   `bidding_entity` to the `projects` insert; without 0232 PostgREST answers `PGRST204`).
+   `bidding_entity` to the `projects` insert; without #770's migration (0234) PostgREST answers `PGRST204`).
 2. Worktree off `origin/dev`, feature branch `codex/796-pmo-load`. All commands below run from the
    worktree root unless a `cd` is shown.
 3. Migration number: `ls supabase/migrations | tail -3`. This plan uses `0234`. If `0234` is taken, or

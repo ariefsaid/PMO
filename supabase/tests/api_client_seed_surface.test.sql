@@ -1,5 +1,5 @@
 -- api_client_seed_surface.test.sql — the active-Admin tier of the OAuth API-client guard (#796, ADR-0074).
--- Migration 0232: a token carrying `client_id` may POST set_project_contract_value / transition_project and
+-- Migration 0239: a token carrying `client_id` may POST set_project_contract_value / transition_project and
 -- GET/POST budget_versions / budget_line_items ONLY when its user is an active Admin; any such token may
 -- GET external_domain_ownership. Everything else stays as 0222 left it (42501).
 -- Mutation check (Task 17): make the Admin conditional `if true` and the four non-Admin rows must go red.
