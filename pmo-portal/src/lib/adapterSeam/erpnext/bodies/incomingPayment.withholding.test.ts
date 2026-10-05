@@ -5,6 +5,7 @@ import type { ErpCtx } from '../doctypeRegistry';
 const ctx: ErpCtx = { refs: { customer: 'Demo Customer' }, config: {
   default_receivable_account: 'Debtors - DEMO', default_cash_account: 'Cash - DEMO',
   tax_prepaid_account: 'Tax Prepaid - DEMO', cost_center: 'Main - DEMO',
+  paid_from_account_currency: 'IDR', paid_to_account_currency: 'IDR',
 } };
 const receipt = { id: 'receipt', paid_amount: '1000.00', received_amount: '980.00',
   withheld_amount: '20.00', withholding_slip_number: 'WHT-001',
@@ -30,6 +31,19 @@ describe('client withholding on a Receive Payment Entry', () => {
   it('AC-WHT-004: refuses positive withholding when the ERP company has no default cost center', () => {
     expect(() => peReceiveToBody(receipt, { ...ctx, config: { ...ctx.config, cost_center: null } }))
       .toThrow(/Company.*cost center/i);
+  });
+
+  it('AC-WHT-004: refuses withholding when the receivable and cash accounts differ in currency, or their currency is unknown', () => {
+    for (const currencies of [{ paid_to_account_currency: 'USD' }, { paid_from_account_currency: null },
+      { paid_from_account_currency: null, paid_to_account_currency: null }]) {
+      expect(() => peReceiveToBody(receipt, { ...ctx, config: { ...ctx.config, ...currencies } }))
+        .toThrow(/same currency/i);
+    }
+  });
+
+  it('AC-WHT-004: a cross-currency receipt without withholding needs no account currencies', () => {
+    expect(() => peReceiveToBody({ ...receipt, received_amount: '15.50', withheld_amount: 0, withholding_slip_number: null },
+      { ...ctx, config: { ...ctx.config, paid_from_account_currency: 'IDR', paid_to_account_currency: 'USD' } })).not.toThrow();
   });
 
   it('AC-WHT-004: a zero-withholding receipt keeps the existing cash-only body without needing a tax account', () => {
@@ -94,5 +108,38 @@ describe('client withholding on a Receive Payment Entry', () => {
   it('AC-WHT-003: the derived gross is exact to the cent', () => {
     expect(peReceiveFromDoc({ name: 'PE-001', paid_amount: 0.1, received_amount: 0.1,
       deductions: [{ amount: 0.2, description: 'Withholding slip: WHT-001' }] }).amount).toBe('0.30');
+  });
+
+  const marked = (amount: unknown, slip = 'WHT-001') => ({ amount, description: `Withholding slip: ${slip}` });
+
+  it('AC-WHT-003: two marked withholding deductions map as unknown tax with the header kept, and ask for review instead of failing', () => {
+    const doc = { name: 'PE-002', paid_amount: '980.00', received_amount: '980.00',
+      deductions: [marked('10.00', 'WHT-A'), marked('10.00', 'WHT-B')] };
+    expect(() => peReceiveFromDoc(doc)).not.toThrow();
+    expect(peReceiveFromDoc(doc)).toMatchObject({ amount: '980.00', received_amount: '980.00',
+      withheld_amount: null, withholding_slip_number: null, withholding_review: 'multiple-withholding-deductions' });
+  });
+
+  it('AC-WHT-003: a marked deduction counts only when the header states the same cash twice', () => {
+    const differing = peReceiveFromDoc({ name: 'PE-003', paid_amount: '1000.00', received_amount: '15.50',
+      deductions: [marked('20.00')] });
+    expect(differing).toMatchObject({ amount: '1000.00', withheld_amount: null, withholding_slip_number: null,
+      withholding_review: 'header-amounts-differ' });
+    const unstated = peReceiveFromDoc({ name: 'PE-004', paid_amount: '980.00', deductions: [marked('20.00')] });
+    expect(unstated).toMatchObject({ amount: '980.00', withheld_amount: null, withholding_slip_number: null });
+    expect(unstated).not.toHaveProperty('withholding_review');
+  });
+
+  it('AC-WHT-003: a confirmed withholding row the receipt cannot hold maps as unknown and asks for review', () => {
+    for (const row of [marked('-5.00'), marked('abc'), marked('20.00', '   '), marked('20.00', 'x'.repeat(141))]) {
+      const canonical = peReceiveFromDoc({ name: 'PE-005', paid_amount: '980.00', received_amount: '980.00', deductions: [row] });
+      expect(canonical).toMatchObject({ amount: '980.00', withheld_amount: null, withholding_slip_number: null,
+        withholding_review: 'unreadable-withholding' });
+    }
+  });
+
+  it('AC-WHT-003: a confirmed single withholding carries no review marker', () => {
+    expect(peReceiveFromDoc({ name: 'PE-006', paid_amount: '980.00', received_amount: '980.00',
+      deductions: [marked('20.00')] })).not.toHaveProperty('withholding_review');
   });
 });

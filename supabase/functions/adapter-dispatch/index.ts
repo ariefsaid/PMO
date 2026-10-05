@@ -59,7 +59,7 @@ import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 // same shared table (doctypeBodies.ts) rather than a parallel local const — one side table, never two.
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError, type CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -377,6 +377,7 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
               siNames: Array.isArray(p.si_names) ? (p.si_names as string[]) : [],
               createdAfter: String(p.created_after ?? ''),
               paymentType,
+              ...withholdingMatchFromPayload(p),
             });
           },
   });
@@ -416,6 +417,9 @@ async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<
       party_type: 'Customer',
       party,
       paid_amount: (withheld ? rec.received_amount : rec.paid_amount) ?? null,
+      // …and that cash alone also matches a plain receipt of the same cash, so a withholding receipt is
+      // matched on its deduction and its gross invoice allocation too.
+      ...(withheld ? { withheld_amount: rec.withheld_amount, allocated_amount: rec.paid_amount ?? null } : {}),
       pi_names: [],
       si_names: siNames,
       payment_type: 'Receive',

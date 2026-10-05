@@ -37,6 +37,7 @@ import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
+import { WITHHOLDING_REVIEW_FIELD } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 // FR-BFY-038: the bare `budget_version_id` parser + the fiscal-year half of a year-qualified budget identity.
 import { budgetVersionIdOf, fiscalYearOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { escapeLikePattern } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
@@ -471,6 +472,7 @@ async function mintMirrorRow(
         erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
       });
       if (error) throw new AppError(error.message, error.code);
+      await surfaceWithholdingReview(serviceClient, orgId, canonical);
       return;
     }
   }
@@ -627,7 +629,22 @@ async function revenueFieldPatch(
   // the lifecycle. A partial webhook that omits `docstatus` must NOT flip a Paid payment back to
   // Scheduled (deriveIpStatus(null) === 'Scheduled'). A cancel (docstatus 2) always writes.
   if (docstatus != null) patch.status = deriveIpStatus(docstatus);
+  await surfaceWithholdingReview(serviceClient, orgId, canonical);
   return patch;
+}
+
+/**
+ * #762 — a receipt whose withholding PMO could not confirm (the mapper marks it and mirrors the tax as
+ * unknown) still syncs; this asks Finance to reconcile it in ERPNext. Best-effort, deduped per document
+ * and reason by `surfaceActionRequired`.
+ */
+async function surfaceWithholdingReview(serviceClient: SupabaseClient, orgId: string, canonical: PmoRecord): Promise<void> {
+  const reason = canonical[WITHHOLDING_REVIEW_FIELD];
+  if (typeof reason !== 'string') return;
+  await surfaceActionRequired(serviceClient, orgId, 'receipt-withholding-unconfirmed', {
+    erpName: String(canonical.ip_number ?? canonical.id ?? ''),
+    reason,
+  });
 }
 
 /** Resolve the PMO `customer_id` from the canonical's ERP customer name via `external_refs`
@@ -824,6 +841,8 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `An activated budget's automatic push to ERPNext never reached the queue — retry from the budget's version history, or contact support.`;
     case 'erp-actuals-undated-fiscal-year':
       return `Some ERP ledger entries carry no fiscal year, so their spend cannot appear under any year on the budget screen — set the fiscal year on those GL entries in ERPNext.`;
+    case 'receipt-withholding-unconfirmed':
+      return `Receipt ${detail.erpName ?? ''} in ERPNext carries a withholding-tax deduction PMO could not confirm (${detail.reason ?? 'unknown'}) — PMO recorded the cash amount without the tax. Check the Payment Entry's deductions in ERPNext.`;
     case 'budget-push-failed':
       return `PMO could not push the activated budget to ERPNext (${detail.reason ?? 'unknown error'}) — ERPNext is still enforcing the previous budget (or none) for this project.`;
     default:

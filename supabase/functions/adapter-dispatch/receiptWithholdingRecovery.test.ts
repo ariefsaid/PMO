@@ -145,6 +145,11 @@ function routes(unexpected: FetchCall[], landed: Record<string, unknown> = lande
       },
     },
     {
+      label: 'ERP Account read', host: ERP_HOST, pathname: /^\/api\/resource\/Account\/.+$/,
+      response: (call) => jsonResponse({ data: { name: decodeURIComponent(call.url.pathname.split('/').pop() ?? ''),
+        account_currency: 'IDR' } }),
+    },
+    {
       label: 'ERP Payment Entry read', host: ERP_HOST, pathname: /^\/api\/resource\/Payment%20Entry\/.+$/,
       response: () => jsonResponse({ data: landed }),
     },
@@ -195,5 +200,31 @@ describe('#762 DD-RCPT-1 — recovering a withholding receipt finds the landed P
     assertEquals(calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no second Payment Entry');
     assertEquals(res.status, 200, `the landed entry is adopted — got ${res.status}: ${body}`);
     assertEquals(JSON.parse(body).externalRecordId, LANDED_PE, 'the result adopts the landed Payment Entry');
+  });
+
+  it('AC-WHT-002: a landed entry of the same cash WITHOUT the withheld deduction and gross allocation is never adopted', async () => {
+    const unexpected: FetchCall[] = [];
+    // Same party, same cash, same cited invoice — but a plain receipt: no deduction, the cash allocated.
+    const plainSameCash = { ...landedPe, deductions: [],
+      references: [{ reference_doctype: 'Sales Invoice', reference_name: ERP_SI, allocated_amount: 180000 }] };
+    const { res, body, calls } = await withFetchMock(routes(unexpected, plainSameCash), async ({ calls }) => {
+      const jwt = await auth.mintJwt({ sub: USER_ID });
+      const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ domain: 'revenue', operation: 'create', idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', record: {
+          id: RECEIPT_ID, customerId: CUSTOMER_ID, salesInvoiceId: SI_ID, erp_doc_kind: 'incoming-payment',
+          paid_amount: 200000, received_amount: 180000, withheld_amount: 20000, withholding_slip_number: 'WHT-001',
+        } }),
+      }));
+      return { res, body: await res.text(), calls };
+    });
+
+    assertEquals(unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    const posts = calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST');
+    assertEquals(posts.length, 1, 'the receipt is created as its own Payment Entry');
+    assertEquals((posts[0].bodyJson as { deductions?: unknown[] }).deductions?.length, 1, 'the new entry carries the withheld tax');
+    const adopted = res.status === 200 ? JSON.parse(body).externalRecordId : null;
+    assertEquals(adopted === LANDED_PE, false, `a plain same-cash entry must not be adopted for a withholding receipt — got ${res.status}: ${body}`);
   });
 });

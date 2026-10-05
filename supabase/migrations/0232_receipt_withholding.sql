@@ -1,4 +1,4 @@
--- #762. Reversal: restore the incoming-payment guard from0189, then drop these columns/trigger/function.
+-- #762. Reversal: restore the incoming-payment guard from 0189 and the receipt create audit from 0178, then drop these columns/trigger/function.
 -- Existing receipt money remains unchanged; absent historical withholding is unknown.
 alter table public.organizations add column tax_prepaid_account text
   check (tax_prepaid_account is null or (length(btrim(tax_prepaid_account)) between 1 and 140));
@@ -54,5 +54,22 @@ begin
     raise exception 'incoming_payments native fields are read-only while revenue is externally-owned'
       using errcode = '42501';
   end if;
+  return new;
+end; $$;
+
+-- The receipt create audit (0178 §3) also records the cash received, the tax withheld and the slip, so
+-- the audit trail states all three receipt facts. Body carried forward from 0178 unchanged otherwise.
+-- Reversal: re-run 0178's definition of this function.
+create or replace function public.audit_incoming_payment_insert() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  perform public.log_audit('incoming_payment.create', new.org_id, auth.uid(), new.id,
+                           jsonb_build_object('status',                  new.status,
+                                              'amount',                  new.amount,
+                                              'ip_number',               new.ip_number,
+                                              'sales_invoice_id',        new.sales_invoice_id,
+                                              'received_amount',         new.received_amount,
+                                              'withheld_amount',         new.withheld_amount,
+                                              'withholding_slip_number', new.withholding_slip_number));
   return new;
 end; $$;

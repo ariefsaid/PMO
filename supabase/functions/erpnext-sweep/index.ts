@@ -96,7 +96,7 @@ import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-disp
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { probeErpByAnchorKey, probeErpByPaymentComposite, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 // BLOCK 1 / B5: the pull-adopt barrier now lives in `_shared/` so the WEBHOOK adopt path raises the
@@ -303,6 +303,7 @@ export function buildOutboxProbe(args: {
       siNames: Array.isArray(payload.si_names) ? (payload.si_names as string[]) : [],
       createdAfter: String(payload.created_after ?? ''),
       paymentType,
+      ...withholdingMatchFromPayload(payload),
     });
   };
 }

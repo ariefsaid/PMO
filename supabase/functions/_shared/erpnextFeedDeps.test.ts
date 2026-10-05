@@ -1005,3 +1005,21 @@ Deno.test('AC-WHT-003 a partial ERP receipt without deductions retains prior wit
   assert(stored.withheld_amount === '20.00', 'partial documents retain the prior withheld amount');
   assert(stored.withholding_slip_number === 'WHT-OLD', 'partial documents retain the prior slip');
 });
+
+Deno.test('AC-WHT-003 an update with unconfirmable withholding clears the tax facts and raises one Action required notice', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'finance-1' }] });
+  const canonical = peReceiveFromDoc({ name: 'PE-REVIEW', paid_amount: '980.00', received_amount: '980.00', docstatus: 1,
+    deductions: [{ amount: '10.00', description: 'Withholding slip: WHT-A' }, { amount: '10.00', description: 'Withholding slip: WHT-B' }] });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the mapped ERP receipt must update its mirror');
+  assert(patch.amount === '980.00' && patch.withheld_amount === null && patch.withholding_slip_number === null,
+    `cash kept, tax unknown: ${JSON.stringify(patch)}`);
+  assert(!Object.hasOwn(patch, 'withholding_review'), 'the review marker is never written as a column');
+  const notice = calls.find(c => c.table === 'notifications' && c.op === 'insert')?.patch?.rows as Array<Record<string, unknown>> | undefined;
+  if (!notice) throw new Error('an Action required notice must be raised');
+  assert(notice.length === 1 && notice[0].title === 'Action required', `one notice per recipient: ${JSON.stringify(notice)}`);
+  assert(JSON.stringify(notice[0].metadata) === JSON.stringify({ action_required: 'receipt-withholding-unconfirmed',
+    erpName: 'PE-REVIEW', reason: 'multiple-withholding-deductions' }), `the notice names the receipt: ${JSON.stringify(notice[0].metadata)}`);
+});

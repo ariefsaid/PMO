@@ -43,6 +43,13 @@ export function peReceiveToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     if (typeof costCenter !== 'string' || !costCenter.trim() || costCenter.length > 140) {
       throw new AdapterError('commit-rejected', 'Set the ERP Company default cost center before recording withheld tax.');
     }
+    // DD-RCPT-1 holds only for same-currency accounts (ERPNext forces received = paid there). Across
+    // currencies the cash and the gross are in different units, so the deduction cannot balance.
+    const fromCurrency = ctx.config.paid_from_account_currency;
+    const toCurrency = ctx.config.paid_to_account_currency;
+    if (typeof fromCurrency !== 'string' || !fromCurrency || fromCurrency !== toCurrency) {
+      throw new AdapterError('commit-rejected', 'Withheld tax can only be recorded when the receivable and cash accounts use the same currency.');
+    }
     const slip = rec.withholding_slip_number;
     if (typeof slip !== 'string' || !slip.trim() || slip.trim().length > 140) {
       throw new AdapterError('commit-rejected', 'Enter a withholding-slip number of at most 140 characters.');
@@ -74,21 +81,56 @@ export function peReceiveToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   };
 }
 
+/**
+ * Marker field on the canonical: the receipt carries a withholding deduction PMO could not confirm, so
+ * the tax facts are mirrored as unknown and the feed raises an "Action required" notice. Never a column.
+ */
+export const WITHHOLDING_REVIEW_FIELD = 'withholding_review';
+export type WithholdingReviewReason = 'multiple-withholding-deductions' | 'header-amounts-differ' | 'unreadable-withholding';
+
+/** The mapper runs inside the feed's listing loop, so a malformed ERP value maps to unknown (null)
+ *  rather than throwing — one odd document must never stop later receipts from syncing. */
+function tryMoney(value: unknown): string | null {
+  try {
+    return mirrorMoney(value);
+  } catch {
+    return null;
+  }
+}
+
 export function peReceiveFromDoc(doc: unknown): PmoRecord {
   const d = doc as Record<string, unknown>;
   // The marked deduction carries PMO's stated tax fact; unrelated ERP adjustments are not inferred.
   // Missing child rows in a lifecycle webhook mean unknown, rather than a cleared tax credit.
   const deductions = Array.isArray(d.deductions) ? d.deductions as Record<string, unknown>[] : undefined;
-  const withholding = deductions?.filter((row) => typeof row.description === 'string'
+  const withholding = deductions?.filter((row) => typeof row?.description === 'string'
     && row.description.startsWith(WITHHOLDING_SLIP_PREFIX));
-  if (withholding && withholding.length > 1) {
-    throw new AdapterError('commit-rejected', 'Multiple withholding-slip deductions need reconciliation in ERPNext.');
+  const header = tryMoney(d.paid_amount);
+  const received = d.received_amount !== undefined ? tryMoney(d.received_amount) : undefined;
+  // DD-RCPT-1: a marked deduction is withholding ONLY on ERPNext's same-currency shape, where the header
+  // carries the cash twice (received_amount === paid_amount). Anything else is ambiguous: the tax facts
+  // stay unknown, the header amount is kept, and a human is asked to reconcile it in ERPNext.
+  let review: WithholdingReviewReason | null = null;
+  let deduction: Record<string, unknown> | undefined;
+  if (withholding && withholding.length > 1) review = 'multiple-withholding-deductions';
+  else if (withholding?.length === 1) {
+    if (header !== null && received !== undefined && received !== null && received !== header) review = 'header-amounts-differ';
+    else if (header !== null && received === header) deduction = withholding[0];
   }
-  const deduction = withholding?.[0];
-  // DD-RCPT-1: the ERP header is the cash; PMO's settled amount is the gross. Derive it ONLY from the
-  // explicitly marked withholding deduction — zero, amountless or unrelated rows leave the header as-is.
-  const header = mirrorMoney(d.paid_amount);
-  const withheld = deduction ? mirrorMoney(deduction.amount) : null;
+  // DD-RCPT-1: the ERP header is the cash; PMO's settled amount is the gross. Derive it ONLY from a
+  // confirmed marked withholding deduction — zero, amountless or unrelated rows leave the header as-is.
+  let withheld = deduction ? tryMoney(deduction.amount) : null;
+  let slip = deduction ? String(deduction.description).slice(WITHHOLDING_SLIP_PREFIX.length).trim() : null;
+  // A confirmed row whose amount or slip the receipt record cannot hold is unknown too, never a stall.
+  const unreadableAmount = deduction !== undefined && deduction.amount != null && deduction.amount !== ''
+    && (withheld === null || Number(withheld) < 0);
+  const unreadableSlip = withheld !== null && Number(withheld) > 0 && (!slip || slip.length > 140);
+  if (unreadableAmount || unreadableSlip) {
+    review = 'unreadable-withholding';
+    deduction = undefined;
+    withheld = null;
+    slip = null;
+  }
   const amount = header !== null && Number(header) >= 0 && withheld !== null && Number(withheld) > 0
     ? centsToDecimal(BigInt(header.replace('.', '')) + BigInt(withheld.replace('.', '')))
     : header;
@@ -105,11 +147,12 @@ export function peReceiveFromDoc(doc: unknown): PmoRecord {
     references: (d.references as Array<{ reference_doctype?: string; reference_name?: string | null; allocated_amount?: unknown }> | null) ?? [],
     reference_number: (d.reference_no as string | null) ?? null, // also the anchor carrier
     amount, // header (+ marked withholding) = money oracle
-    ...(d.received_amount !== undefined ? { received_amount: mirrorMoney(d.received_amount) } : {}),
+    ...(received !== undefined ? { received_amount: received } : {}),
     ...(deductions ? {
       withheld_amount: deduction ? withheld : deductions.length === 0 ? '0.00' : null,
-      withholding_slip_number: deduction ? String(deduction.description).slice(WITHHOLDING_SLIP_PREFIX.length) : null,
+      withholding_slip_number: deduction ? slip : null,
     } : {}),
+    ...(review ? { [WITHHOLDING_REVIEW_FIELD]: review } : {}),
     erp_docstatus: (d.docstatus as number | null) ?? null,
     erp_modified: (d.modified as string | null) ?? null,
     erp_amended_from: (d.amended_from as string | null) ?? null,

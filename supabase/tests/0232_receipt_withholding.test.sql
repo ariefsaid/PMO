@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(18);
 insert into organizations(id,name) values
  ('07620000-0000-0000-0000-000000000001','Receipt withholding fixture'),
  ('07620000-0000-0000-0000-000000000002','Other receipt fixture');
@@ -18,6 +18,12 @@ select is((select tax_prepaid_account from organizations where id='07620000-0000
  'Tax Prepaid - DEMO','AC-WHT-004 configured account persists');
 select is((select count(*)::integer from organizations where id='07620000-0000-0000-0000-000000000002'),0,
  'AC-WHT-004 account settings remain scoped to the caller organization');
+reset role;
+select is((select count(*)::integer from audit_events where action='org.withholding_account.change'
+   and entity_id='07620000-0000-0000-0000-000000000001'
+   and detail=jsonb_build_object('from',null,'to','Tax Prepaid - DEMO')),1,
+ 'AC-WHT-004 changing the tax-prepaid account is audited with its before and after values');
+set local role authenticated;
 set local request.jwt.claims='{"sub":"07620000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 with changed as (update organizations set tax_prepaid_account='Other - DEMO'
  where id='07620000-0000-0000-0000-000000000001' returning id)
@@ -33,6 +39,10 @@ select is((select withheld_amount from incoming_payments where id='07620000-0000
  'AC-WHT-003 receipt withheld amount round-trips exactly');
 select is((select withholding_slip_number from incoming_payments where id='07620000-0000-0000-0000-0000000000b1'),'WHT-001',
  'AC-WHT-003 receipt slip round-trips independently of the command anchor');
+select is((select (detail->>'received_amount')::numeric || '/' || (detail->>'withheld_amount')::numeric
+   || '/' || (detail->>'withholding_slip_number') from audit_events
+   where action='incoming_payment.create' and entity_id='07620000-0000-0000-0000-0000000000b1'),'980.00/20.00/WHT-001',
+ 'AC-WHT-003 the receipt create audit records the cash, the withheld tax and the slip');
 select throws_ok($$update incoming_payments set received_amount=979.99
  where id='07620000-0000-0000-0000-0000000000b1'$$,'23514',
  'new row for relation "incoming_payments" violates check constraint "incoming_payments_withholding_balance"',
@@ -44,6 +54,14 @@ select throws_ok($$update incoming_payments set withholding_slip_number=null
 select throws_ok($$update incoming_payments set withheld_amount=-1
  where id='07620000-0000-0000-0000-0000000000b1'$$,'23514',null,
  'AC-WHT-001 withheld tax cannot be negative');
+select throws_ok($$update incoming_payments set received_amount=1001,withheld_amount=-1
+ where id='07620000-0000-0000-0000-0000000000b1'$$,'23514',
+ 'new row for relation "incoming_payments" violates check constraint "incoming_payments_withheld_amount_check"',
+ 'AC-WHT-001 negative withheld tax is refused even when cash plus tax still balances');
+select throws_ok($$update incoming_payments set received_amount=-20,withheld_amount=1020
+ where id='07620000-0000-0000-0000-0000000000b1'$$,'23514',
+ 'new row for relation "incoming_payments" violates check constraint "incoming_payments_received_amount_check"',
+ 'AC-WHT-001 negative cash received is refused even when cash plus tax still balances');
 insert into external_domain_ownership(org_id,external_tier,domain)
  values('07620000-0000-0000-0000-000000000001','erpnext','revenue');
 set local role authenticated;
@@ -56,9 +74,17 @@ select throws_ok($$update incoming_payments set received_amount=970,withheld_amo
 reset role;
 grant update(received_amount,withheld_amount,withholding_slip_number) on incoming_payments to authenticated;
 set local role authenticated;
-select throws_ok($$update incoming_payments set received_amount=970,withheld_amount=30,withholding_slip_number='WHT-002'
+select throws_ok($$update incoming_payments set received_amount=970
  where id='07620000-0000-0000-0000-0000000000b1'$$,'42501',
  'incoming_payments native fields are read-only while revenue is externally-owned',
- 'AC-WHT-003 ERP-owned receipt withholding metadata is read-only to client writes');
+ 'AC-WHT-003 ERP-owned receipt cash is read-only to client writes');
+select throws_ok($$update incoming_payments set withheld_amount=30
+ where id='07620000-0000-0000-0000-0000000000b1'$$,'42501',
+ 'incoming_payments native fields are read-only while revenue is externally-owned',
+ 'AC-WHT-003 ERP-owned receipt withheld tax is read-only to client writes');
+select throws_ok($$update incoming_payments set withholding_slip_number='WHT-002'
+ where id='07620000-0000-0000-0000-0000000000b1'$$,'42501',
+ 'incoming_payments native fields are read-only while revenue is externally-owned',
+ 'AC-WHT-003 ERP-owned receipt withholding slip is read-only to client writes');
 select * from finish();
 rollback;

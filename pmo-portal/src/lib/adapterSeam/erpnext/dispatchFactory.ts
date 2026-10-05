@@ -902,6 +902,29 @@ export interface ErpDispatchFactoryDeps {
 }
 
 /**
+ * #762 — the currencies of the two accounts a withholding receipt posts between. DD-RCPT-1's shape (the
+ * cash in both headers, the tax as a deduction) holds only when they match; `peReceiveToBody` refuses
+ * otherwise. Read only for a receipt with tax withheld, so no other command pays for the two reads.
+ */
+async function readReceiptAccountCurrencies(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ paid_from_account_currency: string | null; paid_to_account_currency: string | null }> {
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  const currencyOf = async (account: unknown): Promise<string | null> => {
+    if (typeof account !== 'string' || !account) return null;
+    const currency = (await getDoc(client, 'Account', account) as { account_currency?: unknown } | null)?.account_currency;
+    return typeof currency === 'string' && currency ? currency : null;
+  };
+  const config = binding.config ?? {};
+  return {
+    paid_from_account_currency: await currencyOf(config.default_receivable_account),
+    paid_to_account_currency: await currencyOf(config.default_cash_account ?? config.default_bank_account),
+  };
+}
+
+/**
  * Resolve the erpnext adapter for one command: read the org's `external_org_bindings` row, refuse
  * `config-rejected` when it is missing or not yet activated (`activated_at === null` — a version
  * mismatch or a binding never activated, FR-ENA-012), then build the adapter over the resolved
@@ -936,7 +959,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     if (settingError || typeof account !== 'string' || !account.trim() || account.length > 140) {
       throw new AppError('Set the Tax-prepaid account in Administration → Accounting before recording withheld tax.', 'config-rejected');
     }
-    receiptConfig = { ...binding.config, tax_prepaid_account: account.trim() };
+    receiptConfig = { ...binding.config, tax_prepaid_account: account.trim(),
+      ...(await readReceiptAccountCurrencies(deps, binding)) };
   }
   // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
   assertSiProjectGate(deps, binding);
