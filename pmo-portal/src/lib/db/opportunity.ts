@@ -7,7 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
  * The full opportunity row for the detail page (Director decision 2). Selects
  * directly from `projects` — snake_case, consumed as the DB shape (no
  * `as unknown as` camelCase bridge). org_id is NEVER sent: RLS
- * (org_id = auth_org_id()) scopes the read. Surfaces `code`, the PM join,
+ * (org_id = auth_org_id()) scopes the read. Surfaces both project identifiers, the PM join,
  * `customer_contract_ref`, `contract_date`, `decided_at` that the pipeline RPC
  * does not project.
  */
@@ -30,6 +30,7 @@ export const OPPORTUNITY_COLUMNS = [
   'id',
   'name',
   'code',
+  'pmo_project_number',
   'status',
   'client_id',
   'project_manager_id',

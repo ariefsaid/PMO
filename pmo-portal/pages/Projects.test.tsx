@@ -71,6 +71,9 @@ const { companiesState } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
 }));
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),

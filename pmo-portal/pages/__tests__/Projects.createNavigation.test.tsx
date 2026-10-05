@@ -143,3 +143,10 @@ describe('Projects create navigation (AC-RAM-006)', () => {
     expect(projectMutations.create.mutateAsync).toHaveBeenCalledTimes(1);
   });
 });
+// Project creation now requires a successful PMO number proposal; keep this
+// journey focused on its original create/navigation or invalid-value outcome.
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: (clientId: string | null) => clientId
+    ? { status: 'success', number: 'PMO-2026-TEST-0001', error: null }
+    : { status: 'idle', number: null, error: null },
+}));

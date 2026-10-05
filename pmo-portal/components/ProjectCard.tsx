@@ -178,6 +178,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       name={project.name}
       client={project.client ? companyDisplayName(project.client) : null}
       clientId={project.client_id}
+      pmoProjectNumber={project.pmo_project_number}
       code={project.code}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>

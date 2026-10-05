@@ -79,7 +79,11 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
         group: 'Records',
         title: p.name,
         sub: 'Project',
-        code: p.code ?? undefined,
+        code: [
+          p.pmo_project_number ? `PMO Project Number: ${p.pmo_project_number}` : null,
+          p.code ? `Client Project Code: ${p.code}` : null,
+        ].filter(Boolean).join(' · ') || undefined,
+        searchCodes: [p.pmo_project_number, p.code].filter((value): value is string => Boolean(value)),
         icon: 'folder' as IconName,
         run: () => navigate(`/projects/${p.id}`),
       });
@@ -92,7 +96,11 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
           group: 'Records',
           title: o.name,
           sub: 'Project · Pipeline',
-          // The pipeline projection carries no code field; the title disambiguates.
+          code: [
+            o.pmo_project_number ? `PMO Project Number: ${o.pmo_project_number}` : null,
+            o.code ? `Client Project Code: ${o.code}` : null,
+          ].filter(Boolean).join(' · ') || undefined,
+          searchCodes: [o.pmo_project_number, o.code].filter((value): value is string => Boolean(value)),
           icon: 'pipe' as IconName,
           // Model B (ADR-0020): a pipeline record has ONE canonical detail route, /projects/:id.
           // After the listProjects scope change the active projects cache no longer holds pre-win
@@ -217,7 +225,8 @@ function matchesQuery(item: PaletteItem, q: string): boolean {
   return (
     item.title.toLowerCase().includes(q) ||
     !!item.sub?.toLowerCase().includes(q) ||
-    !!item.code?.toLowerCase().includes(q)
+    !!item.code?.toLowerCase().includes(q) ||
+    !!item.searchCodes?.some((code) => code.toLowerCase().includes(q))
   );
 }
 
@@ -244,8 +253,8 @@ export function filterAndCap(
   if (exactCodeFirst) {
     // Exact code match(es) float to the front; stable for everything else.
     matches.sort((a, b) => {
-      const aExact = a.code?.toLowerCase() === q ? 0 : 1;
-      const bExact = b.code?.toLowerCase() === q ? 0 : 1;
+      const aExact = [a.code, ...(a.searchCodes ?? [])].some((code) => code?.toLowerCase() === q) ? 0 : 1;
+      const bExact = [b.code, ...(b.searchCodes ?? [])].some((code) => code?.toLowerCase() === q) ? 0 : 1;
       return aExact - bExact;
     });
   }
