@@ -1,5 +1,5 @@
 begin;
-select plan(11);
+select plan(12);
 insert into organizations(id,name) values
  ('07620000-0000-0000-0000-000000000001','Receipt withholding fixture'),
  ('07620000-0000-0000-0000-000000000002','Other receipt fixture');
@@ -48,6 +48,14 @@ insert into external_domain_ownership(org_id,external_tier,domain)
  values('07620000-0000-0000-0000-000000000001','erpnext','revenue');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"07620000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$update incoming_payments set received_amount=970,withheld_amount=30,withholding_slip_number='WHT-002'
+ where id='07620000-0000-0000-0000-0000000000b1'$$,'42501',
+ 'permission denied for table incoming_payments',
+ 'AC-WHT-003 receipt metadata UPDATE remains withheld from authenticated clients');
+-- Exercise the independent mirror guard with a transaction-local fixture grant; production grants stay unchanged.
+reset role;
+grant update(received_amount,withheld_amount,withholding_slip_number) on incoming_payments to authenticated;
+set local role authenticated;
 select throws_ok($$update incoming_payments set received_amount=970,withheld_amount=30,withholding_slip_number='WHT-002'
  where id='07620000-0000-0000-0000-0000000000b1'$$,'42501',
  'incoming_payments native fields are read-only while revenue is externally-owned',
