@@ -89,6 +89,29 @@ const budgetState: { data: BudgetVersionWithItems[] | undefined; isPending: bool
   isError: false,
   refetch: vi.fn(),
 };
+type RevenueFixture = {
+  id: string;
+  amount: number;
+  currency: string;
+  tax_treatment: string;
+  tax_amount: number;
+  status: 'Submitted' | 'Unpaid' | 'Paid' | 'Draft' | 'Cancelled';
+};
+const revenueState: {
+  data: RevenueFixture[] | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+} = {
+  data: [
+    { id: 'si-inclusive', amount: 2_200, currency: 'USD', tax_treatment: 'inclusive', tax_amount: 200, status: 'Submitted' },
+    { id: 'si-exclusive', amount: 900, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0, status: 'Unpaid' },
+    { id: 'si-draft', amount: 7_000, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0, status: 'Draft' },
+  ],
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+};
 
 // #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
 // specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
@@ -105,6 +128,9 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
+}));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => revenueState,
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => budgetState,
@@ -145,7 +171,73 @@ beforeEach(() => {
   budgetState.data = [activeVersion];
   budgetState.isPending = false;
   budgetState.isError = false;
+  revenueState.data = [
+    { id: 'si-inclusive', amount: 2_200, currency: 'USD', tax_treatment: 'inclusive', tax_amount: 200, status: 'Submitted' },
+    { id: 'si-exclusive', amount: 900, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0, status: 'Unpaid' },
+    { id: 'si-draft', amount: 7_000, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0, status: 'Draft' },
+  ];
+  revenueState.isPending = false;
+  revenueState.isError = false;
   navigate.mockClear();
+});
+
+describe('project invoicing summary', () => {
+  it('AC-UNB-001: shows contract, submitted invoices, and remaining value with the contract basis', () => {
+    renderTab();
+    const summary = screen.getByTestId('project-invoicing-summary');
+    expect(summary).toHaveTextContent('$1,000,000');
+    expect(summary).toHaveTextContent('$2,900');
+    expect(summary).toHaveTextContent('$997,100');
+    expect(screen.getByTestId('project-contract-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+
+  it('AC-UNB-003: shows unavailable invoice totals when the currency or stored tax basis cannot be compared', () => {
+    revenueState.data = [
+      { id: 'si-unknown-basis', amount: 2_200, currency: 'USD', tax_treatment: 'unknown', tax_amount: 200, status: 'Paid' },
+    ];
+    renderTab();
+    const summary = screen.getByTestId('project-invoicing-summary');
+    expect(summary).toHaveTextContent('Unavailable');
+    expect(summary).not.toHaveTextContent('$0');
+  });
+
+  it('AC-UNB-003: does not render a contract amount without its stored tax basis', () => {
+    const projectWithUnknownBasis = { ...project, tax_treatment: 'unknown' } as ProjectWithRefs;
+    renderTab(projectWithUnknownBasis);
+    const summary = screen.getByTestId('project-invoicing-summary');
+    expect(summary).toHaveTextContent('Unavailable');
+    expect(summary).not.toHaveTextContent('$1,000,000');
+  });
+
+  it('AC-UNB-003: marks invoice totals unavailable when a submitted invoice uses another currency', () => {
+    revenueState.data = [
+      { id: 'si-eur', amount: 2_200, currency: 'EUR', tax_treatment: 'exclusive', tax_amount: 0, status: 'Submitted' },
+    ];
+    renderTab();
+    const summary = screen.getByTestId('project-invoicing-summary');
+    expect(summary).toHaveTextContent('Unavailable');
+    expect(summary).not.toHaveTextContent('$0');
+  });
+
+  it('AC-UNB-001: keeps invoice figures unavailable during loading and offers retry after a read error', async () => {
+    revenueState.data = undefined;
+    revenueState.isPending = true;
+    const view = renderTab();
+    const summary = screen.getByTestId('project-invoicing-summary');
+    expect(summary).toHaveTextContent('Loading invoice totals');
+    expect(summary).not.toHaveTextContent('$0');
+    view.unmount();
+
+    revenueState.isPending = false;
+    revenueState.isError = true;
+    renderTab();
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't load invoice totals");
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(revenueState.refetch).toHaveBeenCalled();
+  });
 });
 
 // ── T14: Procurement summary card ────────────────────────────────────────────

@@ -1558,6 +1558,17 @@
         "spend": "Spend",
         "title": "Financial summary"
       },
+      "invoicing": {
+        "contract": "Contract value",
+        "error": "Couldn't load invoice totals.",
+        "invoicedToDate": "Invoiced to date",
+        "loading": "Loading invoice totals…",
+        "remaining": "Remaining to invoice",
+        "retry": "Retry",
+        "title": "Invoicing against contract",
+        "unavailable": "Unavailable",
+        "unavailableDetail": "Invoice totals cannot be compared with this contract currency or tax basis."
+      },
       "procSummary": {
         "closed": "Closed",
         "committedAcross": "<amount>{{amount}}</amount> committed across {{n}} {{unit}}",

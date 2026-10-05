@@ -25,6 +25,8 @@ export interface SalesInvoiceRow {
    * an undeclared column is invisible to every caller and to the compiler alike.
    */
   tax_treatment: string;
+  /** Stored tax value used to convert this invoice to a comparable basis (0188). */
+  tax_amount: number;
   tax_rate?: number | null;
   tax_base_numerator?: number;
   tax_base_denominator?: number;

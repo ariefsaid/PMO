@@ -145,6 +145,35 @@ function decimalUnits(value: number, scale: number): bigint | null {
 }
 
 /**
+ * Re-express a stored amount on another tax basis using only the row's recorded tax facts.
+ * This is a read-only conversion: it never calculates a tax rate or consults an org default.
+ */
+export function normalizeTaxAmount(
+  amount: number,
+  taxAmount: number,
+  treatment: string,
+  targetTreatment: string,
+): number | null {
+  if (
+    !Number.isFinite(amount) || amount < 0 || amount >= 1e12 ||
+    !Number.isFinite(taxAmount) || taxAmount < 0 || taxAmount >= 1e12 ||
+    !isTaxTreatment(treatment) || !isTaxTreatment(targetTreatment) ||
+    (treatment === 'inclusive' && taxAmount > amount)
+  ) {
+    return null;
+  }
+
+  const amountCents = decimalUnits(amount, 2);
+  const taxCents = decimalUnits(taxAmount, 2);
+  if (amountCents === null || taxCents === null) return null;
+  const netCents = treatment === 'inclusive' ? amountCents - taxCents : amountCents;
+  const grossCents = treatment === 'inclusive' ? amountCents : amountCents + taxCents;
+  const resultCents = targetTreatment === 'inclusive' ? grossCents : netCents;
+  if (resultCents < 0n || resultCents >= 100000000000000n) return null;
+  return Number(resultCents) / 100;
+}
+
+/**
  * Calculate PMO-authored tax only. ERP money is authoritative and must never pass through this
  * calculator (ADR-0048). Amounts follow the existing numeric(14,2) domain and nominal rates the
  * numeric(6,3) domain; a reduced base changes the ratio, never the nominal rate.
