@@ -2828,3 +2828,15 @@ workbook. Work orders are left for the client's users to create. Client, end cus
 **roles** a company plays on a project, not separate kinds of record — in PMO (client / end customer on
 the project) and in ERPNext (one Customer record each). A follow-up widens the CLI so these loads stop
 needing the Director (#796).
+
+## DD-RCPT-1 — a receipt with tax withheld mirrors ERPNext's own Payment Entry shape (Director, 2026-10-06)
+
+For a same-currency receipt where the client withheld income tax (#762), ERPNext's Payment Entry carries
+the **cash** in both header amounts (`paid_amount` = `received_amount` = cash), the withheld tax as a
+**deduction** row, and the **gross** as the invoice allocation; the invoice ends Paid with nothing
+outstanding. ERPNext forces `received_amount = paid_amount` when the account currencies match, so a test
+expecting the gross in `paid_amount` asserts something ERPNext never produces. PMO keeps its own three
+facts unchanged — settled amount (gross), cash received, tax withheld — and the journey's goal is
+unchanged: invoice settled in full, cash and withholding both recorded. Only the raw ERP read-back
+assertion and the synthetic mapper fixture change to ERPNext's real shape; the mapper derives the gross
+only from an explicitly marked withholding deduction, leaving other deductions alone.

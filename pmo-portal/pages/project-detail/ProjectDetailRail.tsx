@@ -86,7 +86,11 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
             <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
             <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
             <DetailRow
-              label={t('projectDetail.rail.code', 'Code')}
+              label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
+              value={<span className="font-mono text-[13px]">{project.pmo_project_number}</span>}
+            />
+            <DetailRow
+              label={t('projectDetail.rail.clientCode', 'Client Project Code')}
               value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
             />
             <DetailRow

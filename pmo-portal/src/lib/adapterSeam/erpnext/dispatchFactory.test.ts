@@ -25,6 +25,12 @@ function serviceClientReturning(row: unknown): DispatchServiceClient {
   } as unknown as DispatchServiceClient;
 }
 
+function itemCatalogResponse(url: string): Response | null {
+  return new URL(url).pathname === '/api/resource/Item'
+    ? Response.json({ data: ['X', 'ITEM-001'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) })
+    : null;
+}
+
 const ACTIVATED_ROW = {
   site_url: 'https://erp.example.com',
   version_major: 15,
@@ -90,6 +96,8 @@ describe('erpnext/dispatchFactory', () => {
     const afterSubmitHook = vi.fn(async () => {});
     let putCalled = false;
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const catalog = itemCatalogResponse(_url);
+      if (catalog) return catalog;
       if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'PUR-ORD-2026-00001' }), { status: 200 });
       if (init?.method === 'PUT') {
         putCalled = true;
@@ -268,7 +276,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
         operation: 'create',
         record: { id: 'pmo-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [{ item_code: 'ITEM-001', qty: 1, rate: 100 }] },
       },
-      fetchImpl: vi.fn(async () => new Response(JSON.stringify({ name: 'ACC-SINV-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response(JSON.stringify({ name: 'ACC-SINV-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
       apiKey: 'k',
       apiSecret: 's',
       doctypeBodies: {
@@ -304,7 +312,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
         operation: 'create',
         record: { id: 'pmo-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [{ item_code: 'ITEM-001', qty: 1, rate: 100 }] },
       },
-      fetchImpl: vi.fn(async () => new Response(JSON.stringify({ name: 'ACC-SINV-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response(JSON.stringify({ name: 'ACC-SINV-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
       apiKey: 'k',
       apiSecret: 's',
       doctypeBodies: {
@@ -340,7 +348,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
         operation: 'create',
         record: { id: 'pmo-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: null, items: [{ item_code: 'ITEM-001', qty: 1, rate: 100 }] },
       },
-      fetchImpl: vi.fn(async () => new Response(JSON.stringify({ name: 'ACC-SINV-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response(JSON.stringify({ name: 'ACC-SINV-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
       apiKey: 'k',
       apiSecret: 's',
       doctypeBodies: {
@@ -643,7 +651,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
         operation: 'create',
         record: { id: 'pmo-1', erp_doc_kind: 'purchase-order', vendorId: 'cust-1', items: [{ item_code: 'X', qty: 1 }] },
       },
-      fetchImpl: vi.fn(async () => new Response(JSON.stringify({ name: 'ACC-PO-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response(JSON.stringify({ name: 'ACC-PO-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
       apiKey: 'k',
       apiSecret: 's',
       doctypeBodies: {

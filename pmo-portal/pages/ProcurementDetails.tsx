@@ -26,6 +26,7 @@ import { BackBar } from '@/src/components/shell';
 import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
+import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
@@ -273,6 +274,7 @@ const ProcurementDetails: React.FC = () => {
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
+  const erpItems = useErpItemOptions('purchase');
 
   // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
   // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
@@ -972,6 +974,7 @@ const ProcurementDetails: React.FC = () => {
 
         {tab === 'items' && (
           <LineItemsSection
+            erpItems={erpItems.connected ? erpItems : undefined}
             items={p.items}
             editable={canEditItems}
             busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}

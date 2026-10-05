@@ -110,6 +110,17 @@ export async function updateCompany(id: string, input: CompanyInput): Promise<vo
  * Soft-archive a company by stamping `archived_at` (AC-CO-005) so it drops out of the default list.
  * org_id is NEVER sent — RLS scopes the update. Throws an `AppError` (code preserved) on failure.
  */
+/** Update only the PMO-local project-number segment, never the ERP-native company payload. */
+export async function setCompanyProjectNumberSegment(id: string, segment: string | null): Promise<void> {
+  const { data, error } = await supabase
+    .from('companies')
+    .update({ client_number_segment: segment?.trim() || null })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Company not found or you do not have permission to edit it.');
+}
+
 export async function archiveCompany(id: string): Promise<void> {
   const { data, error } = await supabase
     .from('companies')

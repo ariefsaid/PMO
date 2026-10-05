@@ -147,10 +147,16 @@ export function useCompanyMutations() {
     onSuccess: invalidate,
   });
 
+  const setProjectNumberSegment = useMutation({
+    mutationFn: ({ id, segment }: { id: string; segment: string | null }) =>
+      repositories.company.setProjectNumberSegment(id, segment),
+    onSuccess: invalidate,
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => repositories.company.delete(id),
     onSuccess: invalidate,
   });
 
-  return { create, update, archive, remove, pendingPush };
+  return { create, update, setProjectNumberSegment, archive, remove, pendingPush };
 }

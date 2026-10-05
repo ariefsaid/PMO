@@ -158,6 +158,8 @@ export interface ProjectRepository {
    * TypeScript forbids a required parameter after an optional one.
    */
   setContractValue(input: SetProjectContractValueInput): Promise<void>;
+  /** Reserve one editable PMO project-number proposal for the selected client. */
+  proposeNumber(clientId: string): Promise<string>;
 }
 
 export interface CompanyRepository {
@@ -171,6 +173,8 @@ export interface CompanyRepository {
   create(input: CompanyInput): Promise<CompanyRow>;
   /** Update a company's name + type. */
   update(id: string, input: CompanyInput): Promise<void>;
+  /** Update only the PMO-local client-number segment; never dispatches to an external native adapter. */
+  setProjectNumberSegment(id: string, segment: string | null): Promise<void>;
   /** Soft-archive a company (stamps archived_at). */
   archive(id: string): Promise<void>;
   /** Hard-delete a company; rejects with AppError code 23503 if referenced. */
@@ -430,7 +434,7 @@ export interface RevenueRepository {
   createInvoice(input: {
     customerId: string;
     projectId?: string | null;
-    items: Array<{ item_code: string; qty: number; rate: number }>;
+    items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
   }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
   /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
   createPayment(input: {
@@ -665,6 +669,10 @@ export interface Repositories {
  * unrecoverable.
  */
 export interface OrgSettingsRepository {
+  /** The stored PMO project-number pattern; null is the system default. */
+  getProjectNumberPattern(): Promise<string | null>;
+  /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
+  setProjectNumberPattern(value: string | null): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
@@ -857,6 +865,8 @@ export interface IntegrationsRepository {
   listProjectBindings(orgId: string): Promise<ProjectBinding[]>;
   /** List ERPNext companies for the org (calls external-companies edge fn). */
   listCompanies(orgId: string, tier: ExternalTier): Promise<Array<{ name: string }>>;
+  /** Current enabled items; org is resolved from the caller JWT at the endpoint. */
+  listItems(purpose: 'sales' | 'purchase'): Promise<Array<{ code: string; name: string }>>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

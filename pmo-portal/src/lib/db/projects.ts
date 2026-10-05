@@ -108,6 +108,10 @@ interface CreateProjectBase {
   name: string;
   /** Must be an origination status (Leads / Internal Project). */
   status: ProjectStatus;
+  /** Optional, separately supplied Client Project Code (OD-ID-1). */
+  code?: string | null;
+  /** Editable PMO proposal; omitted writers use the database minting fallback. */
+  pmo_project_number?: string;
   client_id: string | null;
   /** The end customer, nullable (#758) — the company the work is ultimately for. Optional because
    *  the import descriptor (src/lib/import/*, out of scope for #758) builds `CreateProjectInput`
@@ -238,6 +242,8 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
     .insert({
       name: input.name,
       status: input.status,
+      ...(input.code !== undefined ? { code: input.code } : {}),
+      ...(input.pmo_project_number !== undefined ? { pmo_project_number: input.pmo_project_number } : {}),
       client_id: input.client_id,
       end_client_id: input.end_client_id,
       project_manager_id: input.project_manager_id,
@@ -258,6 +264,16 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
  * shows the full work history. org_id is NEVER sent — RLS (projects_select: org_id =
  * auth_org_id()) scopes rows. No new RLS or migration — the existing select policy covers this.
  */
+/** Propose a PMO-owned number for a selected client; the RPC derives org and actor from the JWT. */
+export async function proposeProjectNumber(clientId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('propose_project_number', { p_client_id: clientId });
+  if (error) throwWrite(error);
+  if (typeof data !== 'string' || data.length === 0) {
+    throw new AppError('The project number service returned no proposal. Try again.', 'P0001');
+  }
+  return data;
+}
+
 export async function listProjectsByClient(clientId: string): Promise<ProjectWithRefs[]> {
   const { data, error } = await supabase
     .from('projects')

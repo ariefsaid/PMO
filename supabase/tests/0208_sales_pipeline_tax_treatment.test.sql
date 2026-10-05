@@ -98,7 +98,7 @@ select is(
 select is(
   (select array_agg(k order by k)
      from jsonb_object_keys(((public.get_sales_pipeline())->'projects'->0)::jsonb) k),
-  array['client_legal_name','client_name','contract_value','currency','end_client_id','end_client_legal_name','end_client_name','id','last_update','name','pm_name','status','tax_base_denominator','tax_base_numerator','tax_rate','tax_treatment','win_probability'],
+  array['client_legal_name','client_name','code','contract_value','currency','end_client_id','end_client_legal_name','end_client_name','id','last_update','name','pm_name','pmo_project_number','status','tax_base_denominator','tax_base_numerator','tax_rate','tax_treatment','win_probability'],
   'AC-TAX-305 the recreate preserves the FULL projects projection, not just the new column'
 );
 

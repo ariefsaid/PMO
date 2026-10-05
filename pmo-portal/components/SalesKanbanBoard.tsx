@@ -50,6 +50,8 @@ const DealCard: React.FC<{
       initial={initial}
       name={project.name}
       client={project.client_name}
+      pmoProjectNumber={project.pmo_project_number}
+      code={project.code}
       status={
         <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
       }

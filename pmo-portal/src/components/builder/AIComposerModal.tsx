@@ -10,6 +10,7 @@
  * On compose failure (null): shows the hook's error in the live region.
  */
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
 import { useAIComposer } from '@/src/hooks/useAIComposer';
@@ -28,6 +29,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
   onClose,
   onComposed,
 }) => {
+  const { t } = useTranslation();
   const titleId = useId();
   const errorId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -157,7 +159,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
           id={titleId}
           className="mb-4 text-[18px] font-semibold leading-[1.3] text-popover-foreground"
         >
-          Compose with AI
+          {t('viewBuilder.composeAiTitle', 'Compose with AI')}
         </h2>
 
         {/* Textarea */}
@@ -167,7 +169,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
             htmlFor={`${titleId}-textarea`}
             className="text-[13px] font-medium text-foreground"
           >
-            Describe the view you want
+            {t('viewBuilder.describeView', 'Describe the view you want')}
           </label>
           <textarea
             ref={textareaRef}
@@ -178,7 +180,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
             rows={4}
             maxLength={MAX_PROMPT_LENGTH}
             disabled={isLoading}
-            placeholder="e.g. show me at-risk projects and this quarter's contract value"
+            placeholder={t('viewBuilder.describeViewPlaceholder', "e.g. show me at-risk projects and this quarter's contract value")}
             className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
           />
           {/* Character counter */}
@@ -195,7 +197,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
           className="min-h-[1.5rem] text-[13px]"
         >
           {isLoading && (
-            <span className="text-muted-foreground">Generating your view…</span>
+            <span className="text-muted-foreground">{t('viewBuilder.generatingView', 'Generating your view…')}</span>
           )}
           {displayError && !isLoading && (
             <span className="text-destructive">{displayError}</span>
@@ -209,7 +211,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
             disabled={isLoading}
             onClick={onClose}
           >
-            Cancel
+            {t('viewBuilder.cancel', 'Cancel')}
           </Button>
           <Button
             variant="primary"
@@ -217,7 +219,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
             onClick={handleGenerate}
             aria-busy={isLoading}
           >
-            {isLoading ? 'Generating…' : 'Generate'}
+            {isLoading ? t('viewBuilder.generating', 'Generating…') : t('viewBuilder.generate', 'Generate')}
           </Button>
         </div>
       </div>

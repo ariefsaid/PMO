@@ -14,6 +14,10 @@ const allowedRoles = (
 
 describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
   // ── create ───────────────────────────────────────────────────────────────
+  it('AC-CODE-001: manage organisation project numbering = Admin only', () => {
+    expect(allowedRoles('manage', 'orgProjectNumbering')).toEqual(['Admin']);
+  });
+
   it('ADR-0016: create project = Admin·Exec·PM (Finance excluded in FE, Engineer no)', () => {
     expect(allowedRoles('create', 'project')).toEqual(['Admin', 'Executive', 'Project Manager']);
   });

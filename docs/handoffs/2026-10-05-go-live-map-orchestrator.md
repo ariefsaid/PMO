@@ -107,6 +107,7 @@ remaining tickets and correction loops must be estimated separately.
   only on a real dependency (it needs another ticket's schema or API). Hot files on rebase:
   `pmo-portal/src/lib/supabase/database.types.ts` → regenerate, never hand-merge; migration number
   collision → `scripts/renumber-migration.sh <old> <new>`; locale JSON / route lists → keep both sides.
+- **Local ERPNext runs only while a served test needs it** (owner): start it inside the `with-erpnext-lock.sh` hold, stop it (`docker compose -p pmo-erpnext stop`) the moment that run ends, pass or fail.
 - **Locks never stall a builder.** The test lock is shared with another project: if it is held > 3 min, skip
   that local vitest run, push, and let CI decide (CI is the full gate, CLAUDE.md). The DB lock is PMO-only
   with short holds: wait up to 10 min, then push and let CI's pgTAP decide. Never run the full vitest suite locally.

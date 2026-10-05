@@ -151,6 +151,8 @@ const SalesPipeline: React.FC = () => {
     return base.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
+        (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
+        (p.code ?? '').toLowerCase().includes(q) ||
         (p.client_name ?? '').toLowerCase().includes(q) ||
         (p.end_client_name ?? '').toLowerCase().includes(q) ||
         (p.client_legal_name ?? '').toLowerCase().includes(q) ||
@@ -218,8 +220,13 @@ const SalesPipeline: React.FC = () => {
               {r.name}
             </div>
             <div className="truncate font-mono text-[11px] text-muted-foreground">
-              {r.id.slice(0, 8)}
+              {t('projects.identifiers.pmo', 'PMO Project Number')}: {r.pmo_project_number ?? '—'}
             </div>
+            {r.code && (
+              <div className="truncate font-mono text-[11px] text-muted-foreground">
+                {t('projects.identifiers.client', 'Client Project Code')}: {r.code}
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -395,6 +402,8 @@ const SalesPipeline: React.FC = () => {
     return kanbanProjects.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
+        (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
+        (p.code ?? '').toLowerCase().includes(q) ||
         (p.client_name ?? '').toLowerCase().includes(q) ||
         (p.end_client_name ?? '').toLowerCase().includes(q) ||
         (p.client_legal_name ?? '').toLowerCase().includes(q) ||
