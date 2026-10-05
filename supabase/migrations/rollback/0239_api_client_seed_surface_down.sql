@@ -1,4 +1,4 @@
--- Reverses 0232: restores 0222's api_client_request_guard() (no Admin tier, profiles-only read list).
+-- Reverses 0239: restores 0222's api_client_request_guard() (no Admin tier, profiles-only read list).
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql

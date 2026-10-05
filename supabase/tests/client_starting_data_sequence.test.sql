@@ -42,8 +42,11 @@ select is(
     where entity_id = '07960000-0000-0000-0000-0000000000d1' and action = 'project.contract_value.set'
       and actor_id = '07960000-0000-0000-0000-0000000000b1'),
   1, 'AC-CSD-015 the value is audited to the Admin');
+-- Ordered by the step text: created_at is now() (transaction time), so every row in this one-transaction
+-- test ties and the uuid id is random — neither gives a stable order.
 select is(
-  (select array_agg((detail ->> 'from') || '->' || (detail ->> 'to') order by 1)
+  (select array_agg((detail ->> 'from') || '->' || (detail ->> 'to')
+                    order by (detail ->> 'from') || '->' || (detail ->> 'to'))
      from public.audit_events
     where entity_id = '07960000-0000-0000-0000-0000000000d1' and action = 'project.transition'
       and actor_id = '07960000-0000-0000-0000-0000000000b1'),

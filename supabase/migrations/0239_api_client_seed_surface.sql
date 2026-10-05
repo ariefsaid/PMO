@@ -10,7 +10,8 @@
 --     GET/POST budget_versions and budget_line_items;
 --   • for every such token: GET external_domain_ownership (read-only).
 -- Still refused to every client, Admin included: PATCH/DELETE on the budget tables,
--- activate_budget_version, work-order and money RPCs. Browser sessions (no client_id) are untouched.
+-- activate_budget_version, work-order and money RPCs, and any request carrying `Prefer: resolution=`
+-- (a POST upsert is an update). Browser sessions (no client_id) are untouched.
 --
 -- The Admin test reads the caller's LIVE profile, so a demoted or offboarded owner loses the tier at the
 -- next request. It runs only for the tier's own endpoints (nested IF: no lookup on any other request).
@@ -48,6 +49,13 @@ begin
      or coalesce(headers ->> 'content-profile', 'public') <> 'public' then
     raise exception using errcode = '42501',
       message = 'OAuth API clients may use the public schema only';
+  end if;
+
+  -- `Prefer: resolution=merge-duplicates|ignore-duplicates` turns a POST into an upsert (an UPDATE on
+  -- conflict), which would let a POST-only grant edit rows. The CLI never sends it; refuse it everywhere.
+  if coalesce(headers ->> 'prefer', '') ilike '%resolution=%' then
+    raise exception using errcode = '42501',
+      message = 'OAuth API clients may not upsert (Prefer: resolution=)';
   end if;
 
   if path like '/rpc/%' then

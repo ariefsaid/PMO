@@ -68,7 +68,7 @@ export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
 
 /**
  * The ACTIVE-ADMIN tier (#796, ADR-0074), used only by `pmo load` — never by get/create/update/rpc.
- * The database guard (migration 0234) allows these only to an active Admin's OAuth token: POST on the
+ * The database guard (migration 0239) allows these only to an active Admin's OAuth token: POST on the
  * RPCs, GET/POST on the tables. The RPCs keep their own org, role, SoD and audit rules.
  */
 export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project']);

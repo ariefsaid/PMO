@@ -26,7 +26,7 @@ OAuth client would hand the same surface to any future non-owner client or MCP c
    `POST /rpc/set_project_contract_value`, `POST /rpc/transition_project` and `GET`/`POST` on
    `budget_versions` / `budget_line_items` pass only when `public.auth_role() = 'Admin'` and
    `public.is_active_member()`. The check runs only for those endpoints, inside the existing pre-request
-   function (migration `0234`). No new RPC, no new table, no new write path.
+   function (migration `0239`). No new RPC, no new table, no new write path.
 2. **`external_domain_ownership` becomes a read-only endpoint for every client**, so a load can tell
    whether ERPNext owns companies before it plans.
 3. **Everything else stays closed**, including for the Admin: PATCH/DELETE on budget tables,
@@ -51,5 +51,5 @@ next request. Other clients see no change.
 - The audit trail of a loaded won project shows its stage walk on the load date (the true record of a
   load), while `decided_at` carries the real contract date.
 
-**Reversibility (ADR-0006).** `supabase/migrations/rollback/0234_api_client_seed_surface_down.sql`
+**Reversibility (ADR-0006).** `supabase/migrations/rollback/0239_api_client_seed_surface_down.sql`
 restores `0222`'s function body. No table, column or data changes.
