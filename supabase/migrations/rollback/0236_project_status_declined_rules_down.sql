@@ -1,4 +1,4 @@
--- Rollback for 0233: restore 0183's transition_project and 0044's get_win_rate.
+-- Rollback for 0236: restore 0183's transition_project and 0044's get_win_rate.
 -- (Rows already 'Declined' keep that status; move them first if needed.)
 
 create or replace function transition_project(

@@ -1,4 +1,4 @@
--- 0233_project_declined_outcome.test.sql — #774
+-- 0236_project_declined_outcome.test.sql — #774
 -- AC-DEC-001: 'Declined' is a legal terminal outcome from every pre-award stage, stamps decided_at,
 --             is illegal from a won/on-hand stage, and may be revived to Negotiation (like Loss Tender).
 -- AC-DEC-002: Declined is excluded from the win-rate denominators and reported as declined_count.
