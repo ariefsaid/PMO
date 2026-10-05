@@ -3,6 +3,8 @@ import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatc
 import { poToBody, poFromDoc } from './bodies/purchaseOrder.ts';
 import { piToBody, piFromDoc, PI_FROM_DOC_FIELDS } from './bodies/purchaseInvoice.ts';
 import type { AdapterCommand } from '../contract.ts';
+import { dispatchMoneyWrite, type DispatchMoneyOutboxDeps, type OutboxRow } from '../dispatch.ts';
+import { canonicalCommandDigest } from '../../../../../supabase/functions/adapter-dispatch/moneyOutboxDeps.ts';
 
 type Row = Record<string, unknown>;
 type Kind = 'purchase-order' | 'purchase-invoice';
@@ -182,5 +184,37 @@ describe('purchase project dimensions and vendor references', () => {
 
   it('keeps the legacy posting date when ERP has no vendor bill date', () => {
     expect(piFromDoc({ name: 'SYNTHETIC-PI', posting_date: '2026-10-05' }).invoice_date).toBe('2026-10-05');
+  });
+});
+
+
+describe('AC-PRJ-003 persisted procurement command recovery', () => {
+  it.each(['committed', 'confirmed'] as const)('converges a %s document after a case project change without another ERP write', async (state) => {
+    const command: AdapterCommand = {
+      domain: 'procurement', operation: 'create', idempotencyKey: 'synthetic-recovery-key',
+      record: { id: 'pmo-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice', items: [ITEM] },
+    };
+    const fetchImpl = vi.fn();
+    await resolveErpDispatchAdapter({ serviceClient: client(), orgId: ORG, command,
+      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret' });
+    const persisted = structuredClone(command);
+    const digest = await canonicalCommandDigest(persisted);
+    const replay = structuredClone(persisted);
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: client({ ...CASE, project_id: null }), orgId: ORG, command: replay,
+      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+    });
+    const row: OutboxRow = { id: 'outbox-1', domain: 'procurement', pmoRecordId: 'pmo-1',
+      idempotencyKey: 'synthetic-recovery-key', state, externalRecordId: 'SYNTHETIC-PI',
+      canonical: { id: 'pmo-1', amount: '200.00' }, claimGeneration: 1, payloadDigest: digest };
+    const writeReadModel = vi.fn(async () => {});
+    const money = { readOutbox: vi.fn(async () => row),
+      payloadDigest: await canonicalCommandDigest(replay),
+      recordOutboxRef: vi.fn(async () => 1), confirmOutbox: vi.fn(async () => 1),
+    } as unknown as DispatchMoneyOutboxDeps;
+    await expect(dispatchMoneyWrite({ command: replay, adapter, money, writeReadModel,
+      recordExternalRef: vi.fn(async () => {}) })).resolves.toMatchObject({ externalRecordId: 'SYNTHETIC-PI' });
+    expect(writeReadModel).toHaveBeenCalledWith(row.canonical, { isReplay: true });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

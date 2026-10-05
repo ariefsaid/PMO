@@ -557,8 +557,6 @@ async function resolvePurchaseProjectRefs(
     if (error) throw new AppError(error.message, error.code);
     if (!data) throw new AppError('the procurement project reference is unavailable', 'cross-org-link-rejected');
     projectId = (data as { project_id?: string | null }).project_id ?? null;
-    // Include the authoritative project in the command the outbox persists and digests.
-    record.projectId = projectId;
   }
   if (!projectId) return { refs }; // Existing project-less cases remain valid.
   await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, 'projects', projectId);
