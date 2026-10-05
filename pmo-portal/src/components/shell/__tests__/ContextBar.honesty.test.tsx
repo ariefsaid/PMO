@@ -17,6 +17,9 @@ import { ContextBar } from '../ContextBar';
  * single account menu for the personal command).
  */
 
+vi.mock('@/src/components/shell/NotificationBell', () => ({
+  NotificationBell: () => <button type="button" aria-label="Notifications, 0 unread">Bell</button>,
+}));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager', canImpersonate: false, viewAs: vi.fn() }),
 }));
@@ -40,10 +43,9 @@ const renderBar = () =>
   );
 
 describe('ContextBar — dead-affordance honesty (B-5, AC-W2-IXD-008)', () => {
-  it('AC-W2-IXD-008: with agentAssistant off, no bell renders (no dead no-op affordance)', () => {
+  it('AC-W2-IXD-008: the bell renders for every user because it has a real inbox destination (#788)', () => {
     renderBar();
-    // The bell must not render as an interactive affordance (no aria-label containing "notification").
-    expect(screen.queryByRole('button', { name: /notification/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /notification/i })).toBeInTheDocument();
   });
 
   it('AC-W2-IXD-008: the ContextBar still has the core navigation affordances (regression guard)', async () => {
