@@ -5791,6 +5791,19 @@ export type Database = {
         Args: { p_at?: string; p_client_id: string; p_org: string }
         Returns: string
       }
+      notify_workflow_user: {
+        Args: {
+          p_body: string
+          p_entity_id: string
+          p_entity_type: string
+          p_label: string
+          p_org: string
+          p_owner: string
+          p_severity: string
+          p_title: string
+        }
+        Returns: undefined
+      }
       on_hand_project_statuses: { Args: never; Returns: string[] }
       operator_agent_run_stats: {
         Args: { p_org_id?: string }

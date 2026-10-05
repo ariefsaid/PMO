@@ -33,6 +33,8 @@ begin
   if new.status is not distinct from old.status then return new; end if;
   if new.status = 'Requested' and old.status = 'Draft' then
     -- Approver population = transition_procurement's Requested→Approved/Rejected arm (OD-PROC-1) minus the requester (SoD-a).
+    -- ⚑ MIRRORS the role list in public.transition_procurement (0180 — Admin short-circuits its role check;
+    -- Project Manager/Finance/Executive are its v_allowed_roles). A change there MUST change this list too.
     for r in select p.id from public.profiles p
               where p.org_id = new.org_id
                 and p.role in ('Admin','Project Manager','Finance','Executive')
@@ -43,10 +45,10 @@ begin
     end loop;
   elsif old.status = 'Requested' and new.status = 'Approved' then
     perform public.notify_workflow_user(new.org_id, new.requested_by_id, 'Your procurement was approved',
-      coalesce(new.approval_notes, new.title), 'info', 'procurement_case', new.id, new.title);
+      coalesce(nullif(btrim(new.approval_notes), ''), new.title), 'info', 'procurement_case', new.id, new.title);
   elsif old.status = 'Requested' and new.status = 'Rejected' then
     perform public.notify_workflow_user(new.org_id, new.requested_by_id, 'Your procurement was rejected',
-      coalesce(nullif(new.rejection_notes, ''), new.title), 'warning', 'procurement_case', new.id, new.title);
+      coalesce(nullif(btrim(new.rejection_notes), ''), new.title), 'warning', 'procurement_case', new.id, new.title);
   end if;
   return new;
 end; $$;
@@ -63,7 +65,8 @@ begin
   if new.status is not distinct from old.status then return new; end if;
   if new.status = 'Submitted' then
     select manager_id into v_mgr from public.profiles where id = new.user_id;
-    -- Mirrors transition_timesheet: assigned line manager; Admin break-glass; Executive only when no manager.
+    -- ⚑ MIRRORS the approver arm of public.transition_timesheet (0180): assigned line manager; Admin break-glass;
+    -- Executive only when the owner has no manager. A change there MUST change this predicate too.
     for r in select p.id from public.profiles p
               where p.org_id = new.org_id
                 and p.id <> new.user_id
