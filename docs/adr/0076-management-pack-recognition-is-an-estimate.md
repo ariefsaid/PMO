@@ -1,4 +1,4 @@
-# ADR-0075 — Management-pack revenue recognition is a PMO estimate over billing, not a ledger
+# ADR-0076 — Management-pack revenue recognition is a PMO estimate over billing, not a ledger
 
 - **Status:** Proposed (2026-10-06, issue #765)
 - **Related:** ADR-0048 (ERPNext is the accounting engine), ADR-0055 (external system is the source of
@@ -43,7 +43,7 @@ Option 2.
 
 - The pack equals the client's books for every project nobody has recorded progress on — the safe default.
 - "Unbilled" is a management judgement, visibly attributed (who/when per entry), not an accounting fact.
-  Anyone reading it as a contract asset in the GL is wrong; the page subtitle and ADR say so.
+  Anyone reading it as a contract asset in the GL is wrong; the page subtitle and this ADR say so.
 - No new money path, outbox command, SoD gate or ERP mapping.
 - Overwriting a month's entry keeps only the latest value (with its recorder). If audit history of
   estimates is later needed, add an append-only history table; the read path does not change.
