@@ -22,14 +22,22 @@ owner can make, (b) anything touching main/production. Do not stop between ticke
 - **Build:** ChatGPT sub-agents — luna-6 for bounded slices, sol-6.1 for money/ERP/agent tickets and anything
   with a migration + RLS. **Review:** pi `zai/glm-5.3-flash` on the PR diff (smoke: `pi-dispatch smoke zai glm-5.3-flash`).
 - **Concurrency limits (shared Mac, shared Docker DB, a second project runs tests here too):**
-  up to **4 builders** at once; at most **2 touching `supabase/`**; start another only if
-  `memory_pressure -Q` shows ≥ 25% free. Reviews run in parallel with the next build, not after it.
+  up to **4 builders** at once; at most **2 with a migration** (edge-function-only tickets don't count — their
+  Deno tests need no DB); start another only if `memory_pressure -Q` shows ≥ 25% free. Start the PMO stack with
+  `scripts/supabase-start-lean.sh` (a second project's stack also runs on this Mac). Reviews run in parallel
+  with the next build, not after it.
+- **There is ONE local PMO database; a sibling's `db reset` replaces your schema with theirs.** So a migration
+  ticket does everything that reads the DB inside ONE `with-db-lock.sh` hold, starting with its own reset:
+  `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && supabase test db <files>'`
+  — and the same for any render or e2e against local data (reset first, render, release). Never assume the DB
+  holds your schema outside a hold. Holds are ~2–5 min, so two migration tickets contend lightly.
 - **File overlap is NOT a blocker.** Worktrees isolate files; conflicts are settled at rebase. Block a ticket
   only on a real dependency (it needs another ticket's schema or API). Hot files on rebase:
   `pmo-portal/src/lib/supabase/database.types.ts` → regenerate, never hand-merge; migration number
   collision → `scripts/renumber-migration.sh <old> <new>`; locale JSON / route lists → keep both sides.
-- **Locks never stall a builder.** If `with-test-lock`/`with-db-lock` is held > 3 min, skip that local run,
-  push, and let CI decide (CI is the full gate, CLAUDE.md). Never run the full vitest suite locally.
+- **Locks never stall a builder.** The test lock is shared with another project: if it is held > 3 min, skip
+  that local vitest run, push, and let CI decide (CI is the full gate, CLAUDE.md). The DB lock is PMO-only
+  with short holds: wait up to 10 min, then push and let CI's pgTAP decide. Never run the full vitest suite locally.
 - **Timebox:** a bounded ticket goes from start to PR in ≤ 90 min wall. Past 2× that, stop and split, re-scope,
   or re-route it — don't let it grind.
 - Money / tax / approval / ERPNext-push / auth tickets: the builder gets the money-path primer in its brief;
@@ -74,8 +82,8 @@ reads it too. Ownership when two overlap: the CLAUDE.md "Skill ownership" table.
 ## Order — lanes, not a queue
 Priority order inside each lane; lanes run in parallel. Pull the next ticket from any lane as soon as a slot frees.
 - **Lane A — schema + seeding blockers (sol):** #771 → #797 → #770 → #769 → #774.
-- **Lane B — money / tax (sol, ≤ 1 migration ticket at a time with lane C):** #798 → #762 → #804 → #803 → #767 → #766 → #768 → #775.
-- **Lane C — ERPNext adapter + connection (sol):** #759 → #764 → #763 → #783 → #773 → #772.
+- **Lane B — money / tax (sol):** #798 → #762 → #804 → #803 → #767 → #766 → #768 → #775.
+- **Lane C — ERPNext adapter + connection (sol; mostly edge functions — if a ticket adds a migration it counts toward the 2):** #759 → #764 → #763 → #783 → #773 → #772.
 - **Lane D — FE-only and reports (luna):** #800, #801, #802, #776, #777, #789 (batch the small fixes two or three per PR
   when they touch different files) → #786 → #788 → #790 → #765.
 - **Lane E — when a slot is free:** #805 (BlockNote, start from tag `archive/spike-467-blocknote` and the meeting spec),
