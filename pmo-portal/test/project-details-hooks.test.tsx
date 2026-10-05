@@ -30,6 +30,10 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 // whole tree re-hosted. Held in its loading state so it contributes no text of its own — the
 // drawdown's own states are covered in ProjectDrawdown.test.tsx.
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null, default: () => null }));
+vi.mock('@/src/hooks/useRevenue', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));

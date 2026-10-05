@@ -863,7 +863,10 @@
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
     },
-    "title": "Dashboard Eksekutif"
+    "title": "Dashboard Eksekutif",
+    "winRate": {
+      "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+    }
   },
   "funnel": {
     "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
@@ -1559,6 +1562,18 @@
         "spend": "Pengeluaran",
         "title": "Ringkasan keuangan"
       },
+      "invoicing": {
+        "contract": "Nilai kontrak",
+        "error": "Total invoice gagal dimuat.",
+        "invoicedToDate": "Invoice sampai saat ini",
+        "loading": "Memuat total invoice…",
+        "remaining": "Sisa yang perlu ditagih",
+        "retry": "Coba lagi",
+        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk.",
+        "title": "Penagihan terhadap kontrak",
+        "unavailable": "Tidak tersedia",
+        "unavailableDetail": "Total invoice tidak dapat dibandingkan dengan mata uang atau basis pajak kontrak ini."
+      },
       "procSummary": {
         "closed": "Ditutup",
         "committedAcross": "<amount>{{amount}}</amount> terkomitmen di {{n}} {{unit}}",
@@ -1594,6 +1609,12 @@
       },
       "lostNotice": "Proyek ini ditandai kalah. Proyek sudah keluar dari pipeline aktif.",
       "markLost": "Tandai kalah",
+      "markDeclined": "Tidak ikut tender",
+      "declinedConfirm": {
+        "title": "Tidak ikut tender",
+        "body": "Ini mencatat {{project}} sebagai tidak diikuti: kami memilih tidak mengajukan penawaran. Proyek keluar dari pipeline aktif dan tidak dihitung dalam win rate.",
+        "confirm": "Tidak ikut tender"
+      },
       "markWon": "Tandai menang",
       "nextActionsHeading": "Tindakan berikutnya",
       "notSet": "Belum diisi",
@@ -2093,6 +2114,7 @@
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
       "lossTender": "Tender kalah",
+      "declined": "Tidak ikut tender",
       "internalProject": "Proyek internal"
     },
     "identifiers": {
@@ -2195,7 +2217,8 @@
       "tender": "Tender",
       "negotiation": "Negosiasi",
       "lost": "Kalah"
-    }
+    },
+    "lostCounts": "Kalah {{lost}} · Tidak ikut tender {{declined}}"
   },
   "shell": {
     "backBar": {

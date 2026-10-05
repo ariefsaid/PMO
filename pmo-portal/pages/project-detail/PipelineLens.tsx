@@ -100,7 +100,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // (no modal) — aligned to procurement + Tasks. Only the terminal/destructive `Mark lost`
   // opens a destructive confirm; `Mark won` keeps its inline SoD capture (that consequential
   // capture IS the confirm).
-  const [confirmAction, setConfirmAction] = useState<'lost' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'lost' | 'declined' | null>(null);
   const [showWonPanel, setShowWonPanel] = useState(false);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
@@ -113,6 +113,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   );
   const canWin = legalTargets.includes('Won, Pending KoM');
   const canLose = legalTargets.includes('Loss Tender');
+  const canDecline = legalTargets.includes('Declined');
   const nextStage = legalTargets.find((t) => PIPELINE_STATUSES.includes(t));
   const isTerminal = projectStatusGroup(liveStatus as never) !== 'pipeline';
 
@@ -218,7 +219,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     {
       label: t('projectDetail.pipeline.stat.decision', 'Decision'),
       // A revived deal (Loss Tender -> Negotiation) keeps its old loss decided_at; it is undecided again.
-      value: project.contract_date || (project.status === 'Loss Tender' && project.decided_at)
+      value: project.contract_date || ((project.status === 'Loss Tender' || project.status === 'Declined') && project.decided_at)
         ? formatDecisionDateNumeric(project)
         : t('projectDetail.pipeline.pending', 'Pending'),
     },
@@ -313,6 +314,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
                   <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
                     <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
                     {t('projectDetail.pipeline.markLost', 'Mark lost')}
+                  </Button>
+                )}
+                {canDecline && (
+                  <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('declined')}>
+                    <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground" />
+                    {t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
                   </Button>
                 )}
               </div>
@@ -449,6 +456,22 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         loading={pending}
         onCancel={() => setConfirmAction(null)}
         onConfirm={() => void runTransition('Loss Tender')}
+      />
+
+      {/* Decline to bid (#774): terminal pre-award outcome, kept out of win-rate denominators. */}
+      <ConfirmDialog
+        open={canTransition && confirmAction === 'declined'}
+        tone="destructive"
+        title={t('projectDetail.pipeline.declinedConfirm.title', 'Decline to bid')}
+        description={t(
+          'projectDetail.pipeline.declinedConfirm.body',
+          'This records {{project}} as declined: we chose not to bid. It leaves the active pipeline and is not counted against the win rate.',
+          { project: project.name },
+        )}
+        confirmLabel={t('projectDetail.pipeline.declinedConfirm.confirm', 'Decline to bid')}
+        loading={pending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => void runTransition('Declined')}
       />
     </div>
   );

@@ -6282,6 +6282,7 @@ export type Database = {
         | "On Hold"
         | "Close Out"
         | "Loss Tender"
+        | "Declined"
         | "Internal Project"
       task_priority: "Urgent" | "High" | "Normal" | "Low"
       task_status: "To Do" | "In Progress" | "Done" | "Blocked"
@@ -6473,6 +6474,7 @@ export const Constants = {
         "On Hold",
         "Close Out",
         "Loss Tender",
+        "Declined",
         "Internal Project",
       ],
       task_priority: ["Urgent", "High", "Normal", "Low"],
