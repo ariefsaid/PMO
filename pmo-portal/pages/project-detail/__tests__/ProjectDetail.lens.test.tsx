@@ -5,6 +5,8 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 /**
  * AC-IXD-PROJ-004 (Model B canonical route, ADR-0020) + AC-IXD-PROJ-008 (UNIFIED page, ADR-0021,
