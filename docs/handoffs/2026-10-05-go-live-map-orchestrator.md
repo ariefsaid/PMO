@@ -26,6 +26,21 @@ owner can make, (b) anything touching main/production. Do not stop between ticke
   with a mutation check (break the rule → a test must go red).
 - Brief file lists with **literal paths**, never globs. Keep briefs outside the worktree (the ADW commits the whole tree).
 
+## Ponytail — don't reinvent the wheel (binding on you and every sub-agent)
+Before writing anything, stop at the first rung that holds, and say which rung in the brief/PR:
+1. Does it need to exist? Speculative need → skip it, one line why.
+2. Does the codebase already do it? Search first (`scripts/prior-art.sh <term>`, `rg`). Reuse the shipped
+   primitives — `EntityFormModal`/`useEntityForm`/`TextField`/`SelectField`/`Combobox`/`ConfirmDialog`,
+   repositories in `src/lib/repositories/*`, `classifyMutationError`, the shared money/date formatters, the
+   Companies slice as the template. A second copy of an existing helper is a review failure.
+3. Platform / Postgres feature covers it? (native input, CSS, a constraint/trigger/RLS over app code).
+4. An already-installed dependency solves it? Use it. **No new dependency** without a line of justification
+   in the PR (BlockNote for #805 is already decided).
+5. Only then: the minimum code that works. No abstraction with one implementation, no config for a value
+   that never changes, no scaffolding "for later". Shortest working diff wins; deletion over addition.
+Never simplify away: validation at trust boundaries, RLS/SoD, error handling that prevents data loss,
+accessibility, tests. Mark deliberate shortcuts with a `ponytail:` comment naming the ceiling.
+
 ## Skills — use them, every ticket
 The repo ships skills in `.claude/skills/<name>/SKILL.md` (vendored, gitignored; if missing run
 `scripts/vendor-skills.sh`). Repo overrides live in `.claude/skill-overrides/<name>/` and win. Before a phase,
@@ -51,7 +66,8 @@ reads it too. Ownership when two overlap: the CLAUDE.md "Skill ownership" table.
 2. **Factory slices:** #771 (PMO-minted project number — needed for seeding), #797, #774, #770, #769,
    #800, #801, #802, #776, #777, #786, #788, #789, #790.
 3. **Director slices (money/ERPNext):** #798, #762, #804, #803, #759, #767, #764, #763, #768, #766,
-   #772, #773, #783, #765, #775, #787, #796.
+   #772, #773, #783, #765, #775, #787, #796, #805 (BlockNote minutes, per the meeting spec — use the spike tag
+   `archive/spike-467-blocknote` as the starting point, not a fresh design).
 4. **Last (owner: after the first client is live):** #784, #785.
 Re-read #791 between tickets; new sub-issues join the queue.
 
