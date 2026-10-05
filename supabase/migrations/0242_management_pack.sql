@@ -72,10 +72,10 @@ alter table public.project_progress_entries force row level security;
 create policy project_progress_entries_select on public.project_progress_entries for select
   using (org_id = public.auth_org_id() and public.is_active_member());
 create policy project_progress_entries_insert on public.project_progress_entries for insert
-  with check (org_id = public.auth_org_id() and public.may_record_project_progress(project_id));
+  with check (org_id = public.auth_org_id() and public.is_active_member() and public.may_record_project_progress(project_id));
 create policy project_progress_entries_update on public.project_progress_entries for update
-  using (org_id = public.auth_org_id() and public.may_record_project_progress(project_id))
-  with check (org_id = public.auth_org_id() and public.may_record_project_progress(project_id));
+  using (org_id = public.auth_org_id() and public.is_active_member() and public.may_record_project_progress(project_id))
+  with check (org_id = public.auth_org_id() and public.is_active_member() and public.may_record_project_progress(project_id));
 -- No DELETE policy and no DELETE grant: an estimate is corrected by re-recording, not removed.
 
 -- §5 grants — column-level so the witness columns stay server-owned. Hosted Supabase grants ALL on new
