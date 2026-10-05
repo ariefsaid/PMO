@@ -111,7 +111,7 @@ export async function listErpChangesSinceWatermark(
 ): Promise<{ changes: SweepChange[]; nextCursor: string | null }> {
   const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
   // Union the caller's fields with the routing-required ones (deduped, order-stable).
-  const fields = Array.from(new Set([...deps.fields, ...REQUIRED_FIELDS]));
+  const fields = Array.from(new Set([...deps.fields, ...REQUIRED_FIELDS.filter(field => deps.doctype !== 'Contact' || field !== 'amended_from')]));
   const filters: unknown[] = [];
   if (cursor !== null && cursor !== '') filters.push(['modified', '>=', cursor]);
   // Luna BLOCK A1: conjoin the caller's discriminator filters (e.g. payment_type='Receive' for
