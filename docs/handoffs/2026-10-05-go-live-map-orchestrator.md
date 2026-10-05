@@ -14,17 +14,27 @@ owner can make, (b) anything touching main/production. Do not stop between ticke
 6. Before any money ticket: `docs/money-path-primer.md`. Before any agent/LLM ticket: ADR-0050 + ADR-0052.
 7. `gh issue view 791` and `gh api repos/ariefsaid/PMO/issues/791/sub_issues` — the live ticket list.
 
-## Executors (owner directive)
-- **Build:** chatgpt subagents with luna-6 or sol-6.1 depending on task complexity. 
-- **Review:** pi with `zai/glm-5.3-flash` (cross-family to the builder).
-- Smoke slugs first: `pi-dispatch smoke zai glm-5.3-flash`.
-- For bounded slices use the factory: `uv run adws/adw_simple_sdlc.py <brief.md>` (`--builder fe_builder
-  --reviewer fe_reviewer` for UI). Point the roster at these models by editing
-  `adws/adw_sssf_config/sssf.config.yaml` yourself (builders → gpt-6-luna/xhigh, reviewer → glm-5.3-flash;
-  `fe_reviewer` must stay a multimodal codex model because it looks at renders). Agents cannot edit that file.
-- Money / tax / approval / ERPNext-push / auth tickets: Director-dispatched per issue (not the factory),
-  with a mutation check (break the rule → a test must go red).
-- Brief file lists with **literal paths**, never globs. Keep briefs outside the worktree (the ADW commits the whole tree).
+## Executors and throughput (owner directive, revised 2026-10-05)
+**Target: 4 tickets in flight, one PR merged every ~1–2 h. A single serial builder is the failure mode.**
+- **No ADW/SSSF for this brief.** Its fixed overhead (~25 min planning phase, serial phases, whole-tree
+  commits) costs more than these tickets. Dispatch builder sub-agents directly, one per ticket, each in its
+  own worktree.
+- **Build:** ChatGPT sub-agents — luna-6 for bounded slices, sol-6.1 for money/ERP/agent tickets and anything
+  with a migration + RLS. **Review:** pi `zai/glm-5.3-flash` on the PR diff (smoke: `pi-dispatch smoke zai glm-5.3-flash`).
+- **Concurrency limits (shared Mac, shared Docker DB, a second project runs tests here too):**
+  up to **4 builders** at once; at most **2 touching `supabase/`**; start another only if
+  `memory_pressure -Q` shows ≥ 25% free. Reviews run in parallel with the next build, not after it.
+- **File overlap is NOT a blocker.** Worktrees isolate files; conflicts are settled at rebase. Block a ticket
+  only on a real dependency (it needs another ticket's schema or API). Hot files on rebase:
+  `pmo-portal/src/lib/supabase/database.types.ts` → regenerate, never hand-merge; migration number
+  collision → `scripts/renumber-migration.sh <old> <new>`; locale JSON / route lists → keep both sides.
+- **Locks never stall a builder.** If `with-test-lock`/`with-db-lock` is held > 3 min, skip that local run,
+  push, and let CI decide (CI is the full gate, CLAUDE.md). Never run the full vitest suite locally.
+- **Timebox:** a bounded ticket goes from start to PR in ≤ 90 min wall. Past 2× that, stop and split, re-scope,
+  or re-route it — don't let it grind.
+- Money / tax / approval / ERPNext-push / auth tickets: the builder gets the money-path primer in its brief;
+  you add a mutation check (break the rule → a test must go red) before merge.
+- Briefs: literal file paths, the ticket's ACs, the skills to read, the ponytail rule. Keep briefs outside the worktree.
 
 ## Ponytail — don't reinvent the wheel (binding on you and every sub-agent)
 Before writing anything, stop at the first rung that holds, and say which rung in the brief/PR:
@@ -61,31 +71,38 @@ reads it too. Ownership when two overlap: the CLAUDE.md "Skill ownership" table.
 | Codebase health | `improve-codebase-architecture`, `codebase-design` — file findings as issues, never drive-by refactors |
 | Ship / handoff | `pr`, `handoff` (if you must pass the work on), `writing-for-agents` (sub-agent briefs), `retro` at the end of the map |
 
-## Order
-1. Nothing in flight (#781 merged as `c20add21`).
-2. **Factory slices:** #771 (PMO-minted project number — needed for seeding), #797, #774, #770, #769,
-   #800, #801, #802, #776, #777, #786, #788, #789, #790.
-3. **Director slices (money/ERPNext):** #798, #762, #804, #803, #759, #767, #764, #763, #768, #766,
-   #772, #773, #783, #765, #775, #787, #796, #805 (BlockNote minutes, per the meeting spec — use the spike tag
-   `archive/spike-467-blocknote` as the starting point, not a fresh design).
-4. **Last (owner: after the first client is live):** #784, #785. #806 (redesign) is an owner ticket — not yours to start.
-Re-read #791 between tickets; new sub-issues join the queue.
+## Order — lanes, not a queue
+Priority order inside each lane; lanes run in parallel. Pull the next ticket from any lane as soon as a slot frees.
+- **Lane A — schema + seeding blockers (sol):** #771 → #797 → #770 → #769 → #774.
+- **Lane B — money / tax (sol, ≤ 1 migration ticket at a time with lane C):** #798 → #762 → #804 → #803 → #767 → #766 → #768 → #775.
+- **Lane C — ERPNext adapter + connection (sol):** #759 → #764 → #763 → #783 → #773 → #772.
+- **Lane D — FE-only and reports (luna):** #800, #801, #802, #776, #777, #789 (batch the small fixes two or three per PR
+  when they touch different files) → #786 → #788 → #790 → #765.
+- **Lane E — when a slot is free:** #805 (BlockNote, start from tag `archive/spike-467-blocknote` and the meeting spec),
+  #787 (assistant; ADR-0050/0052 eval harness is the gate), #796 (CLI).
+- **Not yours:** #784, #785 (after the first client is live), #795 and #806 (owner tickets).
+Re-read #791 every couple of hours; new sub-issues join the matching lane.
 
 ## Per-ticket loop
 1. `git fetch origin && git worktree add .claude/worktrees/<n> -b <type>/<n>-<slug> origin/dev`;
    symlink `pmo-portal/node_modules` from the main checkout. Sub-agents run **no git**; you do all git.
-2. Spec/plan only if the ticket needs one (`docs/specs/`, `docs/plans/`); EARS + `AC-###` Given/When/Then.
+2. **No spec/plan documents when the ticket already has ACs** (most do) — put a 5–10 line plan in the PR body.
+   A spec only for #803, #766, #775, #787 (EARS + `AC-###` Given/When/Then); #805 already has one.
 3. Build TDD (failing test first). Each AC owned by one test at the lowest layer (Vitest / pgTAP / e2e), AC id in the test title.
-4. Review: spec + code quality + security (RLS, `org_id`, SoD) — every ticket.
-5. Local gate: `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`,
-   `scripts/with-test-lock.sh npx vitest run --changed origin/dev`, touched pgTAP under
-   `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'` (reset only if migrations/seed changed).
-   UI tickets: render and check light/dark, 1440 and 375, no horizontal scroll.
-6. Commit, push, `gh pr create --base dev --head <branch>`; confirm `headRefOid` equals your tip.
-7. Wait for CI (`gh pr checks <pr>`). Changed-lines coverage ≥ 80%. Red → fix the code, never the test.
-8. `gh pr merge <pr> --squash --match-head-commit <sha>`; verify the merge commit is on `origin/dev`;
-   close the issue; remove the worktree (`git worktree remove`, never `--force`), delete local + remote branch.
+4. Local gate, targeted only: `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`,
+   `npx vitest run <touched test files>` (or `--changed origin/dev` if the lock is free), touched pgTAP only
+   when the ticket changes `supabase/` (`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'`).
+   UI tickets: one batched render pass — light/dark, 1440 and 375, no horizontal scroll — plus `impeccable detect`.
+   No local e2e beyond the ticket's own new journey; no `scripts/ci-e2e.sh` unless the shared shell changed.
+5. Commit, push, `gh pr create --base dev --head <branch>`; confirm `headRefOid` equals your tip.
+6. Review on the PR diff (GLM via pi: spec + quality + security in one pass; money tickets get a separate
+   security pass) **while CI runs and the next build starts**. Fix findings on the same branch.
+7. CI green (`gh pr checks <pr>`; changed-lines coverage ≥ 80%). Red → fix the code, never the test.
+8. Merge immediately: `gh pr merge <pr> --squash --match-head-commit <sha>`; verify the merge commit is on
+   `origin/dev`; close the issue; remove the worktree (never `--force`); delete local + remote branch.
+   Other open branches rebase onto the new `dev` before their next push.
 9. Docs-only changes push straight to `dev` (no PR).
+10. Every ~2 h, one status line per lane to the owner: merged, in flight (with % and blocker), next.
 
 ## Hard rules (never break)
 - **Production:** never push/deploy/promote to `production`, push the hosted DB (`db-push-prod.sh`),
