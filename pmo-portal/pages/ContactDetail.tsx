@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -84,9 +85,9 @@ const ContactDetail: React.FC = () => {
   const canArchive = may('archive', 'contact');
 
   const companies = useMemo(() => companyData ?? [], [companyData]);
-  const companyById = useMemo(() => new Map(companies.map((c) => [c.id, c.name])), [companies]);
+  const companyById = useMemo(() => new Map(companies.map((c) => [c.id, companyDisplayName(c)])), [companies]);
   const companyOptions = useMemo(
-    () => companies.map((c) => ({ value: c.id, label: c.name })),
+    () => companies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
     [companies],
   );
 

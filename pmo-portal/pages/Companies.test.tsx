@@ -39,6 +39,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import Companies from './Companies';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const seed = [
   { id: 'c1', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
@@ -95,6 +96,7 @@ beforeEach(() => {
     m.isPending = false;
   });
   realRole = 'Admin';
+  clearOwnershipCache();
 });
 
 describe('Companies index — shared ListPage shell (CW-5)', () => {
@@ -423,4 +425,43 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
     await waitFor(() => expect(main.scrollTop).toBe(300));
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
+});
+
+
+describe('company short names', () => {
+  it('AC-NICK-001: lists prefer the short name and search matches short and legal names', async () => {
+    listState.data = [{ ...seed[0], short_name: 'Example' }, seed[1]];
+    renderPage();
+    expect(screen.getByText('Example')).toBeInTheDocument();
+    expect(screen.getByText(seed[1].name)).toBeInTheDocument();
+    const search = screen.getByLabelText(/Search companies/i);
+    await userEvent.type(search, 'cascade');
+    expect(screen.getByText('Example')).toBeInTheDocument();
+    expect(screen.queryByText(seed[1].name)).not.toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, 'example');
+    expect(screen.getByText('Example')).toBeInTheDocument();
+  });
+
+  it('externally-owned legal name stays disabled while the short name can be saved', async () => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    renderPage();
+    await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    expect(screen.getByLabelText(/Company name/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^Type/i)).toBeDisabled();
+    await userEvent.type(screen.getByLabelText(/Short name/i), 'Example');
+    await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: seed[0].id, input: { name: seed[0].name, type: 'Client', short_name: 'Example' } }));
+  });
+});
+
+
+it('standalone company creation persists a trimmed optional nickname', async () => {
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: /New company/i }));
+  await userEvent.type(screen.getByLabelText(/Company name/i), 'Example Legal Company');
+  await userEvent.type(screen.getByLabelText(/Short name/i), ' Example ');
+  await userEvent.click(screen.getByRole('button', { name: /^Create company$/i }));
+  await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalledWith({ name: 'Example Legal Company', type: 'Client', short_name: 'Example' }));
 });

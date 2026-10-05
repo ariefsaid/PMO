@@ -66,6 +66,8 @@ export interface PipelineProject {
   id: string;
   name: string;
   client_name: string | null;
+  client_legal_name?: string | null;
+  end_client_legal_name?: string | null;
   /**
    * The deal's END customer name (companies.end_client_id resolution, #758) — the company the
    * work is ultimately for, which may differ from the invoiced client. Populated for both open

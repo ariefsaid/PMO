@@ -28,9 +28,9 @@ export type ProjectStatus = ProjectRow['status'];
 
 /** A project row with client + PM names resolved in SQL (kills render-time .find(), F-7). */
 export type ProjectWithRefs = ProjectRow & {
-  client: { name: string } | null;
+  client: { name: string; short_name?: string | null } | null;
   /** The end customer, when set (#758) — a nullable FK resolved by name in SQL. */
-  end_client: { name: string } | null;
+  end_client: { name: string; short_name?: string | null } | null;
   pm: { full_name: string } | null;
 };
 
@@ -48,7 +48,7 @@ export type ProjectWithRefs = ProjectRow & {
 // EVERY company embed here MUST be FK-qualified or PostgREST returns PGRST201. The guard in
 // supabase/tests asserts the schema stays multi-FK for both pairs (AC-EMBED-001/002/003).
 const SELECT =
-  '*, client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
+  '*, client:companies!projects_client_id_fkey(name, short_name), end_client:companies!projects_end_client_id_fkey(name, short_name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {

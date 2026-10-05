@@ -47,6 +47,11 @@ const base = {
 } as unknown as ProjectWithRefs;
 
 describe('ProjectCard', () => {
+  it('displays the client short name in a project card (references AC-NICK-001)', () => {
+    render(<ProjectCard project={{ ...base, client: { name: 'Example Legal Company', short_name: 'Example' } }} onOpen={vi.fn()} />);
+    expect(screen.getByText('Example')).toBeInTheDocument();
+    expect(screen.queryByText('Example Legal Company')).not.toBeInTheDocument();
+  });
   it('renders the project name, customer, contract value and PM (AC-401 strings)', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();

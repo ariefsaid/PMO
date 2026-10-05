@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
@@ -59,13 +60,13 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
             <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
           </RailSectionLabel>
           <dl className="divide-y divide-border/70 border-y border-border/70">
-            <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client?.name ?? notSet} />
+            <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client ? companyDisplayName(project.client) : notSet} />
             {/* #758: the end customer shows ONLY when set — an optional value, so an unset one
                 is omitted rather than rendered as "Not set". */}
             {project.end_client && (
               <DetailRow
                 label={t('projectDetail.rail.endCustomer', 'End customer')}
-                value={project.end_client.name}
+                value={companyDisplayName(project.end_client)}
               />
             )}
             <DetailRow

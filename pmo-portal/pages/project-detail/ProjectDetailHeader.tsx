@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
@@ -143,7 +144,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const canEditValue = may('editContractValue', 'project', { record: { status } });
 
   const meta = [
-    project.client?.name ?? null,
+    project.client ? companyDisplayName(project.client) : null,
     project.code ? `· ${project.code}` : null,
     project.customer_contract_ref
       ? `· ${

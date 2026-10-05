@@ -1,3 +1,5 @@
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -214,8 +216,8 @@ const CompanyDetail: React.FC = () => {
       {/* The ONE RecordHeader anatomy — icon + name + categorical company-type pill (CW-2
           registry) + the role-allowed action zone (Edit + Archive). */}
       <RecordHeader
-        name={company.name}
-        icon={(company.name.trim().charAt(0) || '•').toUpperCase()}
+        name={companyDisplayName(company)}
+        icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
         status={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
         actions={
           hasActions ? (
@@ -241,6 +243,7 @@ const CompanyDetail: React.FC = () => {
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Field label={t('companyDetail.field.name', 'Name')} value={company.name} />
+            <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name || '—'} />
             <Field label={t('companyDetail.field.type', 'Type')} value={company.type} />
             {/* T18: Primary contact link — rendered in the account card when contacts exist. */}
             <PrimaryContactField companyId={company.id} />
@@ -285,7 +288,7 @@ const CompanyDetail: React.FC = () => {
       {addContactOpen && (
         <AddContactForCompanyModal
           companyId={company.id}
-          companyName={company.name}
+          companyName={companyDisplayName(company)}
           onClose={() => setAddContactOpen(false)}
           onSuccess={() => {
             setAddContactOpen(false);
@@ -1177,6 +1180,7 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
 
 interface FormValues {
   name: string;
+  short_name: string;
   type: CompanyType;
 }
 
@@ -1190,16 +1194,17 @@ const makeValidate =
   };
 
 interface CompanyEditModalProps {
-  company: { id: string; name: string; type: CompanyType };
+  company: { id: string; name: string; short_name?: string | null; type: CompanyType };
   onClose: () => void;
   onUpdate: (id: string, input: CompanyInput) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
 const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, onUpdate, onError }) => {
+  const nativeReadOnly = company.type !== 'Internal' && routeDomainWrite('companies') === 'external';
   const { t } = useTranslation();
   const form = useEntityForm<FormValues>({
-    initialValues: { name: company.name, type: company.type },
+    initialValues: { name: company.name, short_name: company.short_name ?? '', type: company.type },
     validate: makeValidate(t),
     idPrefix: 'company-form',
     requiredFields: ['name'],
@@ -1207,6 +1212,7 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
   });
 
   const nameField = form.fieldProps('name');
+  const shortNameField = form.fieldProps('short_name');
   const typeField = form.fieldProps('type');
 
   const errorSummary = form.errors.name
@@ -1216,7 +1222,13 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const input: CompanyInput = { name: values.name.trim(), type: values.type };
+      const input: CompanyInput = {
+        name: values.name.trim(),
+        type: values.type,
+        ...(nativeReadOnly || values.short_name.trim() || company?.short_name
+          ? { short_name: values.short_name.trim() || null }
+          : {}),
+      };
       try {
         await onUpdate(company.id, input);
       } catch (err) {
@@ -1241,6 +1253,7 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
       <FormSection legend={t('companyDetail.editCompany.legendIdentity', 'Identity')}>
         <FormGrid>
           <TextField
+            disabled={nativeReadOnly}
             id={nameField.id}
             label={t('companyDetail.field.companyName', 'Company name')}
             required
@@ -1252,7 +1265,17 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
             autoComplete="organization"
             fullWidth
           />
+          <TextField
+            id={shortNameField.id}
+            label={t('companies.form.shortName.label', 'Short name')}
+            helper={t('companies.form.shortName.hint', 'Optional display name used across PMO. The legal name stays unchanged.')}
+            value={shortNameField.value}
+            onChange={shortNameField.onChange}
+            onBlur={shortNameField.onBlur}
+            fullWidth
+          />
           <SelectField
+            disabled={nativeReadOnly}
             id={typeField.id}
             label={t('companyDetail.field.type', 'Type')}
             required

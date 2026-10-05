@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
@@ -175,7 +176,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       variant="grid"
       initial={(project.name.trim().charAt(0) || '•').toUpperCase()}
       name={project.name}
-      client={project.client?.name ?? null}
+      client={project.client ? companyDisplayName(project.client) : null}
       clientId={project.client_id}
       code={project.code}
       status={

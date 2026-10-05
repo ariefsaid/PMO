@@ -54,6 +54,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import CompanyDetail from './CompanyDetail';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 // list-working-set-return (#683): reads the URL a Companies-index Route landed on, so a return
 // test can tell "the bare index" apart from "the SAME filtered/searched URL".
@@ -111,6 +112,7 @@ const renderPageWithReturnContext = (role: Role = 'Admin') => {
 };
 
 beforeEach(() => {
+  clearOwnershipCache();
   detailState.data = company;
   detailState.isPending = false;
   detailState.isError = false;
@@ -282,4 +284,16 @@ describe('CompanyDetail — list-return context (AC-LRC-006)', () => {
     await userEvent.click(screen.getByRole('button', { name: /back to companies/i }));
     expect(screen.getByTestId('companies-index-probe').textContent).toBe('Companies index');
   });
+});
+
+
+it('company detail edits the local short name while legal identity stays read-only on an external company', async () => {
+  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+  const dialog = await screen.findByRole('dialog', { name: /edit company/i });
+  expect(within(dialog).getByLabelText(/company name/i)).toBeDisabled();
+  await userEvent.type(within(dialog).getByLabelText(/short name/i), 'Example');
+  await userEvent.click(within(dialog).getByRole('button', { name: /save company/i }));
+  expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: company.id, input: { name: company.name, type: 'Client', short_name: 'Example' } });
 });

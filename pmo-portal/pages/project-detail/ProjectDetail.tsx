@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -379,9 +380,9 @@ const ProjectDetail: React.FC = () => {
             code: project.code,
             client_id: project.client_id,
             project_manager_id: project.project_manager_id,
-            clientName: project.client?.name ?? null,
+            clientName: project.client ? companyDisplayName(project.client) : null,
             end_client_id: project.end_client_id,
-            endClientName: project.end_client?.name ?? null,
+            endClientName: project.end_client ? companyDisplayName(project.end_client) : null,
             pmName: project.pm?.full_name ?? null,
             start_date: project.start_date,
             end_date: project.end_date,

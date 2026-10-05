@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
@@ -212,7 +213,11 @@ const Projects: React.FC = () => {
         (p) =>
           !q ||
           p.name.toLowerCase().includes(q) ||
-          (p.code ?? '').toLowerCase().includes(q),
+          (p.code ?? '').toLowerCase().includes(q) ||
+          (p.client?.name ?? '').toLowerCase().includes(q) ||
+          (p.client?.short_name ?? '').toLowerCase().includes(q) ||
+          (p.end_client?.name ?? '').toLowerCase().includes(q) ||
+          (p.end_client?.short_name ?? '').toLowerCase().includes(q),
       );
     // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
@@ -251,7 +256,7 @@ const Projects: React.FC = () => {
   const customerFilterOptions = useMemo(
     () => [
       { value: 'All', label: t('projects.filters.allCustomers', 'All customers') },
-      ...clientCompanies.map((c) => ({ value: c.id, label: c.name })),
+      ...clientCompanies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
     ],
     [clientCompanies, t],
   );
@@ -260,7 +265,7 @@ const Projects: React.FC = () => {
   const endCustomerFilterOptions = useMemo(
     () => [
       { value: 'All', label: t('projects.filters.allEndCustomers', 'All end customers') },
-      ...allCompanies.map((c) => ({ value: c.id, label: c.name })),
+      ...allCompanies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
     ],
     [allCompanies, t],
   );
@@ -431,7 +436,7 @@ const Projects: React.FC = () => {
     {
       key: 'customer',
       header: t('projects.columns.customer', 'Customer'),
-      exportValue: (p) => p.client?.name ?? '',
+      exportValue: (p) => p.client ? companyDisplayName(p.client) : '',
       // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
       // can navigate directly to the client record. stopPropagation prevents the
       // row's own click handler (which opens the project detail) from firing when
@@ -440,7 +445,7 @@ const Projects: React.FC = () => {
         <div onClick={(e) => e.stopPropagation()}>
           <CompanyNameLink
             companyId={p.client_id}
-            name={p.client?.name ?? null}
+            name={p.client ? companyDisplayName(p.client) : null}
             className="text-[13px]"
           />
         </div>
@@ -453,12 +458,12 @@ const Projects: React.FC = () => {
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
       header: t('projects.columns.endCustomer', 'End customer'),
-      exportValue: (p) => p.end_client?.name ?? '',
+      exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()}>
           <CompanyNameLink
             companyId={p.end_client_id}
-            name={p.end_client?.name ?? null}
+            name={p.end_client ? companyDisplayName(p.end_client) : null}
             className="text-[13px]"
           />
         </div>
@@ -1201,9 +1206,9 @@ const Projects: React.FC = () => {
             code: editTarget.code,
             client_id: editTarget.client_id,
             project_manager_id: editTarget.project_manager_id,
-            clientName: editTarget.client?.name ?? null,
+            clientName: editTarget.client ? companyDisplayName(editTarget.client) : null,
             end_client_id: editTarget.end_client_id,
-            endClientName: editTarget.end_client?.name ?? null,
+            endClientName: editTarget.end_client ? companyDisplayName(editTarget.end_client) : null,
             pmName: editTarget.pm?.full_name ?? null,
             start_date: editTarget.start_date,
             end_date: editTarget.end_date,

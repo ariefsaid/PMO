@@ -53,9 +53,9 @@ export type OpportunityRow = Pick<
   Tables<'projects'>,
   (typeof OPPORTUNITY_COLUMNS)[number]
 > & {
-  client: { name: string } | null;
+  client: { name: string; short_name?: string | null } | null;
   /** The end customer, when set (#758) — nullable like client. */
-  end_client: { name: string } | null;
+  end_client: { name: string; short_name?: string | null } | null;
   pm: { full_name: string } | null;
 };
 
@@ -66,7 +66,7 @@ const SELECT =
   // migration 0223) and TWO to `profiles` (project_manager_id + contract_value_set_by), and
   // PostgREST rejects an ambiguous embed. This is the PRE-WIN fallback path, so leaving any of
   // these unqualified breaks the canonical detail route for every pipeline record.
-  'client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
+  'client:companies!projects_client_id_fkey(name, short_name), end_client:companies!projects_end_client_id_fkey(name, short_name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Fetch one opportunity by id, or null when absent / not visible to the caller. */
 export async function getOpportunity(id: string): Promise<OpportunityRow | null> {

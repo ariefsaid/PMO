@@ -152,7 +152,9 @@ const SalesPipeline: React.FC = () => {
       (p) =>
         p.name.toLowerCase().includes(q) ||
         (p.client_name ?? '').toLowerCase().includes(q) ||
-        (p.end_client_name ?? '').toLowerCase().includes(q),
+        (p.end_client_name ?? '').toLowerCase().includes(q) ||
+        (p.client_legal_name ?? '').toLowerCase().includes(q) ||
+        (p.end_client_legal_name ?? '').toLowerCase().includes(q),
     );
   }, [openProjects, lost, scope, search, selectedStatus]);
 
@@ -394,7 +396,9 @@ const SalesPipeline: React.FC = () => {
       (p) =>
         p.name.toLowerCase().includes(q) ||
         (p.client_name ?? '').toLowerCase().includes(q) ||
-        (p.end_client_name ?? '').toLowerCase().includes(q),
+        (p.end_client_name ?? '').toLowerCase().includes(q) ||
+        (p.client_legal_name ?? '').toLowerCase().includes(q) ||
+        (p.end_client_legal_name ?? '').toLowerCase().includes(q),
     );
   }, [kanbanProjects, search]);
 

@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
@@ -92,11 +93,11 @@ const Contacts: React.FC = () => {
 
   const companies = useMemo(() => companyData ?? [], [companyData]);
   const companyById = useMemo(
-    () => new Map(companies.map((c) => [c.id, c.name])),
+    () => new Map(companies.map((c) => [c.id, companyDisplayName(c)])),
     [companies],
   );
   const companyOptions = useMemo(
-    () => companies.map((c) => ({ value: c.id, label: c.name })),
+    () => companies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
     [companies],
   );
   // Spec decision 6: a `?company=` naming no company this user can see (archived, deleted, or

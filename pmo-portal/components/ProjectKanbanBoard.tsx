@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 /**
  * ProjectKanbanBoard — Projects index kanban view grouped by lifecycle status.
  *
@@ -121,7 +122,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       variant="kanban"
       initial={initial}
       name={project.name}
-      client={project.client?.name ?? null}
+      client={project.client ? companyDisplayName(project.client) : null}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
           {project.status}

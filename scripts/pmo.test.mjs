@@ -974,3 +974,21 @@ test('AC-EC-004 projects accept end_client_id and send it in the body like any p
     guardWritePayload('projects', { end_client_id: '75800000-0000-0000-0000-0000000000a1' }, 'update'),
   );
 });
+
+
+test('company short name crosses the CLI write seam separately from its legal name (references AC-NICK-003)', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const create = await runCli(['create', 'companies', '{"name":"Example Legal Company","type":"Client","short_name":"Example"}', '--url', fake.url], { configDir });
+    assert.equal(create.code, 0, create.err);
+    assert.deepEqual(create.json, [{ name: 'Example Legal Company', type: 'Client', short_name: 'Example' }]);
+    const update = await runCli(['update', 'companies', '--filter', 'id=eq.c1', '{"short_name":"Example Two"}', '--url', fake.url], { configDir });
+    assert.equal(update.code, 0, update.err);
+    assert.deepEqual(update.json, [{ short_name: 'Example Two' }]);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});

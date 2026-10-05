@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
@@ -245,9 +246,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     if (clientsError) throw new Error('client load failed');
     return clients.map((c) => ({
       value: c.id,
-      label: c.name,
-      sub: t('companies.type.client', 'Client'),
-      initials: initialsOf(c.name),
+      label: companyDisplayName(c),
+      sub: c.short_name ? c.name : t('companies.type.client', 'Client'),
+      initials: initialsOf(companyDisplayName(c)),
       color: projectIconColor(),
     }));
   };
@@ -266,9 +267,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     if (endCustomersError) throw new Error('end customer load failed');
     return allCompanies.map((c) => ({
       value: c.id,
-      label: c.name,
-      sub: t(`companies.type.${c.type.toLowerCase()}`, c.type),
-      initials: initialsOf(c.name),
+      label: companyDisplayName(c),
+      sub: c.short_name ? c.name : t(`companies.type.${c.type.toLowerCase()}`, c.type),
+      initials: initialsOf(companyDisplayName(c)),
       color: projectIconColor(),
     }));
   };

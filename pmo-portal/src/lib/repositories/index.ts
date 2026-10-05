@@ -45,6 +45,7 @@ import {
   getCompany,
   createCompany,
   updateCompany,
+  updateCompanyShortName,
   archiveCompany,
   deleteCompany,
   type CompanyRow,
@@ -354,23 +355,31 @@ const company: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
   list: (params) => wrap(() => listCompanies(params)),
   get: (id) => wrap(() => getCompany(id)),
-  create: (input) => {
+  create: async (input) => {
     const kind = erpPartyDocKind(input.type);
-    return routeDomainWrite('companies') === 'external' && kind
-      ? dispatchCreate('companies', { ...input, erp_doc_kind: kind }, undefined)
-          .then((res) => res.canonical as unknown as CompanyRow)
-      : wrap(() => createCompany(input));
+    if (routeDomainWrite('companies') !== 'external' || !kind) return wrap(() => createCompany(input));
+    const { short_name, ...native } = input;
+    const res = await dispatchCreate('companies', { ...native, erp_doc_kind: kind }, undefined);
+    const row = res.canonical as unknown as CompanyRow;
+    if (short_name !== undefined) {
+      await wrap(() => updateCompanyShortName(row.id, short_name));
+      return { ...row, short_name: short_name?.trim() || null };
+    }
+    return row;
   },
-  update: (id, input) => {
+  update: async (id, input) => {
     const kind = erpPartyDocKind(input.type);
-    return routeDomainWrite('companies') === 'external' && kind
-      ? dispatchDomainCommand(
-          'companies',
-          'update',
-          { id, ...input, erp_doc_kind: kind },
-          keyFor(),
-        ).then(() => undefined)
-      : wrap(() => updateCompany(id, input));
+    if (routeDomainWrite('companies') !== 'external' || !kind) return wrap(() => updateCompany(id, input));
+    const shortName = input.short_name;
+    if (shortName !== undefined) {
+      const current = await wrap(() => getCompany(id));
+      if (!current) throw new AppError('Company not found or you do not have permission to edit it.', '42501');
+      if (current.name !== input.name || current.type !== input.type) {
+        throw new AppError('Company legal name and type are read-only while externally-owned.', '42501');
+      }
+      return wrap(() => updateCompanyShortName(id, shortName));
+    }
+    await dispatchDomainCommand('companies', 'update', { id, ...input, erp_doc_kind: kind }, keyFor());
   },
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
