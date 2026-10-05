@@ -133,3 +133,35 @@ Deno.test({
     assertEquals(companies.get('pmo-swept-1')?.name, 'PT Example');
   },
 });
+
+Deno.test('same-name adoption narrows a tax match before recording the party mapping', async () => {
+  const { deps, companies, externalRefs, counts } = makeFakeState();
+  deps.findCandidates = async () => [
+    { pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' },
+    { pmoRecordId: 'pmo-matching', taxId: 'TAX-TEST-1' },
+  ];
+  const result = await onboardParties([
+    { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
+  ], deps);
+  assertEquals(result, { adopted: 1, reconciled: 0 });
+  assertEquals([...companies.keys()], ['pmo-matching']);
+  assertEquals(externalRefs.get('Supplier:ERP-TEST-001'), 'pmo-matching');
+  assertEquals(counts(), { insertCount: 1, updateCount: 0, recordRefCount: 1 });
+});
+
+Deno.test('conflicting same-name tax ID requires action before any mirror or mapping write', async () => {
+  const { deps, companies, externalRefs, counts } = makeFakeState();
+  deps.findCandidates = async () => [{ pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' }];
+  let failure: unknown;
+  try {
+    await onboardParties([
+      { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
+    ], deps);
+  } catch (error) {
+    failure = error;
+  }
+  assertEquals((failure as { code?: string } | undefined)?.code, 'action-required');
+  assertEquals(counts(), { insertCount: 0, updateCount: 0, recordRefCount: 0 });
+  assertEquals(companies.size, 0);
+  assertEquals(externalRefs.size, 0);
+});
