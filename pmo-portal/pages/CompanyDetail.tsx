@@ -86,7 +86,7 @@ const CompanyDetail: React.FC = () => {
   const { toast } = useToast();
 
   const query = useCompany(companyId);
-  const { update, archive } = useCompanyMutations();
+  const { update, setProjectNumberSegment, archive } = useCompanyMutations();
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -245,6 +245,12 @@ const CompanyDetail: React.FC = () => {
             <Field label={t('companyDetail.field.name', 'Name')} value={company.name} />
             <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name || '—'} />
             <Field label={t('companyDetail.field.type', 'Type')} value={company.type} />
+            {company.client_number_segment && (
+              <Field
+                label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
+                value={<span className="font-mono">{company.client_number_segment}</span>}
+              />
+            )}
             {/* T18: Primary contact link — rendered in the account card when contacts exist. */}
             <PrimaryContactField companyId={company.id} />
           </dl>
@@ -303,8 +309,9 @@ const CompanyDetail: React.FC = () => {
         <CompanyEditModal
           company={company}
           onClose={() => setEditOpen(false)}
-          onUpdate={async (id, input) => {
+          onUpdate={async (id, input, segment) => {
             await update.mutateAsync({ id, input });
+            await setProjectNumberSegment.mutateAsync({ id, segment });
             toast(t('companyDetail.toast.updated', 'Company updated'), input.name, 'success');
             setEditOpen(false);
           }}
@@ -1182,6 +1189,7 @@ interface FormValues {
   name: string;
   short_name: string;
   type: CompanyType;
+  clientNumberSegment: string;
 }
 
 const makeValidate =
@@ -1194,9 +1202,9 @@ const makeValidate =
   };
 
 interface CompanyEditModalProps {
-  company: { id: string; name: string; short_name?: string | null; type: CompanyType };
+  company: { id: string; name: string; short_name?: string | null; type: CompanyType; client_number_segment?: string | null };
   onClose: () => void;
-  onUpdate: (id: string, input: CompanyInput) => Promise<void>;
+  onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -1204,7 +1212,7 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
   const nativeReadOnly = company.type !== 'Internal' && routeDomainWrite('companies') === 'external';
   const { t } = useTranslation();
   const form = useEntityForm<FormValues>({
-    initialValues: { name: company.name, short_name: company.short_name ?? '', type: company.type },
+    initialValues: { name: company.name, short_name: company.short_name ?? '', type: company.type, clientNumberSegment: company.client_number_segment ?? '' },
     validate: makeValidate(t),
     idPrefix: 'company-form',
     requiredFields: ['name'],
@@ -1214,6 +1222,7 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
   const nameField = form.fieldProps('name');
   const shortNameField = form.fieldProps('short_name');
   const typeField = form.fieldProps('type');
+  const clientNumberSegmentField = form.fieldProps('clientNumberSegment');
 
   const errorSummary = form.errors.name
     ? [{ fieldId: nameField.id, message: form.errors.name }]
@@ -1230,7 +1239,7 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
           : {}),
       };
       try {
-        await onUpdate(company.id, input);
+        await onUpdate(company.id, input, values.clientNumberSegment.trim() || null);
       } catch (err) {
         onError(err);
       }
@@ -1283,6 +1292,15 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
             onChange={(v) => typeField.onChange(v as CompanyType)}
             onBlur={typeField.onBlur}
             options={typeOptions(t)}
+          />
+          <TextField
+            id={clientNumberSegmentField.id}
+            label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
+            value={clientNumberSegmentField.value}
+            onChange={clientNumberSegmentField.onChange}
+            onBlur={clientNumberSegmentField.onBlur}
+            placeholder={t('companyDetail.field.clientNumberSegmentPlaceholder', 'e.g. RIS')}
+            mono
           />
         </FormGrid>
       </FormSection>

@@ -9,8 +9,10 @@ export interface PaletteItem {
   group: string;
   title: string;
   sub?: string;
-  /** Mono record code (e.g. PRJ-0142). */
+  /** Compact visible summary of the record's identity fields. */
   code?: string;
+  /** Individually searchable identifiers used for exact-match ranking. */
+  searchCodes?: string[];
   icon: IconName;
   run: () => void;
 }

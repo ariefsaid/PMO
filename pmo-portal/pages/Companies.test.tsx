@@ -18,6 +18,7 @@ const { listState, mutations } = vi.hoisted(() => ({
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
+    setProjectNumberSegment: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   },
@@ -42,7 +43,7 @@ import Companies from './Companies';
 import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const seed = [
-  { id: 'c1', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'c1', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', client_number_segment: 'RIS', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
   { id: 'c2', name: 'Steelforge Fabrication', type: 'Vendor', org_id: 'org-1', archived_at: null, created_at: '2026-02-01T00:00:00Z' },
   { id: 'c3', name: 'Internal Holdings', type: 'Internal', org_id: 'org-1', archived_at: null, created_at: '2026-03-01T00:00:00Z' },
 ];
@@ -256,9 +257,13 @@ describe('Companies create / edit form (AC-CO-003 / AC-CO-004)', () => {
     await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
     const nameInput = screen.getByLabelText(/Company name/i) as HTMLInputElement;
+    const segmentInput = screen.getByLabelText(/Client number segment/i) as HTMLInputElement;
     expect(nameInput.value).toBe('Cascade Port Authority');
+    expect(segmentInput.value).toBe('RIS');
     await userEvent.clear(nameInput);
     await userEvent.type(nameInput, 'Cascade Port Co');
+    await userEvent.clear(segmentInput);
+    await userEvent.type(segmentInput, ' RIS-2 ');
     await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
     await waitFor(() =>
       expect(mutations.update.mutateAsync).toHaveBeenCalledWith({
@@ -266,6 +271,8 @@ describe('Companies create / edit form (AC-CO-003 / AC-CO-004)', () => {
         input: { name: 'Cascade Port Co', type: 'Client' },
       }),
     );
+    await waitFor(() => expect(mutations.setProjectNumberSegment.mutateAsync).toHaveBeenCalledWith({ id: 'c1', segment: 'RIS-2' }));
+    expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: 'c1', input: { name: 'Cascade Port Co', type: 'Client' } });
   });
 });
 

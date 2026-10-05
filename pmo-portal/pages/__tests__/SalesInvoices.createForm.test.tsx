@@ -31,7 +31,9 @@ const hoisted = vi.hoisted(() => ({
     { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' },
   ],
   projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01' }],
+  connected: false,
 }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: hoisted.connected, loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] }) }));
 
 // #731: the create form's money adornment reads the org currency. Pinned here rather than left to a
 // real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a syntax error.
@@ -67,19 +69,23 @@ vi.mock('react-router', async (importOriginal) => {
 
 import SalesInvoices from '../SalesInvoices';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { FinanceI18nTestProvider } from './financeI18nTestProvider';
+import { financeTestI18n } from './financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
-        <ToastProvider>
-          <SalesInvoices />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <FinanceI18nTestProvider>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter>
+          <ToastProvider>
+            <SalesInvoices />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </FinanceI18nTestProvider>,
   );
 
 /** Opens the create form (the header action; the empty state offers the same button). */
@@ -94,15 +100,97 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, la
   await user.click(option);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   hoisted.createMutate.mockClear();
   hoisted.navigateMock.mockClear();
   hoisted.salesInvoicesState.data = [];
+  hoisted.connected = false;
   setActiveLocale(EN_LOCALE);
+  await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
 describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 1)', () => {
+  it('keeps the status filters inside a keyboard-accessible horizontal region', async () => {
+    renderPage();
+
+    const filterRegion = screen.getByRole('region', { name: 'Filter by status' });
+    expect(filterRegion).toHaveAttribute('tabindex', '0');
+    expect(filterRegion).toHaveClass('min-w-0', 'max-w-full', 'overflow-x-auto');
+    expect(within(filterRegion).getByRole('tablist', { name: 'Filter by status' })).toBeInTheDocument();
+  });
+
+  it('groups the invoice amount and its tax-basis note for narrow card layouts', () => {
+    hoisted.salesInvoicesState.data = [
+      {
+        id: 'si-1',
+        si_number: 'ACC-SINV-0001',
+        status: 'Draft',
+        amount: 12345678900,
+        currency: 'IDR',
+        tax_treatment: 'exclusive',
+        tax_rate: 11,
+        erp_docstatus: 1,
+      },
+    ];
+    renderPage();
+
+    const taxBasis = screen.getByText(/excl\. PPN/);
+    expect(taxBasis.parentElement).toHaveClass('w-full', 'flex-col', 'items-end');
+  });
+
+  it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Faktur Penjualan' })).toBeInTheDocument();
+  });
+
+  it('AC-L10N-B01 renders invoice form section labels from the shipped Bahasa catalogue', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByText('Detail faktur')).toBeInTheDocument();
+    expect(screen.getByText('Item faktur')).toBeInTheDocument();
+  });
+
+  it('AC-ITM-001/002 connected invoice searches ERP item name and submits separate authored description', async () => {
+    hoisted.connected = true;
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
+    await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+    await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
+    await user.type(screen.getByLabelText('Description'), 'Inspection of test unit');
+    await user.clear(screen.getByLabelText(/Rate/));
+    await user.type(screen.getByLabelText(/Rate/), '100');
+    await user.click(screen.getByRole('button', { name: /Create invoice/i }));
+    expect(hoisted.createMutate).toHaveBeenCalledWith(expect.objectContaining({ items: [{ item_code: 'ITEM-TEST', description: 'Inspection of test unit', qty: 1, rate: 100 }] }));
+  });
+
+  it('AC-L10N-B01 connected ERP line fields use the shipped Bahasa catalogue', async () => {
+    hoisted.connected = true;
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+
+    expect(await screen.findByRole('combobox', { name: 'Item ERP' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Deskripsi')).toHaveAttribute('placeholder', 'Jelaskan pekerjaan atau barang…');
+    expect(screen.getByText('Pilih atau cari item…')).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Item ERP' }));
+    expect(screen.getByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
+  });
+
+  it('AC-ITM-004 standalone invoices retain the free-text item code field', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    expect(screen.getByLabelText(/Item code/)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'ERP item' })).not.toBeInTheDocument();
+  });
   it('offers the org\'s real client companies in the customer picker', async () => {
     const user = userEvent.setup();
     renderPage();

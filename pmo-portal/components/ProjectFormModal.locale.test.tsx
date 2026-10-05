@@ -13,6 +13,10 @@ import React from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ToastProvider } from '@/src/components/ui';
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
+}));
+
 import ProjectFormModal from './ProjectFormModal';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 

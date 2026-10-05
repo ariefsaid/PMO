@@ -89,10 +89,24 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(proj).toBeDefined();
     expect(proj!.group).toBe('Records');
     expect(proj!.title).toBe('Harbour Expansion');
-    expect(proj!.code).toBe('PRJ-0142');
+    expect(proj!.code).toBe('Client Project Code: PRJ-0142');
     expect(proj!.sub).toBe('Project');
     proj!.run();
     expect(navigate).toHaveBeenCalledWith('/projects/p1');
+  });
+
+  it('AC-CODE-003: indexes and ranks PMO Project Number and Client Project Code for active and pipeline projects', () => {
+    state.projects = { data: [{ id: 'p771', name: 'Active site', pmo_project_number: 'PMO-26-7711', code: 'CLIENT-81' }], isPending: false, isError: false };
+    state.pipeline = { data: { stages: [], projects: [{ id: 'o771', name: 'Pipeline site', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82' }] }, isPending: false, isError: false };
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const active = result.current.records.find((r) => r.id === 'projects:p771')!;
+    const pipeline = result.current.records.find((r) => r.id === 'sales:o771')!;
+    expect(active.code).toContain('PMO Project Number: PMO-26-7711');
+    expect(active.code).toContain('Client Project Code: CLIENT-81');
+    expect(rankRecords(result.current.records, 'PMO-26-7711').items).toContain(active);
+    expect(rankRecords(result.current.records, 'CLIENT-81').items).toContain(active);
+    expect(rankRecords(result.current.records, 'PMO-26-7712').items).toContain(pipeline);
+    expect(rankRecords(result.current.records, 'CLIENT-82').items).toContain(pipeline);
   });
 
   // Model B (ADR-0020): a pipeline record drills to the ONE canonical route /projects/:id

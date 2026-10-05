@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ListPage,
   SearchMini,
@@ -42,6 +43,15 @@ import type { CommandIntent } from '@/src/lib/repositories/types';
 type StatusFilter = 'All' | IncomingPaymentStatus;
 const STATUS_FILTERS: StatusFilter[] = ['All', 'Scheduled', 'Paid'];
 
+function incomingPaymentStatusLabel(status: StatusFilter, t: (key: string, fallback: string) => string): string {
+  const labels: Record<StatusFilter, string> = {
+    All: t('financeCopy.statusAll', 'All'),
+    Scheduled: t('financeCopy.statusScheduled', 'Scheduled'),
+    Paid: t('financeCopy.statusPaid', 'Paid'),
+  };
+  return labels[status] ?? status;
+}
+
 /** Form values for the payment modal. */
 interface FormValues {
   customerId: string;
@@ -63,27 +73,27 @@ function parsePaymentAmount(raw: string): number | null {
   return n !== null && n > 0 ? n : null;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, t: (key: string, fallback: string) => string): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.customerId.trim()) errors.customerId = 'Customer is required.';
+  if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
   if (parsePaymentAmount(v.paidAmount) === null) {
-    errors.paidAmount = 'Paid amount must be positive, with no more than 2 decimal places.';
+    errors.paidAmount = t('financeCopy.paidAmountPositive', 'Paid amount must be positive, with no more than 2 decimal places.');
   }
   if (parsePaymentAmount(v.receivedAmount) === null) {
-    errors.receivedAmount = 'Received amount must be positive, with no more than 2 decimal places.';
+    errors.receivedAmount = t('financeCopy.receivedAmountPositive', 'Received amount must be positive, with no more than 2 decimal places.');
   }
-  if (!v.date) errors.date = 'Date is required.';
+  if (!v.date) errors.date = t('financeCopy.paymentDateRequired', 'Date is required.');
   const withheld = v.withheldAmount.trim() ? parseMoneyInputAtScale(v.withheldAmount, 2) : 0;
   if (withheld === null || withheld < 0) {
-    errors.withheldAmount = 'Withheld tax must be non-negative, with no more than 2 decimal places.';
+    errors.withheldAmount = t('financeCopy.withheldAmountInvalid', "Withheld tax must be non-negative, with no more than 2 decimal places.");
   } else if (withheld > 0) {
     const paid = parsePaymentAmount(v.paidAmount);
     const received = parsePaymentAmount(v.receivedAmount);
     if (paid !== null && received !== null && Math.round(received * 100) + Math.round(withheld * 100) !== Math.round(paid * 100)) {
-      errors.withheldAmount = 'Cash received plus withheld tax must equal the amount allocated to the invoice.';
+      errors.withheldAmount = t('financeCopy.withheldAmountUnbalanced', "Cash received plus withheld tax must equal the amount allocated to the invoice.");
     }
     if (!v.withholdingSlipNumber.trim() || v.withholdingSlipNumber.trim().length > 140) {
-      errors.withholdingSlipNumber = 'Enter a withholding-slip number of at most 140 characters.';
+      errors.withholdingSlipNumber = t('financeCopy.withholdingSlipInvalid', "Enter a withholding-slip number of at most 140 characters.");
     }
   }
   return errors;
@@ -117,6 +127,7 @@ function openInvoiceOptions(
 }
 
 const IncomingPayments: React.FC = () => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -164,14 +175,12 @@ const IncomingPayments: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">You don't have access to Incoming Payments</h2>
+          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToIncomingPayments', "You don't have access to Incoming Payments")}</h2>
           <p className="mt-2 text-muted-foreground">
-            The incoming payments list is available to Finance, Project Managers, and Executives.
-          </p>
+            {t('financeCopy.theIncomingPaymentsListIsAvailableToFinanceProjectManagersAndExecutives', "The incoming payments list is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
             <Icon name="back" className="size-4 mr-2" />
-            Back to dashboard
-          </Button>
+            {t('financeCopy.backToDashboard', "Back to dashboard")}</Button>
         </div>
       </div>
     );
@@ -180,7 +189,7 @@ const IncomingPayments: React.FC = () => {
   const columns: Column<IncomingPaymentRow>[] = [
     {
       key: 'ip_number',
-      header: 'Payment #',
+      header: t('financeCopy.payment', "Payment #"),
       cell: (p) => (
         <span className="truncate font-mono text-[13px]" title={p.ip_number ?? ''}>
           {p.ip_number ?? '—'}
@@ -190,7 +199,7 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'reference_number',
-      header: 'Reference',
+      header: t('financeCopy.reference', "Reference"),
       cell: (p) => (
         <span className="truncate text-muted-foreground" title={p.reference_number ?? ''}>
           {p.reference_number ?? '—'}
@@ -200,7 +209,7 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'customer_id',
-      header: 'Customer',
+      header: t('financeCopy.customer', "Customer"),
       cell: (p) => (
         <span className="truncate" title={p.customer_name ?? ''}>
           {p.customer_name ?? '—'}
@@ -210,13 +219,13 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'status',
-      header: 'Status',
-      cell: (p) => <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{p.status}</StatusPill>,
+      header: t('financeCopy.status', "Status"),
+      cell: (p) => <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.status, t)}</StatusPill>,
       exportValue: (p) => p.status,
     },
     {
       key: 'amount',
-      header: 'Amount',
+      header: t('financeCopy.amount', "Amount"),
       align: 'num',
       cell: (p) => (
         <span className="tabular text-right font-mono text-[13px]">
@@ -228,22 +237,22 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'date',
-      header: 'Date',
+      header: t('financeCopy.date', "Date"),
       cell: (p) => (p.date ? formatDateOnly(p.date) : '—'),
       exportValue: (p) => p.date ?? '',
     },
     {
-      key: 'received_amount', header: 'Cash received', align: 'num',
+      key: 'received_amount', header: t('financeCopy.cashReceived', "Cash received"), align: 'num',
       cell: (p) => p.received_amount != null ? formatCurrencyCents(p.received_amount, p.currency) : '—',
       exportValue: (p) => p.received_amount ?? '',
     },
     {
-      key: 'withheld_amount', header: 'Tax withheld', align: 'num',
+      key: 'withheld_amount', header: t('financeCopy.taxWithheld', "Tax withheld"), align: 'num',
       cell: (p) => p.withheld_amount != null ? formatCurrencyCents(p.withheld_amount, p.currency) : '—',
       exportValue: (p) => p.withheld_amount ?? '',
     },
     {
-      key: 'withholding_slip_number', header: 'Withholding slip',
+      key: 'withholding_slip_number', header: t('financeCopy.withholdingSlip', "Withholding slip"),
       cell: (p) => <span className="font-mono text-[13px]">{p.withholding_slip_number ?? '—'}</span>,
       exportValue: (p) => p.withholding_slip_number ?? '',
     },
@@ -255,7 +264,7 @@ const IncomingPayments: React.FC = () => {
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     if (canCancel && p.status !== 'Paid')
-      items.push({ label: 'Cancel', onClick: () => setCancelTarget(p), danger: true });
+      items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     return items;
   };
 
@@ -265,7 +274,7 @@ const IncomingPayments: React.FC = () => {
     try {
       await cancelPayment.mutateAsync({ ipId: cancelTarget.id, intent: verbIntents.intentFor(key) });
       verbIntents.release(key);
-      toast('Payment cancelled', cancelTarget.ip_number ?? cancelTarget.id, 'success');
+      toast(t('financeCopy.paymentCancelled', 'Payment cancelled'), cancelTarget.ip_number ?? cancelTarget.id, 'success');
       setCancelTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -275,34 +284,33 @@ const IncomingPayments: React.FC = () => {
 
   return (
     <ListPage
-      title="Incoming Payments"
-      description="Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable."
+      title={t('financeCopy.incomingPayments', "Incoming Payments")}
+      description={t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
             <Icon name="plus" />
-            Receive Payment
-          </Button>
+            {t('financeCopy.receivePayment', "Receive Payment")}</Button>
         )
       }
       filters={
         state !== 'loading' && (
           <ViewToggle<StatusFilter>
-            options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
+            options={STATUS_FILTERS.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
             value={statusFilter}
             onChange={(v) => {
               setStatusFilter(v);
               trackFilterApplied('status', STATUS_FILTERS.length, 'incomingPayments');
             }}
-            ariaLabel="Filter by status"
+            ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
           />
         )
       }
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder="Search payments…"
-            aria-label="Search incoming payments"
+            placeholder={t('financeCopy.searchPayments', "Search payments…")}
+            aria-label={t('financeCopy.searchIncomingPayments', "Search incoming payments")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             searchSurface="incoming-payments-list"
@@ -328,8 +336,8 @@ const IncomingPayments: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load incoming payments"
-          sub="The request failed. Check your connection and try again."
+          title={t('financeCopy.incomingPaymentsLoadFailed', "Couldn't load incoming payments")}
+          sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
           onRetry={() => refetch()}
         />
       )}
@@ -338,12 +346,12 @@ const IncomingPayments: React.FC = () => {
         <ListState
           variant="empty"
           icon="dollar"
-          title="No incoming payments yet"
-          sub="Record your first payment received from a client."
+          title={t('financeCopy.noIncomingPaymentsYet', "No incoming payments yet")}
+          sub={t('financeCopy.recordYourFirstPaymentReceivedFromAClient', "Record your first payment received from a client.")}
           stateId="incoming-payments-empty"
           role={realRole ?? undefined}
           module="incomingPayments"
-          action={canCreate ? { label: 'Receive Payment', onClick: () => setFormTarget({ payment: null }) } : undefined}
+          action={canCreate ? { label: t('financeCopy.receivePayment', "Receive Payment"), onClick: () => setFormTarget({ payment: null }) } : undefined}
         />
       )}
 
@@ -354,8 +362,8 @@ const IncomingPayments: React.FC = () => {
           rowKey={(p) => p.id}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No payments match your filters"
-          emptySub="Try a different status or clear the search."
+          emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
+          emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
         />
       )}
 
@@ -367,7 +375,7 @@ const IncomingPayments: React.FC = () => {
           onClose={() => setFormTarget(null)}
           onCreate={async (input, intent) => {
             await createPayment.mutateAsync({ ...input, intent });
-            toast('Payment created', input.customerId, 'success');
+            toast(t('financeCopy.paymentCreated', 'Payment created'), input.customerId, 'success');
             setFormTarget(null);
           }}
           onError={(err) => {
@@ -381,9 +389,9 @@ const IncomingPayments: React.FC = () => {
       <ConfirmDialog
         open={!!cancelTarget}
         tone="destructive"
-        title={cancelTarget ? `Cancel ${cancelTarget.ip_number ?? cancelTarget.id}?` : 'Cancel payment?'}
-        description="This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored."
-        confirmLabel="Cancel payment"
+        title={cancelTarget ? t('financeCopy.cancelPaymentNamed', 'Cancel {{payment}}?', { payment: cancelTarget.ip_number ?? cancelTarget.id }) : t('financeCopy.cancelPaymentQuestion', 'Cancel payment?')}
+        description={t('financeCopy.cancelPaymentDescription', "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.")}
+        confirmLabel={t('financeCopy.cancelPayment', "Cancel payment")}
         loading={cancelPayment.isPending}
         onConfirm={onCancelConfirm}
         onCancel={() => setCancelTarget(null)}
@@ -421,6 +429,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   onError,
   pendingPush,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!payment;
   // The adornment follows the record's own currency when editing one; a create form has no record
   // yet, so it falls back to the org's operating currency (#731). The hook is called unconditionally.
@@ -441,7 +450,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       withholdingSlipNumber: '',
       date: new Date().toISOString().split('T')[0],
     },
-    validate,
+    validate: (values) => validate(values, t),
     idPrefix: 'incoming-payment-form',
     requiredFields: ['customerId', 'paidAmount', 'receivedAmount', 'date'],
     module: 'incomingPayments',
@@ -533,32 +542,32 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
     >
       {pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">Pushing to ERPNext…</span>
+          <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
       )}
-      <FormSection legend="Payment details">
+      <FormSection legend={t('financeCopy.paymentDetails', 'Payment details')}>
         <FormGrid>
           <Combobox
-            label="Customer"
+            label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
             onChange={(value, _option) => customerField.onChange(value)}
             error={customerField.error}
-            placeholder="Select or search customer…"
+            placeholder={t('financeCopy.selectOrSearchCustomer', "Select or search customer…")}
             loadOptions={loadCustomers}
             noun="customer"
           />
           <Combobox
-            label="Sales Invoice (optional)"
+            label={t('financeCopy.salesInvoiceOptional', "Sales Invoice (optional)")}
             value={salesInvoiceField.value ?? ''}
             onChange={(value, _option) => salesInvoiceField.onChange(value ?? '')}
             error={salesInvoiceField.error}
-            placeholder="Link to sales invoice…"
+            placeholder={t('financeCopy.linkToSalesInvoice', "Link to sales invoice…")}
             loadOptions={loadOpenInvoices}
             noun="invoice"
           />
           <NumberField
-            label="Paid Amount"
+            label={t('financeCopy.paidAmount', "Paid Amount")}
             value={String(paidAmountField.value)}
             onChange={(v) => paidAmountField.onChange(v)}
             required
@@ -566,11 +575,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix={moneyPrefix}
             error={paidAmountField.error}
-            helper="The full amount applied to the invoice, including tax withheld by the client."
+            helper={t('financeCopy.paidAmountHelper', "The full amount applied to the invoice, including tax withheld by the client.")}
             localeAware
           />
           <NumberField
-            label="Received Amount"
+            label={t('financeCopy.receivedAmount', "Received Amount")}
             value={String(receivedAmountField.value)}
             onChange={(v) => receivedAmountField.onChange(v)}
             required
@@ -578,32 +587,32 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix={moneyPrefix}
             error={receivedAmountField.error}
-            helper="The cash actually received."
+            helper={t('financeCopy.receivedAmountHelper', "The cash actually received.")}
             localeAware
           />
           <NumberField
             id={withheldAmountField.id}
-            label="Withheld tax amount"
+            label={t('financeCopy.withheldAmountLabel', "Withheld tax amount")}
             value={withheldAmountField.value}
             onChange={withheldAmountField.onChange}
             onBlur={withheldAmountField.onBlur}
             prefix={moneyPrefix}
             localeAware
             error={withheldAmountField.error}
-            helper="Enter the amount the client withheld; PMO does not calculate income tax. Enter 0 for no withholding."
+            helper={t('financeCopy.withheldAmountHelper', "Enter the amount the client withheld; PMO does not calculate income tax. Enter 0 for no withholding.")}
           />
           <TextField
             id={slipField.id}
-            label="Withholding-slip number"
+            label={t('financeCopy.withholdingSlipNumberLabel', "Withholding-slip number")}
             value={slipField.value}
             onChange={slipField.onChange}
             onBlur={slipField.onBlur}
             maxLength={140}
             error={slipField.error}
-            helper="Required when the client withheld tax."
+            helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
           />
           <TextField
-            label="Date"
+            label={t('financeCopy.date', "Date")}
             value={dateField.value}
             onChange={dateField.onChange}
             onBlur={dateField.onBlur}

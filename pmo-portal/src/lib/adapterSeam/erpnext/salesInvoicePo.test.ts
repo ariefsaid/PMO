@@ -79,6 +79,9 @@ async function push(invoice: Row | null = INVOICE, wo: Row | null = WO, project:
   };
   let body: Row = {};
   const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (new URL(String(_url)).pathname === '/api/resource/Item' && init?.method === 'GET') {
+      return Response.json({ data: [{ name: ITEM.item_code, item_name: 'Test invoice service', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
+    }
     body = JSON.parse(String(init?.body)) as Row;
     return new Response(JSON.stringify({ data: { name: 'SYNTHETIC-SI-001', ...body, docstatus: 0 } }), { status: 200 });
   });

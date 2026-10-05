@@ -87,6 +87,36 @@ export async function getOrgLocaleDefaults(): Promise<OrgLocaleDefaultsRow> {
  * `organizations` carries a SELECT policy scoped to the caller's own org, so this returns exactly
  * one row under RLS and `org_id` is NEVER sent (ADR-0017). Same shape as `getOrgDefaultCurrency`.
  */
+/** The stored Admin pattern; NULL represents the system default and is not manufactured on read. */
+export async function getOrgProjectNumberPattern(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('project_number_pattern')
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return data?.[0]?.project_number_pattern ?? null;
+}
+
+/** Admin-only write guarded by the exact set of RLS-readable organization IDs. */
+export async function setOrgProjectNumberPattern(value: string | null): Promise<void> {
+  const { data, error } = await supabase.from('organizations').select('id');
+  if (error) throw new Error(error.message);
+  if ((data?.length ?? 0) > 1) {
+    throw new Error('More than one organization is readable; refusing to guess which one to write.');
+  }
+  const orgId = data?.[0]?.id;
+  if (!orgId) throw new Error('No organization is readable for the current user');
+
+  const normalized = value === 'PRJ-{YY}-{SEQ4}' ? null : value;
+  const { data: changed, error: updateError } = await supabase
+    .from('organizations')
+    .update({ project_number_pattern: normalized })
+    .eq('id', orgId)
+    .select('id');
+  if (updateError) throw new Error(updateError.message);
+  if (!changed?.length) throw new Error('You do not have permission to update this organization setting.');
+}
+
 export async function getOrgTaxDefault(): Promise<TaxTreatment | null> {
   const { data, error } = await supabase
     .from('organizations')

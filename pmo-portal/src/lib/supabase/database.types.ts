@@ -872,6 +872,7 @@ export type Database = {
       companies: {
         Row: {
           archived_at: string | null
+          client_number_segment: string | null
           created_at: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -890,6 +891,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          client_number_segment?: string | null
           created_at?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -908,6 +910,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          client_number_segment?: string | null
           created_at?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -2546,6 +2549,7 @@ export type Database = {
           id: string
           lifecycle_state: string | null
           name: string
+          project_number_pattern: string | null
           tax_prepaid_account: string | null
         }
         Insert: {
@@ -2558,6 +2562,7 @@ export type Database = {
           id?: string
           lifecycle_state?: string | null
           name: string
+          project_number_pattern?: string | null
           tax_prepaid_account?: string | null
         }
         Update: {
@@ -2570,6 +2575,7 @@ export type Database = {
           id?: string
           lifecycle_state?: string | null
           name?: string
+          project_number_pattern?: string | null
           tax_prepaid_account?: string | null
         }
         Relationships: []
@@ -3731,6 +3737,32 @@ export type Database = {
           },
         ]
       }
+      project_number_counters: {
+        Row: {
+          business_year: number
+          last_seq: number
+          org_id: string
+        }
+        Insert: {
+          business_year: number
+          last_seq: number
+          org_id: string
+        }
+        Update: {
+          business_year?: number
+          last_seq?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_number_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           archived_at: string | null
@@ -3754,6 +3786,7 @@ export type Database = {
           last_update: string
           name: string
           org_id: string
+          pmo_project_number: string
           project_manager_id: string | null
           spent: number
           start_date: string | null
@@ -3787,6 +3820,7 @@ export type Database = {
           last_update?: string
           name: string
           org_id?: string
+          pmo_project_number?: string
           project_manager_id?: string | null
           spent?: number
           start_date?: string | null
@@ -3820,6 +3854,7 @@ export type Database = {
           last_update?: string
           name?: string
           org_id?: string
+          pmo_project_number?: string
           project_manager_id?: string | null
           spent?: number
           start_date?: string | null
@@ -5663,6 +5698,10 @@ export type Database = {
       is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       is_unattributed_authority: { Args: never; Returns: boolean }
+      is_valid_project_number_pattern: {
+        Args: { p_pattern: string }
+        Returns: boolean
+      }
       list_budget_fiscal_years: {
         Args: { p_project_id: string }
         Returns: {
@@ -5758,6 +5797,10 @@ export type Database = {
       }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
+        Returns: string
+      }
+      next_project_number: {
+        Args: { p_at?: string; p_client_id: string; p_org: string }
         Returns: string
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
@@ -5920,6 +5963,8 @@ export type Database = {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
       }
+      project_number_null_insert_default: { Args: never; Returns: string }
+      propose_project_number: { Args: { p_client_id: string }; Returns: string }
       purge_error_events: {
         Args: { p_retention_days?: number }
         Returns: number

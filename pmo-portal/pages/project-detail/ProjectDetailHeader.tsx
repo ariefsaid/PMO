@@ -150,7 +150,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const meta = [
     project.client ? companyDisplayName(project.client) : null,
-    project.code ? `· ${project.code}` : null,
+    project.pmo_project_number
+      ? `· ${t('projectDetail.header.pmoNumber', 'PMO Project Number')}: ${project.pmo_project_number}`
+      : null,
+    `· ${t('projectDetail.header.clientCode', 'Client Project Code')}: ${project.code?.trim() || t('projectDetail.header.notSet', 'Not set')}`,
     project.customer_contract_ref
       ? `· ${
           project.contract_date

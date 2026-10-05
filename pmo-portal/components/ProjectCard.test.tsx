@@ -33,7 +33,8 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 const base = {
   id: 'p1',
   name: 'Innovate Corp HQ Fit-Out',
-  code: 'PRJ-001',
+  code: 'CLIENT-81',
+  pmo_project_number: 'PMO-26-7711',
   status: 'Ongoing Project',
   client_id: 'c2',
   project_manager_id: 'u-alice',
@@ -103,6 +104,12 @@ describe('ProjectCard', () => {
     onOpen.mockClear();
     await userEvent.click(screen.getByRole('button', { name: /change status/i }));
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('AC-CODE-003: renders PMO Project Number and Client Project Code as separate labelled identities', () => {
+    render(<ProjectCard project={base} onOpen={vi.fn()} />);
+    expect(screen.getByTestId('project-card')).toHaveTextContent('PMO Project Number: PMO-26-7711');
+    expect(screen.getByTestId('project-card')).toHaveTextContent('Client Project Code: CLIENT-81');
   });
 
   it('has a carrier with the project-card testid', () => {

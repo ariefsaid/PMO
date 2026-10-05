@@ -7,6 +7,7 @@ import {
   Icon,
   ConfirmDialog,
   FieldError,
+  Combobox,
   useMoneyInputMask,
 } from '@/src/components/ui';
 import {
@@ -18,6 +19,7 @@ import {
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
+import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
 // ---------------------------------------------------------------------------
 // LineItemsSection — the editable line-items table (crud-components §9.4 /
@@ -32,6 +34,7 @@ import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 
 export interface ItemDraft {
   name: string;
+  description?: string;
   quantity: string;
   rate: string;
 }
@@ -100,8 +103,10 @@ export interface LineItemsSectionProps {
   /** When false, the table is read-only (no add/edit/delete chrome). */
   editable: boolean;
   /** Persisters — each rejects with a code-bearing AppError on failure. */
-  onAdd: (input: { name: string; quantity: number; rate: number }) => Promise<unknown>;
-  onUpdate: (id: string, patch: { name: string; quantity: number; rate: number }) => Promise<unknown>;
+  onAdd: (input: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
+  onUpdate: (id: string, patch: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
+  /** Connected orgs choose a current ERP item; standalone rows retain the free-text name. */
+  erpItems?: { loadOptions: () => Promise<ComboboxOption[]> };
   onDelete: (id: string) => Promise<unknown>;
   onError: (err: unknown) => void;
   /** Mutation in-flight flags from the hook (disables the relevant control). */
@@ -138,6 +143,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   onError,
   busy,
   currency,
+  erpItems,
 }) => {
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
@@ -170,7 +176,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     }
     setAddErrors({});
     try {
-      await onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate });
+      await onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate, ...(erpItems ? { description: draft.description?.trim() ?? '' } : {}) });
       setDraft(EMPTY_DRAFT);
     } catch (err) {
       onError(err);
@@ -182,6 +188,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     // Seed in the viewer's convention so an untouched value re-parses to the same number.
     setEditDraft({
       name: it.name,
+      description: it.description ?? '',
       quantity: formatMoneyInputValue(Number(it.quantity)),
       rate: formatMoneyInputValue(Number(it.rate)),
     });
@@ -203,6 +210,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         name: editDraft.name.trim(),
         quantity: num(editDraft.quantity),
         rate,
+        ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}),
       });
       setEditingId(null);
     } catch (err) {
@@ -241,7 +249,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           <thead>
             <tr>
               <th className="h-[38px] border-b border-border px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-                Description
+                {erpItems ? 'Item / description' : 'Description'}
               </th>
               <th className="w-[88px] border-b border-border px-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
                 Qty
@@ -277,11 +285,30 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                 return (
                   <tr key={it.id} className="border-b border-border/70">
                     <td className="px-3 py-2">
-                      <CellInput
-                        aria-label={`Edit description for ${it.name}`}
-                        value={editDraft.name}
-                        onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
-                      />
+                      {erpItems ? (
+                        <div className="min-w-[180px] space-y-2">
+                          <Combobox
+                            label="ERP item"
+                            value={editDraft.name || null}
+                            selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null}
+                            onChange={(name) => setEditDraft((d) => ({ ...d, name }))}
+                            loadOptions={erpItems.loadOptions}
+                            noun="ERP item"
+                            searchPlaceholder="Search item code or name…"
+                          />
+                          <CellInput
+                            aria-label={`Edit description for ${it.name}`}
+                            value={editDraft.description ?? ''}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
+                          />
+                        </div>
+                      ) : (
+                        <CellInput
+                          aria-label={`Edit description for ${it.name}`}
+                          value={editDraft.name}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+                        />
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-col gap-0.5">
@@ -332,7 +359,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               }
               return (
                 <tr key={it.id} className="border-b border-border/70">
-                  <td className="px-3 py-2.5 font-medium">{it.name}</td>
+                  <td className="px-3 py-2.5 font-medium">{it.name}{erpItems && it.description && <div className="mt-1 font-normal text-muted-foreground">{it.description}</div>}</td>
                   <td className="px-3 py-2.5 text-right tabular">{Number(it.quantity)}</td>
                   <td className="px-3 py-2.5 text-right tabular">{formatCurrency(Number(it.rate), currency)}</td>
                   <td className="px-3 py-2.5 text-right tabular font-medium">
@@ -369,12 +396,34 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
             {editable && (
               <tr className="bg-secondary/35" data-testid="line-item-add-row">
                 <td className="px-3 py-2">
-                  <CellInput
-                    aria-label="New item description"
-                    placeholder="Add an item…"
-                    value={draft.name}
-                    onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                  />
+                  {erpItems ? (
+                    <div className="min-w-[180px] space-y-2">
+                      <Combobox
+                        label="ERP item"
+                        value={draft.name || null}
+                        selectedOption={draft.name ? { value: draft.name, label: draft.name } : null}
+                        onChange={(name) => setDraft((d) => ({ ...d, name }))}
+                        loadOptions={erpItems.loadOptions}
+                        noun="ERP item"
+                        placeholder="Select or search item…"
+                        searchPlaceholder="Search item code or name…"
+                        required
+                      />
+                      <CellInput
+                        aria-label="New item description"
+                        placeholder="Describe the work or goods…"
+                        value={draft.description ?? ''}
+                        onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                      />
+                    </div>
+                  ) : (
+                    <CellInput
+                      aria-label="New item description"
+                      placeholder="Add an item…"
+                      value={draft.name}
+                      onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                    />
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-col gap-0.5">

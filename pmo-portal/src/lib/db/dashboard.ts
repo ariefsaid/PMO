@@ -65,6 +65,9 @@ export interface PipelineStage {
 export interface PipelineProject {
   id: string;
   name: string;
+  /** Independent PMO and organisation-owned identifiers, projected for search/display. */
+  pmo_project_number?: string | null;
+  code?: string | null;
   client_name: string | null;
   client_legal_name?: string | null;
   end_client_legal_name?: string | null;

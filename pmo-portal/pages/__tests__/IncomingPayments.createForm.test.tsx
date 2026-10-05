@@ -89,19 +89,23 @@ vi.mock('react-router', async (importOriginal) => {
 
 import IncomingPayments from '../IncomingPayments';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { FinanceI18nTestProvider } from './financeI18nTestProvider';
+import { financeTestI18n } from './financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
-        <ToastProvider>
-          <IncomingPayments />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <FinanceI18nTestProvider>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter>
+          <ToastProvider>
+            <IncomingPayments />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </FinanceI18nTestProvider>,
   );
 
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
@@ -113,12 +117,13 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string | R
   await user.click(await screen.findByRole('option', { name: new RegExp(label) }));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   hoisted.createPaymentMutate.mockClear();
   hoisted.navigateMock.mockClear();
   hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
   setActiveLocale(EN_LOCALE);
+  await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
@@ -156,6 +161,20 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
     expect(screen.getAllByText(/cash received plus withheld tax must equal/i).length).toBeGreaterThan(0);
+  });
+
+  it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Pembayaran Masuk' })).toBeInTheDocument();
+  });
+
+  it('AC-L10N-B01 renders the payment form section label from the shipped Bahasa catalogue', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByText('Detail pembayaran')).toBeInTheDocument();
   });
 
   it('offers the org\'s real client companies in the customer picker', async () => {

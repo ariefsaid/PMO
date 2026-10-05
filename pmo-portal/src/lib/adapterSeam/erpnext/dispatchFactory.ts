@@ -18,6 +18,7 @@ import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
+import { listErpItems, validateItemLines } from './itemCatalog.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
  *  [.order(...).limit(...)][.maybeSingle()]` — every filter-builder is ALSO directly awaitable
@@ -55,6 +56,7 @@ interface ExternalOrgBindingRow {
 
 interface ResolvedLineItem {
   item_code: string;
+  description?: string;
   qty: number | string;
   rate?: number | string;
   schedule_date?: string;
@@ -94,12 +96,13 @@ async function resolveCaseSupplierName(
 /** The case's line items (`procurement_items`, the shared item list every procurement sub-doctype
  *  draws from) mapped to the PMO-shaped line-item draft `erpnext/bodies/*`'s `toBody`s read. */
 async function resolveCaseItems(serviceClient: DispatchServiceClient, procurementId: string): Promise<ResolvedLineItem[]> {
-  const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate').eq('procurement_id', procurementId);
+  const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate,description').eq('procurement_id', procurementId);
   if (error || !Array.isArray(data)) return [];
-  return (data as Array<{ name: string; quantity: number | string; rate: number | string | null }>).map((row) => ({
+  return (data as Array<{ name: string; quantity: number | string; rate: number | string | null; description?: string | null }>).map((row) => ({
     item_code: row.name,
     qty: row.quantity,
     rate: row.rate ?? undefined,
+    ...(row.description ? { description: row.description } : {}),
   }));
 }
 
@@ -943,6 +946,25 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
+  // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
+  // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
+  const itemKind = deps.command.record.erp_doc_kind;
+  let validateAuthoringItems: ErpAdapterDeps['validateAuthoringItems'];
+  if (
+    ['sales-invoice', 'purchase-order', 'purchase-invoice'].includes(String(itemKind)) &&
+    buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: deps.command.record.verb } })
+  ) {
+    const record = deps.command.record;
+    const lines = Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems;
+    if (lines?.length) {
+      record.items = lines;
+      validateAuthoringItems = async (command, client) => {
+        if (!buildsSalesInvoiceBody({ operation: command.operation, record: { verb: command.record.verb } })) return;
+        const catalog = await listErpItems(client, itemKind === 'sales-invoice' ? 'sales' : 'purchase');
+        validateItemLines(Array.isArray(command.record.items) ? command.record.items : [], catalog);
+      };
+    }
+  }
   // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
   // same-org, daily hours). Gated on the kind, so no other command pays for the extra reads.
   const { refs: timesheetRefs } = await resolveTimesheetRefs(deps, binding);
@@ -965,6 +987,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       rateLimiter: deps.rateLimiter,
     },
     doctypeBodies: deps.doctypeBodies ?? {},
+    validateAuthoringItems,
     // Ref resolution: PO/GR commands (task 5.3, FR-ENA-103) resolve `refs`/`resolvedItems` above via
     // the case's `procurementId` (supplier + line items + PO/PO-item-child-row for a GR). Every other
     // kind — MR/RFQ/SQ (task 4.6/4.7, FR-ENA-111/112) — carries no `procurementId`, so `refs.supplier`

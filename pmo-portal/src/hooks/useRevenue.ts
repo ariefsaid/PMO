@@ -112,7 +112,7 @@ export function useRevenueMutations() {
   };
 
   const create = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number }>; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
       repositories.revenue.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));

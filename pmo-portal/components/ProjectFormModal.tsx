@@ -1,7 +1,7 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
@@ -17,6 +17,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
+import { useProjectNumberProposal } from '@/src/hooks/useProjectNumberProposal';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import {
   currencySymbol,
@@ -80,6 +81,7 @@ export interface ProjectFormInitial {
 interface FormValues {
   name: string;
   code: string;
+  pmoProjectNumber: string;
   clientId: string | null;
   endClientId: string | null;
   pmId: string | null;
@@ -185,6 +187,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     initialValues: {
       name: initial?.name ?? '',
       code: initial?.code ?? '',
+      pmoProjectNumber: '',
       clientId: initial?.client_id ?? null,
       endClientId: initial?.end_client_id ?? null,
       pmId: initial?.project_manager_id ?? null,
@@ -200,17 +203,27 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name + client
     // are present. The optional estimated value is NOT required — a bad value is a
     // format error caught on submit (focus moves to it), not a completeness gate.
-    requiredFields: ['name', 'clientId'],
+    requiredFields: isEdit ? ['name', 'clientId'] : ['name', 'clientId', 'pmoProjectNumber'],
   });
 
   // The combobox tracks its own selected-label so the chip renders without a
   // separate fetch (seeded from initial for edit, then updated on selection).
   const [clientLabel, setClientLabel] = useState<string | null>(initial?.clientName ?? null);
+  const numberProposal = useProjectNumberProposal(form.values.clientId, !isEdit);
+  const appliedProposal = useRef<string | null>(null);
+  const [numberConflict, setNumberConflict] = useState(false);
+  useEffect(() => {
+    if (!isEdit && numberProposal.status === 'success' && numberProposal.number !== appliedProposal.current) {
+      form.setValue('pmoProjectNumber', numberProposal.number);
+      appliedProposal.current = numberProposal.number;
+    }
+  }, [form, isEdit, numberProposal]);
   const [pmLabel, setPmLabel] = useState<string | null>(initial?.pmName ?? null);
   const [endClientLabel, setEndClientLabel] = useState<string | null>(initial?.endClientName ?? null);
 
   const nameField = form.fieldProps('name');
   const codeField = form.fieldProps('code');
+  const pmoNumberField = form.fieldProps('pmoProjectNumber');
   const statusField = form.fieldProps('status');
   const valueField = form.fieldProps('value');
   const taxTreatmentField = form.fieldProps('taxTreatment');
@@ -288,6 +301,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
     form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
+    numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
   ].filter((x): x is { fieldId: string; message: string } => x != null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -306,8 +320,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           };
           await onSave(initial.id, input);
         } else if (onSubmit) {
+          if (numberProposal.status !== 'success' || !values.pmoProjectNumber.trim()) return;
           const base = {
             name: values.name.trim(),
+            code: values.code.trim() || null,
+            pmo_project_number: values.pmoProjectNumber.trim(),
             status: values.status,
             client_id: values.clientId,
             end_client_id: values.endClientId,
@@ -344,6 +361,10 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           await onSubmit(input);
         }
       } catch (err) {
+        const failure = err as { code?: string; message?: string };
+        if (failure.code === '23505' && (!failure.message || failure.message.includes('pmo_project_number'))) {
+          setNumberConflict(true);
+        }
         onError(err);
       }
     });
@@ -363,7 +384,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete || taxIncomplete}
+      submitDisabled={!form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success')}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       <FormSection legend={t('projectForm.section.project', 'Project')}>
@@ -390,6 +411,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 : null
             }
             onChange={(v, opt) => {
+              if (form.values.clientId !== v) {
+                form.setValue('pmoProjectNumber', '');
+                appliedProposal.current = null;
+                setNumberConflict(false);
+              }
               form.setValue('clientId', v);
               setClientLabel(opt.label);
             }}
@@ -445,15 +471,52 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           {isEdit ? (
             <TextField
               id={codeField.id}
-              label={t('projectForm.code.label', 'Project code')}
+              label={t('projectForm.clientCode.label', 'Client Project Code')}
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              placeholder={t('projectForm.code.placeholder', 'e.g. OPP-2041')}
+              placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
               mono
             />
           ) : (
             <>
+              <TextField
+                id={pmoNumberField.id}
+                label={t('projectForm.projectNumber.label', 'PMO Project Number')}
+                required
+                value={pmoNumberField.value}
+                onChange={(value) => {
+                  pmoNumberField.onChange(value);
+                  setNumberConflict(false);
+                }}
+                onBlur={pmoNumberField.onBlur}
+                error={numberConflict
+                  ? t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.')
+                  : numberProposal.status === 'error'
+                    ? numberProposal.error.includes('client_segment_required')
+                      ? t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')
+                      : t('projectForm.projectNumber.proposalError', 'A PMO Project Number could not be proposed. Select the client again to retry.')
+                    : undefined}
+                disabled={numberProposal.status !== 'success'}
+                helper={numberProposal.status === 'error'
+                  ? undefined
+                  : t('projectForm.projectNumber.helper', 'PMO assigns this identifier. You can edit it before creating the project.')}
+                mono
+              />
+              {numberProposal.status === 'loading' && (
+                <p role="status" aria-live="polite" className="text-[12px] text-muted-foreground">
+                  {t('projectForm.projectNumber.loading', 'Proposing a PMO Project Number…')}
+                </p>
+              )}
+              <TextField
+                id={codeField.id}
+                label={t('projectForm.clientCode.label', 'Client Project Code')}
+                value={codeField.value}
+                onChange={codeField.onChange}
+                onBlur={codeField.onBlur}
+                placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
+                mono
+              />
               <SelectField
                 id={statusField.id}
                 label={t('projectForm.stage.label', 'Origination stage')}

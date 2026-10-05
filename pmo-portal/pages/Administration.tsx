@@ -15,6 +15,7 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import OrgTaxDefault from './admin/OrgTaxDefault';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
+import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -191,6 +192,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <SectionHeader title={label('accounting')} />
           <div className="space-y-6">
+            <OrgProjectNumberPattern />
             <OrgTaxDefault />
             <OrgWithholdingAccount />
             <BudgetAccountMap />

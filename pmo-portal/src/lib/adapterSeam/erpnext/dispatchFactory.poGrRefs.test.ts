@@ -52,6 +52,7 @@ function multiTableClient(tables: Record<string, TableResponder>): DispatchServi
 
 function erpFetch(poDocItems: Array<{ item_code: string; name: string }>): typeof fetch {
   return (vi.fn(async (_url: string, init?: RequestInit) => {
+    if (new URL(_url).pathname === '/api/resource/Item') return Response.json({ data: [{ name: 'SPIKE-ITEM-1', item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
     if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'MAT-PRE-2026-00001' }), { status: 200 });
     if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'MAT-PRE-2026-00001', docstatus: 1 }), { status: 200 });
     // GET — either the PO doc fetch (ref resolution) or the post-submit re-fetch; both return
