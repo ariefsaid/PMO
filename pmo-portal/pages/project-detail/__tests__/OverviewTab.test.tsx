@@ -8,6 +8,7 @@ import OverviewTab from '../tabs/OverviewTab';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
+import type { Tables } from '@/src/lib/supabase/database.types';
 
 // ── Fixture data ─────────────────────────────────────────────────────────────
 
@@ -89,14 +90,7 @@ const budgetState: { data: BudgetVersionWithItems[] | undefined; isPending: bool
   isError: false,
   refetch: vi.fn(),
 };
-type RevenueFixture = {
-  id: string;
-  amount: number;
-  currency: string;
-  tax_treatment: string;
-  tax_amount: number;
-  status: 'Submitted' | 'Unpaid' | 'Paid' | 'Draft' | 'Cancelled';
-};
+type RevenueFixture = Pick<Tables<'sales_invoices'>, 'id' | 'amount' | 'currency' | 'tax_treatment' | 'tax_amount' | 'status'>;
 const revenueState: {
   data: RevenueFixture[] | undefined;
   isPending: boolean;
