@@ -1,5 +1,5 @@
--- 0232_procurement_external_ref.test.sql — #769 optional external reference on PR / PO / vendor invoice.
--- Migration under test: 0232_procurement_external_ref.sql
+-- 0238_procurement_external_ref.test.sql — #769 optional external reference on PR / PO / vendor invoice.
+-- Migration under test: 0238_procurement_external_ref.sql
 --
 -- AC-EXT-001  PR, PO and vendor invoice carry an optional external reference (trimmed, ≤100 chars)
 -- AC-EXT-002  stored on the record row; written only through the existing create RPCs

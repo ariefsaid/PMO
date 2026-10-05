@@ -1,8 +1,8 @@
--- 0232_procurement_external_ref.sql — #769: optional external reference on PR / PO / vendor invoice.
+-- 0238_procurement_external_ref.sql — #769: optional external reference on PR / PO / vendor invoice.
 -- One nullable text column per record table (trimmed, 1..100 chars). Written only through the existing
 -- create RPCs (the tables carry no direct write grants — 0058), so the writers are exactly those RPCs'
 -- existing role gates; RLS and mirror guards are unchanged. NOT part of any ERP push payload.
--- Rollback: supabase/migrations/rollback/0232_procurement_external_ref_down.sql
+-- Rollback: supabase/migrations/rollback/0238_procurement_external_ref_down.sql
 
 alter table public.purchase_requests
   add column external_ref text,

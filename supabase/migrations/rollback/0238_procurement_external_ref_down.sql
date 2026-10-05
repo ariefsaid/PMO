@@ -1,4 +1,4 @@
--- Rollback for 0232_procurement_external_ref.sql (#769): restores the pre-0232 RPC signatures, drops the columns.
+-- Rollback for 0238_procurement_external_ref.sql (#769): restores the pre-0232 RPC signatures, drops the columns.
 
 drop function if exists public.capture_vendor_invoice(uuid,procurement_invoice_status,date,text,numeric,text,text,numeric,numeric,text,integer,integer,text);
 drop function if exists public.create_procurement_invoice(uuid,procurement_invoice_status,date,text,numeric,text,uuid,timestamptz,text,numeric,numeric,text,integer,integer,text);
