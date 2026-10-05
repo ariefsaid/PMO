@@ -122,7 +122,7 @@ const ProcurementPage: React.FC = () => {
   // Show a "Needs approval" segment so they can quickly surface actionable Requested PRs.
   const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useProcurements();
+  const { data, isPending, isError, refetch } = useProcurements({ withRefs: true });
   const { data: projectOptions = [] } = useProjectOptions();
   const { data: vendorOptions = [] } = useVendorOptions();
 
@@ -389,7 +389,7 @@ const ProcurementPage: React.FC = () => {
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder={t('procurement.search.placeholder', 'Filter requests…')}
+            placeholder={t('procurement.search.placeholder', 'Filter requests or references…')}
             aria-label={t('procurement.search.label', 'Filter requests')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}

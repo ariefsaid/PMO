@@ -27,6 +27,8 @@ import {
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
+import { useTranslation } from 'react-i18next';
+import { groupRefIsPmoAuthored } from './groupRef';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
@@ -317,10 +319,12 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onStage,
 }) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = kindConfig(kind);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [groupRef, setGroupRef] = useState('');
-  const hasGroupRef = GROUP_REF_KINDS.has(kind);
+  // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
+  const hasGroupRef = GROUP_REF_KINDS.has(kind) && groupRefIsPmoAuthored();
   const [status, setStatus] = useState(cfg.defaultStatus);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amountStr, setAmountStr] = useState('');
@@ -407,7 +411,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           status: status as 'Received' | 'Scheduled',
           invoiceDate: date,
           referenceNumber: refNum,
-          ...(groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
+          ...(hasGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
           amount: parsedAmount,
           taxTreatment: parsedTax.taxTreatment,
           taxAmount: parsedTax.taxAmount,
@@ -496,7 +500,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             htmlFor={`${formId}-group-ref`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            Group ref <span className="font-normal">(optional)</span>
+            {t('procurementDetail.groupRef.label', 'Group ref')}{' '}
+            <span className="font-normal">{t('procurementDetail.groupRef.optional', '(optional)')}</span>
           </label>
           <input
             id={`${formId}-group-ref`}
@@ -504,7 +509,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             value={groupRef}
             onChange={(e) => setGroupRef(e.target.value)}
             maxLength={100}
-            placeholder="e.g. PRQ-0026100001"
+            placeholder={t('procurementDetail.groupRef.placeholder', 'e.g. PRQ-0026100001')}
             data-testid={`${kind}-group-ref-input`}
             className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />

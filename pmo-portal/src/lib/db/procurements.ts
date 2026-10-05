@@ -23,7 +23,12 @@ export function externalRefsOf(p: ProcurementWithRefs): string[] {
 }
 
 const SELECT =
-  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)';
+  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)';
+
+/** #769: the Procurement index's OWN select — adds the three record-reference embeds (search + export).
+ *  Approvals, dashboards and every other `listProcurements` caller keep the lean `SELECT`. */
+const SELECT_WITH_REFS =
+  `${SELECT}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
 
 /**
  * Committed-spend basis for ONE project (OD-W5-4): Σ procurement total_value where the PR is
@@ -88,9 +93,12 @@ export async function getProjectReservedSpend(projectId: string): Promise<number
  * preserves the original unbounded read for every existing caller (e.g. the ⌘K CommandPalette
  * record search, which indexes the full cached list).
  */
-export async function listProcurements(params?: PageParams): Promise<ProcurementWithRefs[]> {
+export async function listProcurements(
+  params?: PageParams,
+  opts?: { withRefs?: boolean },
+): Promise<ProcurementWithRefs[]> {
   const range = resolveRange(params);
-  let q = supabase.from('procurements').select(SELECT);
+  let q = supabase.from('procurements').select(opts?.withRefs ? SELECT_WITH_REFS : SELECT);
   if (range) q = q.range(range.from, range.to);
   const { data, error } = await q;
   if (error) throw new Error(error.message);

@@ -1124,7 +1124,7 @@
     "raiseRequest": "Raise request",
     "search": {
       "label": "Filter requests",
-      "placeholder": "Filter requests…"
+      "placeholder": "Filter requests or references…"
     },
     "stage": {
       "gr": "Goods Receipt",
@@ -1203,6 +1203,11 @@
     "error": {
       "sub": "Something went wrong fetching the procurement details.",
       "title": "Couldn't load procurement"
+    },
+    "groupRef": {
+      "label": "Group ref",
+      "optional": "(optional)",
+      "placeholder": "e.g. PRQ-0026100001"
     },
     "lifecycleLabel": "Procurement lifecycle",
     "meta": {

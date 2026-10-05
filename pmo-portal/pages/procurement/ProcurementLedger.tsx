@@ -23,6 +23,7 @@
  * affordance for canWrite rows with no file.
  */
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CardPad,
   DataTable,
@@ -72,6 +73,12 @@ const FILTER_CHIPS: FilterChipDef[] = [
 // Static column definitions (all except File — that one needs canWrite context)
 // ---------------------------------------------------------------------------
 
+/** Column header via t() — STATIC_COLUMNS is module-level (no hook), so the one translated header is a tiny component. */
+const GroupRefHeader: React.FC = () => {
+  const { t } = useTranslation();
+  return <>{t('procurementDetail.groupRef.label', 'Group ref')}</>;
+};
+
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
@@ -113,7 +120,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'groupRef',
-    header: 'Group ref',
+    header: <GroupRefHeader />,
     cell: (row) =>
       row.groupRef ? (
         <span className="font-mono text-[12.5px] text-muted-foreground">{row.groupRef}</span>

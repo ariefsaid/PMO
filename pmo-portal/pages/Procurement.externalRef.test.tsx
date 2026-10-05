@@ -43,7 +43,8 @@ const seed = [
 ];
 
 const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
+const useProcurementsMock = vi.fn((_opts?: { withRefs?: boolean }) => procState);
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: (o?: { withRefs?: boolean }) => useProcurementsMock(o) }));
 // FK pickers in the New-PR modal read cached option hooks; stub them so the index
 // test needs no QueryClient (the loaders just hand back the static list).
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -86,5 +87,10 @@ describe('Procurement index — external reference search (#769)', () => {
     await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'prq-0026100001');
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.queryByText('Crane hire — 6 weeks')).not.toBeInTheDocument();
+  });
+
+  it('AC-EXT-001: the index asks for the reference embeds (and only the index does)', () => {
+    renderPage();
+    expect(useProcurementsMock).toHaveBeenCalledWith({ withRefs: true });
   });
 });

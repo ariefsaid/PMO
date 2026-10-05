@@ -47,11 +47,22 @@ describe('listProcurements', () => {
     const result = await listProcurements();
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)',
+      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
     );
     expect(result[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].requested_by?.full_name).toBe('Alice Manager');
     expect(result[0].vendor).toBeNull();
+  });
+
+  it('AC-EXT-001: the shared select carries NO record-reference embeds; only { withRefs: true } adds them', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements();
+    expect(mockSelect.mock.calls.at(-1)![0]).not.toMatch(/external_ref/);
+    await listProcurements(undefined, { withRefs: true });
+    const sel = mockSelect.mock.calls.at(-1)![0] as string;
+    expect(sel).toContain('pr_refs:purchase_requests(external_ref)');
+    expect(sel).toContain('po_refs:purchase_orders(external_ref)');
+    expect(sel).toContain('vi_refs:procurement_invoices(external_ref)');
   });
 
   it('sends no org_id (RLS scopes it) (FR-DAL-PROC-001)', async () => {

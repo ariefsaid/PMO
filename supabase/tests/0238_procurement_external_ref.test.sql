@@ -4,7 +4,7 @@
 -- AC-EXT-001  PR, PO and vendor invoice carry an optional external reference (trimmed, ≤100 chars)
 -- AC-EXT-002  stored on the record row; written only through the existing create RPCs
 begin;
-select plan(9);
+select plan(13);
 
 insert into organizations (id, name) values ('02320000-0000-0000-0000-000000000001', 'Ext Ref Org');
 insert into auth.users (id, email) values
@@ -64,7 +64,29 @@ select throws_ok(
   '42501', null,
   'AC-EXT-002: no direct update path on the record row');
 
+select throws_ok(
+  $$ insert into procurement_invoices (procurement_id, status, invoice_date, external_ref)
+       values ('02320000-0000-0000-0000-000000000010', 'Received', current_date, 'X') $$,
+  '42501', null,
+  'AC-EXT-002: as PM, no direct insert path on procurement_invoices either (INSERT revoked, 0174)');
+
+select throws_ok(
+  $$ update procurement_invoices set external_ref = 'X' $$,
+  '42501', null,
+  'AC-EXT-002: as PM, no direct update path on procurement_invoices.external_ref (column absent from the UPDATE grant, 0175)');
+
 set local request.jwt.claims = '{"sub":"02320000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok(
+  $$ insert into procurement_invoices (procurement_id, status, invoice_date, external_ref)
+       values ('02320000-0000-0000-0000-000000000010', 'Received', current_date, 'X') $$,
+  '42501', null,
+  'AC-EXT-002: as Engineer, direct insert on procurement_invoices is refused');
+
+select throws_ok(
+  $$ update procurement_invoices set external_ref = 'X' $$,
+  '42501', null,
+  'AC-EXT-002: as Engineer, direct update of procurement_invoices.external_ref is refused');
+
 select throws_ok(
   $$ select create_purchase_order('02320000-0000-0000-0000-000000000010', null, null, null, null,
        p_external_ref => 'PRO-1') $$,
