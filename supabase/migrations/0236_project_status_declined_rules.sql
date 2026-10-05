@@ -1,4 +1,4 @@
--- 0233_project_status_declined_rules.sql — #774: 'Declined' (added by 0232) behaves like 'Loss Tender'
+-- 0236_project_status_declined_rules.sql — #774: 'Declined' (added by 0232) behaves like 'Loss Tender'
 -- everywhere a terminal pre-award outcome is handled, except in the win-rate denominator.
 --   AC-DEC-001 transition_project: Declined is a legal target from every pre-award stage
 --              (Leads..Negotiation), stamps decided_at, and (like Loss Tender) may be revived to
