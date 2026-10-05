@@ -829,3 +829,7 @@ Recessed card deriving the label from `payload`: `payload.entity` → "Looked up
 - **Per-chip state keyed by `pendingId` (Blocker-8):** `ChipStateMap = Record<string, ApprovalChipState>`
   keyed by `pendingId` — NOT a single global atom (a global corrupts earlier chips on sequential
   proposals). See `docs/decisions.md` OD-A3-CHIP.
+
+### Budget editor scroll containment (2026-10-05, #804)
+
+The existing DataTable positioned-scroller rule also applies to budget editor tables: `overflow-x-auto` wrappers must be `relative`, so absolutely positioned accessible labels remain clipped at375px. AC-CAT-007 retains this regression.
