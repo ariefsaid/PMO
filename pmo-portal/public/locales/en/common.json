@@ -1593,6 +1593,12 @@
       },
       "lostNotice": "This project is marked lost. It has left the active pipeline.",
       "markLost": "Mark lost",
+      "markDeclined": "Decline to bid",
+      "declinedConfirm": {
+        "title": "Decline to bid",
+        "body": "This records {{project}} as declined: we chose not to bid. It leaves the active pipeline and is not counted against the win rate.",
+        "confirm": "Decline to bid"
+      },
       "markWon": "Mark won",
       "nextActionsHeading": "Next actions",
       "notSet": "Not set",
@@ -2076,6 +2082,7 @@
       "onHold": "On Hold",
       "closeOut": "Close Out",
       "lossTender": "Loss Tender",
+      "declined": "Declined",
       "internalProject": "Internal Project"
     },
     "identifiers": {

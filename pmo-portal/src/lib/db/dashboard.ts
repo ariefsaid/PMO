@@ -48,6 +48,8 @@ export interface ExecutiveDashboard {
 export interface WinRate {
   wins_count: number;
   losses_count: number;
+  /** #774: declined-to-bid deals in the period — NOT part of either win-rate denominator. */
+  declined_count?: number;
   wins_value: number;
   losses_value: number;
   win_rate_count: number;

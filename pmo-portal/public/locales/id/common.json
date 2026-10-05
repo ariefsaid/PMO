@@ -1593,6 +1593,12 @@
       },
       "lostNotice": "Proyek ini ditandai kalah. Proyek sudah keluar dari pipeline aktif.",
       "markLost": "Tandai kalah",
+      "markDeclined": "Tidak ikut tender",
+      "declinedConfirm": {
+        "title": "Tidak ikut tender",
+        "body": "Ini mencatat {{project}} sebagai tidak diikuti: kami memilih tidak mengajukan penawaran. Proyek keluar dari pipeline aktif dan tidak dihitung dalam win rate.",
+        "confirm": "Tidak ikut tender"
+      },
       "markWon": "Tandai menang",
       "nextActionsHeading": "Tindakan berikutnya",
       "notSet": "Belum diisi",
@@ -2076,6 +2082,7 @@
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
       "lossTender": "Tender kalah",
+      "declined": "Ditolak (tidak ikut tender)",
       "internalProject": "Proyek internal"
     },
     "identifiers": {

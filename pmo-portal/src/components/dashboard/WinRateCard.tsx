@@ -144,6 +144,11 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
               Lost
             </span>
           </div>
+          {(wr?.declined_count ?? 0) > 0 && (
+            <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
+              {wr?.declined_count} declined to bid — not counted in the win rate
+            </p>
+          )}
         </>
       )}
     </section>
