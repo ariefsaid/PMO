@@ -959,3 +959,18 @@ test('usage: no command or --help prints usage JSON and exits 2 / 0', async () =
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+
+
+test('AC-EC-004 projects accept end_client_id and send it in the body like any project column (#758)', async () => {
+  const assert = (await import('node:assert/strict')).default;
+  const { guardWritePayload } = await import('./pmo.mjs');
+  // The CLI write guard must NOT refuse a project payload naming end_client_id (create or update),
+  // and the field passes through the generic write path unchanged.
+  assert.doesNotThrow(() =>
+    guardWritePayload('projects', { name: 'D', status: 'Leads', end_client_id: '75800000-0000-0000-0000-0000000000a1' }, 'create'),
+  );
+  assert.doesNotThrow(() =>
+    guardWritePayload('projects', { end_client_id: '75800000-0000-0000-0000-0000000000a1' }, 'update'),
+  );
+});

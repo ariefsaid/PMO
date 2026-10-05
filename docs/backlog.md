@@ -4,6 +4,29 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ 2026-10-02 — RIS connected to its ERPNext on the hosted project (owner yes); next build #758
+
+Connected and activated through the UI (ERPNext 16). Service-side, audited: four domains employed (companies,
+procurement, revenue, timesheets), timesheet activity type and receivable account set, party onboarding adopted
+13 customers/suppliers. Still manual per project: the ERP project mapping (no UI or writer yet). **Next: #758
+(end customer alongside the client) — ahead of RIS project seeding.**
+First-client gap review filed as issues: #759 #760 #762–#777 (withholding on receipts, ERP item lines, project
++ vendor ref on purchase pushes, management report, down payment/progress billing (G5), receipt-date due date,
+multi-account budget map, external procurement refs, project tags, project-code numbering, in-app ERP project
+link + setup checklist, contacts adopt, declined outcome, expense claims (G2), two UI polish). RIS-specific setup
+and decisions are tracked privately with the client, not in this repo.
+
+### ⚑ 2026-09-30 (later) — second promote to `main` (#755); **v0.13.0 LIVE: production == main == `fc1aee72`** (owner yes); hosted DB at 0222; all 22 edge fns at `fc1aee72` (health verified)
+
+`main` == `dev`. Adds #735, #732, #731, #585, #728 (owner CLI over Supabase OAuth + consent page +
+API-client guard 0222, runbook `docs/runbooks/pmo-cli.md`), #655/#656 (ERPNext: no redirects, read-permission
+probe before activation, active-member caller), and #754 (all eleven verify guards now run in CI; leaner local
+and CI load). Open issues triaged the same day (13 closed). Release **v0.13.0** cut (#744) and back-merged to `dev`.
+**Hosted DB: 0219–0222 pushed 2026-09-30 (owner yes)** — 0219 normalised 0 rows; REST/auth/RPC answer 200 after the
+push; the replaced definer `approved_timesheet_for_push` still refuses the anon key (42501). **CLI sign-in enabled on the hosted project 2026-09-30 (owner yes):** OAuth server on, consent at `/oauth/consent`, CLI client registered; authorize → consent page verified. Owner signed in as the RIS Admin; with that CLI token the 0222 guard refuses DELETE and non-allow-listed tables (403/42501) and allows project reads. Open follow-up: #756 (branded CLI callback page). Was: enable the OAuth server there and register the CLI client (runbook); `main` → `production` FE promote.
+Before RIS activates ERPNext: its integration user needs read on the owned domains' doctypes + GL Entry +
+Payment Ledger Entry.
+
 ### ⚑ 2026-09-30 — promoted to `main` (#743, merge `37380e17`); production and the hosted DB untouched
 
 `main` == `dev` (trees identical). Carries the milestone below, the 16-issue follow-up batch

@@ -38,6 +38,9 @@ const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta
 // ── Stubs for the two FK-fetching hooks ────────────────────────────────────
 // #694: the create form reads the org currency for its money adornment.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [{ id: 'c9', name: 'Asset Owner', type: 'Client' }], isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({
     data: [{ id: 'c1', name: 'Innovate Corp', type: 'Client' }],

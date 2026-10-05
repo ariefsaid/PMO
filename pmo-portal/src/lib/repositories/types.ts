@@ -143,7 +143,7 @@ export interface ProjectRepository {
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
   /** Create a new opportunity (Leads / Internal Project only; org_id stamped by RLS). */
   create(input: CreateProjectInput): Promise<ProjectRow>;
-  /** Update the project's header fields (name/code/client/PM/dates). */
+  /** Update the project's header fields (name/code/client/end customer/PM/dates). */
   updateHeader(id: string, input: ProjectHeaderInput): Promise<void>;
   /** Soft-archive a project (stamps archived_at). */
   archive(id: string): Promise<void>;

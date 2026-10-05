@@ -100,6 +100,10 @@ export function useLostDeals() {
         currency: r.currency,
         tax_treatment: r.tax_treatment,
         win_probability: 0,
+        // #758: the end customer rides the full row into the lost scope so the pipeline's
+        // end-customer column/search stay consistent across open and lost deals.
+        end_client_id: r.end_client_id,
+        end_client_name: r.end_client?.name ?? null,
         // Pass through the full-row fields that the RPC omits (available here because
         // repositories.project.list returns ProjectWithRefs with the full projects row).
         last_update: r.last_update,

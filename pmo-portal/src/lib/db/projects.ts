@@ -29,6 +29,8 @@ export type ProjectStatus = ProjectRow['status'];
 /** A project row with client + PM names resolved in SQL (kills render-time .find(), F-7). */
 export type ProjectWithRefs = ProjectRow & {
   client: { name: string } | null;
+  /** The end customer, when set (#758) — a nullable FK resolved by name in SQL. */
+  end_client: { name: string } | null;
   pm: { full_name: string } | null;
 };
 
@@ -41,11 +43,12 @@ export type ProjectWithRefs = ProjectRow & {
 //
 // ADDING A FOREIGN KEY IS A BREAKING CHANGE TO EVERY UNQUALIFIED EMBED OF ITS TARGET. Nothing
 // below e2e can catch it: unit tests mock the Supabase client so the embed string is never
-// resolved against a real schema, and pgTAP tests SQL rather than PostgREST. `companies` is
-// still safe to leave unqualified — `projects` has exactly one FK to it — and the guard in
-// supabase/tests asserts that stays true.
+// resolved against a real schema, and pgTAP tests SQL rather than PostgREST. `projects` now has
+// TWO FKs to `companies` (client_id + end_client_id, migration 0223) and TWO to `profiles`, so
+// EVERY company embed here MUST be FK-qualified or PostgREST returns PGRST201. The guard in
+// supabase/tests asserts the schema stays multi-FK for both pairs (AC-EMBED-001/002/003).
 const SELECT =
-  '*, client:companies(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
+  '*, client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {
@@ -104,6 +107,10 @@ interface CreateProjectBase {
   /** Must be an origination status (Leads / Internal Project). */
   status: ProjectStatus;
   client_id: string | null;
+  /** The end customer, nullable (#758) — the company the work is ultimately for. Optional because
+   *  the import descriptor (src/lib/import/*, out of scope for #758) builds `CreateProjectInput`
+   *  without it; the create form supplies it explicitly (undefined → not sent → NULL). */
+  end_client_id?: string | null;
   project_manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -147,6 +154,8 @@ export interface ProjectHeaderInput {
   name: string;
   code: string | null;
   client_id: string | null;
+  /** The end customer, nullable (#758) — editable alongside the client. */
+  end_client_id?: string | null;
   project_manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -226,6 +235,7 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
       name: input.name,
       status: input.status,
       client_id: input.client_id,
+      end_client_id: input.end_client_id,
       project_manager_id: input.project_manager_id,
       contract_value: input.contract_value,
       start_date: input.start_date,
@@ -267,6 +277,7 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       name: input.name,
       code: input.code,
       client_id: input.client_id,
+      end_client_id: input.end_client_id,
       project_manager_id: input.project_manager_id,
       start_date: input.start_date,
       end_date: input.end_date,
