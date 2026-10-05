@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import {
   getExecutiveDashboard, type ExecutiveDashboard,
@@ -90,20 +91,26 @@ export function useLostDeals() {
   return useQuery<PipelineProject[]>({
     queryKey: ['lost-deals', orgId],
     queryFn: async () => {
-      const rows = await repositories.project.list({ status: 'Loss Tender' });
+      // 'Declined' is a terminal pre-award outcome that lives in the same Lost column/scope (#774).
+      const rows = [...(await repositories.project.list({ statuses: ['Loss Tender', 'Declined'] }))];
+      rows.sort((a, b) => (b.last_update ?? '').localeCompare(a.last_update ?? '')); // most recent first
       return rows.map((r): PipelineProject => ({
+        service_line: r.service_line, sector: r.sector, location: r.location, award_type: r.award_type, bidding_entity: r.bidding_entity,
         id: r.id,
         name: r.name,
-        client_name: r.client?.name ?? null,
+        client_name: r.client ? companyDisplayName(r.client) : null,
+        client_legal_name: r.client?.name ?? null,
         status: r.status,
         contract_value: r.contract_value,
         currency: r.currency,
         tax_treatment: r.tax_treatment,
+        tax_rate: r.tax_rate, tax_base_numerator: r.tax_base_numerator, tax_base_denominator: r.tax_base_denominator,
         win_probability: 0,
         // #758: the end customer rides the full row into the lost scope so the pipeline's
         // end-customer column/search stay consistent across open and lost deals.
         end_client_id: r.end_client_id,
-        end_client_name: r.end_client?.name ?? null,
+        end_client_name: r.end_client ? companyDisplayName(r.end_client) : null,
+        end_client_legal_name: r.end_client?.name ?? null,
         // Pass through the full-row fields that the RPC omits (available here because
         // repositories.project.list returns ProjectWithRefs with the full projects row).
         last_update: r.last_update,

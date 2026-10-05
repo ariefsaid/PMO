@@ -1,4 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import { useProjectClassificationOptions } from '@/src/hooks/useProjectClassificationOptions';
+import type { ProjectClassification } from '@/src/lib/projectClassification';
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
@@ -14,6 +19,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
+import { useProjectNumberProposal } from '@/src/hooks/useProjectNumberProposal';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import {
   currencySymbol,
@@ -24,7 +30,7 @@ import {
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { CONTRACT_TAX_REQUIRED_HINT, parseTaxFacts } from '@/src/lib/taxTreatment';
+import { CONTRACT_TAX_REQUIRED_HINT } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -59,7 +65,7 @@ function initialsOf(name: string): string {
 }
 
 /** Pre-filled values when editing an existing project header. */
-export interface ProjectFormInitial {
+export interface ProjectFormInitial extends ProjectClassification {
   id: string;
   name: string;
   code: string | null;
@@ -75,8 +81,14 @@ export interface ProjectFormInitial {
 }
 
 interface FormValues {
+  serviceLine: string;
+  sector: string;
+  location: string;
+  awardType: string;
+  biddingEntity: string;
   name: string;
   code: string;
+  pmoProjectNumber: string;
   clientId: string | null;
   endClientId: string | null;
   pmId: string | null;
@@ -166,6 +178,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onSave,
   onError,
 }) => {
+  const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
   const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
@@ -180,8 +193,14 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const form = useEntityForm<FormValues>({
     initialValues: {
+      serviceLine: initial?.service_line ?? '',
+      sector: initial?.sector ?? '',
+      location: initial?.location ?? '',
+      awardType: initial?.award_type ?? '',
+      biddingEntity: initial?.bidding_entity ?? '',
       name: initial?.name ?? '',
       code: initial?.code ?? '',
+      pmoProjectNumber: '',
       clientId: initial?.client_id ?? null,
       endClientId: initial?.end_client_id ?? null,
       pmId: initial?.project_manager_id ?? null,
@@ -197,17 +216,27 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name + client
     // are present. The optional estimated value is NOT required — a bad value is a
     // format error caught on submit (focus moves to it), not a completeness gate.
-    requiredFields: ['name', 'clientId'],
+    requiredFields: isEdit ? ['name', 'clientId'] : ['name', 'clientId', 'pmoProjectNumber'],
   });
 
   // The combobox tracks its own selected-label so the chip renders without a
   // separate fetch (seeded from initial for edit, then updated on selection).
   const [clientLabel, setClientLabel] = useState<string | null>(initial?.clientName ?? null);
+  const numberProposal = useProjectNumberProposal(form.values.clientId, !isEdit);
+  const appliedProposal = useRef<string | null>(null);
+  const [numberConflict, setNumberConflict] = useState(false);
+  useEffect(() => {
+    if (!isEdit && numberProposal.status === 'success' && numberProposal.number !== appliedProposal.current) {
+      form.setValue('pmoProjectNumber', numberProposal.number);
+      appliedProposal.current = numberProposal.number;
+    }
+  }, [form, isEdit, numberProposal]);
   const [pmLabel, setPmLabel] = useState<string | null>(initial?.pmName ?? null);
   const [endClientLabel, setEndClientLabel] = useState<string | null>(initial?.endClientName ?? null);
 
   const nameField = form.fieldProps('name');
   const codeField = form.fieldProps('code');
+  const pmoNumberField = form.fieldProps('pmoProjectNumber');
   const statusField = form.fieldProps('status');
   const valueField = form.fieldProps('value');
   const taxTreatmentField = form.fieldProps('taxTreatment');
@@ -236,7 +265,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     (v) => form.setValue('taxTreatment', v),
     !isEdit,
   );
-  const parsedTax = parseTaxFacts(form.values.taxTreatment, form.values.taxAmount);
+  const taxFields = useStandaloneTaxFields(form.values.value, form.values.taxTreatment, form.values.taxAmount, (v) => form.setValue('taxAmount', v));
+  const parsedTax = taxFields.facts;
   const taxIncomplete = taxRequired && parsedTax === null;
   const startField = form.fieldProps('startDate');
   const endField = form.fieldProps('endDate');
@@ -245,9 +275,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     if (clientsError) throw new Error('client load failed');
     return clients.map((c) => ({
       value: c.id,
-      label: c.name,
-      sub: t('companies.type.client', 'Client'),
-      initials: initialsOf(c.name),
+      label: companyDisplayName(c),
+      sub: c.short_name ? c.name : t('companies.type.client', 'Client'),
+      initials: initialsOf(companyDisplayName(c)),
       color: projectIconColor(),
     }));
   };
@@ -266,9 +296,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     if (endCustomersError) throw new Error('end customer load failed');
     return allCompanies.map((c) => ({
       value: c.id,
-      label: c.name,
-      sub: t(`companies.type.${c.type.toLowerCase()}`, c.type),
-      initials: initialsOf(c.name),
+      label: companyDisplayName(c),
+      sub: c.short_name ? c.name : t(`companies.type.${c.type.toLowerCase()}`, c.type),
+      initials: initialsOf(companyDisplayName(c)),
       color: projectIconColor(),
     }));
   };
@@ -284,14 +314,23 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
     form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
+    numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
   ].filter((x): x is { fieldId: string; message: string } => x != null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       try {
+        const classification = {
+          service_line: values.serviceLine.trim() || null,
+          sector: values.sector.trim() || null,
+          location: values.location.trim() || null,
+          award_type: values.awardType || null,
+          bidding_entity: values.biddingEntity || null,
+        };
         if (isEdit && initial && onSave) {
           const input: ProjectHeaderInput = {
+            ...classification,
             name: values.name.trim(),
             code: values.code.trim() || null,
             client_id: values.clientId,
@@ -302,8 +341,12 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           };
           await onSave(initial.id, input);
         } else if (onSubmit) {
+          if (numberProposal.status !== 'success' || !values.pmoProjectNumber.trim()) return;
           const base = {
+            ...classification,
             name: values.name.trim(),
+            code: values.code.trim() || null,
+            pmo_project_number: values.pmoProjectNumber.trim(),
             status: values.status,
             client_id: values.clientId,
             end_client_id: values.endClientId,
@@ -317,7 +360,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           // shape that compiles, and a non-zero value with no basis cannot be built here.
           let input: CreateProjectInput;
           if (contractValue > 0) {
-            const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
+            const tax = taxFields.facts;
             // Unreachable through the UI (Create is disabled, and this shares `parseTaxFacts` with
             // the predicate that disables it) — but a bare `return` would make a future regression a
             // DEAD BUTTON with no message. Unreachable code that fails loudly costs nothing.
@@ -332,6 +375,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               contract_value: contractValue,
               tax_treatment: tax.taxTreatment,
               tax_amount: tax.taxAmount,
+              tax_rate: tax.taxRate, tax_base_numerator: tax.taxBaseNumerator, tax_base_denominator: tax.taxBaseDenominator,
             };
           } else {
             input = { ...base, contract_value: 0 };
@@ -339,6 +383,10 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           await onSubmit(input);
         }
       } catch (err) {
+        const failure = err as { code?: string; message?: string };
+        if (failure.code === '23505' && (!failure.message || failure.message.includes('pmo_project_number'))) {
+          setNumberConflict(true);
+        }
         onError(err);
       }
     });
@@ -358,7 +406,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete || taxIncomplete}
+      submitDisabled={!form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success')}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       <FormSection legend={t('projectForm.section.project', 'Project')}>
@@ -385,6 +433,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 : null
             }
             onChange={(v, opt) => {
+              if (form.values.clientId !== v) {
+                form.setValue('pmoProjectNumber', '');
+                appliedProposal.current = null;
+                setNumberConflict(false);
+              }
               form.setValue('clientId', v);
               setClientLabel(opt.label);
             }}
@@ -440,15 +493,52 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           {isEdit ? (
             <TextField
               id={codeField.id}
-              label={t('projectForm.code.label', 'Project code')}
+              label={t('projectForm.clientCode.label', 'Client Project Code')}
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              placeholder={t('projectForm.code.placeholder', 'e.g. OPP-2041')}
+              placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
               mono
             />
           ) : (
             <>
+              <TextField
+                id={pmoNumberField.id}
+                label={t('projectForm.projectNumber.label', 'PMO Project Number')}
+                required
+                value={pmoNumberField.value}
+                onChange={(value) => {
+                  pmoNumberField.onChange(value);
+                  setNumberConflict(false);
+                }}
+                onBlur={pmoNumberField.onBlur}
+                error={numberConflict
+                  ? t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.')
+                  : numberProposal.status === 'error'
+                    ? numberProposal.error.includes('client_segment_required')
+                      ? t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')
+                      : t('projectForm.projectNumber.proposalError', 'A PMO Project Number could not be proposed. Select the client again to retry.')
+                    : undefined}
+                disabled={numberProposal.status !== 'success'}
+                helper={numberProposal.status === 'error'
+                  ? undefined
+                  : t('projectForm.projectNumber.helper', 'PMO assigns this identifier. You can edit it before creating the project.')}
+                mono
+              />
+              {numberProposal.status === 'loading' && (
+                <p role="status" aria-live="polite" className="text-[12px] text-muted-foreground">
+                  {t('projectForm.projectNumber.loading', 'Proposing a PMO Project Number…')}
+                </p>
+              )}
+              <TextField
+                id={codeField.id}
+                label={t('projectForm.clientCode.label', 'Client Project Code')}
+                value={codeField.value}
+                onChange={codeField.onChange}
+                onBlur={codeField.onBlur}
+                placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
+                mono
+              />
               <SelectField
                 id={statusField.id}
                 label={t('projectForm.stage.label', 'Origination stage')}
@@ -476,6 +566,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   src/lib/taxTreatment.ts, shared with the vendor-invoice forms. */}
               {taxRequired && (
                 <>
+                  <div className="col-span-full"><TaxRateFields fields={taxFields} /></div>
                   <SelectField
                     id={taxTreatmentField.id}
                     label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
@@ -492,6 +583,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                     required
                     prefix={moneyPrefix}
                     value={taxAmountField.value}
+                    readOnly={taxFields.hasRate}
                     onChange={taxAmountField.onChange}
                     onBlur={taxAmountField.onBlur}
                     localeAware
@@ -510,6 +602,30 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               )}
             </>
           )}
+        </FormGrid>
+      </FormSection>
+
+      <FormSection legend={t('projectClassification.title', 'Classification')}>
+        <FormGrid>
+          {(['serviceLine', 'sector'] as const).map((key) => {
+            const configured = key === 'serviceLine' ? classificationOptions.data?.serviceLines : classificationOptions.data?.sectors;
+            const current = form.values[key];
+            const options = [...new Set([...(configured ?? []), ...(current ? [current] : [])])];
+            return <SelectField key={key} id={`project-classification-${key}`}
+              label={key === 'serviceLine' ? t('projectClassification.serviceLine', 'Service line') : t('projectClassification.sector', 'Sector')}
+              value={current} onChange={(value) => form.setValue(key, value)}
+              disabled={!classificationOptions.data}
+              options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, ...options.map((value) => ({ value, label: value }))]}
+              helper={classificationOptions.isError ? t('projectClassification.unavailable', 'Options could not be loaded. Reopen this form to retry.') : undefined} />;
+          })}
+          <SelectField id="project-classification-award" label={t('projectClassification.awardType', 'Award type')}
+            value={form.values.awardType} onChange={(value) => form.setValue('awardType', value)}
+            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, { value: 'tender', label: t('projectClassification.tender', 'Tender') }, { value: 'direct', label: t('projectClassification.direct', 'Direct award') }]} />
+          <SelectField id="project-classification-bidding" label={t('projectClassification.biddingEntity', 'Bidding entity')}
+            value={form.values.biddingEntity} onChange={(value) => form.setValue('biddingEntity', value)}
+            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, { value: 'alone', label: t('projectClassification.alone', 'Alone') }, { value: 'consortium', label: t('projectClassification.consortium', 'Consortium') }]} />
+          <TextField id="project-classification-location" label={t('projectClassification.location', 'Location')}
+            value={form.values.location} onChange={(value) => form.setValue('location', value)} fullWidth />
         </FormGrid>
       </FormSection>
 

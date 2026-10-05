@@ -25,6 +25,7 @@ const ALL_PROJECT_STATUSES = [
   'Close Out',
   'On Hold',
   'Loss Tender',
+  'Declined',
   'Internal Project',
 ] as const;
 

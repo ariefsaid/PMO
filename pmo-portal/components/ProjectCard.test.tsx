@@ -33,7 +33,8 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 const base = {
   id: 'p1',
   name: 'Innovate Corp HQ Fit-Out',
-  code: 'PRJ-001',
+  code: 'CLIENT-81',
+  pmo_project_number: 'PMO-26-7711',
   status: 'Ongoing Project',
   client_id: 'c2',
   project_manager_id: 'u-alice',
@@ -47,6 +48,11 @@ const base = {
 } as unknown as ProjectWithRefs;
 
 describe('ProjectCard', () => {
+  it('displays the client short name in a project card (references AC-NICK-001)', () => {
+    render(<ProjectCard project={{ ...base, client: { name: 'Example Legal Company', short_name: 'Example' } }} onOpen={vi.fn()} />);
+    expect(screen.getByText('Example')).toBeInTheDocument();
+    expect(screen.queryByText('Example Legal Company')).not.toBeInTheDocument();
+  });
   it('renders the project name, customer, contract value and PM (AC-401 strings)', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
@@ -98,6 +104,12 @@ describe('ProjectCard', () => {
     onOpen.mockClear();
     await userEvent.click(screen.getByRole('button', { name: /change status/i }));
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('AC-CODE-003: renders PMO Project Number and Client Project Code as separate labelled identities', () => {
+    render(<ProjectCard project={base} onOpen={vi.fn()} />);
+    expect(screen.getByTestId('project-card')).toHaveTextContent('PMO Project Number: PMO-26-7711');
+    expect(screen.getByTestId('project-card')).toHaveTextContent('Client Project Code: CLIENT-81');
   });
 
   it('has a carrier with the project-card testid', () => {

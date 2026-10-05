@@ -9,10 +9,26 @@ export type ProcurementWithRefs = ProcurementRow & {
   project: { name: string; code: string | null } | null;
   vendor: { name: string } | null;
   requested_by: { full_name: string } | null;
+  /** #769: the parent group's numbers on this case's PR / PO / vendor-invoice records (search + export). */
+  pr_refs?: { external_ref: string | null }[];
+  po_refs?: { external_ref: string | null }[];
+  vi_refs?: { external_ref: string | null }[];
 };
+
+/** Every non-empty external reference on a case's PR / PO / vendor-invoice records, in that order. */
+export function externalRefsOf(p: ProcurementWithRefs): string[] {
+  return [...(p.pr_refs ?? []), ...(p.po_refs ?? []), ...(p.vi_refs ?? [])]
+    .map((r) => r.external_ref)
+    .filter((v): v is string => !!v);
+}
 
 const SELECT =
   '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)';
+
+/** #769: the Procurement index's OWN select — adds the three record-reference embeds (search + export).
+ *  Approvals, dashboards and every other `listProcurements` caller keep the lean `SELECT`. */
+const SELECT_WITH_REFS =
+  `${SELECT}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
 
 /**
  * Committed-spend basis for ONE project (OD-W5-4): Σ procurement total_value where the PR is
@@ -77,9 +93,12 @@ export async function getProjectReservedSpend(projectId: string): Promise<number
  * preserves the original unbounded read for every existing caller (e.g. the ⌘K CommandPalette
  * record search, which indexes the full cached list).
  */
-export async function listProcurements(params?: PageParams): Promise<ProcurementWithRefs[]> {
+export async function listProcurements(
+  params?: PageParams,
+  opts?: { withRefs?: boolean },
+): Promise<ProcurementWithRefs[]> {
   const range = resolveRange(params);
-  let q = supabase.from('procurements').select(SELECT);
+  let q = supabase.from('procurements').select(opts?.withRefs ? SELECT_WITH_REFS : SELECT);
   if (range) q = q.range(range.from, range.to);
   const { data, error } = await q;
   if (error) throw new Error(error.message);

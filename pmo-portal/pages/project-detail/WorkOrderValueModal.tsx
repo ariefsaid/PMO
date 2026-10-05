@@ -1,3 +1,6 @@
+import { formatMoneyInputValue } from '@/src/lib/format';
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -108,6 +111,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
   const valueField = form.fieldProps('value');
   const treatmentField = form.fieldProps('taxTreatment');
   const taxField = form.fieldProps('taxAmount');
+  const taxFields = useStandaloneTaxFields(form.values.value, form.values.taxTreatment, form.values.taxAmount, (v) => form.setValue('taxAmount', v), workOrder.tax_rate == null ? '' : formatMoneyInputValue(workOrder.tax_rate), `${workOrder.tax_base_numerator ?? 1}/${workOrder.tax_base_denominator ?? 1}`);
 
   const errorSummary = (() => {
     const items: { fieldId: string; message: string }[] = [];
@@ -127,7 +131,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       const value = parseMoneyInputAtScale(values.value, 2);
-      const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
+      const tax = taxFields.facts;
       if (value === null || tax === null) return;
       try {
         await onSave({
@@ -135,6 +139,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
           value,
           taxTreatment: tax.taxTreatment,
           taxAmount: tax.taxAmount,
+          taxRate: tax.taxRate, taxBaseNumerator: tax.taxBaseNumerator, taxBaseDenominator: tax.taxBaseDenominator,
         });
       } catch (err) {
         // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
@@ -160,7 +165,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || taxFields.facts === null}
       errorSummary={errorSummary}
     >
       <FormSection legend={t('projectDetail.workOrderValue.legend', 'Value and tax basis')}>
@@ -196,12 +201,14 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
             options={taxOptions}
             data-testid="wo-value-tax-treatment"
           />
-          <NumberField
+          <div className="col-span-full"><TaxRateFields fields={taxFields} /></div>
+            <NumberField
             id={taxField.id}
             label={t('projectDetail.workOrderValue.taxAmount', 'Tax amount')}
             required
             prefix={currencySymbolPrefix}
             value={taxField.value}
+              readOnly={taxFields.hasRate}
             onChange={taxField.onChange}
             onBlur={taxField.onBlur}
             error={taxField.error}

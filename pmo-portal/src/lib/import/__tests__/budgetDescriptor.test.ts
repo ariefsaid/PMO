@@ -10,7 +10,7 @@ const { budget } = vi.hoisted(() => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
 
-import { makeBudgetImportDescriptor, computeBudgetLineImportKey } from '../budgetDescriptor';
+import { makeBudgetImportDescriptor, computeBudgetLineImportKey, BUDGET_CATEGORIES } from '../budgetDescriptor';
 import { IMPORT_SKIPPED } from '../types';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
@@ -47,6 +47,21 @@ describe('makeBudgetImportDescriptor', () => {
   afterEach(() => resetActiveLocale());
 
   const make = () => makeBudgetImportDescriptor(projects, 'batch-1');
+
+  it('AC-CAT-003: accepts and imports the eighth category without changing the seven existing values', async () => {
+    expect(BUDGET_CATEGORIES).toEqual([
+      'Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses',
+    ]);
+    const d = make();
+    expect(d.fields.find((field) => field.key === 'category')!.validate(' Special expenses ')).toBeNull();
+    await d.create(d.toInput(cells({ category: ' Special expenses ', budgetedAmount: '25000.30' })));
+    expect(budget.createLineItem).toHaveBeenCalledWith(
+      'ver-new',
+      expect.objectContaining({ category: 'Special expenses', budgeted_amount: 25000.30 }),
+      expect.objectContaining({ importBatchId: 'batch-1', importedAt: expect.any(String), importKey: expect.any(String) }),
+    );
+  });
+
 
   // ── the two exclusions that are the point of the ticket ──────────────────────────────────────
 

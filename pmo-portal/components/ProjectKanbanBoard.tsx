@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 /**
  * ProjectKanbanBoard — Projects index kanban view grouped by lifecycle status.
  *
@@ -121,7 +122,9 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       variant="kanban"
       initial={initial}
       name={project.name}
-      client={project.client?.name ?? null}
+      client={project.client ? companyDisplayName(project.client) : null}
+      pmoProjectNumber={project.pmo_project_number}
+      code={project.code}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
           {project.status}
@@ -131,7 +134,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
         <div className="text-[12px] font-bold tabular">
           {formatCurrency(project.contract_value, project.currency)}{' '}
           {/* OD-TAX-1 §2 — the card's only number, so it is the one that must not be bare. */}
-          <TaxBasisLabel treatment={project.tax_treatment} />
+          <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
         </div>
       }
       foot={

@@ -99,7 +99,7 @@ jobs:
       # port + temp dirs only — no DB, no network.
       - name: PMO CLI tests
         working-directory: .
-        run: node --test scripts/pmo.test.mjs scripts/register-oauth-client.test.mjs
+        run: node --test scripts/pmo.test.mjs scripts/pmo-load.test.mjs scripts/register-oauth-client.test.mjs
       - name: CI integration-order test
         working-directory: .
         run: |

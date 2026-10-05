@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   Icon,
@@ -26,6 +26,7 @@ import { CanWrite } from '@/src/auth/usePermission';
 import { formatInstantDate, formatList } from '@/src/lib/format';
 import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/types';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
+import { ErpSetupChecklist } from './ErpSetupChecklist';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 
 const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
@@ -95,6 +96,7 @@ function useIntegrationsHealth(
 
 export const IntegrationsView: React.FC = () => {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const {
     orgId,
     isPending,
@@ -259,6 +261,8 @@ export const IntegrationsView: React.FC = () => {
       // Send the SELECTED Company doc name — NOT the tier. `config.company` must hold the Company
       // (OD-INT-6); the binding stays connected-but-not-activated until this is set.
       await setCompany.mutateAsync(selectedCompany);
+      void qc.invalidateQueries({ queryKey: ['integrations', 'setup', orgId] });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'project-erp', orgId] });
       setSetCompanyTier(null);
       setSelectedCompany(null);
     } catch (err) {
@@ -478,6 +482,11 @@ export const IntegrationsView: React.FC = () => {
               )}
 
               {/* Tier-specific info notes */}
+              {tier === 'erpnext' && isConnected && !isConnectedButNotActivated && (
+                <CanWrite entity="integration" action="manage">
+                  <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
+                </CanWrite>
+              )}
               {tier === 'clickup' && (
                 <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                   <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />

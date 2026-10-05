@@ -50,13 +50,16 @@ describe('getOpportunity', () => {
     expect(mockEq).toHaveBeenCalledWith('id', 'o1');
     // The FK-qualified SELECT string (pins the embed strings so a revert is caught here).
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('client:companies!projects_client_id_fkey(name)'),
+      expect.stringContaining('client:companies!projects_client_id_fkey(name, short_name)'),
     );
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('end_client:companies!projects_end_client_id_fkey(name)'),
+      expect.stringContaining('end_client:companies!projects_end_client_id_fkey(name, short_name)'),
     );
     expect(mockSelect).toHaveBeenCalledWith(
       expect.stringContaining('end_client_id'),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('pmo_project_number'),
     );
     expect(result?.end_client?.name).toBe('Asset Owner');
   });

@@ -33,6 +33,12 @@ const isRunAsMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').hre
  * @type {Array<{file: string, reason: string, restore: string, verified: string}>}
  */
 export const ALLOWED_SKIPS = [
+  {
+    file: 'serial/AC-WHT-002-receipt-withholding.spec.ts',
+    reason: 'Receipt withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
+    verified: '2026-10-05',
+  },
   // ── Served lane absent: config.toml sets [edge_runtime] enabled = false in CI *and* local, so
   // nothing serves functions/v1 unless scripts/serve-functions.sh is running (it exports
   // SUPABASE_FUNCTIONS_URL). These run in the served lane and skip everywhere else.
@@ -74,6 +80,12 @@ export const ALLOWED_SKIPS = [
     restore: 'Run locally against the throwaway bench (scripts/e2e-local.sh with the bench up).',
     verified: '2026-09-30',
   })),
+  {
+    file: 'serial/AC-SETUP-001-project-erp-link.spec.ts',
+    reason: 'ERP setup journey needs the disposable ERP bench and a prepared HTTPS binding.',
+    restore: 'Run in the local served-functions lane with the disposable HTTPS ERP relay and ready binding.',
+    verified: '2026-10-05',
+  },
 
   // ── Feature-flag quarantine: the incidents module is OFF. Code/DAL/RLS are preserved.
   {

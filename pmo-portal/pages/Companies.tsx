@@ -1,3 +1,5 @@
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
@@ -67,7 +69,9 @@ const typeLabels = (t: TFunction): Record<CompanyType, string> => ({
 
 interface FormValues {
   name: string;
+  short_name: string;
   type: CompanyType;
+  clientNumberSegment: string;
 }
 
 /**
@@ -91,7 +95,7 @@ const Companies: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useCompanies();
   // `?? IDLE_PENDING_PUSH` — existing hook mocks (RBAC/export test suites) predate this field.
-  const { create, update, archive, remove, pendingPush = IDLE_PENDING_PUSH } = useCompanyMutations();
+  const { create, update, setProjectNumberSegment, archive, remove, pendingPush = IDLE_PENDING_PUSH } = useCompanyMutations();
 
   // A-5 (rbac-visibility §D): Companies directory view = Admin·Exec·PM·Finance; Engineer = ○
   // (no nav, no page). The rail hides it but the ROUTE does not — so an Engineer reaching
@@ -132,7 +136,7 @@ const Companies: React.FC = () => {
     const q = search.trim().toLowerCase();
     return all
       .filter((c) => filter === 'All' || c.type === filter)
-      .filter((c) => !q || c.name.toLowerCase().includes(q));
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.short_name ?? '').toLowerCase().includes(q));
   }, [all, search, filter]);
 
   // AC-LRC-012: the DataTable's `empty` branch below (with `clearFilters`) only ever renders when
@@ -168,9 +172,12 @@ const Companies: React.FC = () => {
       key: 'name',
       header: t('companies.columns.name', 'Company'),
       cell: (c) => (
-        <span className="truncate font-semibold" title={c.name}>
-          {c.name}
-        </span>
+        <div className="min-w-0" title={c.name}>
+          <span className="block truncate font-semibold">{companyDisplayName(c)}</span>
+          {c.short_name?.trim() && c.short_name.trim() !== c.name && (
+            <span className="block truncate text-xs text-muted-foreground">{c.name}</span>
+          )}
+        </div>
       ),
       exportValue: (c) => c.name,
     },
@@ -395,7 +402,7 @@ const Companies: React.FC = () => {
           // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
           onActivate={(c) => openRecord(`/companies/${c.id}`)}
           // ⚑ Not extracted — embeds a value; see the interpolation note above.
-          rowLabel={(c) => `Open ${c.name}`}
+          rowLabel={(c) => `Open ${companyDisplayName(c)}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
@@ -415,8 +422,9 @@ const Companies: React.FC = () => {
             toast(t('companies.toast.created', 'Company created'), input.name, 'success');
             setFormTarget(null);
           }}
-          onUpdate={async (id, input) => {
+          onUpdate={async (id, input, segment) => {
             await update.mutateAsync({ id, input });
+            await setProjectNumberSegment.mutateAsync({ id, segment });
             toast(t('companies.toast.updated', 'Company updated'), input.name, 'success');
             setFormTarget(null);
           }}
@@ -475,7 +483,7 @@ interface CompanyFormModalProps {
   company: CompanyRow | null;
   onClose: () => void;
   onCreate: (input: CompanyInput) => Promise<void>;
-  onUpdate: (id: string, input: CompanyInput) => Promise<void>;
+  onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<void>;
   onError: (err: unknown) => void;
   /** ADR-0056/FR-EAS-060..063 pending-push state for a flipped org's Vendor/Client write. */
   pendingPush: PendingPushState;
@@ -491,6 +499,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const isEdit = !!company;
+  const nativeReadOnly = isEdit && company.type !== 'Internal' && routeDomainWrite('companies') === 'external';
   // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
   // `runValidate` memo behaves exactly as it did with the old module-level function.
   const validate = useMemo(() => makeValidate(t), [t]);
@@ -503,7 +512,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
     ];
   }, [t]);
   const form = useEntityForm<FormValues>({
-    initialValues: { name: company?.name ?? '', type: company?.type ?? 'Client' },
+    initialValues: { name: company?.name ?? '', short_name: company?.short_name ?? '', type: company?.type ?? 'Client', clientNumberSegment: company?.client_number_segment ?? '' },
     validate,
     idPrefix: 'company-form',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name is present.
@@ -512,7 +521,9 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   });
 
   const nameField = form.fieldProps('name');
+  const shortNameField = form.fieldProps('short_name');
   const typeField = form.fieldProps('type');
+  const clientNumberSegmentField = form.fieldProps('clientNumberSegment');
 
   // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
   // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
@@ -527,10 +538,17 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const input: CompanyInput = { name: values.name.trim(), type: values.type };
+      const input: CompanyInput = {
+        name: values.name.trim(),
+        type: values.type,
+        ...(nativeReadOnly || values.short_name.trim() || company?.short_name
+          ? { short_name: values.short_name.trim() || null }
+          : {}),
+      };
       try {
-        if (isEdit && company) await onUpdate(company.id, input);
-        else await onCreate(input);
+        if (isEdit && company) {
+          await onUpdate(company.id, input, values.clientNumberSegment.trim() || null);
+        } else await onCreate(input);
       } catch (err) {
         const { headline, detail } = classifyMutationError(err, undefined, {
           module: 'companies',
@@ -577,6 +595,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       <FormSection legend={t('companies.form.sections.identity', 'Identity')}>
         <FormGrid>
           <TextField
+            disabled={nativeReadOnly}
             id={nameField.id}
             label={t('companies.form.name.label', 'Company name')}
             required
@@ -588,7 +607,17 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
             autoComplete="organization"
             fullWidth
           />
+          <TextField
+            id={shortNameField.id}
+            label={t('companies.form.shortName.label', 'Short name')}
+            helper={t('companies.form.shortName.hint', 'Optional display name used across PMO. The legal name stays unchanged.')}
+            value={shortNameField.value}
+            onChange={shortNameField.onChange}
+            onBlur={shortNameField.onBlur}
+            fullWidth
+          />
           <SelectField
+            disabled={nativeReadOnly}
             id={typeField.id}
             label={t('companies.form.type.label', 'Type')}
             required
@@ -597,6 +626,17 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
             onBlur={typeField.onBlur}
             options={typeOptions}
           />
+          {isEdit && (
+            <TextField
+              id={clientNumberSegmentField.id}
+              label={t('companies.form.clientNumberSegment.label', 'Client number segment')}
+              value={clientNumberSegmentField.value}
+              onChange={clientNumberSegmentField.onChange}
+              onBlur={clientNumberSegmentField.onBlur}
+              placeholder={t('companies.form.clientNumberSegment.placeholder', 'e.g. RIS')}
+              mono
+            />
+          )}
         </FormGrid>
       </FormSection>
     </EntityFormModal>

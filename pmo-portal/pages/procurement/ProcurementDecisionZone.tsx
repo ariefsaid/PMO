@@ -1,3 +1,5 @@
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 /**
  * ProcurementDecisionZone — the DecisionCard region of the procurement detail
  * (refactor: procurement-detail-dedup). Lifted verbatim out of the
@@ -22,6 +24,8 @@
  * calls, confirm dialog) is UNCHANGED — only layout + Notes disclosure changed.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { groupRefIsPmoAuthored } from './groupRef';
 import {
   Card,
   CardPad,
@@ -38,7 +42,6 @@ import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
   VI_TAX_REQUIRED_HINT,
-  parseVendorInvoiceTax,
   taxIsPmoAuthored,
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
@@ -391,9 +394,13 @@ interface VIInlineCaptureProps {
 }
 
 const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel }) => {
+  const { t } = useTranslation();
+  // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
+  const showGroupRef = groupRefIsPmoAuthored();
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [refNum, setRefNum] = React.useState('');
+  const [groupRef, setGroupRef] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
   const [amtError, setAmtError] = React.useState<string | undefined>(undefined);
   const amtErrorId = React.useId();
@@ -402,6 +409,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   // chose. OD-TAX-1 (#548) pre-selects it from the org setting — see the hook call below.
   const [taxTreatmentStr, setTaxTreatmentStr] = React.useState('');
   const [taxAmtStr, setTaxAmtStr] = React.useState('');
+  const taxFields = useStandaloneTaxFields(amtStr, taxTreatmentStr, taxAmtStr, setTaxAmtStr);
   // #684: both money drafts group in the viewer's number convention as the user types.
   const amtMask = useMoneyInputMask(amtStr, (next) => {
     setAmtStr(next);
@@ -415,7 +423,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   // `taxIsPmoAuthored`. Asking and then discarding is worse than not asking, and that is what an
   // earlier round of #505 did.
   const pmoAuthorsTax = taxIsPmoAuthored();
-  const tax = pmoAuthorsTax ? parseVendorInvoiceTax(taxTreatmentStr, taxAmtStr) : ERP_AUTHORED_TAX;
+  const tax = pmoAuthorsTax ? taxFields.facts : ERP_AUTHORED_TAX;
 
   // OD-TAX-1 (#548): pre-select the org default into this NEW invoice's basis. Off on a flipped
   // org, where the controls are not rendered and the ERP owns the answer.
@@ -436,9 +444,11 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       status: viStatus,
       invoiceDate,
       referenceNumber: ref,
+      ...(showGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
       amount: amt,
       taxTreatment: tax.taxTreatment,
       taxAmount: tax.taxAmount,
+      ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
     });
   };
 
@@ -460,6 +470,21 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
+        {showGroupRef && (
+          <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+            {t('procurementDetail.groupRef.label', 'Group ref')}{' '}
+            <span className="font-normal">{t('procurementDetail.groupRef.optional', '(optional)')}</span>
+            <input
+              type="text"
+              value={groupRef}
+              onChange={(e) => setGroupRef(e.target.value)}
+              placeholder={t('procurementDetail.groupRef.placeholder', 'e.g. PRQ-0026100001')}
+              maxLength={100}
+              data-testid="vendor_invoice-group-ref-input"
+              className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
           Amount <span className="font-normal">(optional)</span>
           <input
@@ -503,6 +528,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             Hidden entirely on a flipped org, where the ERP owns the answer (`taxIsPmoAuthored`). */}
         {pmoAuthorsTax && (
         <>
+        <TaxRateFields fields={taxFields} />
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
           Tax treatment
           <select
@@ -524,6 +550,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             inputMode="decimal"
             ref={taxAmtMask.ref}
             value={taxAmtStr}
+            readOnly={taxFields.hasRate}
             onChange={taxAmtMask.onChange}
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}

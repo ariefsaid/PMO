@@ -5,6 +5,8 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 /**
  * AC-IXD-PROJ-004 (Model B canonical route, ADR-0020) + AC-IXD-PROJ-008 (UNIFIED page, ADR-0021,
@@ -35,6 +37,10 @@ const pipelineState = {
 // specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
 // than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
 // the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/src/hooks/useRevenue', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));

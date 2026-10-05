@@ -10,6 +10,7 @@ import { listClientCompanies, type CompanyRow } from '@/src/lib/db/companies';
 import { listProjectManagers, type ProfileRow } from '@/src/lib/db/profiles';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
 /** Org-scoped project list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-002). */
 export function useProjects() {
@@ -85,6 +86,7 @@ export type SetContractValueArgs = SetProjectContractValueInput;
  */
 export function useProjectMutations() {
   const qc = useQueryClient();
+  const { currentUser } = useAuth();
   // Invalidate the whole project family: the index lists AND the opportunity-by-id detail
   // query (keyed ['opportunity', …]) so a header/value edit re-reads everywhere. F1 (Wave 3):
   // also bust the project FK-picker cache (`['fk-options','project']`) so procurement/other forms
@@ -97,10 +99,17 @@ export function useProjectMutations() {
     // pipeline and lost-deal queries must refetch or they retain a stale value after the write.
     qc.invalidateQueries({ queryKey: ['sales-pipeline'] });
     qc.invalidateQueries({ queryKey: ['lost-deals'] });
+    qc.invalidateQueries({ queryKey: ['integrations', 'bindings', currentUser?.org_id] });
+    qc.invalidateQueries({ queryKey: ['integrations', 'project-erp', currentUser?.org_id] });
+    qc.invalidateQueries({ queryKey: ['integrations', 'setup', currentUser?.org_id] });
   };
 
   const create = useMutation({
-    mutationFn: (input: CreateProjectInput) => repositories.project.create(input),
+    mutationFn: async (input: CreateProjectInput) => {
+      const row = await repositories.project.create(input);
+      const erpSetup = await synchronizeErpProject(row.id, currentUser?.org_id);
+      return { ...row, erpSetup };
+    },
     onSuccess: invalidate,
   });
 

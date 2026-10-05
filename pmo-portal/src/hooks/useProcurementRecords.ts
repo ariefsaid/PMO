@@ -51,6 +51,8 @@ const procurementDetailKey = (orgId: string | undefined, id: string) =>
 // ---------------------------------------------------------------------------
 
 export interface CreatePurchaseRequestInput {
+  /** #769: optional parent-group number (`external_ref`). */
+  externalRef?: string | null;
   /** BLOCK 2: the per-INTENT command identity — the SAME value on every retry (see CommandIntent). */
   intent?: CommandIntent;
   referenceNumber: string | null;
@@ -69,6 +71,8 @@ export interface CreateRfqInput {
 }
 
 export interface CreatePurchaseOrderInput {
+  /** #769: optional parent-group number (`external_ref`). */
+  externalRef?: string | null;
   /** BLOCK 2: the per-INTENT command identity — the SAME value on every retry (see CommandIntent). */
   intent?: CommandIntent;
   referenceNumber: string | null;
@@ -124,8 +128,10 @@ export function useProcurementRecordMutations(procurementId: string) {
     ProcurementError,
     CreatePurchaseRequestInput
   >({
-    mutationFn: ({ referenceNumber, status, date, amount, intent }) =>
-      repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent),
+    mutationFn: ({ referenceNumber, status, date, amount, intent, externalRef }) =>
+      externalRef
+        ? repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent, externalRef)
+        : repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent),
     onMutate,
     onSuccess: onSettledOk,
     onError: onSettledErr,
@@ -144,8 +150,10 @@ export function useProcurementRecordMutations(procurementId: string) {
     ProcurementError,
     CreatePurchaseOrderInput
   >({
-    mutationFn: ({ referenceNumber, status, date, amount, intent }) =>
-      repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent),
+    mutationFn: ({ referenceNumber, status, date, amount, intent, externalRef }) =>
+      externalRef
+        ? repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent, externalRef)
+        : repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent),
     onMutate,
     onSuccess: onSettledOk,
     onError: onSettledErr,

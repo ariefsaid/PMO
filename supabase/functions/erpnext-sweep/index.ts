@@ -1,3 +1,4 @@
+import { applyErpContact } from '../_shared/erpnextContacts.ts';
 /**
  * erpnext-sweep — Deno Edge Function entry point (task 8.6, AC-ENA-045/071, ADR-0055 §3 + ADR-0058 §Consequences).
  *
@@ -69,6 +70,7 @@ import { MR_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpn
 import { RFQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/rfq.ts';
 import { SQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplierQuotation.ts';
 import { SUPPLIER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplier.ts';
+import { CONTACT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/contact.ts';
 import { CUSTOMER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
@@ -96,7 +98,7 @@ import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-disp
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { probeErpByAnchorKey, probeErpByPaymentComposite, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 // BLOCK 1 / B5: the pull-adopt barrier now lives in `_shared/` so the WEBHOOK adopt path raises the
@@ -180,6 +182,7 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   payment: PE_PAY_FROM_DOC_FIELDS,
   supplier: SUPPLIER_FROM_DOC_FIELDS,
   customer: CUSTOMER_FROM_DOC_FIELDS,
+  contact: CONTACT_FROM_DOC_FIELDS,
   'sales-invoice': SI_FROM_DOC_FIELDS,
   'incoming-payment': PE_RECEIVE_FROM_DOC_FIELDS,
   // P3c: `budget` IS polled (`feedKinds.ts` SWEEP_UNPOLLED_KINDS is empty — the inbound never-adopt/never-fight-the-
@@ -194,7 +197,7 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
  *  discriminator where the kind shares a doctype (BLOCK A1). Exported for direct unit testing. */
 export function sweepFieldsForKind(kind: ErpDocKind): string[] {
   const fields = new Set<string>(FROM_DOC_FIELDS_BY_KIND[kind] ?? []);
-  for (const routing of ['name', 'modified', 'docstatus', 'amended_from']) fields.add(routing);
+  for (const routing of kind === 'contact' ? ['name', 'modified', 'docstatus'] : ['name', 'modified', 'docstatus', 'amended_from']) fields.add(routing);
   if (PAYMENT_TYPE_BY_KIND[kind]) fields.add('payment_type');
   // BLOCK 1: the recovery ANCHOR field (ADR-0058 §3 — 'remarks' for SI/PI/PR, 'reference_no' for the
   // Payment Entry kinds). Without it the poll cannot tell a PMO-originated, still-unresolved document
@@ -238,7 +241,7 @@ export function inFlightAnchorFilter(
  * is permanently unlinked from its invoice. These kinds therefore re-read each changed doc in full.
  * Deliberately minimal (no needless N+1): only the kinds whose child data drives a money column.
  */
-export const KINDS_NEEDING_FULL_DOC: ErpDocKind[] = ['incoming-payment'];
+export const KINDS_NEEDING_FULL_DOC: ErpDocKind[] = ['incoming-payment', 'contact'];
 
 // #656: the domain→doctype poll rule (Luna BLOCK 9) lives in `erpnext/feedKinds.ts` — ONE copy, shared
 // with the activation read-permission probe (`external-set-company`). Re-exported for existing importers.
@@ -303,6 +306,7 @@ export function buildOutboxProbe(args: {
       siNames: Array.isArray(payload.si_names) ? (payload.si_names as string[]) : [],
       createdAfter: String(payload.created_after ?? ''),
       paymentType,
+      ...withholdingMatchFromPayload(payload),
     });
   };
 }
@@ -726,7 +730,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
           ...feedDeps,
           ...watermarkDeps,
           applyChange: (ctx, externalRecordId, canonical, sourceModMs, d) =>
-            applyErpFeedEvent(ctx, externalRecordId, canonical, sourceModMs, d as Parameters<typeof applyErpFeedEvent>[4]),
+            kind === 'contact' ? applyErpContact(serviceClient, org.orgId, externalRecordId, canonical, sourceModMs) : applyErpFeedEvent(ctx, externalRecordId, canonical, sourceModMs, d as Parameters<typeof applyErpFeedEvent>[4]),
           // HIGH-A: a document PMO must NEVER adopt (a Desk-created Budget/Timesheet, or a procurement
           // doc whose PMO case link only the dispatch path can make) throws BY DESIGN. That is a
           // terminal, already-surfaced outcome for that ONE document — ack it and keep going, so the

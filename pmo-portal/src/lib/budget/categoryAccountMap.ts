@@ -1,7 +1,7 @@
 /**
  * budget/categoryAccountMap.ts (P3c, FR-BUD-110..114) — ⚑ THE CRUX of the budget push.
  *
- * PMO budgets a `budget_category` (7 values, OD-BUDGET-4); an ERP `Budget` line is per ACCOUNT (the
+ * PMO budgets a `budget_category` (fixed values); an ERP `Budget` line is per ACCOUNT (the
  * client's own Chart of Accounts — there is NO natural correspondence, budget-write spike §4). This module
  * is the boundary. It is PMO-side and carries NO Frappe vocabulary (NFR-BUD-CONTRACT-001): it emits
  * `{account, budget_amount}` pairs and `erpnext/bodies/budget.ts` puts them into a Frappe body.
@@ -18,19 +18,12 @@
  * (NFR-BUD-MONEY-001) — no `Number(v) * 100`, which reintroduces the binary-float artifact the
  * decimal-string contract exists to avoid.
  */
+import type { Enums } from '../supabase/database.types.ts';
 import { AdapterError } from '../adapterSeam/contract.ts';
 
-/** OD-BUDGET-4's locked 7-value enum (mig 0001's `budget_category`). Kept as a documented union; the
- *  functions accept a bare string too, because the DB is the enum authority and an unknown value must
- *  reach the fail-closed branch rather than a type error at a runtime boundary. */
-export type BudgetCategory =
-  | 'Labor'
-  | 'Materials'
-  | 'Subcontractors'
-  | 'Equipment'
-  | 'Permits & Fees'
-  | 'Overheads'
-  | 'Contingency';
+/** The generated DB enum is the category authority. Bare strings remain accepted at runtime so
+ * unknown values still reach the fail-closed mapping guard. */
+export type BudgetCategory = Enums<'budget_category'>;
 
 export interface BudgetLineItem {
   category: BudgetCategory | string;

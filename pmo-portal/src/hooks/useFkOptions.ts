@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -28,7 +29,7 @@ export function useVendorOptions() {
     queryKey: ['fk-options', 'vendor', orgId],
     queryFn: async () => {
       const rows = await repositories.company.list({ type: 'Vendor' });
-      return rows.map((c) => ({ value: c.id, label: c.name, sub: 'Vendor' }));
+      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), sub: c.short_name ? c.name : 'Vendor' }));
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
@@ -60,7 +61,7 @@ export function useClientCompanyOptions() {
     queryKey: ['fk-options', 'client', orgId],
     queryFn: async () => {
       const rows = await repositories.company.listClients();
-      return rows.map((c) => ({ value: c.id, label: c.name, sub: 'Client' }));
+      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), sub: c.short_name ? c.name : 'Client' }));
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,

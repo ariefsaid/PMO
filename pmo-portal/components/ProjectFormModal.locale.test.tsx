@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * #684 — ProjectFormModal's "Estimated value" helper and error text were hard-coded English even
  * though the Bahasa string already existed elsewhere in the catalogue
@@ -13,6 +14,10 @@ import React from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ToastProvider } from '@/src/components/ui';
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
+}));
+
 import ProjectFormModal from './ProjectFormModal';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 

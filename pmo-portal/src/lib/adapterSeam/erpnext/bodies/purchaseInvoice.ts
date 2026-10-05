@@ -1,7 +1,7 @@
 /**
  * Purchase Invoice `toBody`/`fromDoc` — R9 §1 frozen. `toBody` sends exactly `{supplier, items:
- * [{item_code, qty, rate}]}`; ERPNext server-defaults `credit_to`, `posting_date`/`due_date`, and all
- * totals (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §1). `fromDoc` mirrors the header
+ * [{item_code, qty, rate, description?, project?}], project?, bill_no?, bill_date?}`. ERPNext server-defaults
+ * `credit_to`, `posting_date`/`due_date`, and all totals (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §1). `fromDoc` mirrors the header
  * `grand_total`/`outstanding_amount` as the money ORACLE (ADR-0048) — never a Σ of the lines.
  */
 import type { PmoRecord } from '../../contract.ts';
@@ -11,9 +11,18 @@ import { requireItems } from './shared.ts';
 
 export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   const items = requireItems(rec, 'Purchase Invoice');
+  const reference = rec.referenceNumber ?? rec.reference_number;
+  const date = rec.invoiceDate ?? rec.invoice_date;
   return {
     supplier: ctx.refs.supplier,
-    items: items.map((i) => ({ item_code: i.item_code, qty: i.qty, rate: i.rate })),
+    ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
+    items: items.map((i) => ({
+      item_code: i.item_code, qty: i.qty, rate: i.rate,
+      ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
+      ...(i.description ? { description: i.description } : {}),
+    })),
+    ...(typeof reference === 'string' && reference.trim() ? { bill_no: reference.trim() } : {}),
+    ...(typeof date === 'string' && date.trim() ? { bill_date: date.trim() } : {}),
   };
 }
 
@@ -22,7 +31,11 @@ export function piFromDoc(doc: unknown): PmoRecord {
   return {
     id: String(d.name),
     vi_number: String(d.name),
-    invoice_date: (d.posting_date as string | null) ?? null,
+    // The vendor invoice date is distinct from the ERP ledger's posting date. Legacy docs may
+    // carry only posting_date; preserve that fallback while preferring the actual bill_date.
+    invoice_date: typeof d.bill_date === 'string' && d.bill_date.trim()
+      ? d.bill_date
+      : (d.posting_date as string | null) ?? null,
     reference_number: (d.bill_no as string | null) ?? null,
     amount: mirrorMoney(d.grand_total),
     erp_outstanding_amount: mirrorMoney(d.outstanding_amount),
@@ -45,4 +58,4 @@ export function piFromDoc(doc: unknown): PmoRecord {
  * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
  * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
  */
-export const PI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'posting_date', 'bill_no', 'grand_total', 'outstanding_amount', 'total_taxes_and_charges', 'taxes_and_charges'] as const;
+export const PI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'posting_date', 'bill_no', 'bill_date', 'grand_total', 'outstanding_amount', 'total_taxes_and_charges', 'taxes_and_charges'] as const;

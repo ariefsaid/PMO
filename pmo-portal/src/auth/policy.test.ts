@@ -14,6 +14,10 @@ const allowedRoles = (
 
 describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
   // ── create ───────────────────────────────────────────────────────────────
+  it('AC-CODE-001: manage organisation project numbering = Admin only', () => {
+    expect(allowedRoles('manage', 'orgProjectNumbering')).toEqual(['Admin']);
+  });
+
   it('ADR-0016: create project = Admin·Exec·PM (Finance excluded in FE, Engineer no)', () => {
     expect(allowedRoles('create', 'project')).toEqual(['Admin', 'Executive', 'Project Manager']);
   });
@@ -566,4 +570,8 @@ describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement au
       expect(can(action, 'workOrder', { realRole: null, record: { status: 'Draft' } })).toBe(false);
     }
   });
+});
+
+it('AC-TAG-001 project classification option administration is Admin-only', () => {
+  expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
 });

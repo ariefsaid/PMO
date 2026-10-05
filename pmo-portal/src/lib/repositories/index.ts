@@ -28,6 +28,9 @@ import {
   type UnlinkInput,
   type UnlinkResponse,
   type ProjectBinding,
+  type ErpSetupReadiness,
+  type ErpProjectOption,
+  type ErpProjectLink,
 } from './types';
 import {
   listProjects,
@@ -36,6 +39,7 @@ import {
   archiveProject,
   deleteProject,
   setProjectContractValue,
+  proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
 import { transitionProject } from '@/src/lib/db/projectTransitions';
@@ -45,6 +49,8 @@ import {
   getCompany,
   createCompany,
   updateCompany,
+  updateCompanyShortName,
+  setCompanyProjectNumberSegment,
   archiveCompany,
   deleteCompany,
   type CompanyRow,
@@ -207,6 +213,7 @@ import {
   cleanupStorageObject as cleanupProcurementFileObject,
 } from '@/src/lib/db/procurementFiles';
 import {
+  type ContactRow,
   listContacts,
   listContactsByCompany,
   getContact,
@@ -230,7 +237,16 @@ import {
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
-import { getOrgTaxDefault, setOrgTaxDefault } from '@/src/lib/db/orgs';
+import {
+  getOrgTaxDefault,
+  setOrgTaxDefault,
+  getOrgProjectNumberPattern,
+  setOrgProjectNumberPattern,
+  getOrgWithholdingAccount,
+  setOrgWithholdingAccount,
+  getOrgProjectClassificationOptions,
+  setOrgProjectClassificationOptions,
+} from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
 import {
@@ -312,6 +328,7 @@ const project: ProjectRepository = {
   archive: (id) => wrap(() => archiveProject(id)),
   delete: (id) => wrap(() => deleteProject(id)),
   setContractValue: (input) => wrap(() => setProjectContractValue(input)),
+  proposeNumber: (clientId) => wrap(() => proposeProjectNumber(clientId)),
 };
 
 // BLOCK 2 (MONEY-CRITICAL): `newCommandIntent()` lives in ./commandIntent (a leaf module) and is
@@ -354,24 +371,33 @@ const company: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
   list: (params) => wrap(() => listCompanies(params)),
   get: (id) => wrap(() => getCompany(id)),
-  create: (input) => {
+  create: async (input) => {
     const kind = erpPartyDocKind(input.type);
-    return routeDomainWrite('companies') === 'external' && kind
-      ? dispatchCreate('companies', { ...input, erp_doc_kind: kind }, undefined)
-          .then((res) => res.canonical as unknown as CompanyRow)
-      : wrap(() => createCompany(input));
+    if (routeDomainWrite('companies') !== 'external' || !kind) return wrap(() => createCompany(input));
+    const { short_name, ...native } = input;
+    const res = await dispatchCreate('companies', { ...native, erp_doc_kind: kind }, undefined);
+    const row = res.canonical as unknown as CompanyRow;
+    if (short_name !== undefined) {
+      await wrap(() => updateCompanyShortName(row.id, short_name));
+      return { ...row, short_name: short_name?.trim() || null };
+    }
+    return row;
   },
-  update: (id, input) => {
+  update: async (id, input) => {
     const kind = erpPartyDocKind(input.type);
-    return routeDomainWrite('companies') === 'external' && kind
-      ? dispatchDomainCommand(
-          'companies',
-          'update',
-          { id, ...input, erp_doc_kind: kind },
-          keyFor(),
-        ).then(() => undefined)
-      : wrap(() => updateCompany(id, input));
+    if (routeDomainWrite('companies') !== 'external' || !kind) return wrap(() => updateCompany(id, input));
+    const shortName = input.short_name;
+    if (shortName !== undefined) {
+      const current = await wrap(() => getCompany(id));
+      if (!current) throw new AppError('Company not found or you do not have permission to edit it.', '42501');
+      if (current.name !== input.name || current.type !== input.type) {
+        throw new AppError('Company legal name and type are read-only while externally-owned.', '42501');
+      }
+      return wrap(() => updateCompanyShortName(id, shortName));
+    }
+    await dispatchDomainCommand('companies', 'update', { id, ...input, erp_doc_kind: kind }, keyFor());
   },
+  setProjectNumberSegment: (id, segment) => wrap(() => setCompanyProjectNumberSegment(id, segment)),
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
 };
@@ -482,6 +508,7 @@ const procurement: ProcurementRepository = {
             procurementId: input.procurementId,
             status: input.status,
             invoiceDate: input.invoiceDate,
+            referenceNumber: input.referenceNumber,
             // ⛔ #505 — THE TAX FACTS ARE DELIBERATELY NOT FORWARDED, and this is a correction of
             // what an earlier round of this change did. They WERE sent here, with a comment claiming
             // it stopped the flipped-org path "recording an amount with no marker". Nothing consumed
@@ -512,14 +539,18 @@ const procurement: ProcurementRepository = {
     wrap(() => createProcurementDocument(procurementId, input)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
   // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
-  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent) =>
+  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
           { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-request' },
           intent,
         ).then((res) => res.canonical as unknown as PurchaseRequestRow)
-      : wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
+      : wrap(() =>
+          externalRef
+            ? createPurchaseRequest(procurementId, referenceNumber, status, date, amount, undefined, undefined, undefined, externalRef)
+            : createPurchaseRequest(procurementId, referenceNumber, status, date, amount),
+        ),
   createRfq: (procurementId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
@@ -528,14 +559,18 @@ const procurement: ProcurementRepository = {
           intent,
         ).then((res) => res.canonical as unknown as RfqRow)
       : wrap(() => createRfq(procurementId, referenceNumber, status, date, amount)),
-  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount, intent) =>
+  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
           { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-order' },
           intent,
         ).then((res) => res.canonical as unknown as PurchaseOrderRow)
-      : wrap(() => createPurchaseOrder(procurementId, referenceNumber, status, date, amount)),
+      : wrap(() =>
+          externalRef
+            ? createPurchaseOrder(procurementId, referenceNumber, status, date, amount, undefined, undefined, undefined, externalRef)
+            : createPurchaseOrder(procurementId, referenceNumber, status, date, amount),
+        ),
   createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
@@ -573,6 +608,8 @@ const revenue: RevenueRepository = {
             salesInvoiceId: input.salesInvoiceId ?? null,
             paid_amount: input.paidAmount,
             received_amount: input.receivedAmount ?? input.paidAmount,
+            ...(input.withheldAmount !== undefined ? { withheld_amount: input.withheldAmount } : {}),
+            ...(input.withholdingSlipNumber !== undefined ? { withholding_slip_number: input.withholdingSlipNumber } : {}),
             date: input.date,
           },
           intent,
@@ -750,7 +787,11 @@ const contact: ContactRepository = {
   list: (params) => wrap(() => listContacts(params)),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
-  create: (input) => wrap(() => createContact(input)),
+  create: async (input) => {
+    if (routeDomainWrite('companies') !== 'external') return wrap(() => createContact(input));
+    const result = await dispatchCreate('companies', {...input, erp_doc_kind: 'contact'}, undefined);
+    return result.canonical as unknown as ContactRow;
+  },
   update: (id, input) => wrap(() => updateContact(id, input)),
   archive: (id) => wrap(() => archiveContact(id)),
   delete: (id) => wrap(() => deleteContact(id)),
@@ -797,6 +838,12 @@ const orgFeature: OrgFeatureRepository = {
  * `can('manage', 'orgAccounting')` on the affordance.
  */
 const orgSettings: OrgSettingsRepository = {
+  getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
+  setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
+  getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
+  setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
+  getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),
+  setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
 };
@@ -816,7 +863,24 @@ const erpSnapshots: ErpSnapshotsRepository = {
   arAging: () => wrap(() => listArAgingSnapshot()),
 };
 
+async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}): Promise<T> {
+  return wrap(async () => {
+    const { data, error } = await invokeWithTimeout(supabase.functions.invoke<T>('external-set-company', {
+      body: { tier: 'erpnext', setupAction, ...input },
+    }));
+    if (error) await throwInvokeError(error);
+    return data as T;
+  });
+}
+
 const integrationsImpl: IntegrationsRepository = {
+  getErpSetup: () => erpSetupRequest<ErpSetupReadiness>('readiness'),
+  saveErpDefaults: (input) => erpSetupRequest<{ ok: true }>('save-defaults', input),
+  ensureErpProject: (projectId) => erpSetupRequest<ErpProjectLink>('ensure-project', { projectId }),
+  listErpProjects: async (query) => (await erpSetupRequest<{ projects: ErpProjectOption[] }>('list-projects', { query })).projects,
+  linkErpProject: (projectId, erpProject) => erpSetupRequest<ErpProjectLink>('link-project', { projectId, erpProject }),
+  employErpDomain: (domain) => erpSetupRequest<{ ok: true }>('employ-domain', { domain }),
+  onboardErpParties: () => erpSetupRequest<{ ok: true }>('onboard-parties'),
   getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
     return wrap(async () => {
       const { data, error } = await supabase
@@ -957,6 +1021,12 @@ const integrationsImpl: IntegrationsRepository = {
       return (data as { companies: { name: string }[] }).companies;
     });
   },
+  listItems: (purpose) => wrap(async () => {
+    const { data, error } = await invokeWithTimeout(supabase.functions.invoke<{ items: Array<{ code: string; name: string }> }>('external-items', { body: { purpose } }));
+    if (error) throw error;
+    if (!data?.items) throw new Error('ERP item catalog could not be read');
+    return data.items;
+  }),
   setCompany: async (orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }> => {
     return wrap(async () => {
       if (tier !== 'erpnext') {

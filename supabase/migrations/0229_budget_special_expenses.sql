@@ -1,0 +1,34 @@
+-- #804: add one fixed category; all existing enum labels, rows and money remain unchanged.
+-- Keep ADD VALUE isolated: PostgreSQL requires its transaction to commit before new values are used.
+alter type public.budget_category add value if not exists 'Special expenses';
+
+-- Application rollback: restore the previous application while retaining this additive enum and
+-- any authored data. There is no runtime rollback machinery and no category/money conversion.
+--
+-- Physical schema rollback is an operator-authored, guarded rebuild, never DROP ... CASCADE.
+-- Current direct dependencies (0001, 0137, 0153):
+--   public.budget_line_items.category
+--   public.budget_category_account_map.category
+--   public.budget_projections.category
+--   public.get_budget_projection(uuid,text), whose RETURNS TABLE category uses this enum.
+-- Re-inventory pg_depend at the target revision and capture pg_get_functiondef, function owner,
+-- ACLs/comments and all affected column definitions before rebuilding; abort on extra dependencies.
+-- In ONE transaction, execute this guard before touching the type:
+--   LOCK TABLE public.budget_line_items, public.budget_category_account_map,
+--     public.budget_projections IN ACCESS EXCLUSIVE MODE;
+--   DO $$ BEGIN
+--     IF EXISTS (SELECT 1 FROM public.budget_line_items WHERE category::text = 'Special expenses')
+--       OR EXISTS (SELECT 1 FROM public.budget_category_account_map WHERE category::text = 'Special expenses')
+--       OR EXISTS (SELECT 1 FROM public.budget_projections WHERE category::text = 'Special expenses') THEN
+--       RAISE EXCEPTION 'Cannot remove Special expenses while authored rows exist';
+--     END IF;
+--   END $$;
+-- No row may be relabelled, deleted or coerced to make that guard pass.
+-- After the guard, drop only get_budget_projection(uuid,text), rename budget_category to
+-- budget_category_0229_old, and CREATE TYPE public.budget_category AS ENUM
+-- ('Labor','Materials','Subcontractors','Equipment','Permits & Fees','Overheads','Contingency').
+-- ALTER each listed table's category TYPE public.budget_category
+-- USING category::text::public.budget_category; DROP TYPE public.budget_category_0229_old RESTRICT.
+-- Restore the captured get_budget_projection definition, owner, grants and comment exactly; verify
+-- the three category columns, enum order, row counts and unchanged numeric totals, then COMMIT.
+-- Any failed guard/cast/dependency check aborts the entire transaction and preserves the data.

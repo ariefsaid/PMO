@@ -18,9 +18,6 @@ import { useMoneyInputMask } from './useMoneyInputMask';
 // as a greyed input — disabled here is a transient state only.
 // ---------------------------------------------------------------------------
 
-/** Darkened red that clears AA on white/tint (matches ErrBanner). */
-const ERR_TEXT = 'hsl(0 72% 45%)';
-
 // ---- FieldError -----------------------------------------------------------
 
 export interface FieldErrorProps {
@@ -40,8 +37,7 @@ export const FieldError: React.FC<FieldErrorProps> = ({ id, children, className 
     <span
       id={id}
       role="alert"
-      className={cn('flex items-center gap-1.5 text-[12px] font-medium', className)}
-      style={{ color: ERR_TEXT }}
+      className={cn('flex items-center gap-1.5 text-[12px] font-medium text-destructive-text', className)}
     >
       <Icon name="alert" className="size-[13px] shrink-0" />
       {children}

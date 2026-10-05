@@ -43,7 +43,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 const onHand = {
   id: 'p1',
   name: 'Innovate Corp HQ Fit-Out',
-  code: 'PRJ-001',
+  code: 'CLIENT-81',
+  pmo_project_number: 'PMO-26-7711',
   status: 'Ongoing Project',
   client_id: 'c2',
   project_manager_id: 'u-alice',
@@ -90,11 +91,11 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
-  it('renders the project name + StatusPill + customer + mono code + Customer PO ref (AC-G)', () => {
+  it('AC-CODE-003: labels PMO Project Number separately from Client Project Code and keeps Customer PO metadata', () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
-    expect(screen.getByText(/Innovate Corp · PRJ-001 · PO CPO-2026-001/)).toBeInTheDocument();
+    expect(screen.getByText(/Innovate Corp · PMO Project Number: PMO-26-7711 · Client Project Code: CLIENT-81 · PO CPO-2026-001/)).toBeInTheDocument();
   });
 
   it('renders a 5-stat strip with contract/actual figures (AC-G)', () => {
@@ -269,6 +270,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
         value: 5140000,
         taxTreatment: 'exclusive',
         taxAmount: 565400,
+        taxRate: null, taxBaseNumerator: 1, taxBaseDenominator: 1,
       }),
     );
   });
@@ -303,6 +305,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await waitFor(() =>
       expect(projectMutations.setContractValue.mutateAsync).toHaveBeenCalledWith({
         id: 'p1', value: 1234, taxTreatment: 'exclusive', taxAmount: 0,
+        taxRate: null, taxBaseNumerator: 1, taxBaseDenominator: 1,
       }),
     );
   });

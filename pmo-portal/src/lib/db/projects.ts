@@ -4,6 +4,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { TaxTreatment } from './procurementLifecycle';
+import type { ProjectClassification } from '../projectClassification';
 
 // #513: `TaxTreatment` is the ONE two-value domain shared by every table that carries the four tax
 // columns (`procurement_invoices` 0196, `sales_invoices`/`work_orders` 0187/0188, and now `projects`
@@ -28,9 +29,9 @@ export type ProjectStatus = ProjectRow['status'];
 
 /** A project row with client + PM names resolved in SQL (kills render-time .find(), F-7). */
 export type ProjectWithRefs = ProjectRow & {
-  client: { name: string } | null;
+  client: { name: string; short_name?: string | null } | null;
   /** The end customer, when set (#758) — a nullable FK resolved by name in SQL. */
-  end_client: { name: string } | null;
+  end_client: { name: string; short_name?: string | null } | null;
   pm: { full_name: string } | null;
 };
 
@@ -48,7 +49,7 @@ export type ProjectWithRefs = ProjectRow & {
 // EVERY company embed here MUST be FK-qualified or PostgREST returns PGRST201. The guard in
 // supabase/tests asserts the schema stays multi-FK for both pairs (AC-EMBED-001/002/003).
 const SELECT =
-  '*, client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
+  '*, client:companies!projects_client_id_fkey(name, short_name), end_client:companies!projects_end_client_id_fkey(name, short_name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {
@@ -97,15 +98,21 @@ export interface ProjectContractTaxColumns {
   tax_amount: number;
   /** Authored tax percentage (e.g. 11 for PPN 11%). null = not recorded — never 0%. */
   tax_rate?: number | null;
+  tax_base_numerator?: number;
+  tax_base_denominator?: number;
   /** ERPNext taxes-and-charges template name; absent for a standalone org. */
   tax_template?: string | null;
 }
 
 /** The create-form fields that have nothing to do with the contract value. */
-interface CreateProjectBase {
+interface CreateProjectBase extends ProjectClassification {
   name: string;
   /** Must be an origination status (Leads / Internal Project). */
   status: ProjectStatus;
+  /** Optional, separately supplied Client Project Code (OD-ID-1). */
+  code?: string | null;
+  /** Editable PMO proposal; omitted writers use the database minting fallback. */
+  pmo_project_number?: string;
   client_id: string | null;
   /** The end customer, nullable (#758) — the company the work is ultimately for. Optional because
    *  the import descriptor (src/lib/import/*, out of scope for #758) builds `CreateProjectInput`
@@ -150,7 +157,7 @@ export type CreateProjectInput = CreateProjectBase &
   );
 
 /** The editable header fields (name/code/client/PM/dates). NOT contract_value (SoD) / status (RPC). */
-export interface ProjectHeaderInput {
+export interface ProjectHeaderInput extends ProjectClassification {
   name: string;
   code: string | null;
   client_id: string | null;
@@ -176,7 +183,7 @@ export interface ProjectHeaderInput {
  * read for every existing caller (e.g. the ⌘K CommandPalette record search).
  */
 export async function listProjects(
-  params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
+  params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
 ): Promise<ProjectWithRefs[]> {
   // `any` is a localized escape hatch: PostgREST's TypeScript builder types
   // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
@@ -184,7 +191,10 @@ export async function listProjects(
   // propagate `any` beyond this function.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = supabase.from('projects').select(SELECT);
-  if (params?.status) {
+  if (params?.statuses?.length) {
+    // Multi-status override (e.g. the Lost column = Loss Tender + Declined, #774).
+    q = q.in('status', params.statuses as string[]);
+  } else if (params?.status) {
     // Explicit override → a precise single-status filter (e.g. the Lost partition).
     q = q.eq('status', params.status);
   } else {
@@ -227,6 +237,8 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
           tax_amount: input.tax_amount,
           tax_rate: input.tax_rate ?? null,
           tax_template: input.tax_template ?? null,
+          ...(input.tax_base_numerator !== undefined ? { tax_base_numerator: input.tax_base_numerator } : {}),
+          ...(input.tax_base_denominator !== undefined ? { tax_base_denominator: input.tax_base_denominator } : {}),
         }
       : {};
   const { data, error } = await supabase
@@ -234,12 +246,19 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
     .insert({
       name: input.name,
       status: input.status,
+      ...(input.code !== undefined ? { code: input.code } : {}),
+      ...(input.pmo_project_number !== undefined ? { pmo_project_number: input.pmo_project_number } : {}),
       client_id: input.client_id,
       end_client_id: input.end_client_id,
       project_manager_id: input.project_manager_id,
       contract_value: input.contract_value,
       start_date: input.start_date,
       end_date: input.end_date,
+      ...(input.service_line !== undefined ? { service_line: input.service_line } : {}),
+      ...(input.sector !== undefined ? { sector: input.sector } : {}),
+      ...(input.location !== undefined ? { location: input.location } : {}),
+      ...(input.award_type !== undefined ? { award_type: input.award_type } : {}),
+      ...(input.bidding_entity !== undefined ? { bidding_entity: input.bidding_entity } : {}),
       ...tax,
     })
     .select()
@@ -254,6 +273,16 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
  * shows the full work history. org_id is NEVER sent — RLS (projects_select: org_id =
  * auth_org_id()) scopes rows. No new RLS or migration — the existing select policy covers this.
  */
+/** Propose a PMO-owned number for a selected client; the RPC derives org and actor from the JWT. */
+export async function proposeProjectNumber(clientId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('propose_project_number', { p_client_id: clientId });
+  if (error) throwWrite(error);
+  if (typeof data !== 'string' || data.length === 0) {
+    throw new AppError('The project number service returned no proposal. Try again.', 'P0001');
+  }
+  return data;
+}
+
 export async function listProjectsByClient(clientId: string): Promise<ProjectWithRefs[]> {
   const { data, error } = await supabase
     .from('projects')
@@ -281,6 +310,11 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       project_manager_id: input.project_manager_id,
       start_date: input.start_date,
       end_date: input.end_date,
+      ...(input.service_line !== undefined ? { service_line: input.service_line } : {}),
+      ...(input.sector !== undefined ? { sector: input.sector } : {}),
+      ...(input.location !== undefined ? { location: input.location } : {}),
+      ...(input.award_type !== undefined ? { award_type: input.award_type } : {}),
+      ...(input.bidding_entity !== undefined ? { bidding_entity: input.bidding_entity } : {}),
     })
     .eq('id', id)
     .select('id');
@@ -343,6 +377,8 @@ export interface SetProjectContractValueInput {
   taxAmount: number;
   /** Authored tax percentage (e.g. 11 for PPN 11%). null/undefined = not recorded — never 0%. */
   taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
   /** ERPNext taxes-and-charges template name; absent for a standalone org. */
   taxTemplate?: string | null;
 }
@@ -374,6 +410,8 @@ export async function setProjectContractValue(
     p_tax_amount: input.taxAmount,
     p_tax_rate: input.taxRate ?? undefined,
     p_tax_template: input.taxTemplate ?? undefined,
+    ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
+    ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
   });
   if (error) throwWrite(error as PostgrestErrorLike);
 }

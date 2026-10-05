@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 // project_tab_viewed (2026-07-13 wiring plan) — ProjectDetail's `setTab` is the single
 // boundary for every tab switch (URL-param deep-links AND clicks land on the same fn).

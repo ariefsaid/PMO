@@ -1,3 +1,5 @@
+import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -141,6 +143,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
   const valueField = form.fieldProps('orderValue');
   const treatmentField = form.fieldProps('taxTreatment');
   const taxField = form.fieldProps('taxAmount');
+  const taxFields = useStandaloneTaxFields(form.values.orderValue, form.values.taxTreatment, form.values.taxAmount, (v) => form.setValue('taxAmount', v));
   const orderDateField = form.fieldProps('orderDate');
   const startField = form.fieldProps('startDate');
   const endField = form.fieldProps('endDate');
@@ -183,7 +186,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
         }
         // Re-parse with the same scale-2 locale parser used by validation before persisting.
         const value = parseMoneyInputAtScale(values.orderValue, 2);
-        const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
+        const tax = taxFields.facts;
         if (value === null || tax === null) return;
         await onCreate({
           title: values.title.trim(),
@@ -192,6 +195,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           orderValue: value,
           taxTreatment: tax.taxTreatment,
           taxAmount: tax.taxAmount,
+          taxRate: tax.taxRate, taxBaseNumerator: tax.taxBaseNumerator, taxBaseDenominator: tax.taxBaseDenominator,
           orderDate: blankToNull(values.orderDate),
           startDate: blankToNull(values.startDate),
           endDate: blankToNull(values.endDate),
@@ -236,7 +240,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || (!isEdit && taxFields.facts === null)}
       errorSummary={errorSummary}
     >
       <FormSection legend={t('projectDetail.workOrderForm.detailsLegend', 'The client’s order')}>
@@ -329,12 +333,14 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
               options={taxOptions}
               data-testid="wo-tax-treatment"
             />
+            <div className="col-span-full"><TaxRateFields fields={taxFields} /></div>
             <NumberField
               id={taxField.id}
               label={t('projectDetail.workOrderForm.taxAmount', 'Tax amount')}
               required
               prefix={currencySymbolPrefix}
               value={taxField.value}
+              readOnly={taxFields.hasRate}
               onChange={taxField.onChange}
               onBlur={taxField.onBlur}
               error={taxField.error}
