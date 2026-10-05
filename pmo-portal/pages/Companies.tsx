@@ -1,3 +1,5 @@
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
@@ -67,6 +69,7 @@ const typeLabels = (t: TFunction): Record<CompanyType, string> => ({
 
 interface FormValues {
   name: string;
+  short_name: string;
   type: CompanyType;
 }
 
@@ -132,7 +135,7 @@ const Companies: React.FC = () => {
     const q = search.trim().toLowerCase();
     return all
       .filter((c) => filter === 'All' || c.type === filter)
-      .filter((c) => !q || c.name.toLowerCase().includes(q));
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.short_name ?? '').toLowerCase().includes(q));
   }, [all, search, filter]);
 
   // AC-LRC-012: the DataTable's `empty` branch below (with `clearFilters`) only ever renders when
@@ -168,9 +171,12 @@ const Companies: React.FC = () => {
       key: 'name',
       header: t('companies.columns.name', 'Company'),
       cell: (c) => (
-        <span className="truncate font-semibold" title={c.name}>
-          {c.name}
-        </span>
+        <div className="min-w-0" title={c.name}>
+          <span className="block truncate font-semibold">{companyDisplayName(c)}</span>
+          {c.short_name?.trim() && c.short_name.trim() !== c.name && (
+            <span className="block truncate text-xs text-muted-foreground">{c.name}</span>
+          )}
+        </div>
       ),
       exportValue: (c) => c.name,
     },
@@ -395,7 +401,7 @@ const Companies: React.FC = () => {
           // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
           onActivate={(c) => openRecord(`/companies/${c.id}`)}
           // ⚑ Not extracted — embeds a value; see the interpolation note above.
-          rowLabel={(c) => `Open ${c.name}`}
+          rowLabel={(c) => `Open ${companyDisplayName(c)}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
@@ -491,6 +497,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const isEdit = !!company;
+  const nativeReadOnly = isEdit && company.type !== 'Internal' && routeDomainWrite('companies') === 'external';
   // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
   // `runValidate` memo behaves exactly as it did with the old module-level function.
   const validate = useMemo(() => makeValidate(t), [t]);
@@ -503,7 +510,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
     ];
   }, [t]);
   const form = useEntityForm<FormValues>({
-    initialValues: { name: company?.name ?? '', type: company?.type ?? 'Client' },
+    initialValues: { name: company?.name ?? '', short_name: company?.short_name ?? '', type: company?.type ?? 'Client' },
     validate,
     idPrefix: 'company-form',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name is present.
@@ -512,6 +519,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   });
 
   const nameField = form.fieldProps('name');
+  const shortNameField = form.fieldProps('short_name');
   const typeField = form.fieldProps('type');
 
   // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
@@ -527,7 +535,13 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const input: CompanyInput = { name: values.name.trim(), type: values.type };
+      const input: CompanyInput = {
+        name: values.name.trim(),
+        type: values.type,
+        ...(nativeReadOnly || values.short_name.trim() || company?.short_name
+          ? { short_name: values.short_name.trim() || null }
+          : {}),
+      };
       try {
         if (isEdit && company) await onUpdate(company.id, input);
         else await onCreate(input);
@@ -577,6 +591,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       <FormSection legend={t('companies.form.sections.identity', 'Identity')}>
         <FormGrid>
           <TextField
+            disabled={nativeReadOnly}
             id={nameField.id}
             label={t('companies.form.name.label', 'Company name')}
             required
@@ -588,7 +603,17 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
             autoComplete="organization"
             fullWidth
           />
+          <TextField
+            id={shortNameField.id}
+            label={t('companies.form.shortName.label', 'Short name')}
+            helper={t('companies.form.shortName.hint', 'Optional display name used across PMO. The legal name stays unchanged.')}
+            value={shortNameField.value}
+            onChange={shortNameField.onChange}
+            onBlur={shortNameField.onBlur}
+            fullWidth
+          />
           <SelectField
+            disabled={nativeReadOnly}
             id={typeField.id}
             label={t('companies.form.type.label', 'Type')}
             required

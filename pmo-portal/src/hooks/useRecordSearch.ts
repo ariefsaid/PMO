@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useMemo } from 'react';
 import type { IconName } from '@/src/components/ui/icons';
 // Type-only import from the component file (not the barrel) — keeps the
@@ -120,8 +121,8 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
         out.push({
           id: `companies:${c.id}`,
           group: 'Records',
-          title: c.name,
-          sub: 'Company',
+          title: companyDisplayName(c),
+          sub: c.short_name ? `Company · ${c.name}` : 'Company',
           icon: 'doc' as IconName,
           // CW-4b: open the routable `/companies/:id` record page (was an interim `?focus=<id>`
           // drawer-open until the page landed — now retired).

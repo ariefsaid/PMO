@@ -391,6 +391,10 @@
       },
       "type": {
         "label": "Type"
+      },
+      "shortName": {
+        "label": "Short name",
+        "hint": "Optional display name used across PMO. The legal name stays unchanged."
       }
     },
     "search": {

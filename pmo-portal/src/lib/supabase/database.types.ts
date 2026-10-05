@@ -885,6 +885,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          short_name: string | null
           type: Database["public"]["Enums"]["company_type"]
         }
         Insert: {
@@ -902,6 +903,7 @@ export type Database = {
           id?: string
           name: string
           org_id?: string
+          short_name?: string | null
           type: Database["public"]["Enums"]["company_type"]
         }
         Update: {
@@ -919,6 +921,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          short_name?: string | null
           type?: Database["public"]["Enums"]["company_type"]
         }
         Relationships: [

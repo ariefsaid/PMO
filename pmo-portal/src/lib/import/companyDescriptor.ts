@@ -6,8 +6,8 @@ import type { ImportDescriptor } from './types';
 const COMPANY_TYPES: CompanyType[] = ['Internal', 'Client', 'Vendor'];
 
 /**
- * v1 import descriptor — Companies (ADR-0027). Two flat fields: `name` (required) and
- * `type` (must be one of the three enum values). `toInput` emits ONLY `{ name, type }` —
+ * v1 import descriptor — Companies (ADR-0027). Flat fields: `name` (required) and
+ * `type` (must be one of the three enum values). `toInput` emits the legal name, type, and optional short name —
  * never `org_id`; a crafted xlsx cannot carry an org_id. `create` delegates to the EXISTING
  * `repositories.company.create` → `createCompany`, so RLS `companies_write` (org_id =
  * auth_org_id() AND role ∈ write-roles) stamps org_id and is the sole write authority.
@@ -21,6 +21,7 @@ export const companyImportDescriptor: ImportDescriptor<CompanyInput> = {
       required: true,
       validate: (raw) => (raw.trim() ? null : 'Company name is required.'),
     },
+    { key: 'short_name', label: 'Short name', required: false, validate: () => null },
     {
       key: 'type',
       label: 'Type',
@@ -31,7 +32,7 @@ export const companyImportDescriptor: ImportDescriptor<CompanyInput> = {
           : `Type must be one of: ${COMPANY_TYPES.join(', ')}.`,
     },
   ],
-  toInput: (cells) => ({ name: cells.name.trim(), type: cells.type.trim() as CompanyType }),
+  toInput: (cells) => ({ name: cells.name.trim(), type: cells.type.trim() as CompanyType, ...(cells.short_name?.trim() ? { short_name: cells.short_name.trim() } : {}) }),
   create: (input) => repositories.company.create(input),
 };
 

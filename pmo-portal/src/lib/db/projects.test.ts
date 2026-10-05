@@ -125,7 +125,7 @@ describe('listProjects', () => {
     // can. The real guard is supabase/tests/postgrest_embed_ambiguity_guard.test.sql, which fails
     // the moment a new FK makes any embed ambiguous. This line only stops a silent revert.
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)',
+      '*, client:companies!projects_client_id_fkey(name, short_name), end_client:companies!projects_end_client_id_fkey(name, short_name), pm:profiles!projects_project_manager_id_fkey(full_name)',
     );
     expect(result[0].client?.name).toBe('Innovate Corp');
     expect(result[0].pm?.full_name).toBe('Alice Manager');

@@ -391,6 +391,10 @@
       },
       "type": {
         "label": "Tipe"
+      },
+      "shortName": {
+        "label": "Nama singkat",
+        "hint": "Nama tampilan opsional yang digunakan di PMO. Nama resmi tetap sama."
       }
     },
     "search": {

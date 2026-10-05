@@ -246,3 +246,11 @@ describe('rankRecords — filter + exact-code-first + per-group cap', () => {
     expect(rankRecords(recs, '').items).toHaveLength(0);
   });
 });
+
+
+it('company palette display uses the short name and either name finds the same record', () => {
+  stateCC.companies = { data: [{ id: 'c1', name: 'Example Legal Company', short_name: 'Example' }], isPending: false, isError: false };
+  const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+  expect(rankRecords(result.current.records, 'Example Legal').items[0].title).toBe('Example');
+  expect(rankRecords(result.current.records, 'Example').items[0].id).toBe('companies:c1');
+});
