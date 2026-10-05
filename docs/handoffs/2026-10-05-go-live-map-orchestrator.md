@@ -56,7 +56,7 @@ reads it too. Ownership when two overlap: the CLAUDE.md "Skill ownership" table.
 | Build | `tdd`, `implement` / `implement-spec`, `supabase` + `supabase-postgres-best-practices` (migrations, RLS, RPCs) |
 | Bugs / red CI | `diagnosing-bugs` before any fix; `resolving-merge-conflicts` |
 | Review | `code-review` (spec + quality + security — all three, every ticket), `cso` (security depth on auth/RLS/money), `careful` / `guard` / `freeze` on risky edits |
-| UI design | **`impeccable`** — run `.claude/skills/impeccable/scripts/impeccable context --target <file-or-route>` once per UI ticket, then its sub-command playbooks (e.g. `critique`, `audit`, `layout`, `clarify`, `harden`, `adapt`; full list: `impeccable help`); read `reference/craft-floor.md` before every UI edit; run `.claude/skills/impeccable/scripts/impeccable detect <changed files or local URL>` and fix what it finds. **`taste`** (visual judgment), **`ui-ux-pro-max`** (`python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain <domain>` for patterns, a11y, charts), `design-system`, `design-consultation`; `ui-styling` only where it fits the app's own primitives (`EntityFormModal`, `TextField`, `Combobox`… — no new shadcn/Radix components). **`DESIGN.md` is the token source of truth — the brief wins over any skill's taste.** |
+| UI design | **`impeccable`** — run `.claude/skills/impeccable/scripts/impeccable context --target <file-or-route>` once per UI ticket, then its sub-command playbooks (e.g. `critique`, `audit`, `layout`, `clarify`, `harden`, `adapt`; full list: `impeccable help`); read `reference/craft-floor.md` before every UI edit; run `.claude/skills/impeccable/scripts/impeccable detect <changed files or local URL>` and fix what it finds. **`taste`** (visual judgment), **`ui-ux-pro-max`** (`python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain <domain>` for patterns, a11y, charts), `design-system`, `design-consultation`; `ui-styling` only where it fits the app's own primitives (`EntityFormModal`, `TextField`, `Combobox`… — no new shadcn/Radix components). **`DESIGN.md` guarantees consistency, not quality:** use its tokens and the shared components only (no one-off styling in pages — that is what makes the later redesign #806 cheap), but impeccable's craft floor and a clean `impeccable detect` still apply to every screen. "It uses the tokens" never passes bland or generic work. Do not redesign during this build; redesign is #806, after go-live. |
 | Rendered check | `agent-browser` CLI (never the Playwright MCP), `design-review` for the rendered audit |
 | Codebase health | `improve-codebase-architecture`, `codebase-design` — file findings as issues, never drive-by refactors |
 | Ship / handoff | `pr`, `handoff` (if you must pass the work on), `writing-for-agents` (sub-agent briefs), `retro` at the end of the map |
@@ -68,7 +68,7 @@ reads it too. Ownership when two overlap: the CLAUDE.md "Skill ownership" table.
 3. **Director slices (money/ERPNext):** #798, #762, #804, #803, #759, #767, #764, #763, #768, #766,
    #772, #773, #783, #765, #775, #787, #796, #805 (BlockNote minutes, per the meeting spec — use the spike tag
    `archive/spike-467-blocknote` as the starting point, not a fresh design).
-4. **Last (owner: after the first client is live):** #784, #785.
+4. **Last (owner: after the first client is live):** #784, #785. #806 (redesign) is an owner ticket — not yours to start.
 Re-read #791 between tickets; new sub-issues join the queue.
 
 ## Per-ticket loop
