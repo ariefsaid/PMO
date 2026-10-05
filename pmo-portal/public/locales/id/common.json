@@ -1562,6 +1562,18 @@
         "spend": "Pengeluaran",
         "title": "Ringkasan keuangan"
       },
+      "invoicing": {
+        "contract": "Nilai kontrak",
+        "error": "Total invoice gagal dimuat.",
+        "invoicedToDate": "Invoice sampai saat ini",
+        "loading": "Memuat total invoice…",
+        "remaining": "Sisa yang perlu ditagih",
+        "retry": "Coba lagi",
+        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk.",
+        "title": "Penagihan terhadap kontrak",
+        "unavailable": "Tidak tersedia",
+        "unavailableDetail": "Total invoice tidak dapat dibandingkan dengan mata uang atau basis pajak kontrak ini."
+      },
       "procSummary": {
         "closed": "Ditutup",
         "committedAcross": "<amount>{{amount}}</amount> terkomitmen di {{n}} {{unit}}",
