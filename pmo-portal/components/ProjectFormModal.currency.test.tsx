@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * #694 — the create-project form's money inputs carried a literal `$` adornment, so an Admin in an
  * IDR organization typed an amount beside a dollar sign. The adornment is the ORG's currency (a new

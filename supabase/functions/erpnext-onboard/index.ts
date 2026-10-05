@@ -19,13 +19,14 @@
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
-import { onboardParties, listErpPartySources } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/onboarding.ts';
+import { onboardParties, listErpPartySources, listErpContactSources } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/onboarding.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { applyErpContact } from '../_shared/erpnextContacts.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import type { PartyCandidate, PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
@@ -182,7 +183,19 @@ serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Respons
       recordExternalRef: (mapping) => recordExternalRefWrite(serviceClient as never, { ...mapping, orgId, domain: 'companies', externalTier: ERPNEXT_TIER }),
     });
 
-    return json({ ok: true, ...result });
+    const contacts = {adopted: 0, reconciled: 0};
+    for (const source of await listErpContactSources(clientDeps)) {
+      try {
+        const outcome = await applyErpContact(serviceClient, orgId, source.record.id, source.record, source.sourceModMs);
+        if (outcome.kind === 'upserted') {
+          if (outcome.adopted) contacts.adopted++; else contacts.reconciled++;
+        }
+      } catch (err) {
+        // Unlinked contacts are outside this org's adopted party directory.
+        if ((err as {code?: string}).code !== 'contact-parent-unmapped') throw err;
+      }
+    }
+    return json({ ok: true, ...result, contacts });
   } catch (err) {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'onboarding failed');
     const status = appError.code === 'action-required' ? 409 : appError.code === 'config-rejected' ? 422 : appError.code === 'external-unreachable' ? 502 : 500;

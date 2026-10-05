@@ -51,6 +51,8 @@ export async function createPurchaseRequest(
   importKey?: string,
   importBatchId?: string,
   importedAt?: string,
+  /** #769: optional external reference — trimmed server-side; blank stores NULL. */
+  externalRef?: string | null,
 ): Promise<PurchaseRequestRow> {
   const { data, error } = (await supabase.rpc('create_purchase_request', {
     p_procurement_id: procurementId,
@@ -62,6 +64,7 @@ export async function createPurchaseRequest(
     p_import_key: importKey,
     p_import_batch_id: importBatchId,
     p_imported_at: importedAt,
+    ...(externalRef ? { p_external_ref: externalRef } : {}),
   })) as unknown as { data: PurchaseRequestRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -109,6 +112,8 @@ export async function createPurchaseOrder(
   importKey?: string,
   importBatchId?: string,
   importedAt?: string,
+  /** #769: optional external reference — trimmed server-side; blank stores NULL. */
+  externalRef?: string | null,
 ): Promise<PurchaseOrderRow> {
   const { data, error } = (await supabase.rpc('create_purchase_order', {
     p_procurement_id: procurementId,
@@ -120,6 +125,7 @@ export async function createPurchaseOrder(
     p_import_key: importKey,
     p_import_batch_id: importBatchId,
     p_imported_at: importedAt,
+    ...(externalRef ? { p_external_ref: externalRef } : {}),
   })) as unknown as { data: PurchaseOrderRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

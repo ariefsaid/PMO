@@ -1,3 +1,4 @@
+import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -137,7 +138,7 @@ export interface CommandIntent {
 
 export interface ProjectRepository {
   list(
-    params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
+    params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
   ): Promise<ProjectWithRefs[]>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
@@ -395,6 +396,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #769: optional parent-group number (`external_ref`). PMO-owned path only — never forwarded to the ERP. */
+    externalRef?: string | null,
   ): Promise<PurchaseRequestRow>;
   /** Create an RFQ record via RPC (mints RFQ#). */
   createRfq(
@@ -415,6 +418,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #769: optional parent-group number (`external_ref`). PMO-owned path only — never forwarded to the ERP. */
+    externalRef?: string | null,
   ): Promise<PurchaseOrderRow>;
   /** Create a payment record via RPC (mints PAY#). invoiceId is nullable (FR-PR-004b). */
   createPayment(
@@ -673,6 +678,8 @@ export interface OrgSettingsRepository {
   getProjectNumberPattern(): Promise<string | null>;
   /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
   setProjectNumberPattern(value: string | null): Promise<void>;
+  getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
+  setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */

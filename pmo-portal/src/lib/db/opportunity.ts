@@ -35,6 +35,7 @@ export const OPPORTUNITY_COLUMNS = [
   'client_id',
   'project_manager_id',
   'end_client_id',
+  'service_line', 'sector', 'location', 'award_type', 'bidding_entity',
   'contract_value',
   // The money-shape columns. `currency` is required by every formatCurrency call on the header;
   // the tax trio travels with it so the contract figure keeps its basis (OD-TAX-1 — a money value

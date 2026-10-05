@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * #684 — ProjectFormModal's "Estimated value" helper and error text were hard-coded English even
  * though the Bahasa string already existed elsewhere in the catalogue

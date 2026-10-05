@@ -46,6 +46,11 @@ test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
   ]);
 });
 
+test('AC-TAG-003: classification fields must be text when given', () => {
+  const problems = validateLoadFile({ projects: [{ name: 'X', client: 'A', stage: 'Leads', sector: 3, location: null }] });
+  assert.deepEqual(problems, ['projects[0] (X | A): "sector" must be text']);
+});
+
 test('AC-CSD-002: a won project needs a value, and a date must be a real calendar date', () => {
   assert.deepEqual(
     validateLoadFile({ projects: [{ name: 'V', client: 'A', stage: 'Close Out', customer_contract_ref: 'PO', contract_date: '2025-02-30' }] }),
@@ -155,6 +160,7 @@ const DOC = () => ({
       code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', end_client: 'Owner Legal B',
       stage: 'Ongoing Project', contract_value: 1000000, tax_treatment: 'exclusive', tax_amount: 110000,
       customer_contract_ref: 'PO-1', contract_date: '2025-02-01', start_date: '2025-02-10',
+      service_line: 'Engineering', sector: 'Energy', location: 'Riau', award_type: 'direct', bidding_entity: 'Own',
       budget: [
         { category: 'Labor', description: 'Crew', budgeted_amount: 400000 },
         { category: 'Special expenses', description: 'Permits', budgeted_amount: 50000, reference: 'R-2' },
@@ -222,6 +228,7 @@ test('AC-CSD-006/007: a fresh load creates companies, projects as Leads, sets th
   assert.deepEqual(w[2].body, {
     name: 'Plant upgrade', status: 'Leads', client_id: 'companies-1', code: 'ORG-001',
     end_client_id: 'companies-2', start_date: '2025-02-10',
+    service_line: 'Engineering', sector: 'Energy', location: 'Riau', award_type: 'direct', bidding_entity: 'Own',
   });
   assert.deepEqual(w[3].body, { p_id: 'projects-3', p_value: 1000000, p_tax_treatment: 'exclusive', p_tax_amount: 110000 });
   assert.deepEqual(w.slice(4, 8).map((c) => c.body), [

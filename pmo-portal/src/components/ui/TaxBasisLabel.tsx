@@ -31,12 +31,14 @@ export interface TaxBasisLabelProps {
   taxBaseDenominator?: number;
   /** ERP headers do not provide a DPP fraction; a column default is not an ERP-authored fact. */
   taxBaseUnknown?: boolean;
+  /** Hide rate/base details when a number has been normalized to a basis shared with other rows. */
+  showDetails?: boolean;
   className?: string;
   /** Overrides the default `tax-basis` testid where a surface renders several figures. */
   testId?: string;
 }
 
-export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate, taxBaseNumerator = 1, taxBaseDenominator = 1, taxBaseUnknown = false, className, testId }) => {
+export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate, taxBaseNumerator = 1, taxBaseDenominator = 1, taxBaseUnknown = false, showDetails = true, className, testId }) => {
   const { t } = useTranslation();
   if (!isTaxTreatment(treatment)) return null;
   // ⚑ Two literal keys, never a key built from the value. The i18n completeness gate scans
@@ -53,8 +55,8 @@ export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate
       data-tax-basis={treatment}
       className={cn('text-[11px] font-normal text-muted-foreground', className)}
     >
-      {label}{taxRate != null ? ` ${taxRate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`}
-      {taxBaseUnknown ? ` · ${t('tax.details.unknownBase', 'DPP not recorded')}` : ` · DPP ${taxBaseNumerator}/${taxBaseDenominator}`}
+      {label}{showDetails && (taxRate != null ? ` ${taxRate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`)}
+      {showDetails && (taxBaseUnknown ? ` · ${t('tax.details.unknownBase', 'DPP not recorded')}` : ` · DPP ${taxBaseNumerator}/${taxBaseDenominator}`)}
     </span>
   );
 };

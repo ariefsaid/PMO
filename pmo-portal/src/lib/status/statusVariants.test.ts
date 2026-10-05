@@ -35,6 +35,7 @@ describe('statusVariants registry — Freed-Blue Status Rule', () => {
       ['Ongoing Project', 'progress'],
       ['Won, Pending KoM', 'won'],
       ['Loss Tender', 'lost'],
+      ['Declined', 'neutral'],
       ['On Hold', 'warn'],
       // Documents status
       ['Issued', 'progress'],

@@ -179,6 +179,15 @@ describe('listProjects', () => {
     expect(scoped).toContain('Internal Project');
   });
 
+  it('AC-DEC-001: a statuses[] override filters with one .in("status", …) (the Lost column = Loss Tender + Declined)', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects({ statuses: ['Loss Tender', 'Declined'] });
+    const inStatusCalls = mockIn.mock.calls.filter(([k]) => k === 'status');
+    expect(inStatusCalls).toHaveLength(1);
+    expect(inStatusCalls[0][1]).toEqual(['Loss Tender', 'Declined']);
+    expect(mockEq).not.toHaveBeenCalledWith('status', expect.anything());
+  });
+
   it('AC-IXD-PROJ-003: an explicit status override wins over the default partition (e.g. a Lost filter)', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects({ status: 'Loss Tender' });
@@ -610,5 +619,29 @@ describe('AC-PRJ-003 createProject — contract-value tax basis (#513, migration
       tax_rate: null,
       tax_template: null,
     });
+  });
+});
+
+describe('AC-TAG-002 project classification writes', () => {
+  const tags = { service_line: 'Engineering', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'consortium' };
+  const base = { name: 'Classified project', status: 'Leads' as const, client_id: 'c1', project_manager_id: null, start_date: null, end_date: null };
+  it('persists all five authored classifications on creation without accepting an org from the caller', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'p1' }, error: null });
+    await createProject({ ...base, contract_value: 0, ...tags });
+    expect(calls.insert).toEqual([expect.objectContaining(tags)]);
+    expect(calls.insert[0]).not.toHaveProperty('org_id');
+  });
+  it('updates all five classification fields through the existing header write', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', { ...base, code: null, ...tags });
+    expect(calls.update).toEqual([expect.objectContaining(tags)]);
+    expect(calls.update[0]).not.toHaveProperty('contract_value');
+    expect(calls.update[0]).not.toHaveProperty('status');
+  });
+  it('sends explicit nulls when an editor clears optional classifications', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    const cleared = { service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
+    await updateProjectHeader('p1', { ...base, code: null, ...cleared });
+    expect(calls.update).toEqual([expect.objectContaining(cleared)]);
   });
 });

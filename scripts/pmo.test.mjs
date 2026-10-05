@@ -1125,3 +1125,26 @@ test('AC-CSD-012: a refused write ends pmo load with exit 1 and the done / faile
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+test('AC-TAG-003: CLI sends all five classifications on project create and update, including explicit clearing', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  const classifications = { service_line: 'Engineering', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'consortium' };
+  try {
+    seedCredentials(configDir, fake.url);
+    const created = await runCli(['create', 'projects', JSON.stringify({ name: 'Classified project', status: 'Leads', ...classifications }), '--url', fake.url], { configDir });
+    assert.equal(created.code, 0, created.err);
+    const posted = fake.requests.find(q => q.method === 'POST' && q.path === '/rest/v1/projects');
+    assert.deepEqual(JSON.parse(posted.body), { name: 'Classified project', status: 'Leads', ...classifications });
+    const cleared = { service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
+    const updated = await runCli(['update', 'projects', '--filter', 'id=eq.project-1', JSON.stringify(cleared), '--url', fake.url], { configDir });
+    assert.equal(updated.code, 0, updated.err);
+    const patch = fake.requests.find(q => q.method === 'PATCH' && q.path === '/rest/v1/projects');
+    assert.equal(new URLSearchParams(patch.search).get('id'), 'eq.project-1');
+    assert.deepEqual(JSON.parse(patch.body), cleared);
+    assert.equal(patch.headers.authorization, 'Bearer access-1');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});

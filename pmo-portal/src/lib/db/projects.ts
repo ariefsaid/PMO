@@ -4,6 +4,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { TaxTreatment } from './procurementLifecycle';
+import type { ProjectClassification } from '../projectClassification';
 
 // #513: `TaxTreatment` is the ONE two-value domain shared by every table that carries the four tax
 // columns (`procurement_invoices` 0196, `sales_invoices`/`work_orders` 0187/0188, and now `projects`
@@ -104,7 +105,7 @@ export interface ProjectContractTaxColumns {
 }
 
 /** The create-form fields that have nothing to do with the contract value. */
-interface CreateProjectBase {
+interface CreateProjectBase extends ProjectClassification {
   name: string;
   /** Must be an origination status (Leads / Internal Project). */
   status: ProjectStatus;
@@ -156,7 +157,7 @@ export type CreateProjectInput = CreateProjectBase &
   );
 
 /** The editable header fields (name/code/client/PM/dates). NOT contract_value (SoD) / status (RPC). */
-export interface ProjectHeaderInput {
+export interface ProjectHeaderInput extends ProjectClassification {
   name: string;
   code: string | null;
   client_id: string | null;
@@ -182,7 +183,7 @@ export interface ProjectHeaderInput {
  * read for every existing caller (e.g. the ⌘K CommandPalette record search).
  */
 export async function listProjects(
-  params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
+  params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
 ): Promise<ProjectWithRefs[]> {
   // `any` is a localized escape hatch: PostgREST's TypeScript builder types
   // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
@@ -190,7 +191,10 @@ export async function listProjects(
   // propagate `any` beyond this function.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = supabase.from('projects').select(SELECT);
-  if (params?.status) {
+  if (params?.statuses?.length) {
+    // Multi-status override (e.g. the Lost column = Loss Tender + Declined, #774).
+    q = q.in('status', params.statuses as string[]);
+  } else if (params?.status) {
     // Explicit override → a precise single-status filter (e.g. the Lost partition).
     q = q.eq('status', params.status);
   } else {
@@ -250,6 +254,11 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
       contract_value: input.contract_value,
       start_date: input.start_date,
       end_date: input.end_date,
+      ...(input.service_line !== undefined ? { service_line: input.service_line } : {}),
+      ...(input.sector !== undefined ? { sector: input.sector } : {}),
+      ...(input.location !== undefined ? { location: input.location } : {}),
+      ...(input.award_type !== undefined ? { award_type: input.award_type } : {}),
+      ...(input.bidding_entity !== undefined ? { bidding_entity: input.bidding_entity } : {}),
       ...tax,
     })
     .select()
@@ -301,6 +310,11 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       project_manager_id: input.project_manager_id,
       start_date: input.start_date,
       end_date: input.end_date,
+      ...(input.service_line !== undefined ? { service_line: input.service_line } : {}),
+      ...(input.sector !== undefined ? { sector: input.sector } : {}),
+      ...(input.location !== undefined ? { location: input.location } : {}),
+      ...(input.award_type !== undefined ? { award_type: input.award_type } : {}),
+      ...(input.bidding_entity !== undefined ? { bidding_entity: input.bidding_entity } : {}),
     })
     .eq('id', id)
     .select('id');

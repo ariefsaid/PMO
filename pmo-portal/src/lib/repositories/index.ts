@@ -210,6 +210,7 @@ import {
   cleanupStorageObject as cleanupProcurementFileObject,
 } from '@/src/lib/db/procurementFiles';
 import {
+  type ContactRow,
   listContacts,
   listContactsByCompany,
   getContact,
@@ -238,6 +239,8 @@ import {
   setOrgTaxDefault,
   getOrgProjectNumberPattern,
   setOrgProjectNumberPattern,
+  getOrgProjectClassificationOptions,
+  setOrgProjectClassificationOptions,
 } from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
@@ -531,14 +534,18 @@ const procurement: ProcurementRepository = {
     wrap(() => createProcurementDocument(procurementId, input)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
   // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
-  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent) =>
+  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
           { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-request' },
           intent,
         ).then((res) => res.canonical as unknown as PurchaseRequestRow)
-      : wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
+      : wrap(() =>
+          externalRef
+            ? createPurchaseRequest(procurementId, referenceNumber, status, date, amount, undefined, undefined, undefined, externalRef)
+            : createPurchaseRequest(procurementId, referenceNumber, status, date, amount),
+        ),
   createRfq: (procurementId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
@@ -547,14 +554,18 @@ const procurement: ProcurementRepository = {
           intent,
         ).then((res) => res.canonical as unknown as RfqRow)
       : wrap(() => createRfq(procurementId, referenceNumber, status, date, amount)),
-  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount, intent) =>
+  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
           { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-order' },
           intent,
         ).then((res) => res.canonical as unknown as PurchaseOrderRow)
-      : wrap(() => createPurchaseOrder(procurementId, referenceNumber, status, date, amount)),
+      : wrap(() =>
+          externalRef
+            ? createPurchaseOrder(procurementId, referenceNumber, status, date, amount, undefined, undefined, undefined, externalRef)
+            : createPurchaseOrder(procurementId, referenceNumber, status, date, amount),
+        ),
   createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
@@ -769,7 +780,11 @@ const contact: ContactRepository = {
   list: (params) => wrap(() => listContacts(params)),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
-  create: (input) => wrap(() => createContact(input)),
+  create: async (input) => {
+    if (routeDomainWrite('companies') !== 'external') return wrap(() => createContact(input));
+    const result = await dispatchCreate('companies', {...input, erp_doc_kind: 'contact'}, undefined);
+    return result.canonical as unknown as ContactRow;
+  },
   update: (id, input) => wrap(() => updateContact(id, input)),
   archive: (id) => wrap(() => archiveContact(id)),
   delete: (id) => wrap(() => deleteContact(id)),
@@ -818,6 +833,8 @@ const orgFeature: OrgFeatureRepository = {
 const orgSettings: OrgSettingsRepository = {
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
   setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
+  getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),
+  setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
 };

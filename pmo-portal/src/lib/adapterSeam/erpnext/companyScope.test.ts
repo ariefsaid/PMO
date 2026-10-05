@@ -43,9 +43,9 @@ describe('isCompanyScopedKind — which ERP doctypes carry a company dimension',
 
   it('HIGH-B the exemption list is EXHAUSTIVE over every registered kind — a new kind cannot be silently forgotten', () => {
     const unscoped = (Object.keys(DOCTYPE_REGISTRY) as ErpDocKind[]).filter((k) => !isCompanyScopedKind(k));
-    // The ONLY ERPNext doctypes with no company dimension at all. Anything else appearing here is a
+    // The global party masters have no ERP Company dimension; Contact is scoped through its adopted party links. Anything else appearing here is a
     // kind whose documents another tenant on the same site can push into this org's feed.
-    expect(unscoped.sort()).toEqual(['customer', 'supplier']);
+    expect(unscoped.sort()).toEqual(['contact', 'customer', 'supplier']);
   });
 });
 

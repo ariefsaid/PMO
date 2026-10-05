@@ -1,3 +1,4 @@
+import type { ProjectClassification } from '../projectClassification';
 import { supabase } from '@/src/lib/supabase/client';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -48,6 +49,8 @@ export interface ExecutiveDashboard {
 export interface WinRate {
   wins_count: number;
   losses_count: number;
+  /** #774: declined-to-bid deals in the period — NOT part of either win-rate denominator. */
+  declined_count?: number;
   wins_value: number;
   losses_value: number;
   win_rate_count: number;
@@ -62,7 +65,7 @@ export interface PipelineStage {
   weighted_value: number;
 }
 
-export interface PipelineProject {
+export interface PipelineProject extends ProjectClassification {
   id: string;
   name: string;
   /** Independent PMO and organisation-owned identifiers, projected for search/display. */

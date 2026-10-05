@@ -38,9 +38,9 @@ export const BUDGET_CATEGORIES = Object.freeze([
 /** The name the app's budget import gives a version it creates (budgetDescriptor.ts). */
 export const IMPORT_VERSION_NAME = 'Imported';
 
-// TODO(#770): add service_line, sector, location, award_type, bidding_entity here once the classification
-// columns land on dev — until then the load file refuses them as unknown fields.
-const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id']);
+// Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
+const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
+const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
   'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget',
@@ -127,6 +127,7 @@ export function validateLoadFile(doc) {
     if (!isText(p.name)) add('"name" is required');
     if (!isText(p.client)) add('"client" (the client company\'s legal name) is required');
     if (p.end_client !== undefined && !isText(p.end_client)) add('"end_client" must be a company\'s legal name');
+    for (const k of CLASSIFICATION_FIELDS) if (!isOptionalText(p[k])) add(`"${k}" must be text`);
     if (keys.has(key)) add('appears twice');
     else keys.add(key);
     if (!Object.hasOwn(LOAD_STAGE_PATHS, p.stage)) add(`"stage" must be one of: ${Object.keys(LOAD_STAGE_PATHS).join(', ')}`);

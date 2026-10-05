@@ -943,6 +943,7 @@ export type Database = {
           company_id: string
           created_at: string
           email: string | null
+          erp_modified: string | null
           full_name: string
           id: string
           notes: string | null
@@ -955,6 +956,7 @@ export type Database = {
           company_id: string
           created_at?: string
           email?: string | null
+          erp_modified?: string | null
           full_name: string
           id?: string
           notes?: string | null
@@ -967,6 +969,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           email?: string | null
+          erp_modified?: string | null
           full_name?: string
           id?: string
           notes?: string | null
@@ -2541,6 +2544,8 @@ export type Database = {
           lifecycle_state: string | null
           name: string
           project_number_pattern: string | null
+          sector_options: string[]
+          service_line_options: string[]
         }
         Insert: {
           created_at?: string
@@ -2553,6 +2558,8 @@ export type Database = {
           lifecycle_state?: string | null
           name: string
           project_number_pattern?: string | null
+          sector_options?: string[]
+          service_line_options?: string[]
         }
         Update: {
           created_at?: string
@@ -2565,6 +2572,8 @@ export type Database = {
           lifecycle_state?: string | null
           name?: string
           project_number_pattern?: string | null
+          sector_options?: string[]
+          service_line_options?: string[]
         }
         Relationships: []
       }
@@ -2909,6 +2918,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -2936,6 +2946,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2963,6 +2974,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3754,6 +3766,8 @@ export type Database = {
       projects: {
         Row: {
           archived_at: string | null
+          award_type: string | null
+          bidding_entity: string | null
           budget: number
           client_id: string | null
           code: string | null
@@ -3772,10 +3786,13 @@ export type Database = {
           import_key: string | null
           imported_at: string | null
           last_update: string
+          location: string | null
           name: string
           org_id: string
           pmo_project_number: string
           project_manager_id: string | null
+          sector: string | null
+          service_line: string | null
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
@@ -3788,6 +3805,8 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          award_type?: string | null
+          bidding_entity?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -3806,10 +3825,13 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           last_update?: string
+          location?: string | null
           name: string
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null
+          sector?: string | null
+          service_line?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -3822,6 +3844,8 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          award_type?: string | null
+          bidding_entity?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -3840,10 +3864,13 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           last_update?: string
+          location?: string | null
           name?: string
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null
+          sector?: string | null
+          service_line?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -3957,6 +3984,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3976,6 +4004,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3995,6 +4024,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4087,6 +4117,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -4106,6 +4137,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4125,6 +4157,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -5100,6 +5133,7 @@ export type Database = {
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
+          p_external_ref?: string
           p_invoice_date: string
           p_notes?: string
           p_procurement_id: string
@@ -5121,6 +5155,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5244,6 +5279,7 @@ export type Database = {
       create_procurement_invoice: {
         Args: {
           p_amount?: number
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5267,6 +5303,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5370,6 +5407,7 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5386,6 +5424,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5407,6 +5446,7 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5423,6 +5463,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -6205,6 +6246,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      valid_project_classification_options: {
+        Args: { p_options: string[] }
+        Returns: boolean
+      }
     }
     Enums: {
       budget_category:
@@ -6254,6 +6299,7 @@ export type Database = {
         | "On Hold"
         | "Close Out"
         | "Loss Tender"
+        | "Declined"
         | "Internal Project"
       task_priority: "Urgent" | "High" | "Normal" | "Low"
       task_status: "To Do" | "In Progress" | "Done" | "Blocked"
@@ -6445,6 +6491,7 @@ export const Constants = {
         "On Hold",
         "Close Out",
         "Loss Tender",
+        "Declined",
         "Internal Project",
       ],
       task_priority: ["Urgent", "High", "Normal", "Low"],

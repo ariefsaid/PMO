@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * AC-EC-002 — issue #758: the project create/edit form carries an OPTIONAL End customer combobox
  * directly after Client. It lists ALL the org's companies, is clearable back to null, is NOT in
