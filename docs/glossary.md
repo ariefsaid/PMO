@@ -69,6 +69,10 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Actual / Realized spend** — a UI label for **Committed spend** (same number, same basis). In the project header stat-strip and the Finance dashboard "BvA" card, the tile labeled "Actual" displays the committed-PO sum (Ordered..Paid), not a separately tracked actual-cost figure. The two words are deliberately synonymous here because the committed-PO basis IS the realized-cost proxy until a time-and-materials actuals system is added. If a future feature introduces a separate "actuals" ledger distinct from PO commitments, rename the UI tile at that point and add a new glossary entry.
 
+**PMO Project Number** — the human-readable identifier PMO assigns to a project. It is unique within the organisation and independent of the organisation's own **Client Project Code** and any identifier assigned by an external system. (OD-ID-1.)
+
+**Client Project Code** — the optional, free-form code the organisation uses for the same project. It is shown and searched alongside the PMO Project Number, but is never used as PMO's identifier. (OD-ID-1.)
+
 **Procurement (case)** — one procure-to-pay effort, modeled as a **case folder**: the thing that carries a title, a project, a requester, a type, and a current lifecycle status. It is **not** itself a Purchase Request or any single document — it is the folder those documents hang under. (ADR-0033.)
 
 **Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands; it is not the authority for the case's status (that is the declared lifecycle status — see **Committed spend**). (ADR-0033.)
