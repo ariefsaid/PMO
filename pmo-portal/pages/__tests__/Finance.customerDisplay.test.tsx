@@ -130,8 +130,8 @@ async function customerExportFor(firstCol: string, firstHeader: string) {
 describe('AC-FIN-001 — the Finance customer cell/export/search use the company name, never the id', () => {
   it('AC-FIN-001: Sales Invoices shows the company name, searches it, and exports it — never the UUID', async () => {
     hoisted.invoices = [
-      { ...invoice, id: 'inv-a', si_number: 'SI-ACME', customer_name: 'Acme Energy', customer_id: CUST_A },
-      { ...invoice, id: 'inv-b', si_number: 'SI-BOREALIS', customer_name: 'Borealis Marine', customer_id: CUST_B },
+      { ...invoice, id: 'inv-a', si_number: 'SI-0001', customer_name: 'Acme Energy', customer_id: CUST_A },
+      { ...invoice, id: 'inv-b', si_number: 'SI-0002', customer_name: 'Borealis Marine', customer_id: CUST_B },
     ];
     renderPage(<SalesInvoices />);
 
@@ -143,25 +143,27 @@ describe('AC-FIN-001 — the Finance customer cell/export/search use the company
     expect(table.textContent).not.toContain(CUST_B);
 
     // (b) typing a fragment of the customer name keeps the matching row and drops the other.
+    // The fragment must appear ONLY in the customer name (not the invoice/reference number), or a
+    // search that ignores the name still passes — the dead oracle a mutation run caught here.
     const search = screen.getByRole('searchbox', { name: /search sales invoices/i });
     await userEvent.setup().type(search, 'acme');
     const filtered = screen.getByRole('table').textContent ?? '';
-    expect(filtered).toContain('SI-ACME');
+    expect(filtered).toContain('SI-0001');
     expect(filtered).toContain('Acme Energy');
-    expect(filtered).not.toContain('SI-BOREALIS');
+    expect(filtered).not.toContain('SI-0002');
     expect(filtered).not.toContain('Borealis Marine');
     await userEvent.setup().clear(search);
 
     // (c) the Customer export value is the company name, not the id.
     await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
-    expect(await customerExportFor('SI-ACME', 'Invoice #')).toBe('Acme Energy');
-    expect(await customerExportFor('SI-BOREALIS', 'Invoice #')).toBe('Borealis Marine');
+    expect(await customerExportFor('SI-0001', 'Invoice #')).toBe('Acme Energy');
+    expect(await customerExportFor('SI-0002', 'Invoice #')).toBe('Borealis Marine');
   });
 
   it('AC-FIN-001: Incoming Payments shows the company name, searches it, and exports it — never the UUID', async () => {
     hoisted.payments = [
-      { ...payment, id: 'ip-a', ip_number: 'PAY-ACME', customer_name: 'Acme Energy', customer_id: CUST_A },
-      { ...payment, id: 'ip-b', ip_number: 'PAY-BOREALIS', customer_name: 'Borealis Marine', customer_id: CUST_B },
+      { ...payment, id: 'ip-a', ip_number: 'PAY-0001', customer_name: 'Acme Energy', customer_id: CUST_A },
+      { ...payment, id: 'ip-b', ip_number: 'PAY-0002', customer_name: 'Borealis Marine', customer_id: CUST_B },
     ];
     renderPage(<IncomingPayments />);
 
@@ -174,15 +176,15 @@ describe('AC-FIN-001 — the Finance customer cell/export/search use the company
     const search = screen.getByRole('searchbox', { name: /search incoming payments/i });
     await userEvent.setup().type(search, 'borealis');
     const filtered = screen.getByRole('table').textContent ?? '';
-    expect(filtered).toContain('PAY-BOREALIS');
+    expect(filtered).toContain('PAY-0002');
     expect(filtered).toContain('Borealis Marine');
-    expect(filtered).not.toContain('PAY-ACME');
+    expect(filtered).not.toContain('PAY-0001');
     expect(filtered).not.toContain('Acme Energy');
     await userEvent.setup().clear(search);
 
     await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
-    expect(await customerExportFor('PAY-ACME', 'Payment #')).toBe('Acme Energy');
-    expect(await customerExportFor('PAY-BOREALIS', 'Payment #')).toBe('Borealis Marine');
+    expect(await customerExportFor('PAY-0001', 'Payment #')).toBe('Acme Energy');
+    expect(await customerExportFor('PAY-0002', 'Payment #')).toBe('Borealis Marine');
   });
 
   it('AC-FIN-001: a row with no resolved customer shows a dash, not the UUID, in both lists', () => {
