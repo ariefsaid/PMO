@@ -27,6 +27,10 @@ function receiptCents(value: unknown): bigint {
   return BigInt(decimal.replace('.', ''));
 }
 
+function centsToDecimal(cents: bigint): string {
+  return `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+}
+
 export function peReceiveToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   const withheldCents = receiptCents(rec.withheld_amount ?? 0);
   let deductions: unknown[] | undefined;
@@ -54,7 +58,10 @@ export function peReceiveToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     payment_type: 'Receive',
     party_type: 'Customer',
     party: ctx.refs.customer,
-    paid_amount: rec.paid_amount,
+    // DD-RCPT-1: ERPNext forces received_amount = paid_amount for same-currency accounts, so a receipt
+    // with tax withheld carries the CASH in both header amounts; the gross rides on the invoice
+    // allocation (references[]) and the withheld tax on the marked deduction row.
+    paid_amount: deductions ? rec.received_amount : rec.paid_amount,
     received_amount: rec.received_amount ?? rec.paid_amount, // mandatory even same-currency (#3)
     // The adapter supplies BOTH accounts (REST defaults neither).
     // paid_to: cash preferred, bank fallback.
@@ -78,6 +85,13 @@ export function peReceiveFromDoc(doc: unknown): PmoRecord {
     throw new AdapterError('commit-rejected', 'Multiple withholding-slip deductions need reconciliation in ERPNext.');
   }
   const deduction = withholding?.[0];
+  // DD-RCPT-1: the ERP header is the cash; PMO's settled amount is the gross. Derive it ONLY from the
+  // explicitly marked withholding deduction — zero, amountless or unrelated rows leave the header as-is.
+  const header = mirrorMoney(d.paid_amount);
+  const withheld = deduction ? mirrorMoney(deduction.amount) : null;
+  const amount = header !== null && Number(header) >= 0 && withheld !== null && Number(withheld) > 0
+    ? centsToDecimal(BigInt(header.replace('.', '')) + BigInt(withheld.replace('.', '')))
+    : header;
   return {
     id: String(d.name),
     ip_number: String(d.name),
@@ -90,10 +104,10 @@ export function peReceiveFromDoc(doc: unknown): PmoRecord {
     date: (d.posting_date as string | null) ?? null,
     references: (d.references as Array<{ reference_doctype?: string; reference_name?: string | null; allocated_amount?: unknown }> | null) ?? [],
     reference_number: (d.reference_no as string | null) ?? null, // also the anchor carrier
-    amount: mirrorMoney(d.paid_amount), // header = money oracle
+    amount, // header (+ marked withholding) = money oracle
     ...(d.received_amount !== undefined ? { received_amount: mirrorMoney(d.received_amount) } : {}),
     ...(deductions ? {
-      withheld_amount: deduction ? mirrorMoney(deduction.amount) : deductions.length === 0 ? '0.00' : null,
+      withheld_amount: deduction ? withheld : deductions.length === 0 ? '0.00' : null,
       withholding_slip_number: deduction ? String(deduction.description).slice(WITHHOLDING_SLIP_PREFIX.length) : null,
     } : {}),
     erp_docstatus: (d.docstatus as number | null) ?? null,

@@ -35,7 +35,20 @@ test('AC-WHT-002: cash plus withheld tax fully settles the invoice in ERP and su
   expect(priorError).toBeNull();
   const seeded = await seedSAR(admin, `wht-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`);
   const slip = `WHT-${crypto.randomUUID().slice(0, 8)}`;
+  let priorBindingConfig: Record<string, unknown> | undefined;
   try {
+    // The synthetic activated binding must carry the real Company defaults
+    // consumed by the withholding mapper, just as connection activation does.
+    const { data: binding, error: bindingError } = await admin.from('external_org_bindings')
+      .select('config').eq('org_id', ORG_ID).eq('external_tier', 'erpnext').single();
+    expect(bindingError).toBeNull();
+    priorBindingConfig = binding!.config;
+    const company = await erpDoc('Company', binding!.config.company);
+    expect(company.cost_center).toBe('Main - PSC');
+    const { error: defaultsError } = await admin.from('external_org_bindings')
+      .update({ config: { ...binding!.config, cost_center: company.cost_center } })
+      .eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+    expect(defaultsError).toBeNull();
     const { error: settingError } = await admin.from('organizations').update({ tax_prepaid_account: PREPAID_ACCOUNT }).eq('id', ORG_ID);
     expect(settingError).toBeNull();
     async function create(record: Record<string, unknown>, kind: 'sales-invoice' | 'incoming-payment', key: string) {
@@ -65,7 +78,8 @@ test('AC-WHT-002: cash plus withheld tax fully settles the invoice in ERP and su
       paid_amount: 200000, received_amount: 180000, withheld_amount: 20000,
       withholding_slip_number: slip }, 'incoming-payment', key);
     const pe = await erpDoc('Payment Entry', peName);
-    expect(pe).toMatchObject({ docstatus: 1, payment_type: 'Receive', paid_amount: 200000, received_amount: 180000 });
+    // DD-RCPT-1: ERPNext forces received_amount = paid_amount (both the cash) for same-currency accounts.
+    expect(pe).toMatchObject({ docstatus: 1, payment_type: 'Receive', paid_amount: 180000, received_amount: 180000 });
     expect(pe.deductions).toEqual(expect.arrayContaining([expect.objectContaining({
       account: PREPAID_ACCOUNT, cost_center: 'Main - PSC', amount: 20000, description: `Withholding slip: ${slip}`,
     })]));
@@ -99,6 +113,10 @@ test('AC-WHT-002: cash plus withheld tax fully settles the invoice in ERP and su
       return content.includes(peName) || content.includes(seeded.ipRecordId);
     })).toEqual([]);
   } finally {
+    if (priorBindingConfig) {
+      await admin.from('external_org_bindings').update({ config: priorBindingConfig })
+        .eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+    }
     await admin.from('organizations').update({ tax_prepaid_account: prior?.tax_prepaid_account ?? null }).eq('id', ORG_ID);
     await cleanupSAR(admin, seeded);
   }

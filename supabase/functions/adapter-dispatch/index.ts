@@ -409,10 +409,13 @@ async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<
     const siNames = Array.isArray(rec.references)
       ? (rec.references as Array<{ reference_name?: unknown }>).map((r) => String(r.reference_name)).filter((n) => n && n !== 'undefined')
       : [];
+    // DD-RCPT-1: with tax withheld, ERPNext stores the CASH in `paid_amount` (peReceiveToBody sends it
+    // there), so the fallback match must look for the cash; otherwise the gross it was sent as.
+    const withheld = Number(rec.withheld_amount ?? 0) > 0;
     return {
       party_type: 'Customer',
       party,
-      paid_amount: rec.paid_amount ?? null,
+      paid_amount: (withheld ? rec.received_amount : rec.paid_amount) ?? null,
       pi_names: [],
       si_names: siNames,
       payment_type: 'Receive',
