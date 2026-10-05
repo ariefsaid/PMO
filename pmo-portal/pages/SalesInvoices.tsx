@@ -31,7 +31,7 @@ import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyCents, formatDateOnlyNumeric, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -128,7 +128,11 @@ const SalesInvoices: React.FC = () => {
     const q = search.trim().toLowerCase();
     return all
       .filter((inv) => statusFilter === 'All' || inv.status === statusFilter)
-      .filter((inv) => !q || inv.si_number?.toLowerCase().includes(q) || inv.reference_number?.toLowerCase().includes(q));
+      .filter((inv) => !q
+        || inv.si_number?.toLowerCase().includes(q)
+        || inv.reference_number?.toLowerCase().includes(q)
+        // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
+        || inv.customer_name?.toLowerCase().includes(q));
   }, [all, search, statusFilter]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
@@ -181,11 +185,11 @@ const SalesInvoices: React.FC = () => {
       key: 'customer_id',
       header: 'Customer',
       cell: (inv) => (
-        <span className="truncate" title={inv.customer_id ?? ''}>
-          {inv.customer_id ?? '—'}
+        <span className="truncate" title={inv.customer_name ?? ''}>
+          {inv.customer_name ?? '—'}
         </span>
       ),
-      exportValue: (inv) => inv.customer_id ?? '',
+      exportValue: (inv) => inv.customer_name ?? '',
     },
     {
       key: 'status',
@@ -225,7 +229,7 @@ const SalesInvoices: React.FC = () => {
     {
       key: 'invoice_date',
       header: 'Date',
-      cell: (inv) => (inv.invoice_date ? formatDateOnlyNumeric(inv.invoice_date) : '—'),
+      cell: (inv) => (inv.invoice_date ? formatDateOnly(inv.invoice_date) : '—'),
       exportValue: (inv) => inv.invoice_date ?? '',
     },
     {
@@ -233,7 +237,7 @@ const SalesInvoices: React.FC = () => {
       header: 'Due Date',
       cell: (inv) => {
         const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date);
-        return due ? formatDateOnlyNumeric(due) : '—';
+        return due ? formatDateOnly(due) : '—';
       },
       exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date) ?? '',
     },

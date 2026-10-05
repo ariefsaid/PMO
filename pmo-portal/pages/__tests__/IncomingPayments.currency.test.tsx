@@ -41,6 +41,7 @@ const payment = (over: Record<string, unknown>) => ({
   id: 'ip-1',
   org_id: 'org-1',
   customer_id: 'cust-1',
+  customer_name: 'Acme Co',
   sales_invoice_id: null,
   ip_number: 'ACC-PAY-0001',
   reference_number: null,

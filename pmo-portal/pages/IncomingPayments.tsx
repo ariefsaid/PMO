@@ -30,7 +30,7 @@ import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/sr
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyCents, formatDateOnlyNumeric, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant } from '@/src/lib/status/statusVariants';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
@@ -131,7 +131,10 @@ const IncomingPayments: React.FC = () => {
     const q = search.trim().toLowerCase();
     return all
       .filter((p) => statusFilter === 'All' || p.status === statusFilter)
-      .filter((p) => !q || p.ip_number?.toLowerCase().includes(q));
+      .filter((p) => !q
+        || p.ip_number?.toLowerCase().includes(q)
+        // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
+        || p.customer_name?.toLowerCase().includes(q));
   }, [all, search, statusFilter]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
@@ -184,11 +187,11 @@ const IncomingPayments: React.FC = () => {
       key: 'customer_id',
       header: 'Customer',
       cell: (p) => (
-        <span className="truncate" title={p.customer_id ?? ''}>
-          {p.customer_id ?? '—'}
+        <span className="truncate" title={p.customer_name ?? ''}>
+          {p.customer_name ?? '—'}
         </span>
       ),
-      exportValue: (p) => p.customer_id ?? '',
+      exportValue: (p) => p.customer_name ?? '',
     },
     {
       key: 'status',
@@ -211,7 +214,7 @@ const IncomingPayments: React.FC = () => {
     {
       key: 'date',
       header: 'Date',
-      cell: (p) => (p.date ? formatDateOnlyNumeric(p.date) : '—'),
+      cell: (p) => (p.date ? formatDateOnly(p.date) : '—'),
       exportValue: (p) => p.date ?? '',
     },
   ];
