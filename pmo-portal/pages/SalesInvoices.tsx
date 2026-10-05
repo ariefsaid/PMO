@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ListPage,
   SearchMini,
@@ -45,6 +46,18 @@ import type { CommandIntent } from '@/src/lib/repositories/types';
 type StatusFilter = 'All' | SalesInvoiceStatus;
 const STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'Paid', 'Cancelled'];
 
+function salesInvoiceStatusLabel(status: StatusFilter, t: (key: string, fallback: string) => string): string {
+  const labels: Record<StatusFilter, string> = {
+    All: t('financeCopy.statusAll', 'All'),
+    Draft: t('financeCopy.statusDraft', 'Draft'),
+    Submitted: t('financeCopy.statusSubmitted', 'Submitted'),
+    Unpaid: t('financeCopy.statusUnpaid', 'Unpaid'),
+    Paid: t('financeCopy.statusPaid', 'Paid'),
+    Cancelled: t('financeCopy.statusCancelled', 'Cancelled'),
+  };
+  return labels[status];
+}
+
 /** Line item as submitted: numeric, ready for the create command. */
 interface LineItem {
   item_code: string;
@@ -76,26 +89,27 @@ const EMPTY_LINE: LineItemDraft = { item_code: '', qty: 1, rate: '0' };
  */
 const parseRate = (raw: string): number | null => parseMoneyInputAtScale(raw, 2);
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, t: (key: string, fallback: string, options?: Record<string, unknown>) => string): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.customerId.trim()) errors.customerId = 'Customer is required.';
+  if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
   if (v.lineItems.length === 0) {
-    errors.lineItems = 'At least one line item is required.';
+    errors.lineItems = t('financeCopy.invoiceLineRequired', 'At least one line item is required.');
   } else {
     for (let i = 0; i < v.lineItems.length; i++) {
       const item = v.lineItems[i];
       const rate = parseRate(item.rate);
-      if (!item.item_code.trim()) errors.lineItems = `Line ${i + 1}: Item code is required.`;
-      if (item.qty <= 0) errors.lineItems = `Line ${i + 1}: Quantity must be positive.`;
+      if (!item.item_code.trim()) errors.lineItems = t('financeCopy.invoiceLineItemCodeRequired', 'Line {{line}}: Item code is required.', { line: i + 1 });
+      if (item.qty <= 0) errors.lineItems = t('financeCopy.invoiceLineQuantityPositive', 'Line {{line}}: Quantity must be positive.', { line: i + 1 });
       if (rate === null) {
-        errors.lineItems = `Line ${i + 1}: Enter a valid rate with no more than 2 decimal places.`;
-      } else if (rate < 0) errors.lineItems = `Line ${i + 1}: Rate cannot be negative.`;
+        errors.lineItems = t('financeCopy.invoiceLineRateValid', 'Line {{line}}: Enter a valid rate with no more than 2 decimal places.', { line: i + 1 });
+      } else if (rate < 0) errors.lineItems = t('financeCopy.invoiceLineRateNonNegative', 'Line {{line}}: Rate cannot be negative.', { line: i + 1 });
     }
   }
   return errors;
 };
 
 const SalesInvoices: React.FC = () => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -147,14 +161,12 @@ const SalesInvoices: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">You don't have access to Sales Invoices</h2>
+          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToSalesInvoices', "You don't have access to Sales Invoices")}</h2>
           <p className="mt-2 text-muted-foreground">
-            The sales invoices directory is available to Finance, Project Managers, and Executives.
-          </p>
+            {t('financeCopy.theSalesInvoicesDirectoryIsAvailableToFinanceProjectManagersAndExecutives', "The sales invoices directory is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
             <Icon name="back" className="size-4 mr-2" />
-            Back to dashboard
-          </Button>
+            {t('financeCopy.backToDashboard', "Back to dashboard")}</Button>
         </div>
       </div>
     );
@@ -163,7 +175,7 @@ const SalesInvoices: React.FC = () => {
   const columns: Column<SalesInvoiceRow>[] = [
     {
       key: 'si_number',
-      header: 'Invoice #',
+      header: t('financeCopy.invoice', "Invoice #"),
       cell: (inv) => (
         <span className="truncate font-mono text-[13px]" title={inv.si_number ?? ''}>
           {inv.si_number ?? '—'}
@@ -173,7 +185,7 @@ const SalesInvoices: React.FC = () => {
     },
     {
       key: 'reference_number',
-      header: 'Customer PO',
+      header: t('financeCopy.customerPO', "Customer PO"),
       cell: (inv) => (
         <span className="truncate text-muted-foreground" title={inv.reference_number ?? ''}>
           {inv.reference_number ?? '—'}
@@ -183,7 +195,7 @@ const SalesInvoices: React.FC = () => {
     },
     {
       key: 'customer_id',
-      header: 'Customer',
+      header: t('financeCopy.customer', "Customer"),
       cell: (inv) => (
         <span className="truncate" title={inv.customer_name ?? ''}>
           {inv.customer_name ?? '—'}
@@ -193,13 +205,13 @@ const SalesInvoices: React.FC = () => {
     },
     {
       key: 'status',
-      header: 'Status',
-      cell: (inv) => <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{inv.status}</StatusPill>,
+      header: t('financeCopy.status', "Status"),
+      cell: (inv) => <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>,
       exportValue: (inv) => inv.status,
     },
     {
       key: 'amount',
-      header: 'Amount',
+      header: t('financeCopy.amount', "Amount"),
       align: 'num',
       // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
       // row, so no invoice total may be bare. The basis is the row's own; the org default
@@ -217,7 +229,7 @@ const SalesInvoices: React.FC = () => {
     },
     {
       key: 'erp_outstanding_amount',
-      header: 'Outstanding',
+      header: t('financeCopy.outstanding', "Outstanding"),
       align: 'num',
       cell: (inv) => (
         <span className="tabular text-right font-mono text-[13px]">
@@ -228,13 +240,13 @@ const SalesInvoices: React.FC = () => {
     },
     {
       key: 'invoice_date',
-      header: 'Date',
+      header: t('financeCopy.date', "Date"),
       cell: (inv) => (inv.invoice_date ? formatDateOnly(inv.invoice_date) : '—'),
       exportValue: (inv) => inv.invoice_date ?? '',
     },
     {
       key: 'due_date',
-      header: 'Due Date',
+      header: t('financeCopy.dueDate', "Due Date"),
       cell: (inv) => {
         const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date);
         return due ? formatDateOnly(due) : '—';
@@ -248,9 +260,9 @@ const SalesInvoices: React.FC = () => {
 
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ invoice: inv }) });
+    if (canEdit) items.push({ label: t('financeCopy.edit', "Edit"), onClick: () => setFormTarget({ invoice: inv }) });
     if (canCancel && inv.status !== 'Cancelled')
-      items.push({ label: 'Cancel', onClick: () => setCancelTarget(inv), danger: true });
+      items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(inv), danger: true });
     // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record
     // context (SoD). The oracle is the APPEND-ONLY author SET (`sales_invoice_authors`, migration
     // 0113) union the legacy scalar — the same one `submit_sales_invoice` enforces. Passing only the
@@ -264,7 +276,7 @@ const SalesInvoices: React.FC = () => {
         record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
       })
     ) {
-      items.push({ label: 'Submit', onClick: () => setSubmitTarget(inv) });
+      items.push({ label: t('financeCopy.submit', "Submit"), onClick: () => setSubmitTarget(inv) });
     }
     return items;
   };
@@ -275,7 +287,7 @@ const SalesInvoices: React.FC = () => {
     try {
       await cancelInvoice.mutateAsync({ siId: cancelTarget.id, intent: verbIntents.intentFor(key) });
       verbIntents.release(key);
-      toast('Invoice cancelled', cancelTarget.si_number ?? cancelTarget.id, 'success');
+      toast(t('financeCopy.invoiceCancelled', 'Invoice cancelled'), cancelTarget.si_number ?? cancelTarget.id, 'success');
       setCancelTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -289,7 +301,7 @@ const SalesInvoices: React.FC = () => {
     try {
       await submitInvoice.mutateAsync({ siId: submitTarget.id, intent: verbIntents.intentFor(key) });
       verbIntents.release(key);
-      toast('Invoice submitted', submitTarget.si_number ?? submitTarget.id, 'success');
+      toast(t('financeCopy.invoiceSubmitted', 'Invoice submitted'), submitTarget.si_number ?? submitTarget.id, 'success');
       setSubmitTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -299,34 +311,33 @@ const SalesInvoices: React.FC = () => {
 
   return (
     <ListPage
-      title="Sales Invoices"
-      description="Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced."
+      title={t('financeCopy.salesInvoices', "Sales Invoices")}
+      description={t('financeCopy.clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced', "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.")}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ invoice: null })}>
             <Icon name="plus" />
-            New Invoice
-          </Button>
+            {t('financeCopy.newInvoice', "New Invoice")}</Button>
         )
       }
       filters={
         state !== 'loading' && (
           <ViewToggle<StatusFilter>
-            options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
+            options={STATUS_FILTERS.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
             value={statusFilter}
             onChange={(v) => {
               setStatusFilter(v);
               trackFilterApplied('status', STATUS_FILTERS.length, 'salesInvoices');
             }}
-            ariaLabel="Filter by status"
+            ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
           />
         )
       }
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder="Search invoices…"
-            aria-label="Search sales invoices"
+            placeholder={t('financeCopy.searchInvoices', "Search invoices…")}
+            aria-label={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             searchSurface="sales-invoices-list"
@@ -352,8 +363,8 @@ const SalesInvoices: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load sales invoices"
-          sub="The request failed. Check your connection and try again."
+          title={t('financeCopy.salesInvoicesLoadFailed', "Couldn't load sales invoices")}
+          sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
           onRetry={() => refetch()}
         />
       )}
@@ -362,12 +373,12 @@ const SalesInvoices: React.FC = () => {
         <ListState
           variant="empty"
           icon="doc"
-          title="No sales invoices yet"
-          sub="Create your first invoice to start billing clients."
+          title={t('financeCopy.noSalesInvoicesYet', "No sales invoices yet")}
+          sub={t('financeCopy.createYourFirstInvoiceToStartBillingClients', "Create your first invoice to start billing clients.")}
           stateId="sales-invoices-empty"
           role={realRole ?? undefined}
           module="salesInvoices"
-          action={canCreate ? { label: 'New Invoice', onClick: () => setFormTarget({ invoice: null }) } : undefined}
+          action={canCreate ? { label: t('financeCopy.newInvoice', "New Invoice"), onClick: () => setFormTarget({ invoice: null }) } : undefined}
         />
       )}
 
@@ -378,8 +389,8 @@ const SalesInvoices: React.FC = () => {
           rowKey={(inv) => inv.id}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No invoices match your filters"
-          emptySub="Try a different status or clear the search."
+          emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
+          emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
         />
       )}
 
@@ -396,7 +407,7 @@ const SalesInvoices: React.FC = () => {
               items: input.lineItems,
               intent,
             });
-            toast('Invoice created', input.customerId, 'success');
+            toast(t('financeCopy.invoiceCreated', 'Invoice created'), input.customerId, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (_id, _input) => {
@@ -415,9 +426,9 @@ const SalesInvoices: React.FC = () => {
       <ConfirmDialog
         open={!!cancelTarget}
         tone="destructive"
-        title={cancelTarget ? `Cancel ${cancelTarget.si_number ?? cancelTarget.id}?` : 'Cancel invoice?'}
-        description="This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released."
-        confirmLabel="Cancel invoice"
+        title={cancelTarget ? t('financeCopy.cancelInvoiceNamed', 'Cancel {{invoice}}?', { invoice: cancelTarget.si_number ?? cancelTarget.id }) : t('financeCopy.cancelInvoiceQuestion', 'Cancel invoice?')}
+        description={t('financeCopy.thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased', "This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released.")}
+        confirmLabel={t('financeCopy.cancelInvoice', "Cancel invoice")}
         loading={cancelInvoice.isPending}
         onConfirm={onCancelConfirm}
         onCancel={() => setCancelTarget(null)}
@@ -426,9 +437,9 @@ const SalesInvoices: React.FC = () => {
       {/* Submit confirm (default tone — primary action) */}
       <ConfirmDialog
         open={!!submitTarget}
-        title={submitTarget ? `Submit ${submitTarget.si_number ?? submitTarget.id}?` : 'Submit invoice?'}
-        description="Submit invoice for approval? This commits it to the ledger and cannot be undone by the submitter."
-        confirmLabel="Submit invoice"
+        title={submitTarget ? t('financeCopy.submitInvoiceNamed', 'Submit {{invoice}}?', { invoice: submitTarget.si_number ?? submitTarget.id }) : t('financeCopy.submitInvoiceQuestion', 'Submit invoice?')}
+        description={t('financeCopy.submitInvoiceForApprovalThisCommitsItToTheLedgerAndCannotBeUndoneByTheSubmitter', "Submit invoice for approval? This commits it to the ledger and cannot be undone by the submitter.")}
+        confirmLabel={t('financeCopy.submitInvoice', "Submit invoice")}
         loading={submitInvoice.isPending}
         onConfirm={onSubmitConfirm}
         onCancel={() => setSubmitTarget(null)}
@@ -460,6 +471,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   onError,
   pendingPush,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!invoice;
   // The adornment follows the record's own currency when editing one; a create form has no record
   // yet, so it falls back to the org's operating currency (#731). The hook is called unconditionally.
@@ -476,7 +488,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       projectId: null,
       lineItems: [EMPTY_LINE],
     },
-    validate,
+    validate: (values) => validate(values, t),
     idPrefix: 'sales-invoice-form',
     requiredFields: ['customerId', 'lineItems'],
     module: 'salesInvoices',
@@ -554,27 +566,27 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     >
       {pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">Pushing to ERPNext…</span>
+          <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
       )}
       <FormSection legend="Invoice details">
         <FormGrid>
           <Combobox
-            label="Customer"
+            label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
             onChange={(value, _option) => customerField.onChange(value)}
             error={customerField.error}
-            placeholder="Select or search customer…"
+            placeholder={t('financeCopy.selectOrSearchCustomer', "Select or search customer…")}
             loadOptions={loadCustomers}
             noun="customer"
           />
           <Combobox
-            label="Project"
+            label={t('financeCopy.project', "Project")}
             value={projectField.value ?? ''}
             onChange={(value, _option) => projectField.onChange(value ?? '')}
             error={projectField.error}
-            placeholder="Select project (optional)…"
+            placeholder={t('financeCopy.selectProjectOptional', "Select project (optional)…")}
             loadOptions={loadProjects}
             noun="project"
           />
@@ -585,15 +597,15 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         {lineItems.map((item, index) => (
           <div key={index} className="flex flex-col sm:flex-row gap-2 mb-2">
             <TextField
-              label="Item code"
+              label={t('financeCopy.itemCode', "Item code")}
               value={item.item_code}
               onChange={(v) => updateLineItem(index, 'item_code', v)}
               required
-              placeholder="ITEM-001"
+              placeholder={t('financeCopy.iTEM001', "ITEM-001")}
               className="flex-1"
             />
             <NumberField
-              label="Qty"
+              label={t('financeCopy.qty', "Qty")}
               value={String(item.qty)}
               onChange={(v) => updateLineItem(index, 'qty', Number(v))}
               required
@@ -602,7 +614,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               className="w-24"
             />
             <NumberField
-              label="Rate"
+              label={t('financeCopy.rate', "Rate")}
               value={item.rate}
               onChange={(v) => updateLineItem(index, 'rate', v)}
               localeAware
@@ -627,8 +639,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         ))}
         <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
           <Icon name="plus" className="size-4 mr-1.5" />
-          Add line item
-        </Button>
+          {t('financeCopy.addLineItem', "Add line item")}</Button>
       </FormSection>
     </EntityFormModal>
   );

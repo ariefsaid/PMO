@@ -8,6 +8,7 @@ import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /**
  * Revenue by Project — the no-fabricated-zero rule (read-model audit BLOCK 2).
@@ -58,6 +59,7 @@ const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/
 };
 const englishSubtitle = enCatalogue.revenueByProject.subtitle;
 const indonesianSubtitle = idCatalogue.revenueByProject.subtitle;
+const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 beforeAll(async () => {
   await testI18n.init({
@@ -152,6 +154,8 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     renderPage();
 
     expect(screen.getByText(indonesianSubtitle)).toBeInTheDocument();
+    expect(screen.getByText('Total Pendapatan')).toBeInTheDocument();
+    expect(screen.getByText('Pendapatan per Proyek')).toBeInTheDocument();
     expect(screen.queryByText(/process_gates\.require_project_on_si/)).not.toBeInTheDocument();
   });
 
@@ -178,5 +182,20 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     expect(screen.getAllByText(/IDR[\s\u00a0]?4,000(?:\.00)?/).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryAllByText(/^\$4,000(?:\.00)?$/)).toHaveLength(0);
+  });
+
+  it('AC-L10N-B03 formats finance totals with the id-ID number locale', async () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', total_amount: 1_234_567, open_ar: 12_345, invoice_count: 2 },
+    ];
+    orgCurrencyState.currency = 'IDR';
+    await testI18n.changeLanguage('id');
+    setActiveLocale(ID_LOCALE);
+
+    renderPage();
+
+    expect(screen.getByText('IDR\u00a01.234.567')).toBeInTheDocument();
+    expect(screen.getByText('IDR\u00a012.345')).toBeInTheDocument();
+    expect(screen.getByText('2 faktur')).toBeInTheDocument();
   });
 });

@@ -64,6 +64,8 @@
 #    it lives elsewhere and is reached only from here.
 /projects/:projectId           pages/project-detail/*.tsx src/components/milestones/MilestonePhaseHeader.tsx
 /projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/*.tsx
+# ── Project Budget and projection (#789): every label and state on the budget tab.
+/projects/:projectId/budget    pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/BudgetTab.tsx pages/ProjectBudget.tsx pages/BudgetProjection.tsx
 
 # ── The other half of the tasks launch item: the IC's own cross-project list, opened daily.
 /my-tasks                      pages/MyTasks.tsx
@@ -95,6 +97,10 @@
 #    `Funnel` is named here (#687 Discover follow-up) because its scroll-viewport a11y label
 #    lives in the shared component, and it also renders on this screen.
 /sales                         pages/SalesPipeline.tsx components/SalesKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/Funnel.tsx
+# ── Finance lists (#789): invoices, receipts, and their project revenue roll-up.
+/sales-invoices                pages/SalesInvoices.tsx
+/incoming-payments             pages/IncomingPayments.tsx
+/revenue-by-project            pages/RevenueByProject.tsx
 
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is
 #    also the reference slice, so its patterns propagate to whatever is built next.
@@ -116,6 +122,9 @@
 # ── Personal profile language settings (RIS readiness slice): every signed-in user's choice of
 #    interface-language override (inherit / Bahasa Indonesia / English).
 /settings/profile             pages/ProfileSettings.tsx
+
+# ── Saved user views (#789): the personal list and its empty/error/mutation states.
+/views                         pages/MyViewsPage.tsx
 
 # ── Administration (AC-ADMIA-001/006): the organization setup & governance home (route-backed IA).
 #    The six canonical child routes and the compatibility alias /administration all render the same

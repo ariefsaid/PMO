@@ -67,19 +67,23 @@ vi.mock('react-router', async (importOriginal) => {
 
 import SalesInvoices from '../SalesInvoices';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { FinanceI18nTestProvider } from './financeI18nTestProvider';
+import { financeTestI18n } from './financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
-        <ToastProvider>
-          <SalesInvoices />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <FinanceI18nTestProvider>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter>
+          <ToastProvider>
+            <SalesInvoices />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </FinanceI18nTestProvider>,
   );
 
 /** Opens the create form (the header action; the empty state offers the same button). */
@@ -94,15 +98,22 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, la
   await user.click(option);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   hoisted.createMutate.mockClear();
   hoisted.navigateMock.mockClear();
   hoisted.salesInvoicesState.data = [];
   setActiveLocale(EN_LOCALE);
+  await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
 describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 1)', () => {
+  it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Faktur Penjualan' })).toBeInTheDocument();
+  });
+
   it('offers the org\'s real client companies in the customer picker', async () => {
     const user = userEvent.setup();
     renderPage();

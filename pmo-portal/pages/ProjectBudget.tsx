@@ -28,15 +28,41 @@ import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 // ---------------------------------------------------------------------------
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
+function budgetCategoryLabel(category: Enums<'budget_category'>, t: (key: string, fallback: string) => string): string {
+  const labels: Record<Enums<'budget_category'>, string> = {
+    Labor: t('financeCopy.budgetCategoryLabor', 'Labor'),
+    Materials: t('financeCopy.budgetCategoryMaterials', 'Materials'),
+    Subcontractors: t('financeCopy.budgetCategorySubcontractors', 'Subcontractors'),
+    Equipment: t('financeCopy.budgetCategoryEquipment', 'Equipment'),
+    'Permits & Fees': t('financeCopy.budgetCategoryPermitsFees', 'Permits & Fees'),
+    Overheads: t('financeCopy.budgetCategoryOverheads', 'Overheads'),
+    Contingency: t('financeCopy.budgetCategoryContingency', 'Contingency'),
+    'Special expenses': t('budget.category.specialExpenses', 'Special expenses'),
+  };
+  return labels[category];
+}
+
+function budgetStatusLabel(status: Enums<'budget_status'>, t: (key: string, fallback: string) => string): string {
+  const labels: Record<Enums<'budget_status'>, string> = {
+    Draft: t('financeCopy.statusDraft', 'Draft'),
+    Active: t('financeCopy.statusActive', 'Active'),
+    Archived: t('financeCopy.statusArchived', 'Archived'),
+  };
+  return labels[status];
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) => (
-  <span data-testid={`version-status-${status.toLowerCase()}`}>
-    <StatusPill variant={budgetVersionVariant(status)}>{status}</StatusPill>
-  </span>
-);
+const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) => {
+  const { t } = useTranslation();
+  return (
+    <span data-testid={`version-status-${status.toLowerCase()}`}>
+      <StatusPill variant={budgetVersionVariant(status)}>{budgetStatusLabel(status, t)}</StatusPill>
+    </span>
+  );
+};
 
 const TH: React.FC<{ children: React.ReactNode; align?: 'right' }> = ({ children, align }) => (
   <th
@@ -84,8 +110,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   onSaveError,
 }) => {
   const { t } = useTranslation();
-  const categoryLabel = (category: string) => category === 'Special expenses'
-    ? t('budget.category.specialExpenses', 'Special expenses') : category;
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
@@ -186,19 +210,24 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
   return (
-    <div className="relative mt-4 overflow-x-auto">
+    <div
+      role="region"
+      aria-label={t('financeCopy.budgetLineItemsScrollable', 'Budget line items, scrollable horizontally')}
+      tabIndex={0}
+      className="relative mt-4 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr>
-            <TH>Category</TH>
-            <TH>Description</TH>
+            <TH>{t('financeCopy.category', "Category")}</TH>
+            <TH>{t('financeCopy.description', "Description")}</TH>
             {/* ⚑ FR-BFY-060: which fiscal year this line belongs to. A multi-fiscal-year project cannot
                 reach ERPNext at all until every line names one (the gate refuses an un-phased line
                 rather than inventing a split), so the column is not an advanced option — it is the
                 control that makes the capability reachable. */}
-            <TH>Fiscal year</TH>
-            <TH align="right">Budgeted</TH>
-            <TH align="right">Actual (PMO recorded)</TH>
+            <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
+            <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
+            <TH align="right">{t('financeCopy.actualPmoRecorded', 'Actual (PMO recorded)')}</TH>
             <th className="border-b border-border bg-card" />
           </tr>
         </thead>
@@ -210,11 +239,10 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 <td className="px-3 py-2">
                   {/* Label is visually hidden but wired for a11y */}
                   <label htmlFor={`edit-category-${li.id}`} className="sr-only">
-                    Category
-                  </label>
+                    {t('financeCopy.category', "Category")}</label>
                   <select
                     id={`edit-category-${li.id}`}
-                    aria-label="Category"
+                    aria-label={t('financeCopy.category', "Category")}
                     value={editCategory}
                     onChange={(e) => setEditCategory(e.target.value as Enums<'budget_category'>)}
                     className={fieldCls}
@@ -222,7 +250,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   >
                     {BUDGET_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
-                        {categoryLabel(c)}
+                        {budgetCategoryLabel(c, t)}
                       </option>
                     ))}
                   </select>
@@ -230,8 +258,8 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 <td className="px-3 py-2">
                   <input
                     type="text"
-                    aria-label="Description"
-                    placeholder="Description"
+                    aria-label={t('financeCopy.description', "Description")}
+                    placeholder={t('financeCopy.description', "Description")}
                     value={editDesc}
                     onChange={(e) => setEditDesc(e.target.value)}
                     className={`${fieldCls} w-full`}
@@ -239,13 +267,12 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 </td>
                 <td className="px-3 py-2">
                   <label htmlFor={`edit-fy-${li.id}`} className="sr-only">
-                    Fiscal year
-                  </label>
+                    {t('financeCopy.fiscalYear', "Fiscal year")}</label>
                   <input
                     id={`edit-fy-${li.id}`}
                     type="text"
-                    aria-label="Fiscal year"
-                    placeholder="Un-phased"
+                    aria-label={t('financeCopy.fiscalYear', "Fiscal year")}
+                    placeholder={t('financeCopy.unPhased', "Un-phased")}
                     list="budget-fiscal-year-options"
                     value={editFiscalYear}
                     onChange={(e) => setEditFiscalYear(e.target.value)}
@@ -266,7 +293,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                         the accessible name to "Amount Amount". */}
                     <NumberField
                       id={`edit-amount-${li.id}`}
-                      label="Amount"
+                      label={t('financeCopy.amount', "Amount")}
                       hideLabel
                       value={editAmount}
                       onChange={(value) => {
@@ -288,44 +315,41 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => void handleSaveEdit(li)}
-                    className="text-primary"
-                    aria-label="Save"
+                    className="text-primary-text"
+                    aria-label={t('financeCopy.save', "Save")}
                     loading={updateIsPending}
                     disabled={updateIsPending}
                   >
-                    Save
-                  </Button>
+                    {t('financeCopy.save', "Save")}</Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={closeEdit}
-                    aria-label="Cancel"
+                    aria-label={t('financeCopy.cancel', "Cancel")}
                     disabled={updateIsPending}
                   >
-                    Cancel
-                  </Button>
+                    {t('financeCopy.cancel', "Cancel")}</Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
                     className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={`Delete line item ${categoryLabel(li.category)}`}
+                    aria-label={`Delete line item ${budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}`}
                     disabled={updateIsPending}
                   >
-                    Delete
-                  </Button>
+                    {t('financeCopy.delete', "Delete")}</Button>
                 </td>
               </tr>
             ) : (
               // --- Read row with Edit affordance ---
               <tr key={li.id} className="border-b border-border/70 last:border-b-0">
-                <td className="px-3 py-2">{categoryLabel(li.category)}</td>
+                <td className="px-3 py-2">{budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}</td>
                 <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
                 {/* ⚑ An un-phased line SAYS SO. A blank cell would read as "we forgot"; un-phased is a
                     real, deliberate state with a consequence (a multi-fiscal-year project cannot push
                     until it is resolved), so it is stated rather than left empty. */}
                 <td className="px-3 py-2 text-muted-foreground">
-                  {li.fiscal_year ?? <span className="italic">Un-phased</span>}
+                  {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular">
                   {formatCurrency(Number(li.budgeted_amount), currency)}
@@ -338,20 +362,18 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => openEdit(li)}
-                    className="text-primary hover:bg-primary/10"
-                    aria-label={`Edit line item ${categoryLabel(li.category)}`}
+                    className="text-primary-text hover:bg-primary/10"
+                    aria-label={`Edit line item ${li.category}`}
                   >
-                    Edit
-                  </Button>
+                    {t('financeCopy.edit', "Edit")}</Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onDeleteLineItem(li.id)}
                     className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={`Delete line item ${categoryLabel(li.category)}`}
+                    aria-label={`Delete line item ${budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}`}
                   >
-                    Delete
-                  </Button>
+                    {t('financeCopy.delete', "Delete")}</Button>
                 </td>
               </tr>
             )
@@ -360,14 +382,14 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
             <tr className="border-b border-border/70">
               <td className="px-3 py-2">
                 <select
-                  aria-label="Line item category"
+                  aria-label={t('financeCopy.lineItemCategory', "Line item category")}
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value as Enums<'budget_category'>)}
                   className={fieldCls}
                 >
                   {BUDGET_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
-                      {categoryLabel(c)}
+                      {budgetCategoryLabel(c, t)}
                     </option>
                   ))}
                 </select>
@@ -375,8 +397,8 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               <td className="px-3 py-2">
                 <input
                   type="text"
-                  aria-label="Line item description"
-                  placeholder="Description"
+                  aria-label={t('financeCopy.lineItemDescription', "Line item description")}
+                  placeholder={t('financeCopy.description', "Description")}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   className={`${fieldCls} w-full`}
@@ -385,8 +407,8 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               <td className="px-3 py-2">
                 <input
                   type="text"
-                  aria-label="Line item fiscal year"
-                  placeholder="Un-phased"
+                  aria-label={t('financeCopy.lineItemFiscalYear', "Line item fiscal year")}
+                  placeholder={t('financeCopy.unPhased', "Un-phased")}
                   list="budget-fiscal-year-options"
                   value={newFiscalYear}
                   onChange={(e) => setNewFiscalYear(e.target.value)}
@@ -403,9 +425,9 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               </td>
               <td className="px-3 py-2 text-right">
                 <NumberField
-                  label="Line item amount"
+                  label={t('financeCopy.lineItemAmount', "Line item amount")}
                   hideLabel
-                  placeholder="Amount"
+                  placeholder={t('financeCopy.amount', "Amount")}
                   value={newAmount}
                   onChange={(value) => {
                     setNewAmount(value);
@@ -423,12 +445,11 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => void handleAdd()}
-                  className="text-primary"
+                  className="text-primary-text"
                   loading={createIsPending}
                   disabled={createIsPending}
                 >
-                  Save
-                </Button>
+                  {t('financeCopy.save', "Save")}</Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -438,15 +459,14 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   }}
                   disabled={createIsPending}
                 >
-                  Cancel
-                </Button>
+                  {t('financeCopy.cancel', "Cancel")}</Button>
               </td>
             </tr>
           )}
         </tbody>
       </table>
       <TableFoot className="mt-0 rounded-b-lg">
-        <span className="text-muted-foreground">Total</span>
+        <span className="text-muted-foreground">{t('financeCopy.total', "Total")}</span>
         <span data-testid="budget-edit-total" className="ml-auto font-bold tabular">
           {formatCurrency(
             lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
@@ -462,10 +482,9 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
             setNewAmountError(null);
             setAdding(true);
           }}
-          className="mt-2 text-primary"
+          className="mt-2 text-primary-text"
         >
-          + Add line item
-        </Button>
+          {t('financeCopy.addBudgetLineItem', "+ Add line item")}</Button>
       )}
     </div>
   );
@@ -509,8 +528,6 @@ const VersionCard: React.FC<VersionCardProps> = ({
   onLineItemSaveError,
 }) => {
   const { t } = useTranslation();
-  const categoryLabel = (category: string) => category === 'Special expenses'
-    ? t('budget.category.specialExpenses', 'Special expenses') : category;
   return (
     <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -530,16 +547,14 @@ const VersionCard: React.FC<VersionCardProps> = ({
           {version.status === 'Draft' && (
             <>
               <Button variant="success" size="sm" onClick={() => onActivate(version.id)}>
-                Activate
-              </Button>
+                {t('financeCopy.activate', "Activate")}</Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onDeleteDraft(version.id)}
                 className="text-destructive-text hover:bg-destructive/10"
               >
-                Delete draft
-              </Button>
+                {t('financeCopy.deleteDraft', "Delete draft")}</Button>
             </>
           )}
           {version.status === 'Active' && (
@@ -550,16 +565,14 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 onClick={() => onArchive(version.id)}
                 className="text-warning-foreground hover:bg-warning/18"
               >
-                Archive
-              </Button>
+                {t('financeCopy.archive', "Archive")}</Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onClone(version.id)}
-                className="text-primary hover:bg-primary/10"
+                className="text-primary-text hover:bg-primary/10"
               >
-                Clone to revise
-              </Button>
+                {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
             </>
           )}
           {version.status === 'Archived' && (
@@ -567,10 +580,9 @@ const VersionCard: React.FC<VersionCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => onClone(version.id)}
-              className="text-primary hover:bg-primary/10"
+              className="text-primary-text hover:bg-primary/10"
             >
-              Clone to revise
-            </Button>
+              {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
           )}
         </div>
       )}
@@ -590,28 +602,33 @@ const VersionCard: React.FC<VersionCardProps> = ({
         />
       ) : (
         version.line_items.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div
+            role="region"
+            aria-label={t('financeCopy.budgetVersionLineItemsScrollable', 'Budget version line items, scrollable horizontally')}
+            tabIndex={0}
+            className="relative mt-4 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr>
-                  <TH>Category</TH>
-                  <TH>Description</TH>
+                  <TH>{t('financeCopy.category', "Category")}</TH>
+                  <TH>{t('financeCopy.description', "Description")}</TH>
                   {/* FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
                       `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
                       clone → edit → activate (OD-BUDGET-5). An affordance the DB refuses is worse
                       than none. */}
-                  <TH>Fiscal year</TH>
-                  <TH align="right">Budgeted</TH>
+                  <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
+                  <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
                   <TH align="right">Actual (PMO recorded)</TH>
                 </tr>
               </thead>
               <tbody>
                 {version.line_items.map((li) => (
                   <tr key={li.id} className="border-b border-border/70 last:border-b-0">
-                    <td className="px-3 py-2">{categoryLabel(li.category)}</td>
+                    <td className="px-3 py-2">{budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {li.fiscal_year ?? <span className="italic">Un-phased</span>}
+                      {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
                     </td>
                     <td className="px-3 py-2 text-right font-medium tabular">
                       {formatCurrency(Number(li.budgeted_amount), version.currency)}
@@ -624,7 +641,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
               </tbody>
             </table>
             <TableFoot className="mt-0 rounded-b-lg">
-              <span className="text-muted-foreground">Total</span>
+              <span className="text-muted-foreground">{t('financeCopy.total', "Total")}</span>
               <span className="ml-auto font-bold">{formatCurrency(version.total, version.currency)}</span>
             </TableFoot>
           </div>
@@ -652,6 +669,7 @@ type PendingBudgetConfirm =
   | { kind: 'deleteLineItem'; id: string; label: string };
 
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
+  const { t } = useTranslation();
   // Cosmetic gate on the REAL role (ADR-0016): budget line-item write = the shipped
   // WRITE_ROLES (Admin·Exec·PM·Finance). RLS is the real authority.
   const can = usePermission();
@@ -708,8 +726,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     return (
       <ListState
         variant="error"
-        title="Couldn't load budget"
-        sub="Something went wrong fetching the budget data."
+        title={t('financeCopy.budgetLoadFailed', "Couldn't load budget")}
+        sub={t('financeCopy.somethingWentWrongFetchingTheBudgetData', "Something went wrong fetching the budget data.")}
         onRetry={() => {
           budgetQuery.refetch();
           versionsQuery.refetch();
@@ -750,7 +768,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           setShowNewVersionForm(false);
           setNewVersionName('');
           setPendingConfirm(null);
-          toast('Budget version created', c.name, 'success');
+          toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), c.name, 'success');
           break;
         case 'activate': {
           const { pushState } = await mutations.activate.mutateAsync(c.id);
@@ -763,8 +781,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           // is the Budget projection's "Retry the push".
           if (pushState === 'failed') {
             toast(
-              'Version activated — but ERPNext was not updated',
-              `${c.label}. PMO's budget is active; retry the push from the Budget projection.`,
+              t('financeCopy.versionActivatedERPNotUpdated', 'Version activated — but ERPNext was not updated'),
+              t('financeCopy.budgetActiveRetryFromProjection', "{{version}}. PMO's budget is active; retry the push from the Budget projection.", { version: c.label }),
               'warning',
             );
           } else if (pushState === 'nothing-to-push') {
@@ -773,12 +791,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             // moved; announcing a failure would invent an attempt. Nothing was sent — say that, and name
             // the act that changes it. (The per-year `never-pushed` banner agrees rather than contradicts.)
             toast(
-              'Version activated — nothing was sent to ERPNext',
-              `${c.label} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.`,
+              t('financeCopy.versionActivatedNothingSent', 'Version activated — nothing was sent to ERPNext'),
+              t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: c.label }),
               'warning',
             );
           } else {
-            toast('Version activated', c.label, 'success');
+            toast(t('financeCopy.versionActivated', 'Version activated'), c.label, 'success');
           }
           break;
         }
@@ -787,28 +805,28 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           setPendingConfirm(null);
           // Auto-open the new draft (N9: clone auto-opens new draft)
           setSelectedId(newDraftId);
-          toast('Version cloned', `New draft from ${c.label}`, 'success');
+          toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: c.label }), 'success');
           break;
         }
         case 'archive':
           await mutations.archive.mutateAsync(c.id);
           setPendingConfirm(null);
-          toast('Version archived', c.label, 'success');
+          toast(t('financeCopy.versionArchived', 'Version archived'), c.label, 'success');
           break;
         case 'deleteDraft':
           await mutations.deleteDraft.mutateAsync(c.id);
           setPendingConfirm(null);
-          toast('Draft deleted', c.label, 'success');
+          toast(t('financeCopy.draftDeleted', 'Draft deleted'), c.label, 'success');
           break;
         case 'deleteLineItem':
           await mutations.deleteLineItem.mutateAsync(c.id);
           setPendingConfirm(null);
-          toast('Line item deleted', undefined, 'success');
+          toast(t('financeCopy.lineItemDeleted', 'Line item deleted'), undefined, 'success');
           break;
       }
     } catch (err) {
       setPendingConfirm(null);
-      toast('Action failed', err instanceof Error ? err.message : undefined, 'warning');
+      toast(t('financeCopy.actionFailed', 'Action failed'), err instanceof Error ? err.message : undefined, 'warning');
     }
   };
 
@@ -827,12 +845,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     PendingBudgetConfirm['kind'],
     { tone: 'default' | 'destructive'; title: string; confirmLabel: string }
   > = {
-    create: { tone: 'default', title: 'Create budget version?', confirmLabel: 'Create version' },
-    activate: { tone: 'default', title: 'Make this the active budget?', confirmLabel: 'Activate version' },
-    clone: { tone: 'default', title: 'Clone to a new draft?', confirmLabel: 'Clone version' },
-    archive: { tone: 'destructive', title: 'Archive this version?', confirmLabel: 'Archive version' },
-    deleteDraft: { tone: 'destructive', title: 'Delete this draft?', confirmLabel: 'Delete draft' },
-    deleteLineItem: { tone: 'destructive', title: 'Delete this line item?', confirmLabel: 'Delete' },
+    create: { tone: 'default', title: t('financeCopy.createBudgetVersion', "Create budget version?"), confirmLabel: t('financeCopy.createVersion', 'Create version') },
+    activate: { tone: 'default', title: t('financeCopy.makeThisTheActiveBudget', "Make this the active budget?"), confirmLabel: t('financeCopy.activateVersion', 'Activate version') },
+    clone: { tone: 'default', title: t('financeCopy.cloneToANewDraft', "Clone to a new draft?"), confirmLabel: t('financeCopy.cloneVersion', 'Clone version') },
+    archive: { tone: 'destructive', title: t('financeCopy.archiveThisVersion', "Archive this version?"), confirmLabel: t('financeCopy.archiveVersion', 'Archive version') },
+    deleteDraft: { tone: 'destructive', title: t('financeCopy.deleteThisDraft', "Delete this draft?"), confirmLabel: t('financeCopy.deleteDraft', 'Delete draft') },
+    deleteLineItem: { tone: 'destructive', title: t('financeCopy.deleteThisLineItem', "Delete this line item?"), confirmLabel: t('financeCopy.delete', 'Delete') },
   };
 
   // Each handler receives its OWN narrowed variant (a per-kind mapped type), so
@@ -877,7 +895,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-sm text-muted-foreground">
-          Active budget:{' '}
+          {t('financeCopy.activeBudget', "Active budget:")}{' '}
           <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
             {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
           </span>
@@ -885,8 +903,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
       </div>
       {canWrite && (
         <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
-          + New version
-        </Button>
+          {t('financeCopy.newVersion', "+ New version")}</Button>
       )}
     </div>
   );
@@ -908,8 +925,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           <ListState
             variant="empty"
             icon="dollar"
-            title="No budget versions yet"
-            sub="Create a Draft version to start planning the project budget."
+            title={t('financeCopy.noBudgetVersionsYet', "No budget versions yet")}
+            sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', "Create a Draft version to start planning the project budget.")}
           />
         </div>
         {budgetConfirm}
@@ -945,12 +962,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           htmlFor="budget-version-select"
           className="text-[12px] font-semibold text-muted-foreground"
         >
-          Version
-        </label>
+          {t('financeCopy.version', "Version")}</label>
         {/* A2/A3: native select — keyboard nav, focus ring, type-ahead all free */}
         <select
           id="budget-version-select"
-          aria-label="Version"
+          aria-label={t('financeCopy.version', "Version")}
           value={selected?.id ?? ''}
           onChange={(e) => setSelectedId(e.target.value)}
           className={`${selectFieldCls} min-w-[200px] max-w-xs`}
@@ -964,7 +980,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         </select>
         {/* A4/A5: status pill — tinted, darkened AA text, dot + text (not color-only) */}
         {selected && (
-          <StatusPill variant={budgetVersionVariant(selected.status)}>{selected.status}</StatusPill>
+          <StatusPill variant={budgetVersionVariant(selected.status)}>{budgetStatusLabel(selected.status, t)}</StatusPill>
         )}
         {/* A6: tabular total in selector bar so it's visible without scrolling */}
         {selected && (
@@ -996,7 +1012,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
               mutations.updateLineItem.mutateAsync({ id, patch })
             }
             onUpdateLineItemSuccess={() =>
-              toast('Line item updated', undefined, 'success')
+              toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')
             }
             // B-0.7: thread isPending into Save buttons (double-submit guard).
             createIsPending={mutations.createLineItem.isPending}
@@ -1024,24 +1040,25 @@ const NewVersionForm: React.FC<{
   onCancel: () => void;
   value: string;
   onChange: (v: string) => void;
-}> = ({ onSubmit, onCancel, value, onChange }) => (
-  <Toolbar standalone className="items-center">
+}> = ({ onSubmit, onCancel, value, onChange }) => {
+  const { t } = useTranslation();
+  return (
+    <Toolbar standalone className="items-center">
     <input
       type="text"
-      aria-label="Version name"
-      placeholder="Version name (e.g. Budget v1)"
+      aria-label={t('financeCopy.versionName', "Version name")}
+      placeholder={t('financeCopy.versionNameEGBudgetV1', "Version name (e.g. Budget v1)")}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       autoFocus
     />
     <Button variant="primary" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}>
-      Create
-    </Button>
+      {t('financeCopy.create', "Create")}</Button>
     <Button variant="outline" onClick={onCancel}>
-      Cancel
-    </Button>
-  </Toolbar>
-);
+      {t('financeCopy.cancel', "Cancel")}</Button>
+    </Toolbar>
+  );
+};
 
 export default ProjectBudget;
