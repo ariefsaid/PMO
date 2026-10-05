@@ -492,13 +492,16 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       const receivedAmount = parsePaymentAmount(values.receivedAmount);
       // Unreachable after `validate`, which applies the same parse — kept so the types prove it.
       if (paidAmount === null || receivedAmount === null) return;
+      const withheldAmount = values.withheldAmount.trim() ? parseMoneyInputAtScale(values.withheldAmount, 2)! : 0;
       const input = {
         customerId: values.customerId,
         salesInvoiceId: values.salesInvoiceId,
         paidAmount,
         receivedAmount,
-        withheldAmount: values.withheldAmount.trim() ? parseMoneyInputAtScale(values.withheldAmount, 2)! : 0,
-        withholdingSlipNumber: values.withholdingSlipNumber.trim() || null,
+        ...(withheldAmount > 0 ? {
+          withheldAmount,
+          withholdingSlipNumber: values.withholdingSlipNumber.trim(),
+        } : {}),
         date: values.date,
       };
       try {
