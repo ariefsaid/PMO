@@ -1,5 +1,5 @@
 -- #798: exact reduced tax bases on existing tax-bearing records.
--- Reversal: restore the four RPC definitions from 0196/0197 and pipeline from 0223;
+-- Reversal: restore the four RPC definitions from 0196/0197 and pipeline from 0226;
 -- drop the triggers/functions introduced here, then the two tax_base columns on each table.
 -- Stored amounts are not backfilled or reinterpreted by this migration.
 
