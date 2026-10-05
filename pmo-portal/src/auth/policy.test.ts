@@ -571,3 +571,7 @@ describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement au
     }
   });
 });
+
+it('AC-TAG-001 project classification option administration is Admin-only', () => {
+  expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
+});

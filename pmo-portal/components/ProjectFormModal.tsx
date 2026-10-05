@@ -1,3 +1,5 @@
+import { useProjectClassificationOptions } from '@/src/hooks/useProjectClassificationOptions';
+import type { ProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
@@ -63,7 +65,7 @@ function initialsOf(name: string): string {
 }
 
 /** Pre-filled values when editing an existing project header. */
-export interface ProjectFormInitial {
+export interface ProjectFormInitial extends ProjectClassification {
   id: string;
   name: string;
   code: string | null;
@@ -79,6 +81,11 @@ export interface ProjectFormInitial {
 }
 
 interface FormValues {
+  serviceLine: string;
+  sector: string;
+  location: string;
+  awardType: string;
+  biddingEntity: string;
   name: string;
   code: string;
   pmoProjectNumber: string;
@@ -171,6 +178,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onSave,
   onError,
 }) => {
+  const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
   const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
@@ -185,6 +193,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const form = useEntityForm<FormValues>({
     initialValues: {
+      serviceLine: initial?.service_line ?? '',
+      sector: initial?.sector ?? '',
+      location: initial?.location ?? '',
+      awardType: initial?.award_type ?? '',
+      biddingEntity: initial?.bidding_entity ?? '',
       name: initial?.name ?? '',
       code: initial?.code ?? '',
       pmoProjectNumber: '',
@@ -308,8 +321,16 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       try {
+        const classification = {
+          service_line: values.serviceLine.trim() || null,
+          sector: values.sector.trim() || null,
+          location: values.location.trim() || null,
+          award_type: values.awardType || null,
+          bidding_entity: values.biddingEntity || null,
+        };
         if (isEdit && initial && onSave) {
           const input: ProjectHeaderInput = {
+            ...classification,
             name: values.name.trim(),
             code: values.code.trim() || null,
             client_id: values.clientId,
@@ -322,6 +343,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         } else if (onSubmit) {
           if (numberProposal.status !== 'success' || !values.pmoProjectNumber.trim()) return;
           const base = {
+            ...classification,
             name: values.name.trim(),
             code: values.code.trim() || null,
             pmo_project_number: values.pmoProjectNumber.trim(),
@@ -580,6 +602,30 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               )}
             </>
           )}
+        </FormGrid>
+      </FormSection>
+
+      <FormSection legend={t('projectClassification.title', 'Classification')}>
+        <FormGrid>
+          {(['serviceLine', 'sector'] as const).map((key) => {
+            const configured = key === 'serviceLine' ? classificationOptions.data?.serviceLines : classificationOptions.data?.sectors;
+            const current = form.values[key];
+            const options = [...new Set([...(configured ?? []), ...(current ? [current] : [])])];
+            return <SelectField key={key} id={`project-classification-${key}`}
+              label={key === 'serviceLine' ? t('projectClassification.serviceLine', 'Service line') : t('projectClassification.sector', 'Sector')}
+              value={current} onChange={(value) => form.setValue(key, value)}
+              disabled={!classificationOptions.data}
+              options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, ...options.map((value) => ({ value, label: value }))]}
+              helper={classificationOptions.isError ? t('projectClassification.unavailable', 'Options could not be loaded. Reopen this form to retry.') : undefined} />;
+          })}
+          <SelectField id="project-classification-award" label={t('projectClassification.awardType', 'Award type')}
+            value={form.values.awardType} onChange={(value) => form.setValue('awardType', value)}
+            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, { value: 'tender', label: t('projectClassification.tender', 'Tender') }, { value: 'direct', label: t('projectClassification.direct', 'Direct award') }]} />
+          <SelectField id="project-classification-bidding" label={t('projectClassification.biddingEntity', 'Bidding entity')}
+            value={form.values.biddingEntity} onChange={(value) => form.setValue('biddingEntity', value)}
+            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, { value: 'alone', label: t('projectClassification.alone', 'Alone') }, { value: 'consortium', label: t('projectClassification.consortium', 'Consortium') }]} />
+          <TextField id="project-classification-location" label={t('projectClassification.location', 'Location')}
+            value={form.values.location} onChange={(value) => form.setValue('location', value)} fullWidth />
         </FormGrid>
       </FormSection>
 
