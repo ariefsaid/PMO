@@ -6,7 +6,7 @@
 > converted), OD-WO-1 (a project IS the contract), ADR-0048 (ERP is the ledger), the revenue read rule
 > (`policy.ts` `salesInvoice.view` = Admin · Executive · PM · Finance; RLS = any active org member),
 > OD-UX-3 + DD-RPT-1 (the `/reports` placeholder and the "Board pack (coming soon)" button wait for this).
-> **Decisions proposed here (Director to rule):** DD-MMP-1..6 in §3.
+> **Decisions:** DD-MMP-1..6 in §3 — accepted by the Director 2026-10-06 (`docs/decisions.md`).
 
 ## 1. Job story
 
