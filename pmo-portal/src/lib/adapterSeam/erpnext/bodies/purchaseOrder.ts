@@ -11,7 +11,11 @@ export function poToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   const items = requireItems(rec, 'Purchase Order');
   return {
     supplier: ctx.refs.supplier,
-    items: items.map((i) => ({ item_code: i.item_code, qty: i.qty, rate: i.rate, schedule_date: i.schedule_date })),
+    ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
+    items: items.map((i) => ({
+      item_code: i.item_code, qty: i.qty, rate: i.rate, schedule_date: i.schedule_date,
+      ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
+    })),
   };
 }
 
