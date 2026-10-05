@@ -833,3 +833,7 @@ Recessed card deriving the label from `payload`: `payload.entity` → "Looked up
 ### Budget editor scroll containment (2026-10-05, #804)
 
 The existing DataTable positioned-scroller rule also applies to budget editor tables: `overflow-x-auto` wrappers must be `relative`, so absolutely positioned accessible labels remain clipped at375px. AC-CAT-007 retains this regression.
+
+### Finance filters and narrow record cards (2026-10-05)
+
+Status filters that exceed a narrow page use a width-capped horizontal scroll region with a label, keyboard focus, and the shared focus-ring token. Budget table scroll regions are keyboard reachable and remain positioned for label containment. On a wrapping version-card header, keep a visible gap between status and total and reserve the total's width. In narrow invoice cards, the tax-basis note takes its own full-width line alongside the amount group. Text on dark primary surfaces uses the existing `primary-text` AA token.
