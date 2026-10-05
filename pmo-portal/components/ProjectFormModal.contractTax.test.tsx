@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * ProjectFormModal — a stated contract value must state its tax basis (#513 / migration 0197), and
  * the org's default now PRE-SELECTS that basis (#548 / `OD-TAX-1`, migration 0207).
@@ -44,6 +45,10 @@ vi.mock('@/src/hooks/useProjects', () => ({
     isError: false,
   }),
   useProjectManagers: () => ({ data: [{ id: 'u1', full_name: 'Alice Manager' }], isError: false }),
+}));
+
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
 }));
 
 import ProjectFormModal from './ProjectFormModal';

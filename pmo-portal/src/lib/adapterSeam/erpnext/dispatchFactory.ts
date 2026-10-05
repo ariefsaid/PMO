@@ -18,6 +18,7 @@ import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
+import { listErpItems, validateItemLines } from './itemCatalog.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
  *  [.order(...).limit(...)][.maybeSingle()]` — every filter-builder is ALSO directly awaitable
@@ -55,6 +56,7 @@ interface ExternalOrgBindingRow {
 
 interface ResolvedLineItem {
   item_code: string;
+  description?: string;
   qty: number | string;
   rate?: number | string;
   schedule_date?: string;
@@ -94,12 +96,13 @@ async function resolveCaseSupplierName(
 /** The case's line items (`procurement_items`, the shared item list every procurement sub-doctype
  *  draws from) mapped to the PMO-shaped line-item draft `erpnext/bodies/*`'s `toBody`s read. */
 async function resolveCaseItems(serviceClient: DispatchServiceClient, procurementId: string): Promise<ResolvedLineItem[]> {
-  const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate').eq('procurement_id', procurementId);
+  const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate,description').eq('procurement_id', procurementId);
   if (error || !Array.isArray(data)) return [];
-  return (data as Array<{ name: string; quantity: number | string; rate: number | string | null }>).map((row) => ({
+  return (data as Array<{ name: string; quantity: number | string; rate: number | string | null; description?: string | null }>).map((row) => ({
     item_code: row.name,
     qty: row.quantity,
     rate: row.rate ?? undefined,
+    ...(row.description ? { description: row.description } : {}),
   }));
 }
 
@@ -307,6 +310,49 @@ export function withPaymentTypeDiscriminator(deps: ErpProbeDeps, kind: unknown):
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
 // ============================================================================
 
+/** Resolve the client PO before the outbox snapshots and digests this command. The invoice's
+ *  linked work order is read from PMO, and every source read is scoped to the dispatching org.
+ *  Matching the reference back to its source preserves its date after ERP readback mirrors po_no
+ *  onto reference_number; an unrelated explicit invoice reference carries no borrowed date. */
+async function resolveSalesInvoicePo(deps: ErpDispatchFactoryDeps): Promise<void> {
+  const record = deps.command.record;
+  const read = async (table: string, columns: string, id: string) => {
+    const { data, error } = await deps.serviceClient.from(table).select(columns)
+      .eq('org_id', deps.orgId).eq('id', id).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    return data as Record<string, unknown> | null;
+  };
+  const nonblank = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+
+  const invoice = await read('sales_invoices', 'reference_number,work_order_id,project_id', record.id);
+  const workOrderId = nonblank(invoice?.work_order_id);
+  const projectId = nonblank(record.projectId) ?? nonblank(invoice?.project_id);
+  const workOrder = workOrderId
+    ? await read('work_orders', 'client_po_number,order_date', workOrderId)
+    : null;
+  const project = projectId
+    ? await read('projects', 'customer_contract_ref,contract_date', projectId)
+    : null;
+
+  const invoiceReference = nonblank(Object.hasOwn(record, 'reference_number')
+    ? record.reference_number
+    : invoice?.reference_number);
+  const workOrderReference = nonblank(workOrder?.client_po_number);
+  const projectReference = nonblank(project?.customer_contract_ref);
+  const reference = invoiceReference ?? workOrderReference ?? projectReference;
+  const date = reference !== null && reference === workOrderReference
+    ? nonblank(workOrder?.order_date)
+    : reference !== null && reference === projectReference
+      ? nonblank(project?.contract_date)
+      : null;
+
+  // These are command material: both the HTTP body and the persisted outbox payload/digest read
+  // the same resolved values. A caller-supplied po_date is replaced by the matching PMO date.
+  record.reference_number = reference;
+  record.po_date = date;
+}
+
 /** Resolve revenue-domain refs for a sales-invoice or incoming-payment command.
  *  - `ctx.refs.customer` from `record.customerId` via `external_refs` (companies domain,
  *    `Customer:<name>` → strip prefix to bare ERP name).
@@ -354,6 +400,9 @@ async function resolveRevenueRefs(
   // ahead of the adapter — both use `resolveErpProjectName` so they can never diverge).
   if (kind === 'sales-invoice') {
     refs.project = resolveErpProjectName(binding.config, record.projectId);
+    if (buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: deps.command.record.verb } })) {
+      await resolveSalesInvoicePo(deps);
+    }
   }
 
   // Resolve SI reference for incoming-payment — Luna BLOCK 5 (MONEY-CRITICAL):
@@ -492,7 +541,37 @@ async function resolveTimesheetRefs(
   return { refs };
 }
 
-/** Resolve every PO/GR ref this command needs (task 5.3). Returns the `ctx.refs` additions +
+/** PO/PI cost dimensions use the same project-map resolver and org guard as the revenue path.
+ *  The procurement case owns its project; a caller cannot redirect that case's costs. */
+async function resolvePurchaseProjectRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ refs: Record<string, string | null> }> {
+  const refs: Record<string, string | null> = {};
+  const record = deps.command.record;
+  if (record.erp_doc_kind !== 'purchase-order' && record.erp_doc_kind !== 'purchase-invoice') return { refs };
+  // PO/PI share SI's body-building operations; submit/cancel act on the existing ERP document.
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return { refs };
+
+  let projectId = typeof record.projectId === 'string' ? record.projectId : null;
+  if (typeof record.procurementId === 'string' && record.procurementId) {
+    const { data, error } = await deps.serviceClient.from('procurements').select('project_id')
+      .eq('org_id', deps.orgId).eq('id', record.procurementId).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    if (!data) throw new AppError('the procurement project reference is unavailable', 'cross-org-link-rejected');
+    projectId = (data as { project_id?: string | null }).project_id ?? null;
+  }
+  if (!projectId) return { refs }; // Existing project-less cases remain valid.
+  await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, 'projects', projectId);
+  const project = resolveErpProjectName(binding.config, projectId);
+  if (typeof project !== 'string' || !project.trim()) {
+    throw new AppError('the procurement project has no ERP project mapping', 'project-unmapped');
+  }
+  refs.project = project;
+  return { refs };
+}
+
+/** Resolve the PO/PI supplier/items and GR refs this command needs (task 5.3). Returns the `ctx.refs` additions +
  *  `resolvedItems` (only set when the command carried none — `adapter.ts`'s fallback substitutes it). */
 async function resolveProcurementOrderRefs(
   deps: ErpDispatchFactoryDeps,
@@ -502,7 +581,7 @@ async function resolveProcurementOrderRefs(
   const record = deps.command.record as { erp_doc_kind?: string; procurementId?: string; items?: unknown[]; date?: string };
   const kind = record.erp_doc_kind;
   const procurementId = record.procurementId;
-  if ((kind !== 'purchase-order' && kind !== 'goods-receipt') || !procurementId) return { refs };
+  if ((kind !== 'purchase-order' && kind !== 'goods-receipt' && kind !== 'purchase-invoice') || !procurementId) return { refs };
 
   const supplierName = await resolveCaseSupplierName(deps.serviceClient, deps.orgId, procurementId);
   if (supplierName) refs.supplier = supplierName;
@@ -823,6 +902,29 @@ export interface ErpDispatchFactoryDeps {
 }
 
 /**
+ * #762 — the currencies of the two accounts a withholding receipt posts between. DD-RCPT-1's shape (the
+ * cash in both headers, the tax as a deduction) holds only when they match; `peReceiveToBody` refuses
+ * otherwise. Read only for a receipt with tax withheld, so no other command pays for the two reads.
+ */
+async function readReceiptAccountCurrencies(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ paid_from_account_currency: string | null; paid_to_account_currency: string | null }> {
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  const currencyOf = async (account: unknown): Promise<string | null> => {
+    if (typeof account !== 'string' || !account) return null;
+    const currency = (await getDoc(client, 'Account', account) as { account_currency?: unknown } | null)?.account_currency;
+    return typeof currency === 'string' && currency ? currency : null;
+  };
+  const config = binding.config ?? {};
+  return {
+    paid_from_account_currency: await currencyOf(config.default_receivable_account),
+    paid_to_account_currency: await currencyOf(config.default_cash_account ?? config.default_bank_account),
+  };
+}
+
+/**
  * Resolve the erpnext adapter for one command: read the org's `external_org_bindings` row, refuse
  * `config-rejected` when it is missing or not yet activated (`activated_at === null` — a version
  * mismatch or a binding never activated, FR-ENA-012), then build the adapter over the resolved
@@ -848,13 +950,56 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
+  let receiptConfig = binding.config;
+  if (deps.command.record.erp_doc_kind === 'incoming-payment'
+      && Number(deps.command.record.withheld_amount ?? 0) > 0) {
+    const { data: settings, error: settingError } = await deps.serviceClient.from('organizations')
+      .select('tax_prepaid_account').eq('id', deps.orgId).maybeSingle();
+    const account = (settings as { tax_prepaid_account?: unknown } | null)?.tax_prepaid_account;
+    if (settingError || typeof account !== 'string' || !account.trim() || account.length > 140) {
+      throw new AppError('Set the Tax-prepaid account in Administration → Accounting before recording withheld tax.', 'config-rejected');
+    }
+    receiptConfig = { ...binding.config, tax_prepaid_account: account.trim(),
+      ...(await readReceiptAccountCurrencies(deps, binding)) };
+  }
   // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
   assertSiProjectGate(deps, binding);
 
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
+  const contactRefs: Record<string, string | null> = {};
+  if (deps.command.record.erp_doc_kind === 'contact') {
+    const companyId = deps.command.record.company_id;
+    if (typeof companyId !== 'string' || !companyId) throw new AppError('Contact company is required', 'commit-rejected');
+    await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, 'companies', companyId);
+    const externalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', companyId);
+    const match = externalId?.match(/^(Customer|Supplier):(.+)$/);
+    if (!match) throw new AppError('Contact company must be mapped to ERPNext', 'commit-rejected');
+    contactRefs.contact_party_type = match[1];
+    contactRefs.contact_party_name = match[2];
+  }
+  const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
+  // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
+  // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
+  const itemKind = deps.command.record.erp_doc_kind;
+  let validateAuthoringItems: ErpAdapterDeps['validateAuthoringItems'];
+  if (
+    ['sales-invoice', 'purchase-order', 'purchase-invoice'].includes(String(itemKind)) &&
+    buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: deps.command.record.verb } })
+  ) {
+    const record = deps.command.record;
+    const lines = Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems;
+    if (lines?.length) {
+      record.items = lines;
+      validateAuthoringItems = async (command, client) => {
+        if (!buildsSalesInvoiceBody({ operation: command.operation, record: { verb: command.record.verb } })) return;
+        const catalog = await listErpItems(client, itemKind === 'sales-invoice' ? 'sales' : 'purchase');
+        validateItemLines(Array.isArray(command.record.items) ? command.record.items : [], catalog);
+      };
+    }
+  }
   // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
   // same-org, daily hours). Gated on the kind, so no other command pays for the extra reads.
   const { refs: timesheetRefs } = await resolveTimesheetRefs(deps, binding);
@@ -865,7 +1010,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // category refuses with zero ERP calls).
   const budgetConfig = isBudgetCommand(deps.command)
     ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
-    : binding.config;
+    : receiptConfig;
   const { refs: budgetRefs } = await resolveBudgetRefs(deps, binding, budgetConfig);
 
   const adapterDeps: ErpAdapterDeps = {
@@ -877,6 +1022,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       rateLimiter: deps.rateLimiter,
     },
     doctypeBodies: deps.doctypeBodies ?? {},
+    validateAuthoringItems,
     // Ref resolution: PO/GR commands (task 5.3, FR-ENA-103) resolve `refs`/`resolvedItems` above via
     // the case's `procurementId` (supplier + line items + PO/PO-item-child-row for a GR). Every other
     // kind — MR/RFQ/SQ (task 4.6/4.7, FR-ENA-111/112) — carries no `procurementId`, so `refs.supplier`
@@ -886,9 +1032,24 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...procurementRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
+    },
+    validateAuthoringPartyIdentity: async (command) => {
+      const kind = command.record.erp_doc_kind;
+      if (command.domain !== 'companies' || !['contact', 'customer', 'supplier'].includes(String(kind))) return;
+      if (kind === 'contact' && command.operation === 'create') {
+        const { data: existing, error } = await deps.serviceClient.from('contacts')
+          .select('id').eq('id', command.record.id).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        if (existing) throw new AppError('Contact create requires a new record identity', 'commit-rejected');
+      }
+      const oppositeTable = kind === 'contact' ? 'companies' : 'contacts';
+      const { data: opposite, error: identityError } = await deps.serviceClient.from(oppositeTable)
+        .select('id').eq('org_id', deps.orgId).eq('id', command.record.id).maybeSingle();
+      if (identityError) throw new AppError(identityError.message, identityError.code);
+      if (opposite) throw new AppError('This record identity already belongs to another party type', 'commit-rejected');
     },
     afterSubmitHook: deps.afterSubmitHook,
     afterCancelHook: deps.afterCancelHook,

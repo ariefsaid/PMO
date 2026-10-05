@@ -82,14 +82,14 @@ beforeEach(() => {
   realRole = 'Admin';
 });
 
-describe('BudgetAccountMap — the 7 categories, always all present (AC-BUD-010/011/012)', () => {
-  it('renders all 7 budget categories as rows, mapped ones showing the account, others "Not mapped"', async () => {
+describe('BudgetAccountMap — all categories always present (AC-BUD-010/011/012)', () => {
+  it('AC-CAT-004: renders all eight categories with mapped accounts and actionable unmapped states', async () => {
     renderPage();
-    for (const cat of ['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency']) {
+    for (const cat of ['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses']) {
       expect(await screen.findByText(cat)).toBeInTheDocument();
     }
     expect(screen.getByText('5100 - Direct Costs')).toBeInTheDocument();
-    expect(screen.getAllByText(/^Not mapped/)).toHaveLength(6);
+    expect(screen.getAllByText(/^Not mapped/)).toHaveLength(7);
   });
 
   it('shows a loading state while the map is fetching', () => {
@@ -123,6 +123,15 @@ describe('BudgetAccountMap — Admin-only affordances (FR-BUD-112)', () => {
 });
 
 describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
+  it('AC-CAT-004: maps Special expenses through the existing repository with its canonical value', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Map Special expenses' }));
+    const modal = await screen.findByRole('dialog');
+    await userEvent.type(within(modal).getByLabelText(/erp account/i), 'Travel expenses');
+    await userEvent.click(within(modal).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Special expenses', 'Travel expenses'));
+  });
+
   it('maps a previously-unmapped category (create)', async () => {
     const user = userEvent.setup();
     renderPage();

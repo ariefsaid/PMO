@@ -26,6 +26,7 @@ import { BackBar } from '@/src/components/shell';
 import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
+import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
@@ -120,11 +121,16 @@ type PendingConfirm =
       status: 'Received' | 'Scheduled';
       invoiceDate: string;
       referenceNumber: string | null;
+      /** #769: the parent group's number for this invoice. */
+      externalRef?: string | null;
       amount: number | null;
       /** #505: REQUIRED — staged from the capture form and carried verbatim through the confirm to
        *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
       taxTreatment: TaxTreatment;
       taxAmount: number;
+      taxRate?: number | null;
+      taxBaseNumerator?: number;
+      taxBaseDenominator?: number;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -270,6 +276,7 @@ const ProcurementDetails: React.FC = () => {
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
+  const erpItems = useErpItemOptions('purchase');
 
   // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
   // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
@@ -609,10 +616,12 @@ const ProcurementDetails: React.FC = () => {
           status: pendingConfirm.status,
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
+          externalRef: pendingConfirm.externalRef,
           amount: pendingConfirm.amount,
           // #505: forwarded from the staged capture — required by the mutation's type.
           taxTreatment: pendingConfirm.taxTreatment,
           taxAmount: pendingConfirm.taxAmount,
+          taxRate: pendingConfirm.taxRate, taxBaseNumerator: pendingConfirm.taxBaseNumerator, taxBaseDenominator: pendingConfirm.taxBaseDenominator,
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
@@ -968,6 +977,7 @@ const ProcurementDetails: React.FC = () => {
 
         {tab === 'items' && (
           <LineItemsSection
+            erpItems={erpItems.connected ? erpItems : undefined}
             items={p.items}
             editable={canEditItems}
             busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}

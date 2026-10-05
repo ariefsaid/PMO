@@ -220,6 +220,8 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
     expect(screen.getByText(/Project manager: Alice Manager/)).toBeInTheDocument();
     expect(within(filtersBtn).getByTestId('mobile-toolbar-count')).toHaveTextContent('1');
 
+    // AC-TAG-002: filter clearing uses the readable text token in both themes.
+    expect(screen.getByRole('button', { name: /Clear all/i })).toHaveClass('text-primary-text');
     // Clear all clears chips and returns to role-default status (All for PM)
     await user.click(screen.getByRole('button', { name: /Clear all/i }));
     expect(screen.queryByTestId('active-filter-chips')).not.toBeInTheDocument();
@@ -229,7 +231,7 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
   it('AC-PRJUX-002: Clear all for an Engineer restores My Projects', async () => {
     const user = userEvent.setup();
     renderPage('Engineer');
-    // Engineer has no secondary filters, but search can be cleared; assert status default is My Projects
+    // Search clearing keeps the Engineer's assigned-work default.
     await user.type(screen.getByRole('searchbox', { name: /search projects/i }), 'zzz');
     await user.click(screen.getByRole('button', { name: /Clear all/i }));
     expect(screen.getByRole('searchbox', { name: /search projects/i })).toHaveValue('');
@@ -294,6 +296,34 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     renderPage();
     await user.click(screen.getByRole('button', { name: /^Filters$/i }));
     expect(screen.getByRole('combobox', { name: /filter by customer/i })).toHaveFocus();
+  });
+
+  it('AC-TAG-002: Engineer classification disclosure filters results and clears to My Projects', async () => {
+    const user = userEvent.setup();
+    projectsState.data = [
+      { ...seed[0], service_line: 'Engineering' },
+      { ...seed[0], id: 'p2', name: 'Advisory engagement', service_line: 'Advisory' },
+    ];
+    renderPage('Engineer');
+    await user.click(screen.getByRole('tab', { name: /^All$/i }));
+    expect(screen.getByText('Advisory engagement')).toBeVisible();
+
+    const classification = screen.getByRole('button', { name: /^Classification$/i });
+    await user.click(classification);
+    const serviceLine = screen.getByRole('combobox', { name: /filter by service line/i });
+    expect(serviceLine).toHaveFocus();
+    expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /filter by project manager/i })).not.toBeInTheDocument();
+    await user.selectOptions(serviceLine, 'Engineering');
+    expect(classification).toHaveFocus();
+    expect(classification).toHaveAttribute('aria-expanded', 'false');
+    expect(within(classification).getByTestId('mobile-toolbar-count')).toHaveTextContent('1');
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
+    expect(screen.queryByText('Advisory engagement')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Clear all/i }));
+    expect(screen.getByRole('tab', { name: /My Projects/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(classification).queryByTestId('mobile-toolbar-count')).not.toBeInTheDocument();
   });
 });
 

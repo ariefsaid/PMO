@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
@@ -70,6 +71,9 @@ const { companiesState } = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
+}));
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
@@ -662,4 +666,22 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
     expect(screen.queryByText('Regional Services Program')).not.toBeInTheDocument();
   });
+});
+
+it('AC-TAG-002 Projects intersects classification controls, preserves URL and clears the actual result', async () => {
+  projectsState.data = seed.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) as unknown as ProjectWithRefs[];
+  const user = userEvent.setup(); renderPage('Project Manager', '/projects?view=table');
+  await user.selectOptions(screen.getAllByLabelText('Filter by service line')[0], 'Engineering');
+  expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
+  expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
+  expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('serviceLine=Engineering');
+  await user.selectOptions(screen.getAllByLabelText('Filter by service line')[0], '');
+  expect(await screen.findByText('Northwind ERP Rollout')).toBeVisible();
+});
+
+it('AC-TAG-002 Engineer classification filters remain available without manager-only customer controls', async () => {
+  projectsState.data = seed.map((p) => ({ ...p, service_line: 'Engineering' })) as unknown as ProjectWithRefs[];
+  renderPage('Engineer', '/projects?filter=All&view=table');
+  expect(screen.getByLabelText('Filter by service line')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Filter by customer')).toBeNull();
 });

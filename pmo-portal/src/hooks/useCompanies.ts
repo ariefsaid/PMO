@@ -96,6 +96,13 @@ export function useCompanyMutations() {
     qc.invalidateQueries({ queryKey: ['company'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'vendor'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'client'] });
+    qc.invalidateQueries({ queryKey: ['projects'] });
+    qc.invalidateQueries({ queryKey: ['project'] });
+    qc.invalidateQueries({ queryKey: ['opportunity'] });
+    qc.invalidateQueries({ queryKey: ['sales-pipeline'] });
+    qc.invalidateQueries({ queryKey: ['lost-deals'] });
+    qc.invalidateQueries({ queryKey: ['dashboard'] });
+    qc.invalidateQueries({ queryKey: ['finance-budget-review'] });
   };
 
   // Discover CRITICAL 1 follow-up: create/update already route through the repository seam (Slice
@@ -124,14 +131,14 @@ export function useCompanyMutations() {
   const update = useMutation({
     mutationFn: ({ id, input }: UpdateCompanyArgs) => repositories.company.update(id, input),
     onMutate: ({ input }: UpdateCompanyArgs) => {
-      if (isExternal(input.type)) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      if (input.short_name === undefined && isExternal(input.type)) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
     onSuccess: (_data, { input }) => {
       invalidate();
-      if (isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
+      if (input.short_name === undefined && isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err, { input }) => {
-      if (isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      if (input.short_name === undefined && isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
     },
   });
 
@@ -140,10 +147,16 @@ export function useCompanyMutations() {
     onSuccess: invalidate,
   });
 
+  const setProjectNumberSegment = useMutation({
+    mutationFn: ({ id, segment }: { id: string; segment: string | null }) =>
+      repositories.company.setProjectNumberSegment(id, segment),
+    onSuccess: invalidate,
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => repositories.company.delete(id),
     onSuccess: invalidate,
   });
 
-  return { create, update, archive, remove, pendingPush };
+  return { create, update, setProjectNumberSegment, archive, remove, pendingPush };
 }

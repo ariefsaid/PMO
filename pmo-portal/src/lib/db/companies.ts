@@ -10,6 +10,7 @@ export type CompanyType = CompanyRow['type'];
 export interface CompanyInput {
   name: string;
   type: CompanyType;
+  short_name?: string | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -84,7 +85,7 @@ export async function getCompany(id: string): Promise<CompanyRow | null> {
 export async function createCompany(input: CompanyInput): Promise<CompanyRow> {
   const { data, error } = await supabase
     .from('companies')
-    .insert({ name: input.name, type: input.type })
+    .insert({ name: input.name, type: input.type, ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}) })
     .select()
     .single();
   if (error) throwWrite(error);
@@ -92,13 +93,13 @@ export async function createCompany(input: CompanyInput): Promise<CompanyRow> {
 }
 
 /**
- * Update a company's name + type by id (AC-CO-004). org_id is NEVER sent — RLS (companies_write)
+ * Update a company's legal name, type, and optional PMO short name by id (AC-CO-004). org_id is NEVER sent — RLS (companies_write)
  * scopes the update to the caller's org and gates the role. Throws an `AppError` (code preserved) on failure.
  */
 export async function updateCompany(id: string, input: CompanyInput): Promise<void> {
   const { data, error } = await supabase
     .from('companies')
-    .update({ name: input.name, type: input.type })
+    .update({ name: input.name, type: input.type, ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}) })
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);
@@ -109,6 +110,17 @@ export async function updateCompany(id: string, input: CompanyInput): Promise<vo
  * Soft-archive a company by stamping `archived_at` (AC-CO-005) so it drops out of the default list.
  * org_id is NEVER sent — RLS scopes the update. Throws an `AppError` (code preserved) on failure.
  */
+/** Update only the PMO-local project-number segment, never the ERP-native company payload. */
+export async function setCompanyProjectNumberSegment(id: string, segment: string | null): Promise<void> {
+  const { data, error } = await supabase
+    .from('companies')
+    .update({ client_number_segment: segment?.trim() || null })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Company not found or you do not have permission to edit it.');
+}
+
 export async function archiveCompany(id: string): Promise<void> {
   const { data, error } = await supabase
     .from('companies')
@@ -129,4 +141,12 @@ export async function deleteCompany(id: string): Promise<void> {
   const { data, error } = await supabase.from('companies').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Company not found or you do not have permission to delete it.');
+}
+
+/** PMO enhancement only: the native-field guard and RLS remain the write authority. */
+export async function updateCompanyShortName(id: string, shortName: string | null): Promise<void> {
+  const { data, error } = await supabase.from('companies')
+    .update({ short_name: shortName?.trim() || null }).eq('id', id).select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Company not found or you do not have permission to edit it.');
 }

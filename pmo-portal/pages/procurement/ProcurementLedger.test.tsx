@@ -453,3 +453,21 @@ describe('#548 (OD-TAX-1): the ledger Amount column carries the row’s tax basi
     expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
   });
 });
+
+describe('AC-EXT-002 (#769): the ledger shows each record\'s Group ref', () => {
+  it('renders a "Group ref" column carrying the PR / PO / vendor-invoice external reference', () => {
+    const rows = SAMPLE_ROWS.map((r) =>
+      r.type === 'Invoice' ? { ...r, groupRef: 'PRO-0026100002' } : r,
+    );
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={rows} />);
+    expect(screen.getAllByText('Group ref').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('PRO-0026100002').length).toBeGreaterThan(0);
+    // the record's own reference_number stays in its own column
+    expect(screen.getAllByText('INV-SF-2291').length).toBeGreaterThan(0);
+  });
+
+  it('a record with no external reference never shows another record\'s value', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} />);
+    expect(screen.queryByText('PRO-0026100002')).toBeNull();
+  });
+});

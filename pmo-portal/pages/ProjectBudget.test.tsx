@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe } from 'jest-axe';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state (mirrors Procurement.test.tsx pattern)
@@ -59,17 +61,21 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import ProjectBudget from './ProjectBudget';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
+import { financeTestI18n } from './__tests__/financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = (projectId = 'p-1') =>
   render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ProjectBudget projectId={projectId} />
-      </ToastProvider>
-    </MemoryRouter>
+    <FinanceI18nTestProvider>
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectBudget projectId={projectId} />
+        </ToastProvider>
+      </MemoryRouter>
+    </FinanceI18nTestProvider>
   );
 
 // ---------------------------------------------------------------------------
@@ -133,10 +139,11 @@ function resetState() {
   versionsState.isError = false;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   resetState();
   setActiveLocale(EN_LOCALE);
+  await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
@@ -144,6 +151,41 @@ afterEach(() => resetActiveLocale());
 // Core states (AC-726, NFR-BV-UI-001)
 // ---------------------------------------------------------------------------
 describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
+  it('uses the AA primary-text token for the active version-card action', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    renderPage();
+
+    expect(screen.getByRole('button', { name: 'Clone to revise' })).toHaveClass('text-primary-text');
+  });
+
+  it('keeps active status and total visibly separated when the version-card header wraps', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    renderPage();
+
+    const header = screen.getByTestId('version-card').firstElementChild;
+    expect(header).toHaveClass('flex-wrap', 'gap-x-3', 'gap-y-2');
+    expect(within(header as HTMLElement).getByText('$4,700,000')).toHaveClass('ml-auto', 'shrink-0', 'whitespace-nowrap');
+  });
+
+  it('keeps the budget line-item scroll region keyboard-accessible', async () => {
+    budgetState.data = draftVersion.total;
+    versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
+    const { container } = renderPage();
+    const region = screen.getByRole('region', { name: 'Budget version line items, scrollable horizontally' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('AC-L10N-B01 renders the actual Indonesian empty state from the shipped catalogue', async () => {
+    budgetState.data = 0;
+    versionsState.data = [];
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(screen.getByText('Belum ada versi anggaran')).toBeInTheDocument();
+  });
+
   it('loading skeleton while pending (AC-726)', () => {
     budgetState.isPending = true;
     versionsState.isPending = true;
@@ -444,6 +486,41 @@ describe('ProjectBudget New version form (versions list state)', () => {
 // Line-item add form in Draft editor
 // ---------------------------------------------------------------------------
 describe('ProjectBudget line-item add form (Draft)', () => {
+  it('AC-CAT-007: keeps positioned input labels inside the editor scrolling region', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    const scrollRegion = screen.getByRole('combobox', { name: 'Line item category' }).closest('table')!.parentElement;
+    expect(scrollRegion).toHaveClass('relative', 'overflow-x-auto');
+  });
+
+  it('AC-CAT-005: the Bahasa picker uses Biaya khusus but saves the canonical enum value', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    render(<BahasaProvider><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" /></ToastProvider></MemoryRouter></BahasaProvider>);
+    await userEvent.click(screen.getByText(/Tambah item anggaran/i));
+    expect(screen.getByRole('option', { name: 'Biaya khusus' })).toHaveValue('Special expenses');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Kategori item anggaran' }), 'Special expenses');
+    await userEvent.type(screen.getByPlaceholderText(/Jumlah/i), '10');
+    await userEvent.click(screen.getByRole('button', { name: /^Simpan$/i }));
+    expect(mockCreateLineItem).toHaveBeenCalledWith({ versionId: 'v-draft', item: expect.objectContaining({ category: 'Special expenses', budgeted_amount: 10 }) });
+  });
+
+  it('AC-CAT-002: saves Special expenses with its canonical category and exact entered amount', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Line item category' }), 'Special expenses');
+    await userEvent.type(screen.getByPlaceholderText(/Amount/i), '25000.30');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      item: expect.objectContaining({ category: 'Special expenses', budgeted_amount: 25000.30 }),
+    });
+  });
+
   it('can add a line item via the editor form', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];

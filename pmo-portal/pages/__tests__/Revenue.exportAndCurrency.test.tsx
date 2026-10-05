@@ -64,13 +64,13 @@ import IncomingPayments from '../IncomingPayments';
 import SalesInvoices from '../SalesInvoices';
 
 const payment = {
-  id: 'ip-1', org_id: 'org-1', customer_id: 'cust-1', sales_invoice_id: null, ip_number: 'ACC-PAY-0001',
+  id: 'ip-1', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Co', sales_invoice_id: null, ip_number: 'ACC-PAY-0001',
   reference_number: null, date: '2026-07-01', amount: 1234567.89, currency: 'IDR', status: 'Paid',
   erp_docstatus: 1, erp_modified: null, erp_amended_from: null, erp_cancelled_at: null,
   created_at: '2026-07-01T00:00:00Z',
 };
 const invoice = {
-  id: 'inv-1', org_id: 'org-1', project_id: null, customer_id: 'cust-1', si_number: 'ACC-SINV-1',
+  id: 'inv-1', org_id: 'org-1', project_id: null, customer_id: 'cust-1', customer_name: 'Acme Co', si_number: 'ACC-SINV-1',
   reference_number: null, invoice_date: '2026-07-01', amount: 1234567.89, currency: 'IDR',
   tax_treatment: 'exclusive', erp_outstanding_amount: 500.5, status: 'Submitted', erp_docstatus: 1,
   erp_modified: null, erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-07-01T00:00:00Z',

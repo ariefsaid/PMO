@@ -3,6 +3,9 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
+const integrations = vi.hoisted(()=>({getBinding:vi.fn(async()=>null),ensureErpProject:vi.fn()}));
+vi.mock('@/src/lib/repositories',()=>({repositories:{integrations}}));
+
 // ---------------------------------------------------------------------------
 // Mock the DAL
 // ---------------------------------------------------------------------------
@@ -119,5 +122,17 @@ describe('useProjectTransition', () => {
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useProjectTransition(), { wrapper: Wrapper });
     expect(typeof result.current.mutateAsync).toBe('function');
+  });
+});
+
+describe('ERP setup after winning',()=>{
+  it('AC-SETUP-001 winning keeps its native success if ERP linking fails and exposes the retry state',async()=>{
+    integrations.getBinding.mockResolvedValueOnce({status:'active',config:{company:'Example Company'}} as never);
+    integrations.ensureErpProject.mockRejectedValueOnce(new Error('unavailable'));
+    const {Wrapper}=makeWrapper();const {result}=renderHook(()=>useProjectTransition(),{wrapper:Wrapper});
+    await act(async()=>{await result.current.mutateAsync({id:'proj-2',to:'Won, Pending KoM',opts:{customerContractRef:'CPO-9',contractDate:'2026-03-01'}});});
+    expect(result.current.isSuccess).toBe(true);
+    expect(result.current).toMatchObject({erpSetupPending:true});
+    expect(integrations.ensureErpProject).toHaveBeenCalledWith('proj-2');
   });
 });

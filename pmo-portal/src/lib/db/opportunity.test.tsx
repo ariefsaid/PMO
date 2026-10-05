@@ -113,3 +113,7 @@ describe('useOpportunity hook (AC-SP-208)', () => {
     expect(from).not.toHaveBeenCalled();
   });
 });
+
+ it('AC-TAG-002 opportunity detail projection retains every classification', () => {
+   for (const field of ['service_line', 'sector', 'location', 'award_type', 'bidding_entity']) expect(OPPORTUNITY_COLUMNS).toContain(field);
+ });

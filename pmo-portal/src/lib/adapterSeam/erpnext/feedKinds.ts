@@ -25,6 +25,7 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   payment: 'procurement',
   supplier: 'companies',
   customer: 'companies',
+  contact: 'companies',
   // P3a Slice 1 — Revenue domain:
   'sales-invoice': 'revenue',
   'incoming-payment': 'revenue',
@@ -53,6 +54,7 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   payment: 'payments',
   supplier: 'companies',
   customer: 'companies',
+  contact: 'contacts',
   // P3a Slice 1 — Revenue domain mirror tables (created in slice 0):
   'sales-invoice': 'sales_invoices',
   'incoming-payment': 'incoming_payments',
@@ -95,6 +97,7 @@ export function kindFromDoctypeAndPaymentType(doctype: string, paymentType?: str
  *  Supplier/Customer collision rule is deterministic; procurement uses the raw ERP name). */
 export function externalIdForKind(kind: ErpDocKind, erpName: string): string {
   if (kind === 'supplier') return `Supplier:${erpName}`;
+  if (kind === 'contact') return `Contact:${erpName}`;
   if (kind === 'customer') return `Customer:${erpName}`;
   // P3b (FR-TSP-091): the SAME collision-prevention idiom as Supplier:/Customer: — deterministic and
   // namespace-safe within the domain, even though `Employee` collides with no other doctype here today.

@@ -98,12 +98,15 @@ select is(
 -- on this one table), the second writes an audit_events row for the create. Neither reads
 -- `external_domain_ownership`, calls an adapter, or touches the outbox — flipping the org changes
 -- nothing about either.
+-- `timesheets_notify_transition_trg` (0237) is admitted on the same terms: it writes in-app notifications
+-- to same-org approvers / the submitter on a status change and never reads `external_domain_ownership`,
+-- calls an adapter, or touches the outbox.
 -- (`information_schema.triggers` yields one row per event, hence `distinct`.)
 select is(
   (select string_agg(distinct trigger_name, ',' order by trigger_name)
      from information_schema.triggers
     where event_object_schema = 'public' and event_object_table = 'timesheets'),
-  'timesheets_audit_insert,timesheets_origination_guard,timesheets_stamp_org_id,timesheets_week_start_bounds',
+  'timesheets_audit_insert,timesheets_notify_transition_trg,timesheets_origination_guard,timesheets_stamp_org_id,timesheets_week_start_bounds',
   'AC-TSP-004: no ERP-driven trigger on timesheets (org_id stamp + the local week-bounds, origination and audit guards only)');
 select is(
   (select string_agg(distinct trigger_name, ',' order by trigger_name)

@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * #694 — the create-project form's money inputs carried a literal `$` adornment, so an Admin in an
  * IDR organization typed an amount beside a dollar sign. The adornment is the ORG's currency (a new
@@ -22,6 +23,10 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),
+}));
+
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
 }));
 
 import ProjectFormModal from './ProjectFormModal';

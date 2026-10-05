@@ -26,6 +26,7 @@ import {
   archiveProject,
   deleteProject,
   setProjectContractValue,
+  proposeProjectNumber,
 } from './projects';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
 import { AppError } from '@/src/lib/appError';
@@ -125,7 +126,7 @@ describe('listProjects', () => {
     // can. The real guard is supabase/tests/postgrest_embed_ambiguity_guard.test.sql, which fails
     // the moment a new FK makes any embed ambiguous. This line only stops a silent revert.
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)',
+      '*, client:companies!projects_client_id_fkey(name, short_name), end_client:companies!projects_end_client_id_fkey(name, short_name), pm:profiles!projects_project_manager_id_fkey(full_name)',
     );
     expect(result[0].client?.name).toBe('Innovate Corp');
     expect(result[0].pm?.full_name).toBe('Alice Manager');
@@ -176,6 +177,15 @@ describe('listProjects', () => {
     expect(scoped).not.toContain('Loss Tender');
     expect(scoped).toContain('Ongoing Project');
     expect(scoped).toContain('Internal Project');
+  });
+
+  it('AC-DEC-001: a statuses[] override filters with one .in("status", …) (the Lost column = Loss Tender + Declined)', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects({ statuses: ['Loss Tender', 'Declined'] });
+    const inStatusCalls = mockIn.mock.calls.filter(([k]) => k === 'status');
+    expect(inStatusCalls).toHaveLength(1);
+    expect(inStatusCalls[0][1]).toEqual(['Loss Tender', 'Declined']);
+    expect(mockEq).not.toHaveBeenCalledWith('status', expect.anything());
   });
 
   it('AC-IXD-PROJ-003: an explicit status override wins over the default partition (e.g. a Lost filter)', async () => {
@@ -311,6 +321,33 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
   });
 });
 
+describe('AC-CODE-002 project identifier DAL contract', () => {
+  it('AC-CODE-002 proposes only through the client-scoped RPC', async () => {
+    mockRpc.mockResolvedValue({ data: 'PMO-26-0001', error: null });
+    await expect(proposeProjectNumber('client-1')).resolves.toBe('PMO-26-0001');
+    expect(mockRpc).toHaveBeenCalledWith('propose_project_number', { p_client_id: 'client-1' });
+  });
+
+  it('AC-CODE-002 creates with PMO number and Client Project Code as separate optional values', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'p1' }, error: null });
+    await createProject({
+      name: 'New Project', status: 'Internal Project', client_id: 'client-1',
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+      pmo_project_number: 'PMO-26-0001', code: 'CLIENT-42',
+    });
+    expect(calls.insert[0]).toMatchObject({ pmo_project_number: 'PMO-26-0001', code: 'CLIENT-42' });
+  });
+
+  it('AC-CODE-002 preserves a duplicate-number 23505 as an AppError code', async () => {
+    makeWriteBuilder({ data: null, error: { message: 'duplicate key', code: '23505' } });
+    await expect(createProject({
+      name: 'Duplicate', status: 'Internal Project', client_id: 'client-1',
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+      pmo_project_number: 'PMO-26-0001',
+    })).rejects.toMatchObject({ code: '23505' });
+  });
+});
+
 describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () => {
   it('AC-PRJ-004: updates only header columns (no contract_value, no status), NEVER org_id', async () => {
     const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
@@ -437,6 +474,14 @@ describe('AC-PRJ-007 deleteProject (hard delete, Admin-only)', () => {
 });
 
 describe('AC-PRJ-006 setProjectContractValue (SoD-gated RPC, ADR-0019)', () => {
+  it('AC-DPP-001: carries the exact base fraction to the witnessed contract writer', async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    await setProjectContractValue({ id: 'p1', value: 1110, taxTreatment: 'inclusive', taxAmount: 110,
+      taxRate: 12, taxBaseNumerator: 11, taxBaseDenominator: 12 });
+    expect(mockRpc).toHaveBeenCalledWith('set_project_contract_value', expect.objectContaining({
+      p_tax_rate: 12, p_tax_base_numerator: 11, p_tax_base_denominator: 12,
+    }));
+  });
   it('AC-PRJ-006: calls the set_project_contract_value RPC with p_id + p_value, NEVER org_id', async () => {
     mockRpc.mockResolvedValue({ error: null });
     await setProjectContractValue({
@@ -574,5 +619,29 @@ describe('AC-PRJ-003 createProject — contract-value tax basis (#513, migration
       tax_rate: null,
       tax_template: null,
     });
+  });
+});
+
+describe('AC-TAG-002 project classification writes', () => {
+  const tags = { service_line: 'Engineering', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'consortium' };
+  const base = { name: 'Classified project', status: 'Leads' as const, client_id: 'c1', project_manager_id: null, start_date: null, end_date: null };
+  it('persists all five authored classifications on creation without accepting an org from the caller', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'p1' }, error: null });
+    await createProject({ ...base, contract_value: 0, ...tags });
+    expect(calls.insert).toEqual([expect.objectContaining(tags)]);
+    expect(calls.insert[0]).not.toHaveProperty('org_id');
+  });
+  it('updates all five classification fields through the existing header write', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', { ...base, code: null, ...tags });
+    expect(calls.update).toEqual([expect.objectContaining(tags)]);
+    expect(calls.update[0]).not.toHaveProperty('contract_value');
+    expect(calls.update[0]).not.toHaveProperty('status');
+  });
+  it('sends explicit nulls when an editor clears optional classifications', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    const cleared = { service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
+    await updateProjectHeader('p1', { ...base, code: null, ...cleared });
+    expect(calls.update).toEqual([expect.objectContaining(cleared)]);
   });
 });

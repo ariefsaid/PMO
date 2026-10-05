@@ -212,6 +212,16 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'rfq' }), expect.any(Object));
   });
 
+  it('AC-EXT-002 createPurchaseOrder / createPurchaseRequest on a flipped org never put the external reference in the dispatched record', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'PUR-ORD-2026-00001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createPurchaseOrder('proc-1', 'PO-0001', 'Draft', '2026-07-11', 100, undefined, 'GROUP-REF-1');
+    await repositories.procurement.createPurchaseRequest('proc-1', 'PR-0001', 'Draft', '2026-07-11', 100, undefined, 'GROUP-REF-1');
+    expect(dispatchSpy).toHaveBeenCalledTimes(2);
+    for (const call of dispatchSpy.mock.calls) {
+      expect(JSON.stringify(call[2])).not.toMatch(/GROUP-REF-1|external_?ref/i);
+    }
+  });
+
   it('createPurchaseOrder dispatches externally with erp_doc_kind purchase-order', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'PUR-ORD-2026-00001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createPurchaseOrder('proc-1', 'PO-0001', 'Draft', '2026-07-11', 100);
@@ -264,6 +274,18 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(record).not.toHaveProperty('taxAmount');
     expect(record).not.toHaveProperty('taxRate');
     expect(record).not.toHaveProperty('taxTemplate');
+  });
+
+  it('forwards the supplied vendor invoice reference and date to external dispatch (#764)', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-09-20',
+      referenceNumber: 'VENDOR-INV-001', taxTreatment: 'inclusive', taxAmount: 0,
+    });
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({
+      referenceNumber: 'VENDOR-INV-001', invoiceDate: '2026-09-20', erp_doc_kind: 'purchase-invoice',
+    }), expect.any(Object));
+    expect(createInvoice).not.toHaveBeenCalled();
   });
 
   it('company.create dispatches externally with erp_doc_kind supplier', async () => {

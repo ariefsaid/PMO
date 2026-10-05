@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
@@ -68,6 +69,15 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   const [period, setPeriod] = useState<PeriodKey>('all');
   const range = useMemo(() => buildWinRateRange(period), [period]);
   const { data: wr, isError, refetch } = useWinRate(range);
+  const { t } = useTranslation();
+  // #774: declined-to-bid deals are outside both win-rate denominators, so they are reported
+  // beside the rate — including when they are the ONLY decided deals in the window.
+  const declined = wr?.declined_count ?? 0;
+  const declinedNote = declined > 0 && (
+    <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
+      {t('dashboard.winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
+    </p>
+  );
 
   const wins = wr ? (mode === 'count' ? wr.wins_count : wr.wins_value) : 0;
   const losses = wr ? (mode === 'count' ? wr.losses_count : wr.losses_value) : 0;
@@ -102,12 +112,15 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           onRetry={() => refetch()}
         />
       ) : total === 0 ? (
-        <ListState
-          variant="empty"
-          icon="pipe"
-          title="No closed projects in this window"
-          sub="Try a wider time frame to see your win rate."
-        />
+        <>
+          <ListState
+            variant="empty"
+            icon="pipe"
+            title="No closed projects in this window"
+            sub="Try a wider time frame to see your win rate."
+          />
+          {declinedNote}
+        </>
       ) : (
         <>
           <div className="mb-3 flex items-baseline gap-2.5">
@@ -144,6 +157,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
               Lost
             </span>
           </div>
+          {declinedNote}
         </>
       )}
     </section>

@@ -105,3 +105,154 @@ export const CONTRACT_TAX_REQUIRED_HINT =
 export function isTaxTreatment(value: unknown): value is TaxTreatment {
   return value === 'inclusive' || value === 'exclusive';
 }
+
+/** Exact authored tax-base ratio: keep 11/12 rather than a rounded decimal or an effective rate. */
+export interface TaxBaseFraction {
+  numerator: number;
+  denominator: number;
+}
+
+function isTaxBaseFraction(fraction: TaxBaseFraction): boolean {
+  return (
+    Number.isInteger(fraction.numerator) &&
+    Number.isInteger(fraction.denominator) &&
+    fraction.numerator > 0 &&
+    fraction.denominator >= fraction.numerator &&
+    fraction.denominator <= 2147483647
+  );
+}
+
+/** A blank fraction means the full price; malformed fractions never silently become 1. */
+export function parseTaxBaseFraction(raw = ''): TaxBaseFraction | null {
+  if (!raw.trim()) return { numerator: 1, denominator: 1 };
+  const match = raw.match(/^\s*(\d+)\s*(?:\/\s*(\d+)\s*)?$/);
+  if (!match) return null;
+  const fraction = { numerator: Number(match[1]), denominator: Number(match[2] ?? '1') };
+  return isTaxBaseFraction(fraction) ? fraction : null;
+}
+
+export interface StandaloneTaxAmounts {
+  netAmount: number;
+  taxAmount: number;
+  grossAmount: number;
+}
+
+/** Convert an already valid decimal to integer units without floating-point multiplication. */
+function decimalUnits(value: number, scale: number): bigint | null {
+  const decimal = value.toFixed(scale);
+  if (Number(decimal) !== value) return null;
+  return BigInt(decimal.replace('.', ''));
+}
+
+/**
+ * Re-express a stored amount on another tax basis using only the row's recorded tax facts.
+ * This is a read-only conversion: it never calculates a tax rate or consults an org default.
+ */
+export function normalizeTaxAmount(
+  amount: number,
+  taxAmount: number,
+  treatment: string,
+  targetTreatment: string,
+): number | null {
+  if (
+    !Number.isFinite(amount) || amount < 0 || amount >= 1e12 ||
+    !Number.isFinite(taxAmount) || taxAmount < 0 || taxAmount >= 1e12 ||
+    !isTaxTreatment(treatment) || !isTaxTreatment(targetTreatment) ||
+    (treatment === 'inclusive' && taxAmount > amount)
+  ) {
+    return null;
+  }
+
+  const amountCents = decimalUnits(amount, 2);
+  const taxCents = decimalUnits(taxAmount, 2);
+  if (amountCents === null || taxCents === null) return null;
+  const netCents = treatment === 'inclusive' ? amountCents - taxCents : amountCents;
+  const grossCents = treatment === 'inclusive' ? amountCents : amountCents + taxCents;
+  const resultCents = targetTreatment === 'inclusive' ? grossCents : netCents;
+  if (resultCents < 0n || resultCents >= 100000000000000n) return null;
+  return Number(resultCents) / 100;
+}
+
+/**
+ * Calculate PMO-authored tax only. ERP money is authoritative and must never pass through this
+ * calculator (ADR-0048). Amounts follow the existing numeric(14,2) domain and nominal rates the
+ * numeric(6,3) domain; a reduced base changes the ratio, never the nominal rate.
+ *
+ * Exclusive input is the net price. Inclusive input is the gross ceiling, so tax is extracted
+ * with e/(1+e), where e is rate × fraction. Integer arithmetic preserves the exact ratio until
+ * one final half-up rounding to cents, matching positive Postgres numeric rounding. Net and gross
+ * then use the rounded tax so the displayed components always reconcile with the entered amount.
+ */
+export function calculateStandaloneTax(
+  amount: number,
+  treatment: string,
+  nominalRate: number,
+  fraction: TaxBaseFraction = { numerator: 1, denominator: 1 },
+): StandaloneTaxAmounts | null {
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount >= 1e12 ||
+    !Number.isFinite(nominalRate) ||
+    nominalRate < 0 ||
+    nominalRate > 100 ||
+    !isTaxTreatment(treatment) ||
+    !isTaxBaseFraction(fraction)
+  ) {
+    return null;
+  }
+
+  const amountCents = decimalUnits(amount, 2);
+  const rateThousandths = decimalUnits(nominalRate, 3);
+  if (amountCents === null || rateThousandths === null) return null;
+
+  const rateNumerator = rateThousandths * BigInt(fraction.numerator);
+  const rateDenominator = 100000n * BigInt(fraction.denominator);
+  const taxDenominator =
+    treatment === 'inclusive' ? rateDenominator + rateNumerator : rateDenominator;
+  const taxNumerator = amountCents * rateNumerator;
+  const taxCents = (2n * taxNumerator + taxDenominator) / (2n * taxDenominator);
+  const netCents = treatment === 'inclusive' ? amountCents - taxCents : amountCents;
+  const grossCents = treatment === 'inclusive' ? amountCents : amountCents + taxCents;
+  return {
+    netAmount: Number(netCents) / 100,
+    taxAmount: Number(taxCents) / 100,
+    grossAmount: Number(grossCents) / 100,
+  };
+}
+
+export interface AuthoredTaxFacts extends ParsedTaxFacts {
+  taxRate: number | null;
+  taxBaseNumerator: number;
+  taxBaseDenominator: number;
+}
+
+/** Shared submit predicate: known rates calculate tax; unknown rates keep a stated manual amount. */
+export function parseStandaloneTaxFacts(
+  treatmentRaw: string,
+  taxAmountRaw: string,
+  amountRaw: string,
+  nominalRateRaw: string,
+  fractionRaw: string,
+): AuthoredTaxFacts | null {
+  const fraction = parseTaxBaseFraction(fractionRaw);
+  if (!fraction) return null;
+  const treatment = treatmentRaw.trim();
+  let facts: ParsedTaxFacts | null;
+  let taxRate: number | null = null;
+  if (nominalRateRaw.trim()) {
+    taxRate = parseMoneyInputAtScale(nominalRateRaw, 3);
+    const amount = parseMoneyInputAtScale(amountRaw, 2);
+    if (taxRate === null || amount === null || !isTaxTreatment(treatment)) return null;
+    const calculation = calculateStandaloneTax(amount, treatment, taxRate, fraction);
+    if (!calculation) return null;
+    facts = { taxTreatment: treatment, taxAmount: calculation.taxAmount };
+  } else {
+    facts = parseTaxFacts(treatment, taxAmountRaw);
+  }
+  return facts ? {
+    ...facts, taxRate,
+    taxBaseNumerator: fraction.numerator,
+    taxBaseDenominator: fraction.denominator,
+  } : null;
+}

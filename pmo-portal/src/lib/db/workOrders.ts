@@ -67,6 +67,9 @@ export interface WorkOrderInput {
   orderValue: number;
   taxTreatment: TaxTreatment;
   taxAmount: number;
+  taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
   orderDate: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -93,6 +96,9 @@ export interface SetWorkOrderValueInput {
   value: number;
   taxTreatment: TaxTreatment;
   taxAmount: number;
+  taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
 }
 
 /**
@@ -202,6 +208,9 @@ export async function createWorkOrder(
       order_value: input.orderValue,
       tax_treatment: input.taxTreatment,
       tax_amount: input.taxAmount,
+      ...(input.taxRate != null ? { tax_rate: input.taxRate } : {}),
+      ...(input.taxBaseNumerator !== undefined ? { tax_base_numerator: input.taxBaseNumerator } : {}),
+      ...(input.taxBaseDenominator !== undefined ? { tax_base_denominator: input.taxBaseDenominator } : {}),
       order_date: input.orderDate,
       start_date: input.startDate,
       end_date: input.endDate,
@@ -246,6 +255,9 @@ export async function setWorkOrderValue(input: SetWorkOrderValueInput): Promise<
     p_value: input.value,
     p_tax_treatment: input.taxTreatment,
     p_tax_amount: input.taxAmount,
+    ...(input.taxRate != null ? { p_tax_rate: input.taxRate } : {}),
+    ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
+    ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
   });
   if (error) throwWrite(error as PostgrestErrorLike);
 }

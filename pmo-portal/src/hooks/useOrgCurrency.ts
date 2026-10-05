@@ -10,14 +10,27 @@ import { useAuth } from '@/src/auth/useAuth';
  * PLATFORM_CURRENCY (FR-L10N-023). staleTime Infinity — the org currency changes only by
  * operator action.
  */
-export function useOrgCurrency(): string {
+function useOrgCurrencyQuery() {
   const { currentUser } = useAuth();
-  const { data } = useQuery<string>({
+  return useQuery<string>({
     queryKey: ['org-currency', currentUser?.org_id],
     queryFn: () => getOrgDefaultCurrency(),
     enabled: Boolean(currentUser),
     staleTime: Infinity,
     placeholderData: 'USD',
   });
-  return data ?? 'USD';
+}
+
+/** Currency plus its loading/error state for views that must not label amounts with the USD placeholder. */
+export function useOrgCurrencyState(): { currency: string; isResolved: boolean; isError: boolean } {
+  const query = useOrgCurrencyQuery();
+  return {
+    currency: query.data ?? 'USD',
+    isResolved: query.data !== undefined && !query.isPlaceholderData,
+    isError: query.isError,
+  };
+}
+
+export function useOrgCurrency(): string {
+  return useOrgCurrencyQuery().data ?? 'USD';
 }

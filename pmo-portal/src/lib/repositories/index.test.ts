@@ -192,7 +192,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1, migration 0207)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['getTaxDefault', 'setTaxDefault'].sort());
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(
+      ['getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort(),
+    );
   });
 
   it('procurementFiles exposes its expected methods', () => {
@@ -203,10 +205,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'setContractValue', 'transition', 'updateHeader'].sort(),
+      ['archive', 'create', 'delete', 'get', 'list', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
+      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [

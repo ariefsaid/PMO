@@ -38,6 +38,7 @@ const {
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    setProjectNumberSegment: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     archive: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     remove: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   },
@@ -171,8 +172,27 @@ beforeEach(() => {
   contactMutations.logActivity.mutateAsync.mockClear().mockResolvedValue(undefined);
   contactMutations.updateActivity.mutateAsync.mockClear().mockResolvedValue(undefined);
   contactMutations.deleteActivity.mutateAsync.mockClear().mockResolvedValue(undefined);
+  mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
+  mutations.setProjectNumberSegment.mutateAsync.mockClear().mockResolvedValue(undefined);
 
   realRole = 'Admin';
+});
+
+describe('AC-CODE-001 company client-number segment on CompanyDetail', () => {
+  it('shows the stored segment and saves it through a separate PMO-local mutation', async () => {
+    detailState.data = { ...company, client_number_segment: 'ACME' };
+    renderPage('Admin');
+    expect(screen.getByText('ACME')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('company-edit'));
+    const segment = screen.getByLabelText(/client number segment/i);
+    expect(segment).toHaveValue('ACME');
+    await userEvent.clear(segment);
+    await userEvent.type(segment, '  RIS  ');
+    await userEvent.click(screen.getByRole('button', { name: /save company/i }));
+    await waitFor(() => expect(mutations.setProjectNumberSegment.mutateAsync).toHaveBeenCalledWith({ id: 'co1', segment: 'RIS' }));
+    expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: 'co1', input: { name: company.name, type: 'Client' } });
+    expect(JSON.stringify(mutations.update.mutateAsync.mock.calls)).not.toContain('client_number_segment');
+  });
 });
 
 // ── CD-1/CT-1: editable/deletable activity rows (CompanyDetail) ───────────────

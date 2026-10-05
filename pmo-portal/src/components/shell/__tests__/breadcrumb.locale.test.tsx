@@ -75,4 +75,26 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
     expect(screen.getByText('Integrasi saya')).toBeInTheDocument();
     expect(screen.queryByText('My integrations')).not.toBeInTheDocument();
   });
+
+  // #781 (AC-FIN-002): the three Finance routes each carry their own rail breadcrumb label (and a
+  // real i18n key), so a direct deep-link never falls through to the "Not found" fallback.
+  it('AC-FIN-002: each Finance route renders its own Bahasa shell label, never "Not found"', () => {
+    const cases = [
+      ['/sales-invoices', 'Invoice Penjualan'],
+      ['/incoming-payments', 'Pembayaran Masuk'],
+      ['/revenue-by-project', 'Pendapatan per Proyek'],
+    ] as const;
+    for (const [path, bahasa] of cases) {
+      const view = renderBreadcrumb(path);
+      expect(screen.getByText(bahasa)).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('AC-FIN-002: breadcrumbForPath resolves the three Finance paths without a "Not found" part', () => {
+    for (const path of ['/sales-invoices', '/incoming-payments', '/revenue-by-project']) {
+      const parts = breadcrumbForPath(path);
+      expect(parts.map((p) => p.label)).not.toContain('Not found');
+    }
+  });
 });

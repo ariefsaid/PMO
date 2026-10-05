@@ -39,6 +39,7 @@ export const EDGE_FUNCTION_NAMES = [
   'external-companies',
   'external-connect',
   'external-disconnect',
+  'external-items',
   'external-link',
   'external-lists',
   'external-set-company',

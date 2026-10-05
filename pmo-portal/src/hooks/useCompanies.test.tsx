@@ -193,3 +193,16 @@ describe('task FIX-1 — flipped ownership map drives pendingPush on a Vendor/Cl
     expect(result.current.pendingPush).toEqual({ status: 'idle', error: null });
   });
 });
+
+
+it('local short-name save shows no external push badge and refreshes dependent project displays', async () => {
+  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  const client = freshClient();
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(client) });
+  await act(async () => { await result.current.update.mutateAsync({ id: 'c1', input: { name: 'Example Legal Company', type: 'Client', short_name: 'Example' } }); });
+  expect(result.current.pendingPush.status).toBe('idle');
+  for (const key of ['companies', 'company', 'projects', 'project', 'opportunity', 'sales-pipeline', 'lost-deals', 'dashboard', 'finance-budget-review']) {
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [key] });
+  }
+});

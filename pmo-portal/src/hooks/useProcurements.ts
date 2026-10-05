@@ -7,13 +7,19 @@ import {
 } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 
-/** Org-scoped procurement list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-PROC-001). */
-export function useProcurements() {
+/**
+ * Org-scoped procurement list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-PROC-001).
+ * `withRefs` (#769) is the Procurement index only: it adds the record-reference embeds for search/export
+ * under its own cache key, so Approvals/dashboards keep the lean payload. Both keys share the
+ * `['procurements', orgId]` prefix, so existing invalidations still refetch it.
+ */
+export function useProcurements(opts?: { withRefs?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const withRefs = opts?.withRefs === true;
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: ['procurements', orgId],
-    queryFn: () => listProcurements(),
+    queryKey: withRefs ? ['procurements', orgId, 'with-refs'] : ['procurements', orgId],
+    queryFn: () => listProcurements(undefined, withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId),
   });
 }
