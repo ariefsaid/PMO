@@ -99,6 +99,18 @@ describe('AC-RAM-004 regression: --destructive/--destructive-solid split', () =>
     expect(contrastRatio(destructiveRgb, bgRgb)).toBeGreaterThanOrEqual(AA_TEXT_MIN_CONTRAST);
   });
 
+  it('AC-A11Y-FIELD-001: --destructive-text clears AA on field surfaces in both themes', () => {
+    const white: [number, number, number] = [255, 255, 255];
+    const lightError = hslToRgb(...lightTokens['destructive-text']);
+    const darkError = hslToRgb(...darkTokens['destructive-text']);
+    for (const surface of ['background', 'popover']) {
+      expect(contrastRatio(lightError, hslToRgb(...lightTokens[surface]))).toBeGreaterThanOrEqual(AA_TEXT_MIN_CONTRAST);
+      expect(contrastRatio(darkError, hslToRgb(...darkTokens[surface]))).toBeGreaterThanOrEqual(AA_TEXT_MIN_CONTRAST);
+    }
+    // A dialog may be rendered against a white/light surface before the dark theme mounts.
+    expect(contrastRatio(lightError, white)).toBeGreaterThanOrEqual(AA_TEXT_MIN_CONTRAST);
+  });
+
   it('regression guard: the darkened dark --destructive (0 80% 46%, the shipped-then-reverted value) as TEXT on --background would fail this gate', () => {
     const regressedRgb = hslToRgb(0, 80, 46);
     const bgRgb = hslToRgb(...darkTokens['background']);

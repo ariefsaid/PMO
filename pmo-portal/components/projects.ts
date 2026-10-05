@@ -17,11 +17,10 @@
 export { workflowVariant as pillVariantForProjectStatus } from '@/src/lib/status/statusVariants';
 
 /**
- * The project icon-tile / avatar accent color. DESIGN.md names exactly one
- * categorical token (`violet`); the carried program OQ-7 reserves chart/avatar
- * tokens for later. Until then the project icon tile uses `violet` — a
- * non-interactive categorical accent, never an action color (One Blue Rule).
+ * The project icon-tile / avatar accent color. Use the violet-family avatar
+ * token rather than raw `violet`: its white initials clear WCAG AA in both themes.
+ * This is non-interactive categorical color, never an action color (One Blue Rule).
  */
 export function projectIconColor(): string {
-  return 'hsl(var(--violet))';
+  return 'hsl(var(--avatar-2))';
 }

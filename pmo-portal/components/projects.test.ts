@@ -34,7 +34,7 @@ describe('pillVariantForProjectStatus', () => {
 });
 
 describe('projectIconColor', () => {
-  it('returns the violet token for the project icon tile (one named categorical token)', () => {
-    expect(projectIconColor()).toBe('hsl(var(--violet))');
+  it('AC-A11Y-001: uses the AA violet avatar token for project initials', () => {
+    expect(projectIconColor()).toBe('hsl(var(--avatar-2))');
   });
 });
