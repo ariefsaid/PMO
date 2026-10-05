@@ -5,7 +5,8 @@
  * erpnext/**, never in the edge-fn wrapper).
  */
 import { describe, expect, it } from 'vitest';
-import { listErpPartySources } from './onboarding.ts';
+import { listErpPartySources, onboardParties, type OnboardPartiesDeps } from './onboarding.ts';
+import type { PmoRecord } from '../contract.ts';
 import type { ErpClientDeps } from './client.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -67,5 +68,38 @@ describe('erpnext/onboarding — listErpPartySources (confined GET-list mapping)
     };
     const sources = await listErpPartySources(deps);
     expect(sources).toEqual([]);
+  });
+});
+
+describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
+  function fakeDeps(refs: Record<string, string>) {
+    const calls = { inserted: [] as PmoRecord[], updated: [] as string[], refs: [] as { pmoRecordId: string; externalRecordId: string }[], lookups: [] as string[] };
+    const deps: OnboardPartiesDeps = {
+      findPmoRecordId: async (ext) => { calls.lookups.push(ext); return refs[ext] ?? null; },
+      findCandidates: async () => [],
+      insertCompaniesMirror: async (c) => { calls.inserted.push(c); },
+      updateCompaniesMirror: async (id) => { calls.updated.push(id); },
+      recordExternalRef: async (m) => { calls.refs.push(m); },
+    };
+    return { deps, calls };
+  }
+  const source = { doctype: 'Customer' as const, id: 'C-000001', name: 'PT Example', taxId: null };
+
+  it('AC-ONB-001 a first-time adopt records the ref by the ERPNext ID and names the company by its display name', async () => {
+    const { deps, calls } = fakeDeps({});
+    const res = await onboardParties([source], deps);
+    expect(res).toEqual({ adopted: 1, reconciled: 0 });
+    expect(calls.lookups).toEqual(['Customer:C-000001']);
+    expect(calls.refs[0].externalRecordId).toBe('Customer:C-000001');
+    expect(calls.inserted[0].name).toBe('PT Example');
+  });
+
+  it('AC-ONB-003 a re-run over a party already mapped by its ID updates it and mints nothing', async () => {
+    const { deps, calls } = fakeDeps({ 'Customer:C-000001': 'pmo-1' });
+    const res = await onboardParties([source], deps);
+    expect(res).toEqual({ adopted: 0, reconciled: 1 });
+    expect(calls.updated).toEqual(['pmo-1']);
+    expect(calls.inserted).toHaveLength(0);
+    expect(calls.refs).toHaveLength(0);
   });
 });
