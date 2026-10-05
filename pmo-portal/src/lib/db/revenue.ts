@@ -54,6 +54,9 @@ export interface SalesInvoiceRow {
 }
 
 export interface IncomingPaymentRow {
+  received_amount?: number | null;
+  withheld_amount?: number | null;
+  withholding_slip_number?: string | null;
   id: string;
   org_id: string;
   customer_id: string | null;

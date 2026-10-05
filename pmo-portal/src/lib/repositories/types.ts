@@ -447,6 +447,8 @@ export interface RevenueRepository {
     salesInvoiceId?: string | null;
     paidAmount: number;
     receivedAmount?: number;
+    withheldAmount?: number;
+    withholdingSlipNumber?: string | null;
     date: string;
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
@@ -678,6 +680,8 @@ export interface OrgSettingsRepository {
   getProjectNumberPattern(): Promise<string | null>;
   /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
   setProjectNumberPattern(value: string | null): Promise<void>;
+  getWithholdingAccount(): Promise<string | null>;
+  setWithholdingAccount(account: string | null): Promise<void>;
   getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
   setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */

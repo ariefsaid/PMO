@@ -239,6 +239,8 @@ import {
   setOrgTaxDefault,
   getOrgProjectNumberPattern,
   setOrgProjectNumberPattern,
+  getOrgWithholdingAccount,
+  setOrgWithholdingAccount,
   getOrgProjectClassificationOptions,
   setOrgProjectClassificationOptions,
 } from '@/src/lib/db/orgs';
@@ -603,6 +605,8 @@ const revenue: RevenueRepository = {
             salesInvoiceId: input.salesInvoiceId ?? null,
             paid_amount: input.paidAmount,
             received_amount: input.receivedAmount ?? input.paidAmount,
+            ...(input.withheldAmount !== undefined ? { withheld_amount: input.withheldAmount } : {}),
+            ...(input.withholdingSlipNumber !== undefined ? { withholding_slip_number: input.withholdingSlipNumber } : {}),
             date: input.date,
           },
           intent,
@@ -831,6 +835,8 @@ const orgFeature: OrgFeatureRepository = {
  * `can('manage', 'orgAccounting')` on the affordance.
  */
 const orgSettings: OrgSettingsRepository = {
+  getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
+  setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
   setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
   getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),

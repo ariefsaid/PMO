@@ -33,6 +33,12 @@ const isRunAsMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').hre
  * @type {Array<{file: string, reason: string, restore: string, verified: string}>}
  */
 export const ALLOWED_SKIPS = [
+  {
+    file: 'serial/AC-WHT-002-receipt-withholding.spec.ts',
+    reason: 'Receipt withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
+    verified: '2026-10-05',
+  },
   // ── Served lane absent: config.toml sets [edge_runtime] enabled = false in CI *and* local, so
   // nothing serves functions/v1 unless scripts/serve-functions.sh is running (it exports
   // SUPABASE_FUNCTIONS_URL). These run in the served lane and skip everywhere else.

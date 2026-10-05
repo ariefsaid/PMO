@@ -177,6 +177,15 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
     expect(result).toMatchObject({ id: 'pmo-1', si_number: 'ACC-SINV-2026-00001' });
   });
 
+  it('AC-WHT-001: the receipt command retains entered withholding and slip in the durable intent', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'PE-001', canonical: { id: 'receipt-1', ip_number: 'PE-001' } });
+    await repositories.revenue.createPayment({ customerId: 'cust-1', salesInvoiceId: 'si-1',
+      paidAmount: 1000, receivedAmount: 980, withheldAmount: 20,
+      withholdingSlipNumber: 'WHT-001', date: '2026-10-05' });
+    expect(dispatchSpy.mock.calls[0][2]).toMatchObject({ paid_amount: 1000, received_amount: 980,
+      withheld_amount: 20, withholding_slip_number: 'WHT-001' });
+  });
+
   it('createPayment dispatches externally with erp_doc_kind=incoming-payment + a minted idempotencyKey', async () => {
     dispatchSpy.mockResolvedValue({
       externalRecordId: 'ACC-PE-REC-2026-00001',
