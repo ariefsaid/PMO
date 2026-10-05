@@ -1,6 +1,6 @@
--- 0225_project_numbering.sql — PMO-owned project identifier (#771, OD-ID-1).
+-- 0231_project_numbering.sql — PMO-owned project identifier (#771, OD-ID-1).
 -- projects.code remains the organisation's independent Client Project Code.
--- Reversible via supabase/migrations/rollback/0225_project_numbering_down.sql.
+-- Reversible via supabase/migrations/rollback/0231_project_numbering_down.sql.
 
 -- A NULL pattern is the system default. Custom patterns contain exactly one each of the three
 -- supported tokens; literal text is otherwise unrestricted, while braces are reserved for tokens.
@@ -282,6 +282,7 @@ as $$
       p.contract_value,
       p.currency,
       p.tax_treatment,
+      p.tax_rate, p.tax_base_numerator, p.tax_base_denominator,
       p.last_update,
       p.project_manager_id,
       coalesce(c.win_probability, 0) as win_prob
@@ -318,13 +319,18 @@ as $$
           'name',            pl.name,
           'code',            pl.code,
           'pmo_project_number', pl.pmo_project_number,
-          'client_name',     co.name,
+          'client_name',     coalesce(nullif(btrim(co.short_name), ''), co.name),
+          'client_legal_name', co.name,
           'end_client_id',   pl.end_client_id,
-          'end_client_name', ec.name,
+          'end_client_name', coalesce(nullif(btrim(ec.short_name), ''), ec.name),
+          'end_client_legal_name', ec.name,
           'status',          pl.status,
           'contract_value',  pl.contract_value,
           'currency',        pl.currency,
           'tax_treatment',   pl.tax_treatment,
+          'tax_rate', pl.tax_rate,
+          'tax_base_numerator', pl.tax_base_numerator,
+          'tax_base_denominator', pl.tax_base_denominator,
           'win_probability', pl.win_prob,
           'last_update',     pl.last_update,
           'pm_name',         pm.full_name
@@ -340,7 +346,7 @@ as $$
 $$;
 
 comment on function public.get_sales_pipeline() is
-  'Latest definition: 0225. Projects include the PMO Project Number and optional Client Project Code. To add a projection column, copy this body and reapply AC-CODE-003 JSON-key proof.';
+  'Latest definition: 0231. Projects include the PMO Project Number and optional Client Project Code. To add a projection column, copy this body and reapply AC-CODE-003 JSON-key proof.';
 
 -- The RPC and projection are part of the API surface. Refresh PostgREST metadata for a live local
 -- or hosted stack that applied this migration without restarting its API container.

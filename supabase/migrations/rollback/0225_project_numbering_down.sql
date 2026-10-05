@@ -1,4 +1,4 @@
--- Rollback for 0225_project_numbering.sql. Drops only #771 additions; never changes projects.code.
+-- Rollback for 0231_project_numbering.sql. Drops only #771 additions; never changes projects.code.
 
 drop trigger if exists projects_pmo_number_immutable on public.projects;
 drop trigger if exists zz_projects_mint_pmo_number on public.projects;
@@ -28,7 +28,7 @@ alter table public.organizations
   drop column if exists project_number_pattern;
 drop function if exists public.is_valid_project_number_pattern(text);
 
--- Restore 0223's latest pipeline projection (0225 replaced its JSON keys additively).
+-- Restore 0227's pipeline projection; retain display/legal names and tax-base fractions.
 create or replace function public.get_sales_pipeline()
   returns json
   language sql
@@ -46,6 +46,7 @@ as $$
       p.contract_value,
       p.currency,
       p.tax_treatment,
+      p.tax_rate, p.tax_base_numerator, p.tax_base_denominator,
       p.last_update,
       p.project_manager_id,
       coalesce(c.win_probability, 0) as win_prob
@@ -80,13 +81,18 @@ as $$
         json_build_object(
           'id',              pl.id,
           'name',            pl.name,
-          'client_name',     co.name,
+          'client_name',     coalesce(nullif(btrim(co.short_name), ''), co.name),
+          'client_legal_name', co.name,
           'end_client_id',   pl.end_client_id,
-          'end_client_name', ec.name,
+          'end_client_name', coalesce(nullif(btrim(ec.short_name), ''), ec.name),
+          'end_client_legal_name', ec.name,
           'status',          pl.status,
           'contract_value',  pl.contract_value,
           'currency',        pl.currency,
           'tax_treatment',   pl.tax_treatment,
+          'tax_rate', pl.tax_rate,
+          'tax_base_numerator', pl.tax_base_numerator,
+          'tax_base_denominator', pl.tax_base_denominator,
           'win_probability', pl.win_prob,
           'last_update',     pl.last_update,
           'pm_name',         pm.full_name
@@ -101,6 +107,6 @@ as $$
   );
 $$;
 comment on function public.get_sales_pipeline() is
-  'Latest definition: 0223. Forward the optional end-customer id/name; when updating, copy this body and reapply the ACL statements.';
+  'Latest definition: 0227. Forward company display/legal names and tax-base fractions; retain both when updating this projection.';
 
 notify pgrst, 'reload schema';

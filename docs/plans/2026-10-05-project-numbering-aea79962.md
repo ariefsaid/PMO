@@ -57,7 +57,7 @@ the other.
 
 | AC | Canonical owner | Supplemental proof |
 | --- | --- | --- |
-| AC-CODE-001 | `supabase/tests/0225_project_numbering.test.sql` | Admin panel RTL test covers loading, inline grammar feedback, save/error/readonly presentation. |
+| AC-CODE-001 | `supabase/tests/0231_project_numbering.test.sql` | Admin panel RTL test covers loading, inline grammar feedback, save/error/readonly presentation. |
 | AC-CODE-002 | `pmo-portal/e2e/serial/AC-CODE-002-project-number-proposal.spec.ts` | pgTAP proves membership, role, tenant, pattern, year, atomic allocation, grants, backfill and uniqueness; RTL proves proposal/loading/missing-segment/edit behavior. |
 | AC-CODE-003 | `pmo-portal/e2e/AC-CODE-003-project-identifiers.spec.ts` | RTL pins individual list/card/detail/search predicates and command-palette indexing. |
 
@@ -71,7 +71,7 @@ No new dependency and no shell redesign are required.
 
 ### 1. Lock down the database contract first
 
-**Files:** create `supabase/tests/0225_project_numbering.test.sql`.
+**Files:** create `supabase/tests/0231_project_numbering.test.sql`.
 
 Write the failing pgTAP contract before adding the migration. Use two organisations, active Admin/PM
 fixtures, two companies (one without a segment), deterministic historic `created_at` values on legacy
@@ -104,13 +104,13 @@ Every assertion description that proves an acceptance criterion starts with its 
 
 **Verify (red first, then later green):**
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0225_project_numbering.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0231_project_numbering.test.sql'
 ```
 
 ### 2. Add the reversible schema, backfill, and database allocator
 
-**Files:** create `supabase/migrations/0225_project_numbering.sql`; create
-`supabase/migrations/rollback/0225_project_numbering_down.sql`.
+**Files:** create `supabase/migrations/0231_project_numbering.sql`; create
+`supabase/migrations/rollback/0231_project_numbering_down.sql`.
 
 After Task 1 is red, implement the migration in this order:
 
@@ -143,7 +143,7 @@ After Task 1 is red, implement the migration in this order:
 
 **Verify:**
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0225_project_numbering.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0231_project_numbering.test.sql'
 ```
 
 ### 3. Regenerate the typed schema and expose narrow DAL/repository contracts
@@ -361,7 +361,7 @@ or skipping a test. Do not regenerate `package-lock.json`.
 
 **Verify:**
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0225_project_numbering.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0231_project_numbering.test.sql'
 cd pmo-portal && ../scripts/with-test-lock.sh npx vitest run src/lib/projectNumberPattern.test.ts src/lib/db/orgs.test.ts src/lib/db/companies.test.ts src/lib/db/projects.test.ts src/lib/db/opportunity.test.ts src/hooks/useOrgProjectNumberPattern.test.tsx pages/admin/OrgProjectNumberPattern.test.tsx src/auth/policy.test.ts pages/__tests__/CompanyDetail.g3c.test.tsx pages/Companies.test.tsx pages/__tests__/Projects.projectNumber.test.tsx pages/Projects.test.tsx pages/SalesPipeline.test.tsx src/hooks/__tests__/useRecordSearch.test.tsx components/ProjectFormModal.projectNumber.test.tsx components/ProjectCardShell.test.tsx && npm run typecheck && npx eslint --max-warnings=0 src/lib/projectNumberPattern.ts src/lib/db/orgs.ts src/lib/db/companies.ts src/lib/db/projects.ts src/lib/db/opportunity.ts src/hooks/useOrgProjectNumberPattern.ts src/hooks/useProjects.ts src/lib/repositories/index.ts src/lib/repositories/types.ts pages/admin/OrgProjectNumberPattern.tsx pages/Administration.tsx pages/Companies.tsx pages/CompanyDetail.tsx pages/Projects.tsx pages/project-detail/ProjectDetail.tsx pages/project-detail/ProjectDetailHeader.tsx pages/project-detail/ProjectDetailRail.tsx components/ProjectFormModal.tsx components/ProjectCard.tsx components/ProjectCardShell.tsx && npm run check:i18n
 scripts/with-db-lock.sh scripts/e2e-local.sh AC-CODE-002-project-number-proposal
 scripts/with-db-lock.sh scripts/e2e-local.sh AC-CODE-003-project-identifiers

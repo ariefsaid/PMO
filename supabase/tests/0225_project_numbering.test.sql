@@ -1,4 +1,4 @@
--- 0225_project_numbering.test.sql — project numbering contract (#771, OD-ID-1).
+-- 0231_project_numbering.test.sql — project numbering contract (#771, OD-ID-1).
 -- Canonical pgTAP owner: AC-CODE-001 (configuration) + database allocation invariants for AC-CODE-002.
 begin;
 select plan(36);
