@@ -2878,3 +2878,11 @@ route favours:
   only an Admin may decide (break-glass, audited).
 - **DD-APR-5 — amounts route up, never down.** A negative header or line amount sends the request to the senior
   set, and a request never counts below zero in the budget-used sum; NULL amount or route defaults to senior.
+
+**DD-BAM-1..6 (Director, 2026-10-06, #768) — several ERP accounts per budget category.** Ruled as proposed in
+`docs/specs/budget-account-map-multi.spec.md` §0: keep the eight categories (travel, accommodation and field
+accounts map under an existing category; adding categories waits for an owner call) · a push-target flag on the
+existing map, at most one per category, an account still in at most one category · a category with accounts but
+no push account blocks the push like an unmapped one · moving the push account never re-pushes an existing
+budget · actuals already sum every mapped account, no RPC change · ERPNext's overspend warning watches only the
+push account (accepted; the default is warn, not block).
