@@ -1,5 +1,5 @@
 import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
-import { matchesProjectClassification } from '@/src/lib/projectClassification';
+import { activeClassificationCount, matchesProjectClassification } from '@/src/lib/projectClassification';
 import React, { useMemo, useState } from 'react';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import {
@@ -422,7 +422,7 @@ const SalesPipeline: React.FC = () => {
   // genuine collection-empty case is `state === 'empty'` below), so a zero-match here is a
   // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
   // nothing is active (e.g. no open deals but lost ones exist) would be a no-op, so no action then.
-  const classificationsActive = [workingSet.serviceLine, workingSet.sector, workingSet.location, workingSet.awardType, workingSet.biddingEntity].some(Boolean);
+  const classificationsActive = activeClassificationCount(workingSet) > 0;
   const filtersActive = classificationsActive || search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
   // The Lost / Needs-attention copy ("No lost projects") is true only when the SCOPE itself is
   // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
@@ -605,8 +605,12 @@ const SalesPipeline: React.FC = () => {
       {state === undefined && view === 'kanban' && boardZeroMatch && (
         <ListState
           variant="empty"
-          title={t('sales.tableEmpty.search.title', 'No projects match your search')}
-          sub={t('sales.tableEmpty.search.sub', 'Try a different name or customer.')}
+          title={classificationsActive && search.trim() === ''
+            ? t('sales.boardEmpty.classification.title', 'No projects match these classifications')
+            : t('sales.tableEmpty.search.title', 'No projects match your search')}
+          sub={classificationsActive && search.trim() === ''
+            ? t('sales.boardEmpty.classification.sub', 'Clear a classification filter to see more projects.')
+            : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')}
           action={{ label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }}
         />
       )}

@@ -1,5 +1,5 @@
 import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
-import { matchesProjectClassification } from '@/src/lib/projectClassification';
+import { activeClassificationCount, matchesProjectClassification, pickClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -314,7 +314,7 @@ const Projects: React.FC = () => {
     [projectManagers, t],
   );
 
-  const classificationCount = [workingSet.serviceLine, workingSet.sector, workingSet.location, workingSet.awardType, workingSet.biddingEntity].filter(Boolean).length;
+  const classificationCount = activeClassificationCount(workingSet);
   const classificationFilters = <ProjectClassificationFilters rows={all} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />;
   const filtersActive =
     classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
@@ -1230,7 +1230,7 @@ const Projects: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
-            ...editTarget,
+            ...pickClassification(editTarget),
             id: editTarget.id,
             name: editTarget.name,
             code: editTarget.code,

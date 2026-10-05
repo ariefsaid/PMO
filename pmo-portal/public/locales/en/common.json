@@ -2185,6 +2185,12 @@
       "placeholder": "Search projects…"
     },
     "summaryLabel": "Pipeline summary",
+    "boardEmpty": {
+      "classification": {
+        "sub": "Clear a classification filter to see more projects.",
+        "title": "No projects match these classifications"
+      }
+    },
     "tableEmpty": {
       "clearFilters": "Clear filters",
       "lost": {
@@ -3006,6 +3012,7 @@
     "generate": "Generate"
   },
   "projectClassification": {
+    "tooLong": "Use {{max}} characters or fewer.",
     "title": "Classification",
     "serviceLine": "Service line",
     "sector": "Sector",

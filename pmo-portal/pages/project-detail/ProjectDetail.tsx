@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -380,7 +381,7 @@ const ProjectDetail: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
-            ...project,
+            ...pickClassification(project),
             id: project.id,
             name: project.name,
             code: project.code,

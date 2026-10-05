@@ -463,6 +463,8 @@ it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible dea
   expect(screen.getByText('Northwind ERP Rollout')).toBeVisible();
   expect(screen.queryByText('Regional Services')).toBeNull();
   await user.type(screen.getByLabelText('Filter by location'), 'Bali');
-  expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
+  // #830: the location filter writes the URL after a short pause, not on every keystroke.
+  await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull());
   expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
+  if (view === 'kanban') expect(screen.getByText('No projects match these classifications')).toBeVisible();
 });
