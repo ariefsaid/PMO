@@ -934,6 +934,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
+  const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // Resolve and validate authoring lines before the outbox body snapshot or any ERP money write.
   const itemKind = deps.command.record.erp_doc_kind;
   if (
@@ -957,7 +958,6 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       record.items = lines;
     }
   }
-  const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
   // same-org, daily hours). Gated on the kind, so no other command pays for the extra reads.
   const { refs: timesheetRefs } = await resolveTimesheetRefs(deps, binding);
