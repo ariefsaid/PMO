@@ -2796,3 +2796,35 @@ matching existing rows by name and skipping them (only budget lines carry an imp
 service-role historical loader, which bypasses RLS. **Order matters:** once ERPNext is connected, company and
 contact names mirror ERPNext and are read-only in PMO (0097), and once ClickUp is connected the same holds for tasks
 (0093) — so seed those before connecting, or let the connection bring them in.
+
+## OD-ID-1 — PMO mints its own record numbers; a client's own codes and the ERP's IDs are separate fields (owner, 2026-10-05)
+
+A client organisation is a tenant of PMO, so its internal numbering (a project-code standard, a group's
+order numbers) is **its** data, not PMO's identifier. PMO mints its own human-readable number for each
+record; the client may bring its own code, stored and shown alongside; an external ERP mints its own ID,
+held in `external_refs`. None of the three is derived from another. For projects this re-scopes #771:
+PMO generates the project number; `projects.code` stays the organisation's own code (free text, unique
+per org). The same rule already holds for parties (ERPNext `C-######` vs the PMO company).
+
+## OD-REEL-1 — the showreel stays as cut; the product catches up (owner, 2026-10-05)
+
+The showreel is not edited to match today's product. Its unmet promises are built instead, sequenced
+around the first client's go-live (map: "RIS go-live and the showreel promise"):
+- **Customer invoicing without an ERP** (#784) — build; after the first client is live. PMO must be able
+  to run with no ERP.
+- **Billing milestones** (#785, with down payment / progress billing #766) — build; after go-live.
+- **Assistant reach into invoices** (#787) — build it to work reliably. **The deployed model may be changed
+  to one that is strong at tool calling** if the eval harness (ADR-0052) shows the current one can't do
+  it; the eval result decides, not preference. This relaxes the earlier binding model choice for this
+  purpose.
+
+## OD-SEED-5 — historical projects load at their real stage under the owner; bids load as submitted (owner, 2026-10-05)
+
+For the first client's starting data: won projects load directly (stage, contract value, dates, budget
+total) as a one-off Director-run load attributed to the owner — an owner-approved exception to DD-API-3's
+"never the service-role loader". Open bids load at their submitted stage, and the owner judges each one
+inside PMO's pipeline rather than in the spreadsheet. Budgets come from each project's own budget
+workbook. Work orders are left for the client's users to create. Client, end customer and prospect are
+**roles** a company plays on a project, not separate kinds of record — in PMO (client / end customer on
+the project) and in ERPNext (one Customer record each). A follow-up widens the CLI so these loads stop
+needing the Director (#796).
