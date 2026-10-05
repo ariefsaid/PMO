@@ -15,6 +15,7 @@ import {
   useToast,
   useEntityForm,
 } from '@/src/components/ui';
+import { Constants } from '@/src/lib/supabase/database.types';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
@@ -28,7 +29,7 @@ import {
 
 /**
  * Administration › Budget account map (P3c slice 6, FR-BUD-110..113) — the Admin CRUD surface for
- * `budget_category_account_map`: PMO's 7 fixed `budget_category` values, each mapped (or not) to an
+ * `budget_category_account_map`: PMO's fixed `budget_category` values, each mapped (or not) to an
  * ERP account. Every row is ALWAYS shown, mapped or not — an unmapped category is exactly the state
  * that FAILS CLOSED at the next push (`categoryAccountMap.ts`'s `BudgetCategoryUnmappedError`), so it
  * must stay visible, not hidden.
@@ -44,15 +45,7 @@ import {
  * re-asserted by the DB regardless (the FE check is a courtesy, never the enforcement).
  */
 
-const BUDGET_CATEGORIES: BudgetCategory[] = [
-  'Labor',
-  'Materials',
-  'Subcontractors',
-  'Equipment',
-  'Permits & Fees',
-  'Overheads',
-  'Contingency',
-];
+const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
 interface FormValues {
   erpAccount: string;
@@ -60,6 +53,8 @@ interface FormValues {
 
 const BudgetAccountMap: React.FC = () => {
   const { t } = useTranslation();
+  const categoryLabel = (value: string) => value === 'Special expenses'
+    ? t('budget.category.specialExpenses', 'Special expenses') : value;
   const may = usePermission();
   const canManage = may('manage', 'integration');
   const { toast } = useToast();
@@ -125,7 +120,7 @@ const BudgetAccountMap: React.FC = () => {
     const category = deleteTarget;
     try {
       await deleteMutation.mutateAsync(category);
-      toast(t('admin.budgetMap.toast.unmapped', 'Category unmapped'), category, 'success');
+      toast(t('admin.budgetMap.toast.unmapped', 'Category unmapped'), categoryLabel(category), 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -136,7 +131,7 @@ const BudgetAccountMap: React.FC = () => {
   if (isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={7} testId="budget-account-map-loading" />
+        <ListState variant="loading" rows={BUDGET_CATEGORIES.length} testId="budget-account-map-loading" />
       </div>
     );
   }
@@ -199,7 +194,7 @@ const BudgetAccountMap: React.FC = () => {
             return (
               <tr key={category} className="block border-b border-border py-2 sm:table-row sm:py-0">
                 <td className="block px-3 py-1 text-[13.5px] font-medium sm:table-cell sm:border-b sm:border-border sm:py-2">
-                  {category}
+                  {categoryLabel(category)}
                 </td>
                 <td className="block px-3 py-1 text-[13.5px] sm:table-cell sm:border-b sm:border-border sm:py-2">
                   {/* ⚑ I-8 — an operator arriving from the budget banner asks one question: WHICH of
@@ -222,12 +217,12 @@ const BudgetAccountMap: React.FC = () => {
                         onClick={() => setEditTarget({ category, existing: account ?? null })}
                       >
                         {account
-                          ? t('admin.budgetMap.edit', { defaultValue: 'Edit {{category}}', category })
-                          : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category })}
+                          ? t('admin.budgetMap.edit', { defaultValue: 'Edit {{category}}', category: categoryLabel(category) })
+                          : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) })}
                       </Button>
                       {account && (
                         <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(category)}>
-                          {t('admin.budgetMap.unmap', { defaultValue: 'Unmap {{category}}', category })}
+                          {t('admin.budgetMap.unmap', { defaultValue: 'Unmap {{category}}', category: categoryLabel(category) })}
                         </Button>
                       )}
                     </div>
@@ -255,7 +250,7 @@ const BudgetAccountMap: React.FC = () => {
               }
               toast(
                 t('admin.budgetMap.toast.saved', 'Account map saved'),
-                `${editTarget.category} → ${erpAccount}`,
+                `${categoryLabel(editTarget.category)} → ${erpAccount}`,
                 'success',
               );
               setEditTarget(null);
@@ -273,7 +268,7 @@ const BudgetAccountMap: React.FC = () => {
         tone="destructive"
         title={
           deleteTarget
-            ? t('admin.budgetMap.confirm.title', { defaultValue: 'Unmap {{category}}?', category: deleteTarget })
+            ? t('admin.budgetMap.confirm.title', { defaultValue: 'Unmap {{category}}?', category: categoryLabel(deleteTarget) })
             : t('admin.budgetMap.confirm.fallbackTitle', 'Unmap category?')
         }
         description={t(
@@ -305,6 +300,8 @@ interface MapFormModalProps {
 
 const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows, submitError, onClose, onSubmit }) => {
   const { t } = useTranslation();
+  const categoryLabel = (value: string) => value === 'Special expenses'
+    ? t('budget.category.specialExpenses', 'Special expenses') : value;
   const isEdit = existing !== null;
 
   const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
@@ -321,7 +318,7 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows
       errors.erpAccount = t('admin.budgetMap.form.conflict', {
         defaultValue: '{{account}} is already mapped to {{category}}.',
         account: trimmed,
-        category: conflict.category,
+        category: categoryLabel(conflict.category),
       });
     }
     return errors;
@@ -353,8 +350,8 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows
       open
       title={
         isEdit
-          ? t('admin.budgetMap.form.editTitle', { defaultValue: 'Edit {{category}} mapping', category })
-          : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category })
+          ? t('admin.budgetMap.form.editTitle', { defaultValue: 'Edit {{category}} mapping', category: categoryLabel(category) })
+          : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) })
       }
       subtitle={
         isEdit

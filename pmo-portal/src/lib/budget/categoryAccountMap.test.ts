@@ -8,6 +8,23 @@ const MAP = [
 ];
 
 describe('categoryAccountMap (FR-BUD-110..114 — the PMO category ↔ ERP account boundary)', () => {
+  it('AC-CAT-006: maps Special expenses through its configured account and sums integer cents exactly', () => {
+    expect(resolveBudgetAccounts([
+      { category: 'Special expenses', budgeted_amount: '25000.10' },
+      { category: 'Special expenses', budgeted_amount: '0.20' },
+    ], [{ category: 'Special expenses', erp_account: 'Travel expenses' }])).toEqual([
+      { account: 'Travel expenses', budget_amount: '25000.30' },
+    ]);
+  });
+
+  it('AC-CAT-006: refuses an unmapped non-zero Special expenses amount and names the category', () => {
+    expect(() => resolveBudgetAccounts([
+      { category: 'Labor', budgeted_amount: '10.00' },
+      { category: 'Special expenses', budgeted_amount: '0.01' },
+    ], MAP)).toThrow('budget categories have no ERP account mapping: Special expenses');
+    expect(resolveBudgetAccounts([{ category: 'Special expenses', budgeted_amount: '0.00' }], MAP)).toEqual([]);
+  });
+
   it('AC-BUD-011 resolves mapped non-zero categories to their accounts as decimal-strings', () => {
     const rows = resolveBudgetAccounts(
       [

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListState, GateNotice, Button, StatusPill, NumberField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -62,8 +63,6 @@ export interface BudgetProjectionProps {
  */
 const ACCOUNT_MAP_HREF = '/administration/accounting#budget-account-map';
 
-const CATEGORY_LABELS: Record<string, string> = {}; // reserved for future per-org relabeling; identity today.
-const labelFor = (c: string) => CATEGORY_LABELS[c] ?? c;
 
 /**
  * ⚑ C-1/C-2 — the em-dash is not a formatting choice, it is a STATEMENT, and a bare one reads as "we
@@ -153,6 +152,9 @@ const QUIET_STATES: Record<string, { label: string; variant: 'neutral' | 'progre
 const BLOCKED_STATES = new Set(['failed', 'held', 'never-pushed', 'unstamped-activation']);
 
 const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
+  const { t } = useTranslation();
+  const labelFor = (category: string) => category === 'Special expenses'
+    ? t('budget.category.specialExpenses', 'Special expenses') : category;
   const may = usePermission();
   const canEditEtc = may('edit', 'budgetLine');
   const { toast } = useToast();
@@ -265,7 +267,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     }
     try {
       await etcMutation.mutateAsync({ fiscalYear, category, pmoEtc: parsed });
-      toast('Estimate to complete saved', `${category} · ${fiscalYear}`, 'success');
+      toast('Estimate to complete saved', `${labelFor(category)} · ${fiscalYear}`, 'success');
       closeEdit(category);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -665,7 +667,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                                 }}
                                 variant="ghost"
                                 size="sm"
-                                aria-label={`Edit ${row.category} ETC`}
+                                aria-label={`Edit ${labelFor(row.category)} ETC`}
                                 onClick={() => openEdit(row)}
                               >
                                 Edit

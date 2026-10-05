@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state (mirrors Procurement.test.tsx pattern)
@@ -444,6 +445,41 @@ describe('ProjectBudget New version form (versions list state)', () => {
 // Line-item add form in Draft editor
 // ---------------------------------------------------------------------------
 describe('ProjectBudget line-item add form (Draft)', () => {
+  it('AC-CAT-007: keeps positioned input labels inside the editor scrolling region', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    const scrollRegion = screen.getByRole('combobox', { name: 'Line item category' }).closest('table')!.parentElement;
+    expect(scrollRegion).toHaveClass('relative', 'overflow-x-auto');
+  });
+
+  it('AC-CAT-005: the Bahasa picker uses Biaya khusus but saves the canonical enum value', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    render(<BahasaProvider><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" /></ToastProvider></MemoryRouter></BahasaProvider>);
+    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    expect(screen.getByRole('option', { name: 'Biaya khusus' })).toHaveValue('Special expenses');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Line item category' }), 'Special expenses');
+    await userEvent.type(screen.getByPlaceholderText(/Amount/i), '10');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    expect(mockCreateLineItem).toHaveBeenCalledWith({ versionId: 'v-draft', item: expect.objectContaining({ category: 'Special expenses', budgeted_amount: 10 }) });
+  });
+
+  it('AC-CAT-002: saves Special expenses with its canonical category and exact entered amount', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Line item category' }), 'Special expenses');
+    await userEvent.type(screen.getByPlaceholderText(/Amount/i), '25000.30');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      item: expect.objectContaining({ category: 'Special expenses', budgeted_amount: 25000.30 }),
+    });
+  });
+
   it('can add a line item via the editor form', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];

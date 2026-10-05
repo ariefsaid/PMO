@@ -6170,6 +6170,7 @@ export type Database = {
         | "Permits & Fees"
         | "Overheads"
         | "Contingency"
+        | "Special expenses"
       budget_status: "Draft" | "Active" | "Archived"
       company_type: "Internal" | "Client" | "Vendor"
       crm_activity_kind: "Call" | "Email" | "Meeting" | "Note"
@@ -6357,6 +6358,7 @@ export const Constants = {
         "Permits & Fees",
         "Overheads",
         "Contingency",
+        "Special expenses",
       ],
       budget_status: ["Draft", "Active", "Archived"],
       company_type: ["Internal", "Client", "Vendor"],

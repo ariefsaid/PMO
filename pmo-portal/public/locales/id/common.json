@@ -1,4 +1,9 @@
 {
+  "budget": {
+    "category": {
+      "specialExpenses": "Biaya khusus"
+    }
+  },
   "admin": {
     "access": {
       "checking": "Memeriksa akses Administrasi Anda…",

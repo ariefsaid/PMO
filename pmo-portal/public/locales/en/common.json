@@ -1,4 +1,9 @@
 {
+  "budget": {
+    "category": {
+      "specialExpenses": "Special expenses"
+    }
+  },
   "admin": {
     "access": {
       "checking": "Checking your Administration access…",
