@@ -863,7 +863,10 @@
       "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
       "mobile": "What needs your attention across the contracting book."
     },
-    "title": "Executive Dashboard"
+    "title": "Executive Dashboard",
+    "winRate": {
+      "declined": "{{n}} declined to bid — not counted in the win rate"
+    }
   },
   "funnel": {
     "scrollableRegion": "Stage summary, scrollable horizontally"
@@ -1594,6 +1597,12 @@
       },
       "lostNotice": "This project is marked lost. It has left the active pipeline.",
       "markLost": "Mark lost",
+      "markDeclined": "Decline to bid",
+      "declinedConfirm": {
+        "title": "Decline to bid",
+        "body": "This records {{project}} as declined: we chose not to bid. It leaves the active pipeline and is not counted against the win rate.",
+        "confirm": "Decline to bid"
+      },
       "markWon": "Mark won",
       "nextActionsHeading": "Next actions",
       "notSet": "Not set",
@@ -2077,6 +2086,7 @@
       "onHold": "On Hold",
       "closeOut": "Close Out",
       "lossTender": "Loss Tender",
+      "declined": "Declined",
       "internalProject": "Internal Project"
     },
     "identifiers": {
@@ -2179,7 +2189,8 @@
       "tender": "Tender",
       "negotiation": "Negotiation",
       "lost": "Lost"
-    }
+    },
+    "lostCounts": "Lost {{lost}} · Declined {{declined}}"
   },
   "shell": {
     "backBar": {

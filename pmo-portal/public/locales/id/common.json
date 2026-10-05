@@ -863,7 +863,10 @@
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
     },
-    "title": "Dashboard Eksekutif"
+    "title": "Dashboard Eksekutif",
+    "winRate": {
+      "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+    }
   },
   "funnel": {
     "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
@@ -1594,6 +1597,12 @@
       },
       "lostNotice": "Proyek ini ditandai kalah. Proyek sudah keluar dari pipeline aktif.",
       "markLost": "Tandai kalah",
+      "markDeclined": "Tidak ikut tender",
+      "declinedConfirm": {
+        "title": "Tidak ikut tender",
+        "body": "Ini mencatat {{project}} sebagai tidak diikuti: kami memilih tidak mengajukan penawaran. Proyek keluar dari pipeline aktif dan tidak dihitung dalam win rate.",
+        "confirm": "Tidak ikut tender"
+      },
       "markWon": "Tandai menang",
       "nextActionsHeading": "Tindakan berikutnya",
       "notSet": "Belum diisi",
@@ -2077,6 +2086,7 @@
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
       "lossTender": "Tender kalah",
+      "declined": "Tidak ikut tender",
       "internalProject": "Proyek internal"
     },
     "identifiers": {
@@ -2179,7 +2189,8 @@
       "tender": "Tender",
       "negotiation": "Negosiasi",
       "lost": "Kalah"
-    }
+    },
+    "lostCounts": "Kalah {{lost}} · Tidak ikut tender {{declined}}"
   },
   "shell": {
     "backBar": {

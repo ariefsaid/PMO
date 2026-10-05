@@ -27,16 +27,17 @@ export interface TransitionProjectOpts {
 // ---------------------------------------------------------------------------
 
 export const LEGAL_PROJECT_TRANSITIONS: Record<string, string[]> = {
-  'Leads':               ['PQ Submitted', 'Loss Tender', 'Internal Project'],
-  'PQ Submitted':        ['Quotation Submitted', 'Leads', 'Loss Tender'],
-  'Quotation Submitted': ['Tender Submitted', 'PQ Submitted', 'Won, Pending KoM', 'Loss Tender'],
-  'Tender Submitted':    ['Negotiation', 'Quotation Submitted', 'Won, Pending KoM', 'Loss Tender'],
-  'Negotiation':         ['Won, Pending KoM', 'Tender Submitted', 'Loss Tender'],
+  'Leads':               ['PQ Submitted', 'Loss Tender', 'Internal Project', 'Declined'],
+  'PQ Submitted':        ['Quotation Submitted', 'Leads', 'Loss Tender', 'Declined'],
+  'Quotation Submitted': ['Tender Submitted', 'PQ Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'Tender Submitted':    ['Negotiation', 'Quotation Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'Negotiation':         ['Won, Pending KoM', 'Tender Submitted', 'Loss Tender', 'Declined'],
   'Won, Pending KoM':    ['Ongoing Project', 'On Hold', 'Close Out'],
   'Ongoing Project':     ['On Hold', 'Close Out'],
   'On Hold':             ['Ongoing Project', 'Close Out'],
   'Close Out':           ['Ongoing Project'],
   'Loss Tender':         ['Negotiation'],
+  'Declined':            ['Negotiation'],
   'Internal Project':    [],
 };
 
@@ -60,7 +61,9 @@ export const ON_HAND_STATUSES: readonly string[] = [
   'Close Out',
 ];
 
-export const LOST_STATUSES: readonly string[] = ['Loss Tender'];
+// #774 (Director): Declined stays in the closed "Lost" kanban column/filter (the pipeline is closed
+// for it) but wears its own neutral pill and is counted separately; win-rate already excludes it.
+export const LOST_STATUSES: readonly string[] = ['Loss Tender', 'Declined'];
 
 export const INTERNAL_STATUSES: readonly string[] = ['Internal Project'];
 
