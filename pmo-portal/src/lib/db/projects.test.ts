@@ -26,6 +26,7 @@ import {
   archiveProject,
   deleteProject,
   setProjectContractValue,
+  proposeProjectNumber,
 } from './projects';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
 import { AppError } from '@/src/lib/appError';
@@ -308,6 +309,33 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
         end_date: null,
       }),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('AC-CODE-002 project identifier DAL contract', () => {
+  it('AC-CODE-002 proposes only through the client-scoped RPC', async () => {
+    mockRpc.mockResolvedValue({ data: 'PMO-26-0001', error: null });
+    await expect(proposeProjectNumber('client-1')).resolves.toBe('PMO-26-0001');
+    expect(mockRpc).toHaveBeenCalledWith('propose_project_number', { p_client_id: 'client-1' });
+  });
+
+  it('AC-CODE-002 creates with PMO number and Client Project Code as separate optional values', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'p1' }, error: null });
+    await createProject({
+      name: 'New Project', status: 'Internal Project', client_id: 'client-1',
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+      pmo_project_number: 'PMO-26-0001', code: 'CLIENT-42',
+    });
+    expect(calls.insert[0]).toMatchObject({ pmo_project_number: 'PMO-26-0001', code: 'CLIENT-42' });
+  });
+
+  it('AC-CODE-002 preserves a duplicate-number 23505 as an AppError code', async () => {
+    makeWriteBuilder({ data: null, error: { message: 'duplicate key', code: '23505' } });
+    await expect(createProject({
+      name: 'Duplicate', status: 'Internal Project', client_id: 'client-1',
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+      pmo_project_number: 'PMO-26-0001',
+    })).rejects.toMatchObject({ code: '23505' });
   });
 });
 

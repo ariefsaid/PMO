@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { KanbanCard, CompanyNameLink } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import { projectIconColor } from './projects';
@@ -19,7 +20,9 @@ export interface ProjectCardShellProps {
    * nested Link would be invalid HTML — the name renders as inert text there.
    */
   clientId?: string | null;
-  /** Optional project code, rendered as a "· CODE" qualifier. */
+  /** PMO-owned stable identity, distinct from client and external codes. */
+  pmoProjectNumber?: string | null;
+  /** Optional organisation-owned Client Project Code. */
   code?: string | null;
   /** Status slot — a <StatusPill> for the project's lifecycle status. */
   status: React.ReactNode;
@@ -64,6 +67,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   name,
   client,
   clientId,
+  pmoProjectNumber,
   code,
   status,
   body,
@@ -73,7 +77,13 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   selected = false,
   className,
 }) => {
+  const { t } = useTranslation();
   const isKanban = variant === 'kanban';
+  const cardLabel = [
+    name,
+    pmoProjectNumber && `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${pmoProjectNumber}`,
+    code && `${t('projects.identifiers.client', 'Client Project Code')}: ${code}`,
+  ].filter(Boolean).join('. ');
   const iconSize = isKanban ? 'size-[26px] text-[12px]' : 'size-7 text-[11px]';
 
   const head = (
@@ -108,7 +118,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
         {isKanban && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
         <div
           className={cn(
-            'mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground',
+            'mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground',
             isKanban && 'mt-1',
           )}
         >
@@ -122,7 +132,16 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           ) : (
             <span className="truncate">{client ?? '—'}</span>
           )}
-          {code && <span className="shrink-0 font-mono text-[11px]">· {code}</span>}
+          {pmoProjectNumber && (
+            <span className="break-all font-mono text-[11px]">
+              <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {pmoProjectNumber}
+            </span>
+          )}
+          {code && (
+            <span className="break-all font-mono text-[11px]">
+              <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {code}
+            </span>
+          )}
         </div>
       </div>
       {!isKanban && status}
@@ -136,7 +155,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
       <KanbanCard
         onActivate={onOpen}
         selected={selected}
-        aria-label={name}
+        aria-label={cardLabel}
         data-testid="project-card"
         className={className}
       >

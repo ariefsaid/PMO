@@ -208,6 +208,23 @@
         "required": "Akun ERP wajib diisi.",
         "conflict": "{{account}} sudah dipetakan ke {{category}}."
       }
+    },
+    "projectNumberPattern": {
+      "title": "Pola nomor proyek",
+      "description": "Format nomor proyek yang ditetapkan PMO. Gunakan {CLIENT}, {YY}, dan {SEQ4} masing-masing tepat satu kali.",
+      "immutable": "Perubahan hanya berlaku untuk usulan berikutnya; nomor proyek yang sudah ada tidak berubah.",
+      "loadError": {
+        "title": "Pola nomor proyek tidak dapat dimuat"
+      },
+      "label": "Pola nomor proyek",
+      "example": "Contoh: PRE-{CLIENT}-{YY}-{SEQ4}",
+      "toast": {
+        "saved": "Pola nomor proyek diperbarui",
+        "detail": "Nomor proyek baru akan menggunakan pola ini. Nomor proyek yang sudah ada tidak berubah."
+      },
+      "saving": "Menyimpan…",
+      "save": "Simpan pola",
+      "adminOnly": "Hanya Admin yang dapat mengubahnya."
     }
   },
   "approvals": {
@@ -400,6 +417,10 @@
       "shortName": {
         "label": "Nama singkat",
         "hint": "Nama tampilan opsional yang digunakan di PMO. Nama resmi tetap sama."
+      },
+      "clientNumberSegment": {
+        "label": "Segmen nomor klien",
+        "placeholder": "mis. RIS"
       }
     },
     "search": {
@@ -525,7 +546,9 @@
       "primaryContact": "Kontak utama",
       "title": "Jabatan",
       "titlePlaceholder": "mis. Procurement Lead",
-      "type": "Tipe"
+      "type": "Tipe",
+      "clientNumberSegment": "Segmen nomor klien",
+      "clientNumberSegmentPlaceholder": "mis. RIS"
     },
     "form": {
       "errors": {
@@ -1428,7 +1451,10 @@
         "archived": "Proyek diarsipkan",
         "contractValueUpdated": "Nilai kontrak diperbarui",
         "deleted": "Proyek dihapus"
-      }
+      },
+      "pmoNumber": "Nomor Proyek PMO",
+      "clientCode": "Kode Proyek Klien",
+      "notSet": "Belum diatur"
     },
     "milestoneForm": {
       "create": "Buat milestone",
@@ -1625,7 +1651,9 @@
       "status": "Status",
       "targetEnd": "Target selesai",
       "unassigned": "Belum ditugaskan",
-      "endCustomer": "Pelanggan akhir"
+      "endCustomer": "Pelanggan akhir",
+      "pmoNumber": "Nomor Proyek PMO",
+      "clientCode": "Kode Proyek Klien"
     },
     "scurve": {
       "backfillCaveat": "Tanggal penyelesaian sebelum hari ini adalah estimasi; pelacakan langsung dimulai sekarang.",
@@ -1915,6 +1943,18 @@
       "placeholder": "Pilih perusahaan…",
       "search": "Cari perusahaan…",
       "noun": "perusahaan"
+    },
+    "clientCode": {
+      "label": "Kode Proyek Klien",
+      "placeholder": "Kode opsional yang digunakan organisasi Anda"
+    },
+    "projectNumber": {
+      "label": "Nomor Proyek PMO",
+      "helper": "PMO menetapkan identitas ini. Anda dapat mengubahnya sebelum membuat proyek.",
+      "duplicate": "Nomor Proyek PMO tersebut sudah digunakan. Pilih nomor lain.",
+      "segmentRequired": "Perusahaan yang dipilih memerlukan segmen nomor klien sebelum Nomor Proyek PMO dapat dibuat.",
+      "proposalError": "Nomor Proyek PMO tidak dapat diusulkan. Pilih klien lagi untuk mencoba ulang.",
+      "loading": "Mengusulkan Nomor Proyek PMO…"
     }
   },
   "projects": {
@@ -2041,6 +2081,10 @@
       "closeOut": "Penutupan",
       "lossTender": "Tender kalah",
       "internalProject": "Proyek internal"
+    },
+    "identifiers": {
+      "pmo": "Nomor Proyek PMO",
+      "client": "Kode Proyek Klien"
     }
   },
   "revenueByProject": {

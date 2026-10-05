@@ -20,6 +20,20 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     status: <span data-testid="status-slot">Ongoing Project</span>,
   };
 
+  it('AC-CODE-003: labels the PMO number and Client Project Code separately, with PMO retained when code is absent', () => {
+    const { rerender } = render(<ProjectCardShell {...baseProps} pmoProjectNumber="PMO-26-0042" code="CLIENT-77" />);
+    expect(screen.getByText((_, element) => element?.textContent?.replace(/\s+/g, ' ').trim() === 'PMO Project Number: PMO-26-0042')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent?.replace(/\s+/g, ' ').trim() === 'Client Project Code: CLIENT-77')).toBeInTheDocument();
+    rerender(<ProjectCardShell {...baseProps} pmoProjectNumber="PMO-26-0042" code={null} />);
+    expect(screen.getByText((_, element) => element?.textContent?.replace(/\s+/g, ' ').trim() === 'PMO Project Number: PMO-26-0042')).toBeInTheDocument();
+    expect(screen.queryByText(/Client Project Code:/)).not.toBeInTheDocument();
+  });
+
+  it('AC-CODE-003: kanban button accessible name includes both identity labels', () => {
+    render(<ProjectCardShell {...baseProps} variant="kanban" pmoProjectNumber="PMO-26-0042" code="CLIENT-77" />);
+    expect(screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out.*PMO Project Number: PMO-26-0042.*Client Project Code: CLIENT-77/ })).toBeInTheDocument();
+  });
+
   it('renders the canonical head: icon initial, name, client and code', () => {
     render(<ProjectCardShell {...baseProps} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
@@ -42,7 +56,7 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
       />,
     );
 
-    const card = screen.getByRole('button', { name: longName });
+    const card = screen.getByRole('button', { name: new RegExp(longName) });
     const kanbanName = within(card).getByText(longName);
     const status = within(card).getByTestId('status-slot');
     const textColumn = kanbanName.parentElement!;

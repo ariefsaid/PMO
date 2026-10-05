@@ -58,6 +58,9 @@ describe('getOpportunity', () => {
     expect(mockSelect).toHaveBeenCalledWith(
       expect.stringContaining('end_client_id'),
     );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('pmo_project_number'),
+    );
     expect(result?.end_client?.name).toBe('Asset Owner');
   });
 

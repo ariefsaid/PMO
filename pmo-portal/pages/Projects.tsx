@@ -213,6 +213,7 @@ const Projects: React.FC = () => {
         (p) =>
           !q ||
           p.name.toLowerCase().includes(q) ||
+          (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
           (p.code ?? '').toLowerCase().includes(q) ||
           (p.client?.name ?? '').toLowerCase().includes(q) ||
           (p.client?.short_name ?? '').toLowerCase().includes(q) ||
@@ -421,8 +422,13 @@ const Projects: React.FC = () => {
                 )}
               </div>
               <div className="truncate font-mono text-[11px] text-muted-foreground">
-                {p.code ?? p.id.slice(0, 8)}
+                {t('projects.identifiers.pmo', 'PMO Project Number')}: {p.pmo_project_number}
               </div>
+              {p.code && (
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
+                  {t('projects.identifiers.client', 'Client Project Code')}: {p.code}
+                </div>
+              )}
               {p.customer_contract_ref && (
                 <div className="truncate font-mono text-[11px] text-muted-foreground">
                   {p.customer_contract_ref}

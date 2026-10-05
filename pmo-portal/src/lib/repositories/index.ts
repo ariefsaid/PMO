@@ -36,6 +36,7 @@ import {
   archiveProject,
   deleteProject,
   setProjectContractValue,
+  proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
 import { transitionProject } from '@/src/lib/db/projectTransitions';
@@ -46,6 +47,7 @@ import {
   createCompany,
   updateCompany,
   updateCompanyShortName,
+  setCompanyProjectNumberSegment,
   archiveCompany,
   deleteCompany,
   type CompanyRow,
@@ -231,7 +233,12 @@ import {
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
-import { getOrgTaxDefault, setOrgTaxDefault } from '@/src/lib/db/orgs';
+import {
+  getOrgTaxDefault,
+  setOrgTaxDefault,
+  getOrgProjectNumberPattern,
+  setOrgProjectNumberPattern,
+} from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
 import {
@@ -313,6 +320,7 @@ const project: ProjectRepository = {
   archive: (id) => wrap(() => archiveProject(id)),
   delete: (id) => wrap(() => deleteProject(id)),
   setContractValue: (input) => wrap(() => setProjectContractValue(input)),
+  proposeNumber: (clientId) => wrap(() => proposeProjectNumber(clientId)),
 };
 
 // BLOCK 2 (MONEY-CRITICAL): `newCommandIntent()` lives in ./commandIntent (a leaf module) and is
@@ -381,6 +389,7 @@ const company: CompanyRepository = {
     }
     await dispatchDomainCommand('companies', 'update', { id, ...input, erp_doc_kind: kind }, keyFor());
   },
+  setProjectNumberSegment: (id, segment) => wrap(() => setCompanyProjectNumberSegment(id, segment)),
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
 };
@@ -807,6 +816,8 @@ const orgFeature: OrgFeatureRepository = {
  * `can('manage', 'orgAccounting')` on the affordance.
  */
 const orgSettings: OrgSettingsRepository = {
+  getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
+  setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
 };

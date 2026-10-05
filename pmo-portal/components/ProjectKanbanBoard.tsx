@@ -123,6 +123,8 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       initial={initial}
       name={project.name}
       client={project.client ? companyDisplayName(project.client) : null}
+      pmoProjectNumber={project.pmo_project_number}
+      code={project.code}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
           {project.status}

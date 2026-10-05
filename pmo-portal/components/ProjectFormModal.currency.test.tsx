@@ -24,6 +24,10 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
 
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
+}));
+
 import ProjectFormModal from './ProjectFormModal';
 
 function renderModal() {
