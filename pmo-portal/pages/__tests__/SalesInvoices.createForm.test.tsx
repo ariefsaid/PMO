@@ -170,6 +170,20 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(hoisted.createMutate).toHaveBeenCalledWith(expect.objectContaining({ items: [{ item_code: 'ITEM-TEST', description: 'Inspection of test unit', qty: 1, rate: 100 }] }));
   });
 
+  it('AC-L10N-B01 connected ERP line fields use the shipped Bahasa catalogue', async () => {
+    hoisted.connected = true;
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+
+    expect(await screen.findByRole('combobox', { name: 'Item ERP' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Deskripsi')).toHaveAttribute('placeholder', 'Jelaskan pekerjaan atau barang…');
+    expect(screen.getByText('Pilih atau cari item…')).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Item ERP' }));
+    expect(screen.getByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
+  });
+
   it('AC-ITM-004 standalone invoices retain the free-text item code field', async () => {
     const user = userEvent.setup();
     renderPage();

@@ -610,15 +610,15 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             <div className="min-w-0 flex-1 space-y-2">
               {erpItems.connected ? (
                 <Combobox
-                  label="ERP item"
+                  label={t('financeCopy.erpItem', 'ERP item')}
                   value={item.item_code || null}
                   selectedOption={item.item_code ? { value: item.item_code, label: item.item_code } : null}
                   onChange={(code) => updateLineItem(index, 'item_code', code)}
                   loadOptions={erpItems.loadOptions}
                   required
-                  noun="ERP item"
-                  placeholder="Select or search item…"
-                  searchPlaceholder="Search item code or name…"
+                  noun={t('financeCopy.erpItem', 'ERP item')}
+                  placeholder={t('financeCopy.selectOrSearchItem', 'Select or search item…')}
+                  searchPlaceholder={t('financeCopy.searchItemCodeOrName', 'Search item code or name…')}
                 />
               ) : (
                 <TextField
@@ -632,10 +632,10 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               )}
               {erpItems.connected && (
                 <TextField
-                  label="Description"
+                  label={t('financeCopy.description', 'Description')}
                   value={item.description ?? ''}
                   onChange={(value) => updateLineItem(index, 'description', value)}
-                  placeholder="Describe the work or goods…"
+                  placeholder={t('financeCopy.describeWorkOrGoods', 'Describe the work or goods…')}
                 />
               )}
             </div>
