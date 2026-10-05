@@ -1128,7 +1128,7 @@
     "raiseRequest": "Ajukan permintaan",
     "search": {
       "label": "Filter permintaan",
-      "placeholder": "Filter permintaan…"
+      "placeholder": "Filter permintaan atau referensi…"
     },
     "stage": {
       "gr": "Penerimaan Barang",
@@ -1241,6 +1241,11 @@
       "quoteSelectedDetail": "Permintaan maju ke Penawaran Dipilih",
       "requestUpdated": "Permintaan diperbarui",
       "viRecorded": "Invoice vendor dicatat"
+    },
+    "groupRef": {
+      "label": "Ref. grup",
+      "optional": "(opsional)",
+      "placeholder": "mis. PRQ-0026100001"
     }
   },
   "projectDetail": {
