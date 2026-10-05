@@ -307,6 +307,49 @@ export function withPaymentTypeDiscriminator(deps: ErpProbeDeps, kind: unknown):
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
 // ============================================================================
 
+/** Resolve the client PO before the outbox snapshots and digests this command. The invoice's
+ *  linked work order is read from PMO, and every source read is scoped to the dispatching org.
+ *  Matching the reference back to its source preserves its date after ERP readback mirrors po_no
+ *  onto reference_number; an unrelated explicit invoice reference carries no borrowed date. */
+async function resolveSalesInvoicePo(deps: ErpDispatchFactoryDeps): Promise<void> {
+  const record = deps.command.record;
+  const read = async (table: string, columns: string, id: string) => {
+    const { data, error } = await deps.serviceClient.from(table).select(columns)
+      .eq('org_id', deps.orgId).eq('id', id).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    return data as Record<string, unknown> | null;
+  };
+  const nonblank = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+
+  const invoice = await read('sales_invoices', 'reference_number,work_order_id,project_id', record.id);
+  const workOrderId = nonblank(invoice?.work_order_id);
+  const projectId = nonblank(record.projectId) ?? nonblank(invoice?.project_id);
+  const workOrder = workOrderId
+    ? await read('work_orders', 'client_po_number,order_date', workOrderId)
+    : null;
+  const project = projectId
+    ? await read('projects', 'customer_contract_ref,contract_date', projectId)
+    : null;
+
+  const invoiceReference = nonblank(Object.hasOwn(record, 'reference_number')
+    ? record.reference_number
+    : invoice?.reference_number);
+  const workOrderReference = nonblank(workOrder?.client_po_number);
+  const projectReference = nonblank(project?.customer_contract_ref);
+  const reference = invoiceReference ?? workOrderReference ?? projectReference;
+  const date = reference !== null && reference === workOrderReference
+    ? nonblank(workOrder?.order_date)
+    : reference !== null && reference === projectReference
+      ? nonblank(project?.contract_date)
+      : null;
+
+  // These are command material: both the HTTP body and the persisted outbox payload/digest read
+  // the same resolved values. A caller-supplied po_date is replaced by the matching PMO date.
+  record.reference_number = reference;
+  record.po_date = date;
+}
+
 /** Resolve revenue-domain refs for a sales-invoice or incoming-payment command.
  *  - `ctx.refs.customer` from `record.customerId` via `external_refs` (companies domain,
  *    `Customer:<name>` → strip prefix to bare ERP name).
@@ -354,6 +397,9 @@ async function resolveRevenueRefs(
   // ahead of the adapter — both use `resolveErpProjectName` so they can never diverge).
   if (kind === 'sales-invoice') {
     refs.project = resolveErpProjectName(binding.config, record.projectId);
+    if (buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: deps.command.record.verb } })) {
+      await resolveSalesInvoicePo(deps);
+    }
   }
 
   // Resolve SI reference for incoming-payment — Luna BLOCK 5 (MONEY-CRITICAL):
