@@ -65,16 +65,22 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
   return templateCreditDays ?? 30;
 }
 
-// The name+tax-id MATCHING itself (FR-ENA-093: "matching shall be by ERP name and, when present,
-// erp_tax_id") happens in the caller's `findCandidates` query — this function only decides what to
-// do with the resulting candidate SET: 0 -> new row; 1 -> deterministic adopt; >1 -> the caller's
-// matching couldn't narrow to a single row (same name, differing/absent tax id across the
-// candidates) -> ambiguous, surfaced for operator resolution, never auto-merged.
+// The caller supplies same-name, same-type, same-org candidates. A present source tax ID narrows
+// that set to matching or unset IDs. Conflicting-only and multiple eligible matches require action.
 function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): PartyCandidate | undefined {
   if (candidates.length === 0) return undefined;
-  if (candidates.length === 1) return candidates[0];
+  const matches = source.taxId
+    ? candidates.filter((candidate) => !candidate.taxId || candidate.taxId === source.taxId)
+    : candidates;
+  if (matches.length === 0) {
+    throw new AppError(
+      `conflicting ${source.doctype} tax ID match for "${source.name}" — resolve manually (FR-ENA-093)`,
+      'action-required',
+    );
+  }
+  if (matches.length === 1) return matches[0];
   throw new AppError(
-    `ambiguous ${source.doctype} match for "${source.name}" across ${candidates.length} existing PMO companies — resolve manually (FR-ENA-093)`,
+    `ambiguous ${source.doctype} match for "${source.name}" across ${matches.length} existing PMO companies — resolve manually (FR-ENA-093)`,
     'action-required',
   );
 }

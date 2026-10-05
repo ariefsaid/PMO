@@ -62,7 +62,7 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
     expect(second.externalRecordId).toBe(first.externalRecordId);
   });
 
-  it('exactly one existing PMO candidate -> adopts (links) that row deterministically, regardless of tax id agreement', async () => {
+  it('exactly one existing PMO candidate with no source tax id -> adopts (links) that row deterministically', async () => {
     const result = await adoptParty(
       { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: undefined },
       { findCandidates: async () => [{ pmoRecordId: 'pmo-existing-1', taxId: null }] },
@@ -70,11 +70,12 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
     expect(result.canonical.id).toBe('pmo-existing-1');
   });
 
-  it('AC-ENA-041 ambiguous match (same name, differing tax id across candidates) -> action-required, never auto-merged', async () => {
+  it('AC-ENA-041 ambiguous match (same name, matching and unset tax id candidates) -> action-required, never auto-merged', async () => {
     await expect(
       adoptParty(
         { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' },
-        { findCandidates: async () => [{ pmoRecordId: 'pmo-a', taxId: 'TAX-1' }, { pmoRecordId: 'pmo-b', taxId: 'TAX-2' }] },
+        // #783 owner AC-ENA-093a: matching and unset IDs are both eligible, so ambiguity remains.
+        { findCandidates: async () => [{ pmoRecordId: 'pmo-a', taxId: 'TAX-1' }, { pmoRecordId: 'pmo-b', taxId: null }] },
       ),
     ).rejects.toMatchObject({ code: 'action-required' } satisfies Partial<AppError>);
   });
@@ -86,6 +87,44 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
         { findCandidates: async () => [{ pmoRecordId: 'pmo-a', taxId: null }, { pmoRecordId: 'pmo-b', taxId: null }] },
       ),
     ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it.each(['Supplier', 'Customer'] as const)('AC-ENA-093a %s narrows same-name candidates by the source tax ID', async (doctype) => {
+    const result = await adoptParty(
+      { doctype, id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
+      { findCandidates: async () => [
+        { pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' },
+        { pmoRecordId: 'pmo-matching', taxId: 'TAX-TEST-1' },
+      ] },
+    );
+    expect(result.canonical.id).toBe('pmo-matching');
+    expect(result.canonical.erp_tax_id).toBe('TAX-TEST-1');
+  });
+
+  it.each([null, ''])('accepts a same-name candidate whose tax ID is unset (%s)', async (taxId) => {
+    const result = await adoptParty(
+      { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
+      { findCandidates: async () => [
+        { pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' },
+        { pmoRecordId: 'pmo-unset', taxId },
+      ] },
+    );
+    expect(result.canonical.id).toBe('pmo-unset');
+  });
+
+  it.each(['Supplier', 'Customer'] as const)('AC-ENA-093b %s refuses the only same-name candidate with a differing tax ID', async (doctype) => {
+    await expect(adoptParty(
+      { doctype, id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
+      { findCandidates: async () => [{ pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' }] },
+    )).rejects.toMatchObject({ code: 'action-required' });
+  });
+
+  it.each([null, undefined, ''])('preserves one-candidate adoption when the source tax ID is absent (%s)', async (taxId) => {
+    const result = await adoptParty(
+      { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party', taxId },
+      { findCandidates: async () => [{ pmoRecordId: 'pmo-existing', taxId: 'TAX-TEST-2' }] },
+    );
+    expect(result.canonical.id).toBe('pmo-existing');
   });
 
   it('AC-ENA-042 Supplier + Customer sharing the same name never merge: two distinct external ids/types', async () => {
