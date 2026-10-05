@@ -23,8 +23,10 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 select has_table('public','budget_category_account_map', 'AC-BUD-010 the map table exists');
 select col_type_is('public','budget_category_account_map','category','budget_category',
                    'AC-BUD-010 category is the shipped ENUM, not text (OD-BUDGET-4)');
-select col_is_unique('public','budget_category_account_map', array['org_id','category'],
-                     'AC-BUD-010 unique(org,category) — one account per category (the push)');
+-- #768 superseded FR-BUD-111's first half: a category may hold several accounts, ONE of them the push account.
+select ok(exists(select 1 from pg_indexes where schemaname='public' and tablename='budget_category_account_map'
+                   and indexname='budget_category_account_map_one_push_per_category'),
+          'AC-BUD-010 one PUSH account per category (the push) — #768 replaced unique(org,category)');
 select col_is_unique('public','budget_category_account_map', array['org_id','erp_account'],
                      'AC-BUD-010 unique(org,erp_account) — one category per account (the projection inverse)');
 
@@ -48,7 +50,7 @@ set local request.jwt.claims = '{"sub":"0b3c0000-0000-0000-0000-0000000000a1","r
 select throws_ok(
   $$insert into public.budget_category_account_map (category, erp_account)
       values ('Labor','5900 - Other - PSC')$$,
-  '23505', null, 'AC-BUD-010 a second account for a mapped CATEGORY is rejected (the push)');
+  '23505', null, 'AC-BUD-010 a second PUSH account for a mapped CATEGORY is rejected (no flag ⇒ default push)');
 select throws_ok(
   $$insert into public.budget_category_account_map (category, erp_account)
       values ('Overheads','5100 - Direct Costs - PSC')$$,

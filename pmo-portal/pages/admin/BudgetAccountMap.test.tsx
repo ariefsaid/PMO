@@ -13,11 +13,12 @@ import { MemoryRouter, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
-const { listMock, createMock, updateMock, deleteMock } = vi.hoisted(() => ({
+const { listMock, createMock, updateMock, deleteMock, setPushMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
   createMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  setPushMock: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
@@ -25,6 +26,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   createBudgetCategoryAccountMapRow: createMock,
   updateBudgetCategoryAccountMapRow: updateMock,
   deleteBudgetCategoryAccountMapRow: deleteMock,
+  setBudgetPushAccount: setPushMock,
 }));
 
 let realRole: Role = 'Admin';
@@ -75,7 +77,9 @@ beforeEach(() => {
   createMock.mockReset();
   updateMock.mockReset();
   deleteMock.mockReset();
-  listMock.mockResolvedValue([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
+  setPushMock.mockReset();
+  setPushMock.mockResolvedValue(undefined);
+  listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
   createMock.mockResolvedValue({ category: 'Materials', erpAccount: '5200 - Materials' });
   updateMock.mockResolvedValue({ category: 'Labor', erpAccount: '5100 - New Account' });
   deleteMock.mockResolvedValue(undefined);
@@ -108,17 +112,18 @@ describe('BudgetAccountMap — all categories always present (AC-BUD-010/011/012
 describe('BudgetAccountMap — Admin-only affordances (FR-BUD-112)', () => {
   it('Admin sees Map/Edit + Unmap controls', async () => {
     renderPage('Admin');
-    expect(await screen.findByRole('button', { name: /edit.*labor/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /map materials/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /unmap labor/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove 5100 - Direct Costs' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add account to Labor' })).toBeInTheDocument();
   });
 
   it('a non-Admin (Engineer) sees the same rows read-only — no write affordances', async () => {
     renderPage('Engineer');
     expect(await screen.findByText('5100 - Direct Costs')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /edit.*labor/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit 5100 - Direct Costs' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /map materials/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /unmap labor/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove 5100 - Direct Costs' })).not.toBeInTheDocument();
   });
 });
 
@@ -129,7 +134,7 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     const modal = await screen.findByRole('dialog');
     await userEvent.type(within(modal).getByLabelText(/erp account/i), 'Travel expenses');
     await userEvent.click(within(modal).getByRole('button', { name: /save/i }));
-    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Special expenses', 'Travel expenses'));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Special expenses', 'Travel expenses', true));
   });
 
   it('maps a previously-unmapped category (create)', async () => {
@@ -139,19 +144,19 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     const modal = await screen.findByRole('dialog');
     await user.type(within(modal).getByLabelText(/erp account/i), '5200 - Materials');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
-    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Materials', '5200 - Materials'));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Materials', '5200 - Materials', true));
   });
 
   it('repoints an already-mapped category (update)', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: /edit.*labor/i }));
+    await user.click(await screen.findByRole('button', { name: 'Edit 5100 - Direct Costs' }));
     const modal = await screen.findByRole('dialog');
     const field = within(modal).getByLabelText(/erp account/i);
     await user.clear(field);
     await user.type(field, '5100 - New Account');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
-    await waitFor(() => expect(updateMock).toHaveBeenCalledWith('Labor', '5100 - New Account'));
+    await waitFor(() => expect(updateMock).toHaveBeenCalledWith('m-labor', '5100 - New Account'));
   });
 
   it('⚑ the BIJECTION: mapping an account already used by ANOTHER category is blocked client-side, naming the conflict', async () => {
@@ -168,10 +173,10 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
   it('unmaps a category with a confirm dialog', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: /unmap labor/i }));
+    await user.click(await screen.findByRole('button', { name: 'Remove 5100 - Direct Costs' }));
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: /unmap/i }));
-    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('Labor'));
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m-labor'));
   });
 });
 
@@ -244,5 +249,97 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     renderPage('Admin');
     const row = (await screen.findByText('Labor')).closest('tr')!;
     expect(within(row).queryByText(/blocks every push/i)).not.toBeInTheDocument();
+  });
+});
+
+const MULTI = [
+  { id: 'm-sal', category: 'Labor', erpAccount: 'Salary - PSC', isPushTarget: true },
+  { id: 'm-all', category: 'Labor', erpAccount: 'Allowances - PSC', isPushTarget: false },
+  { id: 'm-mat', category: 'Materials', erpAccount: 'COGS - PSC', isPushTarget: false },
+];
+
+describe('BudgetAccountMap — several accounts per category (#768)', () => {
+  it('AC-BAM-008 lists every account of a category and marks the one budget push account', async () => {
+    listMock.mockResolvedValue(MULTI);
+    renderPage('Engineer');
+    const labor = (await screen.findByText('Labor')).closest('tr')!;
+    const salary = within(labor).getByText('Salary - PSC').closest('li')!;
+    const allowances = within(labor).getByText('Allowances - PSC').closest('li')!;
+    expect(within(salary).getByText('Budget push')).toBeInTheDocument();
+    expect(within(allowances).queryByText('Budget push')).not.toBeInTheDocument();
+    expect(within(labor).queryByText(/blocks every push/i)).not.toBeInTheDocument();
+    expect(within(labor).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('AC-BAM-008 a category with accounts but no push account is marked as blocking every push', async () => {
+    listMock.mockResolvedValue(MULTI);
+    renderPage('Admin');
+    const materials = (await screen.findByText('Materials')).closest('tr')!;
+    expect(within(materials).getByText('No push account — blocks every push')).toBeInTheDocument();
+  });
+
+  it('AC-BAM-009 an account added to a category that has a push account is added read-only', async () => {
+    listMock.mockResolvedValue(MULTI);
+    const user = userEvent.setup();
+    renderPage('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Add account to Labor' }));
+    const modal = await screen.findByRole('dialog', { name: 'Add account to Labor' });
+    await user.type(within(modal).getByLabelText(/erp account/i), 'Social Security - PSC');
+    await user.click(within(modal).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Labor', 'Social Security - PSC', false));
+  });
+
+  it('AC-BAM-009 an account added to a category with no push account becomes its push account', async () => {
+    listMock.mockResolvedValue(MULTI);
+    const user = userEvent.setup();
+    renderPage('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Add account to Materials' }));
+    const modal = await screen.findByRole('dialog', { name: 'Add account to Materials' });
+    await user.type(within(modal).getByLabelText(/erp account/i), 'Raw Materials - PSC');
+    await user.click(within(modal).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Materials', 'Raw Materials - PSC', true));
+  });
+
+  it('AC-BAM-009 an account already under another category is refused before submit, naming it', async () => {
+    listMock.mockResolvedValue(MULTI);
+    const user = userEvent.setup();
+    renderPage('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Add account to Materials' }));
+    const modal = await screen.findByRole('dialog', { name: 'Add account to Materials' });
+    await user.type(within(modal).getByLabelText(/erp account/i), 'Allowances - PSC');
+    await user.click(within(modal).getByRole('button', { name: /save/i }));
+    expect((await within(modal).findAllByText('Allowances - PSC is already mapped to Labor.')).length).toBeGreaterThan(0);
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('AC-BAM-010 choosing a new push account confirms first, says it applies from the next push, then moves it', async () => {
+    listMock.mockResolvedValue(MULTI);
+    const user = userEvent.setup();
+    renderPage('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Use Allowances - PSC for budget push' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Push Labor to Allowances - PSC?' });
+    expect(within(confirm).getByText(/keeps its current account until it is pushed again/i)).toBeInTheDocument();
+    expect(setPushMock).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Use for push' }));
+    await waitFor(() => expect(setPushMock).toHaveBeenCalledWith('m-all'));
+  });
+
+  it('AC-BAM-011 the push account cannot be removed while its category has other accounts', async () => {
+    listMock.mockResolvedValue(MULTI);
+    renderPage('Admin');
+    const labor = (await screen.findByText('Labor')).closest('tr')!;
+    expect(within(labor).queryByRole('button', { name: 'Remove Salary - PSC' })).not.toBeInTheDocument();
+    expect(within(labor).getByText('Make another account the push account to remove this one.')).toBeInTheDocument();
+  });
+
+  it('AC-BAM-011 removing a read-only account confirms, says its actuals stop counting, and deletes that row only', async () => {
+    listMock.mockResolvedValue(MULTI);
+    const user = userEvent.setup();
+    renderPage('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Remove Allowances - PSC' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Remove Allowances - PSC?' });
+    expect(within(confirm).getByText(/stop counting toward this category/i)).toBeInTheDocument();
+    await user.click(within(confirm).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m-all'));
   });
 });

@@ -534,6 +534,7 @@ export type Database = {
           category: Database["public"]["Enums"]["budget_category"]
           erp_account: string
           id: string
+          is_push_target: boolean
           org_id: string
           updated_at: string
           updated_by: string | null
@@ -542,6 +543,7 @@ export type Database = {
           category: Database["public"]["Enums"]["budget_category"]
           erp_account: string
           id?: string
+          is_push_target?: boolean
           org_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -550,6 +552,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["budget_category"]
           erp_account?: string
           id?: string
+          is_push_target?: boolean
           org_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -6150,6 +6153,10 @@ export type Database = {
           org_id: string
           to_status: string
         }[]
+      }
+      set_budget_push_account: {
+        Args: { p_map_id: string }
+        Returns: undefined
       }
       set_external_binding_site_url: {
         Args: {

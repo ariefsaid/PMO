@@ -114,11 +114,20 @@ export interface BudgetFiscalYearRow {
   isActivePush: boolean;
 }
 
-/** One `budget_category_account_map` row, camelCase. */
+/** One `budget_category_account_map` row, camelCase. A category may hold several (#768); at most one of them
+ *  is its push account — the only one the ERP Budget receives. The others count toward its actuals only. */
 export interface CategoryAccountMapRow {
+  id: string;
   category: BudgetCategory;
   erpAccount: string;
+  isPushTarget: boolean;
 }
+
+const MAP_COLUMNS = 'id, category, erp_account, is_push_target';
+interface MapDbRow { id: string; category: BudgetCategory; erp_account: string; is_push_target: boolean }
+const toMapRow = (r: MapDbRow): CategoryAccountMapRow => ({
+  id: r.id, category: r.category, erpAccount: r.erp_account, isPushTarget: r.is_push_target,
+});
 
 /** Reads PMO's forward view for a project + fiscal year (SECURITY INVOKER RPC — RLS scopes the org).
  *  Never throws on an empty result (no versions/actuals/ETC yet is a legitimate empty state, not an
@@ -356,61 +365,66 @@ export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear:
   if (rpcError) throw toAppError(rpcError);
 }
 
-/** Lists the caller org's category→account map, ordered by category (RLS scopes the org). */
+/** Lists every account row of the caller org's map, by category then account (RLS scopes the org). */
 export async function listBudgetCategoryAccountMap(): Promise<CategoryAccountMapRow[]> {
   const { data, error } = await supabase
     .from('budget_category_account_map')
-    .select('category, erp_account')
-    .order('category');
+    .select(MAP_COLUMNS)
+    .order('category')
+    .order('erp_account');
   if (error) throw toAppError(error);
-  return (data ?? []).map((r) => ({ category: r.category, erpAccount: r.erp_account }));
+  return ((data ?? []) as MapDbRow[]).map(toMapRow);
 }
 
-/** Maps a previously-unmapped category to an account (Admin-only — RLS `budget_category_account_map_
- *  write`, FR-BUD-112). A conflicting account (the map's BIJECTION, FR-BUD-111) surfaces as 23505,
- *  preserved on the thrown `AppError` so the caller can name the conflict. */
+/** Adds an account to a category (Admin-only — RLS `budget_category_account_map_write`, FR-BUD-112). The push
+ *  flag is ALWAYS stated: the caller passes `true` only when the category has no push account (FR-BAM-003).
+ *  An account already under another category, or a second push account, surfaces as 23505. */
 export async function createBudgetCategoryAccountMapRow(
   category: BudgetCategory,
   erpAccount: string,
+  isPushTarget: boolean,
 ): Promise<CategoryAccountMapRow> {
   const { data, error } = await supabase
     .from('budget_category_account_map')
-    .insert({ category, erp_account: erpAccount })
-    .select('category, erp_account')
+    .insert({ category, erp_account: erpAccount, is_push_target: isPushTarget })
+    .select(MAP_COLUMNS)
     .single();
   if (error) throw toAppError(error);
-  return { category: data.category, erpAccount: data.erp_account };
+  return toMapRow(data as MapDbRow);
 }
 
-/** Repoints an already-mapped category to a different account. Same bijection/Admin-only constraints
- *  as create. */
-export async function updateBudgetCategoryAccountMapRow(
-  category: BudgetCategory,
-  erpAccount: string,
-): Promise<CategoryAccountMapRow> {
+/** Renames one account row (by id). Same Admin-only / account-uniqueness constraints as create. */
+export async function updateBudgetCategoryAccountMapRow(id: string, erpAccount: string): Promise<CategoryAccountMapRow> {
   const { data, error } = await supabase
     .from('budget_category_account_map')
     .update({ erp_account: erpAccount })
-    .eq('category', category)
-    .select('category, erp_account')
+    .eq('id', id)
+    .select(MAP_COLUMNS)
     .single();
   if (error) throw toAppError(error);
-  return { category: data.category, erpAccount: data.erp_account };
+  return toMapRow(data as MapDbRow);
 }
 
-/** Unmaps a category (Admin-only). A category with no map row FAILS CLOSED at the next push
- *  (FR-BUD-113) rather than silently defaulting — deleting the map row is a deliberate Admin act. */
-export async function deleteBudgetCategoryAccountMapRow(category: BudgetCategory): Promise<void> {
+/** Removes one account row (Admin-only). Removing a category's LAST account unmaps it, and a non-zero push in
+ *  that category then FAILS CLOSED (FR-BUD-113) — a deliberate Admin act. */
+export async function deleteBudgetCategoryAccountMapRow(id: string): Promise<void> {
   const { data, error } = await supabase
     .from('budget_category_account_map')
     .delete()
-    .eq('category', category)
-    .select('category');
+    .eq('id', id)
+    .select('id');
   if (error) throw toAppError(error);
   // #541: a `using`-denied DELETE (non-Admin, wrong org) removes 0 rows and reports no error. Here
-  // that inverts the fail-closed contract above: the Admin believes the category is unmapped and
-  // will fail closed at the next push, while the stale mapping is still live and pushing.
+  // that inverts the fail-closed contract above: the Admin believes the account is gone while the
+  // mapping is still live.
   assertWriteLanded(data, 'Category mapping not found or you do not have permission to remove it.');
+}
+
+/** Makes one account its category's push account, clearing the previous one in the same transaction
+ *  (`set_budget_push_account`, 0246 — SECURITY INVOKER, Admin-only by RLS; 42501 when nothing was updated). */
+export async function setBudgetPushAccount(id: string): Promise<void> {
+  const { error } = await supabase.rpc('set_budget_push_account', { p_map_id: id });
+  if (error) throw toAppError(error);
 }
 
 /** Authors/updates the PMO estimate-to-complete for (project, fiscal_year, category) — OD-BUDGET-3

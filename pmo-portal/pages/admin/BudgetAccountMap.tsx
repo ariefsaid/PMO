@@ -23,26 +23,23 @@ import {
   createBudgetCategoryAccountMapRow,
   updateBudgetCategoryAccountMapRow,
   deleteBudgetCategoryAccountMapRow,
+  setBudgetPushAccount,
   type CategoryAccountMapRow,
   type BudgetCategory,
 } from '@/src/lib/repositories/budgetProjection';
 
 /**
- * Administration › Budget account map (P3c slice 6, FR-BUD-110..113) — the Admin CRUD surface for
- * `budget_category_account_map`: PMO's fixed `budget_category` values, each mapped (or not) to an
- * ERP account. Every row is ALWAYS shown, mapped or not — an unmapped category is exactly the state
- * that FAILS CLOSED at the next push (`categoryAccountMap.ts`'s `BudgetCategoryUnmappedError`), so it
- * must stay visible, not hidden.
+ * Administration › Budget account map (P3c FR-BUD-110..113; #768 FR-BAM-010..013) — the Admin CRUD surface for
+ * `budget_category_account_map`. Every PMO `budget_category` is ALWAYS shown, mapped or not: an unmapped
+ * category, or one with accounts but no push account, FAILS CLOSED at the next push, so it must stay visible.
  *
- * ⚑ Admin-only (FR-BUD-112, deliberately stricter than OD-BUDGET-3): gated on `can('manage',
- * 'integration', ctx)` — the map is a per-org accounting-config change, the same class of affordance
- * as connecting/disconnecting an external tier, and RLS enforces the identical Admin-only predicate
- * server-side (`budget_category_account_map_write`). This is UX only; RLS is the authority (ADR-0016).
+ * #768: a category may list several ERP accounts. Its actuals add up across all of them; its budget is pushed
+ * only to the ONE marked "Budget push" (0246: at most one per category, DB-enforced). An account still belongs
+ * to one category (`unique (org_id, erp_account)`), pre-checked here and re-asserted by the DB.
  *
- * ⚑ The BIJECTION (FR-BUD-111): a category may map to only one account, and an account may back only
- * one category — both directions are DB-unique. A conflicting account is checked CLIENT-SIDE against
- * the loaded rows before submit, naming the conflicting category in the form (not a raw 23505), and is
- * re-asserted by the DB regardless (the FE check is a courtesy, never the enforcement).
+ * ⚑ Admin-only (FR-BUD-112): gated on `can('manage', 'integration', ctx)`. RLS
+ * (`budget_category_account_map_write`) and the SECURITY INVOKER `set_budget_push_account` enforce the same
+ * predicate server-side. This is UX only; RLS is the authority (ADR-0016).
  */
 
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
@@ -50,6 +47,11 @@ const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 interface FormValues {
   erpAccount: string;
 }
+
+/** What the account form does: add an account to a category, or rename one account row. */
+type FormTarget =
+  | { mode: 'create'; category: BudgetCategory; isPushTarget: boolean }
+  | { mode: 'edit'; row: CategoryAccountMapRow };
 
 const BudgetAccountMap: React.FC = () => {
   const { t } = useTranslation();
@@ -67,30 +69,22 @@ const BudgetAccountMap: React.FC = () => {
   });
 
   const rows = useMemo(() => data ?? [], [data]);
-  const accountByCategory = useMemo(
-    () => new Map(rows.map((r) => [r.category, r.erpAccount])),
-    [rows],
-  );
+  const accountsByCategory = useMemo(() => {
+    const byCategory = new Map<string, CategoryAccountMapRow[]>();
+    for (const row of rows) byCategory.set(row.category, [...(byCategory.get(row.category) ?? []), row]);
+    return byCategory;
+  }, [rows]);
 
-  const [editTarget, setEditTarget] = useState<{ category: BudgetCategory; existing: string | null } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<BudgetCategory | null>(null);
-  // #559 / AC-ERR-001: the mapping form fires and forgets — this component owns the mutation and
-  // its rejection — so the error is held here and threaded into the dialog.
+  const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<CategoryAccountMapRow | null>(null);
+  const [pushTarget, setPushTarget] = useState<CategoryAccountMapRow | null>(null);
+  // #559 / AC-ERR-001: the form fires and forgets — this component owns the mutation and its rejection.
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['budget-category-account-map'] });
 
-  // AC-ADMIA-004 (fragment deep-link): the accounting link targets `#budget-account-map`, and the
-  // shell preserves that fragment across the compatibility redirect. A history-API navigation that
-  // lands on a fragment (replace + async panel mount) does NOT auto-scroll the way an in-page anchor
-  // click does, so once the map has loaded we scroll/focus its own deep-link target. Focus moves to
-  // the map heading without trapping focus; the global focus ring is the only visual affordance
-  // (no new visual token). Runs only when the whole map has rendered (the pending branch returns
-  // before the section, so the ref is null until `mapLoaded` flips). Declared before the early
-  // returns so the hook order never changes across the loading → loaded transition (Rules of Hooks).
-  // ⚑ The ROUTER hash is the single source of truth (URL is the canonical route model), not
-  // `window.location.hash` — so a MemoryRouter navigation that changes the fragment re-fires this
-  // while the panel stays mounted and loaded, and is testable without mutating a global.
+  // AC-ADMIA-004 (fragment deep-link) — unchanged: the ROUTER hash is the source of truth; scroll/focus the
+  // map once it has rendered. Declared before the early returns (Rules of Hooks).
   const { hash } = useLocation();
   const mapLoaded = !isPending && !isError;
   useEffect(() => {
@@ -101,27 +95,56 @@ const BudgetAccountMap: React.FC = () => {
   }, [mapLoaded, hash]);
 
   const createMutation = useMutation({
-    mutationFn: (v: { category: BudgetCategory; erpAccount: string }) =>
-      createBudgetCategoryAccountMapRow(v.category, v.erpAccount),
+    mutationFn: (v: { category: BudgetCategory; erpAccount: string; isPushTarget: boolean }) =>
+      createBudgetCategoryAccountMapRow(v.category, v.erpAccount, v.isPushTarget),
     onSuccess: invalidate,
   });
   const updateMutation = useMutation({
-    mutationFn: (v: { category: BudgetCategory; erpAccount: string }) =>
-      updateBudgetCategoryAccountMapRow(v.category, v.erpAccount),
+    mutationFn: (v: { id: string; erpAccount: string }) => updateBudgetCategoryAccountMapRow(v.id, v.erpAccount),
     onSuccess: invalidate,
   });
   const deleteMutation = useMutation({
-    mutationFn: (category: BudgetCategory) => deleteBudgetCategoryAccountMapRow(category),
+    mutationFn: (id: string) => deleteBudgetCategoryAccountMapRow(id),
+    onSuccess: invalidate,
+  });
+  const pushMutation = useMutation({
+    mutationFn: (id: string) => setBudgetPushAccount(id),
     onSuccess: invalidate,
   });
 
-  const onDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    const category = deleteTarget;
+  // Removing a category's LAST account unmaps it (the shipped unmap copy); removing a read-only sibling only
+  // stops its actuals counting.
+  const removeIsLast = removeTarget ? (accountsByCategory.get(removeTarget.category)?.length ?? 0) <= 1 : false;
+
+  const onRemoveConfirm = async () => {
+    if (!removeTarget) return;
+    const target = removeTarget;
+    const wasLast = removeIsLast;
     try {
-      await deleteMutation.mutateAsync(category);
-      toast(t('admin.budgetMap.toast.unmapped', 'Category unmapped'), categoryLabel(category), 'success');
-      setDeleteTarget(null);
+      await deleteMutation.mutateAsync(target.id);
+      toast(
+        wasLast ? t('admin.budgetMap.toast.unmapped', 'Category unmapped') : t('admin.budgetMap.toast.removed', 'Account removed'),
+        wasLast ? categoryLabel(target.category) : `${categoryLabel(target.category)} · ${target.erpAccount}`,
+        'success',
+      );
+      setRemoveTarget(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const onPushConfirm = async () => {
+    if (!pushTarget) return;
+    const target = pushTarget;
+    try {
+      await pushMutation.mutateAsync(target.id);
+      toast(
+        t('admin.budgetMap.toast.pushSet', 'Push account changed'),
+        `${categoryLabel(target.category)} → ${target.erpAccount}`,
+        'success',
+      );
+      setPushTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -149,9 +172,7 @@ const BudgetAccountMap: React.FC = () => {
   }
 
   return (
-    // ⚑ I-8 (rendered Discover pass, 2026-07-22) — the budget projection's "categories need an ERP
-    // account" banner LINKS here (`/administration/accounting#budget-account-map`), so the anchor is
-    // part of the contract, not decoration.
+    // ⚑ I-8 — the budget projection's banner LINKS here (`/administration/accounting#budget-account-map`).
     <section
       id="budget-account-map"
       aria-label={t('admin.budgetMap.sectionLabel', 'Budget category to ERP account map')}
@@ -167,11 +188,14 @@ const BudgetAccountMap: React.FC = () => {
           'Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.',
         )}
       </p>
-      {/* ⚑ AC-MOBILE-OVERFLOW-001 (audit round 6 e2e run) — at 390px this table's min-content width is
-          541px (the "Not mapped — blocks every push" pill plus a "Map <Category>" control), so it bled
-          151px past the viewport with no scroller to excuse it. Same remedy as the budget projection's
-          grid: below `sm` each row is a stacked label/value card — nothing is clipped, nothing pans —
-          and it is an ordinary table from `sm` up. One markup tree, one render. */}
+      <p className="mt-1 text-[13px] text-muted-foreground">
+        {t(
+          'admin.budgetMap.multiNote',
+          'A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.',
+        )}
+      </p>
+      {/* ⚑ AC-MOBILE-OVERFLOW-001 — below `sm` each row is a stacked card; from `sm` up an ordinary table. The
+          account list wraps (`flex-wrap`, `break-words`), so long account names never push past 390px. */}
       <table className="mt-3.5 w-full border-collapse">
         <thead className="hidden sm:table-header-group">
           <tr>
@@ -190,42 +214,73 @@ const BudgetAccountMap: React.FC = () => {
         </thead>
         <tbody>
           {BUDGET_CATEGORIES.map((category) => {
-            const account = accountByCategory.get(category);
+            const accounts = accountsByCategory.get(category) ?? [];
+            const hasPush = accounts.some((a) => a.isPushTarget);
             return (
               <tr key={category} className="block border-b border-border py-2 sm:table-row sm:py-0">
-                <td className="block px-3 py-1 text-[13.5px] font-medium sm:table-cell sm:border-b sm:border-border sm:py-2">
+                <td className="block px-3 py-1 text-[13.5px] font-medium sm:table-cell sm:border-b sm:border-border sm:py-2 sm:align-top">
                   {categoryLabel(category)}
                 </td>
                 <td className="block px-3 py-1 text-[13.5px] sm:table-cell sm:border-b sm:border-border sm:py-2">
-                  {/* ⚑ I-8 — an operator arriving from the budget banner asks one question: WHICH of
-                      these is blocking my push? "Not mapped" is a description; it never says that the
-                      consequence is project-wide. The page's own copy above already states the rule —
-                      an unmapped category blocks the WHOLE budget — so the row says it too, where the
-                      decision is actually made. */}
-                  {account ? (
-                    account
-                  ) : (
+                  {accounts.length === 0 ? (
                     <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped — blocks every push')}</StatusPill>
+                  ) : (
+                    <ul className="flex flex-col gap-1.5">
+                      {!hasPush && (
+                        <li>
+                          <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account — blocks every push')}</StatusPill>
+                        </li>
+                      )}
+                      {accounts.map((account) => {
+                        const removeBlocked = account.isPushTarget && accounts.length > 1;
+                        return (
+                          <li key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="break-words">{account.erpAccount}</span>
+                            {account.isPushTarget && (
+                              <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>
+                            )}
+                            {canManage && (
+                              <span className="flex flex-wrap items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => { setSaveError(null); setFormTarget({ mode: 'edit', row: account }); }}
+                                >
+                                  {t('admin.budgetMap.editAccount', { defaultValue: 'Edit {{account}}', account: account.erpAccount })}
+                                </Button>
+                                {!account.isPushTarget && (
+                                  <Button variant="ghost" size="sm" onClick={() => setPushTarget(account)}>
+                                    {t('admin.budgetMap.usePush', { defaultValue: 'Use {{account}} for budget push', account: account.erpAccount })}
+                                  </Button>
+                                )}
+                                {removeBlocked ? (
+                                  <span className="text-[12px] text-muted-foreground">
+                                    {t('admin.budgetMap.removePushHint', 'Make another account the push account to remove this one.')}
+                                  </span>
+                                ) : (
+                                  <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(account)}>
+                                    {t('admin.budgetMap.removeAccount', { defaultValue: 'Remove {{account}}', account: account.erpAccount })}
+                                  </Button>
+                                )}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
                 </td>
                 {canManage && (
-                  <td className="block px-3 py-1 text-right sm:table-cell sm:border-b sm:border-border sm:py-2">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditTarget({ category, existing: account ?? null })}
-                      >
-                        {account
-                          ? t('admin.budgetMap.edit', { defaultValue: 'Edit {{category}}', category: categoryLabel(category) })
-                          : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) })}
-                      </Button>
-                      {account && (
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(category)}>
-                          {t('admin.budgetMap.unmap', { defaultValue: 'Unmap {{category}}', category: categoryLabel(category) })}
-                        </Button>
-                      )}
-                    </div>
+                  <td className="block px-3 py-1 text-right sm:table-cell sm:border-b sm:border-border sm:py-2 sm:align-top">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setSaveError(null); setFormTarget({ mode: 'create', category, isPushTarget: !hasPush }); }}
+                    >
+                      {accounts.length === 0
+                        ? t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) })
+                        : t('admin.budgetMap.addAccount', { defaultValue: 'Add account to {{category}}', category: categoryLabel(category) })}
+                    </Button>
                   </td>
                 )}
               </tr>
@@ -234,26 +289,24 @@ const BudgetAccountMap: React.FC = () => {
         </tbody>
       </table>
 
-      {editTarget && (
+      {formTarget && (
         <MapFormModal
           submitError={saveError}
-          category={editTarget.category}
-          existing={editTarget.existing}
+          target={formTarget}
+          hasAccounts={(accountsByCategory.get(formTarget.mode === 'edit' ? formTarget.row.category : formTarget.category)?.length ?? 0) > 0}
           allRows={rows}
-          onClose={() => setEditTarget(null)}
+          onClose={() => setFormTarget(null)}
           onSubmit={async (erpAccount) => {
+            const target = formTarget;
+            const category = target.mode === 'edit' ? target.row.category : target.category;
             try {
-              if (editTarget.existing !== null) {
-                await updateMutation.mutateAsync({ category: editTarget.category, erpAccount });
+              if (target.mode === 'edit') {
+                await updateMutation.mutateAsync({ id: target.row.id, erpAccount });
               } else {
-                await createMutation.mutateAsync({ category: editTarget.category, erpAccount });
+                await createMutation.mutateAsync({ category: target.category, erpAccount, isPushTarget: target.isPushTarget });
               }
-              toast(
-                t('admin.budgetMap.toast.saved', 'Account map saved'),
-                `${categoryLabel(editTarget.category)} → ${erpAccount}`,
-                'success',
-              );
-              setEditTarget(null);
+              toast(t('admin.budgetMap.toast.saved', 'Account map saved'), `${categoryLabel(category)} → ${erpAccount}`, 'success');
+              setFormTarget(null);
             } catch (err) {
               const { headline, detail } = classifyMutationError(err);
               setSaveError({ headline, detail });
@@ -264,45 +317,72 @@ const BudgetAccountMap: React.FC = () => {
       )}
 
       <ConfirmDialog
-        open={!!deleteTarget}
+        open={!!removeTarget}
         tone="destructive"
         title={
-          deleteTarget
-            ? t('admin.budgetMap.confirm.title', { defaultValue: 'Unmap {{category}}?', category: categoryLabel(deleteTarget) })
-            : t('admin.budgetMap.confirm.fallbackTitle', 'Unmap category?')
+          !removeTarget
+            ? t('admin.budgetMap.confirm.fallbackTitle', 'Unmap category?')
+            : removeIsLast
+              ? t('admin.budgetMap.confirm.title', { defaultValue: 'Unmap {{category}}?', category: categoryLabel(removeTarget.category) })
+              : t('admin.budgetMap.confirmRemove.title', { defaultValue: 'Remove {{account}}?', account: removeTarget.erpAccount })
+        }
+        description={
+          removeIsLast
+            ? t('admin.budgetMap.confirm.description', 'The category will have no ERP account. Pushing a budget with a non-zero amount in this category will fail closed until it is mapped again.')
+            : t('admin.budgetMap.confirmRemove.description', 'Actuals posted to this account will stop counting toward this category. The budget push is unchanged.')
+        }
+        confirmLabel={removeIsLast ? t('admin.budgetMap.confirm.confirm', 'Unmap') : t('admin.budgetMap.confirmRemove.confirm', 'Remove')}
+        loading={deleteMutation.isPending}
+        onConfirm={onRemoveConfirm}
+        onCancel={() => setRemoveTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pushTarget}
+        title={
+          pushTarget
+            ? t('admin.budgetMap.confirmPush.title', {
+              defaultValue: 'Push {{category}} to {{account}}?',
+              category: categoryLabel(pushTarget.category),
+              account: pushTarget.erpAccount,
+            })
+            : t('admin.budgetMap.confirmPush.fallbackTitle', 'Change push account?')
         }
         description={t(
-          'admin.budgetMap.confirm.description',
-          'The category will have no ERP account. Pushing a budget with a non-zero amount in this category will fail closed until it is mapped again.',
+          'admin.budgetMap.confirmPush.description',
+          "Future budget pushes send this category's whole total to this account. A budget already in the ERP keeps its current account until it is pushed again.",
         )}
-        confirmLabel={t('admin.budgetMap.confirm.confirm', 'Unmap')}
-        loading={deleteMutation.isPending}
-        onConfirm={onDeleteConfirm}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel={t('admin.budgetMap.confirmPush.confirm', 'Use for push')}
+        loading={pushMutation.isPending}
+        onConfirm={onPushConfirm}
+        onCancel={() => setPushTarget(null)}
       />
     </section>
   );
 };
 
-// ── Create / edit form modal ────────────────────────────────────────────────
+// ── Add / rename account form ───────────────────────────────────────────────
 
 interface MapFormModalProps {
   /** #559: owned by the parent (which owns the mutation), rendered here. */
   submitError: SubmitError | null;
-  category: BudgetCategory;
-  /** The category's CURRENT account, or null when it is unmapped (create vs update). */
-  existing: string | null;
-  /** Every currently-mapped row (for the client-side bijection pre-check). */
+  target: FormTarget;
+  /** Does the category already list at least one account? (title: "Map X" vs "Add account to X") */
+  hasAccounts: boolean;
+  /** Every account row (for the client-side one-category-per-account pre-check). */
   allRows: CategoryAccountMapRow[];
   onClose: () => void;
   onSubmit: (erpAccount: string) => Promise<void>;
 }
 
-const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows, submitError, onClose, onSubmit }) => {
+const MapFormModal: React.FC<MapFormModalProps> = ({ target, hasAccounts, allRows, submitError, onClose, onSubmit }) => {
   const { t } = useTranslation();
   const categoryLabel = (value: string) => value === 'Special expenses'
     ? t('budget.category.specialExpenses', 'Special expenses') : value;
-  const isEdit = existing !== null;
+  const isEdit = target.mode === 'edit';
+  const category = target.mode === 'edit' ? target.row.category : target.category;
+  const editingId = target.mode === 'edit' ? target.row.id : null;
+  const isPushTarget = target.mode === 'edit' ? target.row.isPushTarget : target.isPushTarget;
 
   const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
     const errors: Partial<Record<keyof FormValues, string>> = {};
@@ -311,9 +391,9 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows
       errors.erpAccount = t('admin.budgetMap.form.required', 'An ERP account is required.');
       return errors;
     }
-    // ⚑ FR-BUD-111 the bijection, client-side pre-check: an account already backing a DIFFERENT
-    // category is named here — the DB's unique(org, erp_account) re-asserts this regardless.
-    const conflict = allRows.find((r) => r.erpAccount === trimmed && r.category !== category);
+    // ⚑ FR-BAM-001 client-side pre-check: an account already listed (under ANY category, this row excepted) is
+    // named here — the DB's unique(org, erp_account) re-asserts it regardless.
+    const conflict = allRows.find((r) => r.erpAccount === trimmed && r.id !== editingId);
     if (conflict) {
       errors.erpAccount = t('admin.budgetMap.form.conflict', {
         defaultValue: '{{account}} is already mapped to {{category}}.',
@@ -325,7 +405,7 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows
   };
 
   const form = useEntityForm<FormValues>({
-    initialValues: { erpAccount: existing ?? '' },
+    initialValues: { erpAccount: target.mode === 'edit' ? target.row.erpAccount : '' },
     validate,
     idPrefix: 'budget-account-map-form',
     requiredFields: ['erpAccount'],
@@ -345,19 +425,23 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ category, existing, allRows
     });
   };
 
+  const title = isEdit
+    ? t('admin.budgetMap.form.editTitle', { defaultValue: 'Edit {{category}} mapping', category: categoryLabel(category) })
+    : hasAccounts
+      ? t('admin.budgetMap.addAccount', { defaultValue: 'Add account to {{category}}', category: categoryLabel(category) })
+      : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) });
+
+  const subtitle = !isPushTarget
+    ? t('admin.budgetMap.form.readOnlySubtitle', 'Its actuals count toward this category; its budget is not pushed here')
+    : isEdit
+      ? t('admin.budgetMap.form.editSubtitle', 'Change the ERP account this category pushes to')
+      : t('admin.budgetMap.form.createSubtitle', 'Choose the ERP account this category pushes to');
+
   return (
     <EntityFormModal
       open
-      title={
-        isEdit
-          ? t('admin.budgetMap.form.editTitle', { defaultValue: 'Edit {{category}} mapping', category: categoryLabel(category) })
-          : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) })
-      }
-      subtitle={
-        isEdit
-          ? t('admin.budgetMap.form.editSubtitle', 'Change the ERP account this category pushes to')
-          : t('admin.budgetMap.form.createSubtitle', 'Choose the ERP account this category pushes to')
-      }
+      title={title}
+      subtitle={subtitle}
       submitLabel={t('admin.budgetMap.form.save', 'Save mapping')}
       onSubmit={handleSubmit}
       submitError={submitError}

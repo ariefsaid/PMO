@@ -45,6 +45,7 @@ import {
   createBudgetCategoryAccountMapRow,
   updateBudgetCategoryAccountMapRow,
   deleteBudgetCategoryAccountMapRow,
+  setBudgetPushAccount,
   upsertBudgetProjectionEtc,
 } from './budgetProjection';
 import { AppError } from '@/src/lib/appError';
@@ -557,50 +558,62 @@ describe('fetchBudgetProjection with no fiscal year selected (H-4)', () => {
   });
 });
 
-describe('listBudgetCategoryAccountMap (AC-BUD-011/012 admin surface)', () => {
-  it('lists the org map rows, ordered by category, snake_case → camelCase', async () => {
+describe('listBudgetCategoryAccountMap (AC-BUD-011/012 admin surface, #768)', () => {
+  it('lists every account row with its id and push flag, ordered by category then account', async () => {
     makeFromBuilder({
-      data: [{ category: 'Labor', erp_account: '5100 - Direct Costs' }],
+      data: [{ id: 'm1', category: 'Labor', erp_account: '5100 - Direct Costs', is_push_target: true }],
       error: null,
     });
     const rows = await listBudgetCategoryAccountMap();
     expect(mockFrom).toHaveBeenCalledWith('budget_category_account_map');
-    expect(rows).toEqual([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
+    expect(mockSelect).toHaveBeenCalledWith('id, category, erp_account, is_push_target');
+    expect(mockOrder).toHaveBeenCalledWith('category');
+    expect(mockOrder).toHaveBeenCalledWith('erp_account');
+    expect(rows).toEqual([{ id: 'm1', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
   });
 });
 
-describe('createBudgetCategoryAccountMapRow / updateBudgetCategoryAccountMapRow / deleteBudgetCategoryAccountMapRow', () => {
-  it('creates a new category→account mapping', async () => {
-    makeFromBuilder({ data: { category: 'Labor', erp_account: '5100 - Direct Costs' }, error: null });
-    const row = await createBudgetCategoryAccountMapRow('Labor', '5100 - Direct Costs');
-    expect(mockInsert).toHaveBeenCalledWith({ category: 'Labor', erp_account: '5100 - Direct Costs' });
-    expect(row).toEqual({ category: 'Labor', erpAccount: '5100 - Direct Costs' });
+describe('account map writes (#768: id-keyed, explicit push flag)', () => {
+  it('creates an account row with its push flag stated explicitly', async () => {
+    makeFromBuilder({ data: { id: 'm2', category: 'Labor', erp_account: '5110 - Allowances', is_push_target: false }, error: null });
+    const row = await createBudgetCategoryAccountMapRow('Labor', '5110 - Allowances', false);
+    expect(mockInsert).toHaveBeenCalledWith({ category: 'Labor', erp_account: '5110 - Allowances', is_push_target: false });
+    expect(row).toEqual({ id: 'm2', category: 'Labor', erpAccount: '5110 - Allowances', isPushTarget: false });
   });
 
-  it('the bijection violation (23505) surfaces as an AppError with the code preserved, not swallowed', async () => {
+  it('an account already under another category (23505) surfaces as an AppError with the code preserved', async () => {
     makeFromBuilder({
       data: null,
       error: { message: 'duplicate key value violates unique constraint "budget_category_account_map_org_id_erp_account_key"', code: '23505' },
     });
-    await expect(createBudgetCategoryAccountMapRow('Overheads', '5100 - Direct Costs')).rejects.toMatchObject({
-      code: '23505',
-    });
-    await expect(createBudgetCategoryAccountMapRow('Overheads', '5100 - Direct Costs')).rejects.toBeInstanceOf(AppError);
+    await expect(createBudgetCategoryAccountMapRow('Overheads', '5100 - Direct Costs', true)).rejects.toMatchObject({ code: '23505' });
+    await expect(createBudgetCategoryAccountMapRow('Overheads', '5100 - Direct Costs', true)).rejects.toBeInstanceOf(AppError);
   });
 
-  it('updates an existing mapping by category', async () => {
-    makeFromBuilder({ data: { category: 'Labor', erp_account: '5100 - New Account' }, error: null });
-    const row = await updateBudgetCategoryAccountMapRow('Labor', '5100 - New Account');
+  it('renames one account row by id', async () => {
+    makeFromBuilder({ data: { id: 'm1', category: 'Labor', erp_account: '5100 - New Account', is_push_target: true }, error: null });
+    const row = await updateBudgetCategoryAccountMapRow('m1', '5100 - New Account');
     expect(mockUpdate).toHaveBeenCalledWith({ erp_account: '5100 - New Account' });
-    expect(mockEq).toHaveBeenCalledWith('category', 'Labor');
-    expect(row).toEqual({ category: 'Labor', erpAccount: '5100 - New Account' });
+    expect(mockEq).toHaveBeenCalledWith('id', 'm1');
+    expect(row).toEqual({ id: 'm1', category: 'Labor', erpAccount: '5100 - New Account', isPushTarget: true });
   });
 
-  it('deletes (unmaps) a category', async () => {
-    makeFromBuilder({ data: [{ category: 'Contingency' }], error: null });
-    await deleteBudgetCategoryAccountMapRow('Contingency');
+  it('removes one account row by id', async () => {
+    makeFromBuilder({ data: [{ id: 'm9' }], error: null });
+    await deleteBudgetCategoryAccountMapRow('m9');
     expect(mockDelete).toHaveBeenCalled();
-    expect(mockEq).toHaveBeenCalledWith('category', 'Contingency');
+    expect(mockEq).toHaveBeenCalledWith('id', 'm9');
+  });
+
+  it('moves the push flag through set_budget_push_account', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await setBudgetPushAccount('m2');
+    expect(mockRpc).toHaveBeenCalledWith('set_budget_push_account', { p_map_id: 'm2' });
+  });
+
+  it('a refused push-flag move (42501) rejects, never resolves silently', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'not authorized to set the budget push account', code: '42501' } });
+    await expect(setBudgetPushAccount('m2')).rejects.toMatchObject({ code: '42501' });
   });
 });
 
@@ -711,15 +724,15 @@ describe('releaseActiveBudgetPushHold (MED-2 — the operator route out of a hel
 
 describe('#541 budgetProjection writes reject a using-denied 0-row no-op', () => {
   it('#541: deleteBudgetCategoryAccountMapRow resolves when the row comes back (positive control)', async () => {
-    makeFromBuilder({ data: [{ category: 'Labor' }], error: null });
-    await expect(deleteBudgetCategoryAccountMapRow('Labor')).resolves.toBeUndefined();
+    makeFromBuilder({ data: [{ id: 'm1' }], error: null });
+    await expect(deleteBudgetCategoryAccountMapRow('m1')).resolves.toBeUndefined();
   });
 
   it('#541: deleteBudgetCategoryAccountMapRow rejects 42501 when 0 rows matched and no error was reported', async () => {
     // ⚑ Left silent this INVERTS the fail-closed contract: the Admin believes the category is
     // unmapped (and will fail closed at the next push) while the stale mapping is still pushing.
     makeFromBuilder({ data: [], error: null });
-    const err = await deleteBudgetCategoryAccountMapRow('Labor').catch((e: unknown) => e);
+    const err = await deleteBudgetCategoryAccountMapRow('m1').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
     expect(mockDelete).toHaveBeenCalled();
