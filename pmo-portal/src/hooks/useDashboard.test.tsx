@@ -41,6 +41,12 @@ vi.mock('@/src/lib/repositories', () => ({
           client: { name: 'Delta Co' }, end_client_id: '75800000-0000-0000-0000-0000000000a1',
           end_client: { name: 'EC Delta' }, last_update: '2026-08-01T00:00:00Z', project_manager: null,
         },
+        {
+          id: 'declined-1', name: 'Declined Deal Echo', status: 'Declined',
+          contract_value: 120000, currency: 'IDR', tax_treatment: 'exclusive',
+          client: { name: 'Echo Co' }, end_client_id: null, end_client: null,
+          last_update: '2026-09-01T00:00:00Z', project_manager: null,
+        },
       ]),
     },
   },
@@ -48,6 +54,7 @@ vi.mock('@/src/lib/repositories', () => ({
 
 import { useDashboard, useWinRate, useSalesPipeline, useLostDeals } from './useDashboard';
 import { getExecutiveDashboard, getWinRate, getSalesPipeline } from '@/src/lib/db/dashboard';
+import { repositories } from '@/src/lib/repositories';
 
 // Fresh QueryClient per test to avoid cross-test cache bleed.
 const makeWrapper = () => {
@@ -148,11 +155,22 @@ describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
     // ⚑ This is the assertion typecheck could not make. The field being PRESENT is a type
     // guarantee; the field carrying the ROW's value is a behaviour, and only this can see it.
     // Hardcoding `tax_treatment: null` in the mapping reddens exactly here and nowhere else.
-    expect(result.current.data?.[0]).toMatchObject({
+    expect(result.current.data?.find((d) => d.id === 'lost-1')).toMatchObject({
       name: 'Lost Deal Delta',
       tax_treatment: 'inclusive',
       currency: 'IDR',
     });
+  });
+
+  // AC-DEC-001 (#774): ONE query covers both terminal pre-award outcomes, most recent first.
+  it('AC-DEC-001: useLostDeals asks for Loss Tender AND Declined in one query and returns both, newest first', async () => {
+    const { result } = renderHook(() => useLostDeals(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(vi.mocked(repositories.project.list)).toHaveBeenCalledWith({ statuses: ['Loss Tender', 'Declined'] });
+    expect(result.current.data?.map((d) => [d.id, d.status])).toEqual([
+      ['declined-1', 'Declined'],
+      ['lost-1', 'Loss Tender'],
+    ]);
   });
 
   // AC-EC-003 (#758): the lost scope obeys the same end-customer UI contract as the open feed —
@@ -160,7 +178,7 @@ describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
   it('AC-EC-003: useLostDeals maps end_client?.name into end_client_name for the lost scope', async () => {
     const { result } = renderHook(() => useLostDeals(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.[0]).toMatchObject({
+    expect(result.current.data?.find((d) => d.id === 'lost-1')).toMatchObject({
       end_client_id: '75800000-0000-0000-0000-0000000000a1',
       end_client_name: 'EC Delta',
     });

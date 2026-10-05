@@ -23,7 +23,8 @@
       "platform": "Platform",
       "title": "Administrasi",
       "usage": "Pemakaian",
-      "users": "Pengguna"
+      "users": "Pengguna",
+      "projects": "Pengaturan proyek"
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
@@ -862,7 +863,10 @@
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
     },
-    "title": "Dashboard Eksekutif"
+    "title": "Dashboard Eksekutif",
+    "winRate": {
+      "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+    }
   },
   "funnel": {
     "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
@@ -1593,6 +1597,12 @@
       },
       "lostNotice": "Proyek ini ditandai kalah. Proyek sudah keluar dari pipeline aktif.",
       "markLost": "Tandai kalah",
+      "markDeclined": "Tidak ikut tender",
+      "declinedConfirm": {
+        "title": "Tidak ikut tender",
+        "body": "Ini mencatat {{project}} sebagai tidak diikuti: kami memilih tidak mengajukan penawaran. Proyek keluar dari pipeline aktif dan tidak dihitung dalam win rate.",
+        "confirm": "Tidak ikut tender"
+      },
       "markWon": "Tandai menang",
       "nextActionsHeading": "Tindakan berikutnya",
       "notSet": "Belum diisi",
@@ -2076,6 +2086,7 @@
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
       "lossTender": "Tender kalah",
+      "declined": "Tidak ikut tender",
       "internalProject": "Proyek internal"
     },
     "identifiers": {
@@ -2178,7 +2189,8 @@
       "tender": "Tender",
       "negotiation": "Negosiasi",
       "lost": "Kalah"
-    }
+    },
+    "lostCounts": "Kalah {{lost}} · Tidak ikut tender {{declined}}"
   },
   "shell": {
     "backBar": {
@@ -2909,5 +2921,34 @@
     "previewUnavailable": "Pratinjau tidak tersedia:",
     "none": "— tidak ada —",
     "select": "— pilih —"
+  },
+  "projectClassification": {
+    "title": "Klasifikasi",
+    "serviceLine": "Lini layanan",
+    "sector": "Sektor",
+    "location": "Lokasi",
+    "awardType": "Jenis perolehan",
+    "biddingEntity": "Entitas penawar",
+    "notSet": "Belum diatur",
+    "tender": "Tender",
+    "direct": "Penunjukan langsung",
+    "alone": "Sendiri",
+    "consortium": "Konsorsium",
+    "unavailable": "Pilihan tidak dapat dimuat. Buka kembali formulir untuk mencoba lagi.",
+    "loadError": "Pilihan klasifikasi tidak dapat dimuat",
+    "saved": "Pilihan klasifikasi disimpan",
+    "retained": "Klasifikasi proyek yang ada tetap tersimpan.",
+    "setupHelp": "Tentukan lini layanan dan sektor pada formulir proyek. Menghapus pilihan tidak mengubah proyek yang sudah menggunakannya.",
+    "serviceLines": "Lini layanan",
+    "sectors": "Sektor",
+    "onePerLine": "Satu pilihan per baris. Kosongkan jika tidak ada pilihan.",
+    "save": "Simpan pilihan",
+    "adminOnly": "Hanya Admin yang dapat mengubah pilihan ini.",
+    "all": "Semua",
+    "filterServiceLine": "Filter menurut lini layanan",
+    "filterSector": "Filter menurut sektor",
+    "filterAwardType": "Filter menurut jenis perolehan",
+    "filterBiddingEntity": "Filter menurut entitas penawar",
+    "filterLocation": "Filter menurut lokasi"
   }
 }

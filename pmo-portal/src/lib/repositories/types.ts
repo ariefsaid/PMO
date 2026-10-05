@@ -1,3 +1,4 @@
+import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -137,7 +138,7 @@ export interface CommandIntent {
 
 export interface ProjectRepository {
   list(
-    params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
+    params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
   ): Promise<ProjectWithRefs[]>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
@@ -677,6 +678,8 @@ export interface OrgSettingsRepository {
   setProjectNumberPattern(value: string | null): Promise<void>;
   getWithholdingAccount(): Promise<string | null>;
   setWithholdingAccount(account: string | null): Promise<void>;
+  getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
+  setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */

@@ -7,6 +7,9 @@
  */
 import { adoptParty, externalIdFor, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
+import { getDoc } from './client.ts';
+import { listErpChangesSinceWatermark } from './sweepCursor.ts';
+import { contactCanonicalFromDoc, CONTACT_FROM_DOC_FIELDS } from './bodies/contact.ts';
 import type { PmoRecord } from '../contract.ts';
 
 interface RawSupplierRow {
@@ -106,4 +109,10 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
     adopted += 1;
   }
   return { adopted, reconciled };
+}
+
+/** Contacts require their Dynamic Link children, so enumerate scalars then hydrate each changed doc. */
+export async function listErpContactSources(client: ErpClientDeps) {
+  return (await listErpChangesSinceWatermark({client, doctype:'Contact', fields:CONTACT_FROM_DOC_FIELDS,
+    fromDoc:contactCanonicalFromDoc, hydrateDoc:async(name) => await getDoc(client,'Contact',name) as Record<string,unknown>},null)).changes;
 }

@@ -210,6 +210,7 @@ import {
   cleanupStorageObject as cleanupProcurementFileObject,
 } from '@/src/lib/db/procurementFiles';
 import {
+  type ContactRow,
   listContacts,
   listContactsByCompany,
   getContact,
@@ -240,6 +241,8 @@ import {
   setOrgProjectNumberPattern,
   getOrgWithholdingAccount,
   setOrgWithholdingAccount,
+  getOrgProjectClassificationOptions,
+  setOrgProjectClassificationOptions,
 } from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
@@ -773,7 +776,11 @@ const contact: ContactRepository = {
   list: (params) => wrap(() => listContacts(params)),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
-  create: (input) => wrap(() => createContact(input)),
+  create: async (input) => {
+    if (routeDomainWrite('companies') !== 'external') return wrap(() => createContact(input));
+    const result = await dispatchCreate('companies', {...input, erp_doc_kind: 'contact'}, undefined);
+    return result.canonical as unknown as ContactRow;
+  },
   update: (id, input) => wrap(() => updateContact(id, input)),
   archive: (id) => wrap(() => archiveContact(id)),
   delete: (id) => wrap(() => deleteContact(id)),
@@ -824,6 +831,8 @@ const orgSettings: OrgSettingsRepository = {
   setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
   setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
+  getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),
+  setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
 };

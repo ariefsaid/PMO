@@ -125,6 +125,27 @@ const tasksWriter: ReadModelWriter = {
  *  can never clobber a user's soft-archive. */
 const companiesWriter: ReadModelWriter = {
   async upsert(ctx, canonical, command) {
+    if (command.record.erp_doc_kind === 'contact') {
+      const companyId = command.record.company_id;
+      if (typeof companyId !== 'string' || !companyId || await checkLinkSameOrg(ctx, 'companies', companyId) !== 'ok') {
+        throw new AppError('Contact company is unavailable', 'cross-org-link-rejected');
+      }
+      const fields = {
+        full_name: canonical.full_name,
+        email: canonical.email ?? null,
+        phone: canonical.phone ?? null,
+        erp_modified: canonical.erp_modified ?? null,
+      };
+      const query = command.operation === 'create'
+        ? ctx.serviceClient.from('contacts').insert({
+          id: canonical.id, org_id: ctx.orgId, company_id: companyId,
+          title: command.record.title ?? null, notes: command.record.notes ?? null, ...fields,
+        })
+        : ctx.serviceClient.from('contacts').update(fields).eq('org_id', ctx.orgId).eq('id', canonical.id);
+      const { error } = await (query as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+      if (error) throw new AppError(error.message, error.code);
+      return;
+    }
     const patch = {
       name: canonical.name,
       type: canonical.type,

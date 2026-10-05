@@ -120,6 +120,18 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /Mark lost/i }));
     await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Loss Tender'));
   });
+
+  // #774: "Decline to bid" is the third terminal outcome — also confirm-gated, writes 'Declined'.
+  it('AC-DEC-001: "Decline to bid" confirms, then transitions the project to Declined', async () => {
+    renderLens();
+    await userEvent.click(screen.getByRole('button', { name: /Decline to bid/i }));
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(transitionProject).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /Decline to bid/i }));
+    await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Declined'));
+  });
 });
 
 describe('AC-PLC-005: the decision date follows the profile timezone', () => {

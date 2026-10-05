@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * AC-PJ-CM-001 — ProjectCard kebab/Edit affordance (T15opt card variant)
  *

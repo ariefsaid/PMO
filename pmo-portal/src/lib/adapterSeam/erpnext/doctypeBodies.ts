@@ -25,9 +25,11 @@ import { siToBody, siFromDoc } from './bodies/salesInvoice.ts';
 import { peReceiveToBody, peReceiveFromDoc } from './bodies/incomingPayment.ts';
 import { tsToBody, tsFromDoc } from './bodies/timesheet.ts';
 import { employeeToBody, employeeFromDoc } from './bodies/employee.ts';
+import { contactToBody, contactCanonicalFromDoc } from './bodies/contact.ts';
 import { budgetToBody, budgetFromDoc } from './bodies/budget.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
+  contact: { toBody: contactToBody, fromDoc: contactCanonicalFromDoc },
   supplier: { toBody: supplierToBody, fromDoc: supplierFromDoc },
   customer: { toBody: customerToBody, fromDoc: customerFromDoc },
   'purchase-request': { toBody: mrToBody, fromDoc: mrFromDoc },

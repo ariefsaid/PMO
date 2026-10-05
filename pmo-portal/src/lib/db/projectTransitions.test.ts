@@ -80,6 +80,17 @@ describe('isLegalProjectTransition', () => {
 // ---------------------------------------------------------------------------
 
 describe('projectStatusGroup', () => {
+  it('AC-DEC-001: Declined is a legal terminal target from every pre-award stage, never from won/on-hand, and revives to Negotiation', () => {
+    for (const from of ['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation'] as const) {
+      expect(isLegalProjectTransition(from, 'Declined')).toBe(true);
+    }
+    for (const from of ['Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out', 'Internal Project'] as const) {
+      expect(isLegalProjectTransition(from, 'Declined')).toBe(false);
+    }
+    expect(isLegalProjectTransition('Declined', 'Negotiation')).toBe(true);
+    expect(projectStatusGroup('Declined')).toBe('lost');
+  });
+
   it('AC-1001: projectStatusGroup maps the five pipeline statuses to pipeline, the won/active set to onHand, Loss Tender to lost, Internal Project to internal (FR-PR-012)', () => {
     // Pipeline statuses
     expect(projectStatusGroup('Leads')).toBe('pipeline');

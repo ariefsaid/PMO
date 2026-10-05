@@ -12,6 +12,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [{ id: 'client-1', name: 'Acme Client', type: 'Client' }], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useOrgTaxDefault', () => ({ useOrgTaxDefault: () => 'exclusive', useTaxTreatmentPreselect: () => undefined }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));

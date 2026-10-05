@@ -193,7 +193,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('orgSettings exposes its expected methods (OD-TAX-1, migration 0207)', () => {
     expect(Object.keys(repositories.orgSettings).sort()).toEqual(
-      ['getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort(),
+      ['getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort(),
     );
   });
 

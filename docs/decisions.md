@@ -2840,3 +2840,20 @@ facts unchanged — settled amount (gross), cash received, tax withheld — and 
 unchanged: invoice settled in full, cash and withholding both recorded. Only the raw ERP read-back
 assertion and the synthetic mapper fixture change to ERPNext's real shape; the mapper derives the gross
 only from an explicitly marked withholding deduction, leaving other deductions alone.
+
+## DD-ERP-SITE-1 — one ERP site serves one PMO org (Director, 2026-10-06)
+
+PMO assumes an ERPNext site is connected to at most one PMO org. Customers, Suppliers and their Contacts
+are site-wide masters in ERPNext, so two orgs sharing a site would each adopt the other's parties and the
+contacts' personal details. Adoption is fail-closed per org (a contact is adopted only when every link
+resolves to this org), but that does not stop shared masters reaching both. Until a second org needs a
+shared site, connecting a site already bound to another org is unsupported; revisit with a site-ownership
+rule if that case appears.
+
+## DD-APR-1 / DD-APR-2 — spend approval routing defaults (Director, 2026-10-06)
+
+For approval routing by budget (#803; spec `docs/specs/approval-routing-by-budget.spec.md`, ADR-0075):
+- **DD-APR-1 — either one approves.** When a request routes to the senior approver set (overhead, or over the
+  project's budget line), one signature from any member of the set is enough. Revisit if the client wants both.
+- **DD-APR-2 — one line, all years.** "Within budget" compares against the project's active budget line for the
+  category across all fiscal years combined, the same basis spend is already counted on.

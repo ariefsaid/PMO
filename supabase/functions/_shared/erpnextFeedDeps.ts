@@ -303,6 +303,15 @@ async function mintMirrorRow(
   id: string,
 ): Promise<void> {
   const domain = KIND_DOMAIN[kind];
+  if (kind === 'contact') {
+    const { error } = await serviceClient.from('contacts').insert({
+      id, org_id: orgId, company_id: canonical.company_id,
+      full_name: canonical.full_name, email: canonical.email ?? null, phone: canonical.phone ?? null,
+      erp_modified: new Date(sourceModMs).toISOString(),
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
   if (domain === 'companies') {
     // Party adopt (Supplier/Customer created natively in ERP — OQ-4): mint the FULL companies
     // mirror row + the source-mod stamp. Writing only name/type here (the original slice-8 cut)
@@ -488,6 +497,7 @@ async function mintMirrorRow(
  *  source-mod guard already gated the write). Native ERP-derived fields synced by the dispatch
  *  read-model writer on the outbound commit are left untouched here. */
 function mirrorStatusPatch(kind: ErpDocKind, canonical: PmoRecord, sourceModMs: number): Record<string, unknown> {
+  if (kind === 'contact') return {full_name: canonical.full_name, email: canonical.email ?? null, phone: canonical.phone ?? null, company_id: canonical.company_id, erp_modified: new Date(sourceModMs).toISOString()};
   const docstatus = (canonical.erp_docstatus as number | null | undefined) ?? null;
   // erp_modified always advances. The lifecycle columns follow putIfPresent discipline: a partial
   // webhook that omits docstatus must not clear a real erp_docstatus, nor wipe a genuine
@@ -889,3 +899,4 @@ async function notifyFinanceUnassignedInvoice(
     console.error(`[erpnextFeedDeps] Finance notification for unassigned invoice ${invoice.siNumber} (org ${orgId}) failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
+
