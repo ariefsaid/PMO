@@ -20,7 +20,9 @@ export interface ProjectInvoiceSummary {
   taxTreatment: 'inclusive' | 'exclusive';
 }
 
-const INVOICED_STATUSES = new Set(['Submitted', 'Unpaid', 'Paid']);
+/** The submitted states that count as revenue — shared with Revenue by Project (`db/revenue.ts`). */
+export const REVENUE_STATUSES = ['Submitted', 'Unpaid', 'Paid'] as const;
+const INVOICED_STATUSES = new Set<string>(REVENUE_STATUSES);
 
 /**
  * Calculates the invoiced and remaining figures on the project's recorded contract basis.

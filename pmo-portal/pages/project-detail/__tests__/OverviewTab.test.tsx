@@ -185,6 +185,7 @@ describe('project invoicing summary', () => {
     expect(screen.getByTestId('project-contract-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
     expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
     expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getByTestId('project-invoicing-scope')).toHaveTextContent('without a project are not included');
   });
 
   it('AC-UNB-003: shows unavailable invoice totals when the currency or stored tax basis cannot be compared', () => {

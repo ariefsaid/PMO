@@ -130,6 +130,14 @@ const ProjectInvoicingSummary: React.FC<{ project: ProjectWithRefs }> = ({ proje
           </Button>
         </div>
       )}
+      {summaryReady && (
+        <p className="mt-3 text-[12px] text-muted-foreground" data-testid="project-invoicing-scope">
+          {t(
+            'projectDetail.overview.invoicing.scopeNote',
+            'Counts invoices linked to this project. Invoices raised in the ERP without a project are not included.',
+          )}
+        </p>
+      )}
       {!invoicesQuery.isPending && !invoicesQuery.isError && !summaryReady && (
         <p className="mt-3 text-[12px] text-muted-foreground" role="status">
           {t(

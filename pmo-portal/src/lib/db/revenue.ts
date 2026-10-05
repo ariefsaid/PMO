@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
@@ -268,7 +269,6 @@ export async function submitSalesInvoiceSod(siId: string): Promise<void> {
  * (`Submitted`/`Unpaid`/`Paid`), not merely "not Cancelled"; a Draft never inflates project revenue,
  * and any status added later is excluded until deliberately admitted here.
  */
-const REVENUE_STATUSES = ['Submitted', 'Unpaid', 'Paid'] as const;
 export async function getRevenueByProject(): Promise<
   Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
 > {
