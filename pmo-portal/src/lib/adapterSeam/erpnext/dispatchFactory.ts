@@ -935,8 +935,10 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
-  // Resolve and validate authoring lines before the outbox body snapshot or any ERP money write.
+  // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
+  // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
   const itemKind = deps.command.record.erp_doc_kind;
+  let validateAuthoringItems: ErpAdapterDeps['validateAuthoringItems'];
   if (
     ['sales-invoice', 'purchase-order', 'purchase-invoice'].includes(String(itemKind)) &&
     buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: deps.command.record.verb } })
@@ -944,18 +946,12 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     const record = deps.command.record;
     const lines = Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems;
     if (lines?.length) {
-      const catalog = await listErpItems(
-        {
-          fetchImpl: deps.fetchImpl,
-          baseUrl: binding.site_url,
-          apiKey: deps.apiKey,
-          apiSecret: deps.apiSecret,
-          rateLimiter: deps.rateLimiter,
-        },
-        itemKind === 'sales-invoice' ? 'sales' : 'purchase',
-      );
-      validateItemLines(lines, catalog);
       record.items = lines;
+      validateAuthoringItems = async (command, client) => {
+        if (!buildsSalesInvoiceBody({ operation: command.operation, record: { verb: command.record.verb } })) return;
+        const catalog = await listErpItems(client, itemKind === 'sales-invoice' ? 'sales' : 'purchase');
+        validateItemLines(Array.isArray(command.record.items) ? command.record.items : [], catalog);
+      };
     }
   }
   // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
@@ -980,6 +976,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       rateLimiter: deps.rateLimiter,
     },
     doctypeBodies: deps.doctypeBodies ?? {},
+    validateAuthoringItems,
     // Ref resolution: PO/GR commands (task 5.3, FR-ENA-103) resolve `refs`/`resolvedItems` above via
     // the case's `procurementId` (supplier + line items + PO/PO-item-child-row for a GR). Every other
     // kind — MR/RFQ/SQ (task 4.6/4.7, FR-ENA-111/112) — carries no `procurementId`, so `refs.supplier`

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import type { AdapterCommand } from '../contract.ts';
+import { siToBody, siFromDoc } from './bodies/salesInvoice.ts';
+import { poToBody, poFromDoc } from './bodies/purchaseOrder.ts';
+import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
 import { canonicalCommandDigest } from '../../../../../supabase/functions/adapter-dispatch/moneyOutboxDeps.ts';
 
 function client(tables: Record<string, unknown> = {}): DispatchServiceClient {
@@ -42,27 +46,25 @@ describe('item catalog money preflight', () => {
           ],
         });
       });
-      await expect(
-        resolveErpDispatchAdapter({
-          serviceClient: client(),
-          orgId: 'org-test',
-          command: {
-            domain: kind === 'sales-invoice' ? 'revenue' : 'procurement',
-            operation: 'create',
-            record: {
-              id: 'record-test',
-              erp_doc_kind: kind,
-              items: [
-                { item_code: 'ITEM-TEST', qty: 1, rate: 2 },
-                { item_code: 'ITEM-UNKNOWN', qty: 1, rate: 2 },
-              ],
-            },
+      const command: AdapterCommand = {
+        domain: kind === 'sales-invoice' ? 'revenue' : 'procurement', operation: 'create',
+        record: { id: 'record-test', erp_doc_kind: kind, items: [
+          { item_code: 'ITEM-TEST', qty: 1, rate: 2 },
+          { item_code: 'ITEM-UNKNOWN', qty: 1, rate: 2 },
+        ] },
+      };
+      await expect((async () => {
+        const adapter = await resolveErpDispatchAdapter({
+          serviceClient: client(), orgId: 'org-test', command,
+          apiKey: 'test', apiSecret: 'test', fetchImpl: fetchImpl as typeof fetch,
+          doctypeBodies: {
+            'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc },
+            'purchase-order': { toBody: poToBody, fromDoc: poFromDoc },
+            'purchase-invoice': { toBody: piToBody, fromDoc: piFromDoc },
           },
-          apiKey: 'test',
-          apiSecret: 'test',
-          fetchImpl: fetchImpl as typeof fetch,
-        }),
-      ).rejects.toThrow('Line 2: item "ITEM-UNKNOWN"');
+        });
+        await adapter.commit(command);
+      })()).rejects.toThrow('Line 2: item "ITEM-UNKNOWN"');
       expect(fetchImpl).toHaveBeenCalledTimes(1);
     },
   );
@@ -103,10 +105,30 @@ describe('item catalog money preflight', () => {
     expect(command.record).toMatchObject({
       items: [{ item_code: 'ITEM-TEST', description: 'Inspection of test unit', qty: 2, rate: 10 }],
     });
+    expect(fetchImpl).not.toHaveBeenCalled();
     const resolved = await canonicalCommandDigest(command);
     expect(resolved).not.toBe(before);
     expect(await canonicalCommandDigest(command)).toBe(resolved);
     expect(await canonicalCommandDigest({ ...command, record: { ...command.record, items: [{ item_code: 'ITEM-TEST', description: 'Different test work', qty: 2, rate: 10 }] } })).not.toBe(resolved);
+  });
+
+  it('rejects an unresolved amendment item before cancelling its predecessor', async () => {
+    const command: AdapterCommand = { domain: 'revenue', operation: 'transition', record: {
+      id: 'record-test', erp_doc_kind: 'sales-invoice', verb: 'amend', externalRecordId: 'ERP-OLD',
+      items: [{ item_code: 'ITEM-UNKNOWN', qty: 1, rate: 2 }],
+    } };
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.method).toBe('GET');
+      return Response.json({ data: [] });
+    });
+    await expect((async () => {
+      const adapter = await resolveErpDispatchAdapter({ serviceClient: client(), orgId: 'org-test',
+        command, apiKey: 'test', apiSecret: 'test', fetchImpl: fetchImpl as typeof fetch,
+        doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+      });
+      await adapter.commit(command);
+    })()).rejects.toThrow('Line 1: item "ITEM-UNKNOWN"');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('does not look up authoring items for submit/cancel transitions', async () => {

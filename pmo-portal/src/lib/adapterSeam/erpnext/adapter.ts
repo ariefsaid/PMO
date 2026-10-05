@@ -38,6 +38,8 @@ export interface DoctypeBodyFns {
 
 export interface ErpAdapterDeps {
   client: ErpClientDeps;
+  /** Server-resolved Item validation for authoring writes; recovery that only mirrors never commits. */
+  validateAuthoringItems?: (command: AdapterCommand, client: ErpClientDeps) => Promise<void>;
   /** The (kind)->{toBody,fromDoc} side table (FR-ENA-014); accumulates per slice 3-6 wiring. */
   doctypeBodies: Partial<Record<ErpDocKind, DoctypeBodyFns>>;
   /** Resolved refs (supplier/po/...) + the org binding's config defaults — built by the dispatch
@@ -447,6 +449,7 @@ function budgetedDeps(command: AdapterCommand, deps: ErpAdapterDeps): ErpAdapter
 
 async function commitErpCommand(command: AdapterCommand, rawDeps: ErpAdapterDeps): Promise<CommandResult> {
   const deps = budgetedDeps(command, rawDeps);
+  await deps.validateAuthoringItems?.(command, deps.client);
   if (command.operation === 'create') return commitCreate(command, deps);
   if (command.operation === 'transition') return commitTransition(command, deps);
   if (command.operation === 'delete') {
