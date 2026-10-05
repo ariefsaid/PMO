@@ -108,6 +108,15 @@ beforeEach(async () => {
 afterEach(() => resetActiveLocale());
 
 describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 1)', () => {
+  it('keeps the status filters inside a keyboard-accessible horizontal region', async () => {
+    renderPage();
+
+    const filterRegion = screen.getByRole('region', { name: 'Filter by status' });
+    expect(filterRegion).toHaveAttribute('tabindex', '0');
+    expect(filterRegion).toHaveClass('max-w-full', 'overflow-x-auto');
+    expect(within(filterRegion).getByRole('tablist', { name: 'Filter by status' })).toBeInTheDocument();
+  });
+
   it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
     await financeTestI18n.changeLanguage('id');
     renderPage();

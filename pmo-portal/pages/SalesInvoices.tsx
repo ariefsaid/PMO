@@ -322,15 +322,22 @@ const SalesInvoices: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <ViewToggle<StatusFilter>
-            options={STATUS_FILTERS.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
-            value={statusFilter}
-            onChange={(v) => {
-              setStatusFilter(v);
-              trackFilterApplied('status', STATUS_FILTERS.length, 'salesInvoices');
-            }}
-            ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
-          />
+          <div
+            role="region"
+            aria-label={t('financeCopy.filterByStatus', "Filter by status")}
+            tabIndex={0}
+            className="min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <ViewToggle<StatusFilter>
+              options={STATUS_FILTERS.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
+              value={statusFilter}
+              onChange={(v) => {
+                setStatusFilter(v);
+                trackFilterApplied('status', STATUS_FILTERS.length, 'salesInvoices');
+              }}
+              ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
+            />
+          </div>
         )
       }
       search={
