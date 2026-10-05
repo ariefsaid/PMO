@@ -499,11 +499,11 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     render(<BahasaProvider><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" /></ToastProvider></MemoryRouter></BahasaProvider>);
-    await userEvent.click(screen.getByText(/\+ Add line item/i));
+    await userEvent.click(screen.getByText(/Tambah item anggaran/i));
     expect(screen.getByRole('option', { name: 'Biaya khusus' })).toHaveValue('Special expenses');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Line item category' }), 'Special expenses');
-    await userEvent.type(screen.getByPlaceholderText(/Amount/i), '10');
-    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Kategori item anggaran' }), 'Special expenses');
+    await userEvent.type(screen.getByPlaceholderText(/Jumlah/i), '10');
+    await userEvent.click(screen.getByRole('button', { name: /^Simpan$/i }));
     expect(mockCreateLineItem).toHaveBeenCalledWith({ versionId: 'v-draft', item: expect.objectContaining({ category: 'Special expenses', budgeted_amount: 10 }) });
   });
 
