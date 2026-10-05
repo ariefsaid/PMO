@@ -29,6 +29,7 @@ export type Action =
   | 'editContractValue'
   | 'setValue'
   | 'submit_sales_invoice'
+  | 'record_received_date'
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
@@ -380,6 +381,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // NOTE: no `edit` entry on purpose — the page has no update mutation (the row-menu Edit is a
     // no-op stub), so granting `edit` would surface an affordance that does nothing.
     transition: allow(REVENUE_WRITE),
+    // #767: record the date the client received the invoice — any non-cancelled state. Mirrors the
+    // `set_sales_invoice_received_date` RPC's Admin+Finance gate (the RPC is the authority).
+    record_received_date: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.

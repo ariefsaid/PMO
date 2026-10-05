@@ -20,6 +20,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { onboardParties, listErpPartySources } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/onboarding.ts';
+import { ensureErpCustomFields } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/erpCustomFields.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
@@ -134,6 +135,10 @@ serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Respons
 
     const clientDeps: ErpClientDeps = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
 
+    // #767: the site custom fields PMO's bodies write (ERPNext silently drops unknown keys). Reported
+    // per field, never fatal — a missing field costs only its own value, not party onboarding.
+    const customFields = await ensureErpCustomFields(clientDeps);
+
     const sources = await listErpPartySources(clientDeps);
 
     const result = await onboardParties(sources, {
@@ -182,7 +187,7 @@ serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Respons
       recordExternalRef: (mapping) => recordExternalRefWrite(serviceClient as never, { ...mapping, orgId, domain: 'companies', externalTier: ERPNEXT_TIER }),
     });
 
-    return json({ ok: true, ...result });
+    return json({ ok: true, ...result, customFields });
   } catch (err) {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'onboarding failed');
     const status = appError.code === 'action-required' ? 409 : appError.code === 'config-rejected' ? 422 : appError.code === 'external-unreachable' ? 502 : 500;

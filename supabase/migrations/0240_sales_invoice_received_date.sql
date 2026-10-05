@@ -1,17 +1,20 @@
 -- #767: the client's RECEIPT date drives the invoice due date (AC-DUE-001..003).
 -- Reversal: supabase/migrations/rollback/0240_sales_invoice_received_date_down.sql.
 --
--- `received_date`  — PMO-recorded date the client received the invoice (nullable). Never before the
---                    invoice date. Written ONLY through set_sales_invoice_received_date() below:
---                    `authenticated` holds no UPDATE grant on sales_invoices (0176), and receipt is
---                    learned after submission, so a narrow RPC is the one path for both states.
+-- `received_date`  — the date the client received the invoice (nullable). A user records it ONLY
+--                    through set_sales_invoice_received_date() below: `authenticated` holds no UPDATE
+--                    grant on sales_invoices (0176), and receipt is learned after submission, so a
+--                    narrow RPC is the one user path for both states. The service-role ERP mirror
+--                    writer also stores ERPNext's `custom_received_date` here on read-back.
 -- `erp_due_date`   — ERP's own due_date, mirrored read-only (service-role mirror writer only).
+--
+-- "Never before the invoice date" is checked in the RPC, NOT as a table CHECK: a CHECK would also fire
+-- on the ERP read-back, and refusing what ERP holds would stall that invoice's status sync. The mirror
+-- stores what ERP says.
 
 alter table public.sales_invoices
   add column received_date date,
-  add column erp_due_date date,
-  add constraint sales_invoices_received_after_invoice
-    check (received_date is null or invoice_date is null or received_date >= invoice_date);
+  add column erp_due_date date;
 
 -- Insert grant is column-level (0176): received_date / erp_due_date are deliberately NOT granted.
 
@@ -34,6 +37,9 @@ begin
   end if;
   if v_row.status = 'Cancelled' then
     raise exception 'cannot record a receipt date on a cancelled invoice' using errcode = '23514';
+  end if;
+  if p_received_date is not null and v_row.invoice_date is not null and p_received_date < v_row.invoice_date then
+    raise exception 'the received date cannot be before the invoice date' using errcode = '23514';
   end if;
   update public.sales_invoices set received_date = p_received_date where id = p_si_id
     returning * into v_row;

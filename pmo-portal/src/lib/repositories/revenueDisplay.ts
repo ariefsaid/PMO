@@ -16,8 +16,9 @@ const DEFAULT_PAYMENT_TERMS_DAYS = 30;
  * 2. `invoiceDate + paymentTermsDays` (customer's payment terms from binding)
  * 3. `invoiceDate + 30` (ERP default when terms are null/undefined)
  *
- * This is the ONE effective-due-date helper: the list column, its export, the overdue flag and the
- * ERP push body all call it so they cannot disagree.
+ * This is the ONE effective-due-date helper: the Sales Invoices Due Date column and its export call
+ * it. ERP's own AR aging keeps ERP's due date (Proposed DD-DUE-1, #767): ERPNext will not change
+ * `due_date` on a submitted invoice, so PMO never pushes one.
  *
  * Returns `null` when `invoiceDate` is falsy (null/undefined/empty) — the caller
  * should render "—" or similar.

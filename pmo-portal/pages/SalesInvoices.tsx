@@ -125,7 +125,8 @@ const SalesInvoices: React.FC = () => {
   const canCreate = may('create', 'salesInvoice');
   const canEdit = may('edit', 'salesInvoice');
   const canCancel = may('transition', 'salesInvoice');
-  const canRowWrite = canEdit || canCancel;
+  const canRecordReceipt = may('record_received_date', 'salesInvoice');
+  const canRowWrite = canEdit || canCancel || canRecordReceipt;
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -273,7 +274,7 @@ const SalesInvoices: React.FC = () => {
     if (canEdit) items.push({ label: t('financeCopy.edit', "Edit"), onClick: () => setFormTarget({ invoice: inv }) });
     // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).
-    if (canCancel && inv.status !== 'Cancelled')
+    if (canRecordReceipt && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
     if (canCancel && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(inv), danger: true });

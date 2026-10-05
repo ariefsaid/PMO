@@ -17,7 +17,6 @@ import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
-import { deriveArDueDate } from '../../repositories/revenueDisplay.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 
@@ -353,20 +352,17 @@ async function resolveSalesInvoicePo(deps: ErpDispatchFactoryDeps): Promise<void
   record.reference_number = reference;
   record.po_date = date;
 
-  // #767 (AC-DUE-003): with a recorded receipt date, push it and the effective due date it implies
-  // (receipt + the customer's terms, via the ONE `deriveArDueDate` helper). Without one, neither key
-  // is set and ERP keeps deriving due_date itself.
-  const stamp = await read('sales_invoices', 'received_date,invoice_date,customer_id', record.id);
+  // #767 (AC-DUE-003): a recorded receipt date rides along as ERP's `custom_received_date`. `due_date`
+  // is deliberately NOT pushed: ERPNext refuses a due date past the customer's payment-terms default
+  // (party.py `validate_due_date_with_template`, "Due Date cannot be after …") — so sending one would
+  // fail the amend of any invoice whose customer has a terms template — and `due_date` is not
+  // `allow_on_submit`, so it could never follow a receipt recorded after submission anyway. ERP keeps
+  // its own due date; PMO shows the receipt-based one (`deriveArDueDate`). Proposed DD-DUE-1.
+  const stamp = await read('sales_invoices', 'received_date', record.id);
   const received = nonblank(stamp?.received_date);
   delete record.received_date;
   delete record.due_date;
-  if (received) {
-    const customerId = nonblank(record.customerId) ?? nonblank(stamp?.customer_id);
-    const customer = customerId ? await read('companies', 'erp_payment_terms_days', customerId) : null;
-    const terms = typeof customer?.erp_payment_terms_days === 'number' ? customer.erp_payment_terms_days : null;
-    record.received_date = received;
-    record.due_date = deriveArDueDate(nonblank(stamp?.invoice_date), terms, null, received);
-  }
+  if (received) record.received_date = received;
 }
 
 /** Resolve revenue-domain refs for a sales-invoice or incoming-payment command.

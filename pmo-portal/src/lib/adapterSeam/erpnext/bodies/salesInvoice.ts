@@ -29,14 +29,11 @@ export function siToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     body.po_no = reference;
     if (typeof rec.po_date === 'string' && rec.po_date.trim()) body.po_date = rec.po_date.trim();
   }
-  // #767 (AC-DUE-003): the client's receipt date + the EFFECTIVE due date it implies. The dispatch
-  // resolves both from PMO (the one `deriveArDueDate` helper) and supplies them ONLY when a receipt
-  // date is recorded — otherwise ERP keeps server-deriving `due_date` exactly as before.
+  // #767 (AC-DUE-003): the client's receipt date, into the site custom field the onboarding ensures
+  // (`erpCustomFields.ts`). `due_date` is never sent — ERP keeps server-deriving it from its own
+  // payment terms (see `resolveSalesInvoicePo` for why).
   const received = typeof rec.received_date === 'string' ? rec.received_date.trim() : '';
-  if (received) {
-    body.custom_received_date = received;
-    if (typeof rec.due_date === 'string' && rec.due_date.trim()) body.due_date = rec.due_date.trim();
-  }
+  if (received) body.custom_received_date = received;
   return body;
 }
 

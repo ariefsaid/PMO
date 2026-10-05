@@ -651,7 +651,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   const siTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
   if (siTaxTemplate !== null) patch.tax_template = siTaxTemplate;
   // #767: ERP's due_date and the mirrored receipt date. Written ONLY when ERP carries a value — an ERP
-  // doc without the custom field must never erase a receipt date PMO recorded after submission.
+  // doc without the custom field must never erase a receipt date PMO recorded after submission. Stored
+  // as ERP says it: 0240 checks "not before the invoice date" in the user RPC only, so this read-back
+  // can never be refused (a refusal would stall the invoice's status sync).
   const siErpDue = (canonical.erp_due_date as string | null | undefined) ?? null;
   if (siErpDue !== null) patch.erp_due_date = siErpDue;
   const siReceived = (canonical.received_date as string | null | undefined) ?? null;
