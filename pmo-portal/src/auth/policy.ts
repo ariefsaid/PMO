@@ -452,7 +452,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   managementPack: {
     view: allow(MASTER_DATA),
   },
-  // #765 (DD-MMP-4): a project's month-end percent complete. Mirrors migration 0243's
+  // #765 (DD-MMP-4): a project's month-end percent complete. Mirrors migration 0242's
   // `may_record_project_progress`: Finance rank and above on any project, or the project's own PM.
   // UX ONLY — record_project_progress + RLS are the authority (ADR-0016).
   projectProgress: {

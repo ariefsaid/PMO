@@ -98,7 +98,7 @@ export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
           }
           {...form.fieldProps('pct')}
         />
-        <TextField label={t('managementPack.progressModal.note', 'Note')} fullWidth {...form.fieldProps('note')} />
+        <TextField label={t('managementPack.progressModal.note', 'Note')} fullWidth maxLength={500} {...form.fieldProps('note')} />
       </FormGrid>
     </EntityFormModal>
   );

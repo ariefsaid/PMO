@@ -1,9 +1,9 @@
--- 0243_management_pack.sql — #765 monthly management pack (ADR-0076, DD-MMP-1..6).
+-- 0242_management_pack.sql — #765 monthly management pack (ADR-0076, DD-MMP-1..6).
 -- Adds: project_progress_entries (a project's month-end percent complete, a management ESTIMATE — never pushed
 -- to any external system), its writer record_project_progress, the reader get_management_pack, the helpers
 -- org_current_month / may_record_project_progress / stamp_project_progress_entry, and an (org_id, invoice_date)
 -- index on sales_invoices. No SECURITY DEFINER anywhere: both RPCs run as the caller so RLS remains the
--- tenancy boundary. Reversible via supabase/migrations/rollback/0243_management_pack_down.sql.
+-- tenancy boundary. Reversible via supabase/migrations/rollback/0242_management_pack_down.sql.
 
 -- §1 the table ─────────────────────────────────────────────────────────────────────────────────────
 create table public.project_progress_entries (

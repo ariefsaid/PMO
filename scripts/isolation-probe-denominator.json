@@ -66,6 +66,7 @@
     {"table":"project_documents","has_org":true,"pk":"id"},
     {"table":"project_milestones","has_org":true,"pk":"id"},
     {"table":"project_number_counters","has_org":true,"pk":"org_id"},
+    {"table":"project_progress_entries","has_org":true,"pk":"id"},
     {"table":"projects","has_org":true,"pk":"id"},
     {"table":"purchase_order_files","has_org":true,"pk":"id"},
     {"table":"purchase_orders","has_org":true,"pk":"id"},
