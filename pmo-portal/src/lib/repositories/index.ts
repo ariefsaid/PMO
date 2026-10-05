@@ -28,6 +28,9 @@ import {
   type UnlinkInput,
   type UnlinkResponse,
   type ProjectBinding,
+  type ErpSetupReadiness,
+  type ErpProjectOption,
+  type ErpProjectLink,
 } from './types';
 import {
   listProjects,
@@ -837,7 +840,24 @@ const erpSnapshots: ErpSnapshotsRepository = {
   arAging: () => wrap(() => listArAgingSnapshot()),
 };
 
+async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}): Promise<T> {
+  return wrap(async () => {
+    const { data, error } = await invokeWithTimeout(supabase.functions.invoke<T>('external-set-company', {
+      body: { tier: 'erpnext', setupAction, ...input },
+    }));
+    if (error) await throwInvokeError(error);
+    return data as T;
+  });
+}
+
 const integrationsImpl: IntegrationsRepository = {
+  getErpSetup: () => erpSetupRequest<ErpSetupReadiness>('readiness'),
+  saveErpDefaults: (input) => erpSetupRequest<{ ok: true }>('save-defaults', input),
+  ensureErpProject: (projectId) => erpSetupRequest<ErpProjectLink>('ensure-project', { projectId }),
+  listErpProjects: async (query) => (await erpSetupRequest<{ projects: ErpProjectOption[] }>('list-projects', { query })).projects,
+  linkErpProject: (projectId, erpProject) => erpSetupRequest<ErpProjectLink>('link-project', { projectId, erpProject }),
+  employErpDomain: (domain) => erpSetupRequest<{ ok: true }>('employ-domain', { domain }),
+  onboardErpParties: () => erpSetupRequest<{ ok: true }>('onboard-parties'),
   getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
     return wrap(async () => {
       const { data, error } = await supabase

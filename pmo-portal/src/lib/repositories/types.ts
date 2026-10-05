@@ -844,7 +844,23 @@ export interface ProjectBinding {
   disconnected_at: string | null;
 }
 
+export interface ErpSetupReadiness {
+  defaults: Record<string, string | null>;
+  domains: string[];
+  unmappedProjects: Array<{ id: string; name: string; code: string | null }>;
+  budgetMappedCategories: string[];
+  unlinkedEmployeeCount: number;
+}
+export interface ErpProjectOption { name: string; project_name: string; company: string; is_active: string }
+export interface ErpProjectLink { ok: true; erpProject: string }
 export interface IntegrationsRepository {
+  getErpSetup(): Promise<ErpSetupReadiness>;
+  saveErpDefaults(input: { activityType: string; receivableAccount: string }): Promise<{ ok: true }>;
+  listErpProjects(query: string): Promise<ErpProjectOption[]>;
+  linkErpProject(projectId: string, erpProject: string): Promise<ErpProjectLink>;
+  ensureErpProject(projectId: string): Promise<ErpProjectLink>;
+  employErpDomain(domain: string): Promise<{ ok: true }>;
+  onboardErpParties(): Promise<{ ok: true }>;
   /** Get the binding status for a specific tier. */
   getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;
   /** List all bindings for the org. */

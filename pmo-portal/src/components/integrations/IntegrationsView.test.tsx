@@ -16,6 +16,17 @@ import type { IntegrationBinding, IntegrationHealth } from '@/src/lib/repositori
 import { AppError } from '@/src/lib/appError';
 import { withErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 
+const erpSetup = vi.hoisted(() => ({
+  getErpSetup: vi.fn(async () => ({defaults:{company:'Example Company',default_receivable_account:null,default_activity_type:null},domains:[],unmappedProjects:[{id:'project-2',name:'Example Delivery',code:'SYNTH-2'}],budgetMappedCategories:[],unlinkedEmployeeCount:2})),
+  saveErpDefaults: vi.fn(async () => ({ok:true})),
+  listErpProjects: vi.fn(async () => []),
+  linkErpProject: vi.fn(async () => ({ok:true,erpProject:'PROJ-00042'})),
+  ensureErpProject: vi.fn(async () => ({ok:true,erpProject:'PROJ-00042'})),
+  employErpDomain: vi.fn(async () => ({ok:true})),
+  onboardErpParties: vi.fn(async () => ({ok:true})),
+}));
+vi.mock('@/src/lib/repositories', () => ({repositories:{integrations:erpSetup}}));
+
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({
   useExternalDomainOwnership: vi.fn(),
 }));
@@ -1651,5 +1662,116 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
     }
+  });
+});
+
+describe('ERP setup checklist', () => {
+  beforeEach(() => {
+    const erpBinding = {...mockBinding, external_tier:'erpnext' as const, config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+  });
+  it('AC-SETUP-002 exposes every outstanding setup step with a real fix action', async () => {
+    const erpBinding = {...mockBinding, external_tier:'erpnext' as const, config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    wrapWithRole('Admin',<IntegrationsView/>);
+    expect(await screen.findByRole('heading',{name:'ERPNext setup'})).toBeInTheDocument();
+    expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Set activity and receivable defaults'})).toBeInTheDocument();
+    expect(screen.getByRole('link',{name:'Map budget accounts'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
+    expect(screen.getByRole('link',{name:'Review employee links'})).toHaveAttribute('href','/approvals');
+    expect(screen.getByRole('link',{name:'Link Example Delivery'})).toHaveAttribute('href','/projects/project-2');
+  });
+  it('AC-SETUP-003 Admin saves defaults and a failed save keeps the entered values for retry', async () => {
+    erpSetup.saveErpDefaults.mockRejectedValueOnce(new Error('private upstream detail'));
+    wrapWithRole('Admin', <IntegrationsView />);
+    fireEvent.click(await screen.findByRole('button', {name:'Set activity and receivable defaults'}));
+    fireEvent.change(screen.getByRole('textbox', {name:'Activity type'}), {target:{value:'Execution'}});
+    fireEvent.change(screen.getByRole('textbox', {name:'Receivable account'}), {target:{value:'Debtors - EX'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save defaults'}));
+    expect(await screen.findByText('Could not save ERP defaults. Check the values and try again.')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', {name:'Activity type'})).toHaveValue('Execution');
+    expect(screen.queryByText('private upstream detail')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Save defaults'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'ERPNext defaults'})).not.toBeInTheDocument());
+    expect(erpSetup.saveErpDefaults).toHaveBeenLastCalledWith({activityType:'Execution',receivableAccount:'Debtors - EX'});
+  });
+  it('read-only viewers have no ERP setup mutation controls', async () => {
+    wrapWithRole('Engineer', <IntegrationsView />);
+    expect(screen.queryByRole('button',{name:'Employ ERP domains'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Set activity and receivable defaults'})).not.toBeInTheDocument();
+  });
+});
+describe('ERP domain setup actions', () => {
+  it('refreshing Company defaults updates the setup checklist after Company selection succeeds', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    const setCompany={mutateAsync:vi.fn(async()=>undefined),isPending:false};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined,erpnextCompanies:[{name:'Example Company'}],setCompany}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    const readiness={defaults:{company:'Example Company'},domains:[],unmappedProjects:[],budgetMappedCategories:[],unlinkedEmployeeCount:0};
+    erpSetup.getErpSetup.mockResolvedValueOnce(readiness as never).mockResolvedValueOnce({...readiness,defaults:{...readiness.defaults,default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main'}} as never);
+    wrapWithRole('Admin',<IntegrationsView/>);
+    expect(await screen.findByText('1 of 6 configured')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Refresh Company defaults'}));
+    fireEvent.click(screen.getByRole('combobox',{name:'Company'}));
+    fireEvent.click(await screen.findByRole('option',{name:'Example Company'}));
+    fireEvent.click(screen.getByRole('button',{name:'Activate'}));
+    expect(await screen.findByText('6 of 6 configured')).toBeInTheDocument();
+    expect(setCompany.mutateAsync).toHaveBeenCalledWith('Example Company');
+  });
+  it('keeps a failed domain assignment and party onboarding open for a safe retry', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    erpSetup.employErpDomain.mockRejectedValueOnce(new Error('private domain detail'));
+    erpSetup.onboardErpParties.mockRejectedValueOnce(new Error('private onboarding detail'));
+    wrapWithRole('Admin',<IntegrationsView/>);
+    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
+    fireEvent.change(screen.getByRole('combobox',{name:'Domain'}),{target:{value:'timesheets'}});
+    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    expect(await screen.findByText('Could not employ this domain. Check ERP read permissions and try again.')).toBeInTheDocument();
+    expect(screen.getByRole('combobox',{name:'Domain'})).toHaveValue('timesheets');
+    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Employ ERP domain'})).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button',{name:'Onboard ERP parties'}));
+    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    expect(await screen.findByText('Party onboarding did not complete. Try again.')).toBeInTheDocument();
+    expect(screen.queryByText(/private .* detail/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    expect(await screen.findByText('ERP parties are onboarded. Review the Companies list.')).toBeInTheDocument();
+    expect(erpSetup.employErpDomain).toHaveBeenCalledTimes(2);
+    expect(erpSetup.onboardErpParties).toHaveBeenCalledTimes(2);
+  });
+  it('shows an unavailable checklist and retries its authenticated read', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    erpSetup.getErpSetup.mockRejectedValueOnce(new Error('private checklist detail'));
+    wrapWithRole('Admin',<IntegrationsView/>);
+    const unavailable=await screen.findByText('ERP setup unavailable');
+    fireEvent.click(within(unavailable.closest('section')!).getByRole('button',{name:'Retry'}));
+    expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
+    expect(erpSetup.getErpSetup).toHaveBeenCalledTimes(2);
+  });
+  it('Admin confirms a domain assignment and can run the existing party onboarding action', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    wrapWithRole('Admin',<IntegrationsView/>);
+    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
+    fireEvent.change(screen.getByRole('combobox', {name:'Domain'}),{target:{value:'timesheets'}});
+    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('timesheets'));
+    await waitFor(()=>expect(screen.queryByRole('dialog', {name:'Employ ERP domain'})).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button',{name:'Onboard ERP parties'}));
+    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    await waitFor(()=>expect(erpSetup.onboardErpParties).toHaveBeenCalled());
   });
 });
