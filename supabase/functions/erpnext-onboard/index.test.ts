@@ -47,7 +47,7 @@ Deno.test({
   name: 'AC-ENA-041 onboardParties: a fresh Supplier is adopted (insert + recordExternalRef) exactly once',
   fn: async () => {
     const { deps, companies, externalRefs, counts } = makeFakeState();
-    const sources: ErpPartySource[] = [{ doctype: 'Supplier', name: 'Acme Co', taxId: 'TAX-1' }];
+    const sources: ErpPartySource[] = [{ doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' }];
     const result = await onboardParties(sources, deps);
     assertEquals(result, { adopted: 1, reconciled: 0 });
     assertEquals(counts(), { insertCount: 1, updateCount: 0, recordRefCount: 1 });
@@ -60,7 +60,7 @@ Deno.test({
   name: 'AC-ENA-041 onboardParties run TWICE against the SAME state -> exactly one mirror + one external_refs (idempotent)',
   fn: async () => {
     const { deps, companies, externalRefs, counts } = makeFakeState();
-    const sources: ErpPartySource[] = [{ doctype: 'Supplier', name: 'Acme Co', taxId: 'TAX-1' }];
+    const sources: ErpPartySource[] = [{ doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' }];
 
     const first = await onboardParties(sources, deps);
     const second = await onboardParties(sources, deps);
@@ -81,8 +81,8 @@ Deno.test({
   fn: async () => {
     const { deps, companies, externalRefs } = makeFakeState();
     const sources: ErpPartySource[] = [
-      { doctype: 'Supplier', name: 'Acme Co' },
-      { doctype: 'Customer', name: 'Acme Co' },
+      { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co' },
+      { doctype: 'Customer', id: 'Acme Co', name: 'Acme Co' },
     ];
     const result = await onboardParties(sources, deps);
     assertEquals(result, { adopted: 2, reconciled: 0 });
@@ -90,5 +90,46 @@ Deno.test({
     assertEquals(companies.size, 2);
     const types = [...companies.values()].map((c) => c.type).sort();
     assertEquals(types, ['Client', 'Vendor']);
+  },
+});
+
+Deno.test({
+  name: 'AC-ONB-001 onboardParties with numbered party IDs: external ref keyed by the ERPNext ID, PMO company named by the display name',
+  fn: async () => {
+    const { deps, companies, externalRefs } = makeFakeState();
+    const sources: ErpPartySource[] = [
+      { doctype: 'Customer', id: 'C-000001', name: 'PT Example' },
+      { doctype: 'Supplier', id: 'S-000001', name: 'PT Vendor' },
+    ];
+    const result = await onboardParties(sources, deps);
+    assertEquals(result, { adopted: 2, reconciled: 0 });
+    assertEquals([...externalRefs.keys()].sort(), ['Customer:C-000001', 'Supplier:S-000001']);
+    const customer = companies.get(externalRefs.get('Customer:C-000001')!);
+    const supplier = companies.get(externalRefs.get('Supplier:S-000001')!);
+    assertEquals([customer?.name, customer?.erp_customer_name], ['PT Example', 'PT Example']);
+    assertEquals([supplier?.name, supplier?.erp_supplier_name], ['PT Vendor', 'PT Vendor']);
+  },
+});
+
+Deno.test({
+  name: 'AC-ONB-003 onboarding re-run over a party the sweep already adopted (ref keyed by ID) adopts nothing twice',
+  fn: async () => {
+    const { deps, companies, externalRefs, counts } = makeFakeState();
+    // The sweep adopted C-000001 first: it keys the ref by the ERPNext document name (feedKinds.externalIdForKind).
+    externalRefs.set('Customer:C-000001', 'pmo-swept-1');
+    companies.set('pmo-swept-1', { id: 'pmo-swept-1', name: 'PT Example', type: 'Client' });
+    // A display-name match would also exist — it must NOT be consulted (that would mint a second row).
+    deps.findCandidates = async () => [{ pmoRecordId: 'pmo-swept-1', taxId: null }];
+    const sources: ErpPartySource[] = [{ doctype: 'Customer', id: 'C-000001', name: 'PT Example' }];
+
+    const first = await onboardParties(sources, deps);
+    const second = await onboardParties(sources, deps);
+
+    assertEquals(first, { adopted: 0, reconciled: 1 }, 'first run finds the swept mapping by ID');
+    assertEquals(second, { adopted: 0, reconciled: 1 }, 'second run still reconciles, never re-mints');
+    assertEquals(counts(), { insertCount: 0, updateCount: 2, recordRefCount: 0 });
+    assertEquals(externalRefs.size, 1);
+    assertEquals(companies.size, 1);
+    assertEquals(companies.get('pmo-swept-1')?.name, 'PT Example');
   },
 });

@@ -21,7 +21,7 @@ describe('erpnext/partyAdopt — externalIdFor (the doctype-encoded external id,
 describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
   it('AC-ENA-041 no existing PMO candidate -> mints a new pmoRecordId, maps type=Vendor for a Supplier', async () => {
     const result = await adoptParty(
-      { doctype: 'Supplier', name: 'Acme Co', taxId: 'TAX-1' },
+      { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' },
       { findCandidates: async () => [] },
     );
     expect(result.externalRecordId).toBe('Supplier:Acme Co');
@@ -38,7 +38,7 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
 
   it('a Customer source maps type=Client and defaults erp_payment_terms_days to 30 absent a template', async () => {
     const result = await adoptParty(
-      { doctype: 'Customer', name: 'Acme Co', taxId: null },
+      { doctype: 'Customer', id: 'Acme Co', name: 'Acme Co', taxId: null },
       { findCandidates: async () => [] },
     );
     expect(result.externalRecordId).toBe('Customer:Acme Co');
@@ -52,10 +52,10 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
   });
 
   it('re-adopting the SAME source against the same existing-candidate state is idempotent (same pmoRecordId + externalRecordId)', async () => {
-    const first = await adoptParty({ doctype: 'Supplier', name: 'Acme Co', taxId: 'TAX-1' }, { findCandidates: async () => [] });
+    const first = await adoptParty({ doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' }, { findCandidates: async () => [] });
     // Simulate the second run seeing the mirror row the first run would have written.
     const second = await adoptParty(
-      { doctype: 'Supplier', name: 'Acme Co', taxId: 'TAX-1' },
+      { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' },
       { findCandidates: async () => [{ pmoRecordId: first.canonical.id, taxId: 'TAX-1' }] },
     );
     expect(second.canonical.id).toBe(first.canonical.id);
@@ -64,7 +64,7 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
 
   it('exactly one existing PMO candidate -> adopts (links) that row deterministically, regardless of tax id agreement', async () => {
     const result = await adoptParty(
-      { doctype: 'Supplier', name: 'Acme Co', taxId: undefined },
+      { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: undefined },
       { findCandidates: async () => [{ pmoRecordId: 'pmo-existing-1', taxId: null }] },
     );
     expect(result.canonical.id).toBe('pmo-existing-1');
@@ -73,7 +73,7 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
   it('AC-ENA-041 ambiguous match (same name, differing tax id across candidates) -> action-required, never auto-merged', async () => {
     await expect(
       adoptParty(
-        { doctype: 'Supplier', name: 'Acme Co', taxId: 'TAX-1' },
+        { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' },
         { findCandidates: async () => [{ pmoRecordId: 'pmo-a', taxId: 'TAX-1' }, { pmoRecordId: 'pmo-b', taxId: 'TAX-2' }] },
       ),
     ).rejects.toMatchObject({ code: 'action-required' } satisfies Partial<AppError>);
@@ -82,23 +82,45 @@ describe('erpnext/partyAdopt — adoptParty (task 3.2, FR-ENA-090/093)', () => {
   it('AC-ENA-041 ambiguous match (multiple candidates, source tax id absent) -> action-required', async () => {
     await expect(
       adoptParty(
-        { doctype: 'Supplier', name: 'Acme Co', taxId: undefined },
+        { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: undefined },
         { findCandidates: async () => [{ pmoRecordId: 'pmo-a', taxId: null }, { pmoRecordId: 'pmo-b', taxId: null }] },
       ),
     ).rejects.toBeInstanceOf(AppError);
   });
 
   it('AC-ENA-042 Supplier + Customer sharing the same name never merge: two distinct external ids/types', async () => {
-    const supplier = await adoptParty({ doctype: 'Supplier', name: 'Acme Co' }, { findCandidates: async () => [] });
-    const customer = await adoptParty({ doctype: 'Customer', name: 'Acme Co' }, { findCandidates: async () => [] });
+    const supplier = await adoptParty({ doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co' }, { findCandidates: async () => [] });
+    const customer = await adoptParty({ doctype: 'Customer', id: 'Acme Co', name: 'Acme Co' }, { findCandidates: async () => [] });
     expect(supplier.externalRecordId).not.toBe(customer.externalRecordId);
     expect(supplier.canonical.type).toBe('Vendor');
     expect(customer.canonical.type).toBe('Client');
   });
 
+  it('AC-ONB-001 a numbered Customer ID keys the external ref by the ID and names the PMO company by the display name', async () => {
+    const seen: string[] = [];
+    const result = await adoptParty(
+      { doctype: 'Customer', id: 'C-000001', name: 'PT Example' },
+      { findCandidates: async (_doctype, name) => { seen.push(name); return []; } },
+    );
+    expect(result.externalRecordId).toBe('Customer:C-000001');
+    expect(result.canonical).toMatchObject({ name: 'PT Example', erp_customer_name: 'PT Example' });
+    expect(seen).toEqual(['PT Example']); // FR-ENA-093 matching stays on the display name
+  });
+
+  it('AC-ONB-001 a numbered Supplier ID keys the external ref by the ID and names the PMO company by the display name', async () => {
+    const seen: string[] = [];
+    const result = await adoptParty(
+      { doctype: 'Supplier', id: 'S-000001', name: 'PT Vendor' },
+      { findCandidates: async (_doctype, name) => { seen.push(name); return []; } },
+    );
+    expect(result.externalRecordId).toBe('Supplier:S-000001');
+    expect(result.canonical).toMatchObject({ name: 'PT Vendor', erp_supplier_name: 'PT Vendor' });
+    expect(seen).toEqual(['PT Vendor']);
+  });
+
   it('task 3.11 (FR-ENA-090/091) an Internal-shaped source is never ERP-flipped -> config-rejected', async () => {
     await expect(
-      adoptParty({ doctype: 'Supplier', name: 'PMO Smoke Co', isInternal: true }, { findCandidates: async () => [] }),
+      adoptParty({ doctype: 'Supplier', id: 'PMO Smoke Co', name: 'PMO Smoke Co', isInternal: true }, { findCandidates: async () => [] }),
     ).rejects.toMatchObject({ code: 'config-rejected' });
   });
 });

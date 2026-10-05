@@ -38,12 +38,14 @@ export async function listErpPartySources(client: ErpClientDeps): Promise<ErpPar
   ]);
   const supplierSources: ErpPartySource[] = (suppliers.data ?? []).map((row) => ({
     doctype: 'Supplier',
+    id: row.name,
     name: row.supplier_name ?? row.name,
     taxId: row.tax_id ?? null,
     isInternal: row.is_internal_supplier === 1,
   }));
   const customerSources: ErpPartySource[] = (customers.data ?? []).map((row) => ({
     doctype: 'Customer',
+    id: row.name,
     name: row.customer_name ?? row.name,
     taxId: row.tax_id ?? null,
     isInternal: row.is_internal_customer === 1,
@@ -85,7 +87,8 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
   let adopted = 0;
   let reconciled = 0;
   for (const source of sources) {
-    const externalRecordId = externalIdFor(source.doctype, source.name);
+    // Keyed by the ERPNext ID, never the display name, so a ref the sweep minted is found here (#760).
+    const externalRecordId = externalIdFor(source.doctype, source.id);
     const existingPmoRecordId = await deps.findPmoRecordId(externalRecordId);
     if (existingPmoRecordId) {
       // Idempotent-retry branch: the mapping is already known — re-derive the canonical shape
