@@ -194,8 +194,8 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     renderPage();
 
-    expect(screen.getByText('Rp\u00a01.234.567')).toBeInTheDocument();
-    expect(screen.getByText('Rp\u00a012.345')).toBeInTheDocument();
+    expect(screen.getByText('Rp\u00a01.234.567', { normalizer: (text) => text })).toBeInTheDocument();
+    expect(screen.getByText('Rp\u00a012.345', { normalizer: (text) => text })).toBeInTheDocument();
     expect(screen.getByText('2 faktur')).toBeInTheDocument();
   });
 
