@@ -72,8 +72,8 @@ with changed as (
    where id='00771000-0000-0000-0000-000000000001' returning 1
 ) select is((select count(*)::int from changed), 1, 'AC-CODE-001 Admin saves a valid pattern on the RLS-visible org');
 select throws_ok($$update organizations set name='not allowed' where id='00771000-0000-0000-0000-000000000001'$$, '42501', null, 'AC-CODE-001 pattern grant cannot update unrelated organization columns');
-select is(public.propose_project_number('00771000-0000-0000-0000-000000000011'), 'PR-ACME-26-0001', 'AC-CODE-002 valid pattern proposes the next org-local sequence');
-select is(public.propose_project_number('00771000-0000-0000-0000-000000000011'), 'PR-ACME-26-0002', 'AC-CODE-002 repeated proposals atomically advance the sequence');
+select is(public.propose_project_number('00771000-0000-0000-0000-000000000011'), format('PR-ACME-%s-0001', to_char(current_timestamp at time zone 'Asia/Jakarta', 'YY')), 'AC-CODE-002 valid pattern proposes the next org-local sequence');
+select is(public.propose_project_number('00771000-0000-0000-0000-000000000011'), format('PR-ACME-%s-0002', to_char(current_timestamp at time zone 'Asia/Jakarta', 'YY')), 'AC-CODE-002 repeated proposals atomically advance the sequence');
 select throws_ok($$select public.propose_project_number('00771000-0000-0000-0000-000000000012')$$, 'P0001', null, 'AC-CODE-002 a required missing company segment is refused');
 select throws_ok($$insert into project_number_counters(org_id,business_year,last_seq) values ('00771000-0000-0000-0000-000000000001',2026,900)$$, '42501', null, 'NFR-PNO-001 authenticated callers cannot write allocator counters');
 
@@ -84,7 +84,7 @@ select throws_ok($$select public.propose_project_number('00771000-0000-0000-0000
 -- The direct INSERT fallback runs after projects_stamp_org_id and preserves the supplied client code.
 insert into projects (name, status, client_id, code, created_at)
 values ('Direct Insert Fallback', 'Internal Project', '00771000-0000-0000-0000-000000000011', 'CLIENT-DIRECT', '2025-12-31 17:30:00+00');
-select is((select pmo_project_number from projects where name='Direct Insert Fallback'), 'PR-ACME-26-0003', 'NFR-PNO-002 insert fallback uses the business timezone at the UTC year boundary');
+select is((select pmo_project_number from projects where name='Direct Insert Fallback'), format('PR-ACME-%s-0003', to_char(current_timestamp at time zone 'Asia/Jakarta', 'YY')), 'NFR-PNO-002 insert fallback uses the business timezone at the UTC year boundary');
 select is((select code from projects where name='Direct Insert Fallback'), 'CLIENT-DIRECT', 'AC-CODE-002 fallback does not reuse or overwrite Client Project Code');
 insert into projects (org_id, pmo_project_number, code, name, status, client_id)
 values ('00771000-0000-0000-0000-000000000001', 'PIPELINE-PMO-771', 'PIPELINE-CLIENT-81', 'Pipeline projection check', 'Leads', '00771000-0000-0000-0000-000000000011');
