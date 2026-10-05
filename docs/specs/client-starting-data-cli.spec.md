@@ -52,7 +52,7 @@ Load files hold client data. They live outside the repository and are never comm
   `transition_project` (0183) — their org check, role gate, SoD and `log_audit` rows apply unchanged.
   Budget rows are plain inserts under the existing Draft-only origination trigger (0176) and import-key
   index (0195). The only database change is which endpoints an OAuth token may reach (D4).
-- **D4 — guard entries (migration `0234`, amends `0222`).** For an **active Admin's** OAuth token only:
+- **D4 — guard entries (migration `0239`, amends `0222`).** For an **active Admin's** OAuth token only:
   `POST /rpc/set_project_contract_value`, `POST /rpc/transition_project`, `GET`/`POST` on
   `budget_versions` and `budget_line_items`. For every OAuth token: `GET external_domain_ownership`
   (read-only; the load checks whether ERPNext owns companies). Nothing else changes: no PATCH/DELETE on
@@ -224,5 +224,5 @@ pure function of request settings (pgTAP), and the RPC sequence is proven in the
 
 ## 8. Rollout
 
-`0234` reaches the hosted database only with the owner's per-instance production yes. Until then, a
+`0239` reaches the hosted database only with the owner's per-instance production yes. Until then, a
 hosted `pmo load` stops at its first read (`GET external_domain_ownership` → `42501`) and writes nothing.

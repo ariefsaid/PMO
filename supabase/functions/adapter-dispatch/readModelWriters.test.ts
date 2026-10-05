@@ -524,3 +524,16 @@ Deno.test({
     assert(threw, 'expected an unwired kind in the budget domain to throw');
   },
 });
+
+Deno.test('AC-WHT-003 outbound receipt mirror preserves ERP cash and withholding metadata', async () => {
+  const { client, calls } = makeFakeClient();
+  await getReadModelWriter('revenue').upsert({ serviceClient: client as never, orgId: 'org-1' },
+    { id: 'receipt-1', ip_number: 'PE-001', amount: '1000.00', received_amount: '980.00',
+      withheld_amount: '20.00', withholding_slip_number: 'WHT-001', erp_docstatus: 1 },
+    { domain: 'revenue', operation: 'create', record: { id: 'receipt-1', erp_doc_kind: 'incoming-payment' } });
+  const row = calls.find(c => c.table === 'incoming_payments' && c.method === 'insert')?.args[0] as Record<string, unknown>;
+  assertEquals(row.amount, '1000.00');
+  assertEquals(row.received_amount, '980.00');
+  assertEquals(row.withheld_amount, '20.00');
+  assertEquals(row.withholding_slip_number, 'WHT-001');
+});

@@ -27,6 +27,7 @@ import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import WorkOrdersTab from './tabs/WorkOrdersTab';
 import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
+import { ProjectErpLink } from './ProjectErpLink';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
@@ -300,6 +301,9 @@ const ProjectDetail: React.FC = () => {
             <PipelineLens project={project} locationState={location.state} />
           </div>
           <ProjectClassificationSummary project={project} />
+          <div className="mb-8">
+            <ProjectErpLink projectId={project.id} />
+          </div>
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).
               M2: when empty, collapse to a single-line affordance so the sales levers stay above

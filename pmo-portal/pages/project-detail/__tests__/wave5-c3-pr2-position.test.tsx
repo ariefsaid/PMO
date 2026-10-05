@@ -171,6 +171,8 @@ const onHandRow: ProjectWithRefs = {
 // ── Render helper ─────────────────────────────────────────────────────────────
 
 import ProjectDetail from '../ProjectDetail';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 /**
  * Render the full ProjectDetail page on the overview tab for a given real role.

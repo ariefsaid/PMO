@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition } from '@/src/hooks/useProjectTransitions';
 import { Button, ConfirmDialog, useToast } from '@/src/components/ui';
@@ -31,6 +32,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   triggerVariant = 'outline',
   triggerSize = 'sm',
 }) => {
+  const { t } = useTranslation();
   const can = usePermission();
   const mutation = useProjectTransition();
   const { toast } = useToast();
@@ -155,6 +157,11 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
   return (
     <div data-testid="project-status-control" className="relative">
+      {mutation.erpSetupPending && (
+        <p role="status" className="mb-2 text-sm text-muted-foreground">
+          {t('projectDetail.erpLink.statusPending', 'Project status saved. ERP linking needs attention; retry from the project page.')}
+        </p>
+      )}
       {/* Inline error display — always visible when error exists (NFR-PR-UI-001) */}
       {mutation.isError && mutation.error && (
         <p className="mb-1 text-xs text-destructive" role="alert">

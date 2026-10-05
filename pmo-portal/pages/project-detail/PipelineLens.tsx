@@ -33,6 +33,7 @@ import {
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { listReturnNavigation } from '@/src/lib/listReturnContext';
+import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
 // ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
 // class as the raw `project.status` rendered in the StatusPill beside them, and as
@@ -135,6 +136,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       // exactly two args (no opts); only the Won path carries the SoD opts.
       if (opts) await transitionProject(project.id, to as never, opts);
       else await transitionProject(project.id, to as never);
+      // AC-SETUP-001: a native win stays successful; ERP linking is a separate, retryable step.
+      const erpPending =
+        to === 'Won, Pending KoM' &&
+        (await synchronizeErpProject(project.id, currentUser?.org_id)) === 'pending';
+      await queryClient.invalidateQueries({ queryKey: ['integrations', 'project-erp', currentUser?.org_id] });
+      await queryClient.invalidateQueries({ queryKey: ['integrations', 'setup', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['sales-pipeline', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['projects', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['opportunity', currentUser?.org_id, project.id] });
@@ -144,8 +151,10 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       setConfirmAction(null);
       toast(
         t('projectDetail.pipeline.toast.updated', 'Project updated'),
-        `${t('projectDetail.pipeline.toast.movedTo', 'Moved to')} ${to}`,
-        'success',
+        erpPending
+          ? t('projectDetail.erpLink.createdPending', 'Project saved. ERP linking needs attention; retry from the project page.')
+          : `${t('projectDetail.pipeline.toast.movedTo', 'Moved to')} ${to}`,
+        erpPending ? 'warning' : 'success',
       );
       // N10 (OD-W5-C3-B): post-transition focus management. On Won the page re-renders
       // into the delivery layout; move focus to the page h1. On Advance/Lost move focus

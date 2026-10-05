@@ -29,6 +29,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 // mounts ProjectDetail without a QueryClientProvider, so the hook is stubbed here rather than the
 // whole tree re-hosted. Held in its loading state so it contributes no text of its own — the
 // drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null, default: () => null }));
 vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

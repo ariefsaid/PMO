@@ -380,7 +380,7 @@ const Projects: React.FC = () => {
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
         const row = await create.mutateAsync(input);
-        toast(t('projects.toast.created', 'Project created'), input.name, 'success');
+        toast(t('projects.toast.created', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', 'Project saved. ERP linking needs attention; retry from the project page.') : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
         setCreateOpen(false);
         // Opens the new record with this list as its return context (#688 AC-RAM-006, #682).
         openRecord(`/projects/${row.id}`);

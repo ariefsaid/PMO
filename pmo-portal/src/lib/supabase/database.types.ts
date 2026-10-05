@@ -2058,9 +2058,12 @@ export type Database = {
           id: string
           ip_number: string | null
           org_id: string
+          received_amount: number | null
           reference_number: string | null
           sales_invoice_id: string | null
           status: string
+          withheld_amount: number | null
+          withholding_slip_number: string | null
         }
         Insert: {
           amount?: number | null
@@ -2075,9 +2078,12 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
           status?: string
+          withheld_amount?: number | null
+          withholding_slip_number?: string | null
         }
         Update: {
           amount?: number | null
@@ -2092,9 +2098,12 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
           status?: string
+          withheld_amount?: number | null
+          withholding_slip_number?: string | null
         }
         Relationships: [
           {
@@ -2546,6 +2555,7 @@ export type Database = {
           project_number_pattern: string | null
           sector_options: string[]
           service_line_options: string[]
+          tax_prepaid_account: string | null
         }
         Insert: {
           created_at?: string
@@ -2560,6 +2570,7 @@ export type Database = {
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
+          tax_prepaid_account?: string | null
         }
         Update: {
           created_at?: string
@@ -2574,6 +2585,7 @@ export type Database = {
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
+          tax_prepaid_account?: string | null
         }
         Relationships: []
       }
