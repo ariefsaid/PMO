@@ -729,6 +729,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
 async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
   const docstatus = canonical.erp_docstatus as number | null | undefined;
   const patch: Record<string, unknown> = {
+    ...(canonical.received_amount !== undefined ? { received_amount: canonical.received_amount } : {}),
+    ...(canonical.withheld_amount !== undefined ? { withheld_amount: canonical.withheld_amount } : {}),
+    ...(canonical.withholding_slip_number !== undefined ? { withholding_slip_number: canonical.withholding_slip_number } : {}),
     ip_number: canonical.ip_number ?? null,
     // customer_id/sales_invoice_id/date are PMO-side links+values set ONLY on create (from
     // command.record, below) — intentionally absent here: spreading them (even as null) would clobber

@@ -231,7 +231,7 @@ import {
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
-import { getOrgTaxDefault, setOrgTaxDefault } from '@/src/lib/db/orgs';
+import { getOrgTaxDefault, setOrgTaxDefault, getOrgWithholdingAccount, setOrgWithholdingAccount } from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
 import {
@@ -583,6 +583,8 @@ const revenue: RevenueRepository = {
             salesInvoiceId: input.salesInvoiceId ?? null,
             paid_amount: input.paidAmount,
             received_amount: input.receivedAmount ?? input.paidAmount,
+            ...(input.withheldAmount !== undefined ? { withheld_amount: input.withheldAmount } : {}),
+            ...(input.withholdingSlipNumber !== undefined ? { withholding_slip_number: input.withholdingSlipNumber } : {}),
             date: input.date,
           },
           intent,
@@ -807,6 +809,8 @@ const orgFeature: OrgFeatureRepository = {
  * `can('manage', 'orgAccounting')` on the affordance.
  */
 const orgSettings: OrgSettingsRepository = {
+  getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
+  setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
 };

@@ -924,6 +924,17 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
+  let receiptConfig = binding.config;
+  if (deps.command.record.erp_doc_kind === 'incoming-payment'
+      && Number(deps.command.record.withheld_amount ?? 0) > 0) {
+    const { data: settings, error: settingError } = await deps.serviceClient.from('organizations')
+      .select('tax_prepaid_account').eq('id', deps.orgId).maybeSingle();
+    const account = (settings as { tax_prepaid_account?: unknown } | null)?.tax_prepaid_account;
+    if (settingError || typeof account !== 'string' || !account.trim() || account.length > 140) {
+      throw new AppError('Set the Tax-prepaid account in Administration → Accounting before recording withheld tax.', 'config-rejected');
+    }
+    receiptConfig = { ...binding.config, tax_prepaid_account: account.trim() };
+  }
   // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
   assertSiProjectGate(deps, binding);
 
@@ -942,7 +953,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // category refuses with zero ERP calls).
   const budgetConfig = isBudgetCommand(deps.command)
     ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
-    : binding.config;
+    : receiptConfig;
   const { refs: budgetRefs } = await resolveBudgetRefs(deps, binding, budgetConfig);
 
   const adapterDeps: ErpAdapterDeps = {

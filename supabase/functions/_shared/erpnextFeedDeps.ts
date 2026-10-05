@@ -453,6 +453,9 @@ async function mintMirrorRow(
     if (kind === 'incoming-payment') {
       const salesInvoiceId = await resolveSalesInvoiceId(serviceClient, orgId, canonical);
       const { error } = await serviceClient.from('incoming_payments').insert({
+        ...(canonical.received_amount !== undefined ? { received_amount: canonical.received_amount } : {}),
+        ...(canonical.withheld_amount !== undefined ? { withheld_amount: canonical.withheld_amount } : {}),
+        ...(canonical.withholding_slip_number !== undefined ? { withholding_slip_number: canonical.withholding_slip_number } : {}),
         id,
         org_id: orgId,
         customer_id: customerId,
@@ -613,6 +616,9 @@ async function revenueFieldPatch(
 
   putIfPresent(patch, 'ip_number', (canonical as { ip_number?: unknown }).ip_number);
   putIfPresent(patch, 'date', (canonical as { date?: unknown }).date);
+  putIfPresent(patch, 'received_amount', canonical.received_amount);
+  putIfPresent(patch, 'withheld_amount', canonical.withheld_amount);
+  putIfPresent(patch, 'withholding_slip_number', canonical.withholding_slip_number);
   // The late-link repair: a Receive PE adopted BEFORE the Sales Invoice it cites kept
   // sales_invoice_id = NULL forever. An unresolvable reference leaves the column UNTOUCHED — a
   // repair pass must never un-link a payment that is already correctly linked.

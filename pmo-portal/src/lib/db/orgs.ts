@@ -2,6 +2,22 @@ import { supabase } from '@/src/lib/supabase/client';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 
+export async function getOrgWithholdingAccount(): Promise<string | null> {
+  const { data, error } = await supabase.from('organizations').select('tax_prepaid_account').limit(1);
+  if (error) throw new Error(error.message);
+  return data?.[0]?.tax_prepaid_account ?? null;
+}
+
+export async function setOrgWithholdingAccount(account: string | null): Promise<void> {
+  const value = account?.trim() || null;
+  if (value && value.length > 140) throw new Error('Tax-prepaid account must be at most 140 characters.');
+  const { data, error } = await supabase.from('organizations').select('id');
+  if (error) throw new Error(error.message);
+  if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax-prepaid account.');
+  const { error: updateError } = await supabase.from('organizations').update({ tax_prepaid_account: value }).eq('id', data[0].id);
+  if (updateError) throw new Error(updateError.message);
+}
+
 /**
  * Explicit org lifecycle marker (DD-ORG-3, migration 0191). `NULL` and any future value are
  * deliberately NOT members: server-side `assert_org_destroyable` treats them as protected, and

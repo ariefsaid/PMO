@@ -123,6 +123,41 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('IncomingPayments — a Finance user can actually record a receipt (BLOCK 1)', () => {
+  it('AC-WHT-001: records cash received and the client withholding slip against the full allocation', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-WHT' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHT');
+    for (const [label, value] of [['Paid Amount', '1000'], ['Received Amount', '980'], ['Withheld tax amount', '20']]) {
+      const input = screen.getByLabelText(new RegExp(label));
+      await user.clear(input);
+      await user.type(input, value);
+    }
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'WHT-001');
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({
+      paidAmount: 1000, receivedAmount: 980, withheldAmount: 20, withholdingSlipNumber: 'WHT-001',
+      salesInvoiceId: 'si-a',
+    }));
+  });
+
+  it('AC-WHT-001: an unbalanced receipt or missing slip cannot be sent', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    for (const [label, value] of [['Paid Amount', '1000'], ['Received Amount', '980'], ['Withheld tax amount', '19']]) {
+      const input = screen.getByLabelText(new RegExp(label));
+      await user.clear(input);
+      await user.type(input, value);
+    }
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/cash received plus withheld tax must equal/i).length).toBeGreaterThan(0);
+  });
+
   it('offers the org\'s real client companies in the customer picker', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -214,7 +249,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     for (const label of [/Paid Amount/, /Received Amount/]) {
-      const field = screen.getByLabelText(label);
+      const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);
       await user.type(field, '1.234');
     }
@@ -234,7 +269,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     for (const label of [/Paid Amount/, /Received Amount/]) {
-      const field = screen.getByLabelText(label);
+      const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);
       await user.type(field, '1.234');
     }

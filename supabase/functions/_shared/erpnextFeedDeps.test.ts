@@ -950,3 +950,16 @@ Deno.test('AC-BFY-030 BLOCKER 1: an AMEND of the FY2027 Budget stamps ONLY the F
   assert(fy2026.erp_amended_from === undefined, 'BLOCKER 1: amending FY2027 must NOT stamp the FY2026 row');
   assert(fy2026.erp_modified === '2026-01-01', 'BLOCKER 1: FY2026 erp_modified must be untouched by a FY2027 amend');
 });
+
+Deno.test('AC-WHT-003 sweep update round-trips cash, withholding and slip without action-required', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
+  await deps.updateMirror('receipt-1', { id: 'PE-001', amount: '1000.00', received_amount: '980.00',
+    withheld_amount: '20.00', withholding_slip_number: 'WHT-001', erp_docstatus: 1 },
+    Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  assert(patch?.received_amount === '980.00', 'ERP cash must remain exact');
+  assert(patch?.withheld_amount === '20.00', 'withheld tax must round-trip');
+  assert(patch?.withholding_slip_number === 'WHT-001', 'slip number must round-trip');
+  assert(!calls.some(c => c.table === 'notifications' && c.op === 'insert'), 'read-back cannot flag a body rewrite');
+});

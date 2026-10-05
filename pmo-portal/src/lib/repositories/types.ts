@@ -438,6 +438,8 @@ export interface RevenueRepository {
     salesInvoiceId?: string | null;
     paidAmount: number;
     receivedAmount?: number;
+    withheldAmount?: number;
+    withholdingSlipNumber?: string | null;
     date: string;
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
@@ -665,6 +667,8 @@ export interface Repositories {
  * unrecoverable.
  */
 export interface OrgSettingsRepository {
+  getWithholdingAccount(): Promise<string | null>;
+  setWithholdingAccount(account: string | null): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
