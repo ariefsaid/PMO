@@ -12,7 +12,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: h.currentUser }),
 }));
 
-import { useOrgCurrency } from './useOrgCurrency';
+import { useOrgCurrency, useOrgCurrencyState } from './useOrgCurrency';
 
 function wrap(client: QueryClient) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
@@ -42,6 +42,24 @@ describe('useOrgCurrency — org currency for rowless figures (FR-L10N-020)', ()
     expect(result.current).toBe('USD');
     resolve('IDR');
     await waitFor(() => expect(result.current).toBe('IDR'));
+  });
+
+  it('AC-802-001: exposes that the USD placeholder is unresolved until the org currency is loaded', async () => {
+    let resolve!: (v: string) => void;
+    h.getOrgDefaultCurrency.mockReturnValue(new Promise<string>((r) => { resolve = r; }));
+    const { result } = renderHook(() => useOrgCurrencyState(), { wrapper: wrap(freshClient()) });
+
+    expect(result.current).toEqual({ currency: 'USD', isResolved: false, isError: false });
+    resolve('IDR');
+    await waitFor(() => expect(result.current).toEqual({ currency: 'IDR', isResolved: true, isError: false }));
+  });
+
+  it('AC-802-001: does not mark a failed currency lookup as resolved', async () => {
+    h.getOrgDefaultCurrency.mockRejectedValue(new Error('temporary failure'));
+    const { result } = renderHook(() => useOrgCurrencyState(), { wrapper: wrap(freshClient()) });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.isResolved).toBe(false);
   });
 
   it("is disabled without a current user — returns 'USD' and never calls the DAL", () => {

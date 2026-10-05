@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useTranslation } from 'react-i18next';
+import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import {
   ListPage,
   ListState,
@@ -19,7 +20,8 @@ import { formatCurrencyAuto, formatCurrencyCents, formatNumber } from '@/src/lib
 const RevenueByProject: React.FC = () => {
   // FR-L10N-020: every figure here is an AGGREGATE — per-project revenue sums and org-wide KPI
   // totals — so none carries a record currency. The org default is the honest denomination.
-  const orgCurrency = useOrgCurrency();
+  const { currency: orgCurrency, isResolved: currencyResolved, isError: currencyError } = useOrgCurrencyState();
+  const { t } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
   const { data, isPending, isError } = useRevenuePerProject();
@@ -41,10 +43,11 @@ const RevenueByProject: React.FC = () => {
 
   const canView = may('view', 'project');
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
-    ? 'loading'
-    : isError
-      ? 'error'
+  const currencyPending = !currencyResolved && !currencyError;
+  const state: 'loading' | 'empty' | 'error' | undefined = isError || currencyError
+    ? 'error'
+    : isPending || currencyPending
+      ? 'loading'
       : all.length === 0
         ? 'empty'
         : undefined;
@@ -126,7 +129,10 @@ const RevenueByProject: React.FC = () => {
   return (
     <ListPage
       title="Revenue by Project"
-      description="Revenue rollup per project. Includes an 'Unassigned' bucket for invoices without a project (when process_gates.require_project_on_si is OFF)."
+      description={t(
+        'revenueByProject.subtitle',
+        'Project revenue, with a separate Unassigned group for invoices not linked to a project.',
+      )}
       primaryAction={
         <Button variant="outline" onClick={() => navigate('/projects')}>
           <Icon name="pipe" className="size-4 mr-2" />
@@ -143,16 +149,16 @@ const RevenueByProject: React.FC = () => {
           value={formatCurrencyAuto(totalRevenue, orgCurrency)}
           icon="dollar"
           tone="blue"
-          loading={isPending}
-          error={isError}
+          loading={isPending || currencyPending}
+          error={isError || currencyError}
         />
         <KPITile
           label="Open AR"
           value={formatCurrencyAuto(totalOpenAR, orgCurrency)}
           icon="dollar"
           tone="amber"
-          loading={isPending}
-          error={isError}
+          loading={isPending || currencyPending}
+          error={isError || currencyError}
         />
         <KPITile
           label="Total Invoices"
@@ -182,8 +188,12 @@ const RevenueByProject: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load revenue data"
-          sub="The request failed. Check your connection and try again."
+          title={currencyError
+            ? t('revenueByProject.currencyErrorTitle', "Couldn't load organization currency")
+            : "Couldn't load revenue data"}
+          sub={currencyError
+            ? t('revenueByProject.currencyErrorSub', 'Try again to view revenue.')
+            : 'The request failed. Check your connection and try again.'}
         />
       )}
 

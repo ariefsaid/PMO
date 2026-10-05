@@ -2038,6 +2038,11 @@
       "internalProject": "Internal Project"
     }
   },
+  "revenueByProject": {
+    "currencyErrorSub": "Try again to view revenue.",
+    "currencyErrorTitle": "Couldn't load organization currency",
+    "subtitle": "Project revenue, with a separate Unassigned group for invoices not linked to a project."
+  },
   "sales": {
     "accessDenied": {
       "sub": "The Sales Pipeline is available to managers and finance. Your work lives on your dashboard, projects, and tasks.",

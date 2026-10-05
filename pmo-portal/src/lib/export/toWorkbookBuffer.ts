@@ -11,7 +11,6 @@
 
 import { cellType } from './cellType';
 import type { ExportTable } from './buildExportRows';
-import { parseLocalDate } from '@/src/lib/calendar/monthMatrix';
 
 export interface WorkbookInput extends ExportTable {
   /** Worksheet/sheet name (Excel caps sheet names at 31 chars). */
@@ -20,6 +19,14 @@ export interface WorkbookInput extends ExportTable {
 
 const NUMBER_FMT = '#,##0.##';
 const DATE_FMT = 'yyyy-mm-dd';
+const MILLIS_PER_DAY = 86_400_000;
+const EXCEL_UNIX_EPOCH_DAYS = 25_569;
+
+/** Keep a date-only value as a calendar day; a JS Date would add the host timezone's offset. */
+function toExcelDateSerial(iso: string): number {
+  const [year, month, day] = iso.split('-').map(Number);
+  return Date.UTC(year, month - 1, day) / MILLIS_PER_DAY + EXCEL_UNIX_EPOCH_DAYS;
+}
 
 export async function toWorkbookBuffer({
   sheetName,
@@ -40,9 +47,9 @@ export async function toWorkbookBuffer({
       if (t === 'number') {
         cell.numFmt = NUMBER_FMT;
       } else if (t === 'date') {
-        // AC-W2-3-03: parse YYYY-MM-DD at LOCAL midnight (not UTC midnight) so the
-        // exported date cell shows the same calendar day in all timezones.
-        cell.value = parseLocalDate(v as string);
+        // Excel stores a date-only cell as a day serial. Writing a JS Date would encode the
+        // host timezone offset as a fractional day (e.g. 2025-11-30 17:00Z → prior-day serial).
+        cell.value = toExcelDateSerial(v as string);
         cell.numFmt = DATE_FMT;
       }
     });
