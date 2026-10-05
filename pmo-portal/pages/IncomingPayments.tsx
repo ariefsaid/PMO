@@ -48,7 +48,6 @@ function incomingPaymentStatusLabel(status: StatusFilter, t: (key: string, fallb
     All: t('financeCopy.statusAll', 'All'),
     Scheduled: t('financeCopy.statusScheduled', 'Scheduled'),
     Paid: t('financeCopy.statusPaid', 'Paid'),
-    Cancelled: t('financeCopy.statusCancelled', 'Cancelled'),
   };
   return labels[status] ?? status;
 }
