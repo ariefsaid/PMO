@@ -8,6 +8,7 @@
 // Verify: cd supabase/functions/erpnext-sweep && deno test ../_shared/erpnextFeedDeps.test.ts
 
 import { createErpFeedDeps } from './erpnextFeedDeps.ts';
+import { peReceiveFromDoc } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { terminalApplyReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -962,4 +963,45 @@ Deno.test('AC-WHT-003 sweep update round-trips cash, withholding and slip withou
   assert(patch?.withheld_amount === '20.00', 'withheld tax must round-trip');
   assert(patch?.withholding_slip_number === 'WHT-001', 'slip number must round-trip');
   assert(!calls.some(c => c.table === 'notifications' && c.op === 'insert'), 'read-back cannot flag a body rewrite');
+});
+
+Deno.test('AC-WHT-003 a full ERP receipt with empty deductions clears the prior withholding slip', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const canonical = peReceiveFromDoc({ name: 'PE-CLEAR', paid_amount: '1000.00',
+    received_amount: '1000.00', docstatus: 1, deductions: [] });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the mapped ERP receipt must update its mirror');
+  const stored = { withheld_amount: '20.00', withholding_slip_number: 'WHT-OLD', ...patch };
+  assert(stored.withheld_amount === '0.00', 'empty deductions explicitly clear the prior withheld amount');
+  assert(stored.withholding_slip_number === null, 'empty deductions explicitly clear the prior slip');
+});
+
+Deno.test('AC-WHT-003 a full ERP receipt with unmarked deductions replaces prior tax credit with unknown', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const canonical = peReceiveFromDoc({ name: 'PE-UNKNOWN', paid_amount: '1000.00',
+    received_amount: '980.00', docstatus: 1,
+    deductions: [{ amount: '20.00', description: 'Other adjustment' }] });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the mapped ERP receipt must update its mirror');
+  const stored = { withheld_amount: '20.00', withholding_slip_number: 'WHT-OLD', ...patch };
+  assert(stored.withheld_amount === null, 'unmarked ERP deductions cannot retain an authored tax credit');
+  assert(stored.withholding_slip_number === null, 'unmarked ERP deductions cannot retain a prior tax slip');
+});
+
+Deno.test('AC-WHT-003 a partial ERP receipt without deductions retains prior withholding metadata', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const canonical = peReceiveFromDoc({ name: 'PE-PARTIAL', docstatus: 1 });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the partial lifecycle receipt must update its mirror');
+  assert(!Object.hasOwn(patch, 'withheld_amount'), 'absent deductions must omit the withheld amount');
+  assert(!Object.hasOwn(patch, 'withholding_slip_number'), 'absent deductions must omit the slip');
+  const stored = { withheld_amount: '20.00', withholding_slip_number: 'WHT-OLD', ...patch };
+  assert(stored.withheld_amount === '20.00', 'partial documents retain the prior withheld amount');
+  assert(stored.withholding_slip_number === 'WHT-OLD', 'partial documents retain the prior slip');
 });
