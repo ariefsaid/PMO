@@ -967,6 +967,12 @@ const integrationsImpl: IntegrationsRepository = {
       return (data as { companies: { name: string }[] }).companies;
     });
   },
+  listItems: (purpose) => wrap(async () => {
+    const { data, error } = await invokeWithTimeout(supabase.functions.invoke<{ items: Array<{ code: string; name: string }> }>('external-items', { body: { purpose } }));
+    if (error) throw error;
+    if (!data?.items) throw new Error('ERP item catalog could not be read');
+    return data.items;
+  }),
   setCompany: async (orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }> => {
     return wrap(async () => {
       if (tier !== 'erpnext') {

@@ -26,6 +26,7 @@ const repoPath = (file) => resolve(REPO, file);
 const REQUIRED = {
   'supabase/functions/external-connect/connect.test.ts': 'handleConnectRequest',
   'supabase/functions/external-companies/companies.test.ts': 'handleCompaniesRequest',
+  'supabase/functions/external-items/items.test.ts': 'handleItemsRequest',
   'supabase/functions/external-set-company/set-company.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-link/link.test.ts': 'handleLinkRequest',
   'supabase/functions/external-lists/lists.test.ts': 'handleListsRequest',
@@ -100,4 +101,4 @@ if (failed) {
   console.error('See docs/decisions.md OD-INT-8 and https://supabase.com/docs/guides/functions/unit-test');
   process.exit(1);
 }
-console.log('✓ edge-fn tests bind to shipped handlers (7/7)');
+console.log(`✓ edge-fn tests bind to shipped handlers (${Object.keys(REQUIRED).length}/${Object.keys(REQUIRED).length})`);

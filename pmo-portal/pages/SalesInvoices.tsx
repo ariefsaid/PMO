@@ -40,6 +40,7 @@ import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
+import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 /** Status filter segments. */
@@ -61,6 +62,7 @@ function salesInvoiceStatusLabel(status: StatusFilter, t: (key: string, fallback
 /** Line item as submitted: numeric, ready for the create command. */
 interface LineItem {
   item_code: string;
+  description?: string;
   qty: number;
   rate: number;
 }
@@ -71,6 +73,7 @@ interface LineItem {
  */
 interface LineItemDraft {
   item_code: string;
+  description?: string;
   qty: number;
   rate: string;
 }
@@ -483,6 +486,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   // The adornment follows the record's own currency when editing one; a create form has no record
   // yet, so it falls back to the org's operating currency (#731). The hook is called unconditionally.
   const orgCurrency = useOrgCurrency();
+  const erpItems = useErpItemOptions('sales');
   const moneyPrefix = currencySymbol(invoice?.currency ?? orgCurrency);
   // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
   // form is open (`{formTarget && …}`), so its mount IS the session: every retry of a failed submit
@@ -524,7 +528,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         const rate = parseRate(item.rate);
         // Unreachable after `validate`, which applies the same parse.
         if (rate === null) return;
-        lineItems.push({ item_code: item.item_code, qty: item.qty, rate });
+        lineItems.push({ item_code: item.item_code, qty: item.qty, rate, ...(item.description?.trim() ? { description: item.description.trim() } : {}) });
       }
       const input = { customerId: values.customerId, projectId: values.projectId, lineItems };
       try {
@@ -603,14 +607,38 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       <FormSection legend={t('financeCopy.lineItemsSection', 'Line items')}>
         {lineItems.map((item, index) => (
           <div key={index} className="flex flex-col sm:flex-row gap-2 mb-2">
-            <TextField
-              label={t('financeCopy.itemCode', "Item code")}
-              value={item.item_code}
-              onChange={(v) => updateLineItem(index, 'item_code', v)}
-              required
-              placeholder={t('financeCopy.iTEM001', "ITEM-001")}
-              className="flex-1"
-            />
+            <div className="min-w-0 flex-1 space-y-2">
+              {erpItems.connected ? (
+                <Combobox
+                  label="ERP item"
+                  value={item.item_code || null}
+                  selectedOption={item.item_code ? { value: item.item_code, label: item.item_code } : null}
+                  onChange={(code) => updateLineItem(index, 'item_code', code)}
+                  loadOptions={erpItems.loadOptions}
+                  required
+                  noun="ERP item"
+                  placeholder="Select or search item…"
+                  searchPlaceholder="Search item code or name…"
+                />
+              ) : (
+                <TextField
+                  label={t('financeCopy.itemCode', "Item code")}
+                  value={item.item_code}
+                  onChange={(v) => updateLineItem(index, 'item_code', v)}
+                  required
+                  placeholder={t('financeCopy.iTEM001', "ITEM-001")}
+                  className="flex-1"
+                />
+              )}
+              {erpItems.connected && (
+                <TextField
+                  label="Description"
+                  value={item.description ?? ''}
+                  onChange={(value) => updateLineItem(index, 'description', value)}
+                  placeholder="Describe the work or goods…"
+                />
+              )}
+            </div>
             <NumberField
               label={t('financeCopy.qty', "Qty")}
               value={String(item.qty)}
@@ -618,7 +646,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               required
               min={0}
               step={1}
-              className="w-24"
+              className="w-full sm:w-24"
             />
             <NumberField
               label={t('financeCopy.rate', "Rate")}
@@ -629,7 +657,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               min={0}
               step={0.01}
               prefix={moneyPrefix}
-              className="w-32"
+              className="w-full sm:w-32"
             />
             {lineItems.length > 1 && (
               <Button
@@ -638,6 +666,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                 size="sm"
                 className="self-end mt-5"
                 onClick={() => removeLineItem(index)}
+                aria-label={`Remove line ${index + 1}`}
               >
                 <Icon name="trash" className="size-4" />
               </Button>

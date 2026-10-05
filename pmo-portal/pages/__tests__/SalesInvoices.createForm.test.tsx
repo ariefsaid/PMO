@@ -31,7 +31,9 @@ const hoisted = vi.hoisted(() => ({
     { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' },
   ],
   projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01' }],
+  connected: false,
 }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: hoisted.connected, loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] }) }));
 
 // #731: the create form's money adornment reads the org currency. Pinned here rather than left to a
 // real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a syntax error.
@@ -102,6 +104,7 @@ beforeEach(async () => {
   hoisted.createMutate.mockClear();
   hoisted.navigateMock.mockClear();
   hoisted.salesInvoicesState.data = [];
+  hoisted.connected = false;
   setActiveLocale(EN_LOCALE);
   await financeTestI18n.changeLanguage('en');
 });
@@ -151,6 +154,29 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(screen.getByText('Item faktur')).toBeInTheDocument();
   });
 
+  it('AC-ITM-001/002 connected invoice searches ERP item name and submits separate authored description', async () => {
+    hoisted.connected = true;
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
+    await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+    await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
+    await user.type(screen.getByLabelText('Description'), 'Inspection of test unit');
+    await user.clear(screen.getByLabelText(/Rate/));
+    await user.type(screen.getByLabelText(/Rate/), '100');
+    await user.click(screen.getByRole('button', { name: /Create invoice/i }));
+    expect(hoisted.createMutate).toHaveBeenCalledWith(expect.objectContaining({ items: [{ item_code: 'ITEM-TEST', description: 'Inspection of test unit', qty: 1, rate: 100 }] }));
+  });
+
+  it('AC-ITM-004 standalone invoices retain the free-text item code field', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    expect(screen.getByLabelText(/Item code/)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'ERP item' })).not.toBeInTheDocument();
+  });
   it('offers the org\'s real client companies in the customer picker', async () => {
     const user = userEvent.setup();
     renderPage();

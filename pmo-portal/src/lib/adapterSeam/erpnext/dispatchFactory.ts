@@ -18,6 +18,7 @@ import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
+import { listErpItems, validateItemLines } from './itemCatalog.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
  *  [.order(...).limit(...)][.maybeSingle()]` — every filter-builder is ALSO directly awaitable
@@ -55,6 +56,7 @@ interface ExternalOrgBindingRow {
 
 interface ResolvedLineItem {
   item_code: string;
+  description?: string;
   qty: number | string;
   rate?: number | string;
   schedule_date?: string;
@@ -94,12 +96,13 @@ async function resolveCaseSupplierName(
 /** The case's line items (`procurement_items`, the shared item list every procurement sub-doctype
  *  draws from) mapped to the PMO-shaped line-item draft `erpnext/bodies/*`'s `toBody`s read. */
 async function resolveCaseItems(serviceClient: DispatchServiceClient, procurementId: string): Promise<ResolvedLineItem[]> {
-  const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate').eq('procurement_id', procurementId);
+  const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate,description').eq('procurement_id', procurementId);
   if (error || !Array.isArray(data)) return [];
-  return (data as Array<{ name: string; quantity: number | string; rate: number | string | null }>).map((row) => ({
+  return (data as Array<{ name: string; quantity: number | string; rate: number | string | null; description?: string | null }>).map((row) => ({
     item_code: row.name,
     qty: row.quantity,
     rate: row.rate ?? undefined,
+    ...(row.description ? { description: row.description } : {}),
   }));
 }
 
@@ -931,6 +934,29 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
+  // Resolve and validate authoring lines before the outbox body snapshot or any ERP money write.
+  const itemKind = deps.command.record.erp_doc_kind;
+  if (
+    ['sales-invoice', 'purchase-order', 'purchase-invoice'].includes(String(itemKind)) &&
+    buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: deps.command.record.verb } })
+  ) {
+    const record = deps.command.record;
+    const lines = Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems;
+    if (lines?.length) {
+      const catalog = await listErpItems(
+        {
+          fetchImpl: deps.fetchImpl,
+          baseUrl: binding.site_url,
+          apiKey: deps.apiKey,
+          apiSecret: deps.apiSecret,
+          rateLimiter: deps.rateLimiter,
+        },
+        itemKind === 'sales-invoice' ? 'sales' : 'purchase',
+      );
+      validateItemLines(lines, catalog);
+      record.items = lines;
+    }
+  }
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
   // same-org, daily hours). Gated on the kind, so no other command pays for the extra reads.

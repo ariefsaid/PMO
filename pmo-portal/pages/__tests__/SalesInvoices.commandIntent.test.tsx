@@ -55,6 +55,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }),
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'external') }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: async () => [{ value: 'ITEM-001', label: 'ITEM-001', sub: 'Test service' }] }) }));
 
 import SalesInvoices from '../SalesInvoices';
 
@@ -78,7 +79,8 @@ async function submitAnInvoice(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
   await user.click(screen.getByRole('combobox', { name: 'Customer' }));
   await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
-  await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
+  await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
+  await user.click(await screen.findByRole('option', { name: /ITEM-001/ }));
   await user.click(screen.getByRole('button', { name: 'Create invoice' }));
 }
 
