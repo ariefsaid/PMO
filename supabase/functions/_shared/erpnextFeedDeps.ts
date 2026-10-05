@@ -853,6 +853,8 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `Some ERP ledger entries carry no fiscal year, so their spend cannot appear under any year on the budget screen — set the fiscal year on those GL entries in ERPNext.`;
     case 'receipt-withholding-unconfirmed':
       return `Receipt ${detail.erpName ?? ''} in ERPNext carries a withholding-tax deduction PMO could not confirm (${detail.reason ?? 'unknown'}) — PMO recorded the cash amount without the tax. Check the Payment Entry's deductions in ERPNext.`;
+    case 'contact-not-adopted':
+      return `ERPNext Contact ${detail.erpName ?? ''} was NOT synced to PMO (${detail.reason ?? 'refused'}) — resolve its company links or duplicate in ERPNext; later contact changes are unaffected.`;
     case 'budget-push-failed':
       return `PMO could not push the activated budget to ERPNext (${detail.reason ?? 'unknown error'}) — ERPNext is still enforcing the previous budget (or none) for this project.`;
     default:

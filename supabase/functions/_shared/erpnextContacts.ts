@@ -7,8 +7,44 @@ import {
 import { findPmoRecordId } from "../../../pmo-portal/src/lib/adapterSeam/refs.ts";
 import { ERPNEXT_TIER } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts";
 import { AppError } from "../../../pmo-portal/src/lib/appError.ts";
-import { createErpFeedDeps } from "./erpnextFeedDeps.ts";
+import { createErpFeedDeps, surfaceActionRequired } from "./erpnextFeedDeps.ts";
 import { IN_FLIGHT_OUTBOX_STATES } from "./inFlightAnchorProbe.ts";
+
+/** AppErrors thrown by applyErpContact's own deliberate refusals (not by a DB/network fault). */
+const contactRefusals = new WeakSet<object>();
+function refuse(message: string, code: string): AppError {
+  const err = new AppError(message, code);
+  contactRefusals.add(err);
+  return err;
+}
+
+/**
+ * Feed entry (sweep + webhook): a deliberate Contact refusal is terminal for that ONE document — raise
+ * the action-required notice (an unmapped parent is routine and stays silent) and rethrow under the
+ * classified `contact-not-adopted` code so `feedErrorPolicy` skips it instead of wedging the watermark.
+ * Anything else (DB/network fault) propagates unchanged and halts. Onboarding calls `applyErpContact`
+ * directly and keeps the raw codes.
+ */
+export async function applyErpContactFeed(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  externalRecordId: string,
+  canonical: PmoRecord,
+  sourceModMs: number,
+): Promise<ApplyOutcome> {
+  try {
+    return await applyErpContact(serviceClient, orgId, externalRecordId, canonical, sourceModMs);
+  } catch (err) {
+    if (!(err instanceof AppError) || !contactRefusals.has(err)) throw err;
+    if (err.code !== "contact-parent-unmapped") {
+      await surfaceActionRequired(serviceClient, orgId, "contact-not-adopted", {
+        erpName: externalRecordId,
+        reason: err.code ?? "unknown",
+      });
+    }
+    throw new AppError(err.message, "contact-not-adopted");
+  }
+}
 
 /** Contact masters share the generic claim-first feed, with parent and mixed-state matching first. */
 export async function applyErpContact(
@@ -50,16 +86,16 @@ export async function applyErpContact(
     companyIds.add(id);
   }
   if (unresolvedParent && companyIds.size > 0) {
-    throw new AppError(`${externalRecordId}: Contact has unresolved company links; resolve manually`, "action-required");
+    throw refuse(`${externalRecordId}: Contact has unresolved company links; resolve manually`, "action-required");
   }
   if (companyIds.size === 0) {
-    throw new AppError(
+    throw refuse(
       `${externalRecordId}: Contact has no adopted company link`,
       "contact-parent-unmapped",
     );
   }
   if (companyIds.size !== 1) {
-    throw new AppError(
+    throw refuse(
       `${externalRecordId}: Contact links match multiple adopted companies; resolve manually`,
       "action-required",
     );
@@ -89,7 +125,7 @@ export async function applyErpContact(
       .eq("operation", "create").eq("payload->>erp_doc_kind", "contact")
       .in("state", [...IN_FLIGHT_OUTBOX_STATES]).limit(1).maybeSingle();
     if (outboxError) throw new AppError(outboxError.message, outboxError.code);
-    if (inFlight) throw new AppError("Contact adoption awaits outbound command resolution", "command-reconciling");
+    if (inFlight) throw refuse("Contact adoption awaits outbound command resolution", "command-reconciling");
     const { data, error } = await serviceClient.from("contacts").select("id")
       .eq("org_id", orgId).eq("company_id", companyId).eq(
         "full_name",
@@ -98,7 +134,7 @@ export async function applyErpContact(
     if (error) throw new AppError(error.message, error.code);
     const candidates = (data ?? []) as Array<{ id: string }>;
     if (candidates.length > 1) {
-      throw new AppError(
+      throw refuse(
         `${externalRecordId}: Ambiguous Contact match; resolve manually`,
         "action-required",
       );
@@ -116,7 +152,7 @@ export async function applyErpContact(
         throw new AppError(mappingError.message, mappingError.code);
       }
       if (mapping) {
-        throw new AppError(
+        throw refuse(
           `${externalRecordId}: Contact already belongs to another ERP Contact; resolve manually`,
           "action-required",
         );
