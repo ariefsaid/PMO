@@ -80,6 +80,12 @@ export const ALLOWED_SKIPS = [
     restore: 'Run locally against the throwaway bench (scripts/e2e-local.sh with the bench up).',
     verified: '2026-09-30',
   })),
+  {
+    file: 'serial/AC-SETUP-001-project-erp-link.spec.ts',
+    reason: 'ERP setup journey needs the disposable ERP bench and a prepared HTTPS binding.',
+    restore: 'Run in the local served-functions lane with the disposable HTTPS ERP relay and ready binding.',
+    verified: '2026-10-05',
+  },
 
   // ── Feature-flag quarantine: the incidents module is OFF. Code/DAL/RLS are preserved.
   {

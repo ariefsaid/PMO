@@ -6,6 +6,7 @@ import { formatDateOnly } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from '../../components/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
+import { ProjectErpLink } from './ProjectErpLink';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
@@ -135,6 +136,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
             />
           </dl>
         </section>
+        <ProjectErpLink projectId={project.id} />
       </div>
 
     </aside>

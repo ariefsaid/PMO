@@ -728,11 +728,11 @@ commit;
 Then prove the guard before data lands: `select public.assert_org_destroyable('<org>')` must raise
 `org_not_destroyable`. The Admin's auth user comes from `POST /auth/v1/invite` (service key) beforehand.
 
-**⛔ Still manual until their columns ship.** The RPC sets every companion that EXISTS; the rest must
-be set by hand immediately after creation, and moved INTO the RPC by the migration that adds them:
-locale defaults (#468) · `pmo_epoch_at` (`DD-XING-2` — free at creation, guesswork afterwards) ·
-`lifecycle_state` (#489 — `live` is terminal, so creation is the only moment stamping it is free).
-The current list is kept in the header of `supabase/migrations/0192_operator_create_org.sql`.
+**Companion setup follows the shipped RPCs.** Organization locale defaults and lifecycle state use
+their supported RPCs. ERPNext Company selection in Integrations establishes the set-once crossing
+boundary in `external_org_bindings.activated_at` through `activate_external_binding`; no manual
+organization epoch write is part of provisioning. The creation contract is recorded in
+`supabase/migrations/0192_operator_create_org.sql`.
 Proof: `supabase/tests/operator_create_org.test.sql` (`AC-ORG-001..013`).
 
 ## Production auth configuration (per-client Supabase Cloud project — owner-gated)
