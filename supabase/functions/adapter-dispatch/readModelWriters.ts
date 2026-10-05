@@ -650,6 +650,12 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   if (siTaxAmount !== null) patch.tax_amount = siTaxAmount;
   const siTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
   if (siTaxTemplate !== null) patch.tax_template = siTaxTemplate;
+  // #767: ERP's due_date and the mirrored receipt date. Written ONLY when ERP carries a value — an ERP
+  // doc without the custom field must never erase a receipt date PMO recorded after submission.
+  const siErpDue = (canonical.erp_due_date as string | null | undefined) ?? null;
+  if (siErpDue !== null) patch.erp_due_date = siErpDue;
+  const siReceived = (canonical.received_date as string | null | undefined) ?? null;
+  if (siReceived !== null) patch.received_date = siReceived;
   if (command.operation === 'create') {
     const record = command.record as { projectId?: string; customerId?: string };
     // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE

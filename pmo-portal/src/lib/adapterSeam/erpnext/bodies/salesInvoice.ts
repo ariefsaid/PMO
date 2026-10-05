@@ -29,12 +29,24 @@ export function siToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     body.po_no = reference;
     if (typeof rec.po_date === 'string' && rec.po_date.trim()) body.po_date = rec.po_date.trim();
   }
+  // #767 (AC-DUE-003): the client's receipt date + the EFFECTIVE due date it implies. The dispatch
+  // resolves both from PMO (the one `deriveArDueDate` helper) and supplies them ONLY when a receipt
+  // date is recorded — otherwise ERP keeps server-deriving `due_date` exactly as before.
+  const received = typeof rec.received_date === 'string' ? rec.received_date.trim() : '';
+  if (received) {
+    body.custom_received_date = received;
+    if (typeof rec.due_date === 'string' && rec.due_date.trim()) body.due_date = rec.due_date.trim();
+  }
   return body;
 }
 
 export function siFromDoc(doc: unknown): PmoRecord {
   const d = doc as Record<string, unknown>;
   return {
+    // #767: ERP's due_date + our custom receipt field, mapped back. Keys are present only when the doc
+    // carries them, so a doc without the custom field leaves the mirrored value untouched.
+    ...(d.due_date ? { erp_due_date: String(d.due_date) } : {}),
+    ...(d.custom_received_date ? { received_date: String(d.custom_received_date) } : {}),
     id: String(d.name),
     si_number: String(d.name),
     // Luna BLOCK A3: the ERP customer name — the inbound feed's mint path (erpnextFeedDeps.ts)
@@ -66,4 +78,6 @@ export function siFromDoc(doc: unknown): PmoRecord {
  * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
  * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
  */
-export const SI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no', 'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges'] as const;
+// `custom_received_date` is deliberately NOT listed: it is a site-level custom field, and a list query that
+// names an unknown column fails the WHOLE sweep. `siFromDoc` still maps it from any full-document read-back.
+export const SI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no', 'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges', 'due_date'] as const;

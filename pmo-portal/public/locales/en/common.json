@@ -2589,6 +2589,11 @@
     "title": "Allow {{client}} to access your PMO account?"
   },
   "financeCopy": {
+    "receivedDate": "Received",
+    "recordReceivedDate": "Record received date",
+    "receivedDateHelp": "The date the client received this invoice. The due date follows it.",
+    "receivedDateSaved": "Received date saved",
+    "receivedBeforeInvoiceDate": "Cannot be before the invoice date",
     "statusDraft": "Draft",
     "statusActive": "Active",
     "statusArchived": "Archived",

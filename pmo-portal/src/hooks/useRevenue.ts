@@ -156,6 +156,12 @@ export function useRevenueMutations() {
     },
   });
 
+  const setReceivedDate = useMutation({
+    mutationFn: ({ siId, receivedDate }: { siId: string; receivedDate: string | null }) =>
+      repositories.revenue.setReceivedDate(siId, receivedDate),
+    onSuccess: invalidate,
+  });
+
   const createPayment = useMutation({
     mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; date: string; intent?: CommandIntent }) =>
       repositories.revenue.createPayment(input, intent),
@@ -186,5 +192,5 @@ export function useRevenueMutations() {
     },
   });
 
-  return { create, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
+  return { create, setReceivedDate, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
 }

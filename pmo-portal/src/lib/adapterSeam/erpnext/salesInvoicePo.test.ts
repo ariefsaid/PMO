@@ -9,7 +9,7 @@ import { canonicalCommandDigest } from '../../../../../supabase/functions/adapte
 type Row = Record<string, unknown>;
 const ORG = 'org-1';
 const ITEM = { item_code: 'SYNTHETIC-ITEM', qty: 1, rate: 100 };
-const INVOICE = { id: 'si-1', org_id: ORG, reference_number: null, work_order_id: 'wo-1', project_id: 'proj-1', erp_modified: null };
+const INVOICE = { id: 'si-1', org_id: ORG, reference_number: null, work_order_id: 'wo-1', project_id: 'proj-1', erp_modified: null, received_date: null, invoice_date: '2026-09-02', customer_id: 'cust-1' };
 const WO = { id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01' };
 const PROJECT = { id: 'proj-1', org_id: ORG, customer_contract_ref: 'PROJECT-PO-001', contract_date: '2026-08-01' };
 
@@ -17,7 +17,7 @@ const PROJECT = { id: 'proj-1', org_id: ORG, customer_contract_ref: 'PROJECT-PO-
 function serviceClient(invoice: Row | null, wo: Row | null, project: Row | null, failingTable?: string): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { project_map: { 'proj-1': 'ERP-PROJ-001' } } }],
-    companies: [{ id: 'cust-1', org_id: ORG }],
+    companies: [{ id: 'cust-1', org_id: ORG, erp_payment_terms_days: 45 }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
       { org_id: ORG, domain: 'revenue', pmo_record_id: 'si-1', external_record_id: 'SYNTHETIC-SI-001' },
@@ -96,6 +96,20 @@ async function push(invoice: Row | null = INVOICE, wo: Row | null = WO, project:
 }
 
 const digest = (command: AdapterCommand) => canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: command.record });
+
+describe('sales invoice receipt date (#767)', () => {
+  it('AC-DUE-003 pushes custom_received_date and due_date = received + the customer terms', async () => {
+    const { body } = await push({ ...INVOICE, received_date: '2026-09-10' });
+    expect(body.custom_received_date).toBe('2026-09-10');
+    expect(body.due_date).toBe('2026-10-25'); // 2026-09-10 + 45 days
+  });
+
+  it('AC-DUE-003 leaves due_date to ERP when no receipt date is recorded', async () => {
+    const { body } = await push(INVOICE);
+    expect(body).not.toHaveProperty('due_date');
+    expect(body).not.toHaveProperty('custom_received_date');
+  });
+});
 
 describe('sales invoice client PO', () => {
   it.each([
