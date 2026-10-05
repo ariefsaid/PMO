@@ -3,7 +3,7 @@
 You are the **Director** (orchestrator) of the PMO repo at `~/Coding/PMO`. Your goal: every open
 sub-issue of GitHub issue **#791** is built, reviewed, merged to `dev` and closed. This is a **signed
 brief**: build every ticket and merge to `dev` without asking. Stop only for (a) a decision only the
-owner can make, (b) anything touching production. Do not stop between tickets to report.
+owner can make, (b) anything touching main/production. Do not stop between tickets to report.
 
 ## Read first (in this order)
 1. `CLAUDE.md` — binding rules. Where it says "Claude/Opus", read "the Director" (you).
@@ -15,9 +15,9 @@ owner can make, (b) anything touching production. Do not stop between tickets to
 7. `gh issue view 791` and `gh api repos/ariefsaid/PMO/issues/791/sub_issues` — the live ticket list.
 
 ## Executors (owner directive)
-- **Build:** pi with `openai-codex/gpt-6-luna`, thinking `xhigh`.
+- **Build:** chatgpt subagents with luna-6 or sol-6.1 depending on task complexity. 
 - **Review:** pi with `zai/glm-5.3-flash` (cross-family to the builder).
-- Smoke both slugs first: `pi-dispatch smoke openai-codex gpt-6-luna` and `pi-dispatch smoke zai glm-5.3-flash`.
+- Smoke slugs first: `pi-dispatch smoke zai glm-5.3-flash`.
 - For bounded slices use the factory: `uv run adws/adw_simple_sdlc.py <brief.md>` (`--builder fe_builder
   --reviewer fe_reviewer` for UI). Point the roster at these models by editing
   `adws/adw_sssf_config/sssf.config.yaml` yourself (builders → gpt-6-luna/xhigh, reviewer → glm-5.3-flash;
@@ -25,6 +25,26 @@ owner can make, (b) anything touching production. Do not stop between tickets to
 - Money / tax / approval / ERPNext-push / auth tickets: Director-dispatched per issue (not the factory),
   with a mutation check (break the rule → a test must go red).
 - Brief file lists with **literal paths**, never globs. Keep briefs outside the worktree (the ADW commits the whole tree).
+
+## Skills — use them, every ticket
+The repo ships skills in `.claude/skills/<name>/SKILL.md` (vendored, gitignored; if missing run
+`scripts/vendor-skills.sh`). Repo overrides live in `.claude/skill-overrides/<name>/` and win. Before a phase,
+**read the matching SKILL.md and follow it**; name the skill in every sub-agent brief so the builder/reviewer
+reads it too. Ownership when two overlap: the CLAUDE.md "Skill ownership" table. Routing doubt → `ask-matt`.
+
+| Phase | Skills |
+|---|---|
+| Fuzzy or multi-issue ticket | `wayfinder` (map + decision tickets), `to-tickets` (split), `triage` (labels) |
+| Intake / alignment | `grill-with-docs` (against `docs/glossary.md`, ADRs, decisions), `domain-modeling` (glossary terms), `grilling` |
+| Spec | `feature-forge` (new behaviour), `spec-miner` (existing code), `to-spec` (requirements already in the thread) |
+| Unknown approach | `prototype` (throwaway, TDD-exempt), `research` (time-boxed, written conclusion) |
+| Build | `tdd`, `implement` / `implement-spec`, `supabase` + `supabase-postgres-best-practices` (migrations, RLS, RPCs) |
+| Bugs / red CI | `diagnosing-bugs` before any fix; `resolving-merge-conflicts` |
+| Review | `code-review` (spec + quality + security — all three, every ticket), `cso` (security depth on auth/RLS/money), `careful` / `guard` / `freeze` on risky edits |
+| UI design | **`impeccable`** — run `.claude/skills/impeccable/scripts/impeccable context --target <file-or-route>` once per UI ticket, then its sub-command playbooks (e.g. `critique`, `audit`, `layout`, `clarify`, `harden`, `adapt`; full list: `impeccable help`); read `reference/craft-floor.md` before every UI edit; run `.claude/skills/impeccable/scripts/impeccable detect <changed files or local URL>` and fix what it finds. **`taste`** (visual judgment), **`ui-ux-pro-max`** (`python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain <domain>` for patterns, a11y, charts), `design-system`, `design-consultation`; `ui-styling` only where it fits the app's own primitives (`EntityFormModal`, `TextField`, `Combobox`… — no new shadcn/Radix components). **`DESIGN.md` is the token source of truth — the brief wins over any skill's taste.** |
+| Rendered check | `agent-browser` CLI (never the Playwright MCP), `design-review` for the rendered audit |
+| Codebase health | `improve-codebase-architecture`, `codebase-design` — file findings as issues, never drive-by refactors |
+| Ship / handoff | `pr`, `handoff` (if you must pass the work on), `writing-for-agents` (sub-agent briefs), `retro` at the end of the map |
 
 ## Order
 1. Nothing in flight (#781 merged as `c20add21`).
