@@ -2866,3 +2866,15 @@ straight-line by calendar day between start and end (DD-MMP-2); unbilled is a ru
 month, neither clamped (DD-MMP-3); read by the existing revenue read set (DD-MMP-4); every figure net of tax
 in the contract's own currency, totals per currency, never converted (DD-MMP-5); the pack is a management
 estimate and never writes to the ERP (DD-MMP-6).
+
+## DD-APR-3..5 — approval routing closes its own escape hatches (Director, 2026-10-06)
+
+Refines the #803 routing (ADR-0075) so the inputs that decide a route cannot be steered by the person the
+route favours:
+- **DD-APR-3 — a budget you just changed doesn't route to you.** When the project's active budget version was
+  activated by the person deciding, or after the request was submitted, the request goes to the senior set.
+- **DD-APR-4 — a configured senior set that nobody can act on means Admin, not everyone.** The flat role matrix
+  is the fallback only when no senior set is configured at all; once one exists but has no eligible member,
+  only an Admin may decide (break-glass, audited).
+- **DD-APR-5 — amounts route up, never down.** A negative header or line amount sends the request to the senior
+  set, and a request never counts below zero in the budget-used sum; NULL amount or route defaults to senior.
