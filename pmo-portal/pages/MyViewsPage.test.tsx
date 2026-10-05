@@ -82,6 +82,8 @@ vi.mock('@/src/components/builder/AIComposerModal', () => ({
 }));
 
 import MyViewsPage from './MyViewsPage';
+import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
+import { financeTestI18n } from './__tests__/financeI18nTestInstance';
 
 const SAMPLE_SPEC = {
   version: 1 as const,
@@ -96,23 +98,33 @@ const SAMPLE_SPEC = {
 
 function renderMyViews() {
   return render(
-    <MemoryRouter initialEntries={['/views']}>
-      <Routes>
-        <Route path="/views" element={<MyViewsPage />} />
-        <Route path="/views/new" element={<div data-testid="builder-page" />} />
-      </Routes>
-    </MemoryRouter>,
+    <FinanceI18nTestProvider>
+      <MemoryRouter initialEntries={['/views']}>
+        <Routes>
+          <Route path="/views" element={<MyViewsPage />} />
+          <Route path="/views/new" element={<div data-testid="builder-page" />} />
+        </Routes>
+      </MemoryRouter>
+    </FinanceI18nTestProvider>,
   );
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  await financeTestI18n.changeLanguage('en');
   mockIsFeatureEnabled.mockImplementation(
     (key: string) => key === 'userViews' || key === 'aiComposer',
   );
 });
 
 describe('MyViewsPage — "Compose with AI" entry (FR-AS-014)', () => {
+  it('AC-L10N-B01 renders the page title and action in Bahasa from the shipped catalogue', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderMyViews();
+    expect(await screen.findByRole('heading', { name: 'Tampilan Saya' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buat tampilan dengan AI' })).toBeInTheDocument();
+  });
+
   it('renders a "Compose view with AI" button (exact accessible name per FR-AS-014) when userViews+aiComposer are enabled', () => {
     renderMyViews();
     // FR-AS-014: the button's accessible name must be "Compose view with AI" (not "Compose with AI")

@@ -67,19 +67,23 @@ vi.mock('react-router', async (importOriginal) => {
 
 import SalesInvoices from '../SalesInvoices';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { FinanceI18nTestProvider } from './financeI18nTestProvider';
+import { financeTestI18n } from './financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
-        <ToastProvider>
-          <SalesInvoices />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <FinanceI18nTestProvider>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter>
+          <ToastProvider>
+            <SalesInvoices />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </FinanceI18nTestProvider>,
   );
 
 /** Opens the create form (the header action; the empty state offers the same button). */
@@ -94,15 +98,59 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, la
   await user.click(option);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   hoisted.createMutate.mockClear();
   hoisted.navigateMock.mockClear();
   hoisted.salesInvoicesState.data = [];
   setActiveLocale(EN_LOCALE);
+  await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
 describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 1)', () => {
+  it('keeps the status filters inside a keyboard-accessible horizontal region', async () => {
+    renderPage();
+
+    const filterRegion = screen.getByRole('region', { name: 'Filter by status' });
+    expect(filterRegion).toHaveAttribute('tabindex', '0');
+    expect(filterRegion).toHaveClass('max-w-full', 'overflow-x-auto');
+    expect(within(filterRegion).getByRole('tablist', { name: 'Filter by status' })).toBeInTheDocument();
+  });
+
+  it('groups the invoice amount and its tax-basis note for narrow card layouts', () => {
+    hoisted.salesInvoicesState.data = [
+      {
+        id: 'si-1',
+        si_number: 'ACC-SINV-0001',
+        status: 'Draft',
+        amount: 12345678900,
+        currency: 'IDR',
+        tax_treatment: 'exclusive',
+        tax_rate: 11,
+        erp_docstatus: 1,
+      },
+    ];
+    renderPage();
+
+    const taxBasis = screen.getByText(/excl\. PPN/);
+    expect(taxBasis.parentElement).toHaveClass('w-full', 'flex-col', 'items-end');
+  });
+
+  it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Faktur Penjualan' })).toBeInTheDocument();
+  });
+
+  it('AC-L10N-B01 renders invoice form section labels from the shipped Bahasa catalogue', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByText('Detail faktur')).toBeInTheDocument();
+    expect(screen.getByText('Item faktur')).toBeInTheDocument();
+  });
+
   it('offers the org\'s real client companies in the customer picker', async () => {
     const user = userEvent.setup();
     renderPage();

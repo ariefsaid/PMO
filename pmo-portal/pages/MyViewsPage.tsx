@@ -5,6 +5,8 @@
  * I5: "Compose with AI" entry point (FR-AS-014, AC-AS-011/012).
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatRelativeTime } from '@/src/lib/format';
 import { useNavigate, Link } from 'react-router';
 import {
   ListPage,
@@ -24,17 +26,8 @@ import { isFeatureEnabled } from '@/src/lib/features';
 import AIComposerModal from '@/src/components/builder/AIComposerModal';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(diff / 86_400_000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 30) return `${days} days ago`;
-  const months = Math.floor(days / 30);
-  return months === 1 ? '1 month ago' : `${months} months ago`;
-}
-
 const MyViewsPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const { toast } = useToast();
@@ -52,7 +45,7 @@ const MyViewsPage: React.FC = () => {
   const columns: Column<UserViewRow>[] = [
     {
       key: 'name',
-      header: 'Name',
+      header: t('financeCopy.name', "Name"),
       cell: (row) => (
         <Link to={`/views/${row.id}`} className="font-medium text-foreground hover:underline">
           {row.name}
@@ -61,27 +54,27 @@ const MyViewsPage: React.FC = () => {
     },
     {
       key: 'description',
-      header: 'Description',
+      header: t('financeCopy.description', "Description"),
       cell: (row) => (
         <span className="text-muted-foreground">{row.description ?? '—'}</span>
       ),
     },
     {
       key: 'updated_at',
-      header: 'Updated',
+      header: t('financeCopy.updated', "Updated"),
       cell: (row) => (
-        <span className="text-muted-foreground">{timeAgo(row.updated_at)}</span>
+          <span className="text-muted-foreground">{formatRelativeTime(row.updated_at)}</span>
       ),
     },
   ];
 
   const rowMenu = (row: UserViewRow): RowMenuItem[] => [
     {
-      label: 'Edit',
+      label: t('financeCopy.edit', "Edit"),
       onClick: () => navigate(`/views/${row.id}/edit`),
     },
     ...(canArchive
-      ? [{ label: 'Archive', onClick: () => setArchiveTarget(row) }]
+      ? [{ label: t('financeCopy.archive', "Archive"), onClick: () => setArchiveTarget(row) }]
       : []),
   ];
 
@@ -89,7 +82,7 @@ const MyViewsPage: React.FC = () => {
     if (!archiveTarget) return;
     try {
       await archive.mutateAsync(archiveTarget.id);
-      toast('View archived', archiveTarget.name, 'success');
+      toast(t('financeCopy.viewArchived', 'View archived'), archiveTarget.name, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -108,29 +101,27 @@ const MyViewsPage: React.FC = () => {
 
   return (
     <ListPage
-      title="My Views"
+      title={t('financeCopy.myViews', "My Views")}
       primaryAction={
         <div className="flex gap-2">
           {showAIComposer && (
             <Button
               variant="outline"
               onClick={() => setAIComposerOpen(true)}
-              aria-label="Compose view with AI"
+              aria-label={t('financeCopy.composeViewWithAI', "Compose view with AI")}
             >
-              Compose with AI
-            </Button>
+              {t('financeCopy.composeWithAI', "Compose with AI")}</Button>
           )}
           <Button variant="primary" onClick={() => navigate('/views/new')}>
-            New View
-          </Button>
+            {t('financeCopy.newView', "New View")}</Button>
         </div>
       }
     >
       {isError ? (
         <ListState
           variant="error"
-          title="Could not load views."
-          sub="A network or server error occurred."
+          title={t('financeCopy.couldNotLoadViews', "Could not load views.")}
+          sub={t('financeCopy.aNetworkOrServerErrorOccurred', "A network or server error occurred.")}
           onRetry={refetch}
         />
       ) : isPending ? (
@@ -143,11 +134,10 @@ const MyViewsPage: React.FC = () => {
       ) : rows.length === 0 ? (
         <ListState
           variant="empty"
-          title="No views yet."
+          title={t('financeCopy.noViewsYet', "No views yet.")}
           sub={
             <Link to="/views/new" className="font-medium text-primary-text hover:underline">
-              Create your first view
-            </Link>
+              {t('financeCopy.createYourFirstView', "Create your first view")}</Link>
           }
         />
       ) : (
@@ -162,10 +152,10 @@ const MyViewsPage: React.FC = () => {
       <ConfirmDialog
         open={archiveTarget !== null}
         tone="destructive"
-        title="Archive this view?"
-        description={`"${archiveTarget?.name}" will be archived and removed from your list.`}
-        confirmLabel="Archive"
-        cancelLabel="Keep"
+        title={t('financeCopy.archiveThisView', "Archive this view?")}
+        description={t('financeCopy.archiveViewDescription', '"{{name}}" will be archived and removed from your list.', { name: archiveTarget?.name ?? '' })}
+        confirmLabel={t('financeCopy.archive', "Archive")}
+        cancelLabel={t('financeCopy.keep', "Keep")}
         onConfirm={handleArchiveConfirm}
         onCancel={() => setArchiveTarget(null)}
         loading={archive.isPending}

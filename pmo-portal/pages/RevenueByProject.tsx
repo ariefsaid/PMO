@@ -56,14 +56,12 @@ const RevenueByProject: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">You don't have access to Revenue by Project</h2>
+          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToRevenueByProject', "You don't have access to Revenue by Project")}</h2>
           <p className="mt-2 text-muted-foreground">
-            The revenue per project view is available to Finance, Project Managers, and Executives.
-          </p>
+            {t('financeCopy.theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives', "The revenue per project view is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
             <Icon name="back" className="size-4 mr-2" />
-            Back to dashboard
-          </Button>
+            {t('financeCopy.backToDashboard', "Back to dashboard")}</Button>
         </div>
       </div>
     );
@@ -74,18 +72,18 @@ const RevenueByProject: React.FC = () => {
   >[] = [
     {
       key: 'project_name',
-      header: 'Project',
+      header: t('financeCopy.project', "Project"),
       cell: (row) => (
         <div className="flex flex-col gap-0.5">
           {row.project_name ? (
             <>
               <span className="font-semibold">{row.project_name}</span>
               <span className="text-xs text-muted-foreground font-mono">
-                {row.invoice_count} invoice{row.invoice_count !== 1 ? 's' : ''}
+                {t('financeCopy.invoiceCount', '{{count}} invoices', { count: row.invoice_count })}
               </span>
             </>
           ) : (
-            <StatusPill variant="neutral">Unassigned</StatusPill>
+            <StatusPill variant="neutral">{t('financeCopy.unassigned', "Unassigned")}</StatusPill>
           )}
         </div>
       ),
@@ -93,7 +91,7 @@ const RevenueByProject: React.FC = () => {
     },
     {
       key: 'total_amount',
-      header: 'Total Revenue',
+      header: t('financeCopy.totalRevenue', "Total Revenue"),
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
@@ -104,7 +102,7 @@ const RevenueByProject: React.FC = () => {
     },
     {
       key: 'open_ar',
-      header: 'Open AR',
+      header: t('financeCopy.openAR', "Open AR"),
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
@@ -115,7 +113,7 @@ const RevenueByProject: React.FC = () => {
     },
     {
       key: 'invoice_count',
-      header: 'Invoices',
+      header: t('financeCopy.invoices', "Invoices"),
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
@@ -128,7 +126,7 @@ const RevenueByProject: React.FC = () => {
 
   return (
     <ListPage
-      title="Revenue by Project"
+      title={t('financeCopy.revenueByProject', "Revenue by Project")}
       description={t(
         'revenueByProject.subtitle',
         'Project revenue, with a separate Unassigned group for invoices not linked to a project.',
@@ -136,8 +134,7 @@ const RevenueByProject: React.FC = () => {
       primaryAction={
         <Button variant="outline" onClick={() => navigate('/projects')}>
           <Icon name="pipe" className="size-4 mr-2" />
-          Browse Projects
-        </Button>
+          {t('financeCopy.browseProjects', "Browse Projects")}</Button>
       }
     >
       {/* KPI Summary — honest states only (BLOCK 2 / the AccountingSnapshotsSection rule): while the
@@ -145,7 +142,7 @@ const RevenueByProject: React.FC = () => {
           fabricated $0 that reads as a real figure for an org that may bill millions. */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <KPITile
-          label="Total Revenue"
+          label={t('financeCopy.totalRevenue', "Total Revenue")}
           value={formatCurrencyAuto(totalRevenue, orgCurrency)}
           icon="dollar"
           tone="blue"
@@ -153,7 +150,7 @@ const RevenueByProject: React.FC = () => {
           error={isError || currencyError}
         />
         <KPITile
-          label="Open AR"
+          label={t('financeCopy.openAR', "Open AR")}
           value={formatCurrencyAuto(totalOpenAR, orgCurrency)}
           icon="dollar"
           tone="amber"
@@ -161,7 +158,7 @@ const RevenueByProject: React.FC = () => {
           error={isError || currencyError}
         />
         <KPITile
-          label="Total Invoices"
+          label={t('financeCopy.totalInvoices', "Total Invoices")}
           value={formatNumber(totalInvoices)}
           icon="file"
           tone="violet"
@@ -169,7 +166,7 @@ const RevenueByProject: React.FC = () => {
           error={isError}
         />
         <KPITile
-          label="Projects"
+          label={t('financeCopy.projects', "Projects")}
           value={formatNumber(all.filter((r) => r.project_id).length)}
           icon="pipe"
           tone="green"
@@ -201,8 +198,8 @@ const RevenueByProject: React.FC = () => {
         <ListState
           variant="empty"
           icon="table"
-          title="No revenue data yet"
-          sub="Create sales invoices to see revenue per project."
+          title={t('financeCopy.noRevenueDataYet', "No revenue data yet")}
+          sub={t('financeCopy.createSalesInvoicesToSeeRevenuePerProject', "Create sales invoices to see revenue per project.")}
         />
       )}
 
@@ -217,8 +214,8 @@ const RevenueByProject: React.FC = () => {
             }}
             rowLabel={(row) => `Open ${row.project_name ?? 'Unassigned'}`}
             state={all.length === 0 ? 'empty' : undefined}
-            emptyTitle="No revenue data"
-            emptySub="Invoices with amounts will appear here."
+            emptyTitle={t('financeCopy.noRevenueData', "No revenue data")}
+            emptySub={t('financeCopy.invoicesWithAmountsWillAppearHere', "Invoices with amounts will appear here.")}
           />
         </Card>
       )}
