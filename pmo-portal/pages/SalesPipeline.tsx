@@ -122,6 +122,7 @@ const SalesPipeline: React.FC = () => {
 
   const openProjects = useMemo(() => data?.projects ?? [], [data]);
   const lost = useMemo(() => lostDeals ?? [], [lostDeals]);
+  const declinedCount = useMemo(() => lost.filter((p) => p.status === 'Declined').length, [lost]); // #774
   const stages = useMemo(() => data?.stages ?? [], [data]);
 
   // The kanban shows every column, so it draws from open ∪ lost (the Lost column is otherwise
@@ -196,7 +197,9 @@ const SalesPipeline: React.FC = () => {
   // branch and the lost-deals error gate below.
   const scopeLabels: Record<DealScope, string> = {
     Open: t('sales.scope.open', 'Open'),
-    Lost: t('sales.scope.lost', 'Lost'),
+    Lost: declinedCount > 0
+      ? t('sales.lostCounts', 'Lost {{lost}} · Declined {{declined}}', { lost: lost.length - declinedCount, declined: declinedCount })
+      : t('sales.scope.lost', 'Lost'),
     'Needs attention': t('sales.scope.needsAttention', 'Needs attention'),
   };
 

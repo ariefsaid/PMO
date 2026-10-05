@@ -862,7 +862,10 @@
       "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
       "mobile": "What needs your attention across the contracting book."
     },
-    "title": "Executive Dashboard"
+    "title": "Executive Dashboard",
+    "winRate": {
+      "declined": "{{n}} declined to bid — not counted in the win rate"
+    }
   },
   "funnel": {
     "scrollableRegion": "Stage summary, scrollable horizontally"
@@ -2185,7 +2188,8 @@
       "tender": "Tender",
       "negotiation": "Negotiation",
       "lost": "Lost"
-    }
+    },
+    "lostCounts": "Lost {{lost}} · Declined {{declined}}"
   },
   "shell": {
     "backBar": {

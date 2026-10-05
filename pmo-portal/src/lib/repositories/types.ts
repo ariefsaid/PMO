@@ -137,7 +137,7 @@ export interface CommandIntent {
 
 export interface ProjectRepository {
   list(
-    params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
+    params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
   ): Promise<ProjectWithRefs[]>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;

@@ -5,7 +5,7 @@
 --              Negotiation. Body is 0183's VERBATIM except the map literal and the loss branch.
 --   AC-DEC-002 get_win_rate: wins/losses and both win_rate_* ratios ignore Declined; the payload gains
 --              declined_count so the dashboard shows it separately. Otherwise 0044's body verbatim.
--- Reversibility: re-create both functions from 0183 / 0044 (see rollback/0233_*_down.sql).
+-- Reversibility: re-create both functions from 0183 / 0044 (see rollback/0236_*_down.sql).
 
 create or replace function transition_project(
   p_id uuid, p_to project_status, p_customer_contract_ref text default null, p_contract_date date default null)

@@ -179,6 +179,15 @@ describe('listProjects', () => {
     expect(scoped).toContain('Internal Project');
   });
 
+  it('AC-DEC-001: a statuses[] override filters with one .in("status", …) (the Lost column = Loss Tender + Declined)', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects({ statuses: ['Loss Tender', 'Declined'] });
+    const inStatusCalls = mockIn.mock.calls.filter(([k]) => k === 'status');
+    expect(inStatusCalls).toHaveLength(1);
+    expect(inStatusCalls[0][1]).toEqual(['Loss Tender', 'Declined']);
+    expect(mockEq).not.toHaveBeenCalledWith('status', expect.anything());
+  });
+
   it('AC-IXD-PROJ-003: an explicit status override wins over the default partition (e.g. a Lost filter)', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects({ status: 'Loss Tender' });

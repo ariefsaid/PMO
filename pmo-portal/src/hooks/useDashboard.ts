@@ -92,11 +92,8 @@ export function useLostDeals() {
     queryKey: ['lost-deals', orgId],
     queryFn: async () => {
       // 'Declined' is a terminal pre-award outcome that lives in the same Lost column/scope (#774).
-      const [lost, declined] = await Promise.all([
-        repositories.project.list({ status: 'Loss Tender' }),
-        repositories.project.list({ status: 'Declined' }),
-      ]);
-      const rows = [...lost, ...declined];
+      const rows = [...(await repositories.project.list({ statuses: ['Loss Tender', 'Declined'] }))];
+      rows.sort((a, b) => (b.last_update ?? '').localeCompare(a.last_update ?? '')); // most recent first
       return rows.map((r): PipelineProject => ({
         id: r.id,
         name: r.name,

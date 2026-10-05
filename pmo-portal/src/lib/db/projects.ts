@@ -182,7 +182,7 @@ export interface ProjectHeaderInput {
  * read for every existing caller (e.g. the ⌘K CommandPalette record search).
  */
 export async function listProjects(
-  params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
+  params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
 ): Promise<ProjectWithRefs[]> {
   // `any` is a localized escape hatch: PostgREST's TypeScript builder types
   // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
@@ -190,7 +190,10 @@ export async function listProjects(
   // propagate `any` beyond this function.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = supabase.from('projects').select(SELECT);
-  if (params?.status) {
+  if (params?.statuses?.length) {
+    // Multi-status override (e.g. the Lost column = Loss Tender + Declined, #774).
+    q = q.in('status', params.statuses as string[]);
+  } else if (params?.status) {
     // Explicit override → a precise single-status filter (e.g. the Lost partition).
     q = q.eq('status', params.status);
   } else {

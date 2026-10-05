@@ -862,7 +862,10 @@
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
     },
-    "title": "Dashboard Eksekutif"
+    "title": "Dashboard Eksekutif",
+    "winRate": {
+      "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+    }
   },
   "funnel": {
     "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
@@ -2082,7 +2085,7 @@
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
       "lossTender": "Tender kalah",
-      "declined": "Ditolak (tidak ikut tender)",
+      "declined": "Tidak ikut tender",
       "internalProject": "Proyek internal"
     },
     "identifiers": {
@@ -2185,7 +2188,8 @@
       "tender": "Tender",
       "negotiation": "Negosiasi",
       "lost": "Kalah"
-    }
+    },
+    "lostCounts": "Kalah {{lost}} · Tidak ikut tender {{declined}}"
   },
   "shell": {
     "backBar": {

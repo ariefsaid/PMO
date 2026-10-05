@@ -61,6 +61,8 @@ export const ON_HAND_STATUSES: readonly string[] = [
   'Close Out',
 ];
 
+// #774 (Director): Declined stays in the closed "Lost" kanban column/filter (the pipeline is closed
+// for it) but wears its own neutral pill and is counted separately; win-rate already excludes it.
 export const LOST_STATUSES: readonly string[] = ['Loss Tender', 'Declined'];
 
 export const INTERNAL_STATUSES: readonly string[] = ['Internal Project'];
