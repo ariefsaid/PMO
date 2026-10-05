@@ -508,6 +508,8 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
      **Text on a destructive tint always uses `destructive-text`, never `destructive`** — `destructive`
      is reviewed only against `canvas`/`raised` backgrounds and fails WCAG AA on the `destructive/[0.07]`
      tint (found live on the M365 disconnect-failure alert, issue #689, fixed by this same rule).
+  - **Inline field errors use `text-destructive-text` in both themes.** `FieldError` owns the
+    token; AC-A11Y-FIELD-001 binds it to the component and proves AA contrast on background/popover.
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
 - **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-

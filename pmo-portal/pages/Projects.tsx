@@ -394,7 +394,7 @@ const Projects: React.FC = () => {
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
         return (
-          <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex min-w-0 max-w-[190px] items-center gap-2.5">
             <span
               aria-hidden
               className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
@@ -410,7 +410,7 @@ const Projects: React.FC = () => {
                     e.stopPropagation();
                     onOpen(p);
                   }}
-                  className="block max-w-[40ch] truncate text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="block max-w-[16ch] truncate text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   title={p.name}
                 >
                   {p.name}
@@ -446,12 +446,13 @@ const Projects: React.FC = () => {
           <CompanyNameLink
             companyId={p.client_id}
             name={p.client ? companyDisplayName(p.client) : null}
-            className="text-[13px]"
+            className="block max-w-[105px] text-[13px]"
           />
         </div>
       ),
-      // Hide below 1280px — frees ~120px so Progress+Action columns fit at 1180px
-      colClassName: 'hidden xl:table-cell',
+      // Keep both customer columns at the high-priority 1440px desktop width.
+      // At narrower laptop widths, the table prioritizes project and delivery data.
+      colClassName: 'hidden min-[1360px]:table-cell',
     },
     {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
@@ -464,11 +465,11 @@ const Projects: React.FC = () => {
           <CompanyNameLink
             companyId={p.end_client_id}
             name={p.end_client ? companyDisplayName(p.end_client) : null}
-            className="text-[13px]"
+            className="block max-w-[105px] text-[13px]"
           />
         </div>
       ),
-      colClassName: 'hidden xl:table-cell',
+      colClassName: 'hidden min-[1360px]:table-cell',
     },
     {
       key: 'pm',
@@ -492,14 +493,14 @@ const Projects: React.FC = () => {
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
         return (
-          <span className="flex items-center gap-1.5">
+          <span className="flex max-w-[100px] items-center gap-1.5">
             <span
               aria-hidden
               className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
             >
               {(label.trim().charAt(0) || '?').toUpperCase()}
             </span>
-            <span className="whitespace-normal leading-tight">{label}</span>
+            <span className="min-w-0 break-words whitespace-normal leading-tight">{label}</span>
           </span>
         );
       },
@@ -512,7 +513,12 @@ const Projects: React.FC = () => {
       header: t('projects.columns.status', 'Status'),
       exportValue: (p) => String(p.status),
       cell: (p) => (
-        <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>
+        <StatusPill
+          variant={pillVariantForProjectStatus(p.status as string)}
+          className="max-w-[110px] flex-wrap whitespace-normal"
+        >
+          {p.status}
+        </StatusPill>
       ),
     },
     {
@@ -526,7 +532,7 @@ const Projects: React.FC = () => {
       // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
       // there reads as comparable when it is not.
       cell: (p) => (
-        <span className="inline-flex items-baseline gap-1.5">
+        <span className="inline-flex flex-wrap items-baseline gap-1.5">
           {formatCurrency(p.contract_value, p.currency)}
           <TaxBasisLabel treatment={p.tax_treatment} />
         </span>
@@ -594,7 +600,7 @@ const Projects: React.FC = () => {
                 (Indonesian will not keep "X of Y budget" word order), and it is exactly the
                 DD-I18N-7 shape: format the money first, interpolate the finished strings. It
                 stays English until `t()` interpolation is safe under the unit suite. */}
-            <div className="text-[11px] text-muted-foreground">
+            <div className="max-w-[120px] whitespace-normal text-[11px] text-muted-foreground">
               {`${formatCompactCurrency(summary.committedSpend, p.currency)} of ${formatCompactCurrency(summary.budget, p.currency)} budget`}
             </div>
           </div>
@@ -1117,38 +1123,40 @@ const Projects: React.FC = () => {
           }}
         />
       ) : view === 'table' ? (
-        <DataTable<ProjectWithRefs>
-          rows={filtered}
-          columns={columns}
-          rowKey={(p) => p.id}
-          onActivate={onOpen}
-          rowMenu={canRowWrite ? rowMenu : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={
-            filter === 'at-risk'
-              ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
-              : filtersActive
-                ? t('projects.empty.noMatchTitle', 'No projects match these filters')
-                : t('projects.states.emptyTitle', 'No projects yet')
-          }
-          emptySub={
-            filter === 'at-risk'
-              ? t(
-                  'projects.empty.nothingAtRiskSub',
-                  'Every active project is under 90% budget — nothing needs attention right now.',
-                )
-              : filtersActive
-                ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
-                : t('projects.states.emptySub', 'Projects you create or win will appear here.')
-          }
-          emptyAction={
-            filter === 'at-risk'
-              ? undefined
-              : filtersActive
-                ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
-                : undefined
-          }
-        />
+        <div className="[&_th]:px-1.5 [&_td]:px-1.5">
+          <DataTable<ProjectWithRefs>
+            rows={filtered}
+            columns={columns}
+            rowKey={(p) => p.id}
+            onActivate={onOpen}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            state={filtered.length === 0 ? 'empty' : undefined}
+            emptyTitle={
+              filter === 'at-risk'
+                ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
+                : filtersActive
+                  ? t('projects.empty.noMatchTitle', 'No projects match these filters')
+                  : t('projects.states.emptyTitle', 'No projects yet')
+            }
+            emptySub={
+              filter === 'at-risk'
+                ? t(
+                    'projects.empty.nothingAtRiskSub',
+                    'Every active project is under 90% budget — nothing needs attention right now.',
+                  )
+                : filtersActive
+                  ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
+                  : t('projects.states.emptySub', 'Projects you create or win will appear here.')
+            }
+            emptyAction={
+              filter === 'at-risk'
+                ? undefined
+                : filtersActive
+                  ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
+                  : undefined
+            }
+          />
+        </div>
       ) : filtered.length === 0 ? (
         <ListState
           variant="empty"
