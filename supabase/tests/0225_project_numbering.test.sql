@@ -82,8 +82,11 @@ set local request.jwt.claims = '{"sub":"00771000-0000-0000-0000-0000000000b1","r
 select throws_ok($$select public.propose_project_number('00771000-0000-0000-0000-000000000021')$$, '42501', null, 'NFR-PNO-001 a caller cannot propose against a company in another org');
 
 -- The direct INSERT fallback runs after projects_stamp_org_id and preserves the supplied client code.
+-- Cross the UTC year boundary into the current business year, whose first two
+-- allocations were exercised above; keep this fixture independent of calendar year.
 insert into projects (name, status, client_id, code, created_at)
-values ('Direct Insert Fallback', 'Internal Project', '00771000-0000-0000-0000-000000000011', 'CLIENT-DIRECT', '2025-12-31 17:30:00+00');
+values ('Direct Insert Fallback', 'Internal Project', '00771000-0000-0000-0000-000000000011', 'CLIENT-DIRECT',
+  make_timestamptz(extract(year from current_timestamp at time zone 'Asia/Jakarta')::integer - 1, 12, 31, 17, 30, 0, 'UTC'));
 select is((select pmo_project_number from projects where name='Direct Insert Fallback'), format('PR-ACME-%s-0003', to_char(current_timestamp at time zone 'Asia/Jakarta', 'YY')), 'NFR-PNO-002 insert fallback uses the business timezone at the UTC year boundary');
 select is((select code from projects where name='Direct Insert Fallback'), 'CLIENT-DIRECT', 'AC-CODE-002 fallback does not reuse or overwrite Client Project Code');
 insert into projects (org_id, pmo_project_number, code, name, status, client_id)

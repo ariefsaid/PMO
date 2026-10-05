@@ -421,11 +421,11 @@ const Projects: React.FC = () => {
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
                 )}
               </div>
-              <div className="truncate font-mono text-[11px] text-muted-foreground">
+              <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
                 {t('projects.identifiers.pmo', 'PMO Project Number')}: {p.pmo_project_number}
               </div>
               {p.code && (
-                <div className="truncate font-mono text-[11px] text-muted-foreground">
+                <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
                   {t('projects.identifiers.client', 'Client Project Code')}: {p.code}
                 </div>
               )}
@@ -987,7 +987,7 @@ const Projects: React.FC = () => {
           <button
             type="button"
             onClick={clearFilters}
-            className="text-[12.5px] font-semibold text-primary underline-offset-2 hover:underline"
+            className="text-[12.5px] font-semibold text-primary-text underline-offset-2 hover:underline"
           >
             {t('projects.mobile.clearAll', 'Clear all')}
           </button>

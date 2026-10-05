@@ -48,7 +48,20 @@ beforeEach(() => {
   sessionStorage.clear();
   h.projects.data = rows;
 });
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+function mockMobileViewport() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
 
 describe('AC-CODE-003 active Projects identities', () => {
   it('AC-CODE-003: renders both identifiers as separately labelled values in the project table', () => {
@@ -77,5 +90,30 @@ describe('AC-CODE-003 active Projects identities', () => {
     renderProjects();
     expect(cardFor('Active site')).toHaveTextContent('PMO Project Number: PMO-26-7711');
     expect(cardFor('Active site')).not.toHaveTextContent('Client Project Code:');
+  });
+
+  it('AC-CODE-003: keeps each identifier readable on a narrow project card', () => {
+    mockMobileViewport();
+    renderProjects('/projects?view=table');
+    const pmoNumber = screen.getByText('PMO Project Number: PMO-26-7711');
+    const clientCode = screen.getByText('Client Project Code: CLIENT-81');
+
+    expect(pmoNumber).toHaveClass('break-words');
+    expect(pmoNumber).toHaveClass('md:truncate');
+    expect(pmoNumber).not.toHaveClass('truncate');
+    expect(clientCode).toHaveClass('break-words');
+    expect(clientCode).toHaveClass('md:truncate');
+    expect(clientCode).not.toHaveClass('truncate');
+  });
+
+  it('AC-CODE-003: uses the AA primary text token for the search Clear all action', async () => {
+    mockMobileViewport();
+    const user = userEvent.setup();
+    renderProjects('/projects?view=table');
+    await user.type(screen.getByPlaceholderText(/Search projects/i), 'PMO-26-7711');
+
+    const clearAll = await screen.findByRole('button', { name: 'Clear all' });
+    expect(clearAll).toHaveClass('text-primary-text');
+    expect(clearAll).not.toHaveClass('text-primary');
   });
 });
