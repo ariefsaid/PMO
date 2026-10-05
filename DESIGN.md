@@ -837,3 +837,13 @@ The existing DataTable positioned-scroller rule also applies to budget editor ta
 ### Finance filters and narrow record cards (2026-10-05)
 
 Status filters that exceed a narrow page use a width-capped horizontal scroll region with a label, keyboard focus, and the shared focus-ring token. Budget table scroll regions are keyboard reachable and remain positioned for label containment. On a wrapping version-card header, keep a visible gap between status and total and reserve the total's width. In narrow invoice cards, the tax-basis note takes its own full-width line alongside the amount group. Text on dark primary surfaces uses the existing `primary-text` AA token.
+
+### Project classification filters (2026-10-05, #770)
+
+Project classification filters stay available to Engineers as well as managers. At phone width,
+Engineers use a separate Classification disclosure; customer and project-manager controls remain in
+the manager Filters disclosure. Clearing a classification restores the role's default project scope.
+Filter-clearing text uses the existing `primary-text` AA token in both themes. The shared project
+form keeps all five classification fields in its scrollable body with the save footer visible.
+Read-only setup lists pair each term with its definition; explanatory helper text sits outside the
+definition list so assistive technology receives valid list semantics.

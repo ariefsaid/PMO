@@ -1,3 +1,4 @@
+import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -22,12 +23,13 @@ export type AdministrationSection =
   | 'users'
   | 'integrations'
   | 'accounting'
+  | 'projects'
   | 'credits'
   | 'usage'
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'credits'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'credits'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, ...OPERATOR_SECTIONS];
 
@@ -36,6 +38,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   users: 'Users',
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
+  projects: 'Project setup',
   credits: 'Credits',
   usage: 'Usage',
   features: 'Features',
@@ -50,6 +53,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   users: t('admin.nav.users', SECTION_LABEL_DEFAULTS.users),
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
+  projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
   credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
   usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
   features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
@@ -197,6 +201,8 @@ const SelectedAdministrationPanel: React.FC<{
           </div>
         </div>
       );
+    case 'projects':
+      return <div data-testid="administration-panel-projects" className="min-w-0"><SectionHeader title={label('projects')} /><OrgProjectClassificationOptions /></div>;
     case 'credits':
       return (
         <div data-testid="administration-panel-credits" className="min-w-0">

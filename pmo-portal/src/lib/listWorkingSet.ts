@@ -1,3 +1,4 @@
+import type { ProjectClassificationFilters } from './projectClassification';
 import { DEFAULT_PROJECT_VIEW, PROJECT_VIEWS, type ProjectView } from '../hooks/useProjectView';
 import { DEFAULT_PIPELINE_VIEW, PIPELINE_VIEWS, type PipelineView } from '../hooks/usePipelineView';
 import {
@@ -25,7 +26,7 @@ export type ProcurementRecordStatus = ProcurementStatus;
 export type ProcurementStatusMode = 'group' | 'exact';
 export type CompanyTypeFilter = 'All' | 'Internal' | 'Client' | 'Vendor';
 
-export interface ProjectsWorkingSet {
+export interface ProjectsWorkingSet extends ProjectClassificationFilters {
   filter: ProjectFilter;
   client: string;
   /** The end-customer company UUID (issue #758), mirroring `client`. */
@@ -40,7 +41,7 @@ export interface ProjectsWorkingSet {
   month?: string;
 }
 
-export interface SalesWorkingSet {
+export interface SalesWorkingSet extends ProjectClassificationFilters {
   scope: SalesScope;
   status: SalesStage;
   q: string;
@@ -305,9 +306,26 @@ type Schemas = { [K in ListName]: ListSchema<K> };
  * not a framework. Parsers validate untrusted URL input; serializers trust their already-typed
  * working set and only omit/default-encode values (they never re-validate enum membership).
  */
+const CLASSIFICATION_KEYS = ['serviceLine', 'sector', 'location', 'awardType', 'biddingEntity'] as const;
+function classificationValues(params: URLSearchParams): ProjectClassificationFilters {
+  const result: ProjectClassificationFilters = {};
+  for (const key of CLASSIFICATION_KEYS) {
+    const value = (params.get(key) ?? '').replace(/\p{Cc}/gu, '');
+    if (!value) continue;
+    if (key === 'awardType' && !['tender', 'direct'].includes(value)) continue;
+    if (key === 'biddingEntity' && !['alone', 'consortium'].includes(value)) continue;
+    result[key] = value;
+  }
+  return result;
+}
+function putClassification(params: URLSearchParams, values: ProjectClassificationFilters): void {
+  for (const key of CLASSIFICATION_KEYS) putParam(params, key, values[key] ?? '');
+}
+
 const LIST_WORKING_SET_SCHEMAS: Schemas = {
   projects: {
     parse: (params, options) => ({
+      ...classificationValues(params),
       filter: enumValue(
         params.get('filter'),
         PROJECT_FILTERS,
@@ -321,6 +339,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       month: monthValue(params.get('month')),
     }),
     serialize: (params, value, options) => {
+      putClassification(params, value);
       const omitFilter = options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER;
       putParam(params, 'filter', value.filter, omitFilter);
       putParam(params, 'client', value.client, 'All');
@@ -349,6 +368,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
         // so that contradiction forces Open only when Lost was requested together with an open
         // stage. This is the single place the "scope is table-only" rule lives — mirrored in
         // `serialize` below, never re-derived on the page.
+        ...classificationValues(params),
         scope: view !== 'table' ? 'Open' : status && requestedScope === 'Lost' ? 'Open' : requestedScope,
         status,
         q: searchValue(params),
@@ -361,6 +381,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       // entirely rather than pinned to a value the view ignores. A Lost scope cannot coexist with
       // an open stage in the table, so it is forced to Open only in that contradictory case;
       // Needs attention + stage round-trips as-is.
+      putClassification(params, value);
       const scope =
         value.view !== 'table' ? 'Open' : value.scope === 'Lost' && value.status ? 'Open' : value.scope;
       putParam(params, 'scope', scope, 'Open');

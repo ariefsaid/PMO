@@ -1,3 +1,4 @@
+import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -673,6 +674,8 @@ export interface OrgSettingsRepository {
   getProjectNumberPattern(): Promise<string | null>;
   /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
   setProjectNumberPattern(value: string | null): Promise<void>;
+  getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
+  setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */

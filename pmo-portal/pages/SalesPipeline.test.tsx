@@ -455,3 +455,14 @@ describe('SalesPipeline Board stage selection (#697)', () => {
     expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
   });
 });
+
+it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible deals by classification', async (view) => {
+  pipelineState.data = { stages: seedStages, projects: seedProjects.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) };
+  const user = userEvent.setup(); renderPage(`/sales?view=${view}`);
+  await user.selectOptions(screen.getByLabelText('Filter by service line'), 'Engineering');
+  expect(screen.getByText('Northwind ERP Rollout')).toBeVisible();
+  expect(screen.queryByText('Regional Services')).toBeNull();
+  await user.type(screen.getByLabelText('Filter by location'), 'Bali');
+  expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
+  expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
+});

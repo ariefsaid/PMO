@@ -64,6 +64,7 @@ export type Entity =
   | 'integration'
   | 'orgAccounting'
   | 'orgProjectNumbering'
+  | 'orgProjectClassification'
   | 'employeeLink'
   | 'pushHold';
 
@@ -423,6 +424,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // (`auth_role() = 'Admin'` + active membership) rather than approximating it: flipping an org's
   // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
   // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
+  orgProjectClassification: { manage: allow(ADMIN) },
   orgAccounting: {
     manage: allow(ADMIN),
   },

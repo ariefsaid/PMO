@@ -23,7 +23,8 @@
       "platform": "Platform",
       "title": "Administrasi",
       "usage": "Pemakaian",
-      "users": "Pengguna"
+      "users": "Pengguna",
+      "projects": "Pengaturan proyek"
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
@@ -2963,5 +2964,34 @@
     "previewUnavailable": "Pratinjau tidak tersedia:",
     "none": "— tidak ada —",
     "select": "— pilih —"
+  },
+  "projectClassification": {
+    "title": "Klasifikasi",
+    "serviceLine": "Lini layanan",
+    "sector": "Sektor",
+    "location": "Lokasi",
+    "awardType": "Jenis perolehan",
+    "biddingEntity": "Entitas penawar",
+    "notSet": "Belum diatur",
+    "tender": "Tender",
+    "direct": "Penunjukan langsung",
+    "alone": "Sendiri",
+    "consortium": "Konsorsium",
+    "unavailable": "Pilihan tidak dapat dimuat. Buka kembali formulir untuk mencoba lagi.",
+    "loadError": "Pilihan klasifikasi tidak dapat dimuat",
+    "saved": "Pilihan klasifikasi disimpan",
+    "retained": "Klasifikasi proyek yang ada tetap tersimpan.",
+    "setupHelp": "Tentukan lini layanan dan sektor pada formulir proyek. Menghapus pilihan tidak mengubah proyek yang sudah menggunakannya.",
+    "serviceLines": "Lini layanan",
+    "sectors": "Sektor",
+    "onePerLine": "Satu pilihan per baris. Kosongkan jika tidak ada pilihan.",
+    "save": "Simpan pilihan",
+    "adminOnly": "Hanya Admin yang dapat mengubah pilihan ini.",
+    "all": "Semua",
+    "filterServiceLine": "Filter menurut lini layanan",
+    "filterSector": "Filter menurut sektor",
+    "filterAwardType": "Filter menurut jenis perolehan",
+    "filterBiddingEntity": "Filter menurut entitas penawar",
+    "filterLocation": "Filter menurut lokasi"
   }
 }

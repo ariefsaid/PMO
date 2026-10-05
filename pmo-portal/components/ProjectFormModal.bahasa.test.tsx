@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * #693 (F-2) — the create-project form was hard-coded English: a RIS Admin working in Bahasa
  * created their first project in an English form. Rendered under the real `id` catalogue, every

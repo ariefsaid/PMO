@@ -1,3 +1,5 @@
+import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
+import { matchesProjectClassification } from '@/src/lib/projectClassification';
 import React, { useMemo, useState } from 'react';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import {
@@ -146,6 +148,7 @@ const SalesPipeline: React.FC = () => {
     if (selectedStatus !== null) {
       base = base.filter((p) => p.status === selectedStatus);
     }
+    base = base.filter((project) => matchesProjectClassification(project, workingSet));
     const q = search.trim().toLowerCase();
     if (!q) return base;
     return base.filter(
@@ -158,7 +161,7 @@ const SalesPipeline: React.FC = () => {
         (p.client_legal_name ?? '').toLowerCase().includes(q) ||
         (p.end_client_legal_name ?? '').toLowerCase().includes(q),
     );
-  }, [openProjects, lost, scope, search, selectedStatus]);
+  }, [openProjects, lost, scope, search, selectedStatus, workingSet]);
 
   // Funnel band — always the five open stages in fixed order, even when the RPC
   // omits empty stages (edge (b): render zero-value stages, never blank). Each
@@ -398,8 +401,9 @@ const SalesPipeline: React.FC = () => {
   // column including the terminal Lost column.
   const kanbanFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return kanbanProjects;
-    return kanbanProjects.filter(
+    const classified = kanbanProjects.filter((project) => matchesProjectClassification(project, workingSet));
+    if (!q) return classified;
+    return classified.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
@@ -409,17 +413,18 @@ const SalesPipeline: React.FC = () => {
         (p.client_legal_name ?? '').toLowerCase().includes(q) ||
         (p.end_client_legal_name ?? '').toLowerCase().includes(q),
     );
-  }, [kanbanProjects, search]);
+  }, [kanbanProjects, search, workingSet]);
 
   // AC-LRC-012: this DataTable's `empty` branch only renders when the collection has data (the
   // genuine collection-empty case is `state === 'empty'` below), so a zero-match here is a
   // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
   // nothing is active (e.g. no open deals but lost ones exist) would be a no-op, so no action then.
-  const filtersActive = search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
+  const classificationsActive = [workingSet.serviceLine, workingSet.sector, workingSet.location, workingSet.awardType, workingSet.biddingEntity].some(Boolean);
+  const filtersActive = classificationsActive || search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
   // The Lost / Needs-attention copy ("No lost projects") is true only when the SCOPE itself is
   // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
   // (AC-LRC-012) — the scope-empty sentence would deny rows that exist.
-  const narrowedWithinScope = search.trim() !== '' || stageIndex !== null;
+  const narrowedWithinScope = classificationsActive || search.trim() !== '' || stageIndex !== null;
   // AC-LRC-012 (Board): the board has no scope/stage filter of its own (only search narrows
   // `kanbanProjects` to `kanbanFiltered`), so a zero-match here is always a search zero-match, not
   // the genuine-empty state (`state === 'empty'` above already covers no open AND no lost deals).
@@ -535,6 +540,7 @@ const SalesPipeline: React.FC = () => {
           />
         )
       }
+      secondaryFilter={state !== 'loading' && <ProjectClassificationFilters rows={kanbanProjects} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />}
       search={
         state !== 'loading' && (
           <SearchMini

@@ -26,7 +26,7 @@ import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import WorkOrdersTab from './tabs/WorkOrdersTab';
-import ProjectDetailRail from './ProjectDetailRail';
+import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
 import { ProjectErpLink } from './ProjectErpLink';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
@@ -300,6 +300,7 @@ const ProjectDetail: React.FC = () => {
           <div className="mb-8">
             <PipelineLens project={project} locationState={location.state} />
           </div>
+          <ProjectClassificationSummary project={project} />
           <div className="mb-8">
             <ProjectErpLink projectId={project.id} />
           </div>
@@ -379,6 +380,7 @@ const ProjectDetail: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
+            ...project,
             id: project.id,
             name: project.name,
             code: project.code,

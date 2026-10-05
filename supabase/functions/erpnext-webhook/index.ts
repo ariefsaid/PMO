@@ -1,3 +1,4 @@
+import { applyErpContact } from '../_shared/erpnextContacts.ts';
 /**
  * erpnext-webhook — Deno Edge Function entry point (task 8.2, AC-ENA-070, FR-ENA-082/083).
  *
@@ -376,6 +377,7 @@ async function applyEventLive(
     erp_docstatus: event.docstatus,
     erp_amended_from: event.amendedFrom,
   };
+  if (kind === 'contact') return applyErpContact(serviceClient, orgId, event.externalRecordId, canonical, Date.parse(event.modified));
   const feedDeps = createErpFeedDeps(serviceClient, orgId, kind);
   return applyErpFeedEvent({ tier: ERPNEXT_TIER, domain: event.domain! }, event.externalRecordId, canonical, Date.parse(event.modified), feedDeps);
 }

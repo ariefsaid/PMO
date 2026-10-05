@@ -93,6 +93,7 @@ export function useLostDeals() {
     queryFn: async () => {
       const rows = await repositories.project.list({ status: 'Loss Tender' });
       return rows.map((r): PipelineProject => ({
+        service_line: r.service_line, sector: r.sector, location: r.location, award_type: r.award_type, bidding_entity: r.bidding_entity,
         id: r.id,
         name: r.name,
         client_name: r.client ? companyDisplayName(r.client) : null,

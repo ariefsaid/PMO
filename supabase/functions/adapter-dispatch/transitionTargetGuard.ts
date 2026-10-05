@@ -168,6 +168,18 @@ export async function checkCreateTargetUnmapped(
   // year 2 the moment year 1 was mapped. The identity is server-derived (`index.ts`'s fan-out), never
   // caller-supplied.
   const pmoRecordId = outboxIdentityOf(command);
+  if (command.domain === 'companies' && command.record.erp_doc_kind === 'contact') {
+    if (typeof command.record.id !== 'string' || !UUID_RE.test(command.record.id)) {
+      return { ok: false, status: 422, message: 'Contact record.id must be a UUID' };
+    }
+    // Contact IDs are global primary keys; any occupied identity must be rejected before authoring.
+    const { data: existing, error } = await client.from('contacts').select('id')
+      .eq('id', command.record.id).maybeSingle();
+    if (error) return { ok: false, status: 503, message: 'Contact identity could not be validated' };
+    if (existing && !(idempotencyKey && await outboxRowExists(client, orgId, command.domain, pmoRecordId, idempotencyKey))) {
+      return { ok: false, status: 422, message: 'Contact create requires a new record identity' };
+    }
+  }
   const mapped = await resolveExternalRef(client, orgId, command.domain, pmoRecordId);
   if (mapped === null) return OK;
 
@@ -282,7 +294,7 @@ async function outboxRowExists(
   pmoRecordId: string,
   idempotencyKey: string,
 ): Promise<boolean> {
-  const { data } = await client
+  const { data, error } = await client
     .from('external_command_outbox')
     .select('id')
     .eq('org_id', orgId)
@@ -290,5 +302,6 @@ async function outboxRowExists(
     .eq('pmo_record_id', pmoRecordId)
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle();
+  if (error) throw new Error(error.message);
   return data !== null && data !== undefined;
 }
