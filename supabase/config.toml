@@ -507,6 +507,10 @@ verify_jwt = false
 [functions.adapter-dispatch]
 verify_jwt = true
 
+# The Item reader verifies caller JWT locally and resolves own-org membership under RLS.
+[functions.external-items]
+verify_jwt = false
+
 # ── Edge Function: clickup-onboard ─────────────────────────────────────────────
 # verify_jwt = false: an operator onboarding action, not a browser-JWT path. The handler verifies
 # the bearer itself (it MUST equal SUPABASE_SERVICE_ROLE_KEY, constant-time) — the sole trust

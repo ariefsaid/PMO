@@ -434,7 +434,7 @@ export interface RevenueRepository {
   createInvoice(input: {
     customerId: string;
     projectId?: string | null;
-    items: Array<{ item_code: string; qty: number; rate: number }>;
+    items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
   }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
   /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
   createPayment(input: {
@@ -865,6 +865,8 @@ export interface IntegrationsRepository {
   listProjectBindings(orgId: string): Promise<ProjectBinding[]>;
   /** List ERPNext companies for the org (calls external-companies edge fn). */
   listCompanies(orgId: string, tier: ExternalTier): Promise<Array<{ name: string }>>;
+  /** Current enabled items; org is resolved from the caller JWT at the endpoint. */
+  listItems(purpose: 'sales' | 'purchase'): Promise<Array<{ code: string; name: string }>>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

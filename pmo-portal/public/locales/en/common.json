@@ -2812,7 +2812,11 @@
     "lineItemsSection": "Line items",
     "paymentDetails": "Payment details",
     "invoiceCount_one": "{{count}} invoice",
-    "invoiceCount_other": "{{count}} invoices"
+    "invoiceCount_other": "{{count}} invoices",
+    "erpItem": "ERP item",
+    "selectOrSearchItem": "Select or search item…",
+    "searchItemCodeOrName": "Search item code or name…",
+    "describeWorkOrGoods": "Describe the work or goods…"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",

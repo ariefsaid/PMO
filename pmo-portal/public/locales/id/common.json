@@ -2812,7 +2812,11 @@
     "lineItemsSection": "Item faktur",
     "paymentDetails": "Detail pembayaran",
     "invoiceCount_one": "{{count}} faktur",
-    "invoiceCount_other": "{{count}} faktur"
+    "invoiceCount_other": "{{count}} faktur",
+    "erpItem": "Item ERP",
+    "selectOrSearchItem": "Pilih atau cari item…",
+    "searchItemCodeOrName": "Cari kode atau nama item…",
+    "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…"
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",

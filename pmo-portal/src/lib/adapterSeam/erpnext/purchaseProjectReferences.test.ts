@@ -25,7 +25,7 @@ function client(caseRow: Row = CASE, binding: Row = BINDING, projectOrg = ORG, f
     projects: [{ id: 'proj-1', org_id: projectOrg }],
     companies: [{ id: 'vendor-1', org_id: ORG }],
     external_refs: [{ org_id: ORG, domain: 'companies', pmo_record_id: 'vendor-1', external_record_id: 'Supplier:Synthetic Supplier' }],
-    procurement_items: [{ procurement_id: 'proc-1', name: 'SYNTHETIC-ITEM', quantity: 2, rate: 100 }],
+    procurement_items: [{ procurement_id: 'proc-1', name: 'SYNTHETIC-ITEM', description: null, quantity: 2, rate: 100 }],
   };
   return { from(table: string) {
     return { select(columns: string) {
@@ -63,6 +63,7 @@ async function push(kind: Kind, extra: Row = {}, caseRow: Row = CASE, binding: R
   let body: Row = {};
   let doc: Row = {};
   const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (new URL(String(_url)).pathname === '/api/resource/Item') return Response.json({ data: ['SYNTHETIC-ITEM', 'SYNTHETIC-ITEM-2'].map(name => ({ name, disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) });
     if (init?.method === 'POST') {
       body = JSON.parse(String(init.body)) as Row;
       doc = { ...body, name: 'SYNTHETIC-ERP-DOC', docstatus: 0, posting_date: '2026-10-05', grand_total: 200, outstanding_amount: 200 };
@@ -189,21 +190,20 @@ describe('purchase project dimensions and vendor references', () => {
 
 
 describe('AC-PRJ-003 persisted procurement command recovery', () => {
-  it.each(['committed', 'confirmed'] as const)('converges a %s document after a case project change without another ERP write', async (state) => {
+  it.each(['committed', 'confirmed'] as const)('converges a %s document after a case project change and disabled Item without another ERP call', async (state) => {
     const command: AdapterCommand = {
       domain: 'procurement', operation: 'create', idempotencyKey: 'synthetic-recovery-key',
       record: { id: 'pmo-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice', items: [ITEM] },
     };
-    const fetchImpl = vi.fn();
+    let disabled = false;
+    const fetchImpl = vi.fn(async () => Response.json({ data: [{ name: ITEM.item_code, disabled: disabled ? 1 : 0, is_sales_item: 1, is_purchase_item: 1 }] }));
     await resolveErpDispatchAdapter({ serviceClient: client(), orgId: ORG, command,
       fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret' });
     const persisted = structuredClone(command);
     const digest = await canonicalCommandDigest(persisted);
     const replay = structuredClone(persisted);
-    const adapter = await resolveErpDispatchAdapter({
-      serviceClient: client({ ...CASE, project_id: null }), orgId: ORG, command: replay,
-      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
-    });
+    disabled = true;
+    fetchImpl.mockClear();
     const row: OutboxRow = { id: 'outbox-1', domain: 'procurement', pmoRecordId: 'pmo-1',
       idempotencyKey: 'synthetic-recovery-key', state, externalRecordId: 'SYNTHETIC-PI',
       canonical: { id: 'pmo-1', amount: '200.00' }, claimGeneration: 1, payloadDigest: digest };
@@ -212,8 +212,14 @@ describe('AC-PRJ-003 persisted procurement command recovery', () => {
       payloadDigest: await canonicalCommandDigest(replay),
       recordOutboxRef: vi.fn(async () => 1), confirmOutbox: vi.fn(async () => 1),
     } as unknown as DispatchMoneyOutboxDeps;
-    await expect(dispatchMoneyWrite({ command: replay, adapter, money, writeReadModel,
-      recordExternalRef: vi.fn(async () => {}) })).resolves.toMatchObject({ externalRecordId: 'SYNTHETIC-PI' });
+    await expect((async () => {
+      const adapter = await resolveErpDispatchAdapter({
+        serviceClient: client({ ...CASE, project_id: null }), orgId: ORG, command: replay,
+        fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      });
+      return dispatchMoneyWrite({ command: replay, adapter, money, writeReadModel,
+        recordExternalRef: vi.fn(async () => {}) });
+    })()).resolves.toMatchObject({ externalRecordId: 'SYNTHETIC-PI' });
     expect(writeReadModel).toHaveBeenCalledWith(row.canonical, { isReplay: true });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

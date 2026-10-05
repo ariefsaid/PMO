@@ -1,6 +1,6 @@
 /**
  * Purchase Invoice `toBody`/`fromDoc` — R9 §1 frozen. `toBody` sends exactly `{supplier, items:
- * [{item_code, qty, rate, project?}], project?, bill_no?, bill_date?}`. ERPNext server-defaults
+ * [{item_code, qty, rate, description?, project?}], project?, bill_no?, bill_date?}`. ERPNext server-defaults
  * `credit_to`, `posting_date`/`due_date`, and all totals (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §1). `fromDoc` mirrors the header
  * `grand_total`/`outstanding_amount` as the money ORACLE (ADR-0048) — never a Σ of the lines.
  */
@@ -19,6 +19,7 @@ export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     items: items.map((i) => ({
       item_code: i.item_code, qty: i.qty, rate: i.rate,
       ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
+      ...(i.description ? { description: i.description } : {}),
     })),
     ...(typeof reference === 'string' && reference.trim() ? { bill_no: reference.trim() } : {}),
     ...(typeof date === 'string' && date.trim() ? { bill_date: date.trim() } : {}),
