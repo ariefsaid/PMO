@@ -126,7 +126,11 @@ changed — none matched, or the database did not let you change it.
   `contacts`.
 - Read-only: `profiles`, limited to `id, full_name, role, title, status` (the default `--select`; a
   narrower one is allowed, and filters are limited to the same columns). Change people in the app.
+  Also read-only: `external_domain_ownership` (`domain, external_tier`).
 - RPCs: `get_project_milestones`.
+- **`pmo load`** (active Admin only, ADR-0074): companies, projects at their real stage with contract
+  value, and draft budgets from one JSON file. It alone uses `set_project_contract_value`,
+  `transition_project`, `budget_versions`, `budget_line_items`; `rpc` / `create` refuse them.
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
   restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
@@ -151,24 +155,20 @@ violates row-level security policy").
 
 ---
 
-## 4. Seeding a client's starting data (DD-API-3 order)
+## 4. Seeding a client's starting data — `pmo load`
 
-The CLI is the signed-in access path; Claude reads the spreadsheets, decides what to create, and checks
-before writing (read first, match existing rows by name, skip them).
+1. In the app (Admin): configure classification options (service lines, sectors). If ERPNext owns
+   companies, create every missing company first — in the app (Companies → New, pushed to ERPNext)
+   or as a Customer in ERPNext — and wait for it to appear in PMO.
+2. Claude writes the load file (spec §2) **outside the repository** from the client's spreadsheets.
+3. `node scripts/pmo.mjs load <file.json> --dry-run` — fix every problem it lists; read the plan.
+4. `node scripts/pmo.mjs load <file.json>` — companies → projects (Leads → value → stage) → draft
+   budgets. On exit 1, read `details.failed`, fix the cause, run it again: it resumes.
+5. In the app: review and activate each draft budget; link each project to its ERP project (#772);
+   work orders are created by the client's users.
 
-1. **Companies and contacts — only for an organization with no ERP.** Where ERPNext owns the party
-   master (as for RIS, whose parties already exist in ERPNext), do **not** create them with the CLI:
-   they arrive by connecting ERPNext and adopting. The CLI keeps them writable for organizations with
-   no ERP (DD-API-3). Once ERPNext is connected, their names mirror ERPNext and are read-only in PMO.
-2. **Projects** — as `Leads` or `Internal Project`. Advance won work through its stages in the app.
-3. **Milestones** under each project.
-4. **Tasks** — seeded into PMO when the organization does not keep them in ClickUp (RIS does not).
-   Where ClickUp is connected, tasks are owned by ClickUp.
-5. **Meetings** and **CRM activities**.
-6. Budget lines come last, into Draft versions only — not offered by the CLI yet.
-
-For RIS the CLI's first entities are therefore projects, milestones, tasks, meetings and CRM
-activities (owner, 2026-09-30, on issue #728).
+Re-runs never overwrite: a different stored value, stage or short name is reported, not changed.
+Milestones, tasks, meetings and CRM activities still use `create` (§3).
 
 ---
 
