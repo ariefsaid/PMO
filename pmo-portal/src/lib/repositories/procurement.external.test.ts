@@ -266,6 +266,18 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(record).not.toHaveProperty('taxTemplate');
   });
 
+  it('forwards the supplied vendor invoice reference and date to external dispatch (#764)', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-09-20',
+      referenceNumber: 'VENDOR-INV-001', taxTreatment: 'inclusive', taxAmount: 0,
+    });
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({
+      referenceNumber: 'VENDOR-INV-001', invoiceDate: '2026-09-20', erp_doc_kind: 'purchase-invoice',
+    }), expect.any(Object));
+    expect(createInvoice).not.toHaveBeenCalled();
+  });
+
   it('company.create dispatches externally with erp_doc_kind supplier', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'Supplier:Acme', canonical: { id: 'pmo-1', name: 'Acme', type: 'Vendor' } });
     await repositories.company.create({ name: 'Acme', type: 'Vendor' });

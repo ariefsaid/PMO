@@ -350,9 +350,9 @@ export interface ProcurementRepository {
    * that omits either fails to compile instead of failing at the RPC with P0001. Positional was no
    * longer expressible: TypeScript forbids a required parameter after an optional one.
    *
-   * task FIX-1 — `referenceNumber`/`amount` stay optional and are ERP-computed (`grand_total`) when
-   * externally-owned (FR-ENA-115), so they are never sent outbound. The tax fields ARE forwarded on
-   * the external-dispatch record: they are user-stated facts about the invoice, not ERP-derived.
+   * The supplier's `referenceNumber` and `invoiceDate` are forwarded to externally-owned invoices.
+   * `amount` remains ERP-computed (`grand_total`, FR-ENA-115). Tax facts are ERP-owned on that path
+   * and are not forwarded; the ERP's tax template determines them.
    */
   createInvoice(
     input: CreateInvoiceInput,

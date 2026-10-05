@@ -538,7 +538,37 @@ async function resolveTimesheetRefs(
   return { refs };
 }
 
-/** Resolve every PO/GR ref this command needs (task 5.3). Returns the `ctx.refs` additions +
+/** PO/PI cost dimensions use the same project-map resolver and org guard as the revenue path.
+ *  The procurement case owns its project; a caller cannot redirect that case's costs. */
+async function resolvePurchaseProjectRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ refs: Record<string, string | null> }> {
+  const refs: Record<string, string | null> = {};
+  const record = deps.command.record;
+  if (record.erp_doc_kind !== 'purchase-order' && record.erp_doc_kind !== 'purchase-invoice') return { refs };
+  // PO/PI share SI's body-building operations; submit/cancel act on the existing ERP document.
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return { refs };
+
+  let projectId = typeof record.projectId === 'string' ? record.projectId : null;
+  if (typeof record.procurementId === 'string' && record.procurementId) {
+    const { data, error } = await deps.serviceClient.from('procurements').select('project_id')
+      .eq('org_id', deps.orgId).eq('id', record.procurementId).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    if (!data) throw new AppError('the procurement project reference is unavailable', 'cross-org-link-rejected');
+    projectId = (data as { project_id?: string | null }).project_id ?? null;
+  }
+  if (!projectId) return { refs }; // Existing project-less cases remain valid.
+  await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, 'projects', projectId);
+  const project = resolveErpProjectName(binding.config, projectId);
+  if (typeof project !== 'string' || !project.trim()) {
+    throw new AppError('the procurement project has no ERP project mapping', 'project-unmapped');
+  }
+  refs.project = project;
+  return { refs };
+}
+
+/** Resolve the PO/PI supplier/items and GR refs this command needs (task 5.3). Returns the `ctx.refs` additions +
  *  `resolvedItems` (only set when the command carried none — `adapter.ts`'s fallback substitutes it). */
 async function resolveProcurementOrderRefs(
   deps: ErpDispatchFactoryDeps,
@@ -548,7 +578,7 @@ async function resolveProcurementOrderRefs(
   const record = deps.command.record as { erp_doc_kind?: string; procurementId?: string; items?: unknown[]; date?: string };
   const kind = record.erp_doc_kind;
   const procurementId = record.procurementId;
-  if ((kind !== 'purchase-order' && kind !== 'goods-receipt') || !procurementId) return { refs };
+  if ((kind !== 'purchase-order' && kind !== 'goods-receipt' && kind !== 'purchase-invoice') || !procurementId) return { refs };
 
   const supplierName = await resolveCaseSupplierName(deps.serviceClient, deps.orgId, procurementId);
   if (supplierName) refs.supplier = supplierName;
@@ -899,6 +929,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
 
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
+  const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
@@ -932,7 +963,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...procurementRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
     },

@@ -491,6 +491,7 @@ const procurement: ProcurementRepository = {
             procurementId: input.procurementId,
             status: input.status,
             invoiceDate: input.invoiceDate,
+            referenceNumber: input.referenceNumber,
             // ⛔ #505 — THE TAX FACTS ARE DELIBERATELY NOT FORWARDED, and this is a correction of
             // what an earlier round of this change did. They WERE sent here, with a comment claiming
             // it stopped the flipped-org path "recording an amount with no marker". Nothing consumed
