@@ -151,6 +151,14 @@ afterEach(() => resetActiveLocale());
 // Core states (AC-726, NFR-BV-UI-001)
 // ---------------------------------------------------------------------------
 describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
+  it('uses the AA primary-text token for the active version-card action', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    renderPage();
+
+    expect(screen.getByRole('button', { name: 'Clone to revise' })).toHaveClass('text-primary-text');
+  });
+
   it('keeps the budget line-item scroll region keyboard-accessible', async () => {
     budgetState.data = draftVersion.total;
     versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
