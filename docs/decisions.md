@@ -2849,3 +2849,11 @@ contacts' personal details. Adoption is fail-closed per org (a contact is adopte
 resolves to this org), but that does not stop shared masters reaching both. Until a second org needs a
 shared site, connecting a site already bound to another org is unsupported; revisit with a site-ownership
 rule if that case appears.
+
+## DD-APR-1 / DD-APR-2 — spend approval routing defaults (Director, 2026-10-06)
+
+For approval routing by budget (#803; spec `docs/specs/approval-routing-by-budget.spec.md`, ADR-0075):
+- **DD-APR-1 — either one approves.** When a request routes to the senior approver set (overhead, or over the
+  project's budget line), one signature from any member of the set is enough. Revisit if the client wants both.
+- **DD-APR-2 — one line, all years.** "Within budget" compares against the project's active budget line for the
+  category across all fiscal years combined, the same basis spend is already counted on.
