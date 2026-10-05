@@ -2767,7 +2767,7 @@
     "deleteBudgetLineItemNamed": "Delete line item {{category}}",
     "editBudgetLineItemNamed": "Edit line item {{category}}",
     "budgetProjectionIntro": "Compare the active budget with recorded actuals and the estimate to complete.",
-    "budgetProjectionActualsProvenance": "Actuals are sourced from the ERP ledger; budget and estimate-to-complete values are recorded in PMO.",
+    "budgetProjectionActualsProvenance": "Actuals come from the posted ERP ledger and may differ from the Actual column on the Budget tab, which records PMO expenses. Budget and estimate to complete values are recorded in PMO.",
     "invoiceDetails": "Invoice details",
     "lineItemsSection": "Line items",
     "paymentDetails": "Payment details",

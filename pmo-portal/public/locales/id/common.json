@@ -2767,7 +2767,7 @@
     "deleteBudgetLineItemNamed": "Hapus item anggaran {{category}}",
     "editBudgetLineItemNamed": "Edit item anggaran {{category}}",
     "budgetProjectionIntro": "Bandingkan anggaran aktif dengan aktual yang tercatat dan estimasi biaya tersisa.",
-    "budgetProjectionActualsProvenance": "Aktual bersumber dari buku besar ERP; anggaran dan estimasi biaya tersisa dicatat di PMO.",
+    "budgetProjectionActualsProvenance": "Aktual berasal dari buku besar ERP yang sudah dibukukan dan dapat berbeda dari kolom Aktual pada tab Anggaran, yang mencatat pengeluaran PMO. Anggaran dan estimasi biaya tersisa dicatat di PMO.",
     "invoiceDetails": "Detail faktur",
     "lineItemsSection": "Item faktur",
     "paymentDetails": "Detail pembayaran",

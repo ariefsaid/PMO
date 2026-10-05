@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import React from 'react';
@@ -166,7 +166,7 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
 
     const header = screen.getByTestId('version-card').firstElementChild;
     expect(header).toHaveClass('flex-wrap', 'gap-x-3', 'gap-y-2');
-    expect(screen.getByText('$4,700,000')).toHaveClass('ml-auto', 'shrink-0', 'whitespace-nowrap');
+    expect(within(header as HTMLElement).getByText('$4,700,000')).toHaveClass('ml-auto', 'shrink-0', 'whitespace-nowrap');
   });
 
   it('keeps the budget line-item scroll region keyboard-accessible', async () => {
