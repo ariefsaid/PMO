@@ -573,3 +573,38 @@ Deno.test("Contact canonical update preserves PMO enhancements and refuses forei
   assert(rejected, "foreign company cannot enter contact mirror");
   equal(foreign.writes, []);
 });
+
+Deno.test("AC-CON-001 Contact adoption ignores same-name native contacts outside this org", async () => {
+  const db = contactDb({
+    companies: [parent],
+    external_refs: [partyRef],
+    contacts: [{ id: "foreign", org_id: "other-org", company_id: "company-1", full_name: "Example Test Contact" }],
+  });
+  await feed.applyErpContact(db.client, ORG, "Contact:CON-1", {
+    ...contactFromDoc(doc),
+    id: "CON-1",
+    erp_contact_links: doc.links,
+  }, 200);
+  const mapping = db.rows.external_refs.find((r) => r.external_record_id === "Contact:CON-1");
+  assert(mapping && mapping.org_id === ORG && mapping.pmo_record_id !== "foreign", "this org mints its own Contact");
+  equal(db.rows.contacts.find((r) => r.id === "foreign"), { id: "foreign", org_id: "other-org", company_id: "company-1", full_name: "Example Test Contact" });
+  assert(db.rows.contacts.some((r) => r.org_id === ORG && r.id === mapping.pmo_record_id), "adopted row belongs to this org");
+});
+Deno.test("AC-CON-002 Contact parent reference to a company outside this org refuses without writes", async () => {
+  const db = contactDb({
+    companies: [{ ...parent, org_id: "other-org" }],
+    external_refs: [partyRef],
+  });
+  let code: string | undefined;
+  try {
+    await feed.applyErpContact(db.client, ORG, "Contact:CON-1", {
+      ...contactFromDoc(doc),
+      id: "CON-1",
+      erp_contact_links: doc.links,
+    }, 200);
+  } catch (e) {
+    code = (e as { code?: string }).code;
+  }
+  equal(code, "contact-parent-unmapped");
+  equal(db.writes, []);
+});

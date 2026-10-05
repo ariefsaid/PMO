@@ -981,6 +981,12 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     validateAuthoringPartyIdentity: async (command) => {
       const kind = command.record.erp_doc_kind;
       if (command.domain !== 'companies' || !['contact', 'customer', 'supplier'].includes(String(kind))) return;
+      if (kind === 'contact' && command.operation === 'create') {
+        const { data: existing, error } = await deps.serviceClient.from('contacts')
+          .select('id').eq('id', command.record.id).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        if (existing) throw new AppError('Contact create requires a new record identity', 'commit-rejected');
+      }
       const oppositeTable = kind === 'contact' ? 'companies' : 'contacts';
       const { data: opposite, error: identityError } = await deps.serviceClient.from(oppositeTable)
         .select('id').eq('org_id', deps.orgId).eq('id', command.record.id).maybeSingle();

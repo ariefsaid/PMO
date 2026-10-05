@@ -8,6 +8,7 @@ import { findPmoRecordId } from "../../../pmo-portal/src/lib/adapterSeam/refs.ts
 import { ERPNEXT_TIER } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts";
 import { AppError } from "../../../pmo-portal/src/lib/appError.ts";
 import { createErpFeedDeps } from "./erpnextFeedDeps.ts";
+import { IN_FLIGHT_OUTBOX_STATES } from "./inFlightAnchorProbe.ts";
 
 /** Contact masters share the generic claim-first feed, with parent and mixed-state matching first. */
 export async function applyErpContact(
@@ -29,22 +30,27 @@ export async function applyErpContact(
     )
   ) return { kind: "no-op" };
   const companyIds = new Set<string>();
+  let unresolvedParent = false;
   for (const link of links) {
     if (
-      (link.link_doctype !== "Customer" && link.link_doctype !== "Supplier") ||
-      !link.link_name
+      link.link_doctype !== "Customer" && link.link_doctype !== "Supplier"
     ) continue;
+    if (!link.link_name) { unresolvedParent = true; continue; }
     const id = await findPmoRecordId(
       serviceClient as never,
       orgId,
       "companies",
       `${link.link_doctype}:${link.link_name}`,
     );
-    if (!id) continue;
+    if (!id) { unresolvedParent = true; continue; }
     const { data, error } = await serviceClient.from("companies").select("id")
       .eq("org_id", orgId).eq("id", id).maybeSingle();
     if (error) throw new AppError(error.message, error.code);
-    if (data) companyIds.add(id);
+    if (!data) { unresolvedParent = true; continue; }
+    companyIds.add(id);
+  }
+  if (unresolvedParent && companyIds.size > 0) {
+    throw new AppError(`${externalRecordId}: Contact has unresolved company links; resolve manually`, "action-required");
   }
   if (companyIds.size === 0) {
     throw new AppError(
@@ -76,6 +82,14 @@ export async function applyErpContact(
   };
   const existingId = await deps.resolvePmoRecordId(externalRecordId);
   if (!existingId) {
+    // Anchorless outbound Contact creates retain adoption authority until resolved.
+    // Query at adoption time: the outbox is persisted before any ERP create can be visible.
+    const { data: inFlight, error: outboxError } = await serviceClient.from("external_command_outbox")
+      .select("id").eq("org_id", orgId).eq("domain", "companies")
+      .eq("operation", "create").eq("payload->>erp_doc_kind", "contact")
+      .in("state", [...IN_FLIGHT_OUTBOX_STATES]).limit(1).maybeSingle();
+    if (outboxError) throw new AppError(outboxError.message, outboxError.code);
+    if (inFlight) throw new AppError("Contact adoption awaits outbound command resolution", "command-reconciling");
     const { data, error } = await serviceClient.from("contacts").select("id")
       .eq("org_id", orgId).eq("company_id", companyId).eq(
         "full_name",

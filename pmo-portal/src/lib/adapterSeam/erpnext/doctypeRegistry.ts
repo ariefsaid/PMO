@@ -109,7 +109,7 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // post-window recovery with no composite-probe hit is HELD, never auto-reissued (double-pay guard).
   payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
   supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
-  contact: { doctype: 'Contact', submittable: false, anchorField: null },
+  contact: { doctype: 'Contact', submittable: false, anchorField: null, neverReissue: true },
   customer: { doctype: 'Customer', submittable: false, anchorField: null }, // write scope settled in slice 3 (OQ-4)
   // P3a Slice 1 — Revenue domain (FR-SAR-011, OQ-SAR-1/R9-P3a spike frozen):
   // SI — anchor 'remarks', IMMUTABLE (OQ-SAR-4, R9-P3a spike #2: remarks survives validate+submit+refetch

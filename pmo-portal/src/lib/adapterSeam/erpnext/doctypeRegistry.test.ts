@@ -46,7 +46,7 @@ describe('erpnext/doctypeRegistry', () => {
       payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
       supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
       customer: { doctype: 'Customer', submittable: false, anchorField: null },
-      contact: { doctype: 'Contact', submittable: false, anchorField: null },
+      contact: { doctype: 'Contact', submittable: false, anchorField: null, neverReissue: true },
       // P3a Slice 1 — Revenue domain (FR-SAR-011, OQ-SAR-1/R9-P3a spike frozen):
       // SI — anchor 'remarks', IMMUTABLE (OQ-SAR-4, R9-P3a spike #2: remarks survives validate+submit+refetch
       // verbatim — the PI twin, reissue-capable). ERP server-derives debit_to + items[].income_account.

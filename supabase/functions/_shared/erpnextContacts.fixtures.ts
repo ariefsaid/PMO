@@ -13,9 +13,11 @@ export function contactDb(seed: Record<string, Row[]> = {}) {
       let op = "select";
       let patch: Row = {};
       const filters: Array<[string, unknown]> = [];
+      const inFilters: Array<[string, unknown[]]> = [];
+      const value = (r: Row, k: string) => k.includes('->>') ? (r[k.split('->>')[0]] as Row)?.[k.split('->>')[1]] : r[k];
       const result = () => {
         const selected = (rows[table] ?? []).filter((r) =>
-          filters.every(([k, v]) => r[k] === v)
+          filters.every(([k, v]) => value(r, k) === v) && inFilters.every(([k, vs]) => vs.includes(value(r, k)))
         );
         if (op !== "select") {
           writes.push({ table, op, row: patch });
@@ -26,7 +28,7 @@ export function contactDb(seed: Record<string, Row[]> = {}) {
       };
       const b = {
         select: (_c: string) => b,
-        in: () => b,
+        in: (k: string, vs: unknown[]) => { inFilters.push([k, vs]); return b; },
         is: () => b,
         not: () => b,
         contains: () => b,
