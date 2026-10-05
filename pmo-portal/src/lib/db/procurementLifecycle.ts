@@ -316,6 +316,8 @@ export interface CreateInvoiceInput extends VendorInvoiceTaxInput {
   importKey?: string;
   importBatchId?: string;
   importedAt?: string;
+  /** #769: the parent group's number for this invoice (optional, ≤100 chars, trimmed server-side). */
+  externalRef?: string | null;
 }
 
 /**
@@ -340,6 +342,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Procurem
     p_tax_template: input.taxTemplate ?? undefined,
     ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
     ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
+    ...(input.externalRef ? { p_external_ref: input.externalRef } : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -363,6 +366,8 @@ export interface CaptureVendorInvoiceInput extends VendorInvoiceTaxInput {
   amount?: number | null;
   /** Transition note, logged on the status event by the inner transition_procurement call. */
   notes?: string | null;
+  /** #769: the parent group's number for this invoice (optional, ≤100 chars, trimmed server-side). */
+  externalRef?: string | null;
 }
 
 export async function captureVendorInvoice(
@@ -382,6 +387,7 @@ export async function captureVendorInvoice(
     p_tax_template: input.taxTemplate ?? undefined,
     ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
     ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
+    ...(input.externalRef ? { p_external_ref: input.externalRef } : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

@@ -47,7 +47,7 @@ describe('listProcurements', () => {
     const result = await listProcurements();
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
+      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)',
     );
     expect(result[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].requested_by?.full_name).toBe('Alice Manager');

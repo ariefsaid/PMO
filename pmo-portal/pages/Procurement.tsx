@@ -28,7 +28,7 @@ import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/anal
 import { NewProcurementModal } from './procurement/NewProcurementModal';
 import { ProcurementListRow } from './procurement/ProcurementListRow';
 import { formatCurrency } from '@/src/lib/format';
-import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
 import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcurementView';
@@ -203,7 +203,7 @@ const ProcurementPage: React.FC = () => {
     return ownScoped && userId ? rows.filter((p) => p.requested_by_id === userId) : rows;
   }, [data, ownScoped, userId]);
 
-  // View-local filters (OD-7 search by title+code; status SegFilter). Newest first.
+  // View-local filters (OD-7 search by title+code+record external refs; status SegFilter). Newest first.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all
@@ -212,7 +212,9 @@ const ProcurementPage: React.FC = () => {
         (p) =>
           !q ||
           p.title.toLowerCase().includes(q) ||
-          (p.code ?? '').toLowerCase().includes(q),
+          (p.code ?? '').toLowerCase().includes(q) ||
+          // #769 AC-EXT-001: a record's external reference finds its case.
+          externalRefsOf(p).some((ref) => ref.toLowerCase().includes(q)),
       )
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [all, search, workingSet]);
@@ -298,7 +300,17 @@ const ProcurementPage: React.FC = () => {
   ];
 
   // AC-L10N-052: the download carries each row's own ISO code beside value (export-only).
-  const exportColumns = withCurrencyColumn(columns, 'value', (r) => r.currency);
+  const exportColumns: Column<ProcurementWithRefs>[] = [
+    ...withCurrencyColumn(columns, 'value', (r) => r.currency),
+    // #769 AC-EXT-002: export-only (FR-L10N-050 — export headers are literals, never t()).
+    {
+      key: 'external-refs',
+      // i18n-exempt: export-only column, never rendered.
+      header: 'External references',
+      cell: (r) => externalRefsOf(r).join(', '),
+      exportValue: (r) => externalRefsOf(r).join(', '),
+    },
+  ];
 
   // ── States ────────────────────────────────────────────────────────────────
   const state: 'loading' | 'empty' | 'error' | undefined = isPending

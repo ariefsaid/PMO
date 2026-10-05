@@ -43,6 +43,12 @@ export interface LedgerRow {
   systemNumber: string | null;
   /** Human-set external reference (e.g. "PO/MER/0077"). Null when absent. */
   externalRef: string | null;
+  /**
+   * #769 AC-EXT-001/002: the parent group's own number for this PR / PO / vendor invoice
+   * (`external_ref`). Distinct from `externalRef` above (the record's `reference_number`).
+   * Absent for record types that carry none.
+   */
+  groupRef?: string | null;
   /** Numeric amount (optional — RFQ and GR typically null). */
   amount: number | null;
   /**
@@ -149,6 +155,7 @@ function makeRow(
   files?: EmbeddedFileRow[],
   taxTreatment?: string | null,
   taxRate?: number | null, taxBaseNumerator?: number, taxBaseDenominator?: number, taxBaseUnknown?: boolean,
+  groupRef?: string | null,
 ): LedgerRow {
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
@@ -158,6 +165,7 @@ function makeRow(
     type,
     systemNumber: systemNumber ?? null,
     externalRef: externalRef ?? null,
+    ...(groupRef ? { groupRef } : {}),
     amount: amount ?? null,
     status,
     statusVariant: workflowVariant(status),
@@ -199,6 +207,8 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         pr.status,
         pr.currency,
         (pr as unknown as { files?: EmbeddedFileRow[] }).files,
+        undefined, undefined, undefined, undefined, undefined,
+        pr.external_ref,
       ),
     );
   }
@@ -256,6 +266,8 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         po.status,
         po.currency,
         (po as unknown as { files?: EmbeddedFileRow[] }).files,
+        undefined, undefined, undefined, undefined, undefined,
+        po.external_ref,
       ),
     );
   }
@@ -295,6 +307,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vi.currency,
         (vi as unknown as { files?: EmbeddedFileRow[] }).files,
         vi.tax_treatment, vi.tax_rate, vi.tax_base_numerator, vi.tax_base_denominator, vi.erp_docstatus != null, // OD-TAX-1 §2 — the invoice's OWN basis, 0196 NOT NULL
+        vi.external_ref,
       ),
     );
   }

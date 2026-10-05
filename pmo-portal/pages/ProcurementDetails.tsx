@@ -121,6 +121,8 @@ type PendingConfirm =
       status: 'Received' | 'Scheduled';
       invoiceDate: string;
       referenceNumber: string | null;
+      /** #769: the parent group's number for this invoice. */
+      externalRef?: string | null;
       amount: number | null;
       /** #505: REQUIRED — staged from the capture form and carried verbatim through the confirm to
        *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
@@ -614,6 +616,7 @@ const ProcurementDetails: React.FC = () => {
           status: pendingConfirm.status,
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
+          externalRef: pendingConfirm.externalRef,
           amount: pendingConfirm.amount,
           // #505: forwarded from the staged capture — required by the mutation's type.
           taxTreatment: pendingConfirm.taxTreatment,

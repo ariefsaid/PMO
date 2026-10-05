@@ -395,6 +395,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [refNum, setRefNum] = React.useState('');
+  const [groupRef, setGroupRef] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
   const [amtError, setAmtError] = React.useState<string | undefined>(undefined);
   const amtErrorId = React.useId();
@@ -438,6 +439,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       status: viStatus,
       invoiceDate,
       referenceNumber: ref,
+      ...(groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
       amount: amt,
       taxTreatment: tax.taxTreatment,
       taxAmount: tax.taxAmount,
@@ -460,6 +462,18 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             placeholder="e.g. INV-2291"
             maxLength={64}
             data-testid={VI_FIELD_TEST_IDS.ref}
+            className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Group ref <span className="font-normal">(optional)</span>
+          <input
+            type="text"
+            value={groupRef}
+            onChange={(e) => setGroupRef(e.target.value)}
+            placeholder="e.g. PRQ-0026100001"
+            maxLength={100}
+            data-testid="vendor_invoice-group-ref-input"
             className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
