@@ -12,6 +12,7 @@
  *   pmo create <table> <json | @file | ->
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
+ *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -29,6 +30,8 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -52,6 +55,8 @@ export const ALLOWED_TABLES = Object.freeze([
  */
 export const READ_ONLY_TABLES = Object.freeze({
   profiles: Object.freeze(['id', 'full_name', 'role', 'title', 'status']),
+  // #796: `pmo load` reads whether ERPNext owns companies — the rows the app shows on Integrations.
+  external_domain_ownership: Object.freeze(['domain', 'external_tier']),
 });
 
 /**
@@ -61,8 +66,16 @@ export const READ_ONLY_TABLES = Object.freeze({
  */
 export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
 
+/**
+ * The ACTIVE-ADMIN tier (#796, ADR-0074), used only by `pmo load` — never by get/create/update/rpc.
+ * The database guard (migration 0234) allows these only to an active Admin's OAuth token: POST on the
+ * RPCs, GET/POST on the tables. The RPCs keep their own org, role, SoD and audit rules.
+ */
+export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project']);
+export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items']);
+
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -183,7 +196,10 @@ export function buildQuery({ select, filters = [], limit, table = 'this table', 
 function assertTable(table, mode) {
   if (Object.hasOwn(READ_ONLY_TABLES, table)) {
     if (mode === 'read') return;
-    throw usage(`${table} is read-only from the CLI. Change people and their roles in the app.`);
+    throw usage(`${table} is read-only from the CLI. Change it in the app.`);
+  }
+  if (LOAD_TABLES.includes(table)) {
+    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` writes it (draft budgets). Change budgets in the app.`);
   }
   if (!ALLOWED_TABLES.includes(table)) {
     throw usage(
@@ -193,6 +209,9 @@ function assertTable(table, mode) {
 }
 
 function assertRpc(name) {
+  if (LOAD_RPCS.includes(name)) {
+    throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo load\` uses it. Move stages and set contract values in the app.`);
+  }
   if (!ALLOWED_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}`);
   }
@@ -535,7 +554,7 @@ function defaultOpenBrowser(url) {
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
 const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout']);
-const BOOL_FLAGS = new Set(['no-browser', 'help']);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run']);
 
 export function parseArgs(argv) {
   const flags = { filter: [] };
@@ -618,6 +637,7 @@ const USAGE = `usage:
   pmo create <table> <json | @file | ->
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
+  pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -629,6 +649,25 @@ There is no delete. See docs/runbooks/pmo-cli.md.
 
 // ── commands ─────────────────────────────────────────────────────────────────────────────────────
 
+/** The signed-in user and their profile (role, status) — read live, as RLS does. */
+async function readMe(ctx) {
+  const user = await authed(ctx, 'GET', '/auth/v1/user');
+  const q = new URLSearchParams({ id: `eq.${user.id}`, select: 'full_name,role,status' });
+  const rows = await authed(ctx, 'GET', `/rest/v1/profiles?${q}`);
+  return { user, profile: Array.isArray(rows) && rows[0] ? rows[0] : {} };
+}
+
+/** The LoadApi `pmo load` writes through — the user's own token, nothing else (scripts/lib/pmo-load.mjs). */
+function loadApi(ctx) {
+  const representation = { prefer: 'return=representation' };
+  return {
+    get: (table, q) => authed(ctx, 'GET', `/rest/v1/${table}?${q}`),
+    post: (table, body) => authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: representation }),
+    patch: (table, q, body) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers: representation }),
+    rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+  };
+}
+
 async function dispatch(ctx, command, positionals, flags) {
   switch (command) {
     case 'login':
@@ -636,10 +675,7 @@ async function dispatch(ctx, command, positionals, flags) {
     case 'logout':
       return logout(ctx);
     case 'whoami': {
-      const user = await authed(ctx, 'GET', '/auth/v1/user');
-      const q = new URLSearchParams({ id: `eq.${user.id}`, select: 'full_name,role,status' });
-      const rows = await authed(ctx, 'GET', `/rest/v1/profiles?${q}`);
-      const profile = Array.isArray(rows) && rows[0] ? rows[0] : {};
+      const { user, profile } = await readMe(ctx);
       return {
         url: ctx.supabaseUrl,
         id: user.id,
@@ -693,6 +729,33 @@ async function dispatch(ctx, command, positionals, flags) {
       const body = await readPayload(ctx, payload, { optional: true });
       if (body === null || typeof body !== 'object' || Array.isArray(body)) throw usage('rpc takes one JSON object of arguments');
       return authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body });
+    }
+    case 'load': {
+      const [file] = positionals;
+      if (!file) throw usage('load needs a JSON file: pmo load <file.json | -> [--dry-run]');
+      const doc = await readPayload(ctx, file === '-' ? '-' : `@${file.replace(/^@/, '')}`);
+      const problems = validateLoadFile(doc);
+      if (problems.length > 0) {
+        throw new CliError(`The load file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_load_file', details: problems });
+      }
+      const { profile } = await readMe(ctx);
+      if (profile.role !== 'Admin' || profile.status !== 'active') {
+        throw usage("pmo load is for an active Admin (the owner). Sign in as the organisation's Admin.");
+      }
+      const api = loadApi(ctx);
+      const resolved = await resolveLoad(doc, api);
+      if (resolved.problems.length > 0) {
+        throw new CliError(`${resolved.problems.length} problem(s) must be fixed before loading; nothing was written.`, { exit: 2, code: 'load_preflight', details: resolved.problems });
+      }
+      const dryRun = Boolean(flags['dry-run']);
+      try {
+        const actions = await applyLoad(resolved.plan, api, { dryRun });
+        return { dry_run: dryRun, counts: countActions(actions), actions };
+      } catch (e) {
+        const err = e instanceof CliError ? e : new CliError(e?.message ?? String(e), { code: e?.code });
+        err.details = { cause: err.details ?? null, ...(e?.loadReport ?? {}) };
+        throw err;
+      }
     }
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);

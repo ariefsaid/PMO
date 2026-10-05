@@ -27,6 +27,8 @@ import {
   challengeFor,
   createPkce,
   guardWritePayload,
+  LOAD_RPCS,
+  LOAD_TABLES,
   loopbackRedirectUris,
   readCredentials,
   run,
@@ -765,7 +767,7 @@ test('AC-CLI-009: RPCs outside the allow-list are refused — no money, transiti
 // ── AC-CLI-014: profiles, read-only and narrowed ─────────────────────────────────────────────────
 
 test('AC-CLI-014: profiles is readable only, through a fixed set of non-sensitive columns', () => {
-  assert.deepEqual(Object.keys(READ_ONLY_TABLES), ['profiles']);
+  assert.deepEqual(Object.keys(READ_ONLY_TABLES), ['profiles', 'external_domain_ownership']);
   assert.deepEqual(READ_ONLY_TABLES.profiles, ['id', 'full_name', 'role', 'title', 'status']);
   assert.equal(ALLOWED_TABLES.includes('profiles'), false, 'profiles is not writable');
 });
@@ -836,7 +838,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['create', 'get', 'login', 'logout', 'rpc', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['create', 'get', 'load', 'login', 'logout', 'rpc', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -926,7 +928,8 @@ test('AC-CLI-008: the CLI never follows an HTTP redirect with the user token', a
 
 // ── AC-CLI-015: the CLI and the database agree on the API client surface ─────────────────────────
 
-test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration defining api_client_request_guard)', () => {
+/** One list from the LATEST migration that defines public.api_client_request_guard() (AC-CLI-015, AC-CSD-014). */
+function guardList(name) {
   const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'supabase', 'migrations');
   const latest = fs
     .readdirSync(dir)
@@ -936,14 +939,21 @@ test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration
     .pop();
   assert.ok(latest, 'a migration defines public.api_client_request_guard()');
   const sql = fs.readFileSync(path.join(dir, latest), 'utf8');
-  const list = (name) => {
-    const m = sql.match(new RegExp(`${name}\\s+constant\\s+text\\[\\]\\s*:=\\s*array\\[([^\\]]*)\\]`));
-    assert.ok(m, `${name} is declared in ${latest}`);
-    return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
-  };
-  assert.deepEqual(list('write_tables'), [...ALLOWED_TABLES].sort());
-  assert.deepEqual(list('read_only_tables'), Object.keys(READ_ONLY_TABLES).sort());
-  assert.deepEqual(list('rpcs'), [...ALLOWED_RPCS].sort());
+  const m = sql.match(new RegExp(`(?<![a-z_])${name}\\s+constant\\s+text\\[\\]\\s*:=\\s*array\\[([^\\]]*)\\]`));
+  assert.ok(m, `${name} is declared in ${latest}`);
+  return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
+}
+
+test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration defining api_client_request_guard)', () => {
+  assert.deepEqual(guardList('write_tables'), [...ALLOWED_TABLES].sort());
+  assert.deepEqual(guardList('read_only_tables'), Object.keys(READ_ONLY_TABLES).sort());
+  assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
+});
+
+test('AC-CSD-014: the CLI load tier matches the guard admin tier', () => {
+  assert.deepEqual(guardList('admin_write_tables'), [...LOAD_TABLES].sort());
+  assert.deepEqual(guardList('admin_rpcs'), [...LOAD_RPCS].sort());
+  assert.deepEqual(READ_ONLY_TABLES.external_domain_ownership, ['domain', 'external_tier']);
 });
 
 test('usage: no command or --help prints usage JSON and exits 2 / 0', async () => {
@@ -987,6 +997,129 @@ test('company short name crosses the CLI write seam separately from its legal na
     const update = await runCli(['update', 'companies', '--filter', 'id=eq.c1', '{"short_name":"Example Two"}', '--url', fake.url], { configDir });
     assert.equal(update.code, 0, update.err);
     assert.deepEqual(update.json, [{ short_name: 'Example Two' }]);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CSD-016: get/create/rpc refuse the load tier before any request and point to pmo load', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const argv of [
+      ['rpc', 'transition_project', '{}'],
+      ['rpc', 'set_project_contract_value', '{}'],
+      ['create', 'budget_versions', '{}'],
+      ['get', 'budget_line_items'],
+    ]) {
+      const r = await runCli([...argv, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, argv.join(' '));
+      assert.match(r.errJson.error.message, /not available/i);
+      assert.match(r.errJson.error.message, /pmo load/);
+    }
+    assert.equal(fake.requests.length, 0);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+// ── #796 pmo load ────────────────────────────────────────────────────────────────────────────────
+
+const LOAD_FILE = {
+  companies: [{ name: 'Client Legal A', short_name: 'A' }],
+  projects: [{ code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Quotation Submitted', contract_value: 1000, tax_treatment: 'exclusive', tax_amount: 110 }],
+};
+
+function writeLoadFile(dir, doc = LOAD_FILE) {
+  const file = path.join(dir, 'load.json');
+  fs.writeFileSync(file, JSON.stringify(doc));
+  return file;
+}
+
+/** PostgREST GETs answer no rows; the caller's profile has `role` / `status`. */
+const emptyDbAs = (role, status = 'active') => ({ url, req, send }) => {
+  if (url.pathname === '/rest/v1/profiles') {
+    send(200, [{ full_name: 'Owner', role, status }]);
+    return true;
+  }
+  if (url.pathname.startsWith('/rest/v1/') && req.method === 'GET') {
+    send(200, []);
+    return true;
+  }
+  return false;
+};
+
+test('AC-CSD-001: pmo load refuses anyone but an active Admin, before any write', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Admin', 'disabled']]) {
+    const fake = await fakeSupabase({ handler: emptyDbAs(role, status) });
+    const configDir = tmpDir();
+    try {
+      seedCredentials(configDir, fake.url);
+      const r = await runCli(['load', writeLoadFile(configDir), '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, r.err);
+      assert.match(r.errJson.error.message, /active Admin/);
+      assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => q.path), []);
+    } finally {
+      await fake.close();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('AC-CSD-002: pmo load lists every problem in an invalid file and sends nothing', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const bad = { projects: [{ name: 'X', client: 'A', stage: 'Won, Pending KoM' }, { name: 'Y', stage: 'Sold' }] };
+    const r = await runCli(['load', writeLoadFile(configDir, bad), '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_load_file');
+    assert.equal(r.errJson.error.details.length, 5);
+    assert.equal(fake.requests.length, 0);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned actions', async () => {
+  const fake = await fakeSupabase({ handler: emptyDbAs('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['load', writeLoadFile(configDir), '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.json.dry_run, true);
+    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition']);
+    assert.equal(r.json.counts['project.transition'], 2);
+    assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CSD-012: a refused write ends pmo load with exit 1 and the done / failed report', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/rpc/transition_project') {
+      ctx.send(403, { code: '42501', message: 'not authorized' });
+      return true;
+    }
+    return emptyDbAs('Admin')(ctx);
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['load', writeLoadFile(configDir), '--url', fake.url], { configDir });
+    assert.equal(r.code, 1, r.err);
+    assert.equal(r.errJson.error.code, '42501');
+    assert.equal(r.errJson.error.details.failed.kind, 'project.transition');
+    assert.deepEqual(r.errJson.error.details.done.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value']);
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });
