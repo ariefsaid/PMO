@@ -140,9 +140,9 @@ beforeEach(() => {
 });
 
 describe('ProcurementDetails — History tab (AC-CHG-018)', () => {
-  it('AC-CHG-018: /procurement/:id/history deep-links to the History tab with the child roll-up', () => {
+  it('AC-CHG-018: /procurement/:id/history deep-links to the procurement\'s own History (no child roll-up: PR/RFQ/PO/payment events are filed under the project)', () => {
     renderAt('/procurement/proc-001/history');
-    expect(screen.getByTestId('record-history')).toHaveTextContent('procurement:proc-001:true');
+    expect(screen.getByTestId('record-history')).toHaveTextContent('procurement:proc-001:undefined');
   });
 
   it('AC-CHG-018: the History tab is keyboard-operable from the tab bar', async () => {

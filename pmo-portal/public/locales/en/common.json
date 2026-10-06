@@ -3618,7 +3618,6 @@
       "status": "Status",
       "client_id": "Client",
       "project_manager_id": "Project manager",
-      "end_client_id": "End client",
       "contract_value": "Contract value",
       "budget": "Budget",
       "spent": "Spent",
@@ -3628,14 +3627,8 @@
       "end_date": "End date",
       "contract_date": "Contract date",
       "archived_at": "Archived",
-      "customer_contract_ref": "Customer contract ref",
       "currency": "Currency",
       "tax_template": "Tax template",
-      "service_line": "Service line",
-      "sector": "Sector",
-      "location": "Location",
-      "award_type": "Award type",
-      "bidding_entity": "Bidding entity",
       "tax_treatment": "Tax treatment",
       "subject_to_vat": "Subject to VAT",
       "project_id": "Project",
@@ -3696,11 +3689,14 @@
     },
     "filter": {
       "all": "All",
-      "project": "Project",
-      "budget": "Budget",
-      "workOrders": "Work orders",
-      "procurement": "Procurement",
-      "tasks": "Tasks"
+      "project": "Project"
+    },
+    "filteredEmpty": {
+      "project": "No project changes",
+      "budget": "No budget changes",
+      "workOrders": "No work order changes",
+      "procurement": "No procurement changes",
+      "tasks": "No task changes"
     }
   }
 }

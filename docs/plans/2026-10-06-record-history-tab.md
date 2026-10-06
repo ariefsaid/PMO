@@ -6,18 +6,24 @@ Spec: `docs/specs/record-change-history.spec.md` (D5, FR-CHG-010/011/012, AC-CHG
 ## Decisions
 - **Repository seam (ADR-0017):** DAL `src/lib/db/recordChanges.ts` (one `supabase.rpc('list_record_history')`) → repository
   `src/lib/repositories/recordHistory.ts` (`recordHistoryRepository.list`, also wired as `repositories.recordHistory`) →
-  hook `src/hooks/useRecordHistory.ts` (`useInfiniteQuery`, org-scoped key, cursor = smallest `seq` + `created_at` of the change rows).
+  hook `src/hooks/useRecordHistory.ts` (`useInfiniteQuery`, org-scoped key, cursor = the page's minimum `seq` + earliest `created_at` of the change rows — never the last row's, since rows come back by `created_at` and `seq` can disagree).
   A full page of change rows (`>= limit`) means "load older" exists.
 - **Field kinds client-side:** `record_history_config` has no client grant, so `src/components/history/historyFields.ts`
-  mirrors the registry's captured `col → kind` per entity type. Labels: `history.field.<entity>.<col>` with humanized fallback.
+  mirrors the registry's captured `col → kind` per entity type. Labels: `history.field.<col>` with humanized fallback; a column the record's own form/rail already names reuses that key.
 - **Locale file:** the app ships one namespace (`common.json`, en + id); keys live under `history.*` there (the handoff's
   rule), not a new `history.json`.
-- **Values:** money `formatCurrency(v, event.currency)`; date `formatDateOnly`; timestamp `formatDate`; number `formatNumber`;
-  enum shown as stored; ref resolved from the cached org profiles / companies lists, else "Unavailable"; empty → "empty".
+- **Values:** money `formatCurrency(v, event.currency)`; date `formatDateOnly`; timestamp `formatDateTime`; number `formatNumber`;
+  enum / closed-set values through the module label helpers (`useProjectStatusLabel`, `useProcurementStageLabel` +
+  `stageLabelForStatus`, `classificationValueLabel`, `budgetCategoryLabel`, `useTaxTreatmentOptions`, and the task /
+  work-order / budget-version / company-type keys); ref resolved from the cached org profiles / companies lists (archived
+  companies by id) and, on the project History, the project's tasks / milestones / procurements lists, else "Unavailable";
+  a ref with no cheap source (`project_id`, `budget_version_id`, `meeting_id`, `invoice_id`) → "<label> changed"; empty → "empty".
+  Child events on the project History name their record (`Task · <name>`, procurement linked).
   Flagged `{changed:true}` → "<label> changed", no values. `archived_at` → "Archived" / "Restored". Actor null → "System";
   unresolvable → "Unknown user".
 - **Placement:** project → `History` tab (`/projects/:id/history`), child roll-up on, kind filter All / Project / Budget /
-  Work orders / Procurement / Tasks. Procurement → `History` tab (includes its PR/RFQ/PO/payments). Company + contact →
+  Work orders / Procurement / Tasks. Procurement → `History` tab (its own events only: the data layer files PR/RFQ/PO/payment events under the project,
+  so they show on the project History; a procurement roll-up needs a data-layer change, filed separately). Company + contact →
   collapsed `Card` section at the end (fetches only when opened). Budget versions/lines, work orders and tasks have no record
   page of their own; their history is the project tab's kind filters (Q7).
 
@@ -32,8 +38,8 @@ Spec: `docs/specs/record-change-history.spec.md` (D5, FR-CHG-010/011/012, AC-CHG
 4. Pages — `ProjectDetail.tsx` (`TAB_VALUES` + tab), `ProcurementDetails.tsx` (`ProcTab`), `CompanyDetail.tsx`,
    `ContactDetail.tsx`. Tests: `pages/project-detail/__tests__/ProjectDetail.history.test.tsx`,
    `pages/__tests__/ProcurementDetails.history.test.tsx` (**AC-CHG-018**).
-5. e2e — `e2e/AC-CHG-019-project-change-history.spec.ts` (`@e2e-isolation: dedicated-row`, `waitForFonts` before the 390px
-   no-overflow measure). Not runnable in this sandbox (no database); CI runs it.
+5. e2e — `e2e/AC-CHG-019-project-change-history.spec.ts` (`@e2e-isolation: self-isolated` — creates its own project, edits
+   client + end date, archives it at the end; `waitForFonts` before the 390px no-overflow measure).
 
 ## AC traceability (UI scope; AC-CHG-001..014, 020, 021 are the merged pgTAP proofs)
 | AC | Owner |

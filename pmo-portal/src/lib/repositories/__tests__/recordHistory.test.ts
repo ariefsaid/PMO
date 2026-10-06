@@ -17,7 +17,10 @@ const audit = (id: string, at: string) => ({
 });
 
 describe('recordHistoryRepository.list', () => {
-  beforeEach(() => rpc.mockReset());
+  // Block body: an arrow returning the mock would hand vitest a function it then runs as a cleanup hook.
+  beforeEach(() => {
+    rpc.mockReset();
+  });
 
   it('AC-CHG-017: calls the read RPC with the record, filters and cursor — never an org_id', async () => {
     rpc.mockResolvedValue({ data: [], error: null });
@@ -56,6 +59,35 @@ describe('recordHistoryRepository.list', () => {
     expect(full.nextCursor).toEqual({ seq: 6, at: '2026-10-06T10:06:00Z' });
     const short = await recordHistoryRepository.list({ entityType: 'project', entityId: 'p1', limit: 3 });
     expect(short.nextCursor).toBeNull();
+  });
+
+  it('AC-CHG-016: the cursor is the MINIMUM seq of the page, not the last row in created_at order — paging never repeats or skips an event', async () => {
+    // seq and created_at disagree (a backdated / clock-skewed write): created_at-desc order is 7, 9, 8, then 6, 5.
+    const all = [
+      change(7, '2026-10-06T10:09:00Z'),
+      change(9, '2026-10-06T10:08:00Z'),
+      change(8, '2026-10-06T10:07:00Z'),
+      change(6, '2026-10-06T10:06:00Z'),
+      change(5, '2026-10-06T10:05:00Z'),
+    ];
+    // A faithful fake of the RPC's change-row paging: the `limit` highest seqs below the cursor, returned by created_at desc.
+    rpc.mockImplementation(async (_fn: string, args: { p_before_seq?: number; p_limit: number }) => {
+      const page = all
+        .filter((r) => args.p_before_seq === undefined || r.seq < args.p_before_seq)
+        .sort((a, b) => b.seq - a.seq)
+        .slice(0, args.p_limit)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      return { data: page, error: null };
+    });
+    const first = await recordHistoryRepository.list({ entityType: 'project', entityId: 'p1', limit: 3 });
+    expect(first.events.map((e) => e.seq)).toEqual([7, 9, 8]);
+    expect(first.nextCursor).toEqual({ seq: 7, at: '2026-10-06T10:07:00Z' });
+    const second = await recordHistoryRepository.list({
+      entityType: 'project', entityId: 'p1', limit: 3, cursor: first.nextCursor,
+    });
+    const seen = [...first.events, ...second.events].map((e) => e.seq);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect([...seen].sort()).toEqual([5, 6, 7, 8, 9]);
   });
 
   it('surfaces an RPC error as an AppError carrying the code', async () => {

@@ -3618,7 +3618,6 @@
       "status": "Status",
       "client_id": "Klien",
       "project_manager_id": "Manajer proyek",
-      "end_client_id": "Klien akhir",
       "contract_value": "Nilai kontrak",
       "budget": "Anggaran",
       "spent": "Terpakai",
@@ -3628,14 +3627,8 @@
       "end_date": "Tanggal selesai",
       "contract_date": "Tanggal kontrak",
       "archived_at": "Diarsipkan",
-      "customer_contract_ref": "Ref. kontrak pelanggan",
       "currency": "Mata uang",
       "tax_template": "Templat pajak",
-      "service_line": "Lini layanan",
-      "sector": "Sektor",
-      "location": "Lokasi",
-      "award_type": "Jenis penunjukan",
-      "bidding_entity": "Entitas penawar",
       "tax_treatment": "Perlakuan pajak",
       "subject_to_vat": "Kena PPN",
       "project_id": "Proyek",
@@ -3696,11 +3689,14 @@
     },
     "filter": {
       "all": "Semua",
-      "project": "Proyek",
-      "budget": "Anggaran",
-      "workOrders": "Surat perintah kerja",
-      "procurement": "Pengadaan",
-      "tasks": "Tugas"
+      "project": "Proyek"
+    },
+    "filteredEmpty": {
+      "project": "Tidak ada perubahan proyek",
+      "budget": "Tidak ada perubahan anggaran",
+      "workOrders": "Tidak ada perubahan work order",
+      "procurement": "Tidak ada perubahan pengadaan",
+      "tasks": "Tidak ada perubahan tugas"
     }
   }
 }

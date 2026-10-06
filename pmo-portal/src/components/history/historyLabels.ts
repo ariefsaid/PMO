@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 /**
  * Literal-key label maps for the history UI. The i18n completeness gate extracts keys statically, so
  * the per-column / per-kind / per-filter labels are spelled out here instead of built from a template.
+ * Where the record's own form or rail already names a field, its key is reused so both say the same word.
  */
 export function fieldLabels(t: TFunction): Record<string, string> {
   return {
@@ -11,7 +12,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     status: t('history.field.status', 'Status'),
     client_id: t('history.field.client_id', 'Client'),
     project_manager_id: t('history.field.project_manager_id', 'Project manager'),
-    end_client_id: t('history.field.end_client_id', 'End client'),
+    end_client_id: t('projectForm.endCustomer.label', 'End customer'),
     contract_value: t('history.field.contract_value', 'Contract value'),
     budget: t('history.field.budget', 'Budget'),
     spent: t('history.field.spent', 'Spent'),
@@ -21,14 +22,14 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     end_date: t('history.field.end_date', 'End date'),
     contract_date: t('history.field.contract_date', 'Contract date'),
     archived_at: t('history.field.archived_at', 'Archived'),
-    customer_contract_ref: t('history.field.customer_contract_ref', 'Customer contract ref'),
+    customer_contract_ref: t('projectDetail.rail.customerPoRef', 'Customer PO ref'),
     currency: t('history.field.currency', 'Currency'),
     tax_template: t('history.field.tax_template', 'Tax template'),
-    service_line: t('history.field.service_line', 'Service line'),
-    sector: t('history.field.sector', 'Sector'),
-    location: t('history.field.location', 'Location'),
-    award_type: t('history.field.award_type', 'Award type'),
-    bidding_entity: t('history.field.bidding_entity', 'Bidding entity'),
+    service_line: t('projectClassification.serviceLine', 'Service line'),
+    sector: t('projectClassification.sector', 'Sector'),
+    location: t('projectClassification.location', 'Location'),
+    award_type: t('projectClassification.awardType', 'Award type'),
+    bidding_entity: t('projectClassification.biddingEntity', 'Bidding entity'),
     tax_treatment: t('history.field.tax_treatment', 'Tax treatment'),
     subject_to_vat: t('history.field.subject_to_vat', 'Subject to VAT'),
     project_id: t('history.field.project_id', 'Project'),
@@ -96,9 +97,25 @@ export function filterLabels(t: TFunction): Record<string, string> {
   return {
     all: t('history.filter.all', 'All'),
     project: t('history.filter.project', 'Project'),
-    budget: t('history.filter.budget', 'Budget'),
-    workOrders: t('history.filter.workOrders', 'Work orders'),
-    procurement: t('history.filter.procurement', 'Procurement'),
-    tasks: t('history.filter.tasks', 'Tasks'),
+    budget: t('projectDetail.tabs.budget', 'Budget'),
+    workOrders: t('projectDetail.tabs.workOrders', 'Work orders'),
+    procurement: t('projectDetail.tabs.procurement', 'Procurement'),
+    tasks: t('projectDetail.tabs.tasks', 'Tasks'),
+  };
+}
+
+/** A project's `code` is its Client Project Code (the form's word); any other entity's code is just "Code". */
+export function projectCodeLabel(t: TFunction): string {
+  return t('projectForm.clientCode.label', 'Client Project Code');
+}
+
+/** Empty copy for a kind chip with no events (never the "history begins" copy, which is about the record). */
+export function filteredEmptyLabels(t: TFunction): Record<string, string> {
+  return {
+    project: t('history.filteredEmpty.project', 'No project changes'),
+    budget: t('history.filteredEmpty.budget', 'No budget changes'),
+    workOrders: t('history.filteredEmpty.workOrders', 'No work order changes'),
+    procurement: t('history.filteredEmpty.procurement', 'No procurement changes'),
+    tasks: t('history.filteredEmpty.tasks', 'No task changes'),
   };
 }

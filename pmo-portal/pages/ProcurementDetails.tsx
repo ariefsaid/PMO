@@ -1032,7 +1032,7 @@ const ProcurementDetails: React.FC = () => {
             Refactors QuotationsSection into a side-by-side comparison layout:
             Vendor / Amount / Valid until · selected row highlighted + won pill.
             Reuses the existing selectQuote RPC + SoD/role gating unchanged. ░░ */}
-        {tab === 'history' && <RecordHistory entityType="procurement" entityId={p.id} includeChildren />}
+        {tab === 'history' && <RecordHistory entityType="procurement" entityId={p.id} />}
 
         {tab === 'quotes' && (
           <VendorQuotesTab

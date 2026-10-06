@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad } from '@/src/components/ui';
+import { Card, CardHead, CardPad, Icon } from '@/src/components/ui';
 import { RecordHistory } from './RecordHistory';
 
 /**
@@ -21,14 +21,17 @@ export const HistorySection: React.FC<{ entityType: string; entityId: string }> 
           className="flex min-h-8 w-full items-center justify-between gap-2 text-left"
         >
           <span>{t('history.title', 'History')}</span>
-          <span aria-hidden className="text-muted-foreground">{open ? '−' : '+'}</span>
+          <Icon name="chev" className={`text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`} />
         </button>
       </CardHead>
-      <CardPad>
-        <div id={`history-${entityId}`} hidden={!open}>
-          {open && <RecordHistory entityType={entityType} entityId={entityId} />}
-        </div>
-      </CardPad>
+      {/* Collapsed renders no padded body: only the heading shows. */}
+      <div id={`history-${entityId}`} hidden={!open}>
+        {open && (
+          <CardPad>
+            <RecordHistory entityType={entityType} entityId={entityId} />
+          </CardPad>
+        )}
+      </div>
     </Card>
   );
 };

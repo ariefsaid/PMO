@@ -45,10 +45,36 @@ export function fieldKind(entityType: string, column: string): HistoryKind {
   return FIELD_KINDS[entityType]?.[column] ?? 'text';
 }
 
-/** Ref columns that point at a person (resolved from the org profiles list). */
-export const PROFILE_REFS = new Set(['project_manager_id', 'requested_by_id', 'assignee_id']);
-/** Ref columns that point at a company (resolved from the companies list). */
-export const COMPANY_REFS = new Set(['client_id', 'end_client_id', 'vendor_id', 'company_id']);
+/** Where a resolvable ref column's display name comes from. */
+export type RefSource = 'profiles' | 'companies' | 'tasks' | 'milestones' | 'procurements';
+
+/**
+ * Ref column → the list that names it: people and companies from the org lists, milestone / procurement /
+ * parent task from the project's own lists (project History only). A ref column NOT here (project_id,
+ * budget_version_id, meeting_id, invoice_id) has no cheap name source, so it renders "<Field> changed".
+ */
+export const REF_SOURCE: Record<string, RefSource> = {
+  project_manager_id: 'profiles',
+  requested_by_id: 'profiles',
+  assignee_id: 'profiles',
+  client_id: 'companies',
+  end_client_id: 'companies',
+  vendor_id: 'companies',
+  company_id: 'companies',
+  milestone_id: 'milestones',
+  procurement_id: 'procurements',
+  parent_task_id: 'tasks',
+};
+
+/** Child entity type → the project list that names the record (project History). Others read "Unavailable". */
+export type NameSource = 'tasks' | 'procurements' | 'workOrders' | 'budgetVersions' | 'budgetLines';
+export const RECORD_NAME_SOURCE: Record<string, NameSource> = {
+  task: 'tasks',
+  procurement: 'procurements',
+  work_order: 'workOrders',
+  budget_version: 'budgetVersions',
+  budget_line_item: 'budgetLines',
+};
 
 /** `contract_value` → "Contract value": the label fallback so an unlabelled column never renders blank. */
 export function humanizeColumn(column: string): string {

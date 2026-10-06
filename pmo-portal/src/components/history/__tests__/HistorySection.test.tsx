@@ -8,7 +8,7 @@ const { repo } = vi.hoisted(() => ({
   repo: {
     recordHistory: { list: vi.fn() },
     profile: { listOrgProfiles: vi.fn() },
-    company: { list: vi.fn() },
+    company: { list: vi.fn(), get: vi.fn() },
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
@@ -33,11 +33,16 @@ describe('HistorySection — collapsed card for company / contact pages (AC-CHG-
     const toggle = screen.getByRole('button', { name: /History/ });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(repo.recordHistory.list).not.toHaveBeenCalled();
+    // collapsed: no padded body under the heading, and the toggle carries the chevron icon
+    const region = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    expect(region).toBeEmptyDOMElement();
+    expect(toggle.querySelector('svg')).not.toBeNull();
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(await screen.findByText('No changes recorded yet')).toBeInTheDocument();
     expect(repo.recordHistory.list).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: 'company', entityId: 'c1', includeChildren: false }),
     );
+    expect(document.getElementById(toggle.getAttribute('aria-controls')!)).not.toBeEmptyDOMElement();
   });
 });

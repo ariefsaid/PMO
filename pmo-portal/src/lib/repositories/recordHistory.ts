@@ -65,11 +65,14 @@ export const recordHistoryRepository: RecordHistoryRepository = {
       currency: r.currency,
       createdAt: r.created_at,
     }));
-    // The RPC pages change rows by seq; audit lines ride the page's created_at window. A full page of
-    // change rows means older ones may exist; the next cursor is the smallest seq + created_at seen.
-    const changes = events.filter((e) => e.source === 'change');
+    // The RPC pages change rows by seq but returns them by created_at, and the two can disagree, so the
+    // cursor is the MINIMUM seq of the page (the last row's seq could repeat a row on the next page).
+    // `at` is the page's earliest created_at: the RPC's audit window starts there, so the next page's
+    // audit lines (`< at`) neither repeat nor skip one. A full page of change rows means older ones may exist.
+    const changes = events.filter((e) => e.source === 'change' && e.seq !== null);
     if (changes.length < limit) return { events, nextCursor: null };
-    const oldest = changes[changes.length - 1];
-    return { events, nextCursor: { seq: oldest.seq, at: oldest.createdAt } };
+    const seq = Math.min(...changes.map((e) => e.seq as number));
+    const at = changes.reduce((min, e) => (Date.parse(e.createdAt) < Date.parse(min) ? e.createdAt : min), changes[0].createdAt);
+    return { events, nextCursor: { seq, at } };
   },
 };
