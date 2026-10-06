@@ -8,9 +8,11 @@
  * authored by the caller; submitting it is a separate SoD-gated act by a DIFFERENT Finance/Admin user. No code
  * path here sends a transition (NFR-AIN-SEC-003, mutation-checked in draftInvoice.run.test.ts).
  */
-import type { DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { AGENT_REVENUE_WRITE_ROLES } from '../../../pmo-portal/src/auth/agentRoles.ts';
 import { normalizeTaxAmount } from '../../../pmo-portal/src/lib/taxNormalize.ts';
+import { salesInvoiceCreateFields } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/salesInvoiceCommand.ts';
+import { DRAFT_INVOICE_SCHEMA } from './schema.ts';
 import { formatMoney, isMoney, resolveNumberLocale } from './agentFormat.ts';
 import {
   asFunctions, asLoose, readOne, readRows, toLikeTerm, UUID_RE, withTimeout,
@@ -326,3 +328,82 @@ export async function prepareDraftInvoice(
   };
   return { ok: true, value, summary: summarizeDraft(value) };
 }
+
+export const DRAFT_INVOICE_DISPATCH_TIMEOUT_MS = 25_000;
+
+async function readDispatchError(error: unknown): Promise<{ message: string; code?: string }> {
+  const res = (error as { context?: Response } | null)?.context;
+  if (res && typeof res.clone === 'function') {
+    try {
+      const body = (await res.clone().json()) as { error?: string; message?: string };
+      if (typeof body.message === 'string' && body.message.trim()) {
+        return { message: body.message, ...(body.error ? { code: body.error } : {}) };
+      }
+    } catch {
+      /* fall through to the generic message */
+    }
+  }
+  return { message: 'The invoice could not be saved.' };
+}
+
+/** Approval execution: ONE revenue CREATE through the served write path, as the caller (ADR-0079 §4). */
+export async function runDraftInvoice(input: unknown, ctx: DeputyContext): Promise<unknown> {
+  const v = validatePreparedDraft(input);
+  if (v.ok === false) return { error: v.error };
+  const fns = asFunctions(ctx.supabase);
+  if (!fns) return { error: 'The invoice could not be saved.' };
+  const p = v.value;
+  const body = {
+    domain: 'revenue',
+    operation: 'create', // NFR-AIN-SEC-003: the ONLY operation this tool may ever send.
+    record: {
+      ...salesInvoiceCreateFields({
+        customerId: p.customerId,
+        projectId: p.projectId,
+        items: p.items,
+        ...(p.reference_number ? { reference_number: p.reference_number } : {}),
+      }),
+      id: p.commandId,
+    },
+    idempotencyKey: p.idempotencyKey,
+  };
+  let out: { data: unknown; error: unknown };
+  try {
+    out = await withTimeout(fns.functions.invoke('adapter-dispatch', { body }), DRAFT_INVOICE_DISPATCH_TIMEOUT_MS);
+  } catch {
+    return { error: 'ERPNext did not answer in time. The draft may still appear — check Sales Invoices before asking again.', code: 'external-unreachable' };
+  }
+  if (out.error) {
+    const { message, code } = await readDispatchError(out.error);
+    return { error: message, ...(code ? { code } : {}) };
+  }
+  const canonical = (out.data as { canonical?: { id?: unknown; si_number?: unknown } } | null)?.canonical;
+  const siNumber = typeof canonical?.si_number === 'string' ? canonical.si_number : null;
+  return {
+    ok: true,
+    status: 'Draft',
+    id: typeof canonical?.id === 'string' ? canonical.id : p.commandId,
+    siNumber,
+    link: siNumber ? `/sales-invoices?q=${encodeURIComponent(siNumber)}` : '/sales-invoices',
+    note: "Saved as a Draft under the user's name. It is NOT submitted; a different Finance or Admin user submits it.",
+  };
+}
+
+export const draftInvoiceAction: AgentAction & {
+  validate: typeof validateDraftRequest;
+  summarize: (i: unknown) => string;
+} = {
+  name: 'draft_invoice',
+  description:
+    'Prepare a DRAFT sales invoice for a work order or project milestone, for the user to confirm. Saves as Draft only — never submits or approves.',
+  inputSchema: DRAFT_INVOICE_SCHEMA,
+  surfaces: ['agent'],
+  confirm: true,
+  needsApproval: () => true,
+  validate: validateDraftRequest,
+  prepare: (input, ctx) => prepareDraftInvoice(input as DraftInvoiceRequest, ctx),
+  validatePrepared: validatePreparedDraft,
+  // Only reached if a caller bypasses `prepare` — the handler always uses prepare's summary.
+  summarize: () => 'Save a draft invoice. Not submitted.',
+  run: runDraftInvoice,
+};
