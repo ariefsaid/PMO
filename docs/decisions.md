@@ -3008,3 +3008,8 @@ Edits and amends send none. Only the "Record vendor invoice" form offers the pic
 writes through the PMO-only atomic RPC and does not dispatch, so it is not offered there (asking and discarding is #505's defect).
 The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) already sends explicit rows. Plan:
 `docs/plans/2026-10-06-purchase-tax-template.md`.
+- **DD-VI-3a (Director, 2026-10-06, #520 review):** a template with any `Deduct` row or negative rate (withholding, e.g. PPh) is
+  refused before any ERP write (`config-rejected`, "This template withholds tax (e.g. PPh), which PMO cannot record yet — choose a
+  template without withholding."): the vendor-invoice mirror allows a negative tax only on a negative amount (0196), so the ERP
+  document would land and its mirror fail on every sweep replay. Rows are copied with `included_in_print_rate` (and `cost_center`
+  when set) so an inclusive template is not applied on top. Revisit when PMO records withholding.

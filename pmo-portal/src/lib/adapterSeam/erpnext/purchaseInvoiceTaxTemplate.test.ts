@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
+import { listPurchaseTaxTemplates } from './erpPurchaseTaxRows.ts';
 import type { AdapterCommand } from '../contract.ts';
 import { canonicalCommandDigest } from '../../../../../supabase/functions/adapter-dispatch/moneyOutboxDeps.ts';
 
@@ -49,10 +50,13 @@ const STANDARD = {
 const FOREIGN = { ...STANDARD, name: 'Other Company VAT', company: 'Other Co' };
 const DISABLED = { ...STANDARD, name: 'Old VAT', disabled: 1 };
 const TEMPLATES = [STANDARD, FOREIGN, DISABLED];
-const SENT_ROWS = [{ charge_type: 'On Net Total', account_head: 'Input VAT - SC', description: 'Input VAT', rate: 11, category: 'Total', add_deduct_tax: 'Add' }];
+const SENT_ROWS = [{ charge_type: 'On Net Total', account_head: 'Input VAT - SC', description: 'Input VAT', rate: 11, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0 }];
 
-/** An ERPNext fake that answers the template list with real filter semantics (name/company/disabled). */
-function erpFetch(templates: Row[] = TEMPLATES) {
+/**
+ * An ERPNext fake that answers the template list with real filter + paging semantics (name/company/disabled,
+ * limit_start/limit_page_length). `docs` lets a test make the single-doc read disagree with the list.
+ */
+function erpFetch(templates: Row[] = TEMPLATES, docs: Row[] = templates) {
   const writes: Row[] = [];
   const templateReads: string[] = [];
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -65,12 +69,14 @@ function erpFetch(templates: Row[] = TEMPLATES) {
       templateReads.push(path);
       const filters = JSON.parse(parsed.searchParams.get('filters') ?? '[]') as Array<[string, string, unknown]>;
       const hit = templates.filter((t) => filters.every(([field, , value]) => t[field] === value));
-      return Response.json({ data: hit.map((t) => ({ name: t.name })) });
+      const start = Number(parsed.searchParams.get('limit_start') ?? 0);
+      const size = Number(parsed.searchParams.get('limit_page_length') ?? 20);
+      return Response.json({ data: hit.slice(start, start + size).map((t) => ({ name: t.name })) });
     }
     if (path.startsWith('/api/resource/Purchase Taxes and Charges Template/')) {
       templateReads.push(path);
       const name = path.slice('/api/resource/Purchase Taxes and Charges Template/'.length);
-      const found = templates.find((t) => t.name === name);
+      const found = docs.find((t) => t.name === name);
       return found ? Response.json({ data: found }) : new Response('{"exc_type":"DoesNotExistError"}', { status: 404 });
     }
     if (init?.method === 'POST') {
@@ -131,7 +137,54 @@ describe('vendor invoice purchase tax template (#520)', () => {
     const cmd = command({ taxTemplate: name });
     const erp = erpFetch();
     await expect(resolve(cmd, erp)).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining(name) });
+    // ADR-0072: the refusal names the template, never the ERP company.
+    await expect(resolve(command({ taxTemplate: name }), erpFetch())).rejects.toSatisfy(
+      (err: Error) => !err.message.includes(COMPANY));
     expect(erp.writes).toEqual([]);
+  });
+
+  it('AC-520-3 the list filter alone refuses a template the company list does not hold (single-doc read agrees)', async () => {
+    const cmd = command({ taxTemplate: 'Synthetic Input VAT' });
+    const erp = erpFetch([], [STANDARD]);
+    await expect(resolve(cmd, erp)).rejects.toMatchObject({ code: 'config-rejected' });
+    expect(erp.writes).toEqual([]);
+  });
+
+  it.each([
+    ['another company', { ...STANDARD, company: 'Other Co' }],
+    ['disabled', { ...STANDARD, disabled: 1 }],
+  ])('AC-520-3 the single-doc re-check alone refuses a template that is now %s (list still holds it)', async (_label, doc) => {
+    const cmd = command({ taxTemplate: 'Synthetic Input VAT' });
+    const erp = erpFetch([STANDARD], [doc]);
+    await expect(resolve(cmd, erp)).rejects.toMatchObject({ code: 'config-rejected' });
+    expect(erp.writes).toEqual([]);
+  });
+
+  it('AC-520-10 an inclusive template row is sent with included_in_print_rate set, and its cost center, exactly as the template', async () => {
+    const inclusive = { ...STANDARD, taxes: [{ ...STANDARD.taxes[0], included_in_print_rate: 1, cost_center: 'Main - SC' }] };
+    const { body } = await push({ taxTemplate: 'Synthetic Input VAT' }, [inclusive]);
+    expect(body.taxes).toEqual([{ ...SENT_ROWS[0], included_in_print_rate: 1, cost_center: 'Main - SC' }]);
+  });
+
+  it.each([
+    ['a Deduct row', { add_deduct_tax: 'Deduct', rate: 2 }],
+    ['a negative rate', { add_deduct_tax: 'Add', rate: -2 }],
+  ])('AC-520-11 a withholding template (%s) is refused (config-rejected, action required) before any ERPNext write', async (_label, row) => {
+    const withholding = { ...STANDARD, taxes: [STANDARD.taxes[0], { ...STANDARD.taxes[0], account_head: 'PPh 23 - SC', ...row }] };
+    const cmd = command({ taxTemplate: 'Synthetic Input VAT' });
+    const erp = erpFetch([withholding]);
+    await expect(resolve(cmd, erp)).rejects.toMatchObject({
+      code: 'config-rejected',
+      message: 'This template withholds tax (e.g. PPh), which PMO cannot record yet — choose a template without withholding.',
+    });
+    expect(erp.writes).toEqual([]);
+  });
+
+  it('AC-520-12 the picker list pages past the ERPNext page limit and keeps only the company\'s enabled templates', async () => {
+    const many = Array.from({ length: 450 }, (_, i) => ({ ...STANDARD, name: `VAT ${String(i).padStart(3, '0')}` }));
+    const erp = erpFetch([...many, FOREIGN, DISABLED]);
+    const listed = await listPurchaseTaxTemplates({ fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: BINDING.site_url }, COMPANY);
+    expect(listed).toEqual(many.map((t) => ({ name: t.name })));
   });
 
   it('AC-520-3 a template with no rows is refused rather than sending an untaxed invoice', async () => {
