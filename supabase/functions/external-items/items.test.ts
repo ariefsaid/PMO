@@ -24,7 +24,7 @@ const profile = () =>
     assertEquals(call.headers.get('authorization')?.startsWith('Bearer ey'), true);
     return jsonResponse({ org_id: 'org-test' }, { headers: objectHeaders });
   });
-const binding = (status = 'active') =>
+const binding = (status = 'active', config: Record<string, unknown> = { company: 'Test Co' }) =>
   supabaseSelect('external_org_bindings', (call) => {
     assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
     assertEquals(call.url.searchParams.get('external_tier'), 'eq.erpnext');
@@ -34,6 +34,7 @@ const binding = (status = 'active') =>
         site_url: 'https://erp.example.com',
         status,
         activated_at: '2026-10-05',
+        config,
       },
       { headers: objectHeaders },
     );
@@ -165,6 +166,40 @@ describe('external-items shipped handler', () => {
     });
     await withFetchMock([profile()], async () => {
       assertEquals((await handleItemsRequest(await request({ purpose: 'other' }))).status, 400);
+    });
+  });
+  it('AC-520-7 lists the binding company\'s enabled purchase tax templates for the vendor-invoice picker', async () => {
+    await withFetchMock(
+      [
+        profile(),
+        binding(),
+        supabaseRpc('read_vault_secret', () => jsonResponse('test:test')),
+        erp('erp.example.com', '/api/resource/Purchase%20Taxes%20and%20Charges%20Template', (call) => {
+          assertEquals(call.method, 'GET');
+          assertEquals(JSON.parse(call.url.searchParams.get('filters')!), [
+            ['company', '=', 'Test Co'],
+            ['disabled', '=', 0],
+          ]);
+          return jsonResponse({ data: [{ name: 'Input VAT 11' }, { name: 'Input VAT 0' }] });
+        }),
+      ],
+      async () => {
+        const response = await handleItemsRequest(
+          await request({ purpose: 'purchase-tax-templates', company: 'Other Co' }),
+        );
+        assertEquals(response.status, 200);
+        assertEquals(await response.json(), {
+          templates: [{ name: 'Input VAT 11' }, { name: 'Input VAT 0' }],
+        });
+      },
+    );
+  });
+
+  it('AC-520-7 refuses the template list without an ERP company and makes no ERP read', async () => {
+    await withFetchMock([profile(), binding('active', {})], async ({ calls }) => {
+      const response = await handleItemsRequest(await request({ purpose: 'purchase-tax-templates' }));
+      assertEquals(response.status, 422);
+      assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
     });
   });
 });
