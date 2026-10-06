@@ -33,6 +33,7 @@ const REQUIRED = {
   'supabase/functions/external-unlink/unlink.test.ts': 'handleUnlinkRequest',
   'supabase/functions/external-disconnect/disconnect.test.ts': 'handleDisconnectRequest',
   'supabase/functions/erpnext-onboard/onboard.test.ts': 'handleOnboardRequest',
+  'supabase/functions/telegram-notify/index.test.ts': 'handleTelegramNotifyRequest',
 };
 
 /** Copy anti-patterns: a test re-implementing what it should import. */

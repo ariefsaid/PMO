@@ -1,0 +1,10 @@
+/*
+ * #805: @blocknote/shadcn styles itself with Tailwind utilities. Scanning its dist from the app's
+ * index.css put those utilities in the INITIAL stylesheet (+3.9 kB gzip on every route). This file is
+ * imported only by the lazy editor module, so the utilities ship with the editor chunk instead:
+ * the app theme is pulled in `reference`-only (no duplicate output), and `source(none)` stops the
+ * auto-scan from re-emitting the app's own utilities.
+ */
+@import "../../../index.css" reference;
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "../../../node_modules/@blocknote/shadcn/dist";

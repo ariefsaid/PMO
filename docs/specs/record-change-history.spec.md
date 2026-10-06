@@ -1,6 +1,6 @@
 # Record change history — spec (#719)
 
-**Status:** proposed, 2026-09-29. **Authority:** `docs/decisions.md` OD-MARGIN-2 (value-change history wanted, deferred); ADR-0016 (`can()` is UX, RLS is enforcement), ADR-0017 (repository seam), ADR-0018 (soft-archive), ADR-0019 (definer RPC / restrictive policy + pgTAP proof); migrations `0074` (org stamp attached by list), `0076` (`audit_events` / `log_audit`), `0063` (active-member conjunction).
+**Status:** accepted 2026-10-06 (OD-CHG-1; every open question at its default). Data-layer plan: `docs/plans/2026-10-06-record-change-history-data.md` (migration slot `0260`, which supersedes the `0219` below). **Authority:** `docs/decisions.md` OD-MARGIN-2 (value-change history wanted, deferred); ADR-0016 (`can()` is UX, RLS is enforcement), ADR-0017 (repository seam), ADR-0018 (soft-archive), ADR-0019 (definer RPC / restrictive policy + pgTAP proof); migrations `0074` (org stamp attached by list), `0076` (`audit_events` / `log_audit`), `0063` (active-member conjunction).
 **IDs:** `FR-CHG-###`, `NFR-CHG-###`, `AC-CHG-###` (the `FR-HIST-*` prefix is already taken by onboarding-tooling).
 
 ## Job story
@@ -164,6 +164,8 @@ Owning layers follow ADR-0010: pgTAP for capture and visibility, Vitest for the 
 | **AC-CHG-017** | Given the repository, when an Admin loads a record, then non-duplicative audit lines merge into the timeline; when a non-Admin loads it, none appear. | Vitest `src/lib/repositories/__tests__/recordHistory.test.ts` |
 | **AC-CHG-018** | Given `/projects/:id/history` and the procurement History tab, then each deep-links, is keyboard-operable, and the project tab filters child kinds. | Vitest `pages/project-detail/__tests__/ProjectDetail.history.test.tsx`, `pages/__tests__/ProcurementDetails.history.test.tsx` |
 | **AC-CHG-019** | Given a PM edits a project's client and end date on its edit form, when they open the project History tab, then the top entry shows their name, "just now" and both changes as `old → new`; a second edit appears above it. | Playwright `pmo-portal/e2e/AC-CHG-019-project-change-history.spec.ts` (`@e2e-isolation: dedicated-row`, its own seed project) |
+| **AC-CHG-020** | Given events on a project and its child records, when a member calls `list_record_history` for the project with children, then they get the visible own and child events newest first by `seq`, narrowed by a kind filter and paged by a `seq` cursor; a caller who cannot read a record gets none of its events. | pgTAP `supabase/tests/record_history_read.test.sql` |
+| **AC-CHG-021** | Given audit lines on a record, when an Admin pages its history, then each non-covered audit line appears exactly once across pages and covered field-change actions never appear; when a non-Admin calls it, no audit line appears (the union reads `audit_events` under its own RLS). | same file |
 
 The e2e journey asserts the goal (the edit is visible with who/what/old→new); it never asserts internals such as row counts.
 
