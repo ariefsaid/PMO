@@ -61,9 +61,10 @@ select throws_ok($$ update expense_claims set amount = 999 where id = '02471000-
   '42501', 'an expense claim''s amount is the sum of its lines: add, change or remove a line instead',
   'AC-EXP-003: a claim''s amount cannot be set directly');
 
-select is((with u as (update expense_claims set title = 'Changed'
-                       where id = '02471000-0000-0000-0000-000000000304' returning 1)
-           select count(*)::int from u), 0,
+-- A data-modifying CTE cannot sit inside a subquery, so attempt the update as its own statement
+-- (RLS filters it to zero rows, no error) and assert the stored header is unchanged.
+update expense_claims set title = 'Changed' where id = '02471000-0000-0000-0000-000000000304';
+select isnt((select title from expense_claims where id = '02471000-0000-0000-0000-000000000304'), 'Changed',
   'AC-EXP-004: a submitted claim''s header cannot be changed by its claimant');
 select throws_ok($$ insert into expense_claim_lines (claim_id, expense_date, expense_type, description, amount)
                    values ('02471000-0000-0000-0000-000000000304','2026-10-02','Meals','Lunch',40) $$,
@@ -107,9 +108,8 @@ set local request.jwt.claims = '{"sub":"02471000-0000-0000-0000-0000000000a3","r
 select is((select count(*)::int from expense_claims
             where id in ('02471000-0000-0000-0000-000000000401','02471000-0000-0000-0000-000000000305')), 2,
   'AC-EXP-002: a Project Manager sees every claim in the org');
-select is((with u as (update expense_claims set title = 'PM edit'
-                       where id = '02471000-0000-0000-0000-000000000305' returning 1)
-           select count(*)::int from u), 0,
+update expense_claims set title = 'PM edit' where id = '02471000-0000-0000-0000-000000000305';
+select isnt((select title from expense_claims where id = '02471000-0000-0000-0000-000000000305'), 'PM edit',
   'AC-EXP-004: a Project Manager cannot edit someone else''s Draft');
 
 set local request.jwt.claims = '{"sub":"02471000-0000-0000-0000-0000000000b1","role":"authenticated"}';

@@ -58,6 +58,9 @@ select set_eq(
             -- NEW embed of profiles from this table must be qualified the same way.
             ('meeting_access_grants -> profiles'),
             ('timesheets -> profiles'),
+            -- 0247 (#775): expense_claims carries claimant_id, approved_by_id and paid_by_id -> profiles.
+            -- The one embed (src/lib/db/expenseClaims.ts) is qualified: profiles!expense_claims_claimant_id_fkey.
+            ('expense_claims -> profiles'),
             -- 0243 (#803): spend_approvers carries profile_id AND created_by, both -> profiles. The one
             -- embed (src/lib/db/spendApprovers.ts) is qualified: profiles!spend_approvers_profile_id_fkey.
             ('spend_approvers -> profiles'),

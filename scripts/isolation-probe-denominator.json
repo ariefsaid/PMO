@@ -28,6 +28,9 @@
     {"table":"erp_gl_entry_mirror","has_org":true,"pk":"id"},
     {"table":"erp_payment_ledger_mirror","has_org":true,"pk":"id"},
     {"table":"error_events","has_org":true,"pk":"id"},
+    {"table":"expense_claim_files","has_org":true,"pk":"id"},
+    {"table":"expense_claim_lines","has_org":true,"pk":"id"},
+    {"table":"expense_claims","has_org":true,"pk":"id"},
     {"table":"external_command_outbox","has_org":true,"pk":"id"},
     {"table":"external_domain_ownership","has_org":true,"pk":"id"},
     {"table":"external_org_bindings","has_org":true,"pk":"id"},
@@ -168,6 +171,7 @@
     "quarantine_committing(uuid,interval,interval)",
     "rate_limit_hit(text,integer,integer)",
     "read_vault_secret(text)",
+    "record_expense_advance_return(uuid,numeric,text)",
     "record_outbox_ref(uuid,integer,text,text,text,text)",
     "record_timesheet_command_held(uuid,uuid,timestamp with time zone,text,uuid,integer)",
     "recover_external_connect_trap(uuid,text,boolean,boolean,uuid)",
@@ -187,6 +191,7 @@
     "submit_sales_invoice(uuid)",
     "telegram_notify_tick()",
     "transition_document_status(uuid,doc_status)",
+    "transition_expense_claim(uuid,expense_claim_status,text,text)",
     "transition_procurement(uuid,procurement_status,text)",
     "transition_project(uuid,project_status,text,date)",
     "transition_timesheet(uuid,timesheet_status,text)",
@@ -219,6 +224,7 @@
   ],
   "buckets": [
     "agent-attachments",
+    "expense-receipts",
     "procurement-files",
     "project-documents"
   ]
