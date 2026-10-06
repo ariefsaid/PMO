@@ -2966,3 +2966,6 @@ The app mounts under `<BrowserRouter>`, where `useBlocker` throws, so migrating 
 `ConfirmDialog`. Browser Back/Forward stays unguarded (known boundary). Revisit if the app ever adopts a data router.
 Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
 
+
+**DD-ENA-15a (Director, 2026-10-06, #654, under FR-ENA-015's #651 carve-out) — the external-integrations kill switch applies to ERPNext onboarding too.**
+`erpnext-onboard` resolves its credential through the shared `_shared/erpAuthPair.ts` (kill switch → Vault → env pair → refuse; an unreadable store refuses, never falls back), so a disabled integration cannot be onboarded. Behaviour delta from the pre-#651 path: onboarding with the switch off now fails `config-rejected` (422) instead of reading the env pair. A credential miss logs the failure class only (ADR-0072). Tests: AC-ENA-091, AC-ENA-090.
