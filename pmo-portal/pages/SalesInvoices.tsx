@@ -119,13 +119,14 @@ const SalesInvoices: React.FC = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
-  const { create, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
+  const { create, setReceivedDate, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
   const canEdit = may('edit', 'salesInvoice');
   const canCancel = may('transition', 'salesInvoice');
-  const canRowWrite = canEdit || canCancel;
+  const canRecordReceipt = may('record_received_date', 'salesInvoice');
+  const canRowWrite = canEdit || canCancel || canRecordReceipt;
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -135,6 +136,7 @@ const SalesInvoices: React.FC = () => {
   const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
   const [submitTarget, setSubmitTarget] = useState<SalesInvoiceRow | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<SalesInvoiceRow | null>(null);
 
   // BLOCK 2 (ADR-0058): the confirm dialogs are ALWAYS mounted, so their command identity cannot be
   // a plain ref — it must be per (record, verb) or a retry on invoice B would carry invoice A's key.
@@ -248,13 +250,19 @@ const SalesInvoices: React.FC = () => {
       exportValue: (inv) => inv.invoice_date ?? '',
     },
     {
+      key: 'received_date',
+      header: t('financeCopy.receivedDate', "Received"),
+      cell: (inv) => (inv.received_date ? formatDateOnly(inv.received_date) : '—'),
+      exportValue: (inv) => inv.received_date ?? '',
+    },
+    {
       key: 'due_date',
       header: t('financeCopy.dueDate', "Due Date"),
       cell: (inv) => {
-        const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date);
+        const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
         return due ? formatDateOnly(due) : '—';
       },
-      exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date) ?? '',
+      exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
     },
   ];
 
@@ -264,6 +272,10 @@ const SalesInvoices: React.FC = () => {
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     if (canEdit) items.push({ label: t('financeCopy.edit', "Edit"), onClick: () => setFormTarget({ invoice: inv }) });
+    // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
+    // state to the revenue write set (the RPC enforces it; `can()` is UX only).
+    if (canRecordReceipt && inv.status !== 'Cancelled')
+      items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
     if (canCancel && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(inv), danger: true });
     // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record
@@ -432,6 +444,24 @@ const SalesInvoices: React.FC = () => {
         />
       )}
 
+      {receiptTarget && (
+        <ReceivedDateModal
+          invoice={receiptTarget}
+          loading={setReceivedDate.isPending}
+          onClose={() => setReceiptTarget(null)}
+          onSave={async (date) => {
+            try {
+              await setReceivedDate.mutateAsync({ siId: receiptTarget.id, receivedDate: date });
+              toast(t('financeCopy.receivedDateSaved', 'Received date saved'), receiptTarget.si_number ?? receiptTarget.id, 'success');
+              setReceiptTarget(null);
+            } catch (err) {
+              const { headline, detail } = classifyMutationError(err);
+              toast(headline, detail, 'warning');
+            }
+          }}
+        />
+      )}
+
       {/* Cancel confirm (destructive tone) */}
       <ConfirmDialog
         open={!!cancelTarget}
@@ -455,6 +485,45 @@ const SalesInvoices: React.FC = () => {
         onCancel={() => setSubmitTarget(null)}
       />
     </ListPage>
+  );
+};
+
+// ── Received-date modal (#767) ──────────────────────────────────────────────
+
+const ReceivedDateModal: React.FC<{
+  invoice: SalesInvoiceRow;
+  loading: boolean;
+  onClose: () => void;
+  onSave: (date: string | null) => Promise<void>;
+}> = ({ invoice, loading, onClose, onSave }) => {
+  const { t } = useTranslation();
+  const [value, setValue] = useState(invoice.received_date ?? '');
+  const tooEarly = !!value && !!invoice.invoice_date && value < invoice.invoice_date;
+  return (
+    <EntityFormModal
+      open
+      title={t('financeCopy.recordReceivedDate', 'Record received date')}
+      subtitle={t('financeCopy.receivedDateHelp', 'The date the client received this invoice. The due date follows it.')}
+      submitLabel={t('financeCopy.save', 'Save')}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!tooEarly) void onSave(value || null);
+      }}
+      onClose={onClose}
+      loading={loading}
+      dirty={value !== (invoice.received_date ?? '')}
+      submitDisabled={tooEarly}
+    >
+      <TextField
+        label={t('financeCopy.receivedDate', 'Received')}
+        type="date"
+        value={value}
+        onChange={setValue}
+        min={invoice.invoice_date ?? undefined}
+        error={tooEarly ? t('financeCopy.receivedBeforeInvoiceDate', 'Cannot be before the invoice date') : undefined}
+        className="w-48"
+      />
+    </EntityFormModal>
   );
 };
 

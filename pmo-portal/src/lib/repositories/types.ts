@@ -1,4 +1,5 @@
 import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -111,6 +112,7 @@ import type {
   SalesInvoiceRow,
   IncomingPaymentRow,
 } from '@/src/lib/db/revenue';
+import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
@@ -451,6 +453,8 @@ export interface RevenueRepository {
     withholdingSlipNumber?: string | null;
     date: string;
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
+  /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
+  setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
   submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
   /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
@@ -637,6 +641,14 @@ export interface UserViewRepository {
   delete(id: string): Promise<void>;
 }
 
+/** #765 — the monthly management pack (ADR-0076). */
+export interface ReportsRepository {
+  /** Facts for the pack from ONE SECURITY INVOKER RPC; RLS scopes the org. */
+  managementPack(range: ManagementPackRange): Promise<ManagementPackFacts>;
+  /** Record a project's month-end percent complete (one entry per project per month). */
+  recordProgress(input: ProjectProgressInput): Promise<void>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
   project: ProjectRepository;
@@ -664,6 +676,7 @@ export interface Repositories {
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
   integrations: IntegrationsRepository;
+  reports: ReportsRepository;
 }
 
 /**
@@ -688,6 +701,12 @@ export interface OrgSettingsRepository {
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
   setTaxDefault(value: TaxTreatment): Promise<void>;
+  /** #803: the org's spend approvers (senior set + project approvers); every active member reads. */
+  listSpendApprovers(): Promise<SpendApproverRow[]>;
+  /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */
+  addSpendApprover(profileId: string, projectId: string | null): Promise<void>;
+  /** #803, Admin-only (RLS): remove one approver row. */
+  removeSpendApprover(id: string): Promise<void>;
 }
 
 /**

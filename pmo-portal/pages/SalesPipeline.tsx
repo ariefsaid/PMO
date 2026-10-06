@@ -492,7 +492,7 @@ const SalesPipeline: React.FC = () => {
               onClose={() => setCreateOpen(false)}
               onSubmit={async (input) => {
                 const row = await create.mutateAsync(input);
-                toast(t('sales.toast.projectCreated', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', 'Project saved. ERP linking needs attention; retry from the project page.') : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
+                toast(t('sales.toast.projectCreated', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', '{{name}} saved. ERP linking needs attention; retry from the project page.', { name: input.name }) : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
                 setCreateOpen(false);
               }}
               onError={(err) => {

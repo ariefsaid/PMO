@@ -4,7 +4,7 @@
 - **ADR:** `docs/adr/0075-spend-approval-routing.md`
 - **Tier:** money / SoD / approval → **Director-dispatched**, not the ADW (CLAUDE.md executor routing). Builder
   brief must carry `docs/money-path-primer.md`. Director runs the mutation battery (Tasks 12–15) before merge.
-- **Migration:** `supabase/migrations/0242_spend_approval_routing.sql`. `dev` head is `0231`; `0232` (#770) and
+- **Migration:** `supabase/migrations/0243_spend_approval_routing.sql`. `dev` head is `0231`; `0232` (#770) and
   `0233` (#805) are in flight. On a collision run `scripts/renumber-migration.sh 0234 <next>` — never hand-rename.
 
 ## 0. Conventions for every task
@@ -67,7 +67,7 @@ page and the shared selector; budget basis reuses OD-BUDGET-1/2 + ADR-0034 statu
 
 | File | Change |
 |---|---|
-| `supabase/migrations/0242_spend_approval_routing.sql` | new (§1–§8) |
+| `supabase/migrations/0243_spend_approval_routing.sql` | new (§1–§8) |
 | `supabase/tests/spend_approvers_config.test.sql` | new — AC-APR-016/017/020 |
 | `supabase/tests/spend_approval_classify.test.sql` | new — AC-APR-006/007/011/012/019 |
 | `supabase/tests/spend_approval_enforce.test.sql` | new — AC-APR-001…005/008…010/013…015 |
@@ -105,7 +105,7 @@ Create `supabase/tests/spend_approvers_config.test.sql`:
 ```sql
 -- spend_approvers_config.test.sql — #803 spend-approver configuration.
 -- AC-APR-016 (Admin-only writes, rank floor, same-org, stamped org, no client created_by),
--- AC-APR-017 (audit), AC-APR-020 (org isolation). Migration: 0242_spend_approval_routing.sql.
+-- AC-APR-017 (audit), AC-APR-020 (org isolation). Migration: 0243_spend_approval_routing.sql.
 begin;
 select plan(14);
 
@@ -213,10 +213,10 @@ rollback;
 
 ### Task 2 — GREEN: migration §header, §1 column, §2 rank floor, §3 table
 
-Create `supabase/migrations/0242_spend_approval_routing.sql`:
+Create `supabase/migrations/0243_spend_approval_routing.sql`:
 
 ```sql
--- 0242_spend_approval_routing.sql — #803 approval routing by budget.
+-- 0243_spend_approval_routing.sql — #803 approval routing by budget.
 -- Spec: docs/specs/approval-routing-by-budget.spec.md · ADR-0075 · Plan: docs/plans/2026-10-06-approval-routing-by-budget.md
 -- Proven by supabase/tests/spend_approvers_config.test.sql, spend_approval_classify.test.sql,
 --   spend_approval_enforce.test.sql, spend_approval_inputs_frozen.test.sql, spend_approval_line_lock.test.sql.
@@ -342,7 +342,7 @@ Create `supabase/tests/spend_approval_classify.test.sql`:
 ```sql
 -- spend_approval_classify.test.sql — #803 "within budget" classification, read through the UI RPC.
 -- AC-APR-006 (Reserved+Committed count), 007 (greater of header/items), 011 (no category),
--- 012 (currency), 019 (route + approvers + scoping). Migration: 0242_spend_approval_routing.sql.
+-- 012 (currency), 019 (route + approvers + scoping). Migration: 0243_spend_approval_routing.sql.
 begin;
 select plan(16);
 
@@ -451,7 +451,7 @@ rollback;
 
 ### Task 4 — GREEN: §4 request amount, §5 the rule, §6 the UI read
 
-Append to `supabase/migrations/0242_spend_approval_routing.sql`:
+Append to `supabase/migrations/0243_spend_approval_routing.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -601,7 +601,7 @@ Create `supabase/tests/spend_approval_enforce.test.sql`:
 ```sql
 -- spend_approval_enforce.test.sql — #803 transition_procurement enforces the route.
 -- Orgs: A (configured), C (no config → flat), D (senior set whose only member is disabled).
--- Migration: 0242_spend_approval_routing.sql §7.
+-- Migration: 0243_spend_approval_routing.sql §7.
 begin;
 select plan(19);
 
@@ -1130,7 +1130,7 @@ cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test 
 
 ### Tasks 12–15 — Mutation battery (money path; Director runs or witnesses)
 
-Each: make the one edit to `supabase/migrations/0242_spend_approval_routing.sql`, run the command, confirm the
+Each: make the one edit to `supabase/migrations/0243_spend_approval_routing.sql`, run the command, confirm the
 named assertion goes **red for the stated reason**, restore the exact original text, re-run to green.
 Command template: `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <file>'`.
 

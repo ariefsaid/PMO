@@ -351,6 +351,18 @@ async function resolveSalesInvoicePo(deps: ErpDispatchFactoryDeps): Promise<void
   // the same resolved values. A caller-supplied po_date is replaced by the matching PMO date.
   record.reference_number = reference;
   record.po_date = date;
+
+  // #767 (AC-DUE-003): a recorded receipt date rides along as ERP's `custom_received_date`. `due_date`
+  // is deliberately NOT pushed: ERPNext refuses a due date past the customer's payment-terms default
+  // (party.py `validate_due_date_with_template`, "Due Date cannot be after …") — so sending one would
+  // fail the amend of any invoice whose customer has a terms template — and `due_date` is not
+  // `allow_on_submit`, so it could never follow a receipt recorded after submission anyway. ERP keeps
+  // its own due date; PMO shows the receipt-based one (`deriveArDueDate`). Proposed DD-DUE-1.
+  const stamp = await read('sales_invoices', 'received_date', record.id);
+  const received = nonblank(stamp?.received_date);
+  delete record.received_date;
+  delete record.due_date;
+  if (received) record.received_date = received;
 }
 
 /** Resolve revenue-domain refs for a sales-invoice or incoming-payment command.

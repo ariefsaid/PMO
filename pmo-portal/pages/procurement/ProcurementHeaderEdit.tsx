@@ -7,11 +7,14 @@ import {
   Combobox,
   FormGrid,
   FormActions,
+  SelectField,
   useEntityForm,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
+import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
+import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './budgetCategoryOptions';
 
 // ---------------------------------------------------------------------------
 // ProcurementHeaderEdit — the Draft-header edit panel (crud-components §3 inline
@@ -30,6 +33,7 @@ interface FormValues {
   title: string;
   projectId: string | null;
   vendorId: string | null;
+  budgetCategory: string;
 }
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
@@ -44,6 +48,8 @@ export interface ProcurementHeaderEditProps {
   projectName: string | null;
   vendorId: string | null;
   vendorName: string | null;
+  /** #803: the request's budget line (decides approval routing). */
+  budgetCategory?: BudgetCategory | null;
   onSave: (patch: ProcurementHeaderPatch) => Promise<unknown>;
   onError: (err: unknown) => void;
   /** Host-controlled close (the panel is opened from the RecordHeader Edit action). */
@@ -57,13 +63,14 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   projectName,
   vendorId,
   vendorName,
+  budgetCategory = null,
   onSave,
   onError,
   onClose,
   busy,
 }) => {
   const form = useEntityForm<FormValues>({
-    initialValues: { title, projectId, vendorId },
+    initialValues: { title, projectId, vendorId, budgetCategory: budgetCategory ?? '' },
     validate,
     idPrefix: 'pr-header-edit',
     module: 'procurement',
@@ -73,7 +80,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   // Re-seed the form from the live props when the panel mounts (it is mounted only
   // while the header Edit action holds it open).
   useEffect(() => {
-    reset({ title, projectId, vendorId });
+    reset({ title, projectId, vendorId, budgetCategory: budgetCategory ?? '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once on mount from props
   }, []);
 
@@ -98,6 +105,10 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
           title: values.title.trim(),
           projectId: values.projectId,
           vendorId: values.vendorId,
+          // Sent only when changed, so an untouched form saves exactly what it did before #803.
+          ...(values.budgetCategory !== (budgetCategory ?? '')
+            ? { budgetCategory: (values.budgetCategory || null) as BudgetCategory | null }
+            : {}),
         });
         onClose();
       } catch (err) {
@@ -148,6 +159,14 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               }
               onChange={(v) => form.setValue('vendorId', v)}
               loadOptions={loadVendors}
+            />
+            <SelectField
+              id="pr-header-edit-budget-category"
+              label="Budget category"
+              value={form.values.budgetCategory}
+              onChange={(v) => form.setValue('budgetCategory', v)}
+              options={BUDGET_CATEGORY_OPTIONS}
+              helper={BUDGET_CATEGORY_HELPER}
             />
           </FormGrid>
           <FormActions

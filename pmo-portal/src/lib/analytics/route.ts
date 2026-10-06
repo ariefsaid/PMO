@@ -24,6 +24,7 @@ const ADMINISTRATION_SECTIONS = new Set([
   'users',
   'integrations',
   'accounting',
+  'projects',
   'credits',
   'usage',
   'features',

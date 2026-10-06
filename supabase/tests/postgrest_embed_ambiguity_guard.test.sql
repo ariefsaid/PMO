@@ -58,6 +58,9 @@ select set_eq(
             -- NEW embed of profiles from this table must be qualified the same way.
             ('meeting_access_grants -> profiles'),
             ('timesheets -> profiles'),
+            -- 0243 (#803): spend_approvers carries profile_id AND created_by, both -> profiles. The one
+            -- embed (src/lib/db/spendApprovers.ts) is qualified: profiles!spend_approvers_profile_id_fkey.
+            ('spend_approvers -> profiles'),
             -- 0193 (#498): work_orders carries THREE person columns — order_value_set_by (the SoD
             -- witness), issued_by, and over_commit_ack_by. Checked before adding: nothing in the DAL
             -- embeds profiles from work_orders (the table has no client code yet), so there is no

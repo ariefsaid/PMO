@@ -4,23 +4,32 @@ import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { queryClient } from '@/src/lib/queryClient';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
-/** Reuse the integration binding query and session-scoped React Query catalog cache. */
+/**
+ * ERP item picker for invoice/purchase lines. ADR-0055: the ERP is the source of truth per DOMAIN,
+ * so lines pick an ERP item only when ERPNext owns the line's domain (revenue for sales lines,
+ * procurement for purchase lines) — those are the only lines that are ever pushed. A connected org
+ * that still runs the domain natively keeps free-text lines. Shares the shell's ownership query
+ * (`useExternalDomainOwnership`'s key) and a session-scoped React Query catalog cache.
+ */
 export function useErpItemOptions(purpose: 'sales' | 'purchase') {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const binding = useQuery(
+  const domain = purpose === 'sales' ? 'revenue' : 'procurement';
+  const ownership = useQuery(
     {
-      queryKey: ['integrations', 'binding', orgId, 'erpnext'],
-      queryFn: () => repositories.integrations.getBinding(orgId!, 'erpnext'),
+      queryKey: ['external-domain-ownership', orgId],
+      queryFn: listOwnExternalDomainOwnership,
       enabled: Boolean(orgId),
     },
     queryClient,
   );
   const connected =
-    binding.data?.status === 'active' ||
-    routeDomainWrite(purpose === 'sales' ? 'revenue' : 'procurement') === 'external';
+    Boolean(orgId) &&
+    ((ownership.data ?? []).some((row) => row.domain === domain && row.externalTier === 'erpnext') ||
+      routeDomainWrite(domain) === 'external');
   const loadOptions = useCallback(async (): Promise<ComboboxOption[]> => {
     if (!orgId) throw new Error('Sign in to select an ERP item');
     const items = await queryClient.fetchQuery({

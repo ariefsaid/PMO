@@ -56,7 +56,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   // pendingProcurementApprovals is the single source of truth for this predicate (H7).
   const canApproveProc = can('transition', 'procurement', { realRole });
   const procCount = canApproveProc
-    ? pendingProcurementApprovals(procurements, selfId).length
+    ? pendingProcurementApprovals(procurements, selfId, realRole === 'Admin').length
     : 0;
 
   const tsCount = includeTimesheets ? (timesheets?.length ?? 0) : 0;
