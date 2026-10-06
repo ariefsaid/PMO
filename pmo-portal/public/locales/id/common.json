@@ -2744,6 +2744,7 @@
       "inboxHeading": "Kotak masuk notifikasi",
       "listLabel": "Notifikasi",
       "loadError": "Gagal memuat notifikasi. Coba lagi sebentar lagi.",
+      "loadMore": "Muat lebih banyak",
       "loading": "Memuat notifikasi…",
       "noneUnread": "Tidak ada notifikasi yang belum dibaca",
       "read": "Dibaca",

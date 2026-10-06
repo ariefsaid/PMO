@@ -25,10 +25,11 @@ import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import {
-  listNotifications,
+  listNotificationsPage,
   listUnreadCount,
   markNotificationRead,
-  type NotificationRow,
+  type NotificationCursor,
+  type NotificationListItem as NotificationRow,
 } from '@/src/lib/db/notifications';
 import { formatRelativeTime } from '@/src/lib/format';
 
@@ -93,7 +94,7 @@ type InboxState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; rows: NotificationRow[] };
+  | { status: 'ready'; rows: NotificationRow[]; nextCursor: NotificationCursor | null };
 
 export const NotificationBell: React.FC = () => {
   const { t } = useTranslation();
@@ -102,6 +103,7 @@ export const NotificationBell: React.FC = () => {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const [inbox, setInbox] = useState<InboxState>({ status: 'idle' });
+  const [loadingMore, setLoadingMore] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const refreshUnreadCount = useCallback(() => {
@@ -125,13 +127,33 @@ export const NotificationBell: React.FC = () => {
 
   const loadInbox = useCallback(() => {
     setInbox({ status: 'loading' });
-    listNotifications()
-      .then((rows) => {
-        setInbox({ status: 'ready', rows });
+    listNotificationsPage()
+      .then(({ rows, nextCursor }) => {
+        setInbox({ status: 'ready', rows, nextCursor });
         refreshUnreadCount();
       })
       .catch(() => setInbox({ status: 'error' }));
   }, [refreshUnreadCount]);
+
+  // Keyset "Load more" (#843): append the next page; a failure keeps the rows already shown.
+  const loadMore = useCallback(() => {
+    if (inbox.status !== 'ready' || !inbox.nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    listNotificationsPage({ cursor: inbox.nextCursor })
+      .then(({ rows, nextCursor }) => {
+        setInbox((prev) =>
+          prev.status === 'ready'
+            ? {
+                status: 'ready',
+                rows: [...prev.rows, ...rows.filter((r) => !prev.rows.some((p) => p.id === r.id))],
+                nextCursor,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [inbox, loadingMore]);
 
   useEffect(() => {
     if (open) loadInbox();
@@ -160,7 +182,7 @@ export const NotificationBell: React.FC = () => {
       setInbox((prev) =>
         prev.status === 'ready'
           ? {
-              status: 'ready',
+              ...prev,
               rows: prev.rows.map((r) =>
                 r.id === row.id ? { ...r, read_at: r.read_at ?? new Date().toISOString() } : r,
               ),
@@ -293,6 +315,18 @@ export const NotificationBell: React.FC = () => {
                   </li>
                 );
               })}
+              {inbox.nextCursor && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="w-full rounded-md px-2.5 py-2 text-center text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  >
+                    {t('shell.notifications.loadMore', 'Load more')}
+                  </button>
+                </li>
+              )}
             </ul>
           )}
         </div>

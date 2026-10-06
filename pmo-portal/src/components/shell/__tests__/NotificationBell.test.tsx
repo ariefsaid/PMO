@@ -28,7 +28,12 @@ const listNotifications = vi.fn();
 const markNotificationRead = vi.fn();
 vi.mock('@/src/lib/db/notifications', () => ({
   listUnreadCount: (...args: unknown[]) => listUnreadCount(...args),
-  listNotifications: (...args: unknown[]) => listNotifications(...args),
+  // The bell reads pages (#843). `listNotifications` stays the per-test control: an array means a
+  // single, final page; `{ rows, nextCursor }` means an explicit page.
+  listNotificationsPage: async (...args: unknown[]) => {
+    const r = await listNotifications(...args);
+    return Array.isArray(r) ? { rows: r, nextCursor: null } : r;
+  },
   markNotificationRead: (...args: unknown[]) => markNotificationRead(...args),
 }));
 
@@ -356,5 +361,45 @@ describe('NotificationBell', () => {
     await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
     await userEvent.click(await screen.findByRole('button', { name: /expense claim awaiting/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/expenses/ec-7'));
+  });
+
+  it('AC-843-005 requests one page on open; "Load more" shows only with a next cursor and appends the next page', async () => {
+    const cursor = { createdAt: '2026-07-02T00:00:00.000Z', id: 'n2' };
+    listNotifications
+      .mockResolvedValueOnce({ rows: [row({ id: 'n1', title: 'First page item' })], nextCursor: cursor })
+      .mockResolvedValueOnce({ rows: [row({ id: 'n3', title: 'Second page item' })], nextCursor: null });
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    expect(await screen.findByText('First page item')).toBeInTheDocument();
+    expect(listNotifications).toHaveBeenCalledTimes(1);
+    expect(listNotifications.mock.calls[0][0]?.cursor ?? null).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    expect(await screen.findByText('Second page item')).toBeInTheDocument();
+    expect(screen.getByText('First page item')).toBeInTheDocument();
+    expect(listNotifications).toHaveBeenCalledTimes(2);
+    expect(listNotifications.mock.calls[1][0]).toMatchObject({ cursor });
+    expect(screen.queryByRole('button', { name: /load more/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-843-005 no "Load more" on a single final page', async () => {
+    listNotifications.mockResolvedValue([row()]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await screen.findByText('Automation finished');
+    expect(screen.queryByRole('button', { name: /load more/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-843-006 the badge still shows the server unread count, not the loaded page size', async () => {
+    listUnreadCount.mockResolvedValue(57);
+    listNotifications.mockResolvedValue({
+      rows: [row({ id: 'n1' })],
+      nextCursor: { createdAt: '2026-07-02T00:00:00.000Z', id: 'n1' },
+    });
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications.*57 unread/i }));
+    await screen.findByText('Automation finished');
+    expect(screen.getByRole('button', { name: /notifications.*57 unread/i })).toBeInTheDocument();
+    expect(screen.getByText('57')).toBeInTheDocument();
   });
 });
