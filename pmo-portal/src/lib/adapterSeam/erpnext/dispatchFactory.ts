@@ -999,6 +999,15 @@ async function resolveOrdinaryInvoiceTaxes(
   record.taxes = requireTaxRows(await resolveSalesTaxRows(client, company, fraction));
 }
 
+/** #858: the integration user may lack read on Selling Settings; say what to do instead of surfacing the raw permission error. */
+async function negativeRatesAllowedOrAction(client: ErpClientDeps): Promise<boolean> {
+  try {
+    return await readNegativeRatesAllowed(client);
+  } catch {
+    throw new AppError('PMO cannot read Selling Settings in ERPNext, which this claim needs to check that negative rates are allowed for the down-payment recovery. An ERP administrator must give the PMO integration user read access to Selling Settings (or turn on "Allow Negative rates for Items" and re-run ERP onboarding), then raise the invoice again.', 'config-rejected');
+  }
+}
+
 async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<'ordinary' | 'claim' | 'none'> {
   const record = deps.command.record as Record<string, unknown>;
   if (record.erp_doc_kind !== 'sales-invoice') return 'none';
@@ -1076,7 +1085,7 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
   // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never
   // ran onboarding or had it switched back off.
-  if (Number(claim.dp_recovery_amount) > 0 && !(await readNegativeRatesAllowed(client))) {
+  if (Number(claim.dp_recovery_amount) > 0 && !(await negativeRatesAllowedOrAction(client))) {
     throw new AppError('ERPNext does not allow negative rates yet, which this claim needs to recover the down payment. An ERP administrator must turn on "Allow Negative rates for Items" in Selling Settings (or re-run ERP onboarding), then raise the invoice again.', 'config-rejected');
   }
   // DD-PBL-12b: ERPNext does not expand a template named over REST, so the tax rows are sent explicitly.

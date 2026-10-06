@@ -76,14 +76,15 @@ function command(record: Row, operation: AdapterCommand['operation'] = 'create')
 
 const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10, description: 'VAT' }] };
 
-function erpFetch(opts: { negativeRates?: boolean; template?: unknown } = {}) {
-  const { negativeRates = true, template = TAX_TEMPLATE } = opts;
+function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean } = {}) {
+  const { negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false } = opts;
   const sent: { body: Row } = { body: {} };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = decodeURIComponent(new URL(String(url)).pathname);
     if (path === '/api/resource/Item' && init?.method === 'GET') {
       return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
+    if (path === '/api/resource/Selling Settings/Selling Settings' && settingsDenied) return Response.json({ exc_type: 'PermissionError' }, { status: 403 });
     if (path === '/api/resource/Selling Settings/Selling Settings') return Response.json({ data: { allow_negative_rates_for_items: negativeRates ? 1 : 0 } });
     if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] });
     if (path === '/api/resource/Sales Taxes and Charges Template/Synthetic Sales Tax') return Response.json({ data: template });
@@ -280,5 +281,11 @@ describe('billing claim invoice (AC-PB-006)', () => {
     });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(await digest(replay)).toBe(await digest(first.command));
+  });
+
+  it('AC-858-3 an unreadable Selling Settings gives the action-required message, not a raw permission error, before any ERP write', async () => {
+    const { attempt, fetchImpl } = refused(command({}), CLAIM, EVIDENCE, { settingsDenied: true });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('read Selling Settings') });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
   });
 });
