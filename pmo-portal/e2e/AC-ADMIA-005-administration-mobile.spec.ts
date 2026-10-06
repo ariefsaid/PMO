@@ -149,6 +149,9 @@ async function driveSections(
 }
 
 test('AC-ADMIA-005: Administration destinations stay reachable and overflow-free at desktop, phone, and phone dark mode', async ({ page }) => {
+  // Three full passes (desktop, phone, phone dark) of every section's layout checks; the default 30s
+  // budget ran out on a loaded CI runner while the page itself was correct.
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(page, ADMIN);
   await page.goto('/administration');
