@@ -27,6 +27,7 @@ export type Action =
   | 'delete'
   | 'transition'
   | 'editContractValue'
+  | 'setVatFlag'
   | 'setValue'
   | 'submit_sales_invoice'
   | 'record_received_date'
@@ -163,6 +164,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       const status = ctx.record?.status ?? '';
       return ON_HAND_SET.has(status) ? has(MONEY_AUTHORITY, role) : has(DELIVERY, role);
     },
+    // OD-TAX-4: whether the project is subject to VAT — Finance/Admin only (set_project_contract_value enforces it).
+    setVatFlag: allow(REVENUE_WRITE),
   },
   /**
    * Work orders (#566) — the client's inbound PO drawing down against a project's ceiling.

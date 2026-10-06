@@ -51,10 +51,11 @@ Renumbered after the ruling. "Was" gives the previous number; **changed** / **ne
 - **DD-PBL-6 — tax basis.** *(was 4; unchanged)* BoQ rates and the DP amount exclude tax. ERPNext does NOT expand a tax
   template named over REST, so the dispatch reads the company's default Sales Taxes and Charges template and sends its
   rows explicitly as `On Net Total` (DD-PBL-12b), scaled by the contract's reduced tax base (#798). The recovery line lowers each claim's taxable base by the DP already taxed.
-- **DD-PBL-13 — ordinary invoices carry tax rows too (#856).** An ordinary Sales Invoice create sends the same explicit
-  `On Net Total` rows, built server-side from the ERP default template (rate and account) and the invoice's project tax
-  basis (#478/#821, 0227 fraction). A project that states a contract value with zero tax is tax-exempt: no rows and no
-  template read. A caller-supplied `taxes` array is always dropped. Edits and amends send none.
+- **DD-PBL-13 — every invoice carries tax rows, gated by the project's VAT flag (#856, OD-TAX-4).** Ordinary invoice creates and
+  claim/down-payment invoices send the same explicit `On Net Total` rows, built server-side from the ERP default template
+  and the project's reduced-base fraction (#798). The project's "Subject to VAT (PPN)" flag (default on; Finance/Admin
+  set it with the contract value; locked once the project has a sales invoice) decides: off → no rows and no template read.
+  A caller-supplied `taxes` array is always dropped. Edits and amends send none.
 - **DD-PBL-7 — a billing claim is immutable, IS its invoice's record, and needs evidence.** *(was 5; changed)*
   The claim id is the invoice's PMO record id, so one claim mints at most one invoice. The server builds the
   invoice from the claim only and refuses edit/amend. **No invoice can be raised for a claim until at least one

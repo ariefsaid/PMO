@@ -44,7 +44,8 @@ function serviceClient(project: Row | null): DispatchServiceClient {
 
 const TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 12, description: 'VAT' }] };
 const ITEMS = [{ item_code: 'OWN-ITEM', qty: 2, rate: 500 }];
-const TAXED = { contract_value: 1_000_000, tax_amount: 120_000, tax_base_numerator: 1, tax_base_denominator: 1 };
+const TAXED = { subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 };
+const VAT_OFF = { subject_to_vat: false, tax_base_numerator: 1, tax_base_denominator: 1 };
 
 function erpFetch(template: unknown = TEMPLATE) {
   const writes: Row[] = [];
@@ -104,15 +105,15 @@ describe('ordinary sales invoice tax rows (#856)', () => {
     expect((body.taxes as Row[])[0].rate).toBe(11);
   });
 
-  it('AC-856-3 a tax-exempt invoice carries no rows and makes no template read', async () => {
-    const { body, templateReads } = await push({ contract_value: 1_000_000, tax_amount: 0, tax_base_numerator: 1, tax_base_denominator: 1 });
+  it('AC-856-3 AC-856-7 an invoice on a project that is not subject to VAT carries no rows and makes no template read', async () => {
+    const { body, templateReads } = await push(VAT_OFF);
     expect(body).not.toHaveProperty('taxes');
     expect(templateReads).toEqual([]);
   });
 
   it('AC-856-4 a caller-supplied taxes array is still stripped', async () => {
     const forged = [{ charge_type: 'Actual', account_head: 'EVIL', rate: 99 }];
-    const { body } = await push({ contract_value: 1_000_000, tax_amount: 0, tax_base_numerator: 1, tax_base_denominator: 1 }, { taxes: forged });
+    const { body } = await push(VAT_OFF, { taxes: forged });
     expect(body).not.toHaveProperty('taxes');
     const taxed = await push(TAXED, { taxes: forged });
     expect(taxed.body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 12 }]);

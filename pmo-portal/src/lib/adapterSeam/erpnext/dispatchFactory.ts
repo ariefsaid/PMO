@@ -961,12 +961,11 @@ function taxBaseFraction(row: unknown): { numerator: number; denominator: number
   return numerator > 0 && denominator >= numerator ? { numerator, denominator } : { numerator: 1, denominator: 1 };
 }
 /**
- * #856 — an ordinary (non-claim) Sales Invoice create gets the same explicit tax rows a claim invoice does (ERPNext does
- * not expand a template over REST, so without them the client is billed untaxed). The tax basis is the invoice's project
- * (#478/#821, 0197 + 0227): a project that states a contract value with zero tax is tax-exempt and sends NO rows and makes
- * no template read; otherwise the rows come from `resolveSalesTaxRows` with the project's reduced-base fraction.
- * Rows are built server-side before the outbox snapshot, so the payload and digest cover them (a caller's `taxes` was
- * already stripped). Edits and amends send none, as before.
+ * #856 / OD-TAX-4 — an ordinary (non-claim) Sales Invoice create gets the same explicit tax rows a claim invoice does (ERPNext
+ * does not expand a template over REST, so without them the client is billed untaxed). The project's "Subject to VAT" flag is
+ * the gate: OFF sends NO rows and makes no template read; ON builds them with `resolveSalesTaxRows` at the project's
+ * reduced-base fraction (0227). The flag is read server-side — a caller's value is never consulted, and a caller's `taxes`
+ * was already stripped. Rows are built before the outbox snapshot, so the payload and digest cover them. Edits and amends send none.
  */
 async function resolveOrdinaryInvoiceTaxes(
   deps: ErpDispatchFactoryDeps,
@@ -978,11 +977,10 @@ async function resolveOrdinaryInvoiceTaxes(
   let fraction = { numerator: 1, denominator: 1 };
   if (typeof record.projectId === 'string' && record.projectId) {
     const { data, error } = await deps.serviceClient.from('projects')
-      .select('contract_value,tax_amount,tax_base_numerator,tax_base_denominator')
+      .select('subject_to_vat,tax_base_numerator,tax_base_denominator')
       .eq('org_id', deps.orgId).eq('id', record.projectId).maybeSingle();
     if (error) throw new AppError(error.message, error.code);
-    const basis = (data ?? {}) as { contract_value?: unknown; tax_amount?: unknown };
-    if (Number(basis.contract_value) > 0 && basis.tax_amount !== null && basis.tax_amount !== undefined && Number(basis.tax_amount) === 0) return;
+    if ((data as { subject_to_vat?: unknown } | null)?.subject_to_vat === false) return;
     fraction = taxBaseFraction(data);
   }
   const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
@@ -1021,10 +1019,11 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
     throw new AppError('The invoice project must be the progress claim project', 'commit-rejected');
   }
   const { data: project, error: projectError } = await deps.serviceClient.from('projects')
-    .select('client_id,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
+    .select('client_id,subject_to_vat,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
   if (projectError) throw new AppError(projectError.message, projectError.code);
   const clientId = (project as { client_id?: string | null } | null)?.client_id ?? null;
   let fraction = taxBaseFraction(project);
+  const subjectToVat = (project as { subject_to_vat?: unknown } | null)?.subject_to_vat !== false;
   if (!clientId || record.customerId !== clientId) {
     throw new AppError('The invoice customer must be the project client', 'commit-rejected');
   }
@@ -1068,8 +1067,9 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
     throw new AppError('ERPNext does not allow negative rates yet, which this claim needs to recover the down payment. An ERP administrator must turn on "Allow Negative rates for Items" in Selling Settings (or re-run ERP onboarding), then raise the invoice again.', 'config-rejected');
   }
   // DD-PBL-12b: ERPNext does not expand a template named over REST, so the tax rows are sent explicitly.
+  // OD-TAX-4: a project that is not subject to VAT sends no tax rows and reads no template (the flag is read above, server-side).
   const company = binding.config?.company;
-  if (typeof company === 'string' && company) {
+  if (typeof company === 'string' && company && subjectToVat) {
     const taxes = await resolveSalesTaxRows(client, company, fraction);
     if (taxes.length > 0) record.taxes = taxes; else delete record.taxes;
   } else {

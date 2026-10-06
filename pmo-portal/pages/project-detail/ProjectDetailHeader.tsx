@@ -22,6 +22,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useSalesInvoices } from '@/src/hooks/useRevenue';
+import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   currencySymbol,
@@ -61,6 +63,7 @@ interface PendingContractValue {
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
+  subjectToVat?: boolean;
 }
 
 export interface ProjectDetailHeaderProps {
@@ -112,6 +115,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // RPC demands the basis on every set for the same reason: restating the value restates the basis.
   const [taxTreatmentDraft, setTaxTreatmentDraft] = useState('');
   const [taxAmountDraft, setTaxAmountDraft] = useState('');
+  // OD-TAX-4: "Subject to VAT (PPN)", set with the value by Finance/Admin; locked server-side once the project has a sales invoice.
+  const [vatDraft, setVatDraft] = useState(true);
+  const { data: projectInvoices } = useSalesInvoices(project.id);
+  const vatLocked = (projectInvoices?.length ?? 0) > 0;
   const taxFields = useStandaloneTaxFields(valueDraft, taxTreatmentDraft, taxAmountDraft, setTaxAmountDraft, project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate), `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
   // The audit-confirm holds the pending new value + its basis until the user confirms the SoD action.
   const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
@@ -147,6 +154,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const canArchive = may('archive', 'project');
   const canDelete = may('delete', 'project'); // Admin-only (rbac-visibility §B2/§K).
   const canEditValue = may('editContractValue', 'project', { record: { status } });
+  const canSetVat = may('setVatFlag', 'project');
 
   const meta = [
     project.client ? companyDisplayName(project.client) : null,
@@ -198,6 +206,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     setValueDraft(formatMoneyInputValue(contract));
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
+    setVatDraft(project.subject_to_vat ?? true);
     taxFields.setRateRaw(project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate));
     taxFields.setBaseRaw(`${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
     setValueEditing(true);
@@ -221,7 +230,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     : undefined;
   const stagedValue: PendingContractValue | null =
     parsedValue !== null && parsedValue >= 0 && parsedTax !== null
-      ? { value: parsedValue, ...parsedTax }
+      ? { value: parsedValue, ...parsedTax, ...(canSetVat && !vatLocked && vatDraft !== (project.subject_to_vat ?? true) ? { subjectToVat: vatDraft } : {}) }
       : null;
 
   // Save the value. On a WON/on-hand project this is a segregation-of-duties action →
@@ -345,6 +354,27 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             />
           </div>
           <TaxRateFields fields={taxFields} />
+          {canSetVat && (
+            <div className="basis-full" data-testid="contract-vat-flag">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={vatLocked ? (project.subject_to_vat ?? true) : vatDraft}
+                  onChange={setVatDraft}
+                  disabled={vatLocked}
+                  label={t('projectDetail.header.subjectToVat', 'Subject to VAT (PPN)')}
+                  labelledBy="contract-vat-flag-label"
+                />
+                <span id="contract-vat-flag-label" className="text-[13px] text-foreground">
+                  {t('projectDetail.header.subjectToVat', 'Subject to VAT (PPN)')}
+                </span>
+              </div>
+              <p data-testid="contract-vat-flag-hint" className="text-[12px] text-muted-foreground">
+                {vatLocked
+                  ? t('projectDetail.header.subjectToVatLocked', 'Locked: this project already has a sales invoice. Cancel its invoices to change it.')
+                  : t('projectDetail.header.subjectToVatHint', 'When on, this project\'s invoices carry the ERP sales tax. Locked once the first invoice exists.')}
+              </p>
+            </div>
+          )}
           <div className="w-[160px]">
             <NumberField
               label={t('projectDetail.header.taxAmount', 'Tax amount')}

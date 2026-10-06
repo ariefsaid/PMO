@@ -28,6 +28,11 @@ const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetBox,
 }));
+// OD-TAX-4: the header reads the project's invoices to know whether the VAT flag is locked.
+const { invoiceBox } = vi.hoisted(() => ({ invoiceBox: { data: [] as unknown[] } }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => invoiceBox,
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => projectMutations,
   useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),
@@ -82,6 +87,7 @@ const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHan
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
+  invoiceBox.data = [];
   Object.values(projectMutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -516,5 +522,40 @@ describe('#694 ProjectDetailHeader — contract-value adornment is the project c
     renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     expect(adornmentOf(/^Contract value/i)).toBe('$');
+  });
+});
+
+describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', () => {
+  const openEditor = async (role: string, project: ProjectWithRefs = onHand) => {
+    renderHeader(role, project);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+  };
+
+  it('AC-856-9 Finance sees the flag (on by default) and can switch it off with the value', async () => {
+    await openEditor('Finance');
+    const flag = screen.getByRole('checkbox', { name: /Subject to VAT/i });
+    expect(flag).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(flag);
+    await userEvent.clear(screen.getByRole('textbox', { name: /Contract value/i }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Contract value/i }), '100');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '0');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /record/i }));
+    await waitFor(() =>
+      expect(projectMutations.setContractValue.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', subjectToVat: false })),
+    );
+  });
+
+  it('AC-856-9 an Executive edits the value but is not offered the flag', async () => {
+    await openEditor('Executive');
+    expect(screen.queryByRole('checkbox', { name: /Subject to VAT/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-856-8 once the project has a sales invoice the flag is shown disabled with the reason', async () => {
+    invoiceBox.data = [{ id: 'si-1' }];
+    await openEditor('Finance');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/already has a sales invoice/i);
   });
 });

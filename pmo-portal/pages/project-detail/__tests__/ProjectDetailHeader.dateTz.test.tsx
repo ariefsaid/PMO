@@ -17,6 +17,7 @@ import { ToastProvider } from '@/src/components/ui';
 
 // B-0.2: ProjectDetailHeader now calls useProjectBudget (derived budget for Spend%).
 // Provide a minimal mock so we don't need a QueryClientProvider here.
+vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [] }) })); // OD-TAX-4: header reads the project's invoices (VAT flag lock)
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 900_000, isPending: false, isError: false, refetch: vi.fn() }),
 }));

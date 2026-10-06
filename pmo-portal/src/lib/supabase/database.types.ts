@@ -4448,6 +4448,7 @@ export type Database = {
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
+          subject_to_vat: boolean
           tax_amount: number | null
           tax_base_denominator: number
           tax_base_numerator: number
@@ -4487,6 +4488,7 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          subject_to_vat?: boolean
           tax_amount?: number | null
           tax_base_denominator?: number
           tax_base_numerator?: number
@@ -4526,6 +4528,7 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          subject_to_vat?: boolean
           tax_amount?: number | null
           tax_base_denominator?: number
           tax_base_numerator?: number
@@ -6991,6 +6994,7 @@ export type Database = {
       set_project_contract_value: {
         Args: {
           p_id: string
+          p_subject_to_vat?: boolean
           p_tax_amount?: number
           p_tax_base_denominator?: number
           p_tax_base_numerator?: number

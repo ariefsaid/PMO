@@ -2938,9 +2938,17 @@ Negative rates for Items" (site-wide, off by default — the claim is refused at
 body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
 Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
 
-**DD-PBL-13 (Director, 2026-10-06, #856) — ordinary Sales Invoice creates send explicit tax rows.** Same helper as claim
-invoices (`resolveSalesTaxRows`); rate and account come from the ERP default template, the reduced-base fraction from the
-invoice's project. Tax-exempt means the project states a contract value with a recorded tax of zero: such an invoice sends
-no rows and makes no template read. A project with no stated value, or an invoice with no project, is taxed at the
-template rate. The rows are part of the command, so the outbox payload and digest cover them; sweep recovery of an
-already-sent invoice still re-reads the template (#858).
+**DD-PBL-13 (Director, 2026-10-06, #856) — every sales invoice and claim sends explicit tax rows, gated by the project's VAT flag (OD-TAX-4).**
+One helper (`resolveSalesTaxRows`) serves ordinary invoice creates and claim/down-payment invoices: rate and account come from
+the ERP default template, scaled by the project's reduced-base fraction (0227; 12% on 11/12 = 11% effective). The gate is
+`projects.subject_to_vat` (migration 0253, default on), read server-side in the dispatch: off → no rows and no template read;
+a caller's `taxes` is always dropped. Rows are part of the command, so the outbox payload and digest cover them; sweep
+recovery of an already-sent invoice still re-reads the template (#858). Edits and amends send none.
+
+**OD-TAX-4 (owner, 2026-10-06) — a project says whether it is subject to VAT; every invoice follows it.**
+Owner proposal, Director timing: projects carry a "Subject to VAT (PPN)" flag, default on. It is set where the
+contract value is recorded (at the win) by the same Finance/Admin value-setter, editable by Finance/Admin until the
+project's first invoice exists, then locked (to change it, cancel the invoices first). Every sales invoice and every
+progress/down-payment claim on the project follows it: on → explicit tax rows from the org's sales-tax setup (PPN
+12% on a reduced base of 11/12, i.e. 11% effective; the full 12% rate is not in use); off → no tax rows. Resolves
+the #855 review item M-3 (a VAT-free contract got the template VAT) and governs #856.

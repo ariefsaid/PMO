@@ -1917,7 +1917,10 @@
       },
       "pmoNumber": "PMO Project Number",
       "clientCode": "Client Project Code",
-      "notSet": "Not set"
+      "notSet": "Not set",
+      "subjectToVat": "Subject to VAT (PPN)",
+      "subjectToVatLocked": "Locked: this project already has a sales invoice. Cancel its invoices to change it.",
+      "subjectToVatHint": "When on, this project's invoices carry the ERP sales tax. Locked once the first invoice exists."
     },
     "milestoneForm": {
       "create": "Create milestone",
