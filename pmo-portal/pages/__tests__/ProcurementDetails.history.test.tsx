@@ -1,0 +1,155 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router';
+import { ToastProvider } from '@/src/components/ui';
+
+const detailState = {
+  data: undefined as Record<string, unknown> | undefined,
+  isPending: false,
+  isError: false,
+  error: null as (Error & { code?: string }) | null,
+  refetch: vi.fn(),
+};
+
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProcurementRecords', () => ({
+  useProcurementRecordMutations: () => ({
+    createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
+    createRfq: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPayment: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
+  ProcurementFilesSubsection: () => null,
+}));
+vi.mock('@/src/hooks/useProcurementFiles', () => ({
+  useProcurementFiles: vi.fn(() => ({
+    list: { data: [], isPending: false, isError: false },
+    upload: { mutate: vi.fn(), isPending: false },
+    archive: { mutate: vi.fn(), isPending: false },
+    download: vi.fn(async () => 'https://signed/url'),
+    progress: null,
+    uploadError: null,
+    cancelUpload: vi.fn(),
+    clearUploadError: vi.fn(),
+  })),
+}));
+vi.mock('@/src/hooks/useProcurementDetail', () => ({
+  useProcurementDetail: () => detailState,
+  useProcurementMutations: () => ({
+    transition: { mutateAsync: vi.fn(), isPending: false, error: null },
+    createQuotation: { mutateAsync: vi.fn(), isPending: false, error: null },
+    createReceipt: { mutateAsync: vi.fn(), isPending: false, error: null },
+    createInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
+    captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
+  }),
+}));
+vi.mock('@/src/hooks/useProcurementCrud', () => ({
+  useProcurementCrudMutations: () => ({
+    updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    createItem: { mutateAsync: vi.fn(), isPending: false },
+    updateItem: { mutateAsync: vi.fn(), isPending: false },
+    deleteItem: { mutateAsync: vi.fn(), isPending: false },
+    selectQuote: { mutateAsync: vi.fn(), isPending: false },
+    createDocument: { mutateAsync: vi.fn(), isPending: false },
+    deleteDocument: { mutateAsync: vi.fn(), isPending: false },
+  }),
+  useProcurementDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+}));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Finance' }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ effectiveRole: 'Finance', realRole: 'Finance' }),
+}));
+vi.mock('@/src/hooks/useBudget', () => ({
+  useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProjectCommittedSpend: () => ({ data: 500000, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
+}));
+
+vi.mock('@/src/components/history/RecordHistory', () => ({
+  RecordHistory: (p: { entityType: string; entityId: string; includeChildren?: boolean }) => (
+    <div data-testid="record-history">{`${p.entityType}:${p.entityId}:${String(p.includeChildren)}`}</div>
+  ),
+}));
+
+import ProcurementDetails from '../ProcurementDetails';
+
+const baseProcurement = {
+  id: 'proc-001',
+  code: 'PROC-2026-001',
+  title: 'Workstations for HQ',
+  status: 'Requested' as const,
+  total_value: 50000, currency: 'USD',
+  pr_number: 'PR-2606040001',
+  po_number: null,
+  vq_number: null,
+  approval_notes: null,
+  rejection_notes: null,
+  requested_by_id: 'u-alice',
+  approved_by_id: null,
+  vendor_id: null,
+  project_id: 'proj-1',
+  org_id: 'org-1',
+  created_at: '2026-06-04T00:00:00Z',
+  updated_at: '2026-06-04T00:00:00Z',
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', budget: 1000000, spent: 500000 },
+  vendor: null,
+  requested_by: { full_name: 'Alice Manager' },
+  approved_by: null,
+  items: [],
+  quotations: [],
+  receipts: [],
+  invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
+};
+
+const renderAt = (path: string) =>
+  render(
+    <ToastProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/procurement/:procurementId/:tab?" element={<ProcurementDetails />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
+  );
+
+beforeEach(() => {
+  detailState.data = baseProcurement;
+  detailState.isPending = false;
+  detailState.isError = false;
+  detailState.error = null;
+});
+
+describe('ProcurementDetails — History tab (AC-CHG-018)', () => {
+  it('AC-CHG-018: /procurement/:id/history deep-links to the History tab with the child roll-up', () => {
+    renderAt('/procurement/proc-001/history');
+    expect(screen.getByTestId('record-history')).toHaveTextContent('procurement:proc-001:true');
+  });
+
+  it('AC-CHG-018: the History tab is keyboard-operable from the tab bar', async () => {
+    renderAt('/procurement/proc-001');
+    expect(screen.queryByTestId('record-history')).toBeNull();
+    screen.getByRole('tab', { name: 'History' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByTestId('record-history')).toBeInTheDocument();
+  });
+});

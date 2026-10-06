@@ -1501,7 +1501,8 @@
       "documents": "Dokumen",
       "lineItems": "Rincian item",
       "overview": "Ringkasan",
-      "vendorQuotes": "Penawaran vendor"
+      "vendorQuotes": "Penawaran vendor",
+      "history": "Riwayat"
     },
     "tabsLabel": "Bagian pengadaan",
     "tile": {
@@ -2161,7 +2162,8 @@
       "overview": "Ringkasan",
       "procurement": "Pengadaan",
       "tasks": "Tugas",
-      "workOrders": "Work Order"
+      "workOrders": "Work Order",
+      "history": "Riwayat"
     },
     "tasks": {
       "action": {

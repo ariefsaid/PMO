@@ -55,6 +55,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { RecordHistory } from '@/src/components/history/RecordHistory';
 import {
   lifecycleSteps,
   pillVariantForStatus,
@@ -84,8 +85,8 @@ const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 // Overview (status-at-a-glance: stepper above + the Overview bento). An absent/unknown
 // :tab defaults to Overview and is role-invariant (CW-7); an explicit :tab always wins.
 // ---------------------------------------------------------------------------
-type ProcTab = 'overview' | 'items' | 'documents' | 'quotes';
-const PROC_TAB_VALUES: ProcTab[] = ['overview', 'items', 'documents', 'quotes'];
+type ProcTab = 'overview' | 'items' | 'documents' | 'quotes' | 'history';
+const PROC_TAB_VALUES: ProcTab[] = ['overview', 'items', 'documents', 'quotes', 'history'];
 function tabFromParam(param: string | undefined): ProcTab {
   if (param && (PROC_TAB_VALUES as string[]).includes(param)) return param as ProcTab;
   return 'overview';
@@ -827,6 +828,7 @@ const ProcurementDetails: React.FC = () => {
       label: t('procurementDetail.tabs.vendorQuotes', 'Vendor quotes'),
       count: p.quotations.length || null,
     },
+    { value: 'history', label: t('procurementDetail.tabs.history', 'History') },
   ];
 
   return (
@@ -1030,6 +1032,8 @@ const ProcurementDetails: React.FC = () => {
             Refactors QuotationsSection into a side-by-side comparison layout:
             Vendor / Amount / Valid until · selected row highlighted + won pill.
             Reuses the existing selectQuote RPC + SoD/role gating unchanged. ░░ */}
+        {tab === 'history' && <RecordHistory entityType="procurement" entityId={p.id} includeChildren />}
+
         {tab === 'quotes' && (
           <VendorQuotesTab
             quotations={p.quotations}

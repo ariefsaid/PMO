@@ -1506,7 +1506,8 @@
       "documents": "Documents",
       "lineItems": "Line items",
       "overview": "Overview",
-      "vendorQuotes": "Vendor quotes"
+      "vendorQuotes": "Vendor quotes",
+      "history": "History"
     },
     "tabsLabel": "Procurement sections",
     "tile": {
@@ -2161,7 +2162,8 @@
       "overview": "Overview",
       "procurement": "Procurement",
       "tasks": "Tasks",
-      "workOrders": "Work orders"
+      "workOrders": "Work orders",
+      "history": "History"
     },
     "tasks": {
       "action": {
