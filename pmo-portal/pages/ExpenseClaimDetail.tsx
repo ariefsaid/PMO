@@ -153,7 +153,7 @@ const ExpenseClaimDetail: React.FC = () => {
       </Card>
 
       {showRouteNote && route && (
-        <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t)}</p>
+        <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
       )}
 
       <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />

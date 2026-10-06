@@ -1507,6 +1507,7 @@
       "note": "Persetujuan permintaan ini diarahkan ke {{names}}: {{why}}",
       "nameJoiner": " atau ",
       "why": {
+        "projectApprover": "mereka adalah penyetuju yang ditetapkan untuk proyek ini.",
         "withinBudget": "permintaan ini masih dalam anggaran {{category}} proyek.",
         "exceedsLine": "permintaan ini akan melampaui batas anggaran {{category}} proyek.",
         "noProject": "ini pengeluaran overhead, tidak dibebankan ke proyek.",

@@ -1,29 +1,38 @@
 -- expense_advances.test.sql — #775 advances: claims settle against them at payment, Finance records cash
 -- returns, aging is in the org's timezone (DD-EXP-6/7). AC-EXP-017, 030..032.
 begin;
-select plan(21);
+select plan(24);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('02475000-0000-0000-0000-00000000000a','EXP Adv Org','IDR','Asia/Jakarta');
+insert into organizations (id, name, default_currency, default_timezone) values
+  ('02475000-0000-0000-0000-00000000000b','EXP Adv Org B','IDR','Asia/Jakarta');
 insert into auth.users (id, email) values
   ('02475000-0000-0000-0000-0000000000a1','exp-a-e1@example.com'),
   ('02475000-0000-0000-0000-0000000000a2','exp-a-e2@example.com'),
   ('02475000-0000-0000-0000-0000000000a3','exp-a-pm@example.com'),
   ('02475000-0000-0000-0000-0000000000a4','exp-a-f1@example.com'),
-  ('02475000-0000-0000-0000-0000000000a5','exp-a-f2@example.com');
+  ('02475000-0000-0000-0000-0000000000a5','exp-a-f2@example.com'),
+  ('02475000-0000-0000-0000-0000000000a6','exp-a-ad@example.com'),
+  ('02475000-0000-0000-0000-0000000000b1','exp-a-bad@example.com'),
+  ('02475000-0000-0000-0000-0000000000b2','exp-a-bf@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('02475000-0000-0000-0000-0000000000a1','02475000-0000-0000-0000-00000000000a','A Eng One','exp-a-e1@example.com','Engineer','active'),
   ('02475000-0000-0000-0000-0000000000a2','02475000-0000-0000-0000-00000000000a','A Eng Two','exp-a-e2@example.com','Engineer','active'),
   ('02475000-0000-0000-0000-0000000000a3','02475000-0000-0000-0000-00000000000a','A PM','exp-a-pm@example.com','Project Manager','active'),
   ('02475000-0000-0000-0000-0000000000a4','02475000-0000-0000-0000-00000000000a','A Fin One','exp-a-f1@example.com','Finance','active'),
-  ('02475000-0000-0000-0000-0000000000a5','02475000-0000-0000-0000-00000000000a','A Fin Two','exp-a-f2@example.com','Finance','active');
+  ('02475000-0000-0000-0000-0000000000a5','02475000-0000-0000-0000-00000000000a','A Fin Two','exp-a-f2@example.com','Finance','active'),
+  ('02475000-0000-0000-0000-0000000000a6','02475000-0000-0000-0000-00000000000a','A Admin','exp-a-ad@example.com','Admin','active'),
+  ('02475000-0000-0000-0000-0000000000b1','02475000-0000-0000-0000-00000000000b','A Admin B','exp-a-bad@example.com','Admin','active'),
+  ('02475000-0000-0000-0000-0000000000b2','02475000-0000-0000-0000-00000000000b','A Fin B','exp-a-bf@example.com','Finance','active');
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, paid_on, returned_amount) values
   ('02475000-0000-0000-0000-000000000301','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a1','Trip float',1000,'Paid','ADV-2610040001','02475000-0000-0000-0000-0000000000a3',(now() at time zone 'Asia/Jakarta')::date - 10,0),
   ('02475000-0000-0000-0000-000000000302','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a1','Returnable',500,'Paid','ADV-2610040002','02475000-0000-0000-0000-0000000000a3',(now() at time zone 'Asia/Jakarta')::date - 10,0),
   ('02475000-0000-0000-0000-000000000303','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a5','F2 own',200,'Paid','ADV-2610040003','02475000-0000-0000-0000-0000000000a3',(now() at time zone 'Asia/Jakarta')::date - 5,0),
   ('02475000-0000-0000-0000-000000000304','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a1','Not yet paid',100,'Approved','ADV-2610040004','02475000-0000-0000-0000-0000000000a3',null,0),
   ('02475000-0000-0000-0000-000000000305','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a1','Settled',50,'Paid','ADV-2610040005','02475000-0000-0000-0000-0000000000a3',(now() at time zone 'Asia/Jakarta')::date - 100,50),
-  ('02475000-0000-0000-0000-000000000306','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a1','Aged',500,'Paid','ADV-2610040006','02475000-0000-0000-0000-0000000000a3',(now() at time zone 'Asia/Jakarta')::date - 45,0);
+  ('02475000-0000-0000-0000-000000000306','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a1','Aged',500,'Paid','ADV-2610040006','02475000-0000-0000-0000-0000000000a3',(now() at time zone 'Asia/Jakarta')::date - 45,0),
+  ('02475000-0000-0000-0000-000000000307','02475000-0000-0000-0000-00000000000a','advance','02475000-0000-0000-0000-0000000000a6','Admin own',200,'Paid','ADV-2610040007','02475000-0000-0000-0000-0000000000a3',(now() at time zone 'Asia/Jakarta')::date - 5,0);
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, advance_id) values
   ('02475000-0000-0000-0000-000000000401','02475000-0000-0000-0000-00000000000a','claim','02475000-0000-0000-0000-0000000000a1','Claim 300',300,'Approved','EXP-2610040007','02475000-0000-0000-0000-0000000000a3','02475000-0000-0000-0000-000000000301'),
   ('02475000-0000-0000-0000-000000000402','02475000-0000-0000-0000-00000000000a','claim','02475000-0000-0000-0000-0000000000a1','Claim 900',900,'Approved','EXP-2610040008','02475000-0000-0000-0000-0000000000a3','02475000-0000-0000-0000-000000000301');
@@ -58,6 +67,18 @@ set local request.jwt.claims = '{"sub":"02475000-0000-0000-0000-0000000000a5","r
 select throws_ok($$ select record_expense_advance_return('02475000-0000-0000-0000-000000000303', 10) $$,
   '42501', 'separation of duties: a claimant cannot record a return of their own advance',
   'AC-EXP-031: Finance cannot record a return on their own advance');
+
+set local request.jwt.claims = '{"sub":"02475000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select throws_ok($$ select record_expense_advance_return('02475000-0000-0000-0000-000000000307', 10) $$,
+  '42501', 'separation of duties: a claimant cannot record a return of their own advance',
+  'AC-EXP-031: even an Admin cannot record a return on their own advance');
+
+set local request.jwt.claims = '{"sub":"02475000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$ select record_expense_advance_return('02475000-0000-0000-0000-000000000302', 10) $$,
+  '42501', 'not authorized', 'AC-EXP-018: an Admin of another org cannot record a return');
+set local request.jwt.claims = '{"sub":"02475000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+select throws_ok($$ select record_expense_advance_return('02475000-0000-0000-0000-000000000302', 10) $$,
+  '42501', 'not authorized', 'AC-EXP-018: Finance of another org cannot record a return');
 
 set local request.jwt.claims = '{"sub":"02475000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select throws_ok($$ select record_expense_advance_return('02475000-0000-0000-0000-000000000302', 10) $$,

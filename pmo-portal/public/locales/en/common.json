@@ -1512,6 +1512,7 @@
       "note": "Approval for this request is routed to {{names}}: {{why}}",
       "nameJoiner": " or ",
       "why": {
+        "projectApprover": "they are the approver set for this project.",
         "withinBudget": "it is within the project's {{category}} budget.",
         "exceedsLine": "it would take the project's {{category}} budget over its limit.",
         "noProject": "it is overhead spend, not charged to a project.",

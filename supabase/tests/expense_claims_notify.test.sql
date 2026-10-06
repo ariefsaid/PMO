@@ -1,7 +1,7 @@
 -- expense_claims_notify.test.sql — #775 hand-offs (the #788 pattern): submit → the route's approvers; approve →
 -- claimant + Finance; reject/pay → claimant. Never the claimant on submit. AC-EXP-040..041.
 begin;
-select plan(14);
+select plan(16);
 
 insert into organizations (id, name, default_currency) values ('02476000-0000-0000-0000-00000000000a','EXP Notify Org','IDR');
 insert into auth.users (id, email) values
@@ -30,6 +30,20 @@ insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_ca
 insert into expense_claim_lines (claim_id, expense_date, expense_type, description, amount) values
   ('02476000-0000-0000-0000-000000000401','2026-10-01','Travel','Train',200),
   ('02476000-0000-0000-0000-000000000403','2026-10-01','Meals','Lunch',50);
+
+-- The claimant here is itself in the approval-rank set (a Project Manager). Submitted with no acting user
+-- (table owner, auth.uid() null) so notify_workflow_user's own drop-the-actor guard cannot hide the claimant:
+-- only the trigger's claimant exclusion keeps them out. Other members of the set still hear it.
+insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status) values
+  ('02476000-0000-0000-0000-000000000404','02476000-0000-0000-0000-00000000000a','advance','02476000-0000-0000-0000-0000000000a2','Notify PM advance',250,'Draft');
+update expense_claims set status = 'Submitted', submitted_at = now(), claim_number = 'ADV-2610060404'
+ where id = '02476000-0000-0000-0000-000000000404';
+select is((select count(*)::int from notifications where owner_id = '02476000-0000-0000-0000-0000000000a2'
+            and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000404'), 0,
+  'AC-EXP-040: a claimant who is in the approval set is still not told to approve their own advance');
+select is((select count(*)::int from notifications where owner_id in ('02476000-0000-0000-0000-0000000000a3','02476000-0000-0000-0000-0000000000a4')
+            and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000404'), 2,
+  'AC-EXP-040: the rest of the approval set is');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02476000-0000-0000-0000-0000000000a1","role":"authenticated"}';

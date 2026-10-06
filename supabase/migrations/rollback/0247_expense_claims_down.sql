@@ -131,7 +131,8 @@ drop function if exists public.transition_expense_claim(uuid, public.expense_cla
 drop function if exists public.expense_advance_outstanding(uuid);
 drop policy if exists storage_objects_expense_receipt_write on storage.objects;
 drop policy if exists storage_objects_expense_receipt_read  on storage.objects;
-delete from storage.buckets where id = 'expense-receipts';
+-- The 'expense-receipts' bucket must be emptied and then removed through the Storage API (hosted projects
+-- refuse direct deletes on storage tables), so it is not deleted here.
 drop table if exists public.expense_claim_files;
 drop table if exists public.expense_claim_lines;
 drop table if exists public.expense_claims;
