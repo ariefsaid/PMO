@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — signIn + open the seeded meeting + type into the editor WITHOUT saving (no DB writes).
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 /**
  * AC-MTG-022 / AC-MTG-021 (#805): the BlockNote minutes surface lands on DESIGN.md's heading scale
@@ -18,6 +18,7 @@ for (const width of [390, 360]) {
     await page.goto(`/meetings/${SEEDED_MEETING}`);
     const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
     await expect(editor).toBeVisible();
+    await waitForFonts(page); // layout is measured below (#713)
 
     // BlockNote's markdown input rules: "# " / "## " / "### " at the start of an empty block.
     await editor.click();
