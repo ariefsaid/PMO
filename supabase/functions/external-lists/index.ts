@@ -30,6 +30,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 
 interface ListsBody {
   tier: 'clickup';
@@ -119,7 +120,7 @@ interface ClickUpHierarchyDeps {
 
 async function fetchTeams(deps: ClickUpHierarchyDeps): Promise<ClickUpTeam[]> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await deps.fetchImpl(`${baseUrl}/team`, {
+  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/team`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -131,7 +132,7 @@ async function fetchTeams(deps: ClickUpHierarchyDeps): Promise<ClickUpTeam[]> {
 
 async function fetchSpaces(deps: ClickUpHierarchyDeps, teamId: string): Promise<ClickUpSpace[]> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await deps.fetchImpl(`${baseUrl}/team/${teamId}/space`, {
+  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/team/${teamId}/space`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) return [];
@@ -141,7 +142,7 @@ async function fetchSpaces(deps: ClickUpHierarchyDeps, teamId: string): Promise<
 
 async function fetchFolders(deps: ClickUpHierarchyDeps, spaceId: string): Promise<ClickUpFolder[]> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await deps.fetchImpl(`${baseUrl}/space/${spaceId}/folder`, {
+  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/space/${spaceId}/folder`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) return [];
@@ -156,7 +157,7 @@ async function fetchLists(
 ): Promise<ClickUpList[]> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
   const path = folderId ? `/folder/${folderId}/list` : `/space/${spaceId}/list`;
-  const res = await deps.fetchImpl(`${baseUrl}${path}`, {
+  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}${path}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) return [];

@@ -18,6 +18,7 @@ import type { ErrorEventRow, SendLogEntry } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 // M4 (perf, 2026-07-28 review): caps the unnotified-rows query so one error storm cannot load the
 // whole error_events table into the worker every 2-minute tick. Served by error_events_unnotified_idx
@@ -96,12 +97,18 @@ serveWithErrorReporting('telegram-notify', async (req: Request): Promise<Respons
       markDelivered: async (errorCode, atIso) =>
         await serviceClient.from('alert_send_log').update({ delivered_at: atIso }).eq('error_code', errorCode),
       sendTelegram: async (payload) => {
-        const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, chat_id: chatId }),
-        });
-        return { ok: res.ok };
+        // A hung Telegram API resolves to a failed send (ok:false) — the write-ahead row stays undelivered
+        // and the next drain retries — instead of stalling the drain until the platform kills it.
+        try {
+          const res = await fetchBounded(undefined, `https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, chat_id: chatId }),
+          });
+          return { ok: res.ok };
+        } catch {
+          return { ok: false };
+        }
       },
       stampNotified: async (ids, atIso) =>
         await serviceClient.from('error_events').update({ notified_at: atIso }).in('id', ids),

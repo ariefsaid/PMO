@@ -40,6 +40,7 @@ import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { isAdminOrOperator, type AdminOrOperatorClient } from '../_shared/adminOrOperator.ts';
+import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 
 interface ConnectBody {
   tier: 'clickup' | 'erpnext';
@@ -123,11 +124,12 @@ async function validateClickUpToken(
 ): Promise<string | null> {
   let res: Response;
   try {
-    res = await deps.fetchImpl('https://api.clickup.com/api/v2/user', {
+    res = await fetchBounded(deps.fetchImpl, 'https://api.clickup.com/api/v2/user', {
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch (err) {
     if (err instanceof AppError) throw err;
+    if (err instanceof FetchDeadlineError) throw new AppError('ClickUp did not respond in time', 'external-unreachable');
     throw new AppError('Invalid ClickUp token', 'config-rejected');
   }
   if (!res.ok) {
@@ -143,9 +145,15 @@ async function validateClickUpToken(
 }
 
 async function validateClickUpTeam(token: string, deps: ValidatorDeps): Promise<string> {
-  const res = await deps.fetchImpl('https://api.clickup.com/api/v2/team', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  let res: Response;
+  try {
+    res = await fetchBounded(deps.fetchImpl, 'https://api.clickup.com/api/v2/team', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (err) {
+    if (err instanceof FetchDeadlineError) throw new AppError('ClickUp did not respond in time', 'external-unreachable');
+    throw err;
+  }
   if (!res.ok) throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
   try {
     const body = (await res.json()) as { teams?: Array<{ id?: number | string }> };
@@ -367,6 +375,9 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   } catch (err) {
     if (err instanceof AppError && err.code === 'config-rejected') {
       return errorResponse(err.message, err.code, 422);
+    }
+    if (err instanceof AppError && err.code === 'external-unreachable') {
+      return errorResponse(err.message, err.code, 502);
     }
     return errorResponse('Credential validation failed', 'config-rejected', 422);
   }

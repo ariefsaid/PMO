@@ -7,6 +7,7 @@
  * testable in Vitest (ADR-0039 decision-7).
  */
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 export interface ErrorEventRow {
   id: string;
@@ -110,7 +111,7 @@ export function buildTelegramPayload(group: MessageGroup): TelegramPayload {
 export async function pingHeartbeat(url: string | undefined): Promise<void> {
   if (!url) return;
   try {
-    await fetch(url, { method: 'GET' });
+    await fetchBounded(undefined, url, { method: 'GET' });
   } catch {
     // Swallowed by design (FR-OF-021) — a dead heartbeat URL must never affect the
     // drain's own success/failure or notified_at stamping.
