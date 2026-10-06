@@ -1237,7 +1237,7 @@
       "slash": {
         "actionTitle": "Butir tindakan",
         "actionSubtext": "Buat tugas dari baris ini",
-        "actionGroup": "Blok dasar",
+        "actionGroup": "Tindakan",
         "actionAliases": "aksi,tindakan,tugas,todo"
       },
       "title": "Notulen"

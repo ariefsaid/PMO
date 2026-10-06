@@ -2567,6 +2567,33 @@ comment is invisible to the next spec reader; this entry plus the spec amendment
 
 ---
 
+## DD-MTG-10 — the BlockNote minutes editor and the `actionItem` block are IN (Director, 2026-10-06, #805)
+
+**Reverses the editor half of `DD-MTG-9`.** #526 shipped a line-per-block editor "as scoped by the brief"
+with no ruling behind the cut; the owner filed #805 to build what the spec said. Minutes are taken live,
+and a line editor (no headings, lists, slash menu or paste-from-docs) sends people to take notes elsewhere.
+Built on the `DD-MTG-9` terms — *a fresh design under `DD-MTG-2`*:
+
+- **`meetings.notes` v2 = BlockNote `Block[]` verbatim**; `notes_schema_version` is **derived by the
+  trigger from the document's shape** (2 when the array is empty or any element carries `children`, else 1)
+  — still server-written, never client-set (FR-MTG-005). Migration `0254` also makes `notes_text` collect every
+  text run once from both shapes (`strict $.**.text`, FR-MTG-008).
+- **v1 notes upgrade one-way on load** (`upgradeNotes`): each line becomes a paragraph with the same text; the
+  next Save writes v2. No data migration over live rows.
+- **The `actionItem` block is atomic** (`content:'none'`, `props:{taskId}` only — the spike's `content:'inline'`
+  copy of task state is exactly what `DD-MTG-2` forbids). It renders the live `tasks` row, tombstones when it
+  no longer resolves, and deleting/pasting it never writes. `DD-MTG-8` stands: `/action` opens the prefilled
+  task-create modal and the block is inserted with the created task's id; the item is hidden when tasks are
+  externally owned (§8.5).
+- **Palette without media** (FR-MTG-022): image/video/audio/file blocks are omitted from the schema, and
+  `updateMeeting` refuses any `data:` URI as a backstop.
+- **Still out:** template copy-on-create (FR-MTG-021, deferred with templates), attachments, autosave.
+- **Bundle:** the editor is a lazy chunk (`React.lazy` in `MeetingDetail`); its Tailwind utilities ship in
+  that chunk's CSS rather than `index.css`, so the initial route bundle is unchanged (measured in #805).
+  BlockNote ships no Bahasa dictionary, so `src/components/meetings/minutesDictionary.ts` is the `id` one.
+
+---
+
 ## DD-TAX-2 — the contract-value SoD editor keeps its empty treatment, deliberately (Director, 2026-08-25)
 
 **Question raised by #548's build.** `OD-TAX-1` pre-selects on NEW rows and shows the stored value when

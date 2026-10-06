@@ -1237,7 +1237,7 @@
       "slash": {
         "actionTitle": "Action item",
         "actionSubtext": "Create a task from this line",
-        "actionGroup": "Basic blocks",
+        "actionGroup": "Actions",
         "actionAliases": "action,task,todo"
       },
       "title": "Minutes"

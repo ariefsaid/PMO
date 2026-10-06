@@ -13,6 +13,12 @@
   font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.45;
+}
+
+/* BlockNote sets its own --bn-* per [data-color-scheme] on .bn-container (specificity 0,2,0) — the token
+   overrides must sit at least as specific or the app's dark mode never reaches the editor. */
+.minutes-editor .bn-container,
+.minutes-editor .bn-container[data-color-scheme] {
   --bn-colors-editor-text: hsl(var(--foreground));
   --bn-colors-editor-background: transparent;
   --bn-colors-menu-background: hsl(var(--popover));
@@ -39,7 +45,7 @@
 .minutes-editor .bn-container { background: transparent; }
 .minutes-editor .bn-editor { padding: 0; background: transparent; }
 .minutes-editor .bn-block-outer { line-height: 1.45; }
-.minutes-editor .bn-block-content { font-size: 14px; }
+.minutes-editor .bn-block-content { font-size: 14px; transition: none; } /* no font-size tween: the measured size is the settled size */
 /* Long unbroken strings (URLs, codes) wrap instead of widening the page — AC-MOBILE-OVERFLOW-001. */
 .minutes-editor .bn-inline-content { overflow-wrap: anywhere; }
 .minutes-editor .bn-block-content[data-content-type='codeBlock'] > pre { max-width: 100%; overflow-x: auto; }

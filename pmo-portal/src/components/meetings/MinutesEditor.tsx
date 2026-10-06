@@ -100,7 +100,7 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
         items.push({
           title: t('meetingDetail.minutes.slash.actionTitle', 'Action item'),
           subtext: t('meetingDetail.minutes.slash.actionSubtext', 'Create a task from this line'),
-          group: t('meetingDetail.minutes.slash.actionGroup', 'Basic blocks'),
+          group: t('meetingDetail.minutes.slash.actionGroup', 'Actions'),
           aliases: t('meetingDetail.minutes.slash.actionAliases', 'action,task,todo')
             .split(',')
             .map((a) => a.trim())

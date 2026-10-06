@@ -32,14 +32,22 @@ for (const width of [390, 360]) {
     // A 160-char unbroken string — the class that bled at 375px in the spike.
     await page.keyboard.type(`https://example.test/${'x'.repeat(140)}`);
 
+    // BlockNote omits data-level for H1 (the default level); H2/H3 carry it.
     const size = (level: number) =>
       editor
-        .locator(`[data-content-type="heading"][data-level="${level}"]`)
+        .locator(
+          level === 1
+            ? '[data-content-type="heading"]:not([data-level])'
+            : `[data-content-type="heading"][data-level="${level}"]`,
+        )
         .last()
         .evaluate((el) => getComputedStyle(el).fontSize);
 
     for (const scheme of ['light', 'dark'] as const) {
-      await page.evaluate((s) => document.documentElement.classList.toggle('dark', s === 'dark'), scheme);
+      await page.evaluate((s) => {
+        document.documentElement.classList.toggle('dark', s === 'dark');
+        window.dispatchEvent(new Event('themechange'));
+      }, scheme);
       expect(await size(1), `${scheme} H1`).toBe('24px');
       expect(await size(2), `${scheme} H2`).toBe('20px');
       expect(await size(3), `${scheme} H3`).toBe('18px');
