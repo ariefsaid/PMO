@@ -35,4 +35,14 @@ describe('security headers (AC-CLI-016)', () => {
     expect(all?.get('content-security-policy')).toBe("frame-ancestors 'none'");
     expect(all?.get('x-frame-options')).toBe('DENY');
   });
+
+  it('AC-CLI-017: hashed /assets/* are cached for a year as immutable; index.html is not given that rule', () => {
+    const all = rules(HEADERS);
+    expect(all.get('/assets/*')?.get('cache-control')).toBe('public, max-age=31536000, immutable');
+    // The site-wide rule and any non-asset rule must not make the HTML shell long-lived.
+    for (const [pattern, headers] of all) {
+      if (pattern === '/assets/*') continue;
+      expect(headers.get('cache-control') ?? '', `rule ${pattern}`).not.toMatch(/immutable|max-age=[1-9]/);
+    }
+  });
 });
