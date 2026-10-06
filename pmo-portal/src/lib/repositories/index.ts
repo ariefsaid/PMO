@@ -257,6 +257,7 @@ import {
   getIncomingPayment,
   getRevenueByProject,
   submitSalesInvoiceSod,
+  setSalesInvoiceReceivedDate,
 } from '@/src/lib/db/revenue';
 import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
@@ -618,6 +619,7 @@ const revenue: RevenueRepository = {
           intent,
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
   submitInvoice: (siId, intent) =>
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {

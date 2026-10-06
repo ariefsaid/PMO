@@ -2742,6 +2742,11 @@
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
   "financeCopy": {
+    "receivedDate": "Diterima",
+    "recordReceivedDate": "Catat tanggal diterima",
+    "receivedDateHelp": "Tanggal klien menerima faktur ini. Tanggal jatuh tempo mengikuti tanggal ini.",
+    "receivedDateSaved": "Tanggal diterima disimpan",
+    "receivedBeforeInvoiceDate": "Tidak boleh sebelum tanggal faktur",
     "statusDraft": "Draf",
     "statusActive": "Aktif",
     "statusArchived": "Diarsipkan",
