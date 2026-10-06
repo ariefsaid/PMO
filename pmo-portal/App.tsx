@@ -89,6 +89,8 @@ const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
 const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
 const MeetingsPage = React.lazy(() => import('./pages/Meetings'));
 const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
+const ExpenseClaimsPage = React.lazy(() => import('./pages/ExpenseClaims'));
+const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
@@ -162,6 +164,9 @@ export const appRouteConfig: RouteObject[] = [
   //   exist for every role; the detail renders a calm not-found for an unshared meeting.
   { path: '/meetings', element: <MeetingsPage /> },
   { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
+  // #775: expense claims and cash advances.
+  { path: '/expenses', element: <ExpenseClaimsPage /> },
+  { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
   { path: '/reports', element: <PlaceholderPage title="Reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },

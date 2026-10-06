@@ -346,4 +346,15 @@ describe('NotificationBell', () => {
     await userEvent.keyboard('{Enter}');
     expect(await screen.findByRole('list', { name: /notifications/i })).toBeInTheDocument();
   });
+
+  it('AC-EXP-065 selecting an expense-claim hand-off opens the claim', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Expense claim awaiting your approval', metadata: { entity: { type: 'expense_claim', id: 'ec-7', label: 'EXP-1' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /expense claim awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/expenses/ec-7'));
+  });
 });
