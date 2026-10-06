@@ -193,7 +193,7 @@
     "select_procurement_quote(uuid)",
     "select_trigger_events(text,timestamp with time zone,uuid,jsonb)",
     "set_external_binding_site_url(uuid,text,text,uuid)",
-    "set_project_contract_value(uuid,numeric,text,numeric,numeric,text,integer,integer)",
+    "set_project_contract_value(uuid,numeric,text,numeric,numeric,text,integer,integer,boolean)",
     "set_sales_invoice_received_date(uuid,date)",
     "set_work_order_value(uuid,numeric,text,numeric,numeric,integer,integer)",
     "submit_sales_invoice(uuid)",

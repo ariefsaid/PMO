@@ -11,12 +11,12 @@ const ORG = 'org-1';
 const ITEM = { item_code: 'SYNTHETIC-ITEM', qty: 1, rate: 100 };
 const INVOICE = { id: 'si-1', org_id: ORG, reference_number: null, work_order_id: 'wo-1', project_id: 'proj-1', erp_modified: null, received_date: null };
 const WO = { id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01' };
-const PROJECT = { id: 'proj-1', org_id: ORG, customer_contract_ref: 'PROJECT-PO-001', contract_date: '2026-08-01' };
+const PROJECT = { id: 'proj-1', org_id: ORG, customer_contract_ref: 'PROJECT-PO-001', contract_date: '2026-08-01', subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 };
 
 /** PostgREST boundary fake: enforce filters and requested columns, including org isolation. */
 function serviceClient(invoice: Row | null, wo: Row | null, project: Row | null, failingTable?: string): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
-    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { project_map: { 'proj-1': 'ERP-PROJ-001' } } }],
+    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
@@ -81,6 +81,12 @@ async function push(invoice: Row | null = INVOICE, wo: Row | null = WO, project:
   const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
     if (new URL(String(_url)).pathname === '/api/resource/Item' && init?.method === 'GET') {
       return Response.json({ data: [{ name: ITEM.item_code, item_name: 'Test invoice service', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
+    }
+    // #856: a VAT-on project reads the company's default tax template before the create.
+    const taxPath = decodeURIComponent(new URL(String(_url)).pathname);
+    if (taxPath === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: [{ name: 'Synthetic Tax' }] });
+    if (taxPath === '/api/resource/Sales Taxes and Charges Template/Synthetic Tax') {
+      return Response.json({ data: { name: 'Synthetic Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10 }] } });
     }
     body = JSON.parse(String(init?.body)) as Row;
     return new Response(JSON.stringify({ data: { name: 'SYNTHETIC-SI-001', ...body, docstatus: 0 } }), { status: 200 });

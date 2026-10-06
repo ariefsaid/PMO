@@ -20,7 +20,7 @@ import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
-import { resolveSalesTaxRows } from './erpSalesTaxRows.ts';
+import { resolveSalesTaxRows, type ErpTaxRow } from './erpSalesTaxRows.ts';
 import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
@@ -960,12 +960,48 @@ function taxBaseFraction(row: unknown): { numerator: number; denominator: number
   const denominator = Number(r.tax_base_denominator ?? 1);
   return numerator > 0 && denominator >= numerator ? { numerator, denominator } : { numerator: 1, denominator: 1 };
 }
-async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<void> {
+/** A project that is subject to VAT is never invoiced untaxed: no ERP company or no default template is a setup action, not a free pass. */
+const MISSING_TAX_SETUP = 'This project is subject to VAT, but ERPNext has no default Sales Taxes and Charges template for this company. Set a default Sales Taxes and Charges template in ERPNext for this company (or switch the project off VAT before its first invoice), then raise the invoice again.';
+function requireTaxRows(rows: ErpTaxRow[]): ErpTaxRow[] {
+  if (rows.length === 0) throw new AppError(MISSING_TAX_SETUP, 'config-rejected');
+  return rows;
+}
+
+/**
+ * #856 / OD-TAX-4 — an ordinary (non-claim) Sales Invoice create gets the same explicit tax rows a claim invoice does (ERPNext
+ * does not expand a template over REST, so without them the client is billed untaxed). The project's "Subject to VAT" flag is
+ * the gate: OFF sends NO rows and makes no template read; ON builds them with `resolveSalesTaxRows` at the project's
+ * reduced-base fraction (0227). The flag is read server-side — a caller's value is never consulted, and a caller's `taxes`
+ * was already stripped. Rows are built before the outbox snapshot, so the payload and digest cover them. Edits and amends send none.
+ */
+async function resolveOrdinaryInvoiceTaxes(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+  record: Record<string, unknown>,
+): Promise<void> {
+  const company = binding.config?.company;
+  if (deps.command.operation !== 'create') return;
+  let fraction = { numerator: 1, denominator: 1 };
+  if (typeof record.projectId === 'string' && record.projectId) {
+    const { data, error } = await deps.serviceClient.from('projects')
+      .select('subject_to_vat,tax_base_numerator,tax_base_denominator')
+      .eq('org_id', deps.orgId).eq('id', record.projectId).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    if ((data as { subject_to_vat?: unknown } | null)?.subject_to_vat === false) return;
+    fraction = taxBaseFraction(data);
+  }
+  if (typeof company !== 'string' || !company) throw new AppError(MISSING_TAX_SETUP, 'config-rejected');
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  record.taxes = requireTaxRows(await resolveSalesTaxRows(client, company, fraction));
+}
+
+async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<'ordinary' | 'claim' | 'none'> {
   const record = deps.command.record as Record<string, unknown>;
-  if (record.erp_doc_kind !== 'sales-invoice') return;
+  if (record.erp_doc_kind !== 'sales-invoice') return 'none';
   delete record.taxes;
-  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return;
-  if (typeof record.id !== 'string' || !record.id) return;
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return 'none';
+  if (typeof record.id !== 'string' || !record.id) return 'none';
   const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
     .select('id,kind,project_id,work_order_id,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
@@ -973,7 +1009,10 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
   // Likewise the work order: only a claim sets it (from the claim row, below). An ordinary invoice's work order
   // comes from its own mirror row, never from the caller's command.
-  if (!claimData) { delete record.workOrderId; return; }
+  if (!claimData) {
+    delete record.workOrderId;
+    return 'ordinary';
+  }
   const claim = claimData as ProgressClaimRecord;
   // DD-PBL-7 (one claim, one invoice): ids are compared as TEXT downstream (external_refs, the one-in-flight
   // outbox index, withdraw_progress_claim), so a case-variant of the claim id would mint a second invoice.
@@ -987,10 +1026,11 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
     throw new AppError('The invoice project must be the progress claim project', 'commit-rejected');
   }
   const { data: project, error: projectError } = await deps.serviceClient.from('projects')
-    .select('client_id,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
+    .select('client_id,subject_to_vat,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
   if (projectError) throw new AppError(projectError.message, projectError.code);
   const clientId = (project as { client_id?: string | null } | null)?.client_id ?? null;
   let fraction = taxBaseFraction(project);
+  const subjectToVat = (project as { subject_to_vat?: unknown } | null)?.subject_to_vat !== false;
   if (!clientId || record.customerId !== clientId) {
     throw new AppError('The invoice customer must be the project client', 'commit-rejected');
   }
@@ -1034,13 +1074,15 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
     throw new AppError('ERPNext does not allow negative rates yet, which this claim needs to recover the down payment. An ERP administrator must turn on "Allow Negative rates for Items" in Selling Settings (or re-run ERP onboarding), then raise the invoice again.', 'config-rejected');
   }
   // DD-PBL-12b: ERPNext does not expand a template named over REST, so the tax rows are sent explicitly.
-  const company = binding.config?.company;
-  if (typeof company === 'string' && company) {
-    const taxes = await resolveSalesTaxRows(client, company, fraction);
-    if (taxes.length > 0) record.taxes = taxes; else delete record.taxes;
+  // OD-TAX-4: a project that is not subject to VAT sends no tax rows and reads no template (the flag is read above, server-side).
+  if (subjectToVat) {
+    const company = binding.config?.company;
+    if (typeof company !== 'string' || !company) throw new AppError(MISSING_TAX_SETUP, 'config-rejected');
+    record.taxes = requireTaxRows(await resolveSalesTaxRows(client, company, fraction));
   } else {
     delete record.taxes;
   }
+  return 'claim';
 }
 
 /**
@@ -1069,7 +1111,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
-  await resolveProgressClaimInvoice(deps, binding);
+  const invoiceKind = await resolveProgressClaimInvoice(deps, binding);
   let receiptConfig = binding.config;
   if (deps.command.record.erp_doc_kind === 'incoming-payment'
       && Number(deps.command.record.withheld_amount ?? 0) > 0) {
@@ -1101,6 +1143,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
+  // #856: ordinary-invoice tax rows read ERPNext, so they wait for the project gate and the PMO source reads (all fail closed before any ERP call).
+  if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceTaxes(deps, binding, deps.command.record as Record<string, unknown>);
   // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
   // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
   const itemKind = deps.command.record.erp_doc_kind;

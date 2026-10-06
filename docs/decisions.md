@@ -2938,6 +2938,13 @@ Negative rates for Items" (site-wide, off by default — the claim is refused at
 body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
 Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
 
+**DD-PBL-13 (Director, 2026-10-06, #856) — every sales invoice and claim sends explicit tax rows, gated by the project's VAT flag (OD-TAX-4).**
+One helper (`resolveSalesTaxRows`) serves ordinary invoice creates and claim/down-payment invoices: rate and account come from
+the ERP default template, scaled by the project's reduced-base fraction (0227; 12% on 11/12 = 11% effective). The gate is
+`projects.subject_to_vat` (migration 0253, default on), read server-side in the dispatch: off → no rows and no template read;
+a caller's `taxes` is always dropped. Rows are part of the command, so the outbox payload and digest cover them; sweep
+recovery of an already-sent invoice still re-reads the template (#858). Edits and amends send none.
+
 **OD-TAX-4 (owner, 2026-10-06) — a project says whether it is subject to VAT; every invoice follows it.**
 Owner proposal, Director timing: projects carry a "Subject to VAT (PPN)" flag, default on. It is set where the
 contract value is recorded (at the win) by the same Finance/Admin value-setter, editable by Finance/Admin until the
@@ -2945,3 +2952,9 @@ project's first invoice exists, then locked (to change it, cancel the invoices f
 progress/down-payment claim on the project follows it: on → explicit tax rows from the org's sales-tax setup (PPN
 12% on a reduced base of 11/12, i.e. 11% effective; the full 12% rate is not in use); off → no tax rows. Resolves
 the #855 review item M-3 (a VAT-free contract got the template VAT) and governs #856.
+
+**DD-TAX-4a (Director, 2026-10-06, #856, under OD-TAX-4) — a cancelled invoice still locks the project's VAT flag; a VAT-on invoice is never sent untaxed.**
+ERPNext keeps the taxed history of a cancelled invoice, so the flag stays locked once the project has any invoice (cancelled
+included) or a sales-invoice create still in flight in the outbox (otherwise recovery would see a changed payload digest). When
+the flag is on and ERPNext has no enabled default Sales Taxes and Charges template for the company, the dispatch is refused with
+`config-rejected` and the setup action, for ordinary, progress-claim and down-payment invoices alike.

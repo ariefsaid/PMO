@@ -76,6 +76,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
+vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [] }) })); // OD-TAX-4: header reads the project's invoices (VAT flag lock)
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

@@ -391,6 +391,8 @@ export interface SetProjectContractValueInput {
   taxBaseDenominator?: number;
   /** ERPNext taxes-and-charges template name; absent for a standalone org. */
   taxTemplate?: string | null;
+  /** OD-TAX-4: is the project subject to VAT (PPN)? Omit to leave it unchanged; only Finance/Admin may move it. */
+  subjectToVat?: boolean;
 }
 
 /**
@@ -422,6 +424,7 @@ export async function setProjectContractValue(
     p_tax_template: input.taxTemplate ?? undefined,
     ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
     ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
+    ...(input.subjectToVat !== undefined ? { p_subject_to_vat: input.subjectToVat } : {}),
   });
   if (error) throwWrite(error as PostgrestErrorLike);
 }

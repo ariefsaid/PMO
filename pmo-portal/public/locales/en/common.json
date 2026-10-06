@@ -1917,7 +1917,10 @@
       },
       "pmoNumber": "PMO Project Number",
       "clientCode": "Client Project Code",
-      "notSet": "Not set"
+      "notSet": "Not set",
+      "subjectToVat": "Subject to VAT (PPN)",
+      "subjectToVatLocked": "Locked once the project has an invoice.",
+      "subjectToVatHint": "When on, this project's invoices carry the ERP sales tax. Locked once the project has an invoice."
     },
     "milestoneForm": {
       "create": "Create milestone",

@@ -1917,7 +1917,10 @@
       },
       "pmoNumber": "Nomor Proyek PMO",
       "clientCode": "Kode Proyek Klien",
-      "notSet": "Belum diatur"
+      "notSet": "Belum diatur",
+      "subjectToVat": "Kena PPN",
+      "subjectToVatLocked": "Terkunci setelah proyek memiliki faktur.",
+      "subjectToVatHint": "Jika aktif, faktur proyek ini membawa pajak penjualan ERP. Terkunci setelah proyek memiliki faktur."
     },
     "milestoneForm": {
       "create": "Buat milestone",

@@ -26,6 +26,12 @@ function serviceClientReturning(row: unknown): DispatchServiceClient {
 }
 
 function itemCatalogResponse(url: string): Response | null {
+  // #856: a VAT-on sales invoice reads the company's default Sales Taxes and Charges template before the create.
+  const path = decodeURIComponent(new URL(url).pathname);
+  if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: [{ name: 'Smoke Tax' }] });
+  if (path === '/api/resource/Sales Taxes and Charges Template/Smoke Tax') {
+    return Response.json({ data: { name: 'Smoke Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - PSC', rate: 11 }] } });
+  }
   return new URL(url).pathname === '/api/resource/Item'
     ? Response.json({ data: ['X', 'ITEM-001'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) })
     : null;
@@ -560,7 +566,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       // caller is org-2 this time — cust-org2 is its OWN customer, so the identical id must pass.
       orgId: 'org-2',
       command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-2', erp_doc_kind: 'sales-invoice', customerId: 'cust-org2', items: [] } },
-      fetchImpl: vi.fn() as unknown as typeof fetch,
+      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response('{}', { status: 200 })) as unknown as typeof fetch, // #856: an invoice create looks up the default tax template
       apiKey: 'k',
       apiSecret: 's',
     });
@@ -605,7 +611,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: true }, { 'proj-1': 'PROJ-0001' }) }),
       orgId: 'org-1',
       command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [] } },
-      fetchImpl: vi.fn() as unknown as typeof fetch,
+      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response('{}', { status: 200 })) as unknown as typeof fetch, // #856: an invoice create looks up the default tax template
       apiKey: 'k',
       apiSecret: 's',
     });
@@ -617,7 +623,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: false }, {}) }),
       orgId: 'org-1',
       command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [] } },
-      fetchImpl: vi.fn() as unknown as typeof fetch,
+      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response('{}', { status: 200 })) as unknown as typeof fetch, // #856: an invoice create looks up the default tax template
       apiKey: 'k',
       apiSecret: 's',
     });
