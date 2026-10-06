@@ -10,10 +10,10 @@
 --   §4 attach by list          — `<table>_zz_record_change` on every registry table (re-runnable).
 --   §5 record_history_visible() + the SELECT policy — a history row is visible exactly when its source
 --                               row is visible to the caller under the source table's own RLS.
---   §6 grants                  — explicit, because hosted Supabase grants EXECUTE on new public functions
---                               (and table privileges) to client roles by default.
---   §7 list_record_history()   — the read API (SECURITY INVOKER): own + child events, seq cursor, and
+--   §6 list_record_history()   — the read API (SECURITY INVOKER): own + child events, seq cursor, and
 --                               the read-side union with audit_events under audit_events' own RLS.
+--   §7 grants                  — explicit, because hosted Supabase grants EXECUTE on new public functions
+--                               (and table privileges) to client roles by default.
 --   §8 closing self-assertion  — classification completeness, trigger attachment, and the ACL shape,
 --                               so the deployed database (not only the local one) is proven.
 --
@@ -218,4 +218,224 @@ begin
       'create trigger %I after insert or update on public.%I for each row execute function public.record_change_capture()',
       t || '_zz_record_change', t);
   end loop;
+end $$;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §5 — visibility = the source row's own RLS (spec D2). SECURITY INVOKER: each arm runs as the caller,
+-- so the source table's policies (org, active member, and anything narrower added later) decide. One
+-- static arm per registry entity, no dynamic SQL; an entity without an arm raises, which the catalog
+-- gate turns into a red test. A history row whose source row is gone is therefore unreadable.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+create or replace function public.record_history_visible(p_entity_type text, p_entity_id uuid)
+  returns boolean language plpgsql stable security invoker set search_path = public as $$
+begin
+  case p_entity_type
+    when 'project'          then return exists (select 1 from public.projects          where id = p_entity_id);
+    when 'budget_version'   then return exists (select 1 from public.budget_versions   where id = p_entity_id);
+    when 'budget_line_item' then return exists (select 1 from public.budget_line_items where id = p_entity_id);
+    when 'work_order'       then return exists (select 1 from public.work_orders       where id = p_entity_id);
+    when 'procurement'      then return exists (select 1 from public.procurements      where id = p_entity_id);
+    when 'purchase_request' then return exists (select 1 from public.purchase_requests where id = p_entity_id);
+    when 'rfq'              then return exists (select 1 from public.rfqs              where id = p_entity_id);
+    when 'purchase_order'   then return exists (select 1 from public.purchase_orders   where id = p_entity_id);
+    when 'payment'          then return exists (select 1 from public.payments          where id = p_entity_id);
+    when 'task'             then return exists (select 1 from public.tasks             where id = p_entity_id);
+    when 'company'          then return exists (select 1 from public.companies         where id = p_entity_id);
+    when 'contact'          then return exists (select 1 from public.contacts          where id = p_entity_id);
+    else
+      raise exception 'record_history_visible: no visibility arm for entity type %', p_entity_type
+        using errcode = 'P0001';
+  end case;
+end $$;
+
+-- The ONE policy (SELECT). Org + active member first (cheap), then the per-row source-RLS check.
+create policy record_changes_select on public.record_changes
+  for select to authenticated
+  using (org_id = public.auth_org_id()
+         and public.is_active_member()
+         and public.record_history_visible(entity_type, entity_id));
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §6 — the read API. SECURITY INVOKER: record_changes is read under §5's policy and audit_events
+-- under its own (own-org Admin / Operator), so a caller who cannot read audit_events gets no audit
+-- line, with no role check here to drift from that policy (spec D3, FR-CHG-011).
+--
+-- Change rows page by seq, newest first (served by the two indexes). Audit lines have no seq (null)
+-- and are interleaved by time: a page returns the record's audit lines with created_at in
+-- [min(created_at) of this page's change rows, p_before_at); the last page (fewer change rows than
+-- p_limit) has no lower bound. Cursor for the next page: p_before_seq = the smallest seq received,
+-- p_before_at = the smallest created_at received so far. Each audit line then lands on exactly one page.
+-- Audit lines are the requested record's own (entity_id = p_entity_id), and exclude the actions a
+-- captured field change already shows plus every delete (a deleted record has no page).
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+create or replace function public.list_record_history(
+  p_entity_type      text,
+  p_entity_id        uuid,
+  p_include_children boolean     default false,
+  p_entity_types     text[]      default null,
+  p_before_seq       bigint      default null,
+  p_before_at        timestamptz default null,
+  p_limit            integer     default 50)
+returns table (
+  source      text,
+  seq         bigint,
+  event_id    uuid,
+  entity_type text,
+  entity_id   uuid,
+  parent_type text,
+  parent_id   uuid,
+  op          text,
+  action      text,
+  actor_id    uuid,
+  changes     jsonb,
+  detail      jsonb,
+  currency    text,
+  created_at  timestamptz)
+language sql stable security invoker set search_path = public as $$
+  with lim as (
+    select least(greatest(coalesce(p_limit, 50), 1), 200) as n
+  ),
+  own as (
+    select rc.* from public.record_changes rc
+     where rc.org_id = public.auth_org_id()
+       and rc.entity_type = p_entity_type and rc.entity_id = p_entity_id
+       and (p_before_seq is null or rc.seq < p_before_seq)
+       and (p_entity_types is null or rc.entity_type = any (p_entity_types))
+     order by rc.seq desc
+     limit (select n from lim)
+  ),
+  kids as (
+    select rc.* from public.record_changes rc
+     where p_include_children
+       and rc.org_id = public.auth_org_id()
+       and rc.parent_type = p_entity_type and rc.parent_id = p_entity_id
+       and (p_before_seq is null or rc.seq < p_before_seq)
+       and (p_entity_types is null or rc.entity_type = any (p_entity_types))
+     order by rc.seq desc
+     limit (select n from lim)
+  ),
+  page as (
+    select * from (select * from own union all select * from kids) u
+     order by u.seq desc
+     limit (select n from lim)
+  ),
+  win as (
+    select case when count(*) < (select n from lim) then '-infinity'::timestamptz
+                else min(page.created_at) end as lo
+      from page
+  ),
+  audit as (
+    select ae.id, ae.action, ae.actor_id, ae.detail, ae.created_at
+      from public.audit_events ae
+     where ae.entity_id = p_entity_id
+       and ae.org_id = public.auth_org_id()
+       and (p_entity_types is null or p_entity_type = any (p_entity_types))
+       and ae.created_at >= (select lo from win)
+       and (p_before_at is null or ae.created_at < p_before_at)
+       and ae.action not like '%.delete'
+       and ae.action <> all (array[
+             'project.create', 'project.transition', 'project.contract_value.set',
+             'work_order.create', 'work_order.transition', 'work_order.value.set',
+             'budget_version.create', 'budget_version.update', 'procurement.create'])
+       and public.record_history_visible(p_entity_type, p_entity_id)
+  )
+  select r.source, r.seq, r.event_id, r.entity_type, r.entity_id, r.parent_type, r.parent_id,
+         r.op, r.action, r.actor_id, r.changes, r.detail, r.currency, r.created_at
+    from (
+      select 'change'::text as source, p.seq, p.id as event_id, p.entity_type, p.entity_id,
+             p.parent_type, p.parent_id, p.op, null::text as action, p.actor_id, p.changes,
+             null::jsonb as detail, p.currency, p.created_at
+        from page p
+      union all
+      select 'audit'::text, null::bigint, a.id, p_entity_type, p_entity_id, null::text, null::uuid,
+             null::text, a.action, a.actor_id, null::jsonb, a.detail, null::text, a.created_at
+        from audit a
+    ) r
+   order by r.created_at desc, r.seq desc nulls last, r.event_id desc
+$$;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §7 — grants. Explicit in both directions: hosted Supabase grants new public tables and functions to
+-- client roles by default (the local stack does not), so nothing here relies on a default.
+-- service_role keeps its table defaults (the audit_events shape; 0137 AC-SVCROLE-008).
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+revoke all on table public.record_changes        from public, anon, authenticated;
+revoke all on table public.record_history_config from public, anon, authenticated;
+grant select on table public.record_changes to authenticated;
+revoke all on sequence public.record_changes_seq_seq from public, anon, authenticated;
+
+-- Trigger functions are checked for EXECUTE at CREATE TRIGGER, not at fire time: no grant needed.
+revoke all on function public.record_change_capture() from public, anon, authenticated, service_role;
+revoke all on function public.record_history_visible(text, uuid) from public, anon;
+grant execute on function public.record_history_visible(text, uuid) to authenticated, service_role;
+revoke all on function public.list_record_history(text, uuid, boolean, text[], bigint, timestamptz, integer)
+  from public, anon;
+grant execute on function public.list_record_history(text, uuid, boolean, text[], bigint, timestamptz, integer)
+  to authenticated, service_role;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §8 — closing self-assertion (the 0211 style): raise, so a deploy that does not land this exact shape
+-- fails here rather than later. Proves the deployed database, whatever its default privileges.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+do $$
+declare v_bad text;
+begin
+  -- every column of every tracked table classified exactly once, and nothing classified that does not exist
+  with cfg as (
+    select c.table_name, k.col, k.cls
+      from public.record_history_config c
+      cross join lateral (
+        select jsonb_object_keys(c.captured) as col, 'captured' as cls
+        union all select unnest(c.flag_cols), 'flag'
+        union all select unnest(c.omit_cols), 'omit') k),
+  cols as (
+    select c.relname::text as table_name, a.attname::text as col
+      from pg_attribute a join pg_class c on c.oid = a.attrelid
+     where c.relnamespace = 'public'::regnamespace and a.attnum > 0 and not a.attisdropped
+       and c.relname in (select table_name from public.record_history_config))
+  select string_agg(x, ', ' order by x) into v_bad from (
+    select cols.table_name || '.' || cols.col || ' unclassified' as x
+      from cols left join cfg using (table_name, col) where cfg.col is null
+    union all
+    select cfg.table_name || '.' || cfg.col || ' classified ' || count(*) || 'x'
+      from cfg group by cfg.table_name, cfg.col having count(*) > 1
+    union all
+    select cfg.table_name || '.' || cfg.col || ' does not exist'
+      from cfg left join cols using (table_name, col) where cols.col is null) d;
+  if v_bad is not null then
+    raise exception '0260: record_history_config classification gap: %', v_bad;
+  end if;
+
+  -- every registry table has the capture trigger
+  select string_agg(c.table_name, ', ') into v_bad
+    from public.record_history_config c
+   where not exists (
+     select 1 from pg_trigger t
+      where t.tgrelid = ('public.' || c.table_name)::regclass and not t.tgisinternal
+        and t.tgfoid = 'public.record_change_capture()'::regprocedure);
+  if v_bad is not null then
+    raise exception '0260: tracked tables without the capture trigger: %', v_bad;
+  end if;
+
+  -- function ACL, hosted shape
+  if has_function_privilege('anon', 'public.record_change_capture()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.record_change_capture()', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.record_change_capture()', 'EXECUTE')
+     or has_function_privilege('anon', 'public.record_history_visible(text, uuid)', 'EXECUTE')
+     or not has_function_privilege('authenticated', 'public.record_history_visible(text, uuid)', 'EXECUTE')
+     or has_function_privilege('anon',
+          'public.list_record_history(text, uuid, boolean, text[], bigint, timestamptz, integer)', 'EXECUTE')
+     or not has_function_privilege('authenticated',
+          'public.list_record_history(text, uuid, boolean, text[], bigint, timestamptz, integer)', 'EXECUTE') then
+    raise exception '0260: record history function ACL is not the intended shape';
+  end if;
+
+  -- table ACL: no client write path; the registry unreadable by clients
+  if has_table_privilege('anon', 'public.record_changes', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
+     or has_table_privilege('authenticated', 'public.record_changes', 'INSERT,UPDATE,DELETE,TRUNCATE')
+     or not has_table_privilege('authenticated', 'public.record_changes', 'SELECT')
+     or has_table_privilege('anon', 'public.record_history_config', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
+     or has_table_privilege('authenticated', 'public.record_history_config', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then
+    raise exception '0260: record history table ACL is not the intended shape';
+  end if;
 end $$;
