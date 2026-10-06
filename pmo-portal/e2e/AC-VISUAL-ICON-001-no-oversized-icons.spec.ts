@@ -120,6 +120,9 @@ test.describe('AC-VISUAL-ICON-001 no oversized shared icons', () => {
 
         // Let async data + charts settle so we measure steady-state rendered sizes.
         await page.waitForLoadState('networkidle').catch(() => {});
+        // Steady state means the lazy route chunk has rendered: a spinning fallback's bounding box
+        // inflates to ~1.41× mid-rotation, so measuring it reports a false oversized icon.
+        await expect(page.getByRole('status', { name: 'Loading page' })).toHaveCount(0, { timeout: 30_000 });
         await page.waitForTimeout(1500);
 
         const oversized = await findOversizedIcons(page, MAX_ICON_SIZE);

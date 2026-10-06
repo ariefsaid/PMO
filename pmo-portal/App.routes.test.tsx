@@ -4,13 +4,15 @@ import React from 'react';
 import { appRouteConfig } from './App';
 
 describe('Application route table', () => {
-  it('AC-W2-IA-005: /reports resolves to the Reports placeholder route', () => {
+  // Deliberate UX change (#765): /reports is no longer a placeholder — it is the management pack, behind
+  // the revenue entitlement (FeatureRoute redirects to the dashboard when the module is off).
+  it('AC-MMP-015: /reports resolves to the management pack behind the revenue entitlement', () => {
     const matches = matchRoutes(appRouteConfig, '/reports');
     const route = matches?.[matches.length - 1]?.route;
 
     expect(route?.path).toBe('/reports');
     expect(React.isValidElement(route?.element)).toBe(true);
-    expect(route?.element).toMatchObject({ props: { title: 'Reports' } });
+    expect(route?.element).toMatchObject({ props: { feature: 'revenue' } });
   });
 
   // Profile language settings slice (supports AC-L10N-060): /settings/profile must resolve to a

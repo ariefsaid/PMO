@@ -257,7 +257,9 @@ import {
   getIncomingPayment,
   getRevenueByProject,
   submitSalesInvoiceSod,
+  setSalesInvoiceReceivedDate,
 } from '@/src/lib/db/revenue';
+import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
   CommandIntent,
   Repositories,
@@ -285,6 +287,7 @@ import type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  ReportsRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -616,6 +619,7 @@ const revenue: RevenueRepository = {
           intent,
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
   submitInvoice: (siId, intent) =>
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {
@@ -1051,6 +1055,11 @@ const integrationsImpl: IntegrationsRepository = {
   },
 };
 
+const reports: ReportsRepository = {
+  managementPack: (range) => wrap(() => getManagementPackFacts(range)),
+  recordProgress: (input) => wrap(() => recordProjectProgress(input)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -1078,6 +1087,7 @@ export const repositories: Repositories = {
   externalDomainOwnership,
   erpSnapshots,
   integrations: integrationsImpl,
+  reports,
 };
 
 export type {
@@ -1106,5 +1116,6 @@ export type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  ReportsRepository,
   IntegrationsRepository,
 } from './types';

@@ -217,3 +217,12 @@ describe('#548 (OD-TAX-1): the Amount column carries the invoice’s tax basis',
     expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
   });
 });
+
+describe('SalesInvoices — #767 due date follows the received date', () => {
+  it('AC-DUE-002 the Due Date column is received date + terms (invoice 2026-07-01, received 2026-07-11, 30d → 2026-08-10)', () => {
+    salesInvoicesState.data = [{ ...SEED_INVOICES[0], id: 'si-rcv', erp_due_date: null, received_date: '2026-07-11' } as SalesInvoiceRow];
+    renderAs('Finance');
+    expect(screen.getAllByText(formatDateOnly('2026-08-10')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(formatDateOnly('2026-07-31'))).toBeNull();
+  });
+});
