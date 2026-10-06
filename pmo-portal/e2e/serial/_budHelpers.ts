@@ -428,7 +428,7 @@ export async function openBudgetTab(page: Page, projectId: string): Promise<void
  * ascending version order, so the first match is the original, which is the one the user is picking.
  */
 export async function selectVersion(page: Page, versionName: string): Promise<void> {
-  const versionSelect = page.getByLabel('Version');
+  const versionSelect = page.getByLabel('Version', { exact: true });
   await expect(versionSelect).toBeVisible({ timeout: 20_000 });
   const optionValue = async (): Promise<string | null> =>
     page.evaluate((name: string) => {
