@@ -3169,6 +3169,8 @@
     "deleteError": "Komentar gagal dihapus.",
     "tooLong": "Komentar dibatasi 4000 karakter.",
     "mentionList": "Sebut rekan kerja",
-    "unknownAuthor": "Mantan anggota"
+    "unknownAuthor": "Mantan anggota",
+    "mentionsFull": "Anda dapat menyebut paling banyak 20 rekan dalam satu komentar.",
+    "open": "Komentar"
   }
 }

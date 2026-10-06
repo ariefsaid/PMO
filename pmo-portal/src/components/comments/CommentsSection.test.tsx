@@ -18,6 +18,11 @@ vi.mock('@/src/hooks/useTasks', () => ({
     data: [
       { id: 'me', full_name: 'Me Myself', status: 'active' },
       { id: 'p2', full_name: 'Peer Person', status: 'active' },
+      ...Array.from({ length: 21 }, (_, i) => ({
+        id: `z${i + 1}`,
+        full_name: `Zed${String(i + 1).padStart(2, '0')}`,
+        status: 'active',
+      })),
     ],
   }),
 }));
@@ -91,5 +96,22 @@ describe('CommentsSection', () => {
     renderIt();
     await screen.findAllByTestId('comment-item');
     expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
+  });
+
+  it('AC-CMT-002 stops offering mentions after 20 and says why', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await screen.findAllByTestId('comment-item');
+    const box = screen.getByRole('textbox');
+    for (let i = 1; i <= 20; i++) {
+      await user.type(box, `@Zed${String(i).padStart(2, '0')}`);
+      await user.click(await screen.findByRole('button', { name: `Zed${String(i).padStart(2, '0')}` }));
+    }
+    expect(screen.getByText('You can mention at most 20 colleagues in one comment.')).toBeInTheDocument();
+    await user.type(box, '@Zed21');
+    expect(screen.queryByRole('button', { name: 'Zed21' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+    await waitFor(() => expect(create).toHaveBeenCalled());
+    expect(create.mock.calls[0][0].mentions).toHaveLength(20);
   });
 });

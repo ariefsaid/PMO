@@ -3169,6 +3169,8 @@
     "deleteError": "Couldn't delete the comment.",
     "tooLong": "Comments are limited to 4000 characters.",
     "mentionList": "Mention a colleague",
-    "unknownAuthor": "Former member"
+    "unknownAuthor": "Former member",
+    "mentionsFull": "You can mention at most 20 colleagues in one comment.",
+    "open": "Comments"
   }
 }

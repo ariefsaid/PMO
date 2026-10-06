@@ -11,6 +11,8 @@ import { SectionHeader } from '@/src/components/ui/SectionHeader';
 import { TextArea } from '@/src/components/ui/FormFields';
 
 const MAX_LEN = 4000;
+/** Mirrors the `comments_mentions_cap` CHECK. */
+const MAX_MENTIONS = 20;
 
 /** The trailing `@query` the caret-at-end user is typing, or null. */
 function activeMention(body: string): string | null {
@@ -46,7 +48,11 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
       .slice(0, 5);
   }, [query, profiles.data, currentUser?.id]);
 
+  const mentionCount = picked.filter((p) => body.includes(`@${p.name}`)).length;
+  const mentionsFull = mentionCount >= MAX_MENTIONS;
+
   const pick = (id: string, name: string) => {
+    if (mentionsFull && !picked.some((x) => x.id === id)) return;
     setBody((b) => b.replace(/@[^\s@]*$/, `@${name} `));
     setPicked((p) => (p.some((x) => x.id === id) ? p : [...p, { id, name }]));
   };
@@ -108,7 +114,10 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
           error={tooLong ? t('comments.tooLong', 'Comments are limited to 4000 characters.') : undefined}
           fullWidth
         />
-        {suggestions.length > 0 && (
+        {mentionsFull && (
+          <p className="text-sm text-muted-foreground">{t('comments.mentionsFull', 'You can mention at most 20 colleagues in one comment.')}</p>
+        )}
+        {suggestions.length > 0 && !mentionsFull && (
           <ul role="listbox" aria-label={t('comments.mentionList', 'Mention a colleague')} className="rounded-lg border border-border bg-background">
             {suggestions.map((p) => (
               <li key={p.id} role="option" aria-selected={false}>

@@ -17,7 +17,7 @@ create table public.comments (
   created_at  timestamptz not null default now(),
   archived_at timestamptz,
   constraint comments_entity_type_check check (entity_type in ('project', 'task')),
-  constraint comments_body_len check (char_length(btrim(body)) between 1 and 4000),
+  constraint comments_body_len check (char_length(btrim(body)) between 1 and 4000 and char_length(body) <= 4000),
   constraint comments_mentions_cap check (cardinality(mentions) <= 20)
 );
 create index comments_entity_idx on public.comments (org_id, entity_type, entity_id, created_at);
@@ -48,9 +48,11 @@ grant  execute on function public.can_read_comment_parent(text, uuid) to authent
 alter table public.comments enable row level security;
 alter table public.comments force row level security;
 
+-- A soft-deleted comment stays visible to its author only; everyone else loses it.
 create policy comments_select on public.comments for select
   using (org_id = public.auth_org_id() and public.is_active_member()
-         and public.can_read_comment_parent(entity_type, entity_id));
+         and public.can_read_comment_parent(entity_type, entity_id)
+         and (archived_at is null or author_id = auth.uid()));
 create policy comments_insert on public.comments for insert
   with check (org_id = public.auth_org_id() and public.is_active_member()
               and author_id = auth.uid()

@@ -42,7 +42,7 @@ import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhase
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { buildTaskRenderOrder, collectDescendants } from '@/src/lib/tasks/taskTree';
 import ProjectGantt from '../ProjectGantt';
-import { CommentsSection } from '@/src/components/comments/CommentsSection';
+import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
 
 /**
  * OD-INT-9 subtask nesting — the horizontal indent applied per depth level in the Task-name
@@ -123,6 +123,8 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
   const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
+  // #790: comments open from a read view any reader of the task can reach (no edit right needed).
+  const [commentsTarget, setCommentsTarget] = useState<TaskWithRefs | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
   // T25 — hash-anchor scroll & transient highlight.
@@ -380,6 +382,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
         onClick: () => setDeleteTarget(task),
         danger: true,
       });
+    // Comments ride along only on rows that already have a menu (readers open them by row activation).
+    if (items.length > 0)
+      items.unshift({ label: t('comments.open', 'Comments'), onClick: () => setCommentsTarget(task) });
     return items;
   };
 
@@ -475,11 +480,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             columns={buildColumns(flatDepths)}
             rowKey={(t) => t.id}
             rowMenu={canRowWrite ? rowMenu : undefined}
-            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
+            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : setCommentsTarget}
             rowLabel={
               canEdit
                 ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
-                : undefined
+                : (task) => `${t('comments.open', 'Comments')} ${task.name}`
             }
           />
         ) : (
@@ -492,7 +497,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             canRowWrite={canRowWrite}
             rowMenu={rowMenu}
             onAddTask={(milestoneId) => setFormTarget({ task: null, defaultMilestoneId: milestoneId })}
-            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
+            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : setCommentsTarget}
+            rowLabel={
+              canEdit ? undefined : (task) => `${t('comments.open', 'Comments')} ${task.name}`
+            }
           />
         )
       )}
@@ -520,6 +528,8 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           }
         />
       )}
+
+      <TaskCommentsDrawer task={commentsTarget} onClose={() => setCommentsTarget(null)} />
 
       {/* Create / edit modal */}
       {formTarget && (
@@ -1050,7 +1060,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           )}
         </FormSection>
       )}
-      {task && <CommentsSection entityType="task" entityId={task.id} />}
     </EntityFormModal>
   );
 };
@@ -1068,6 +1077,7 @@ interface MilestoneGroupedListProps {
   rowMenu: (t: TaskWithRefs) => RowMenuItem[];
   onAddTask: (milestoneId: string | null) => void;
   onActivate?: (t: TaskWithRefs) => void;
+  rowLabel?: (t: TaskWithRefs) => string;
 }
 
 /**
@@ -1084,6 +1094,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   rowMenu,
   onAddTask,
   onActivate,
+  rowLabel,
 }) => {
   const { t } = useTranslation();
   // Group tasks by milestone_id
@@ -1153,6 +1164,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             rowKey={(t) => t.id}
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={onActivate}
+            rowLabel={rowLabel}
           />
         ) : (
           <p className="py-2 text-center text-[12px] text-muted-foreground">

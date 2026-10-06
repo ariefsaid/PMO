@@ -1,10 +1,13 @@
 -- 0249_comments.test.sql — AC-CMT-001..003 (#790).
--- Mutation notes: drop `author_id = auth.uid()` from comments_insert → spoof test reddens; drop the org clause
--- from comments_select/insert → the other-org tests redden; drop the org/active gate inside notify_workflow_user
+-- Mutation notes: drop `author_id = auth.uid()` from comments_insert → spoof test reddens; the other-org tests
+-- are refused first by the parent-readable check (RLS on projects/tasks), so the org clause on comments is
+-- isolated by the dedicated test below (a same-org-id-less comment row seeded as postgres, read as org B);
+-- drop `archived_at is null or author_id = auth.uid()` from comments_select → the archived-read tests redden;
+-- drop the raw `char_length(body) <= 4000` → the padded-body test reddens; drop the org/active gate inside notify_workflow_user
 -- (0237) → the no-access mention tests redden; drop `author_id = auth.uid()` from comments_update → non-author
 -- delete reddens.
 begin;
-select plan(20);
+select plan(25);
 
 insert into organizations (id, name) values
   ('07900000-0000-0000-0000-000000000001','CMT Org A'),
@@ -29,13 +32,13 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 -- AC-CMT-001: post on a project and on a task.
-select lives_ok($$ insert into comments (id, entity_type, entity_id, body)
-  values ('07900000-0000-0000-0000-000000000c01','project','07900000-0000-0000-0000-000000000010','Is the scope final?') $$,
+select lives_ok($$ insert into comments (entity_type, entity_id, body)
+  values ('project','07900000-0000-0000-0000-000000000010','Is the scope final?') $$,
   'AC-CMT-001 a reader can comment on a project');
-select lives_ok($$ insert into comments (id, entity_type, entity_id, body)
-  values ('07900000-0000-0000-0000-000000000c02','task','07900000-0000-0000-0000-000000000101','Blocked on a drawing') $$,
+select lives_ok($$ insert into comments (entity_type, entity_id, body)
+  values ('task','07900000-0000-0000-0000-000000000101','Blocked on a drawing') $$,
   'AC-CMT-001 a reader can comment on a task');
-select is((select author_id from comments where id = '07900000-0000-0000-0000-000000000c01'),
+select is((select author_id from comments where body = 'Is the scope final?'),
   '07900000-0000-0000-0000-0000000000a1'::uuid, 'AC-CMT-001 author_id defaults to the caller');
 
 set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -54,22 +57,33 @@ select throws_ok($$ insert into comments (entity_type, entity_id, body)
   values ('project','07900000-0000-0000-0000-000000000010', repeat('x', 4001)) $$,
   '23514', null, 'AC-CMT-001 a body over 4000 chars is refused');
 select throws_ok($$ insert into comments (entity_type, entity_id, body)
+  values ('project','07900000-0000-0000-0000-000000000010', 'x' || repeat(' ', 100000)) $$,
+  '23514', null, 'AC-CMT-001 a whitespace-padded body over 4000 raw chars is refused');
+select throws_ok($$ insert into comments (entity_type, entity_id, body)
   values ('project','07900000-0000-0000-0000-0000000000ff','ghost parent') $$,
   '42501', null, 'AC-CMT-001 a comment on a record that does not exist is refused');
 
 -- Non-author delete / edit.
 select is((with u as (update comments set archived_at = now()
-   where id = '07900000-0000-0000-0000-000000000c01' returning 1) select count(*)::int from u), 0,
+   where body = 'Is the scope final?' returning 1) select count(*)::int from u), 0,
   'AC-CMT-001 a non-author cannot soft-delete the comment');
-select throws_ok($$ update comments set body = 'edited' where id = '07900000-0000-0000-0000-000000000c01' $$,
+select throws_ok($$ update comments set body = 'edited' where body = 'Is the scope final?' $$,
   '42501', null, 'AC-CMT-001 comments cannot be edited (no edit in v1)');
-select throws_ok($$ delete from comments where id = '07900000-0000-0000-0000-000000000c01' $$,
+select throws_ok($$ delete from comments where body = 'Is the scope final?' $$,
   '42501', null, 'AC-CMT-001 comments cannot be hard-deleted');
 
 set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((with u as (update comments set archived_at = now()
-   where id = '07900000-0000-0000-0000-000000000c01' returning 1) select count(*)::int from u), 1,
+   where body = 'Is the scope final?' returning 1) select count(*)::int from u), 1,
   'AC-CMT-001 the author can soft-delete their own comment');
+
+select is((select count(*)::int from comments where body = 'Is the scope final?'), 1,
+  'AC-CMT-001 the author still sees their own archived comment');
+set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select count(*)::int from comments where body = 'Is the scope final?'), 0,
+  'AC-CMT-001 another member cannot read an archived comment');
+select is((select count(*)::int from comments where body = 'Blocked on a drawing'), 1,
+  'AC-CMT-001 a live comment stays readable by another member');
 
 -- AC-CMT-003: another org can neither read nor write.
 set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000b1","role":"authenticated"}';
@@ -81,14 +95,25 @@ select throws_ok($$ insert into comments (entity_type, entity_id, body)
   values ('task','07900000-0000-0000-0000-000000000101','cross-org') $$,
   '42501', null, 'AC-CMT-003 another org''s user cannot comment on this org''s task');
 
+-- Isolates the org clause: a comment stamped org A whose parent is org B's project. The parent check passes for
+-- org B's user (they can read their own project), so only `org_id = auth_org_id()` keeps the row hidden.
+reset role;
+insert into comments (org_id, entity_type, entity_id, author_id, body) values
+  ('07900000-0000-0000-0000-000000000001','project','07900000-0000-0000-0000-000000000020',
+   '07900000-0000-0000-0000-0000000000a1','org-a stamped on org-b parent');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select is((select count(*)::int from comments where body = 'org-a stamped on org-b parent'), 0,
+  'AC-CMT-003 the org clause alone hides a comment stamped with another org');
+
 set local role anon;
 select throws_ok($$ select count(*) from comments $$, '42501', null, 'AC-CMT-003 anon has no access to comments');
 
 -- AC-CMT-002: mentions notify only readers of the parent.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok($$ insert into comments (id, entity_type, entity_id, body, mentions) values
-  ('07900000-0000-0000-0000-000000000c03','project','07900000-0000-0000-0000-000000000010','@Peer @Disabled @Other @Me please look',
+select lives_ok($$ insert into comments (entity_type, entity_id, body, mentions) values
+  ('project','07900000-0000-0000-0000-000000000010','@Peer @Disabled @Other @Me please look',
    array['07900000-0000-0000-0000-0000000000a2','07900000-0000-0000-0000-0000000000a3',
          '07900000-0000-0000-0000-0000000000b1','07900000-0000-0000-0000-0000000000a1']::uuid[]) $$,
   'AC-CMT-002 a comment can carry mentions');
