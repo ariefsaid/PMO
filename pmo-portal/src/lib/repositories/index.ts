@@ -206,6 +206,10 @@ import {
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
 import {
+  listBoqItems, createBoqItem, updateBoqItem, deleteBoqItem, recordProgressAssessment,
+  listProjectClaims, createProgressClaim, attachClaimEvidence, withdrawProgressClaim, getProjectBilling,
+} from '@/src/lib/db/progressBilling';
+import {
   listExpenseClaims, getExpenseClaim, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim,
   addExpenseLine, updateExpenseLine, removeExpenseLine, transitionExpenseClaim, recordExpenseAdvanceReturn,
   getExpenseAdvanceOutstanding, getExpenseClaimRoutes, getExpenseAdvanceAging,
@@ -253,6 +257,8 @@ import {
   getOrgProjectNumberPattern,
   setOrgProjectNumberPattern,
   getOrgWithholdingAccount,
+  getOrgDownPaymentItem,
+  setOrgDownPaymentItem,
   setOrgWithholdingAccount,
   getOrgProjectClassificationOptions,
   setOrgProjectClassificationOptions,
@@ -285,6 +291,7 @@ import type {
   IncidentRepository,
   MilestoneRepository,
   WorkOrderRepository,
+  ProgressBillingRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
@@ -788,6 +795,32 @@ const workOrder: WorkOrderRepository = {
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
 };
 
+/**
+ * Progress billing (#766). Assessments are operational and never dispatch. Raising a billing claim's invoice
+ * dispatches a sales-invoice CREATE whose record id is the CLAIM id, so the outbox's one-in-flight-per-record
+ * rule makes a claim mint at most one ERP invoice. The body is built server-side from the claim.
+ */
+const progressBilling: ProgressBillingRepository = {
+  listBoq: (projectId) => wrap(() => listBoqItems(projectId)),
+  createBoq: (projectId, input) => wrap(() => createBoqItem(projectId, input)),
+  updateBoq: (id, input) => wrap(() => updateBoqItem(id, input)),
+  deleteBoq: (id) => wrap(() => deleteBoqItem(id)),
+  recordAssessment: (input) => wrap(() => recordProgressAssessment(input)),
+  listClaims: (projectId) => wrap(() => listProjectClaims(projectId)),
+  createClaim: (input) => wrap(() => createProgressClaim(input)),
+  attachEvidence: (claimId, documentId) => wrap(() => attachClaimEvidence(claimId, documentId)),
+  withdrawClaim: (id) => wrap(() => withdrawProgressClaim(id)),
+  raiseInvoice: (claim, intent) =>
+    routeDomainWrite('revenue') === 'external'
+      ? dispatchCreate(
+          'revenue',
+          { erp_doc_kind: 'sales-invoice', projectId: claim.projectId, customerId: claim.customerId },
+          { id: claim.claimId, idempotencyKey: intent?.idempotencyKey ?? crypto.randomUUID() },
+        ).then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
+      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  summary: (projectId) => wrap(() => getProjectBilling(projectId)),
+};
+
 const procurementFiles: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
   prepareUpload: (phase, procurementId, fileName) =>
@@ -881,6 +914,8 @@ const orgFeature: OrgFeatureRepository = {
 const orgSettings: OrgSettingsRepository = {
   getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
   setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
+  getDownPaymentItem: () => wrap(() => getOrgDownPaymentItem()),
+  setDownPaymentItem: (item) => wrap(() => setOrgDownPaymentItem(item)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
   setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
   getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),
@@ -1111,6 +1146,7 @@ export const repositories: Repositories = {
   incident,
   milestone,
   workOrder,
+  progressBilling,
   procurementFiles,
   expenseClaim,
   expenseReceipts,
@@ -1143,6 +1179,7 @@ export type {
   IncidentRepository,
   MilestoneRepository,
   WorkOrderRepository,
+  ProgressBillingRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,

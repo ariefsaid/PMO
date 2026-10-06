@@ -27,12 +27,13 @@ import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import WorkOrdersTab from './tabs/WorkOrdersTab';
+import BillingTab from './tabs/BillingTab';
 import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
 import { ProjectErpLink } from './ProjectErpLink';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
-type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'documents';
+type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'billing' | 'documents';
 
 /**
  * Route shell for `/projects/:projectId` — the ONE canonical detail route for a project at EVERY
@@ -51,7 +52,7 @@ type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'd
  *  Overview but Engineer on Tasks). Engineer task entry points deep-link to `/projects/:id/tasks`
  *  explicitly (e.g. the My Tasks project headers) rather than mutating the default. An explicit
  *  :tab param always wins (every tab stays deep-linkable). */
-const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'work-orders', 'documents'];
+const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'work-orders', 'billing', 'documents'];
 function tabFromParam(param: string | undefined): PTab {
   if (param && (TAB_VALUES as string[]).includes(param)) return param as PTab;
   return 'overview';
@@ -64,6 +65,7 @@ const ProjectDetail: React.FC = () => {
   const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
   const may = usePermission();
+  const canSeeBilling = may('view', 'progressClaim');
   const { t } = useTranslation();
   const {
     data: project,
@@ -84,9 +86,10 @@ const ProjectDetail: React.FC = () => {
       { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
       { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
       { value: 'work-orders', label: t('projectDetail.tabs.workOrders', 'Work orders') },
+      ...(canSeeBilling ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
       { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
     ],
-    [t],
+    [t, canSeeBilling],
   );
 
   const { data: committedSpend = 0 } = useProjectCommittedSpend(projectId || null);
@@ -226,6 +229,10 @@ const ProjectDetail: React.FC = () => {
       {tab === 'tasks' && <TasksTab projectId={project.id} />}
       {tab === 'work-orders' && (
         <WorkOrdersTab projectId={project.id} currency={project.currency} />
+      )}
+      {tab === 'billing' && canSeeBilling && (
+        <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+          projectManagerId={project.project_manager_id ?? null} />
       )}
       {tab === 'documents' && <DocumentsTab projectId={project.id} />}
     </div>

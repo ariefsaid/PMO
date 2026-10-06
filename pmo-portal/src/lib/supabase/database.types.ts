@@ -529,6 +529,67 @@ export type Database = {
         }
         Relationships: []
       }
+      boq_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          item_code: string
+          org_id: string
+          project_id: string
+          quantity: number
+          rate: number
+          unit: string
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          item_code: string
+          org_id?: string
+          project_id: string
+          quantity: number
+          rate: number
+          unit: string
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          item_code?: string
+          org_id?: string
+          project_id?: string
+          quantity?: number
+          rate?: number
+          unit?: string
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boq_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_category_account_map: {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
@@ -2801,6 +2862,7 @@ export type Database = {
           default_number_locale: string | null
           default_tax_treatment: string
           default_timezone: string
+          down_payment_item: string | null
           id: string
           lifecycle_state: string | null
           name: string
@@ -2816,6 +2878,7 @@ export type Database = {
           default_number_locale?: string | null
           default_tax_treatment?: string
           default_timezone?: string
+          down_payment_item?: string | null
           id?: string
           lifecycle_state?: string | null
           name: string
@@ -2831,6 +2894,7 @@ export type Database = {
           default_number_locale?: string | null
           default_tax_treatment?: string
           default_timezone?: string
+          down_payment_item?: string | null
           id?: string
           lifecycle_state?: string | null
           name?: string
@@ -3876,6 +3940,265 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_assessment_quantities: {
+        Row: {
+          boq_item_id: string
+          entry_id: string
+          id: string
+          org_id: string
+          quantity_to_date: number
+        }
+        Insert: {
+          boq_item_id: string
+          entry_id: string
+          id?: string
+          org_id?: string
+          quantity_to_date: number
+        }
+        Update: {
+          boq_item_id?: string
+          entry_id?: string
+          id?: string
+          org_id?: string
+          quantity_to_date?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_assessment_quantities_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_assessment_quantities_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_assessment_quantities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_claim_evidence: {
+        Row: {
+          attached_at: string
+          attached_by: string
+          claim_id: string
+          document_id: string
+          document_revision: string | null
+          document_status: Database["public"]["Enums"]["doc_status"]
+          id: string
+          org_id: string
+        }
+        Insert: {
+          attached_at?: string
+          attached_by: string
+          claim_id: string
+          document_id: string
+          document_revision?: string | null
+          document_status: Database["public"]["Enums"]["doc_status"]
+          id?: string
+          org_id: string
+        }
+        Update: {
+          attached_at?: string
+          attached_by?: string
+          claim_id?: string
+          document_id?: string
+          document_revision?: string | null
+          document_status?: Database["public"]["Enums"]["doc_status"]
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_claim_evidence_attached_by_fkey"
+            columns: ["attached_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_evidence_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "progress_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_evidence_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_evidence_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_claim_lines: {
+        Row: {
+          amount: number
+          boq_item_id: string
+          claim_id: string
+          description: string
+          id: string
+          item_code: string
+          org_id: string
+          quantity: number
+          rate: number
+          unit: string
+        }
+        Insert: {
+          amount: number
+          boq_item_id: string
+          claim_id: string
+          description: string
+          id?: string
+          item_code: string
+          org_id: string
+          quantity: number
+          rate: number
+          unit: string
+        }
+        Update: {
+          amount?: number
+          boq_item_id?: string
+          claim_id?: string
+          description?: string
+          id?: string
+          item_code?: string
+          org_id?: string
+          quantity?: number
+          rate?: number
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_claim_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_lines_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "progress_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_claims: {
+        Row: {
+          created_at: string
+          created_by: string
+          currency: string
+          down_payment_amount: number | null
+          dp_item_code: string | null
+          dp_recovery_amount: number
+          gross_amount: number
+          id: string
+          kind: string
+          org_id: string
+          project_id: string
+          recovery_pct: number | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          currency: string
+          down_payment_amount?: number | null
+          dp_item_code?: string | null
+          dp_recovery_amount?: number
+          gross_amount: number
+          id?: string
+          kind: string
+          org_id: string
+          project_id: string
+          recovery_pct?: number | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          currency?: string
+          down_payment_amount?: number | null
+          dp_item_code?: string | null
+          dp_recovery_amount?: number
+          gross_amount?: number
+          id?: string
+          kind?: string
+          org_id?: string
+          project_id?: string
+          recovery_pct?: number | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_claims_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -5415,7 +5738,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      sales_invoice_work_billed: {
+        Row: {
+          currency: string | null
+          id: string | null
+          invoice_date: string | null
+          is_down_payment: boolean | null
+          net: number | null
+          org_id: string | null
+          project_id: string | null
+          recovery: number | null
+          status: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
@@ -5513,6 +5849,10 @@ export type Database = {
         Returns: undefined
       }
       assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
+      attach_claim_evidence: {
+        Args: { p_claim_id: string; p_document_id: string }
+        Returns: undefined
+      }
       attest_timesheet_no_erp_document: {
         Args: { p_reason: string; p_timesheet_id: string }
         Returns: undefined
@@ -5826,6 +6166,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_progress_claim: {
+        Args: {
+          p_down_payment_amount?: number
+          p_kind: string
+          p_lines?: Json
+          p_project_id: string
+          p_recover_remaining?: boolean
+          p_recovery_pct?: number
+          p_work_order_id?: string
+        }
+        Returns: string
+      }
       create_purchase_order: {
         Args: {
           p_amount: number
@@ -6025,6 +6377,7 @@ export type Database = {
           route: string
         }[]
       }
+      get_project_billing: { Args: { p_project_id: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_project_drawdown: {
         Args: { p_project_id: string }
@@ -6523,6 +6876,15 @@ export type Database = {
         }
         Returns: number
       }
+      record_progress_assessment: {
+        Args: {
+          p_month: string
+          p_note?: string
+          p_project_id: string
+          p_quantities: Json
+        }
+        Returns: number
+      }
       record_project_progress: {
         Args: {
           p_month: string
@@ -6808,6 +7170,7 @@ export type Database = {
         Args: { p_options: string[] }
         Returns: boolean
       }
+      withdraw_progress_claim: { Args: { p_id: string }; Returns: undefined }
     }
     Enums: {
       budget_category:

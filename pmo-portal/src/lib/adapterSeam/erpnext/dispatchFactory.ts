@@ -19,6 +19,9 @@ import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
+import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
+import { resolveSalesTaxRows } from './erpSalesTaxRows.ts';
+import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
  *  [.order(...).limit(...)][.maybeSingle()]` — every filter-builder is ALSO directly awaitable
@@ -145,12 +148,13 @@ async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): P
  *
  *  Round-7 B10 added the `procurement` half: only the three revenue links were pre-flighted, so a
  *  direct command carrying another tenant's known `procurementId` was accepted. */
-type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'procurementId' | 'vendorId' | 'invoiceId';
+type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'workOrderId' | 'procurementId' | 'vendorId' | 'invoiceId';
 
 const LINK_TABLE: Readonly<Record<LinkField, string>> = {
   customerId: 'companies',
   projectId: 'projects',
   salesInvoiceId: 'sales_invoices',
+  workOrderId: 'work_orders',
   procurementId: 'procurements',
   vendorId: 'companies',
   invoiceId: 'procurement_invoices',
@@ -159,7 +163,7 @@ const LINK_TABLE: Readonly<Record<LinkField, string>> = {
 /** The links each ERPNext domain's commands can carry (the fields `readModelWriters` copies into the
  *  service-role mirror insert). `companies` (supplier/customer parties) carries none. */
 const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
-  revenue: ['customerId', 'projectId', 'salesInvoiceId'],
+  revenue: ['customerId', 'projectId', 'salesInvoiceId', 'workOrderId'],
   procurement: ['procurementId', 'vendorId', 'invoiceId'],
   // P3c: a budget push is scoped to ONE project. A cross-org `projectId` would push this org's figures
   // onto another tenant's ERP project dimension — refused here, before the adapter exists.
@@ -326,7 +330,8 @@ async function resolveSalesInvoicePo(deps: ErpDispatchFactoryDeps): Promise<void
     typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 
   const invoice = await read('sales_invoices', 'reference_number,work_order_id,project_id', record.id);
-  const workOrderId = nonblank(invoice?.work_order_id);
+  // #766: a claim invoice has no mirror row yet on its first push; its work order rides on the record.
+  const workOrderId = nonblank(invoice?.work_order_id) ?? nonblank(record.workOrderId);
   const projectId = nonblank(record.projectId) ?? nonblank(invoice?.project_id);
   const workOrder = workOrderId
     ? await read('work_orders', 'client_po_number,order_date', workOrderId)
@@ -942,6 +947,103 @@ async function readReceiptAccountCurrencies(
 }
 
 /**
+ * #766 / ADR-0077 — a Sales Invoice whose PMO record id is a billing claim's id IS that claim's invoice.
+ * Its lines come from the claim alone and are rebuilt on EVERY resolution (a sweep recovery re-derives the
+ * identical payload and digest); the caller's project and customer must be the claim's; the claim must carry
+ * evidence (the outbox fence is the database half of this rule); and nothing but a create may build its
+ * body — a wrong claim invoice is cancelled and a new claim raised (DD-PBL-7).
+ */
+const MAX_CLAIM_LINES = 500;
+function taxBaseFraction(row: unknown): { numerator: number; denominator: number } {
+  const r = (row ?? {}) as { tax_base_numerator?: unknown; tax_base_denominator?: unknown };
+  const numerator = Number(r.tax_base_numerator ?? 1);
+  const denominator = Number(r.tax_base_denominator ?? 1);
+  return numerator > 0 && denominator >= numerator ? { numerator, denominator } : { numerator: 1, denominator: 1 };
+}
+async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<void> {
+  const record = deps.command.record as Record<string, unknown>;
+  if (record.erp_doc_kind !== 'sales-invoice') return;
+  delete record.taxes;
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return;
+  if (typeof record.id !== 'string' || !record.id) return;
+  const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
+    .select('id,kind,project_id,work_order_id,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
+    .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
+  // Likewise the work order: only a claim sets it (from the claim row, below). An ordinary invoice's work order
+  // comes from its own mirror row, never from the caller's command.
+  if (!claimData) { delete record.workOrderId; return; }
+  const claim = claimData as ProgressClaimRecord;
+  // DD-PBL-7 (one claim, one invoice): ids are compared as TEXT downstream (external_refs, the one-in-flight
+  // outbox index, withdraw_progress_claim), so a case-variant of the claim id would mint a second invoice.
+  if (record.id !== claim.id) {
+    throw new AppError('This progress claim must be raised under its own id', 'commit-rejected');
+  }
+  if (deps.command.operation !== 'create') {
+    throw new AppError('A progress claim invoice cannot be edited or amended from PMO — cancel the invoice and raise a new claim', 'commit-rejected');
+  }
+  if (record.projectId !== claim.project_id) {
+    throw new AppError('The invoice project must be the progress claim project', 'commit-rejected');
+  }
+  const { data: project, error: projectError } = await deps.serviceClient.from('projects')
+    .select('client_id,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
+  if (projectError) throw new AppError(projectError.message, projectError.code);
+  const clientId = (project as { client_id?: string | null } | null)?.client_id ?? null;
+  let fraction = taxBaseFraction(project);
+  if (!clientId || record.customerId !== clientId) {
+    throw new AppError('The invoice customer must be the project client', 'commit-rejected');
+  }
+  const { data: evidence, error: evidenceError } = await deps.serviceClient.from('progress_claim_evidence')
+    .select('id').eq('org_id', deps.orgId).eq('claim_id', claim.id).limit(1);
+  if (evidenceError) throw new AppError(evidenceError.message, evidenceError.code);
+  if (!Array.isArray(evidence) || evidence.length === 0) {
+    throw new AppError("Attach the billing evidence (for example the progress report or the client's acceptance) before raising this invoice", 'commit-rejected');
+  }
+  let lines: ProgressClaimLineRecord[] = [];
+  if (claim.kind === 'progress') {
+    const { data, error: linesError } = await deps.serviceClient.from('progress_claim_lines')
+      .select('item_code,description,unit,quantity,rate')
+      .eq('org_id', deps.orgId).eq('claim_id', claim.id)
+      .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+    if (linesError) throw new AppError(linesError.message, linesError.code);
+    lines = (data ?? []) as ProgressClaimLineRecord[];
+    if (lines.length > MAX_CLAIM_LINES) {
+      throw new AppError(`A progress claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
+    }
+  }
+  if (claim.work_order_id) {
+    const { data: workOrder, error: workOrderError } = await deps.serviceClient.from('work_orders')
+      .select('tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.work_order_id).maybeSingle();
+    if (workOrderError) throw new AppError(workOrderError.message, workOrderError.code);
+    if (workOrder) fraction = taxBaseFraction(workOrder);
+  }
+  record.items = progressClaimItems(claim, lines);
+  record.workOrderId = claim.work_order_id;
+  // DD-PBL-7: the server builds the invoice from the claim alone — a caller's PO reference or receipt date is dropped
+  // (the PO is re-derived from the claim's work order by `resolveSalesInvoicePo`).
+  delete record.reference_number;
+  delete record.po_date;
+  delete record.received_date;
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
+  // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never
+  // ran onboarding or had it switched back off.
+  if (Number(claim.dp_recovery_amount) > 0 && !(await readNegativeRatesAllowed(client))) {
+    throw new AppError('ERPNext does not allow negative rates yet, which this claim needs to recover the down payment. An ERP administrator must turn on "Allow Negative rates for Items" in Selling Settings (or re-run ERP onboarding), then raise the invoice again.', 'config-rejected');
+  }
+  // DD-PBL-12b: ERPNext does not expand a template named over REST, so the tax rows are sent explicitly.
+  const company = binding.config?.company;
+  if (typeof company === 'string' && company) {
+    const taxes = await resolveSalesTaxRows(client, company, fraction);
+    if (taxes.length > 0) record.taxes = taxes; else delete record.taxes;
+  } else {
+    delete record.taxes;
+  }
+}
+
+/**
  * Resolve the erpnext adapter for one command: read the org's `external_org_bindings` row, refuse
  * `config-rejected` when it is missing or not yet activated (`activated_at === null` — a version
  * mismatch or a binding never activated, FR-ENA-012), then build the adapter over the resolved
@@ -967,6 +1069,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
+  await resolveProgressClaimInvoice(deps, binding);
   let receiptConfig = binding.config;
   if (deps.command.record.erp_doc_kind === 'incoming-payment'
       && Number(deps.command.record.withheld_amount ?? 0) > 0) {

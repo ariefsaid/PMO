@@ -180,7 +180,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expenseReceipts', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'project', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expenseReceipts', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
     );
   });
 
@@ -193,7 +193,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort());
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {

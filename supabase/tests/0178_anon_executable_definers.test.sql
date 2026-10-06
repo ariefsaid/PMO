@@ -44,6 +44,12 @@
 -- `get_expense_claim_approval_routes`, `get_expense_advance_aging` and `expense_advance_outstanding` are
 -- SECURITY INVOKER by design and deliberately NOT listed.
 --
+-- ⚑ AMENDED BY 0250 (#766): `attach_claim_evidence`, `create_progress_claim` and `withdraw_progress_claim`
+-- join the retained set, taking the count to 57 (54 + 3, re-derived by hand from the list). Each is a SECURITY
+-- DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + Admin/Finance + org,
+-- proven by supabase/tests/0250_progress_billing_{claims,evidence,withdraw}.test.sql. `record_progress_assessment`
+-- and `get_project_billing` are SECURITY INVOKER and deliberately NOT listed.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -74,6 +80,7 @@ insert into client_callable_rpc_names (proname) values
   ('activate_budget_version'),
   ('admin_set_user_status'),
   ('approved_timesheet_for_push'),
+  ('attach_claim_evidence'),
   ('attest_timesheet_no_erp_document'),
   ('capture_vendor_invoice'),
   ('claim_sales_invoice_author'),
@@ -83,6 +90,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_procurement_invoice'),
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
+  ('create_progress_claim'),
   ('create_purchase_order'),
   ('create_purchase_request'),
   ('create_rfq'),
@@ -126,7 +134,8 @@ insert into client_callable_rpc_names (proname) values
   ('transition_procurement'),
   ('transition_project'),
   ('transition_timesheet'),
-  ('transition_work_order');
+  ('transition_work_order'),
+  ('withdraw_progress_claim');
 
 select ok(
   not exists (
@@ -148,8 +157,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  56,
-  'AC-ACL-002 all 56 retained client-callable RPC names still have a public function');
+  59,
+  'AC-ACL-002 all 59 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -158,8 +167,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  56,
-  'AC-ACL-003 all 56 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  59,
+  'AC-ACL-003 all 59 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

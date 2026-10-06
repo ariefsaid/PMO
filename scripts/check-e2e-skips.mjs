@@ -86,6 +86,12 @@ export const ALLOWED_SKIPS = [
     restore: 'Run in the local served-functions lane with the disposable HTTPS ERP relay and ready binding.',
     verified: '2026-10-05',
   },
+  {
+    file: 'serial/AC-PB-003-progress-billing-erp.spec.ts',
+    reason: 'Progress-billing ledger proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle is the ERP GL). The spec now enables Allow Negative rates and its tax template on the bench itself; the bench is still not provisioned in CI.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
+    verified: '2026-10-06',
+  },
 
   // ── Feature-flag quarantine: the incidents module is OFF. Code/DAL/RLS are preserved.
   {

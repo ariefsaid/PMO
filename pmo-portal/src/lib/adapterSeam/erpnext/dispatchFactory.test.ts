@@ -851,6 +851,8 @@ describe('Luna B12 — require_project_on_si applies to every SI body-building o
               if (table === 'external_refs' && filters.domain === 'revenue') {
                 return { data: { external_record_id: 'ACC-SINV-2026-00001' }, error: null };
               }
+              // #766: these invoices are not progress claims — no claim row exists for the record id.
+              if (table === 'progress_claims') return { data: null, error: null };
               // Every link row belongs to org-1 (the caller's org) — the tenancy pre-flight is not
               // what these tests are about.
               return { data: { org_id: 'org-1' }, error: null };

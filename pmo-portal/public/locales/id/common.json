@@ -1548,6 +1548,162 @@
   },
   "projectDetail": {
     "backToProjects": "Proyek",
+    "billing": {
+      "assessment": {
+        "errors": {
+          "month": "Isi bulan dengan format YYYY-MM",
+          "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal"
+        },
+        "month": "Bulan (YYYY-MM)",
+        "note": "Catatan (opsional)",
+        "quantityToDate": "{{item}} — selesai s.d. saat ini ({{unit}})",
+        "record": "Catat progres",
+        "save": "Simpan progres",
+        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional — tidak pernah membuat faktur.",
+        "title": "Catat progres",
+        "toast": {
+          "saved": "Progres tercatat: {{pct}}% selesai"
+        }
+      },
+      "boq": {
+        "add": "Tambah baris",
+        "column": {
+          "actions": "Aksi",
+          "assessed": "Dinilai",
+          "claimed": "Ditagih",
+          "item": "Item",
+          "quantity": "Kuantitas",
+          "rate": "Harga satuan",
+          "remaining": "Sisa untuk ditagih"
+        },
+        "confirmDelete": {
+          "body": "Baris dihapus dari bill of quantities. Baris yang sudah dinilai atau ditagih tidak dapat dihapus.",
+          "confirm": "Hapus baris",
+          "title": "Hapus baris ini?"
+        },
+        "delete": "Hapus",
+        "edit": "Ubah",
+        "empty": "Belum ada bill of quantities",
+        "emptySub": "Tambahkan baris harga kontrak untuk menilai progres dan menagih per kuantitas.",
+        "error": "Bill of quantities tidak dapat dimuat",
+        "errorSub": "Coba lagi, atau buka ulang proyek.",
+        "overClaimed": "Melebihi tagihan",
+        "title": "Bill of quantities",
+        "toast": {
+          "deleted": "Baris bill of quantities dihapus",
+          "saved": "Baris bill of quantities disimpan"
+        }
+      },
+      "boqForm": {
+        "description": "Deskripsi",
+        "errors": {
+          "quantity": "Isi kuantitas di atas 0 dengan paling banyak 3 angka desimal",
+          "rate": "Isi harga 0 atau lebih dengan paling banyak 2 angka desimal",
+          "required": "Wajib diisi"
+        },
+        "item": "Item ERP",
+        "legend": "Baris",
+        "noWorkOrder": "Tidak ada — seluruh kontrak",
+        "quantity": "Kuantitas",
+        "rate": "Harga satuan (belum termasuk PPN)",
+        "save": "Simpan baris",
+        "subtitle": "Harga belum termasuk pajak. Satu baris dapat terkait satu work order di proyek ini.",
+        "titleEdit": "Ubah baris bill of quantities",
+        "titleNew": "Tambah baris bill of quantities",
+        "unit": "Satuan",
+        "workOrder": "Work order"
+      },
+      "claimForm": {
+        "dpAmount": "Nilai uang muka (belum termasuk PPN)",
+        "errors": {
+          "dpAmount": "Isi uang muka di atas 0 dengan paling banyak 2 angka desimal",
+          "noQuantity": "Isi kuantitas untuk setidaknya satu baris",
+          "quantity": "Setiap kuantitas harus di atas 0 dengan paling banyak 3 angka desimal",
+          "recoveryPct": "Isi persentase di atas 0 dan paling tinggi 100, dengan paling banyak 3 angka desimal"
+        },
+        "kind": "Jenis tagihan",
+        "kindDownPayment": "Uang muka",
+        "kindProgress": "Progres — kuantitas terhadap bill of quantities",
+        "linesLegend": "Kuantitas yang ditagih",
+        "noLines": "Tidak ada baris bill of quantities dalam cakupan ini.",
+        "prefill": "Mulai dari penilaian {{month}}",
+        "quantity": "{{item}} — {{description}} ({{unit}})",
+        "recoverRest": "Pulihkan sisa uang muka dengan tagihan ini",
+        "recoveryHelp": "Proporsional terhadap kontrak: {{pct}}%",
+        "recoveryPct": "Dipulihkan dari setiap tagihan (%)",
+        "save": "Buat tagihan",
+        "scope": "Menagih",
+        "scopeContract": "Baris tanpa work order",
+        "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
+        "title": "Tagihan baru"
+      },
+      "claims": {
+        "attachEvidence": "Lampirkan bukti",
+        "column": {
+          "actions": "Aksi",
+          "claim": "Tagihan",
+          "evidence": "Bukti",
+          "gross": "Ditagih",
+          "invoice": "Faktur",
+          "net": "Neto",
+          "recovery": "Uang muka dipulihkan"
+        },
+        "confirmRaise": {
+          "body": "Draf faktur penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
+          "confirm": "Buat faktur ERP",
+          "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
+          "title": "Terbitkan faktur tagihan ini?"
+        },
+        "confirmWithdraw": {
+          "body": "Penarikan bersifat final. Kuantitas dan pemulihan uang mukanya dilepas untuk tagihan baru.",
+          "confirm": "Tarik tagihan",
+          "title": "Tarik tagihan ini?"
+        },
+        "empty": "Belum ada tagihan",
+        "emptySub": "Satu tagihan menagih uang muka atau kuantitas yang selesai, sebagai satu faktur ERP.",
+        "error": "Tagihan tidak dapat dimuat",
+        "errorSub": "Coba lagi, atau buka ulang proyek.",
+        "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
+        "kind": {
+          "downPayment": "Uang muka",
+          "progress": "Progres"
+        },
+        "new": "Tagihan baru",
+        "notRaised": "Belum diterbitkan",
+        "raise": "Terbitkan faktur",
+        "title": "Tagihan",
+        "toast": {
+          "created": "Tagihan dibuat",
+          "evidenceAttached": "Bukti dilampirkan",
+          "raised": "Faktur diterbitkan di ERP",
+          "withdrawn": "Tagihan ditarik"
+        },
+        "withdraw": "Tarik",
+        "withdrawn": "Ditarik"
+      },
+      "evidence": {
+        "document": "Dokumen bukti",
+        "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
+        "revision": "rev {{revision}}",
+        "save": "Lampirkan",
+        "subtitle": "Pilih dokumen terbit atau disetujui dari register proyek ini, seperti laporan progres atau berita acara serah terima (BAST) klien.",
+        "title": "Lampirkan bukti penagihan"
+      },
+      "summary": {
+        "assessed": "Dinilai s.d. saat ini",
+        "assessedAsOf": "per {{month}}, {{pct}}% selesai",
+        "billed": "Ditagih s.d. saat ini",
+        "contract": "Nilai kontrak",
+        "dpHeld": "Uang muka tertahan",
+        "error": "Data penagihan tidak dapat dimuat",
+        "exclTax": "belum termasuk PPN",
+        "gap": "Pekerjaan selesai, belum ditagih",
+        "noAssessment": "Belum ada penilaian",
+        "notSubmitted": "Diterbitkan, belum di-submit",
+        "remaining": "Kontrak belum ditagih",
+        "title": "Ringkasan penagihan"
+      }
+    },
     "documents": {
       "action": {
         "approve": "Setujui",
@@ -1993,6 +2149,7 @@
     },
     "tabs": {
       "ariaLabel": "Bagian proyek",
+      "billing": "Penagihan",
       "budget": "Anggaran",
       "documents": "Dokumen",
       "overview": "Ringkasan",

@@ -1179,3 +1179,35 @@ Deno.test({
     assert(calls.find((c) => c.table === 'sales_invoice_authors') === undefined, 'no caller ⇒ nothing to append');
   },
 });
+
+Deno.test({
+  name: 'AC-PB-013 a created claim invoice mirror carries the claim work order',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' }, projects: { org_id: 'org-1' }, work_orders: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-author-1' },
+      { id: 'pmo-claim-1', si_number: 'ACC-SINV-2026-00766', amount: '160000.00', erp_outstanding_amount: '160000.00', erp_docstatus: 0, erp_modified: '2026-10-06 10:00:00.000000', currency: 'IDR', tax_amount: '0.00' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-claim-1', projectId: 'proj-1', customerId: 'cust-1', workOrderId: 'wo-1', erp_doc_kind: 'sales-invoice' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'sales_invoices');
+    assert(insertCall !== undefined, 'expected an insert into sales_invoices');
+    assertEquals((insertCall!.args[0] as Record<string, unknown>).work_order_id, 'wo-1');
+  },
+});
+
+Deno.test({
+  name: 'AC-PB-013 a created invoice that names no work order writes no work_order_id key',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' }, projects: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-author-1' },
+      { id: 'pmo-si-766', si_number: 'ACC-SINV-2026-00767', amount: '1000.00', erp_outstanding_amount: '1000.00', erp_docstatus: 0, erp_modified: '2026-10-06 10:00:00.000000', currency: 'IDR', tax_amount: '0.00' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-766', projectId: 'proj-1', customerId: 'cust-1', erp_doc_kind: 'sales-invoice' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'sales_invoices');
+    assert(insertCall !== undefined, 'expected an insert into sales_invoices');
+    assertEquals('work_order_id' in (insertCall!.args[0] as Record<string, unknown>), false);
+  },
+});

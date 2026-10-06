@@ -1548,6 +1548,162 @@
   },
   "projectDetail": {
     "backToProjects": "Projects",
+    "billing": {
+      "assessment": {
+        "errors": {
+          "month": "Enter the month as YYYY-MM",
+          "quantity": "Each quantity done to date must be 0 or more with at most 3 decimal places"
+        },
+        "month": "Month (YYYY-MM)",
+        "note": "Note (optional)",
+        "quantityToDate": "{{item}} — done to date ({{unit}})",
+        "record": "Record progress",
+        "save": "Save progress",
+        "subtitle": "Quantities done to date for the month. This is the operational assessment — it never creates an invoice.",
+        "title": "Record progress",
+        "toast": {
+          "saved": "Progress recorded: {{pct}}% complete"
+        }
+      },
+      "boq": {
+        "add": "Add line",
+        "column": {
+          "actions": "Actions",
+          "assessed": "Assessed",
+          "claimed": "Claimed",
+          "item": "Item",
+          "quantity": "Quantity",
+          "rate": "Rate",
+          "remaining": "Left to claim"
+        },
+        "confirmDelete": {
+          "body": "The line is removed from the bill of quantities. A line already assessed or claimed cannot be deleted.",
+          "confirm": "Delete line",
+          "title": "Delete this line?"
+        },
+        "delete": "Delete",
+        "edit": "Edit",
+        "empty": "No bill of quantities yet",
+        "emptySub": "Add the contract's priced lines to assess progress and bill by quantity.",
+        "error": "Couldn’t load the bill of quantities",
+        "errorSub": "Retry, or reopen the project.",
+        "overClaimed": "Over-claimed",
+        "title": "Bill of quantities",
+        "toast": {
+          "deleted": "Bill of quantities line deleted",
+          "saved": "Bill of quantities line saved"
+        }
+      },
+      "boqForm": {
+        "description": "Description",
+        "errors": {
+          "quantity": "Enter a quantity above 0 with at most 3 decimal places",
+          "rate": "Enter a rate of 0 or more with at most 2 decimal places",
+          "required": "Required"
+        },
+        "item": "ERP item",
+        "legend": "Line",
+        "noWorkOrder": "None — the whole contract",
+        "quantity": "Quantity",
+        "rate": "Rate (excl. PPN)",
+        "save": "Save line",
+        "subtitle": "Rates exclude tax. A line may belong to one work order on this project.",
+        "titleEdit": "Edit bill of quantities line",
+        "titleNew": "Add a bill of quantities line",
+        "unit": "Unit",
+        "workOrder": "Work order"
+      },
+      "claimForm": {
+        "dpAmount": "Down payment amount (excl. PPN)",
+        "errors": {
+          "dpAmount": "Enter a down payment above 0 with at most 2 decimal places",
+          "noQuantity": "Enter a quantity for at least one line",
+          "quantity": "Each quantity must be above 0 with at most 3 decimal places",
+          "recoveryPct": "Enter a percentage above 0 and at most 100, with at most 3 decimal places"
+        },
+        "kind": "Claim type",
+        "kindDownPayment": "Down payment",
+        "kindProgress": "Progress — quantities against the bill of quantities",
+        "linesLegend": "Quantities to bill",
+        "noLines": "No bill of quantities lines in this scope.",
+        "prefill": "Start from the {{month}} assessment",
+        "quantity": "{{item}} — {{description}} ({{unit}})",
+        "recoverRest": "Recover the rest of the down payment with this claim",
+        "recoveryHelp": "Proportional to the contract: {{pct}}%",
+        "recoveryPct": "Recovered from each claim (%)",
+        "save": "Create claim",
+        "scope": "Bills",
+        "scopeContract": "Lines with no work order",
+        "subtitle": "A claim becomes one ERP invoice. Attach the evidence before raising it.",
+        "title": "New billing claim"
+      },
+      "claims": {
+        "attachEvidence": "Attach evidence",
+        "column": {
+          "actions": "Actions",
+          "claim": "Claim",
+          "evidence": "Evidence",
+          "gross": "Claimed",
+          "invoice": "Invoice",
+          "net": "Net",
+          "recovery": "Down payment recovered"
+        },
+        "confirmRaise": {
+          "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
+          "confirm": "Create ERP invoice",
+          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
+          "title": "Raise this claim's invoice?"
+        },
+        "confirmWithdraw": {
+          "body": "Withdrawing is final. Its quantities and down payment recovery are released for a new claim.",
+          "confirm": "Withdraw claim",
+          "title": "Withdraw this claim?"
+        },
+        "empty": "No billing claims yet",
+        "emptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
+        "error": "Couldn’t load the billing claims",
+        "errorSub": "Retry, or reopen the project.",
+        "evidenceNeeded": "Attach evidence before raising",
+        "kind": {
+          "downPayment": "Down payment",
+          "progress": "Progress"
+        },
+        "new": "New claim",
+        "notRaised": "Not raised",
+        "raise": "Raise invoice",
+        "title": "Billing claims",
+        "toast": {
+          "created": "Billing claim created",
+          "evidenceAttached": "Evidence attached",
+          "raised": "Invoice raised in the ERP",
+          "withdrawn": "Claim withdrawn"
+        },
+        "withdraw": "Withdraw",
+        "withdrawn": "Withdrawn"
+      },
+      "evidence": {
+        "document": "Evidence document",
+        "none": "No issued or approved document with a file on this project.",
+        "revision": "rev {{revision}}",
+        "save": "Attach",
+        "subtitle": "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.",
+        "title": "Attach billing evidence"
+      },
+      "summary": {
+        "assessed": "Assessed to date",
+        "assessedAsOf": "as of {{month}}, {{pct}}% complete",
+        "billed": "Billed to date",
+        "contract": "Contract value",
+        "dpHeld": "Down payment held",
+        "error": "Couldn't load billing",
+        "exclTax": "excl. PPN",
+        "gap": "Work done, not yet billed",
+        "noAssessment": "No assessment yet",
+        "notSubmitted": "Raised, not yet submitted",
+        "remaining": "Contract not yet billed",
+        "title": "Billing summary"
+      }
+    },
     "documents": {
       "action": {
         "approve": "Approve",
@@ -1993,6 +2149,7 @@
     },
     "tabs": {
       "ariaLabel": "Project sections",
+      "billing": "Billing",
       "budget": "Budget",
       "documents": "Documents",
       "overview": "Overview",
