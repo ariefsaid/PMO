@@ -104,6 +104,8 @@ export const MODULES: ModuleDef[] = [
     path: '/meetings',
     detail: { pattern: '/meetings/:meetingId', param: 'meetingId' },
   },
+  // #775: Expenses — every role (own claims); RLS scopes reads.
+  { module: 'expenses', icon: 'dollar', label: 'Expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
   // AC-W3-N4: My Tasks — the IC's primary landing. Was in PLACEHOLDER_TITLES only (no ⌘K target).
   // Adding here makes it reachable via ⌘K Navigate for roles that have the nav item.
   // Mirror Rail: Engineer·Admin (B-1, AC-W2-IXD-001, OD-W2-4).

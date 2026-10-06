@@ -579,3 +579,17 @@ describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement au
 it('AC-TAG-001 project classification option administration is Admin-only', () => {
   expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
 });
+
+describe('can() — expenseClaim (#775; migration 0247 is the enforcement authority)', () => {
+  it('AC-EXP-054 every role may view and raise their own claims', () => {
+    expect(allowedRoles('view', 'expenseClaim')).toEqual(ALL_ROLES);
+    expect(allowedRoles('create', 'expenseClaim')).toEqual(ALL_ROLES);
+  });
+  it('AC-EXP-054 only the claimant edits, and only while Draft or Rejected', () => {
+    const own = (status: string) => ({ currentUserId: 'u1', record: { claimant_id: 'u1', status } });
+    expect(allowedRoles('edit', 'expenseClaim', own('Draft'))).toEqual(ALL_ROLES);
+    expect(allowedRoles('edit', 'expenseClaim', own('Rejected'))).toEqual(ALL_ROLES);
+    expect(allowedRoles('edit', 'expenseClaim', own('Submitted'))).toEqual([]);
+    expect(allowedRoles('edit', 'expenseClaim', { currentUserId: 'u2', record: { claimant_id: 'u1', status: 'Draft' } })).toEqual([]);
+  });
+});

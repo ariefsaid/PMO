@@ -83,7 +83,7 @@
 
 # ── Daily manager action. An untranslated approve/reject is the highest-consequence English
 #    left on screen.
-/approvals                     pages/Approvals.tsx
+/approvals                     pages/Approvals.tsx pages/approvals/ExpenseClaimApprovalSection.tsx
 
 # ── Delivery spend register, worked daily by PM/procurement alongside the project. The record
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would
@@ -119,6 +119,10 @@
 #    rule — a launch-scope screen shipping without its line silently shrinks this gate).
 /meetings                      pages/Meetings.tsx
 /meetings/:meetingId           pages/MeetingDetail.tsx src/components/shell/BackBar.tsx
+
+# ── Expenses (#775): claims and cash advances — the field team's own money, filed by every role.
+/expenses                      pages/ExpenseClaims.tsx pages/expenses/*.tsx pages/expenses/expenseLabels.ts pages/expenses/useOwnAdvanceOptions.ts
+/expenses/:claimId             pages/ExpenseClaimDetail.tsx pages/expenses/*.tsx pages/expenses/expenseLabels.ts src/components/shell/BackBar.tsx
 
 # ── Personal profile language settings (RIS readiness slice): every signed-in user's choice of
 #    interface-language override (inherit / Bahasa Indonesia / English).

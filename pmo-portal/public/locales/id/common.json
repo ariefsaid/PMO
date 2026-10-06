@@ -928,6 +928,227 @@
       "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     }
   },
+  "expenses": {
+    "actions": {
+      "approve": "Setujui",
+      "cancel": "Batalkan",
+      "newClaim": "Klaim baru",
+      "pay": "Tandai dibayar",
+      "recordReturn": "Catat pengembalian kas",
+      "reject": "Tolak",
+      "reopen": "Ubah dan ajukan ulang",
+      "requestAdvance": "Ajukan uang muka",
+      "submit": "Ajukan persetujuan"
+    },
+    "aging": {
+      "bucket": {
+        "d31to60": "31–60 hari",
+        "d61to90": "61–90 hari",
+        "over90": "Lebih dari 90 hari",
+        "upTo30": "0–30 hari"
+      },
+      "columns": {
+        "advance": "Uang muka",
+        "age": "Umur (hari)",
+        "claimant": "Pengaju",
+        "outstanding": "Belum diselesaikan",
+        "project": "Proyek"
+      },
+      "errorSub": "Daftar di bawah tidak terpengaruh. Coba lagi.",
+      "errorTitle": "Gagal memuat uang muka yang belum diselesaikan",
+      "title": "Uang muka belum diselesaikan",
+      "truncated": "Menampilkan {{count}} uang muka tertua."
+    },
+    "approvals": {
+      "errorSub": "Permintaan pembelian dan timesheet di bawah tidak terpengaruh.",
+      "errorTitle": "Gagal memuat klaim biaya yang menunggu Anda",
+      "heading": "Klaim biaya menunggu Anda ({{count}})",
+      "label": "Klaim biaya menunggu Anda"
+    },
+    "columns": {
+      "amount": "Jumlah",
+      "category": "Kategori anggaran",
+      "claimant": "Pengaju",
+      "kind": "Jenis",
+      "number": "Nomor",
+      "project": "Proyek",
+      "status": "Status",
+      "title": "Judul"
+    },
+    "confirm": {
+      "approveTitle": "Setujui ini?",
+      "cancelConfirm": "Batalkan",
+      "cancelDescription": "Tetap tercatat sebagai Dibatalkan dan tidak dapat lagi disetujui atau dibayar.",
+      "cancelTitle": "Batalkan ini?",
+      "keep": "Simpan",
+      "notesLabel": "Catatan untuk pengaju (opsional)",
+      "payTitle": "Tandai sebagai dibayar?",
+      "previewApplied": "Uang muka dipakai",
+      "previewCash": "Kas yang dibayar",
+      "referenceLabel": "Referensi pembayaran (opsional)",
+      "rejectTitle": "Tolak ini?",
+      "returnAmountHelper": "Maksimal {{amount}} belum diselesaikan.",
+      "returnAmountLabel": "Jumlah dikembalikan",
+      "returnConfirm": "Catat pengembalian",
+      "returnReferenceLabel": "Referensi (opsional)",
+      "returnTitle": "Catat pengembalian kas"
+    },
+    "description": "Klaim biaya dan uang muka. Anda melihat milik Anda; penyetuju melihat seluruh tim.",
+    "detail": {
+      "advanceApplied": "Uang muka dipakai",
+      "amount": "Jumlah",
+      "back": "Biaya",
+      "cashPaid": "Kas dibayar",
+      "editDetails": "Ubah detail",
+      "errorSub": "Terjadi kesalahan saat memuat. Coba lagi.",
+      "errorTitle": "Gagal memuat catatan ini",
+      "linkedAdvance": "Menyelesaikan uang muka",
+      "notFoundSub": "Tidak ada, atau bukan milik Anda dan Anda tidak menyetujui pengeluaran.",
+      "notFoundTitle": "Tidak ditemukan",
+      "outstanding": "Belum diselesaikan",
+      "reference": "Referensi pembayaran",
+      "rejectionNote": "Ditolak: {{note}}",
+      "summary": "Ringkasan"
+    },
+    "draftNumber": "Draf",
+    "filters": {
+      "allCategories": "Semua kategori",
+      "allKinds": "Klaim dan uang muka",
+      "allStatuses": "Semua status",
+      "category": "Kategori anggaran",
+      "kind": "Jenis",
+      "status": "Status"
+    },
+    "form": {
+      "advance": {
+        "current": "Uang muka yang sudah ditautkan",
+        "label": "Selesaikan dengan uang muka",
+        "none": "Tanpa uang muka"
+      },
+      "advanceSubtitle": "Kas yang Anda ambil sebelum pekerjaan. Klaim yang Anda ajukan sesudahnya menyelesaikannya.",
+      "advanceTitle": "Ajukan uang muka",
+      "amount": {
+        "label": "Jumlah"
+      },
+      "category": {
+        "helper": "Menentukan penyetuju: pengeluaran dalam anggaran proyek untuk kategori ini disetujui oleh penyetuju proyek.",
+        "label": "Kategori anggaran",
+        "none": "Tanpa kategori"
+      },
+      "claimSubtitle": "Tambahkan rincian dan bukti di layar berikutnya.",
+      "claimTitle": "Klaim biaya baru",
+      "editTitle": "Ubah detail",
+      "errors": {
+        "amountPositive": "Masukkan jumlah lebih dari nol.",
+        "titleRequired": "Beri judul singkat."
+      },
+      "project": {
+        "label": "Proyek",
+        "none": "Overhead (tanpa proyek)"
+      },
+      "purpose": {
+        "label": "Keperluan",
+        "placeholder": "Untuk apa uang ini"
+      },
+      "sections": {
+        "details": "Detail"
+      },
+      "submitCreate": "Buat",
+      "submitSave": "Simpan",
+      "title": {
+        "label": "Judul",
+        "placeholder": "mis. Kunjungan lapangan, minggu 41"
+      }
+    },
+    "kind": {
+      "advance": "Uang muka",
+      "claim": "Klaim biaya"
+    },
+    "lines": {
+      "add": "Tambah rincian",
+      "addTitle": "Tambah rincian",
+      "amount": "Jumlah",
+      "columns": {
+        "amount": "Jumlah",
+        "date": "Tanggal",
+        "description": "Keterangan",
+        "type": "Jenis"
+      },
+      "date": "Tanggal",
+      "description": "Keterangan",
+      "edit": "Ubah",
+      "editAria": "Ubah rincian {{description}}",
+      "editTitle": "Ubah rincian",
+      "empty": "Belum ada rincian. Tambahkan satu per bukti.",
+      "error": "Gagal memuat rincian.",
+      "errors": {
+        "amountPositive": "Masukkan jumlah lebih dari nol.",
+        "dateRequired": "Masukkan tanggal pengeluaran.",
+        "descriptionRequired": "Jelaskan pengeluarannya."
+      },
+      "remove": "Hapus",
+      "removeAria": "Hapus rincian {{description}}",
+      "removeTitle": "Hapus rincian ini?",
+      "save": "Simpan rincian",
+      "sectionLegend": "Pengeluaran",
+      "title": "Rincian",
+      "total": "Total",
+      "type": "Jenis"
+    },
+    "overhead": "Overhead",
+    "receipts": {
+      "attach": "Lampirkan bukti",
+      "attachAria": "Pilih berkas bukti",
+      "attached": "Bukti terlampir",
+      "download": "Unduh {{name}}",
+      "empty": "Belum ada bukti terlampir.",
+      "error": "Gagal memuat bukti.",
+      "loading": "Memuat bukti…",
+      "remove": "Hapus {{name}}",
+      "removeConfirm": "Hapus",
+      "removeDescription": "Bukti dihapus dari klaim ini. Anda dapat melampirkannya lagi.",
+      "removeTitle": "Hapus bukti ini?",
+      "removed": "Bukti dihapus",
+      "title": "Bukti",
+      "uploading": "Mengunggah {{percent}}%"
+    },
+    "states": {
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat biaya"
+    },
+    "status": {
+      "approved": "Disetujui",
+      "cancelled": "Dibatalkan",
+      "draft": "Draf",
+      "paid": "Dibayar",
+      "rejected": "Ditolak",
+      "submitted": "Diajukan"
+    },
+    "table": {
+      "emptySub": "Ajukan klaim setelah pekerjaan, atau uang muka sebelumnya.",
+      "emptyTitle": "Belum ada biaya",
+      "rowLabel": "Buka {{title}}"
+    },
+    "title": "Biaya",
+    "toast": {
+      "approved": "Disetujui",
+      "cancelled": "Dibatalkan",
+      "created": "Dibuat",
+      "paid": "Ditandai dibayar",
+      "rejected": "Ditolak",
+      "reopened": "Kembali ke Draf",
+      "returned": "Pengembalian dicatat",
+      "submitted": "Diajukan untuk persetujuan"
+    },
+    "truncated": "Menampilkan {{count}} terbaru. Persempit filter untuk melihat catatan lama.",
+    "type": {
+      "accommodation": "Akomodasi",
+      "localTransport": "Transportasi lokal",
+      "meals": "Makan",
+      "other": "Lainnya",
+      "travel": "Perjalanan"
+    }
+  },
   "funnel": {
     "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
   },
@@ -1306,6 +1527,7 @@
       "note": "Persetujuan permintaan ini diarahkan ke {{names}}: {{why}}",
       "nameJoiner": " atau ",
       "why": {
+        "projectApprover": "mereka adalah penyetuju yang ditetapkan untuk proyek ini.",
         "withinBudget": "permintaan ini masih dalam anggaran {{category}} proyek.",
         "exceedsLine": "permintaan ini akan melampaui batas anggaran {{category}} proyek.",
         "noProject": "ini pengeluaran overhead, tidak dibebankan ke proyek.",
@@ -2354,6 +2576,7 @@
       "salesInvoices": "Invoice Penjualan",
       "timesheets": "Timesheet",
       "profileSettings": "Profil & preferensi",
+      "expenses": "Biaya",
       "managementPack": "Laporan manajemen"
     },
     "notifications": {

@@ -1599,6 +1599,204 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_claim_files: {
+        Row: {
+          archived_at: string | null
+          claim_id: string
+          created_at: string
+          file_path: string
+          id: string
+          org_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          claim_id: string
+          created_at?: string
+          file_path: string
+          id?: string
+          org_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          claim_id?: string
+          created_at?: string
+          file_path?: string
+          id?: string
+          org_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_claim_files_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_claim_lines: {
+        Row: {
+          amount: number
+          claim_id: string
+          created_at: string
+          description: string
+          expense_date: string
+          expense_type: Database["public"]["Enums"]["expense_type"]
+          id: string
+          org_id: string
+        }
+        Insert: {
+          amount: number
+          claim_id: string
+          created_at?: string
+          description: string
+          expense_date: string
+          expense_type: Database["public"]["Enums"]["expense_type"]
+          id?: string
+          org_id?: string
+        }
+        Update: {
+          amount?: number
+          claim_id?: string
+          created_at?: string
+          description?: string
+          expense_date?: string
+          expense_type?: Database["public"]["Enums"]["expense_type"]
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_claim_lines_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_claims: {
+        Row: {
+          advance_applied: number
+          advance_id: string | null
+          amount: number
+          approval_notes: string | null
+          approved_at: string | null
+          approved_by_id: string | null
+          budget_category: Database["public"]["Enums"]["budget_category"] | null
+          cancelled_at: string | null
+          claim_number: string | null
+          claimant_id: string
+          created_at: string
+          currency: string
+          id: string
+          kind: Database["public"]["Enums"]["expense_kind"]
+          org_id: string
+          paid_at: string | null
+          paid_by_id: string | null
+          paid_on: string | null
+          payment_reference: string | null
+          project_id: string | null
+          purpose: string | null
+          rejection_notes: string | null
+          returned_amount: number
+          status: Database["public"]["Enums"]["expense_claim_status"]
+          submitted_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          advance_applied?: number
+          advance_id?: string | null
+          amount?: number
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          cancelled_at?: string | null
+          claim_number?: string | null
+          claimant_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["expense_kind"]
+          org_id?: string
+          paid_at?: string | null
+          paid_by_id?: string | null
+          paid_on?: string | null
+          payment_reference?: string | null
+          project_id?: string | null
+          purpose?: string | null
+          rejection_notes?: string | null
+          returned_amount?: number
+          status?: Database["public"]["Enums"]["expense_claim_status"]
+          submitted_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          advance_applied?: number
+          advance_id?: string | null
+          amount?: number
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          cancelled_at?: string | null
+          claim_number?: string | null
+          claimant_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["expense_kind"]
+          org_id?: string
+          paid_at?: string | null
+          paid_by_id?: string | null
+          paid_on?: string | null
+          payment_reference?: string | null
+          project_id?: string | null
+          purpose?: string | null
+          rejection_notes?: string | null
+          returned_amount?: number
+          status?: Database["public"]["Enums"]["expense_claim_status"]
+          submitted_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_claims_advance_id_fkey"
+            columns: ["advance_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_claimant_id_fkey"
+            columns: ["claimant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_command_outbox: {
         Row: {
           actor_user_id: string | null
@@ -5169,6 +5367,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
+      get_expense_advance_aging: {
+        Args: never
+        Returns: {
+          advance_id: string
+          age_days: number
+          amount: number
+          bucket: string
+          claim_number: string
+          claimant_id: string
+          claimant_name: string
+          currency: string
+          outstanding: number
+          paid_on: string
+          project_id: string
+          project_name: string
+          returned: number
+          settled: number
+        }[]
+      }
+      get_expense_claim_approval_routes: {
+        Args: { p_ids: string[] }
+        Returns: {
+          approvers: Json
+          claim_id: string
+          line_budget: number
+          line_used: number
+          reason: string
+          request_amount: number
+          route: string
+        }[]
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -6227,6 +6457,10 @@ export type Database = {
         Returns: boolean
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
+      record_expense_advance_return: {
+        Args: { p_amount: number; p_id: string; p_reference?: string }
+        Returns: undefined
+      }
       record_outbox_ref: {
         Args: {
           p_domain: string
@@ -6477,6 +6711,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      transition_expense_claim: {
+        Args: {
+          p_id: string
+          p_notes?: string
+          p_payment_reference?: string
+          p_to: Database["public"]["Enums"]["expense_claim_status"]
+        }
+        Returns: undefined
+      }
       transition_procurement: {
         Args: {
           p_id: string
@@ -6535,6 +6778,20 @@ export type Database = {
         | "Rejected"
         | "Closed"
         | "Superseded"
+      expense_claim_status:
+        | "Draft"
+        | "Submitted"
+        | "Approved"
+        | "Rejected"
+        | "Paid"
+        | "Cancelled"
+      expense_kind: "claim" | "advance"
+      expense_type:
+        | "Travel"
+        | "Accommodation"
+        | "Meals"
+        | "Local transport"
+        | "Other"
       incident_severity: "Low" | "Medium" | "High" | "Critical"
       incident_status: "Open" | "Investigating" | "Closed"
       procurement_invoice_status: "Received" | "Scheduled" | "Paid"
@@ -6725,6 +6982,22 @@ export const Constants = {
         "Rejected",
         "Closed",
         "Superseded",
+      ],
+      expense_claim_status: [
+        "Draft",
+        "Submitted",
+        "Approved",
+        "Rejected",
+        "Paid",
+        "Cancelled",
+      ],
+      expense_kind: ["claim", "advance"],
+      expense_type: [
+        "Travel",
+        "Accommodation",
+        "Meals",
+        "Local transport",
+        "Other",
       ],
       incident_severity: ["Low", "Medium", "High", "Critical"],
       incident_status: ["Open", "Investigating", "Closed"],

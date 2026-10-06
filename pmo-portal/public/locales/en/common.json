@@ -928,6 +928,227 @@
       "declined": "{{n}} declined to bid — not counted in the win rate"
     }
   },
+  "expenses": {
+    "actions": {
+      "approve": "Approve",
+      "cancel": "Cancel",
+      "newClaim": "New claim",
+      "pay": "Mark paid",
+      "recordReturn": "Record cash returned",
+      "reject": "Reject",
+      "reopen": "Edit and resubmit",
+      "requestAdvance": "Request advance",
+      "submit": "Submit for approval"
+    },
+    "aging": {
+      "bucket": {
+        "d31to60": "31–60 days",
+        "d61to90": "61–90 days",
+        "over90": "Over 90 days",
+        "upTo30": "0–30 days"
+      },
+      "columns": {
+        "advance": "Advance",
+        "age": "Age (days)",
+        "claimant": "Claimant",
+        "outstanding": "Outstanding",
+        "project": "Project"
+      },
+      "errorSub": "The list below is unaffected. Try again.",
+      "errorTitle": "Couldn't load outstanding advances",
+      "title": "Advances outstanding",
+      "truncated": "Showing the oldest {{count}} advances."
+    },
+    "approvals": {
+      "errorSub": "Purchase requests and timesheets below are unaffected.",
+      "errorTitle": "Couldn't load expense claims awaiting you",
+      "heading": "Expense claims awaiting you ({{count}})",
+      "label": "Expense claims awaiting you"
+    },
+    "columns": {
+      "amount": "Amount",
+      "category": "Budget category",
+      "claimant": "Claimant",
+      "kind": "Type",
+      "number": "Number",
+      "project": "Project",
+      "status": "Status",
+      "title": "Title"
+    },
+    "confirm": {
+      "approveTitle": "Approve this?",
+      "cancelConfirm": "Cancel it",
+      "cancelDescription": "It stays on record as Cancelled and can no longer be approved or paid.",
+      "cancelTitle": "Cancel this?",
+      "keep": "Keep it",
+      "notesLabel": "Note to the claimant (optional)",
+      "payTitle": "Mark as paid?",
+      "previewApplied": "Advance applied",
+      "previewCash": "Cash to pay",
+      "referenceLabel": "Payment reference (optional)",
+      "rejectTitle": "Reject this?",
+      "returnAmountHelper": "Up to {{amount}} is outstanding.",
+      "returnAmountLabel": "Amount returned",
+      "returnConfirm": "Record return",
+      "returnReferenceLabel": "Reference (optional)",
+      "returnTitle": "Record cash returned"
+    },
+    "description": "Expense claims and cash advances. You see your own; approvers see the whole team.",
+    "detail": {
+      "advanceApplied": "Advance applied",
+      "amount": "Amount",
+      "back": "Expenses",
+      "cashPaid": "Cash paid",
+      "editDetails": "Edit details",
+      "errorSub": "Something went wrong fetching it. Try again.",
+      "errorTitle": "Couldn't load this record",
+      "linkedAdvance": "Settles a cash advance",
+      "notFoundSub": "It doesn't exist, or it isn't yours and you don't approve spend.",
+      "notFoundTitle": "Not found",
+      "outstanding": "Outstanding",
+      "reference": "Payment reference",
+      "rejectionNote": "Rejected: {{note}}",
+      "summary": "Summary"
+    },
+    "draftNumber": "Draft",
+    "filters": {
+      "allCategories": "All categories",
+      "allKinds": "Claims and advances",
+      "allStatuses": "All statuses",
+      "category": "Budget category",
+      "kind": "Type",
+      "status": "Status"
+    },
+    "form": {
+      "advance": {
+        "current": "The advance already linked",
+        "label": "Settle against advance",
+        "none": "No advance"
+      },
+      "advanceSubtitle": "Cash you take before the work. Claims you file afterwards settle it.",
+      "advanceTitle": "Request a cash advance",
+      "amount": {
+        "label": "Amount"
+      },
+      "category": {
+        "helper": "Decides who approves: spend within the project's budget for this category goes to the project's approver.",
+        "label": "Budget category",
+        "none": "No category"
+      },
+      "claimSubtitle": "Add lines and receipts on the next screen.",
+      "claimTitle": "New expense claim",
+      "editTitle": "Edit details",
+      "errors": {
+        "amountPositive": "Enter an amount greater than zero.",
+        "titleRequired": "Give it a short title."
+      },
+      "project": {
+        "label": "Project",
+        "none": "Overhead (no project)"
+      },
+      "purpose": {
+        "label": "Purpose",
+        "placeholder": "What the money was for"
+      },
+      "sections": {
+        "details": "Details"
+      },
+      "submitCreate": "Create",
+      "submitSave": "Save",
+      "title": {
+        "label": "Title",
+        "placeholder": "e.g. Site visit, week 41"
+      }
+    },
+    "kind": {
+      "advance": "Cash advance",
+      "claim": "Expense claim"
+    },
+    "lines": {
+      "add": "Add line",
+      "addTitle": "Add a line",
+      "amount": "Amount",
+      "columns": {
+        "amount": "Amount",
+        "date": "Date",
+        "description": "Description",
+        "type": "Type"
+      },
+      "date": "Date",
+      "description": "Description",
+      "edit": "Edit",
+      "editAria": "Edit line {{description}}",
+      "editTitle": "Edit line",
+      "empty": "No lines yet. Add one per receipt.",
+      "error": "Couldn't load the lines.",
+      "errors": {
+        "amountPositive": "Enter an amount greater than zero.",
+        "dateRequired": "Enter the date of the expense.",
+        "descriptionRequired": "Describe the expense."
+      },
+      "remove": "Remove",
+      "removeAria": "Remove line {{description}}",
+      "removeTitle": "Remove this line?",
+      "save": "Save line",
+      "sectionLegend": "Expense",
+      "title": "Lines",
+      "total": "Total",
+      "type": "Type"
+    },
+    "overhead": "Overhead",
+    "receipts": {
+      "attach": "Attach receipt",
+      "attachAria": "Choose a receipt file",
+      "attached": "Receipt attached",
+      "download": "Download {{name}}",
+      "empty": "No receipts attached.",
+      "error": "Couldn't load receipts.",
+      "loading": "Loading receipts…",
+      "remove": "Remove {{name}}",
+      "removeConfirm": "Remove",
+      "removeDescription": "It is removed from this claim. You can attach it again.",
+      "removeTitle": "Remove this receipt?",
+      "removed": "Receipt removed",
+      "title": "Receipts",
+      "uploading": "Uploading {{percent}}%"
+    },
+    "states": {
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load expenses"
+    },
+    "status": {
+      "approved": "Approved",
+      "cancelled": "Cancelled",
+      "draft": "Draft",
+      "paid": "Paid",
+      "rejected": "Rejected",
+      "submitted": "Submitted"
+    },
+    "table": {
+      "emptySub": "File a claim after the work, or request an advance before it.",
+      "emptyTitle": "No expenses here yet",
+      "rowLabel": "Open {{title}}"
+    },
+    "title": "Expenses",
+    "toast": {
+      "approved": "Approved",
+      "cancelled": "Cancelled",
+      "created": "Created",
+      "paid": "Marked paid",
+      "rejected": "Rejected",
+      "reopened": "Back to Draft",
+      "returned": "Return recorded",
+      "submitted": "Submitted for approval"
+    },
+    "truncated": "Showing the latest {{count}}. Narrow the filters to see older records.",
+    "type": {
+      "accommodation": "Accommodation",
+      "localTransport": "Local transport",
+      "meals": "Meals",
+      "other": "Other",
+      "travel": "Travel"
+    }
+  },
   "funnel": {
     "scrollableRegion": "Stage summary, scrollable horizontally"
   },
@@ -1311,6 +1532,7 @@
       "note": "Approval for this request is routed to {{names}}: {{why}}",
       "nameJoiner": " or ",
       "why": {
+        "projectApprover": "they are the approver set for this project.",
         "withinBudget": "it is within the project's {{category}} budget.",
         "exceedsLine": "it would take the project's {{category}} budget over its limit.",
         "noProject": "it is overhead spend, not charged to a project.",
@@ -2354,6 +2576,7 @@
       "salesInvoices": "Sales Invoices",
       "timesheets": "Timesheets",
       "profileSettings": "Profile & preferences",
+      "expenses": "Expenses",
       "managementPack": "Management pack"
     },
     "notifications": {

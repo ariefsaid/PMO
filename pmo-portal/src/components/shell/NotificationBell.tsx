@@ -54,6 +54,7 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   company: '/companies',
   contact: '/contacts',
   opportunity: '/sales',
+  expense_claim: '/expenses',
 };
 
 /** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
