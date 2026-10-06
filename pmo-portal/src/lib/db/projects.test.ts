@@ -7,15 +7,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * All mocks are hoisted so they are available to vi.mock factories.
  */
-const { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle } = vi.hoisted(() => {
+const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle } = vi.hoisted(() => {
   const mockMaybeSingle = vi.fn();
   const mockEq = vi.fn();
   const mockIn = vi.fn();
+  const mockIs = vi.fn();
   const mockSelect = vi.fn();
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
   const mockRange = vi.fn();
-  return { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle };
+  return { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }));
@@ -39,6 +40,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     select: mockSelect,
     eq: mockEq,
     in: mockIn,
+    is: mockIs,
     range: mockRange,
     maybeSingle: mockMaybeSingle,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
@@ -47,6 +49,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
   mockIn.mockReturnValue(builder);
+  mockIs.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
   mockMaybeSingle.mockImplementation(() => Promise.resolve(resolved));
   mockFrom.mockReturnValue(builder);
@@ -104,6 +107,7 @@ beforeEach(() => {
   mockSelect.mockReset();
   mockEq.mockReset();
   mockIn.mockReset();
+  mockIs.mockReset();
   mockRpc.mockReset();
   mockRange.mockReset();
 });
@@ -149,6 +153,13 @@ describe('listProjects', () => {
     expect(result[0].end_client?.name).toBe('Asset Owner');
   });
 
+  it('AC-PRJ-005b: default list filters out archived projects at PostgREST', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects();
+    expect(mockIs).toHaveBeenCalledTimes(1);
+    expect(mockIs).toHaveBeenCalledWith('archived_at', null);
+  });
+
   it('sends no org_id (RLS scopes it) (FR-DAL-004)', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects();
@@ -181,6 +192,13 @@ describe('listProjects', () => {
     expect(scoped).not.toContain('Loss Tender');
     expect(scoped).toContain('Ongoing Project');
     expect(scoped).toContain('Internal Project');
+  });
+
+  it('AC-PRJ-005b: Lost/Declined status list filters out archived projects at PostgREST', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects({ statuses: ['Loss Tender', 'Declined'] });
+    expect(mockIs).toHaveBeenCalledTimes(1);
+    expect(mockIs).toHaveBeenCalledWith('archived_at', null);
   });
 
   it('AC-DEC-001: a statuses[] override filters with one .in("status", …) (the Lost column = Loss Tender + Declined)', async () => {

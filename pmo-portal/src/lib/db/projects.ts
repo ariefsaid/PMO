@@ -176,7 +176,9 @@ export interface ProjectHeaderInput extends ProjectClassification {
  * internal) — a single `.in('status', [...])` filter — so a pre-win pipeline/lost deal is
  * NOT in the active Projects list (it lives in the Sales Pipeline). A caller wanting a
  * specific status (e.g. a future "Lost" filter) passes `params.status` to override the
- * default partition with a precise `.eq('status', …)`.
+ * default partition with a precise `.eq('status', …)`. Every default and explicit status
+ * scope is live-only via `.is('archived_at', null)`; explicit id and client-history reads
+ * use their separate functions and retain their own archive semantics.
  *
  * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
  * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
@@ -201,6 +203,7 @@ export async function listProjects(
     // Default → the active Projects partition (on-hand ∪ internal), disjoint from the pipeline.
     q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
   }
+  q = q.is('archived_at', null);
   if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
   const range = resolveRange(params);
   if (range) q = q.range(range.from, range.to);
@@ -334,8 +337,9 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
 
 /**
  * Soft-archive a project by stamping `archived_at` (AC-PRJ-005) so it drops out of the
- * default list (ADR-0018). org_id is NEVER sent — `projects_write` scopes the update; the
- * `archived_at` column UPDATE grant comes from 0012. Throws an `AppError` (code preserved).
+ * default and explicit-status `listProjects` scopes via their `archived_at IS NULL` filter
+ * (ADR-0018). org_id is NEVER sent — `projects_write` scopes the update; the `archived_at`
+ * column UPDATE grant comes from 0012. Throws an `AppError` (code preserved).
  */
 export async function archiveProject(id: string): Promise<void> {
   const { data, error } = await supabase
