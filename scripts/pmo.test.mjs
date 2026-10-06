@@ -158,19 +158,25 @@ function seedCredentials(configDir, supabaseUrl, entry = {}) {
 }
 
 /** GET the loopback URL with an explicit Host header (fetch cannot set one). */
-function rawGet(url, host) {
+function rawGetResponse(url, host) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const req = http.request(
       { host: u.hostname, port: u.port, path: u.pathname + u.search, method: 'GET', headers: { host } },
       (res) => {
-        res.resume();
-        res.on('end', () => resolve(res.statusCode));
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
       },
     );
     req.on('error', reject);
     req.end();
   });
+}
+
+function rawGet(url, host) {
+  return rawGetResponse(url, host).then((response) => response.status);
 }
 
 /** Drive a login: `openBrowser` plays the browser — it follows the consent redirect to the loopback. */
@@ -224,6 +230,48 @@ test('AC-CLI-008: the registered redirect URIs are loopback-only, on 127.0.0.1, 
   }
 });
 
+test('AC-CLI-017: successful loopback page identifies the account and uses PMO styling', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  let page;
+  let pagePromise;
+  try {
+    const r = await runCli(['login', '--url', fake.url, '--client-id', 'client-1'], {
+      configDir,
+      openBrowser: (authorizeUrl) => {
+        pagePromise = (async () => {
+          const authorize = new URL(authorizeUrl);
+          fake.state.authorizeChallenge = authorize.searchParams.get('code_challenge');
+          const callback = new URL(authorize.searchParams.get('redirect_uri'));
+          callback.searchParams.set('code', 'the-code');
+          callback.searchParams.set('state', authorize.searchParams.get('state'));
+          const response = await fetch(callback);
+          page = { status: response.status, contentType: response.headers.get('content-type'), body: await response.text() };
+        })();
+        return pagePromise;
+      },
+    });
+    await pagePromise;
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(page.status, 200);
+    assert.match(page.contentType, /text\/html/);
+    assert.match(page.body, /<html lang="en">/);
+    assert.match(page.body, /PMO Portal/);
+    assert.match(page.body, /class="mark"[^>]*>P</);
+    assert.match(page.body, /class="card"/);
+    assert.match(page.body, /<style>/);
+    assert.match(page.body, /#2563eb/);
+    assert.match(page.body, /Signed in to PMO as(?:\s|<[^>]+>)*owner@example\.test/);
+    assert.match(page.body, /This page is served by the PMO command-line tool on your computer/);
+    assert.match(page.body, /You can close this tab and return to the terminal\./);
+    assert.doesNotMatch(page.body, /<script\b/i);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CLI-008: login completes with PKCE, stores the session, and never prints a token', async () => {
   const fake = await fakeSupabase();
   const configDir = tmpDir();
@@ -263,7 +311,8 @@ test('AC-CLI-008: callbacks with the wrong state or the wrong Host are answered 
         const forged = new URL(redirect);
         forged.searchParams.set('code', 'forged-code');
         forged.searchParams.set('state', 'forged-state');
-        statuses.forgedState = (await fetch(forged)).status;
+        const mismatch = await fetch(forged);
+        statuses.forgedState = { status: mismatch.status, body: await mismatch.text() };
         const wrongHost = new URL(redirect);
         wrongHost.searchParams.set('code', 'the-code');
         wrongHost.searchParams.set('state', u.searchParams.get('state'));
@@ -272,7 +321,10 @@ test('AC-CLI-008: callbacks with the wrong state or the wrong Host are answered 
         await browserThatRedirects({ fake })(authorizeUrl);
       },
     });
-    assert.equal(statuses.forgedState, 400);
+    assert.equal(statuses.forgedState.status, 400);
+    assert.match(statuses.forgedState.body, /This response does not match the sign-in in progress/);
+    assert.match(statuses.forgedState.body, /PMO Portal/);
+    assert.match(statuses.forgedState.body, /<style>/);
     assert.equal(statuses.wrongHost, 400);
     assert.equal(statuses.localhostName, 400, 'only the exact registered host is accepted');
     assert.equal(r.code, 0, r.err);
@@ -295,6 +347,120 @@ test('AC-CLI-008: a denied consent ends the login with the error and stores noth
     });
     assert.equal(r.code, 1);
     assert.match(r.errJson.error.message, /access_denied/);
+    assert.equal(readCredentials({ PMO_CONFIG_DIR: configDir }, fake.url), null);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLI-017: denied and expired callbacks render styled error pages and escape hostile query text', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  const hostileDescription = '<script>alert("x")</script>&';
+  let page;
+  let pagePromise;
+  try {
+    const r = await runCli(['login', '--url', fake.url, '--client-id', 'client-1'], {
+      configDir,
+      openBrowser: (authorizeUrl) => {
+        pagePromise = (async () => {
+          const authorize = new URL(authorizeUrl);
+          const callback = new URL(authorize.searchParams.get('redirect_uri'));
+          callback.searchParams.set('error', 'access_denied');
+          callback.searchParams.set('error_description', hostileDescription);
+          callback.searchParams.set('state', authorize.searchParams.get('state'));
+          const response = await fetch(callback);
+          page = { status: response.status, contentType: response.headers.get('content-type'), body: await response.text() };
+        })();
+        return pagePromise;
+      },
+    });
+    await pagePromise;
+    assert.equal(r.code, 1);
+    assert.equal(page.status, 400);
+    assert.match(page.contentType, /text\/html/);
+    assert.match(page.body, /PMO Portal/);
+    assert.match(page.body, /<style>/);
+    assert.match(page.body, /Sign-in was not completed/);
+    assert.match(page.body, /class="card error"/);
+    assert.match(page.body, /denied/i);
+    assert.match(page.body, /You can close this tab and return to the terminal\./);
+    assert.match(page.body, /&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;&amp;/);
+    assert.doesNotMatch(page.body, /<script\b/i);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+
+  const expiredFake = await fakeSupabase();
+  const expiredConfigDir = tmpDir();
+  let expiredPage;
+  let expiredPagePromise;
+  try {
+    const r = await runCli(['login', '--url', expiredFake.url, '--client-id', 'client-1'], {
+      configDir: expiredConfigDir,
+      openBrowser: (authorizeUrl) => {
+        expiredPagePromise = (async () => {
+          const authorize = new URL(authorizeUrl);
+          const callback = new URL(authorize.searchParams.get('redirect_uri'));
+          callback.searchParams.set('state', authorize.searchParams.get('state'));
+          const response = await fetch(callback);
+          expiredPage = { status: response.status, contentType: response.headers.get('content-type'), body: await response.text() };
+        })();
+        return expiredPagePromise;
+      },
+    });
+    await expiredPagePromise;
+    assert.equal(r.code, 1);
+    assert.match(expiredPage.contentType, /text\/html/);
+    assert.equal(expiredPage.status, 400);
+    assert.match(expiredPage.body, /expired|incomplete/i);
+    assert.match(expiredPage.body, /PMO Portal/);
+    assert.match(expiredPage.body, /<style>/);
+    assert.match(expiredPage.body, /Run pmo login again/);
+  } finally {
+    await expiredFake.close();
+    fs.rmSync(expiredConfigDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLI-017: a failed token exchange still returns a styled expiry error to the browser', async () => {
+  const fake = await fakeSupabase({
+    handler: ({ url, send }) => {
+      if (url.pathname === '/auth/v1/oauth/token') {
+        send(400, { error: 'expired_code' });
+        return true;
+      }
+      return false;
+    },
+  });
+  const configDir = tmpDir();
+  let page;
+  let pagePromise;
+  try {
+    const r = await runCli(['login', '--url', fake.url, '--client-id', 'client-1'], {
+      configDir,
+      openBrowser: (authorizeUrl) => {
+        pagePromise = (async () => {
+          const authorize = new URL(authorizeUrl);
+          fake.state.authorizeChallenge = authorize.searchParams.get('code_challenge');
+          const callback = new URL(authorize.searchParams.get('redirect_uri'));
+          callback.searchParams.set('code', 'the-code');
+          callback.searchParams.set('state', authorize.searchParams.get('state'));
+          const response = await fetch(callback);
+          page = { status: response.status, contentType: response.headers.get('content-type'), body: await response.text() };
+        })();
+        return pagePromise;
+      },
+    });
+    await pagePromise;
+    assert.equal(r.code, 1);
+    assert.match(page.contentType, /text\/html/);
+    assert.equal(page.status, 400);
+    assert.match(page.body, /expired/i);
+    assert.match(page.body, /PMO Portal/);
+    assert.match(page.body, /<style>/);
     assert.equal(readCredentials({ PMO_CONFIG_DIR: configDir }, fake.url), null);
   } finally {
     await fake.close();

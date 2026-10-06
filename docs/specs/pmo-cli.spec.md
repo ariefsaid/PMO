@@ -48,6 +48,7 @@ When I prepare a client's starting data, I want Claude on my machine to read and
   `client_id` shall be unaffected. (Embedded reads follow RLS, as in the browser. The guard covers the
   REST API only; edge functions and Storage are to be closed before any non-owner or MCP client.)
 - **FR-CLI-012** The app shall refuse to be displayed inside a frame on any page.
+- **FR-CLI-013** When the CLI handles a loopback sign-in callback, it shall render a static English PMO-styled HTML page with inline CSS; the success page shall identify the signed-in account by email and explain that the page is served by the PMO command-line tool on this computer, while denied, expired or incomplete, and state-mismatch callbacks shall show a clear error; every dynamic value inserted into the page shall be HTML-escaped.
 
 ## 3. Acceptance criteria (Given / When / Then)
 
@@ -91,6 +92,7 @@ When I prepare a client's starting data, I want Claude on my machine to read and
   `42501`; the same request without `client_id` passes; the CLI's lists equal the migration's.
 - **AC-CLI-016** Given the deployed app, when any page is requested, then it carries
   `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+- **AC-CLI-017** Given a user completing `pmo login`, when the loopback callback succeeds, then its static PMO-styled page names the signed-in email and explains that it is served by the command-line tool on this computer; when sign-in is denied, expired or incomplete, or the callback state mismatches, then the page clearly explains the error; query and account values are rendered as escaped text so script-shaped input remains inert.
 
 ## 4. Traceability
 
@@ -112,5 +114,6 @@ When I prepare a client's starting data, I want Claude on my machine to read and
 | AC-CLI-014 | Unit (node:test) | `scripts/pmo.test.mjs` (real-schema read in the AC-CLI-001 e2e) |
 | AC-CLI-015 | Integration (pgTAP) | `supabase/tests/api_client_request_guard.test.sql` (list sync: `scripts/pmo.test.mjs`; live check in the AC-CLI-001 e2e) |
 | AC-CLI-016 | Unit (Vitest) | `pmo-portal/test/securityHeaders.test.ts` |
+| AC-CLI-017 | Unit (node:test) | `scripts/pmo.test.mjs` |
 
 CI: the node tests run in `verify` ("PMO CLI tests"); Vitest in `verify`; pgTAP and e2e in their lanes.

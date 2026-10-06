@@ -436,10 +436,44 @@ async function logout(ctx) {
 
 // ── login ────────────────────────────────────────────────────────────────────────────────────────
 
-const PAGE = (title, body) =>
-  `<!doctype html><html lang="en"><meta charset="utf-8"><title>${title}</title>` +
-  `<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem">` +
-  `<h1 style="font-size:1.25rem">${title}</h1><p>${body}</p></body></html>`;
+const escapeHtml = (value) =>
+  String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+
+function renderSignInPage({ variant, message, email, error, errorDescription }) {
+  const isSuccess = variant === 'success';
+  const details = [error, errorDescription]
+    .filter((value) => value !== null && value !== undefined && value !== '')
+    .map(escapeHtml)
+    .join(' — ');
+  const content = isSuccess
+    ? `<p class="account">Signed in to PMO as <strong>${escapeHtml(email || 'your account')}</strong></p>` +
+      `<p>This page is served by the PMO command-line tool on your computer.</p>` +
+      `<p>You can close this tab and return to the terminal.</p>`
+    : `<p>${escapeHtml(message)}</p>` +
+      (details ? `<p class="details">${details}</p>` : '');
+  const title = isSuccess ? 'Signed in to PMO' : 'Sign-in was not completed';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>` +
+    `<style>` +
+    `:root{color-scheme:light;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f5f7fb}` +
+    `*{box-sizing:border-box}body{min-height:100vh;margin:0;padding:48px 20px;display:flex;align-items:center;justify-content:center;background:#f5f7fb}` +
+    `.wrap{width:100%;max-width:440px}.brand{display:flex;align-items:center;gap:10px;margin:0 0 24px 4px;font-size:16px;font-weight:650;color:#172033}` +
+    `.mark{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:#2563eb;color:#fff;font-size:19px;font-weight:750}` +
+    `.card{padding:32px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(23,32,51,.06)}` +
+    `h1{margin:0 0 16px;font-size:22px;line-height:1.3;letter-spacing:-.02em}p{margin:12px 0;color:#526078;font-size:14px;line-height:1.6}` +
+    `.account{color:#172033;font-size:15px}.account strong{overflow-wrap:anywhere;color:#172033}.details{padding:10px 12px;border-radius:6px;background:#f8fafc;color:#526078;overflow-wrap:anywhere}` +
+    `.error h1{color:#9a3412}@media(max-width:480px){body{padding:28px 16px}.card{padding:24px}}` +
+    `</style></head><body><div class="wrap"><header class="brand"><span class="mark" aria-hidden="true">P</span><span>PMO Portal</span></header>` +
+    `<main class="card${isSuccess ? '' : ' error'}"><h1>${title}</h1>${content}</main></div></body></html>`;
+}
+
+function sendSignInPage(response, status, page, onSent) {
+  response.writeHead(status, { 'content-type': 'text/html; charset=utf-8', connection: 'close' });
+  return new Promise((resolve) => response.end(page, () => {
+    onSent?.();
+    resolve();
+  }));
+}
 
 function listenOnFirstFreePort(server, ports) {
   return new Promise((resolve, reject) => {
@@ -477,6 +511,7 @@ async function login(ctx, flags) {
   const state = crypto.randomBytes(24).toString('base64url');
 
   let settle;
+  let callbackConsumed = false;
   const callback = new Promise((resolve, reject) => (settle = { resolve, reject }));
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -484,30 +519,46 @@ async function login(ctx, flags) {
       res.writeHead(404).end();
       return;
     }
-    const reply = (status, title, body) => {
-      res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', connection: 'close' });
-      res.end(PAGE(title, body));
-    };
+    const reply = (status, page, onSent) => sendSignInPage(res, status, page, onSent);
     // Only the genuine redirect settles the login: it must be addressed to the exact registered
     // loopback host and carry this login's state. Anything else is answered 400 and ignored.
     if (req.headers.host !== `127.0.0.1:${server.address().port}` || !sameSecret(url.searchParams.get('state') ?? '', state)) {
-      reply(400, 'Not this sign-in', 'This response does not belong to the sign-in in progress.');
+      reply(400, renderSignInPage({ variant: 'error', message: 'This response does not match the sign-in in progress. Return to the terminal and try again.' }));
+      return;
+    }
+    if (callbackConsumed) {
+      reply(400, renderSignInPage({ variant: 'error', message: 'This sign-in response was already received. Return to the terminal and retry if needed.' }));
       return;
     }
     const error = url.searchParams.get('error');
     if (error) {
-      reply(400, 'Sign-in was not completed', 'You can close this tab.');
-      settle.reject(new CliError(`Sign-in was not completed: ${error}${url.searchParams.get('error_description') ? ` — ${url.searchParams.get('error_description')}` : ''}`, { code: error }));
+      callbackConsumed = true;
+      const errorDescription = url.searchParams.get('error_description');
+      const denied = error === 'access_denied';
+      const page = renderSignInPage({
+        variant: 'error',
+        message: denied
+          ? 'The sign-in request was denied. You can close this tab and return to the terminal.'
+          : 'The sign-in response expired or could not be completed. Run pmo login again.',
+        error,
+        errorDescription,
+      });
+      const failure = new CliError(`Sign-in was not completed: ${error}${errorDescription ? ` — ${errorDescription}` : ''}`, { code: error });
+      reply(400, page, () => settle.reject(failure));
       return;
     }
     const code = url.searchParams.get('code');
     if (!code) {
-      reply(400, 'Sign-in failed', 'No authorization code was returned.');
-      settle.reject(new CliError('Sign-in failed: no authorization code was returned'));
+      callbackConsumed = true;
+      const failure = new CliError('Sign-in failed: no authorization code was returned');
+      reply(400, renderSignInPage({
+        variant: 'error',
+        message: 'The sign-in response has expired or is incomplete because no authorization code was returned. Run pmo login again.',
+      }), () => settle.reject(failure));
       return;
     }
-    reply(200, 'Signed in to PMO', 'You can close this tab and return to the terminal.');
-    settle.resolve(code);
+    callbackConsumed = true;
+    settle.resolve({ code, response: res });
   });
 
   const port = await listenOnFirstFreePort(server, ctx.ports);
@@ -524,21 +575,31 @@ async function login(ctx, flags) {
         .then(() => ctx.openBrowser(authorizeUrl))
         .catch(() => {});
     }
-    const code = await callback;
-    const r = await send(ctx, 'POST', `${ctx.supabaseUrl}/auth/v1/oauth/token`, {
-      form: { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier },
-    });
-    if (!r.ok || !r.data?.access_token) throw apiError(r);
-    const user = await send(ctx, 'GET', `${ctx.supabaseUrl}/auth/v1/user`, {
-      headers: { authorization: `Bearer ${r.data.access_token}` },
-    });
-    if (!user.ok) throw apiError(user);
-    const who = { id: user.data.id, email: user.data.email };
-    writeCredentials(ctx.env, ctx.supabaseUrl, sessionFrom(ctx, r.data, clientId, who));
-    return { signed_in: true, url: ctx.supabaseUrl, user: who };
+    const { code, response } = await callback;
+    try {
+      const r = await send(ctx, 'POST', `${ctx.supabaseUrl}/auth/v1/oauth/token`, {
+        form: { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier },
+      });
+      if (!r.ok || !r.data?.access_token) throw apiError(r);
+      const user = await send(ctx, 'GET', `${ctx.supabaseUrl}/auth/v1/user`, {
+        headers: { authorization: `Bearer ${r.data.access_token}` },
+      });
+      if (!user.ok) throw apiError(user);
+      const who = { id: user.data.id, email: user.data.email };
+      writeCredentials(ctx.env, ctx.supabaseUrl, sessionFrom(ctx, r.data, clientId, who));
+      await sendSignInPage(response, 200, renderSignInPage({ variant: 'success', email: who.email }));
+      return { signed_in: true, url: ctx.supabaseUrl, user: who };
+    } catch (error) {
+      if (!response.writableEnded && !response.destroyed) {
+        await sendSignInPage(response, 400, renderSignInPage({
+          variant: 'error',
+          message: 'Sign-in could not be completed. The authorization code may have expired. Run pmo login again.',
+        }));
+      }
+      throw error;
+    }
   } finally {
     clearTimeout(timer);
-    server.closeAllConnections?.();
     server.close();
   }
 }

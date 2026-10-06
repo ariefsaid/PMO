@@ -3013,3 +3013,6 @@ The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) alr
   template without withholding."): the vendor-invoice mirror allows a negative tax only on a negative amount (0196), so the ERP
   document would land and its mirror fail on every sweep replay. Rows are copied with `included_in_print_rate` (and `cost_center`
   when set) so an inclusive template is not applied on top. Revisit when PMO records withholding.
+
+## OD-CHG-1 — record change history open questions accepted at their defaults (owner, 2026-10-06)
+#719: owner said go, accepting Q1 first set only · Q3 no export · Q4 no DELETE capture · Q5 read-side audit merge for audit readers · Q6 indefinite retention · Q7 project History includes child events with kind filters (Q2 already resolved: contact email/phone `flag` only); `record-change-history.spec.md`.
