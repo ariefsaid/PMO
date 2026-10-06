@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 type Row = Record<string, unknown>;
-export function contactDb(seed: Record<string, Row[]> = {}) {
+export function contactDb(seed: Record<string, Row[]> = {}, opts: { failTable?: string } = {}) {
   const rows: Record<string, Row[]> = {
     external_refs: [],
     contacts: [],
@@ -24,7 +24,8 @@ export function contactDb(seed: Record<string, Row[]> = {}) {
           if (op === "insert") (rows[table] ??= []).push({ ...patch });
           else selected.forEach((r) => Object.assign(r, patch));
         }
-        return { data: selected, error: null };
+        if (op === "select" && opts.failTable === table) return { data: [] as Row[], error: { message: "synthetic db fault", code: "XX000" } };
+        return { data: selected, error: null as null | { message: string; code: string } };
       };
       const b = {
         select: (_c: string) => b,

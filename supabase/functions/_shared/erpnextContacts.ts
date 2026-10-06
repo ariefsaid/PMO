@@ -19,11 +19,13 @@ function refuse(message: string, code: string): AppError {
 }
 
 /**
- * Feed entry (sweep + webhook): a deliberate Contact refusal is terminal for that ONE document — raise
- * the action-required notice (an unmapped parent is routine and stays silent) and rethrow under the
- * classified `contact-not-adopted` code so `feedErrorPolicy` skips it instead of wedging the watermark.
- * Anything else (DB/network fault) propagates unchanged and halts. Onboarding calls `applyErpContact`
- * directly and keeps the raw codes.
+ * Feed entry (sweep + webhook): the genuine action-required refusals (two adopted companies, an
+ * ambiguous match, a row already mapped to another ERP Contact) are terminal for that ONE document —
+ * raise the notice and rethrow under the classified `contact-not-adopted` code so `feedErrorPolicy`
+ * skips it instead of wedging the watermark. The TRANSIENT refusals (`contact-parent-unmapped`: the
+ * Customer is adopted on a later tick, since Contact is swept first; `command-reconciling`: an outbound
+ * create is in flight) and any DB/network fault propagate unchanged, so the feed halts and re-polls them.
+ * The only caller of `applyErpContact` directly is this wrapper; no onboarding caller exists.
  */
 export async function applyErpContactFeed(
   serviceClient: SupabaseClient,
@@ -35,13 +37,11 @@ export async function applyErpContactFeed(
   try {
     return await applyErpContact(serviceClient, orgId, externalRecordId, canonical, sourceModMs);
   } catch (err) {
-    if (!(err instanceof AppError) || !contactRefusals.has(err)) throw err;
-    if (err.code !== "contact-parent-unmapped") {
-      await surfaceActionRequired(serviceClient, orgId, "contact-not-adopted", {
-        erpName: externalRecordId,
-        reason: err.code ?? "unknown",
-      });
-    }
+    if (!(err instanceof AppError) || !contactRefusals.has(err) || err.code !== "action-required") throw err;
+    await surfaceActionRequired(serviceClient, orgId, "contact-not-adopted", {
+      erpName: externalRecordId,
+      reason: err.code,
+    });
     throw new AppError(err.message, "contact-not-adopted");
   }
 }

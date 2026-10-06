@@ -66,11 +66,8 @@ async function run(state?: string, mapped = false) {
 Deno.test('AC-CON-001 signed Contact webhook defers competing adoption for every unresolved outbound state', async () => {
   for (const state of ['pending', 'committing', 'committed', 'quarantined', 'held']) {
     const result = await run(state);
-    // #828: a refused Contact is terminal for this document — ack-and-skip (no Frappe retry storm) plus an
-    // operator notice; the refusal itself (no mirror, no mapping) is kept.
-    assertEquals(result.status, 200, JSON.stringify(result.body));
-    assertEquals(result.body.skipped, 'contact-not-adopted');
-    assertEquals(result.db.rows.notifications.length, 1);
+    assertEquals(result.status, 500, JSON.stringify(result.body));
+    assertEquals(result.db.rows.notifications.length, 0);
     assertEquals(result.db.rows.contacts.length, 0);
     assert(!result.db.rows.external_refs.some(r => r.external_record_id === 'Contact:CON-1'));
   }
