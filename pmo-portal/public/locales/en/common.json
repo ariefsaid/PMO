@@ -1547,6 +1547,11 @@
         "amountInvalid": "its amount includes a negative value, so it cannot be checked against the project budget."
       },
       "adminOnly": "Approval for this request needs an Admin: no one in the senior approver set can act on it."
+    },
+    "erpTaxTemplate": {
+      "label": "ERPNext tax template",
+      "default": "ERPNext default",
+      "loadError": "Could not load the ERPNext tax templates. The ERPNext default will apply."
     }
   },
   "projectDetail": {

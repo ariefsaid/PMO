@@ -276,6 +276,19 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(record).not.toHaveProperty('taxTemplate');
   });
 
+  it('AC-520-8 forwards the chosen ERPNext purchase tax template — and still no other tax fact', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-520', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-06',
+      taxTreatment: 'inclusive', taxAmount: 0, taxTemplate: 'Synthetic Input VAT',
+    });
+    const record = dispatchSpy.mock.calls[0][2] as Record<string, unknown>;
+    expect(record.taxTemplate).toBe('Synthetic Input VAT');
+    expect(record).not.toHaveProperty('taxTreatment');
+    expect(record).not.toHaveProperty('taxAmount');
+    expect(record).not.toHaveProperty('taxes');
+  });
+
   it('forwards the supplied vendor invoice reference and date to external dispatch (#764)', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createInvoice({
