@@ -64,10 +64,13 @@ begin
     connected_at = excluded.connected_at,
     -- Record the row's prior state until finalize commits. A re-stage over an unfinalised attempt
     -- keeps the ORIGINAL marker, so compensation always returns to the pre-attempt row. Computed from
-    -- the row version being updated (not v_old_*), so a racing insert is recorded too.
+    -- the row version being updated (not v_old_*), so a racing insert is recorded too. A DISCONNECTED
+    -- row always records afresh: a marker left by an attempt the Admin then disconnected is stale, and
+    -- restoring it would revive the pre-attempt secret.
     config = case
-      when b.secret_ref <> excluded.secret_ref and not (coalesce(b.config, '{}'::jsonb) ? 'prev_binding')
-        then coalesce(b.config, '{}'::jsonb)
+      when b.secret_ref <> excluded.secret_ref
+       and (not (coalesce(b.config, '{}'::jsonb) ? 'prev_binding') or b.status = 'disconnected')
+        then (coalesce(b.config, '{}'::jsonb) - 'prev_binding')
              || jsonb_build_object('prev_binding', jsonb_build_object(
                   'secret_ref', b.secret_ref, 'status', b.status, 'connected_by', b.connected_by,
                   'connected_at', b.connected_at, 'disconnected_at', b.disconnected_at))

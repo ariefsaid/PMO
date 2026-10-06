@@ -3,7 +3,7 @@
 -- AC-653-6: a failed reconnect over a DISCONNECTED binding leaves that row exactly as it was.
 -- AC-653-7: the staging RPC refuses every caller but an active Admin of the org (or an operator).
 begin;
-select plan(39);
+select plan(41);
 insert into organizations (id, name) values ('a2590000-0000-0000-0000-000000000001','Rotate Org');
 insert into auth.users (id, email) values ('a2590000-0000-0000-0000-0000000000a1','a259-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -138,4 +138,25 @@ select is(public.finalize_external_connect('a2590000-0000-0000-0000-000000000001
 select is((select status || ':' || secret_ref || ':' || (config ? 'prev_binding')::text from external_org_bindings
             where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'active:a259_re5:false',
   'AC-653-6 the reconnected binding is active on the new secret with no in-flight marker');
+
+-- A disconnect while an attempt is in flight must not be undone by a later failed reconnect: the stale
+-- in-flight marker (pointing at the pre-attempt secret) is discarded once the row is disconnected.
+select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','mid','a259_mid','a2590000-0000-0000-0000-0000000000a1');
+select public.deactivate_external_binding('a2590000-0000-0000-0000-000000000001','clickup','a2590000-0000-0000-0000-0000000000a1');
+reset role;
+create temp table a259_disc as
+  select status, secret_ref, connected_by, connected_at, disconnected_at from external_org_bindings
+   where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup';
+grant select on a259_disc to service_role;
+set local role service_role;
+select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','after','a259_after','a2590000-0000-0000-0000-0000000000a1');
+select public.cleanup_external_connect_attempt('a2590000-0000-0000-0000-000000000001','clickup','a259_after','a2590000-0000-0000-0000-0000000000a1');
+select results_eq(
+  $$select status, secret_ref, connected_by, connected_at, disconnected_at from external_org_bindings
+     where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'$$,
+  $$select * from a259_disc$$,
+  'AC-653-7 a failed reconnect after a disconnect leaves the binding disconnected (no revival of the pre-attempt secret)');
+select is((select config ? 'prev_binding' from external_org_bindings
+            where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), false,
+  'AC-653-7 no in-flight marker survives the compensation');
 select finish(); rollback;
