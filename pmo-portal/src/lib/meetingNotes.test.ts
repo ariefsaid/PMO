@@ -79,6 +79,8 @@ describe('assertNoBinary', () => {
     expect(() =>
       assertNoBinary([
         { type: 'paragraph', content: [{ type: 'text', text: 'see data: here', styles: {} }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Data: 40 samples collected', styles: {} }] },
+        { type: 'codeBlock', content: [{ type: 'text', text: 'data:\n  rows: 3', styles: {} }] },
         { type: 'paragraph', content: [{ type: 'link', href: 'https://example.com', content: [] }] },
       ]),
     ).not.toThrow();

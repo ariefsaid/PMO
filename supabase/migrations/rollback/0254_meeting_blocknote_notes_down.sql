@@ -1,6 +1,6 @@
 -- Reverses 0254: restores 0205's project_meeting_notes() verbatim (v1 flat-text projection, version pinned to 1).
--- ⚑ Rolling back while v2 (BlockNote) notes exist leaves their nested runs un-indexed; the app must be
--- rolled back first (v1 reads only top-level `text`).
+-- ⚑ Do NOT roll back while v2 (BlockNote) notes exist: the v1 app reads only top-level `text`, shows v2
+-- minutes as blank lines, and the author's next save overwrites them. Export or convert v2 rows first.
 create or replace function public.project_meeting_notes()
   returns trigger language plpgsql security invoker set search_path = public as $$
 declare v_text text;

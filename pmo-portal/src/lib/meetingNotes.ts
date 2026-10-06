@@ -74,12 +74,15 @@ export function actionItemTaskIds(blocks: NoteBlock[]): string[] {
  * FR-MTG-022 backstop: the persisted document may hold no embedded binary. The palette excludes
  * media blocks, so this should never fire; it is the save-time guard if a paste path slips past it.
  */
+const URL_KEYS = new Set(['url', 'href', 'src']);
+
 export function assertNoBinary(doc: unknown): void {
-  const walk = (v: unknown): void => {
+  // Only URL-bearing props can embed binary; ordinary text ("Data: 40 samples") must save.
+  const walk = (v: unknown, key?: string): void => {
     if (typeof v === 'string') {
-      if (/^\s*data:/i.test(v)) throw new Error('Minutes may not contain embedded binary content');
-    } else if (Array.isArray(v)) v.forEach(walk);
-    else if (isObject(v)) Object.values(v).forEach(walk);
+      if (key && URL_KEYS.has(key) && /^\s*data:/i.test(v)) throw new Error('Minutes may not contain embedded binary content');
+    } else if (Array.isArray(v)) v.forEach((x) => walk(x));
+    else if (isObject(v)) Object.entries(v).forEach(([k, x]) => walk(x, k));
   };
   walk(doc);
 }

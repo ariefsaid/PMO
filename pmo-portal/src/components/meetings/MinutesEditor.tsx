@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle } from 'react';
 import { useTranslation } from 'react-i18next';
 import { filterSuggestionItems } from '@blocknote/core/extensions';
 import {
@@ -52,7 +52,8 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
   const { t, i18n } = useTranslation();
   const { theme } = useTheme();
 
-  const dictionary = useMemo(() => minutesDictionary(i18n.language), [i18n.language]);
+  // Fixed per editor instance: rebuilding on a locale switch would re-seed from the saved blocks and drop unsaved edits.
+  const [dictionary] = React.useState(() => minutesDictionary(i18n.language));
   const editor = useCreateBlockNote(
     {
       schema: minutesSchema,
@@ -61,7 +62,7 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
       // FR-MTG-022: no upload path exists, so a pasted/dropped file can never become an embedded blob.
       uploadFile: undefined,
     },
-    [dictionary],
+    [],
   );
 
   useEffect(() => {
