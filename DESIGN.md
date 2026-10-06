@@ -508,6 +508,8 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
      **Text on a destructive tint always uses `destructive-text`, never `destructive`** — `destructive`
      is reviewed only against `canvas`/`raised` backgrounds and fails WCAG AA on the `destructive/[0.07]`
      tint (found live on the M365 disconnect-failure alert, issue #689, fixed by this same rule).
+  - **Inline field errors use `text-destructive-text` in both themes.** `FieldError` owns the
+    token; AC-A11Y-FIELD-001 binds it to the component and proves AA contrast on background/popover.
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
 - **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
@@ -827,3 +829,21 @@ Recessed card deriving the label from `payload`: `payload.entity` → "Looked up
 - **Per-chip state keyed by `pendingId` (Blocker-8):** `ChipStateMap = Record<string, ApprovalChipState>`
   keyed by `pendingId` — NOT a single global atom (a global corrupts earlier chips on sequential
   proposals). See `docs/decisions.md` OD-A3-CHIP.
+
+### Budget editor scroll containment (2026-10-05, #804)
+
+The existing DataTable positioned-scroller rule also applies to budget editor tables: `overflow-x-auto` wrappers must be `relative`, so absolutely positioned accessible labels remain clipped at375px. AC-CAT-007 retains this regression.
+
+### Finance filters and narrow record cards (2026-10-05)
+
+Status filters that exceed a narrow page use a width-capped horizontal scroll region with a label, keyboard focus, and the shared focus-ring token. Budget table scroll regions are keyboard reachable and remain positioned for label containment. On a wrapping version-card header, keep a visible gap between status and total and reserve the total's width. In narrow invoice cards, the tax-basis note takes its own full-width line alongside the amount group. Text on dark primary surfaces uses the existing `primary-text` AA token.
+
+### Project classification filters (2026-10-05, #770)
+
+Project classification filters stay available to Engineers as well as managers. At phone width,
+Engineers use a separate Classification disclosure; customer and project-manager controls remain in
+the manager Filters disclosure. Clearing a classification restores the role's default project scope.
+Filter-clearing text uses the existing `primary-text` AA token in both themes. The shared project
+form keeps all five classification fields in its scrollable body with the save footer visible.
+Read-only setup lists pair each term with its definition; explanatory helper text sits outside the
+definition list so assistive technology receives valid list semantics.

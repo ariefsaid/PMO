@@ -56,6 +56,18 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     expect(within(screen.getByTestId('stage-Won')).queryByText('Lost Deal Delta')).toBeNull();
   });
 
+  // #774: Declined shares the closed Lost column but is counted separately.
+  it('AC-DEC-001: the Lost column shows Lost and Declined counts separately', () => {
+    const withDeclined: PipelineProject[] = [
+      ...projects,
+      { id: 'dc1', name: 'Declined Deal Echo', client_name: 'Echo', status: 'Declined', contract_value: 300_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
+    ];
+    render(<SalesKanbanBoard projects={withDeclined} onOpen={vi.fn()} />);
+    const lostCol = screen.getByTestId('stage-Lost');
+    expect(within(lostCol).getByText('Declined Deal Echo')).toBeInTheDocument();
+    expect(within(lostCol).getByTestId('lost-column-counts')).toHaveTextContent('Lost 1 · Declined 1');
+  });
+
   it('AC-SP-204: a Quotation deal renders name, customer, value, weighted chip and win%', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const card = screen.getByText('Quotation Deal Alpha').closest('[role="button"]')!;

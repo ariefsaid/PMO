@@ -1,3 +1,4 @@
+import type { ProjectClassification } from '../projectClassification';
 import { supabase } from '@/src/lib/supabase/client';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -48,6 +49,8 @@ export interface ExecutiveDashboard {
 export interface WinRate {
   wins_count: number;
   losses_count: number;
+  /** #774: declined-to-bid deals in the period — NOT part of either win-rate denominator. */
+  declined_count?: number;
   wins_value: number;
   losses_value: number;
   win_rate_count: number;
@@ -62,10 +65,15 @@ export interface PipelineStage {
   weighted_value: number;
 }
 
-export interface PipelineProject {
+export interface PipelineProject extends ProjectClassification {
   id: string;
   name: string;
+  /** Independent PMO and organisation-owned identifiers, projected for search/display. */
+  pmo_project_number?: string | null;
+  code?: string | null;
   client_name: string | null;
+  client_legal_name?: string | null;
+  end_client_legal_name?: string | null;
   /**
    * The deal's END customer name (companies.end_client_id resolution, #758) — the company the
    * work is ultimately for, which may differ from the invoiced client. Populated for both open
@@ -92,6 +100,9 @@ export interface PipelineProject {
    * basis from a current setting silently re-interprets every historical row.
    */
   tax_treatment: string | null;
+  tax_rate?: number | null;
+  tax_base_numerator?: number;
+  tax_base_denominator?: number;
   win_probability: number;
   /**
    * ISO timestamp of the last update to this project row (projects.last_update).

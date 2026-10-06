@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * AC-EC-002 — issue #758: the project create/edit form carries an OPTIONAL End customer combobox
  * directly after Client. It lists ALL the org's companies, is clearable back to null, is NOT in
@@ -8,6 +9,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
+}));
+
 import ProjectFormModal from './ProjectFormModal';
 
 const END_ID = 'c9';

@@ -381,6 +381,13 @@ describe('SelectField: native select for short fixed enums', () => {
 });
 
 describe('FieldError: standalone inline error', () => {
+  it('AC-A11Y-FIELD-001: uses the shared AA destructive text token', () => {
+    render(<FieldError id="x-err">A field needs attention.</FieldError>);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveClass('text-destructive-text');
+    expect(alert.style.color).toBe('');
+  });
+
   it('renders role="alert" with an icon + text', () => {
     render(<FieldError id="x-err">Select a client company.</FieldError>);
     const alert = screen.getByRole('alert');

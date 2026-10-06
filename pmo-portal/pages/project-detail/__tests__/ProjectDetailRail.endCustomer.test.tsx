@@ -7,6 +7,8 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetailRail from '../ProjectDetailRail';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 vi.mock('../../components/ProjectStatusControl', () => ({
   default: () => <div data-testid="status-control" />,
@@ -29,6 +31,14 @@ const renderRail = (project: Record<string, unknown>) =>
   );
 
 describe('AC-EC-003 — project detail rail end customer', () => {
+  it('AC-CODE-003: the rail labels both identity fields and intentionally shows an absent Client Project Code', () => {
+    renderRail({ ...baseProject, pmo_project_number: 'PMO-26-7711', code: null, end_client_id: null, end_client: null });
+    expect(screen.getByText('PMO Project Number')).toBeInTheDocument();
+    expect(screen.getByText('PMO-26-7711')).toBeInTheDocument();
+    expect(screen.getByText('Client Project Code')).toBeInTheDocument();
+    expect(screen.getByText('Client Project Code').nextElementSibling).toHaveTextContent('Not set');
+  });
+
   it('AC-EC-003: the rail shows the End customer row when the project has one', () => {
     renderRail({
       ...baseProject,

@@ -26,6 +26,7 @@ const invoice = (over: Partial<SalesInvoiceRow>): SalesInvoiceRow =>
     org_id: 'org-1',
     project_id: null,
     customer_id: 'cust-1',
+    customer_name: 'Acme Energy',
     si_number: 'ACC-SINV-0001',
     reference_number: null,
     invoice_date: '2026-07-01',
@@ -88,19 +89,23 @@ vi.mock('react-router', async (importOriginal) => {
 
 import IncomingPayments from '../IncomingPayments';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { FinanceI18nTestProvider } from './financeI18nTestProvider';
+import { financeTestI18n } from './financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
-        <ToastProvider>
-          <IncomingPayments />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <FinanceI18nTestProvider>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter>
+          <ToastProvider>
+            <IncomingPayments />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </FinanceI18nTestProvider>,
   );
 
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
@@ -112,16 +117,66 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string | R
   await user.click(await screen.findByRole('option', { name: new RegExp(label) }));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   hoisted.createPaymentMutate.mockClear();
   hoisted.navigateMock.mockClear();
   hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
   setActiveLocale(EN_LOCALE);
+  await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
 describe('IncomingPayments — a Finance user can actually record a receipt (BLOCK 1)', () => {
+  it('AC-WHT-001: records cash received and the client withholding slip against the full allocation', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-WHT' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHT');
+    for (const [label, value] of [['Paid Amount', '1000'], ['Received Amount', '980'], ['Withheld tax amount', '20']]) {
+      const input = screen.getByLabelText(new RegExp(label));
+      await user.clear(input);
+      await user.type(input, value);
+    }
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'WHT-001');
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({
+      paidAmount: 1000, receivedAmount: 980, withheldAmount: 20, withholdingSlipNumber: 'WHT-001',
+      salesInvoiceId: 'si-a',
+    }));
+  });
+
+  it('AC-WHT-001: an unbalanced receipt or missing slip cannot be sent', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    for (const [label, value] of [['Paid Amount', '1000'], ['Received Amount', '980'], ['Withheld tax amount', '19']]) {
+      const input = screen.getByLabelText(new RegExp(label));
+      await user.clear(input);
+      await user.type(input, value);
+    }
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/cash received plus withheld tax must equal/i).length).toBeGreaterThan(0);
+  });
+
+  it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Pembayaran Masuk' })).toBeInTheDocument();
+  });
+
+  it('AC-L10N-B01 renders the payment form section label from the shipped Bahasa catalogue', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByText('Detail pembayaran')).toBeInTheDocument();
+  });
+
   it('offers the org\'s real client companies in the customer picker', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -213,7 +268,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     for (const label of [/Paid Amount/, /Received Amount/]) {
-      const field = screen.getByLabelText(label);
+      const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);
       await user.type(field, '1.234');
     }
@@ -233,7 +288,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     for (const label of [/Paid Amount/, /Received Amount/]) {
-      const field = screen.getByLabelText(label);
+      const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);
       await user.type(field, '1.234');
     }

@@ -48,6 +48,15 @@ beforeEach(() => {
 });
 
 describe('Budget account map in Bahasa (#693 F-1)', () => {
+  it('AC-CAT-005: translates the new category in the row and mapping dialog while retaining existing names', async () => {
+    listMock.mockResolvedValue([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
+    renderPage();
+    expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
+    expect(screen.getByText('Labor')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Petakan Biaya khusus' }));
+    expect(await screen.findByRole('dialog', { name: 'Petakan Biaya khusus' })).toBeInTheDocument();
+  });
+
   it('#693: heading, intro, column headers, unmapped pill and row actions are Bahasa', async () => {
     listMock.mockResolvedValue([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
     renderPage();
@@ -61,7 +70,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('columnheader', { name: 'Kategori' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
-    expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(6);
+    expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(7);
     expect(screen.getByRole('button', { name: 'Edit Labor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Petakan Materials' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hapus pemetaan Labor' })).toBeInTheDocument();

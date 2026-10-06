@@ -112,7 +112,7 @@ export function useRevenueMutations() {
   };
 
   const create = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number }>; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
       repositories.revenue.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
@@ -157,7 +157,7 @@ export function useRevenueMutations() {
   });
 
   const createPayment = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; date: string; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; date: string; intent?: CommandIntent }) =>
       repositories.revenue.createPayment(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));

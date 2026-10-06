@@ -10,6 +10,7 @@
  * record id so the adopted mirror keys correctly.
  */
 import type { PmoRecord } from '../contract.ts';
+import { mirrorMoney } from './moneyShape.ts';
 import { escapeLikePattern, getDoc, listDocNamesByAnchor, listDocNamesByFilters, type ErpClientDeps, type ErpFilter } from './client.ts';
 
 export interface ErpProbeDeps {
@@ -94,6 +95,33 @@ export interface ErpPaymentCompositeInput {
   /** C-1 / FR-SAR-083 discriminator: `Pay` for a PE-pay (procurement), `Receive` for a PE-receive
    *  (revenue). A Receive probe MUST NOT match a Pay doc and vice-versa. */
   paymentType: 'Pay' | 'Receive';
+  /** #762 / DD-RCPT-1: a receipt with tax withheld carries only the CASH in `paid_amount`, which a
+   *  plain receipt of the same cash would match too. When set, a candidate must also carry a deduction
+   *  of exactly this amount AND allocate exactly `allocatedAmount` (the gross) to a cited invoice. */
+  withheldAmount?: string | number;
+  allocatedAmount?: string | number;
+}
+
+/** The withholding conjuncts a persisted Receive composite payload carries (see `withheldAmount`); none
+ *  for a receipt without tax withheld, or a payload persisted before they existed. */
+export function withholdingMatchFromPayload(
+  payload: Record<string, unknown>,
+): Pick<ErpPaymentCompositeInput, 'withheldAmount' | 'allocatedAmount'> {
+  const withheld = payload.withheld_amount;
+  const allocated = payload.allocated_amount;
+  if ((typeof withheld !== 'number' && typeof withheld !== 'string') || !(Number(withheld) > 0)) return {};
+  if (typeof allocated !== 'number' && typeof allocated !== 'string') return {};
+  return { withheldAmount: withheld, allocatedAmount: allocated };
+}
+
+/** Exact-cent equality of two ERP/PMO money values; anything unparseable never matches. */
+function sameMoney(a: unknown, b: unknown): boolean {
+  try {
+    const left = mirrorMoney(a);
+    return left !== null && left === mirrorMoney(b);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -149,9 +177,14 @@ export async function probeErpByPaymentComposite(
     const references = (doc as { references?: Array<{ reference_name?: unknown }> }).references ?? [];
     // Match against piNames (PE-pay) OR siNames (PE-receive) — the input carries the correct array
     // based on paymentType, so a PE-receive probe never cross-matches a PE-pay doc.
-    if (references.some((r) => piNames.includes(String(r.reference_name)) || siNames.includes(String(r.reference_name)))) {
-      matches.push({ name, doc });
+    const cited = references.filter((r) => piNames.includes(String(r.reference_name)) || siNames.includes(String(r.reference_name)));
+    if (cited.length === 0) continue;
+    if (input.withheldAmount !== undefined) {
+      const deductions = (doc as { deductions?: Array<{ amount?: unknown }> }).deductions ?? [];
+      if (!deductions.some((row) => sameMoney(row.amount, input.withheldAmount))) continue;
+      if (!cited.some((r) => sameMoney((r as { allocated_amount?: unknown }).allocated_amount, input.allocatedAmount))) continue;
     }
+    matches.push({ name, doc });
   }
   // Deterministic: adopt ONLY a unique match. 0 ⇒ inconclusive absence (hold, never reissue); >1 ⇒
   // ambiguous (also inconclusive — an operator must disambiguate rather than risk adopting the wrong doc).

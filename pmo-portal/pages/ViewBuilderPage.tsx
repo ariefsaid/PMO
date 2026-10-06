@@ -21,6 +21,7 @@
  * without requiring modal interaction. Undefined in production usage.
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import {
   ListState,
@@ -54,12 +55,8 @@ export interface ViewBuilderPageProps {
   __testPanels?: PanelSpec[];
 }
 
-const SCOPE_OPTIONS: SelectOption[] = [
-  { value: 'private', label: 'Private — only you' },
-  { value: 'shared_org', label: 'Shared with your organisation' },
-];
-
 const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const params = useParams<{ viewId: string }>();
   const location = useLocation();
@@ -141,6 +138,10 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         JSON.stringify(panels) !== JSON.stringify(initialValuesRef.current.panels);
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const scopeOptions: SelectOption[] = [
+    { value: 'private', label: t('viewBuilder.privateScope', 'Private — only you') },
+    { value: 'shared_org', label: t('viewBuilder.sharedScope', 'Shared with your organisation') },
+  ];
 
   // Guard unsaved changes (OD-VB-8). The app uses BrowserRouter (not a data
   // router), so react-router's useBlocker is unavailable — it throws at render.
@@ -281,14 +282,16 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
     return (
       <ListState
         variant="empty"
-        title="View not found."
-        sub="This view may have been archived or you don't have access."
-        action={{ label: 'Go to My Views', onClick: () => navigate('/views') }}
+        title={t('viewBuilder.viewNotFound', 'View not found.')}
+        sub={t('viewBuilder.viewNotFoundDescription', "This view may have been archived or you don't have access.")}
+        action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }}
       />
     );
   }
 
-  const pageTitle = mode === 'create' ? 'New View' : `Edit: ${existingView?.name ?? ''}`;
+  const pageTitle = mode === 'create'
+    ? t('viewBuilder.newView', 'New View')
+    : t('viewBuilder.editView', 'Edit: {{name}}', { name: existingView?.name ?? '' });
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -300,7 +303,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
           <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
             {aiDraft && (
               <span className="text-[12px] font-medium text-warning-foreground">
-                AI-composed draft — review before saving
+                {t('viewBuilder.aiDraftReview', 'AI-composed draft — review before saving')}
               </span>
             )}
           </div>
@@ -311,9 +314,9 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
             <Button
               variant="outline"
               onClick={() => setAIComposerOpen(true)}
-              aria-label="Compose view with AI"
+              aria-label={t('viewBuilder.composeWithAi', 'Compose view with AI')}
             >
-              Compose view with AI
+              {t('viewBuilder.composeWithAi', 'Compose view with AI')}
             </Button>
           )}
           <Button
@@ -323,7 +326,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
               else navigate('/views');
             }}
           >
-            Cancel
+            {t('viewBuilder.cancel', 'Cancel')}
           </Button>
           <Button
             variant="primary"
@@ -331,7 +334,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
             aria-disabled={saveDisabled}
             onClick={handleSave}
           >
-            {mode === 'create' ? 'Save view' : 'Update view'}
+            {mode === 'create' ? t('viewBuilder.saveView', 'Save view') : t('viewBuilder.updateView', 'Update view')}
           </Button>
         </div>
       </div>
@@ -347,10 +350,10 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
       )}
 
       {/* Metadata section */}
-      <FormSection legend="View details">
+      <FormSection legend={t('viewBuilder.viewDetails', 'View details')}>
         <FormGrid>
           <TextField
-            label="View name"
+            label={t('viewBuilder.viewName', 'View name')}
             required
             aria-required="true"
             value={name}
@@ -358,21 +361,21 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
             maxLength={120}
           />
           <TextArea
-            label="Description"
+            label={t('viewBuilder.description', 'Description')}
             value={description}
             onChange={setDescription}
           />
           <SelectField
-            label="Scope"
+            label={t('viewBuilder.scope', 'Scope')}
             value={scope}
-            options={SCOPE_OPTIONS}
+            options={scopeOptions}
             onChange={(v) => setScope(v as 'private' | 'shared_org')}
           />
         </FormGrid>
       </FormSection>
 
       {/* Panel editor section */}
-      <FormSection legend="Panels">
+      <FormSection legend={t('viewBuilder.panels', 'Panels')}>
         <PanelList
           panels={panels}
           onEdit={handleEditPanel}
@@ -383,23 +386,23 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
 
         {noPanel && (
           <p className="mt-2 text-[12.5px] text-muted-foreground">
-            Add at least one panel to save.
+            {t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')}
           </p>
         )}
 
         {panels.length < MAX_PANELS_PER_VIEW ? (
           <Button variant="outline" onClick={handleAddPanel} className="mt-3">
-            + Add panel
+            {t('viewBuilder.addPanel', '+ Add panel')}
           </Button>
         ) : (
           <p className="mt-3 text-[12.5px] text-muted-foreground">
-            Maximum of {MAX_PANELS_PER_VIEW} panels reached.
+            {t('viewBuilder.maximumPanelsReached', 'Maximum of {{count}} panels reached.', { count: MAX_PANELS_PER_VIEW })}
           </p>
         )}
       </FormSection>
 
       {/* Live preview pane */}
-      <FormSection legend="Live preview">
+      <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
         <ViewPreview spec={spec} />
       </FormSection>
 
@@ -427,10 +430,10 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
       <ConfirmDialog
         open={showDiscardDialog}
         tone="destructive"
-        title="Discard unsaved changes?"
-        description="Your panel configuration and name will be lost."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={t('viewBuilder.discardChangesTitle', 'Discard unsaved changes?')}
+        description={t('viewBuilder.discardChangesDescription', 'Your panel configuration and name will be lost.')}
+        confirmLabel={t('viewBuilder.discard', 'Discard')}
+        cancelLabel={t('viewBuilder.keepEditing', 'Keep editing')}
         onConfirm={() => {
           setShowDiscardDialog(false);
           navigate('/views');

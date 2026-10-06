@@ -7,7 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
  * The full opportunity row for the detail page (Director decision 2). Selects
  * directly from `projects` — snake_case, consumed as the DB shape (no
  * `as unknown as` camelCase bridge). org_id is NEVER sent: RLS
- * (org_id = auth_org_id()) scopes the read. Surfaces `code`, the PM join,
+ * (org_id = auth_org_id()) scopes the read. Surfaces both project identifiers, the PM join,
  * `customer_contract_ref`, `contract_date`, `decided_at` that the pipeline RPC
  * does not project.
  */
@@ -30,10 +30,12 @@ export const OPPORTUNITY_COLUMNS = [
   'id',
   'name',
   'code',
+  'pmo_project_number',
   'status',
   'client_id',
   'project_manager_id',
   'end_client_id',
+  'service_line', 'sector', 'location', 'award_type', 'bidding_entity',
   'contract_value',
   // The money-shape columns. `currency` is required by every formatCurrency call on the header;
   // the tax trio travels with it so the contract figure keeps its basis (OD-TAX-1 — a money value
@@ -42,6 +44,8 @@ export const OPPORTUNITY_COLUMNS = [
   'tax_treatment',
   'tax_amount',
   'tax_rate',
+  'tax_base_numerator',
+  'tax_base_denominator',
   'customer_contract_ref',
   'contract_date',
   'decided_at',
@@ -53,9 +57,9 @@ export type OpportunityRow = Pick<
   Tables<'projects'>,
   (typeof OPPORTUNITY_COLUMNS)[number]
 > & {
-  client: { name: string } | null;
+  client: { name: string; short_name?: string | null } | null;
   /** The end customer, when set (#758) — nullable like client. */
-  end_client: { name: string } | null;
+  end_client: { name: string; short_name?: string | null } | null;
   pm: { full_name: string } | null;
 };
 
@@ -66,7 +70,7 @@ const SELECT =
   // migration 0223) and TWO to `profiles` (project_manager_id + contract_value_set_by), and
   // PostgREST rejects an ambiguous embed. This is the PRE-WIN fallback path, so leaving any of
   // these unqualified breaks the canonical detail route for every pipeline record.
-  'client:companies!projects_client_id_fkey(name), end_client:companies!projects_end_client_id_fkey(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
+  'client:companies!projects_client_id_fkey(name, short_name), end_client:companies!projects_end_client_id_fkey(name, short_name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Fetch one opportunity by id, or null when absent / not visible to the caller. */
 export async function getOpportunity(id: string): Promise<OpportunityRow | null> {

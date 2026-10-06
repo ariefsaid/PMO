@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * #693 (F-2) — the create-project form was hard-coded English: a RIS Admin working in Bahasa
  * created their first project in an English form. Rendered under the real `id` catalogue, every
@@ -11,6 +12,10 @@ import { join } from 'node:path';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
+}));
+
 import ProjectFormModal from './ProjectFormModal';
 
 const en = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as Record<string, unknown>;
@@ -104,8 +109,8 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(screen.getByRole('dialog', { name: 'Edit proyek' })).toBeInTheDocument();
     expect(screen.getByText('Perbarui detail header proyek')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan proyek' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Kode proyek')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('mis. OPP-2041')).toBeInTheDocument();
+    expect(screen.getByLabelText('Kode Proyek Klien')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Kode opsional yang digunakan organisasi Anda')).toBeInTheDocument();
   });
 });
 // ── AC-EC-005 (#758) — every new end-customer key ships with a real Bahasa translation. ──────

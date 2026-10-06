@@ -56,6 +56,7 @@ import {
   updateCompany,
   archiveCompany,
   deleteCompany,
+  setCompanyProjectNumberSegment,
 } from './companies';
 import { AppError } from '@/src/lib/appError';
 
@@ -195,6 +196,21 @@ describe('AC-CO-004 updateCompany', () => {
     await expect(updateCompany('c1', { name: 'Y', type: 'Client' })).rejects.toBeInstanceOf(AppError);
     await expect(updateCompany('c1', { name: 'Y', type: 'Client' })).rejects.toMatchObject({ code: '42501' });
     expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+});
+
+describe('AC-CODE-001 company-local project number segment', () => {
+  it('AC-CODE-001 sends only the trimmed segment through its PMO-local update', async () => {
+    h.result.value = { data: [{ id: 'c1' }], error: null };
+    await setCompanyProjectNumberSegment('c1', '  ACME  ');
+    expect(h.calls.update).toEqual([{ client_number_segment: 'ACME' }]);
+    expect(h.calls.eq).toContainEqual(['id', 'c1']);
+  });
+
+  it('AC-CODE-001 clears an optional company segment to NULL', async () => {
+    h.result.value = { data: [{ id: 'c1' }], error: null };
+    await setCompanyProjectNumberSegment('c1', '   ');
+    expect(h.calls.update).toEqual([{ client_number_segment: null }]);
   });
 });
 

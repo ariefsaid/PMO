@@ -20,6 +20,9 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
+      "@supabase/supabase-js": [
+        "./node_modules/@supabase/supabase-js"
+      ],
       "@/*": [
         "./*"
       ]

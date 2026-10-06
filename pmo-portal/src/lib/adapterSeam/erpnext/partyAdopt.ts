@@ -19,6 +19,12 @@ export type PartyDoctype = 'Supplier' | 'Customer';
  *  flag (FR-ENA-090/091: "Internal is never ERP-flipped — it is PMO's own org marker"). */
 export interface ErpPartySource {
   doctype: PartyDoctype;
+  /** The ERPNext document `name` (the ID — e.g. `C-000001` under a naming series, or the party name
+   *  under the default naming). Keys the external ref, as every other path does (dispatch create,
+   *  the sweep's `externalIdForKind`, the inbound invoice party lookup) — #760. */
+  id: string;
+  /** The display name (`customer_name`/`supplier_name`) — the PMO company name and the FR-ENA-093
+   *  matching key. Equal to `id` under the default naming. */
   name: string;
   taxId?: string | null;
   /** Customer only (FR-ENA-094) — a pre-resolved `Payment Terms Template Detail.credit_days`, or
@@ -47,11 +53,11 @@ export interface AdoptedCompany {
 
 const DISCRIMINATOR: Record<PartyDoctype, 'Vendor' | 'Client'> = { Supplier: 'Vendor', Customer: 'Client' };
 
-/** `'Supplier:<name>'` / `'Customer:<name>'` — encodes the ERP doctype into the external id so the
+/** `'Supplier:<id>'` / `'Customer:<id>'` (the ERPNext document name) — encodes the ERP doctype into the external id so the
  *  Supplier/Customer collision rule (FR-ENA-091) is deterministic under the `unique
  *  (org_id,domain,external_record_id)` constraint (never merges the two doctypes' rows). */
-export function externalIdFor(doctype: PartyDoctype, name: string): string {
-  return `${doctype}:${name}`;
+export function externalIdFor(doctype: PartyDoctype, id: string): string {
+  return `${doctype}:${id}`;
 }
 
 /** FR-ENA-094: `Payment Terms Template Detail.credit_days`, default 30 when no template is resolved. */
@@ -59,16 +65,22 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
   return templateCreditDays ?? 30;
 }
 
-// The name+tax-id MATCHING itself (FR-ENA-093: "matching shall be by ERP name and, when present,
-// erp_tax_id") happens in the caller's `findCandidates` query — this function only decides what to
-// do with the resulting candidate SET: 0 -> new row; 1 -> deterministic adopt; >1 -> the caller's
-// matching couldn't narrow to a single row (same name, differing/absent tax id across the
-// candidates) -> ambiguous, surfaced for operator resolution, never auto-merged.
+// The caller supplies same-name, same-type, same-org candidates. A present source tax ID narrows
+// that set to matching or unset IDs. Conflicting-only and multiple eligible matches require action.
 function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): PartyCandidate | undefined {
   if (candidates.length === 0) return undefined;
-  if (candidates.length === 1) return candidates[0];
+  const matches = source.taxId
+    ? candidates.filter((candidate) => !candidate.taxId || candidate.taxId === source.taxId)
+    : candidates;
+  if (matches.length === 0) {
+    throw new AppError(
+      `conflicting ${source.doctype} tax ID match for "${source.name}" — resolve manually (FR-ENA-093)`,
+      'action-required',
+    );
+  }
+  if (matches.length === 1) return matches[0];
   throw new AppError(
-    `ambiguous ${source.doctype} match for "${source.name}" across ${candidates.length} existing PMO companies — resolve manually (FR-ENA-093)`,
+    `ambiguous ${source.doctype} match for "${source.name}" across ${matches.length} existing PMO companies — resolve manually (FR-ENA-093)`,
     'action-required',
   );
 }
@@ -101,5 +113,5 @@ export async function adoptParty(source: ErpPartySource, deps: PartyAdoptDeps): 
       : { erp_customer_name: source.name, erp_payment_terms_days: deriveErpPaymentTermsDays(source.paymentTermsDays) }),
   };
 
-  return { externalRecordId: externalIdFor(source.doctype, source.name), canonical };
+  return { externalRecordId: externalIdFor(source.doctype, source.id), canonical };
 }

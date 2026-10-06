@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListState, GateNotice, Button, StatusPill, NumberField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import {
@@ -132,27 +134,13 @@ const money = (v: number | null, reason: string, currency: string): React.ReactN
 
 // ── C-5: every push state gets its own statement. A state that renders nothing is a defect, not a
 // default — silence is indistinguishable from absence (DESIGN.md §Data & States).
-const QUIET_STATES: Record<string, { label: string; variant: 'neutral' | 'progress' | 'won'; detail: string }> = {
-  pending: {
-    label: 'Waiting to reach ERPNext',
-    variant: 'neutral',
-    detail: 'This budget is queued for ERPNext and has not been sent yet.',
-  },
-  pushing: {
-    label: 'Sending to ERPNext',
-    variant: 'progress',
-    detail: 'This budget is being sent to ERPNext now.',
-  },
-  pushed: {
-    label: 'Enforced by ERPNext',
-    variant: 'won',
-    detail: 'ERPNext is enforcing this budget.',
-  },
-};
+const QUIET_PUSH_STATES = new Set(['pending', 'pushing', 'pushed']);
 
 const BLOCKED_STATES = new Set(['failed', 'held', 'never-pushed', 'unstamped-activation']);
 
 const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
+  const { t } = useTranslation();
+  const translatedCategory = (category: string) => budgetCategoryLabel(labelFor(category), t);
   const may = usePermission();
   const canEditEtc = may('edit', 'budgetLine');
   const { toast } = useToast();
@@ -260,12 +248,12 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     if (fiscalYear === null) return; // unreachable: the edit affordance is not offered without a year
     const parsed = parseMoneyInputAtScale(etcInput, 2);
     if (parsed === null || parsed < 0) {
-      setEtcError('Enter a valid, non-negative amount with no more than 2 decimal places');
+      setEtcError(t('financeCopy.budgetEtcAmountInvalid', 'Enter a valid, non-negative amount with no more than 2 decimal places'));
       return;
     }
     try {
       await etcMutation.mutateAsync({ fiscalYear, category, pmoEtc: parsed });
-      toast('Estimate to complete saved', `${category} · ${fiscalYear}`, 'success');
+      toast(t('financeCopy.budgetEtcSaved', 'Estimate to complete saved'), `${translatedCategory(category)} · ${fiscalYear}`, 'success');
       closeEdit(category);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -292,7 +280,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // its own cause and its own real route out (activate a fresh version, which records a true activation
   // act), and NO retry button, rather than a button that can only ever fail.
   const blockedRows = pushRows.filter((r) => r.pushState !== null && BLOCKED_STATES.has(r.pushState));
-  const quietRows = pushRows.filter((r) => r.pushState !== null && QUIET_STATES[r.pushState] !== undefined);
+  const quietRows = pushRows.filter((r) => r.pushState !== null && QUIET_PUSH_STATES.has(r.pushState));
 
   // HIGH-D: the recovery affordance, PER YEAR. `held`/`failed`/`never-pushed` are all re-drivable —
   // under the OPERATOR's own JWT, which is the authenticated actor the sweep backstop can never
@@ -331,8 +319,8 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     try {
       await releaseMutation.mutateAsync(row.fiscalYear);
       toast(
-        'Hold released',
-        'The push is queued again — ERPNext is contacted on the next recovery pass, and every check runs afresh.',
+        t('financeCopy.budgetPushHoldReleased', 'Hold released'),
+        t('financeCopy.budgetPushHoldReleasedDetail', 'The push is queued again — ERPNext is contacted on the next recovery pass, and every check runs afresh.'),
         'success',
       );
     } catch (err) {
@@ -347,10 +335,10 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
       const { pushState: next } = await retryMutation.mutateAsync(row.fiscalYear);
       if (next === 'pushed') {
         toast(
-          'Budget pushed to ERPNext',
+          t('financeCopy.budgetPushedToERP', 'Budget pushed to ERPNext'),
           row.fiscalYear
-            ? `ERPNext is now enforcing the active budget for ${row.fiscalYear}.`
-            : 'ERPNext is now enforcing the active budget.',
+            ? t('financeCopy.erpEnforcingBudgetYear', 'ERPNext is now enforcing the active budget for {{year}}.', { year: row.fiscalYear })
+            : t('financeCopy.erpEnforcingBudget', 'ERPNext is now enforcing the active budget.'),
           'success',
         );
       } else if (next === 'nothing-to-push') {
@@ -359,8 +347,8 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         // budget" here claimed a push that did not happen, directly contradicting the `never-pushed`
         // banner beside it. Neither is it a failure — nothing was attempted, so there is nothing to fix.
         toast(
-          'There was nothing to push',
-          'The active budget version has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version.',
+          t('financeCopy.noBudgetLinesToPushTitle', 'There was nothing to push'),
+          t('financeCopy.noBudgetLinesToPushDetail', 'The active budget version has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version.'),
           'warning',
         );
       } else {
@@ -368,10 +356,10 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         // first" was false for a 502/503, where nothing above was fixable and the command never
         // reached ERPNext at all; it sent operators hunting for a cause that was not on the screen.
         toast(
-          'The push did not complete',
+          t('financeCopy.budgetPushIncomplete', 'The push did not complete'),
           copy.transport
-            ? 'ERPNext could not be reached. Nothing on this screen needs fixing — try again shortly.'
-            : 'The reason shown above may need fixing first.',
+            ? t('financeCopy.erpUnavailableRetryShortly', 'ERPNext could not be reached. Nothing on this screen needs fixing — try again shortly.')
+            : t('financeCopy.budgetPushReasonNeedsFixing', 'The reason shown above may need fixing first.'),
           'warning',
         );
       }
@@ -391,8 +379,8 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     return (
       <ListState
         variant="error"
-        title="Couldn't load the budget projection"
-        sub="The request failed. Check your connection and try again."
+        title={t('financeCopy.budgetProjectionLoadFailed', "Couldn't load the budget projection")}
+        sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
         onRetry={() => {
           void (yearsQuery.isError ? yearsQuery.refetch() : refetch());
         }}
@@ -476,19 +464,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   const actualsAsOf = rows.find((r) => r.actualsAsOf !== null)?.actualsAsOf ?? null;
 
   return (
-    <section aria-label="Budget projection" className="mt-5">
+    <section aria-label={t('financeCopy.budgetProjection', "Budget projection")} className="mt-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-[15px] font-semibold tracking-[-0.01em]">Budget projection</h2>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('financeCopy.budgetProjection', "Budget projection")}</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            PMO&rsquo;s forward view — actuals from the ERP ledger, your own estimate to complete.
+            {t('financeCopy.budgetProjectionIntro', 'PMO’s forward view — actuals from the ERP ledger, your own estimate to complete.')}
           </p>
         </div>
         {fiscalYears.length > 0 ? (
           <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-            Fiscal year
-            <select
-              aria-label="Fiscal year"
+            {t('financeCopy.fiscalYear', "Fiscal year")}<select
+              aria-label={t('financeCopy.fiscalYear', "Fiscal year")}
               value={fiscalYear ?? ''}
               onChange={(e) => setPickedYear(e.target.value)}
               className="h-8 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -501,7 +488,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             </select>
           </label>
         ) : (
-          <p className="text-[13px] text-muted-foreground">No fiscal year on record</p>
+          <p className="text-[13px] text-muted-foreground">{t('financeCopy.noFiscalYearOnRecord', "No fiscal year on record")}</p>
         )}
       </div>
 
@@ -546,7 +533,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             // population that has nothing else on the screen. Adding a year-picker here would be worse
             // — it would let a user mint a fiscal year PMO has no budget for, which is the wrong-year
             // grid HIGH-1 just removed. So only the two real routes are named.
-            sub="Activate a budget version and push it to the ERP to record one, or wait for the ERP ledger to sync its first postings for this project."
+            sub={t('financeCopy.activateABudgetVersionAndPushItToTheERPToRecordOneOrWaitForTheERPLedgerToSyncItsFirstPostingsForThisProject', "Activate a budget version and push it to the ERP to record one, or wait for the ERP ledger to sync its first postings for this project.")}
           />
         </div>
       ) : (
@@ -557,14 +544,13 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               actually posted. Both column names and this note exist so neither can be read as the
               other. */}
           <p className="mt-3.5 text-[12px] text-muted-foreground">
-            &ldquo;Actuals to date&rdquo; below is what the ERP general ledger has posted. It will differ from the
-            &ldquo;Actual&rdquo; column on the budget versions above, which is what PMO recorded on each budget line.
+            {t('financeCopy.budgetProjectionActualsProvenance', '“Actuals to date” below is what the ERP general ledger has posted. It will differ from the “Actual” column on the budget versions above, which is what PMO recorded on each budget line.')}
           </p>
           {/* ⚑ NEW-4 — the actuals column's PROVENANCE. An undated figure is not one an operator can
               weigh, and `as_of` has been stored on every snapshot row since 0101 and rendered by
               nothing. Absent (no reading on record) nothing is claimed — the cells themselves say so. */}
           {actualsAsOf && (
-            <p className="mt-1 text-[12px] text-muted-foreground">Actuals as of {formatInstantDate(actualsAsOf)}</p>
+            <p className="mt-1 text-[12px] text-muted-foreground">{t('financeCopy.actualsAsOf', "Actuals as of")}{' '}{formatInstantDate(actualsAsOf)}</p>
           )}
           {/* ⚑ NEW-1 (rendered re-verification) — the I-9 fix made this an unconditional
               `overflow-x-auto`, which regressed the AC-MOBILE-OVERFLOW-001 gate (the whole page panned
@@ -576,20 +562,20 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               One markup tree, one render: no media-query hook, no double render. */}
           <div
             role="group"
-            aria-label="Budget projection figures, scrollable horizontally"
+            aria-label={t('financeCopy.budgetProjectionFiguresScrollableHorizontally', "Budget projection figures, scrollable horizontally")}
             tabIndex={0}
             className="mt-2 sm:overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <table className="w-full border-collapse text-[13.5px]">
               <thead className="hidden sm:table-header-group">
                 <tr>
-                  <TH>Category</TH>
-                  <TH align="right">Budget (PMO)</TH>
-                  <TH align="right">Actuals to date (ERP ledger)</TH>
-                  <TH align="right">ETC (PMO)</TH>
-                  <TH align="right">Projected final</TH>
-                  <TH align="right">Variance</TH>
-                  <TH align="right">Utilization</TH>
+                  <TH>{t('financeCopy.category', "Category")}</TH>
+                  <TH align="right">{t('financeCopy.budgetPMO', 'Budget (PMO)')}</TH>
+                  <TH align="right">{t('financeCopy.actualsToDateERPLedger', 'Actuals to date (ERP ledger)')}</TH>
+                  <TH align="right">{t('financeCopy.eTCPMO', 'ETC (PMO)')}</TH>
+                  <TH align="right">{t('financeCopy.projectedFinal', "Projected final")}</TH>
+                  <TH align="right">{t('financeCopy.variance', "Variance")}</TH>
+                  <TH align="right">{t('financeCopy.utilization', "Utilization")}</TH>
                 </tr>
               </thead>
               <tbody>
@@ -610,12 +596,12 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                       className="block border-b border-border/70 py-2 last:border-b-0 sm:table-row sm:py-0"
                     >
                       <td className="block px-3 pb-1 pt-1 font-medium sm:table-cell sm:h-[54px] sm:py-2">
-                        {labelFor(row.category)}
+                        {translatedCategory(row.category)}
                       </td>
                       {/* I-1: `tabular-nums` on every comparable figure (DESIGN.md §3, mandatory). */}
-                      <Cell label="Budget (PMO)">{money(row.pmoBudgetAmount, budgetReason, orgCurrency)}</Cell>
-                      <Cell label="Actuals to date (ERP ledger)">{money(row.actualsToDate, actualsReason, orgCurrency)}</Cell>
-                      <Cell label="ETC (PMO)">
+                      <Cell label={t('financeCopy.budgetPMO', "Budget (PMO)")}>{money(row.pmoBudgetAmount, budgetReason, orgCurrency)}</Cell>
+                      <Cell label={t('financeCopy.actualsToDateERPLedger', "Actuals to date (ERP ledger)")}>{money(row.actualsToDate, actualsReason, orgCurrency)}</Cell>
+                      <Cell label={t('financeCopy.eTCPMO', "ETC (PMO)")}>
                         {editingCategory === row.category ? (
                           <div className="flex flex-col items-end gap-1">
                             {/* ⚑ I-4 — this was a hand-rolled <input> + <span>, so the validation
@@ -625,7 +611,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                                 tabular right-aligned figures and inputMode=decimal. */}
                             <NumberField
                               id={`etc-${row.category}`}
-                              label="Estimate to complete"
+                              label={t('financeCopy.estimateToComplete', "Estimate to complete")}
                               hideLabel
                               autoFocus
                               value={etcInput}
@@ -641,11 +627,9 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                                 loading={etcMutation.isPending}
                                 onClick={() => void saveEdit(row.category)}
                               >
-                                Save
-                              </Button>
+                                {t('financeCopy.save', "Save")}</Button>
                               <Button variant="ghost" size="sm" onClick={() => closeEdit(row.category)}>
-                                Cancel
-                              </Button>
+                                {t('financeCopy.cancel', "Cancel")}</Button>
                             </div>
                           </div>
                         ) : (
@@ -665,19 +649,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                                 }}
                                 variant="ghost"
                                 size="sm"
-                                aria-label={`Edit ${row.category} ETC`}
+                                aria-label={t('financeCopy.editBudgetCategoryEtc', 'Edit {{category}} ETC', { category: translatedCategory(row.category) })}
                                 onClick={() => openEdit(row)}
                               >
-                                Edit
-                              </Button>
+                                {t('financeCopy.edit', "Edit")}</Button>
                             )}
                             {formatCurrency(row.pmoEtc, orgCurrency)}
                           </span>
                         )}
                       </Cell>
-                      <Cell label="Projected final">{money(row.projectedFinalCost, derivedReason, orgCurrency)}</Cell>
-                      <Cell label="Variance">{money(row.projectedVariance, derivedReason, orgCurrency)}</Cell>
-                      <Cell label="Utilization">
+                      <Cell label={t('financeCopy.projectedFinal', "Projected final")}>{money(row.projectedFinalCost, derivedReason, orgCurrency)}</Cell>
+                      <Cell label={t('financeCopy.variance', "Variance")}>{money(row.projectedVariance, derivedReason, orgCurrency)}</Cell>
+                      <Cell label={t('financeCopy.utilization', "Utilization")}>
                         {row.projectedUtilization === null ? (
                           <Unavailable reason={derivedReason} />
                         ) : (
@@ -704,13 +687,31 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
  * said — never a guess.
  */
 const QuietPushStatus: React.FC<{ row: BudgetPushStatusRow }> = ({ row }) => {
-  const quiet = row.pushState !== null ? QUIET_STATES[row.pushState] : undefined;
+  const { t } = useTranslation();
+  const quietStates: Record<string, { label: string; variant: 'neutral' | 'progress' | 'won'; detail: string }> = {
+    pending: {
+      label: t('financeCopy.waitingToReachERPNext', 'Waiting to reach ERPNext'),
+      variant: 'neutral',
+      detail: t('financeCopy.budgetQueuedForERPNext', 'This budget is queued for ERPNext and has not been sent yet.'),
+    },
+    pushing: {
+      label: t('financeCopy.sendingToERPNext', 'Sending to ERPNext'),
+      variant: 'progress',
+      detail: t('financeCopy.budgetBeingSentToERPNext', 'This budget is being sent to ERPNext now.'),
+    },
+    pushed: {
+      label: t('financeCopy.enforcedByERPNext', 'Enforced by ERPNext'),
+      variant: 'won',
+      detail: t('financeCopy.erpNextEnforcingBudget', 'ERPNext is enforcing this budget.'),
+    },
+  };
+  const quiet = row.pushState !== null ? quietStates[row.pushState] : undefined;
   if (!quiet) return null;
   return (
     <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2.5 text-[13px]">
       <StatusPill variant={quiet.variant}>{quiet.label}</StatusPill>
       <span className="text-muted-foreground">{quiet.detail}</span>
-      {row.fiscalYear && <span className="text-muted-foreground">Fiscal year {row.fiscalYear}</span>}
+      {row.fiscalYear && <span className="text-muted-foreground">{t('financeCopy.fiscalYear', "Fiscal year")}{' '}{row.fiscalYear}</span>}
       {row.erpBudgetName && <span className="font-mono text-[12px] text-muted-foreground">{row.erpBudgetName}</span>}
       {/* ⚑ FR-BFY-056 — a year can be PUSHED and still have a stale un-phased attribution (the project
           dates moved after the push). That is not a push failure, so it does not belong in the blocked
@@ -739,6 +740,7 @@ const BlockedPushStatus: React.FC<{
   onRelease: () => void;
   onRetry: () => void;
 }> = ({ row, canReleaseHold, releasePending, retryPending, onRelease, onRetry }) => {
+  const { t } = useTranslation();
   const isUnstamped = row.pushState === 'unstamped-activation';
   const neverArrived = row.pushState === 'never-pushed' || isUnstamped;
   // ⚑ I-5/I-15 — `push_error` is a MACHINE token and is NEVER rendered. One tested translation for
@@ -779,15 +781,13 @@ const BlockedPushStatus: React.FC<{
               CONTROL that performs it is still a dead end. */}
           {isUnstamped && (
             <div className="mt-1">
-              Use <b>Clone to revise</b> on the active version above, then activate the clone — that records a real
-              activation and can be pushed.
-            </div>
+              {t('financeCopy.use', "Use")}{' '}<b>{t('financeCopy.cloneToRevise', "Clone to revise")}</b> {t('financeCopy.onTheActiveVersionAboveThenActivateTheCloneThatRecordsARealActivationAndCanBePushed', "on the active version above, then activate the clone — that records a real activation and can be pushed.")}</div>
           )}
           {/* ⚑ NEW-5 — the alarm names the year it is about. On a multi-fiscal-year project it is
               otherwise unattributable: a failure about 2027 sitting over a grid of 2026 with nothing to
               connect or separate them. Absent (an inferred never-pushed state has no mirror row and so
               no year), nothing is said — never a guess. */}
-          {row.fiscalYear && <div className="mt-1 text-muted-foreground">Fiscal year {row.fiscalYear}</div>}
+          {row.fiscalYear && <div className="mt-1 text-muted-foreground">{t('financeCopy.fiscalYear', "Fiscal year")}{' '}{row.fiscalYear}</div>}
           {!isUnstamped && errorCopy.remedy && <div className="mt-1">{errorCopy.remedy}</div>}
           {/* ⚑ NEW-6 (audit round 4): the actionable half of the failure. The dispatch gate records WHICH
               categories have no ERP account (FR-BUD-113 collected the names on purpose), but nothing read
@@ -796,10 +796,10 @@ const BlockedPushStatus: React.FC<{
               fixable. These names ARE the to-do list, so they are marked up as one. */}
           {unmappedCategories && (
             <div className="mt-2">
-              <p className="text-[13px] font-medium">Map these categories to an ERP account, then retry:</p>
+              <p className="text-[13px] font-medium">{t('financeCopy.mapTheseCategoriesToAnERPAccountThenRetry', "Map these categories to an ERP account, then retry:")}</p>
               {/* A STABLE accessible name, deliberately not `aria-labelledby` the sentence above: the
                   list's identity should not change every time that copy is reworded. */}
-              <ul aria-label="Categories that need an ERP account" className="mt-1 list-disc pl-5 text-[13px]">
+              <ul aria-label={t('financeCopy.categoriesThatNeedAnERPAccount', "Categories that need an ERP account")} className="mt-1 list-disc pl-5 text-[13px]">
                 {unmappedCategories.map((c) => (
                   <li key={c}>{c}</li>
                 ))}
@@ -809,21 +809,18 @@ const BlockedPushStatus: React.FC<{
                 to={ACCOUNT_MAP_HREF}
                 className="mt-1.5 inline-block font-medium underline underline-offset-2 hover:no-underline"
               >
-                Open the budget account map
-              </Link>
+                {t('financeCopy.openTheBudgetAccountMap', "Open the budget account map")}</Link>
             </div>
           )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {offerRelease && (
             <Button variant="outline" size="sm" loading={releasePending} onClick={onRelease}>
-              Release the hold
-            </Button>
+              {t('financeCopy.releaseTheHold', "Release the hold")}</Button>
           )}
           {offerRetry && (
             <Button variant="outline" size="sm" loading={retryPending} onClick={onRetry}>
-              Retry the push
-            </Button>
+              {t('financeCopy.retryThePush', "Retry the push")}</Button>
           )}
         </div>
       </div>

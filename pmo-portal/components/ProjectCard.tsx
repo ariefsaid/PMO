@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
@@ -63,7 +64,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
           {/* OD-TAX-1 §2 — the card's headline money figure states its basis, from this project's
               own stored treatment. */}
-          <dd><TaxBasisLabel treatment={project.tax_treatment} /></dd>
+          <dd><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} /></dd>
         </div>
         <div>
           <dt className="text-muted-foreground">{t('projects.columns.committed', 'Committed')}</dt>
@@ -175,8 +176,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       variant="grid"
       initial={(project.name.trim().charAt(0) || '•').toUpperCase()}
       name={project.name}
-      client={project.client?.name ?? null}
+      client={project.client ? companyDisplayName(project.client) : null}
       clientId={project.client_id}
+      pmoProjectNumber={project.pmo_project_number}
       code={project.code}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>

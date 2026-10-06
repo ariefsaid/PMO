@@ -85,6 +85,13 @@ const renderBoard = (
 describe('ProjectKanbanBoard', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('AC-CODE-003: Kanban card keeps both identifiers separately labelled', () => {
+    renderBoard([mkProject({ id: 'pn', name: 'Numbered', status: 'Ongoing Project', pmo_project_number: 'PMO-26-0071', code: 'CLIENT-71' })]);
+    const card = screen.getByTestId('project-card');
+    expect(card).toHaveTextContent('PMO Project Number: PMO-26-0071');
+    expect(card).toHaveTextContent('Client Project Code: CLIENT-71');
+  });
+
   it('CW-3b: each project renders the shared canonical ProjectCardShell (one project-card vocabulary)', () => {
     renderBoard();
     // The shared shell stamps every card with the canonical `project-card` testid — the SAME

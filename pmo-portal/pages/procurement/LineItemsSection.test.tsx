@@ -37,15 +37,30 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         onDelete={onDelete}
         onError={onError}
         currency={props.currency ?? 'USD'}
+        erpItems={catalog.connected ? { loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] } : undefined}
       />
     </ToastProvider>,
   );
   return { onAdd, onUpdate, onDelete, onError };
 }
 
-beforeEach(() => vi.clearAllMocks());
+const catalog = vi.hoisted(() => ({ connected: false }));
+beforeEach(() => { vi.clearAllMocks(); catalog.connected = false; });
 
 describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
+  it('AC-ITM-001/002 purchase authoring picks ERP code and persists separate description', async () => {
+    catalog.connected = true;
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [] });
+    await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
+    await user.type(screen.getByRole('searchbox'), 'Test service');
+    await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
+    await user.type(screen.getByLabelText('New item description'), 'Inspection of test unit');
+    await user.type(screen.getByLabelText('New item quantity'), '2');
+    await user.type(screen.getByLabelText('New item unit price'), '10');
+    await user.click(screen.getByRole('button', { name: /add line item/i }));
+    expect(onAdd).toHaveBeenCalledWith({ name: 'ITEM-TEST', description: 'Inspection of test unit', quantity: 2, rate: 10 });
+  });
   it('AC-PROC-003: renders rows with a derived line total + footer total (tabular)', () => {
     renderSection();
     expect(screen.getByText('MIG welding wire')).toBeInTheDocument();

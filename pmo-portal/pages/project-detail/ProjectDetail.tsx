@@ -1,3 +1,4 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +26,8 @@ import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import WorkOrdersTab from './tabs/WorkOrdersTab';
-import ProjectDetailRail from './ProjectDetailRail';
+import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
+import { ProjectErpLink } from './ProjectErpLink';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
@@ -298,6 +300,10 @@ const ProjectDetail: React.FC = () => {
           <div className="mb-8">
             <PipelineLens project={project} locationState={location.state} />
           </div>
+          <ProjectClassificationSummary project={project} />
+          <div className="mb-8">
+            <ProjectErpLink projectId={project.id} />
+          </div>
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).
               M2: when empty, collapse to a single-line affordance so the sales levers stay above
@@ -374,14 +380,15 @@ const ProjectDetail: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
+            ...project,
             id: project.id,
             name: project.name,
             code: project.code,
             client_id: project.client_id,
             project_manager_id: project.project_manager_id,
-            clientName: project.client?.name ?? null,
+            clientName: project.client ? companyDisplayName(project.client) : null,
             end_client_id: project.end_client_id,
-            endClientName: project.end_client?.name ?? null,
+            endClientName: project.end_client ? companyDisplayName(project.end_client) : null,
             pmName: project.pm?.full_name ?? null,
             start_date: project.start_date,
             end_date: project.end_date,

@@ -29,6 +29,8 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 
 import ProjectDetailRail from '../../ProjectDetailRail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs {
   return {

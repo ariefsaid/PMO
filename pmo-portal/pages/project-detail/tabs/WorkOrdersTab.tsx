@@ -103,7 +103,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
       : t('projectDetail.workOrders.tax.exclusive', 'excl. PPN');
 
   const valueWithBasis = (row: WorkOrderRow): string =>
-    `${formatCurrency(row.order_value, row.currency)} ${treatmentLabel(row.tax_treatment)}`;
+    `${formatCurrency(row.order_value, row.currency)} ${treatmentLabel(row.tax_treatment)}${row.tax_rate != null ? ` ${row.tax_rate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`} · DPP ${row.tax_base_numerator ?? 1}/${row.tax_base_denominator ?? 1}`;
 
   const fail = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);

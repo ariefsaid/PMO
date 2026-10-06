@@ -473,3 +473,35 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
     ]);
   });
 });
+
+describe('#762 probeErpByPaymentComposite — a withholding receipt also matches its deduction and gross allocation', () => {
+  const receiptInput = {
+    partyType: 'Customer', party: 'Demo Customer', paidAmount: '980.00', piNames: [] as string[],
+    siNames: ['ACC-SINV-0001'], createdAfter: '2026-10-01 00:00:00', paymentType: 'Receive' as const,
+    withheldAmount: '20.00', allocatedAmount: '1000.00',
+  };
+  const probe = (doc: Record<string, unknown>) => probeErpByPaymentComposite(
+    { client: client(async (url: string) => {
+      const decoded = decodeURIComponent(url);
+      if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      if (decoded.includes('"paid_amount"')) return new Response(JSON.stringify({ data: [{ name: 'ACC-PAY-0001' }] }), { status: 200 });
+      return new Response(JSON.stringify({ name: 'ACC-PAY-0001', ...doc }), { status: 200 });
+    }), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }),
+      pmoRecordId: 'receipt-1' },
+    'idem-wht', receiptInput,
+  );
+  const withholdingDoc = { references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: 1000 }],
+    deductions: [{ amount: 20, description: 'Withholding slip: WHT-001' }] };
+
+  it('AC-WHT-002: adopts the landed entry carrying the withheld deduction and the gross allocation', async () => {
+    expect(await probe(withholdingDoc)).toEqual({ externalRecordId: 'ACC-PAY-0001', canonical: { id: 'receipt-1' } });
+  });
+
+  it('AC-WHT-002: never adopts a same-cash entry without the withheld deduction', async () => {
+    expect(await probe({ ...withholdingDoc, deductions: [] })).toBeNull();
+  });
+
+  it('AC-WHT-002: never adopts a same-cash entry that allocates only the cash to the invoice', async () => {
+    expect(await probe({ ...withholdingDoc, references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: 980 }] })).toBeNull();
+  });
+});

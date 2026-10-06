@@ -37,6 +37,11 @@ const { projectsBox } = vi.hoisted(() => ({
 // specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
 // than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
 // the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+vi.mock('@/src/hooks/useRevenue', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
@@ -166,6 +171,8 @@ const onHandRow: ProjectWithRefs = {
 // ── Render helper ─────────────────────────────────────────────────────────────
 
 import ProjectDetail from '../ProjectDetail';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 /**
  * Render the full ProjectDetail page on the overview tab for a given real role.

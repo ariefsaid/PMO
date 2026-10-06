@@ -1,6 +1,6 @@
 # Spec: PMO command-line client, signed in as the user (issue #728)
 
-> **Status:** Built — 2026-09-30. Decisions: DD-API-1 (the existing REST + RPC surface is the API),
+> **Status:** Built — 2026-09-30. Extended by `client-starting-data-cli.spec.md` (#796, `pmo load`). Decisions: DD-API-1 (the existing REST + RPC surface is the API),
 > DD-API-2 (Supabase OAuth 2.1 server, PKCE, pre-registered public client, loopback redirect), DD-API-3
 > (what outside callers may write first; seeding order). Runbook: `docs/runbooks/pmo-cli.md`.
 >
