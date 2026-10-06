@@ -2886,3 +2886,13 @@ existing map, at most one per category, an account still in at most one category
 no push account blocks the push like an unmapped one · moving the push account never re-pushes an existing
 budget · actuals already sum every mapped account, no RPC change · ERPNext's overspend warning watches only the
 push account (accepted; the default is warn, not block).
+
+**DD-AIN-1..9 (Director, 2026-10-06, #787) — the assistant's invoice reach.** Ruled as proposed in
+`docs/specs/assistant-invoice-reach.spec.md` and ADR-0079: one coarse tool per journey (`whats_overdue`,
+`draft_invoice`) resolved on the server before the approval card · overdue = past due today in the user's
+zone · visibility follows existing RLS roles (Engineer own tasks; PM their projects; Admin/Executive/Finance
+the org; invoices only with Revenue on) · only Finance and Admin may draft through the assistant, the same rule
+as the form, Draft only, never submitted · Issued/Closed work orders invoice at their pre-tax value, milestones
+need a stated amount · one invoice line · what the user approves is what is saved · the overdue list is
+server-written · reminders to others are out · eval bar 9 of 10 runs per journey, with a server switch to turn
+drafting off. The live eval needs an owner-approved deploy of the agent functions.
