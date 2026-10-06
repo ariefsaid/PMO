@@ -133,6 +133,8 @@ type PendingConfirm =
       taxRate?: number | null;
       taxBaseNumerator?: number;
       taxBaseDenominator?: number;
+      /** #520: the ERPNext purchase tax template chosen on a flipped org; absent = ERPNext default. */
+      taxTemplate?: string;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -632,6 +634,7 @@ const ProcurementDetails: React.FC = () => {
           taxTreatment: pendingConfirm.taxTreatment,
           taxAmount: pendingConfirm.taxAmount,
           taxRate: pendingConfirm.taxRate, taxBaseNumerator: pendingConfirm.taxBaseNumerator, taxBaseDenominator: pendingConfirm.taxBaseDenominator,
+          ...(pendingConfirm.taxTemplate ? { taxTemplate: pendingConfirm.taxTemplate } : {}),
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);

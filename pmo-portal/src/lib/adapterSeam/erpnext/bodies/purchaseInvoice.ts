@@ -1,6 +1,6 @@
 /**
  * Purchase Invoice `toBody`/`fromDoc` — R9 §1 frozen. `toBody` sends exactly `{supplier, items:
- * [{item_code, qty, rate, description?, project?}], project?, bill_no?, bill_date?}`. ERPNext server-defaults
+ * [{item_code, qty, rate, description?, project?}], project?, bill_no?, bill_date?, taxes_and_charges?, taxes?}` (#520). ERPNext server-defaults
  * `credit_to`, `posting_date`/`due_date`, and all totals (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §1). `fromDoc` mirrors the header
  * `grand_total`/`outstanding_amount` as the money ORACLE (ADR-0048) — never a Σ of the lines.
  */
@@ -23,6 +23,9 @@ export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     })),
     ...(typeof reference === 'string' && reference.trim() ? { bill_no: reference.trim() } : {}),
     ...(typeof date === 'string' && date.trim() ? { bill_date: date.trim() } : {}),
+    // #520: the user-chosen template, sent WITH its server-resolved rows (ERPNext does not expand a template named over REST).
+    ...(Array.isArray(rec.taxes) && rec.taxes.length > 0 && typeof rec.taxTemplate === 'string'
+      ? { taxes_and_charges: rec.taxTemplate, taxes: rec.taxes } : {}),
   };
 }
 

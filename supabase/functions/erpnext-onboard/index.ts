@@ -9,10 +9,9 @@
  * MUST equal SUPABASE_SERVICE_ROLE_KEY, constant-time) — onboarding is an operator action, not a
  * browser-JWT path (mirrors `clickup-onboard/index.ts`).
  *
- * Credentials (H-3 audit fix — per-org, NOT a global pair): the org's ERPNext API key/secret are
- * resolved from THIS org's `external_org_bindings.secret_ref` (NFR-ENA-SEC-002, OQ-6) via
- * `resolveErpCredentials`, exactly as `adapter-dispatch/index.ts` — failing CLOSED (`config-rejected`)
- * when either is unset. The prior global `ERPNEXT_API_KEY`/`ERPNEXT_API_SECRET` placeholder is REMOVED
+ * Credentials (H-3 audit fix — per-org, NOT a global pair; #654): resolved by the shared
+ * `_shared/erpAuthPair.ts` (kill switch → Vault → env pair named by THIS org's `secret_ref`), failing
+ * CLOSED (`config-rejected`) when disabled, unreadable or unset. The prior global `ERPNEXT_API_KEY`/`ERPNEXT_API_SECRET` placeholder is REMOVED
  * (it could have onboarded org A against another ERP tenant's credentials if ever used multi-org).
  */
 
@@ -23,10 +22,7 @@ import { onboardParties, listErpPartySources, listErpContactSources } from '../.
 import { ensureErpCustomFields } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/erpCustomFields.ts';
 import { ensureErpSellingSettings } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/erpSellingSettings.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
-import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
-import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
-import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
+import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
 import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { applyErpContact } from '../_shared/erpnextContacts.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
@@ -39,7 +35,7 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } }); // #641
 }
 
-serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Response> => {
+export async function handleOnboardRequest(req: Request): Promise<Response> {
   // ── 1. Authorization: the caller (an Operator action) must present the service-role bearer. ──
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';
@@ -63,7 +59,9 @@ serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Respons
   const orgId = body.orgId;
   if (!orgId) return json({ error: 'BAD_REQUEST', message: 'orgId is required' }, 400);
 
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
 
   try {
     const { data: bindingRow, error: bindingError } = await serviceClient
@@ -80,60 +78,9 @@ serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Respons
       throw new AppError('erpnext binding is not activated (version handshake mismatch or never activated)', 'config-rejected');
     }
 
-    // H-3: per-org credentials from THIS org's secret_ref (fails closed if unset) — never a global pair.
-    // Phase 1b (task 1.8): Vault-first resolution behind EXTERNAL_CONNECT_ENABLED flag.
-    // FIX-6: use resolveErpCredentialsFromVault for vault path; on no-binding/binding-vault-miss fall back to env resolver.
-    let apiKey: string;
-    let apiSecret: string;
-    const connectEnabled = externalConnectEnabled();
-
-    if (connectEnabled) {
-      // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
-      const result = await resolvePerOrgSecret({
-        connectEnabled,
-        orgId,
-        tier: 'erpnext',
-        lookupBinding: async (orgId, tier) => {
-          const { data, error } = await serviceClient
-            .from('external_org_bindings')
-            .select('secret_ref')
-            .eq('org_id', orgId)
-            .eq('external_tier', tier)
-            .maybeSingle();
-          if (error) return null;
-          return data as { secret_ref?: string | null } | null;
-        },
-        readVaultSecret: async (ref) => {
-          const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-          if (error) {
-            console.error('read_vault_secret failed', error);
-            return null;
-          }
-          return (data as string | null) ?? null;
-        },
-      });
-
-      if (result.kind === 'resolved') {
-        // Vault stores apiKey:apiSecret format
-        const idx = result.secret.indexOf(':');
-        if (idx > 0 && idx < result.secret.length - 1) {
-          apiKey = result.secret.slice(0, idx);
-          apiSecret = result.secret.slice(idx + 1);
-        } else {
-          throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
-        }
-      } else {
-        // kind === 'no-binding' OR 'binding-vault-miss' → fall back to env resolver
-        const creds = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
-        apiKey = creds.apiKey;
-        apiSecret = creds.apiSecret;
-      }
-    } else {
-      // Legacy path: env resolver only (byte-for-byte pre-change behavior)
-      const creds = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
-      apiKey = creds.apiKey;
-      apiSecret = creds.apiSecret;
-    }
+    // H-3 + #654: per-org credentials via THE shared resolver (kill switch → Vault → env pair → refuse,
+    // fail-closed on a store error) — the same path as the sweep and the outbound writers (FR-ENA-015).
+    const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref });
 
     const clientDeps: ErpClientDeps = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
 
@@ -209,4 +156,8 @@ serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Respons
     const status = appError.code === 'action-required' ? 409 : appError.code === 'config-rejected' ? 422 : appError.code === 'external-unreachable' ? 502 : 500;
     return json({ error: appError.code ?? 'ONBOARDING_FAILED', message: appError.message }, status);
   }
-});
+}
+
+if (import.meta.main) {
+  serveWithErrorReporting('erpnext-onboard', handleOnboardRequest);
+}

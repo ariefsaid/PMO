@@ -977,6 +977,8 @@ export interface IntegrationsRepository {
   listCompanies(orgId: string, tier: ExternalTier): Promise<Array<{ name: string }>>;
   /** Current enabled items; org is resolved from the caller JWT at the endpoint. */
   listItems(purpose: 'sales' | 'purchase'): Promise<Array<{ code: string; name: string }>>;
+  /** #520: the ERP company's enabled Purchase Taxes and Charges Templates (flipped-org vendor-invoice picker). */
+  listPurchaseTaxTemplates(): Promise<Array<{ name: string }>>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

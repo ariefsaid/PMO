@@ -35,7 +35,7 @@ describe('erpnext/credentials', () => {
     expect(resolveErpCredentials('org-b', (k) => env.get(k))).toEqual({ apiKey: 'kb', apiSecret: 'sb' });
   });
 
-  it('fails CLOSED with a generic message and server-side diagnostic when the KEY env var is unset', () => {
+  it('AC-ENA-090: fails CLOSED with a generic message and a class-only server-side log (no env-var name or value) when the KEY env var is unset', () => {
     const env = new Map([['LOCAL_BENCH_SECRET', 's-456']]);
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
@@ -46,9 +46,13 @@ describe('erpnext/credentials', () => {
       expect((err as AppError).code).toBe('config-rejected');
       expect((err as AppError).message).toBe('ERPNext credentials unresolved for this org — check the binding secret_ref configuration');
       expect((err as AppError).message).not.toContain('LOCAL_BENCH_KEY');
-      expect(errorSpy).toHaveBeenCalledWith('ERPNext credential resolution failed', {
-        secretRef: 'local-bench', keyEnv: 'LOCAL_BENCH_KEY', secretEnv: 'LOCAL_BENCH_SECRET',
-      });
+      // ADR-0072 / #654: the log carries the failure class only — never the secret_ref or the env-var names.
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const logged = JSON.stringify(errorSpy.mock.calls);
+      expect(logged).toContain('config-rejected');
+      for (const coordinate of ['local-bench', 'LOCAL_BENCH', 'LOCAL_BENCH_KEY', 'LOCAL_BENCH_SECRET', 's-456']) {
+        expect(logged).not.toContain(coordinate);
+      }
     }
     errorSpy.mockRestore();
   });
