@@ -64,8 +64,10 @@ select throws_ok($$ insert into comments (entity_type, entity_id, body)
   '42501', null, 'AC-CMT-001 a comment on a record that does not exist is refused');
 
 -- Non-author delete / edit.
-select is((with u as (update comments set archived_at = now()
-   where body = 'Is the scope final?' returning 1) select count(*)::int from u), 0,
+-- A data-modifying CTE cannot sit inside a subquery: attempt the update top-level (RLS filters it to
+-- zero rows, no error), then assert the stored row is still live.
+update comments set archived_at = now() where body = 'Is the scope final?';
+select is((select count(*)::int from comments where body = 'Is the scope final?' and archived_at is null), 1,
   'AC-CMT-001 a non-author cannot soft-delete the comment');
 select throws_ok($$ update comments set body = 'edited' where body = 'Is the scope final?' $$,
   '42501', null, 'AC-CMT-001 comments cannot be edited (no edit in v1)');
@@ -73,8 +75,8 @@ select throws_ok($$ delete from comments where body = 'Is the scope final?' $$,
   '42501', null, 'AC-CMT-001 comments cannot be hard-deleted');
 
 set local request.jwt.claims = '{"sub":"07900000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is((with u as (update comments set archived_at = now()
-   where body = 'Is the scope final?' returning 1) select count(*)::int from u), 1,
+update comments set archived_at = now() where body = 'Is the scope final?';
+select is((select count(*)::int from comments where body = 'Is the scope final?' and archived_at is not null), 1,
   'AC-CMT-001 the author can soft-delete their own comment');
 
 select is((select count(*)::int from comments where body = 'Is the scope final?'), 1,

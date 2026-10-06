@@ -16,6 +16,7 @@
     {"table":"budget_version_erp_mirror","has_org":true,"pk":"id"},
     {"table":"budget_versions","has_org":true,"pk":"id"},
     {"table":"clickup_webhook_inbox","has_org":false,"pk":"id"},
+    {"table":"comments","has_org":true,"pk":"id"},
     {"table":"companies","has_org":true,"pk":"id"},
     {"table":"contacts","has_org":true,"pk":"id"},
     {"table":"credit_reservations","has_org":true,"pk":"id"},
