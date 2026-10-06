@@ -82,7 +82,9 @@ describe('PipelineLens mark-won links the ERP Project (AC-SETUP-001)', () => {
   it('AC-SETUP-001 a win stays successful and says ERP linking needs a retry when it fails', async () => {
     synchronizeErpProject.mockResolvedValue('pending');
     await markWon();
-    expect(await screen.findByText(/ERP linking needs attention/i)).toBeInTheDocument();
+    const notice = await screen.findByText(/ERP linking needs attention/i);
+    // The warning must still confirm what happened — the win itself landed.
+    expect(notice).toHaveTextContent(/Moved to Won, Pending KoM/);
     expect(transitionProject).toHaveBeenCalledTimes(1);
   });
 });

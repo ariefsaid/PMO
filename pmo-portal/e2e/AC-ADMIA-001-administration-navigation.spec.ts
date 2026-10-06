@@ -12,7 +12,8 @@ import { signIn } from './helpers';
  * shipped app. This journey proves, end to end, that:
  *
  *   - `/administration` resolves (with `replace`) to the Users destination (FR-ADMIA-003)
- *   - each of Users / Organization integrations / Accounting setup / Credits has a stable URL, one
+ *   - each of Users / Organization integrations / Accounting setup / Project setup / Credits has a
+ *     stable URL, one
  *     active destination (aria-current="page") and exactly one mounted panel, and the URL, breadcrumb
  *     heading and selected link all describe the same location (FR-ADMIA-001 / FR-ADMIA-004)
  *   - browser Back restores the previous section without stale local tab state (FR-ADMIA-004)
@@ -39,6 +40,8 @@ const ORGANIZATION_SECTIONS = [
     testid: 'administration-panel-accounting',
     heading: 'Accounting setup',
   },
+  // #770 added Project setup (the org's project classification options) as a fifth destination.
+  { name: 'Project setup', url: '/administration/projects', testid: 'administration-panel-projects', heading: 'Project setup' },
   { name: 'Credits', url: '/administration/credits', testid: 'administration-panel-credits', heading: 'Credits' },
 ] as const;
 
@@ -64,7 +67,7 @@ async function expectSectionSelected(
   await expect(sectionNav(page).locator('[aria-current="page"]')).toHaveCount(1);
 }
 
-test('AC-ADMIA-001: an org Admin journeys through the four destinations with coherent location/heading/panel and Back restores the prior section', async ({
+test('AC-ADMIA-001: an org Admin journeys through the five destinations with coherent location/heading/panel and Back restores the prior section', async ({
   page,
 }) => {
   await signIn(page, ADMIN);
@@ -78,8 +81,8 @@ test('AC-ADMIA-001: an org Admin journeys through the four destinations with coh
   await expect(page.getByRole('searchbox', { name: 'Search users' })).toBeVisible();
   await expect(page.getByText('All users')).toBeVisible();
 
-  // A non-Operator org Admin sees exactly the four organization destinations, never Usage/Features.
-  await expect(sectionNav(page).getByRole('link')).toHaveCount(4);
+  // A non-Operator org Admin sees exactly the organization destinations, never Usage/Features.
+  await expect(sectionNav(page).getByRole('link')).toHaveCount(ORGANIZATION_SECTIONS.length);
   await expect(sectionNav(page).getByRole('link', { name: 'Usage' })).toHaveCount(0);
   await expect(sectionNav(page).getByRole('link', { name: 'Features' })).toHaveCount(0);
 
@@ -96,6 +99,8 @@ test('AC-ADMIA-001: an org Admin journeys through the four destinations with coh
   }
 
   // FR-ADMIA-004: browser Back restores each prior section (no stale local tab state).
+  await page.goBack();
+  await expectSectionSelected(page, ORGANIZATION_SECTIONS[3]); // Project setup
   await page.goBack();
   await expectSectionSelected(page, ORGANIZATION_SECTIONS[2]); // Accounting setup
   await page.goBack();

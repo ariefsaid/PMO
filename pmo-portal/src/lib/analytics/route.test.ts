@@ -155,6 +155,11 @@ describe('routeAnalyticsForPath', () => {
         module: 'administration',
         tab_id: 'usage',
       });
+      expect(routeAnalyticsForPath('/administration/projects')).toEqual({
+        route: '/administration/:section',
+        module: 'administration',
+        tab_id: 'projects',
+      });
       expect(routeAnalyticsForPath('/administration/accounting?org_id=secret#budget-account-map')).toEqual({
         route: '/administration/:section',
         module: 'administration',
