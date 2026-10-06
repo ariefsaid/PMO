@@ -33,6 +33,8 @@ select is(has_column_privilege('anon','public.projects','location','UPDATE') or 
   or has_column_privilege('anon','public.projects','sector','UPDATE') or has_column_privilege('anon','public.projects','award_type','UPDATE')
   or has_column_privilege('anon','public.projects','bidding_entity','UPDATE'),false,'AC-TAG-002 anon cannot update the classification columns');
 select is(has_column_privilege('anon','public.organizations','service_line_options','UPDATE') or has_column_privilege('anon','public.organizations','sector_options','UPDATE'),false,'AC-TAG-001 anon cannot update the option lists');
+-- Drop the PM's claims too: `set local request.jwt.claims` outlives `reset role`, so anon would otherwise resolve auth.uid() to the PM.
+set local request.jwt.claims='{"role":"anon"}';
 set local role anon;
 select is((select count(*)::int from projects where location is not null or service_line is not null or sector is not null),0,'AC-TAG-002 anon reads no classification values (RLS)');
 select is((select count(*)::int from organizations where cardinality(service_line_options)>0 or cardinality(sector_options)>0),0,'AC-TAG-001 anon reads no configured options (RLS)');
