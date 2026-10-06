@@ -26,14 +26,14 @@ export function useProcurements(opts?: { withRefs?: boolean; enabled?: boolean }
 }
 
 /**
- * Procurement for ONE project, filtered server-side. Shares the `['procurements', …]` prefix so every
+ * Procurement for ONE project, filtered server-side. Keyed `['procurements', orgId, 'by-project', id]`, i.e. under the `['procurements', orgId]` prefix, so every
  * existing invalidation refetches it; the Overview and Procurement tabs share one cache entry.
  */
 export function useProjectProcurements(projectId: string | null | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: ['procurements', 'by-project', orgId, projectId],
+    queryKey: ['procurements', orgId, 'by-project', projectId],
     queryFn: () => listProcurementsByProject(projectId as string),
     enabled: Boolean(orgId && projectId),
   });

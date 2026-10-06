@@ -195,7 +195,7 @@ export const AppRoutes: React.FC = () => (
 );
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
-const ShellChrome: React.FC = () => {
+export const ShellChrome: React.FC = () => {
   const location = useLocation();
   const { pathname } = location;
   const { t } = useTranslation();

@@ -74,3 +74,30 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(dal.list).not.toHaveBeenCalled();
   });
 });
+
+describe('AC-OVERFETCH-001 the passive cache read never poisons the page\'s own query', () => {
+  it('a page observer on the same key still refetches successfully after invalidation while the shell reader is mounted', async () => {
+    const { useQuery } = await import('@tanstack/react-query');
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const pageFn = vi.fn(async () => [{ id: 'p1' }]);
+    const { result } = renderHook(
+      () => ({
+        shell: useCachedRecordLists('/projects/p1'),
+        page: useQuery({ queryKey: ['projects', 'org-1'], queryFn: pageFn }),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.page.status).toBe('success'));
+    expect(pageFn).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: ['projects', 'org-1'] });
+    });
+    expect(pageFn).toHaveBeenCalledTimes(2);
+    expect(result.current.page.status).toBe('success');
+    expect(result.current.page.error).toBeNull();
+    expect(result.current.shell.lists.projects).toEqual([{ id: 'p1' }]);
+  });
+});

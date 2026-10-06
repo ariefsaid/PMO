@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { skipToken, useQuery } from '@tanstack/react-query';
+import { useMemo, useSyncExternalStore } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import type { RecordLists } from '@/src/components/shell/routeMatch';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -8,17 +8,21 @@ import type { SalesPipeline, PipelineProject } from '@/src/lib/db/dashboard';
 import type { UserViewRow } from '@/src/lib/db/userViews';
 
 /**
- * Reads a query's CACHED data and status — it can never fetch (`skipToken` disables the query), so
- * it subscribes to whatever a page's own query writes under the same key and nothing else (#840).
+ * Reads a query's CACHED data and status PASSIVELY — no observer is ever attached to the page's
+ * key, so it can neither fetch nor leak a `queryFn` onto the shared query (#840). It subscribes to
+ * the query cache and re-reads on any change a page's own query writes under the same key.
  */
 function useCached<T>(key: readonly unknown[] | undefined, enabledByOrg: boolean) {
-  const q = useQuery<T>({
-    queryKey: key ?? ['cached-record-none'],
-    queryFn: skipToken,
-    // A key-less / org-less read stays pending, which callers treat as "not resolved yet".
-    enabled: Boolean(key) && enabledByOrg,
-  });
-  return { data: q.data, settled: q.status !== 'pending' };
+  const qc = useQueryClient();
+  const cache = qc.getQueryCache();
+  const live = Boolean(key) && enabledByOrg;
+  // Stable snapshot: the Query's state object only changes identity when the query updates.
+  const state = useSyncExternalStore(
+    (cb) => cache.subscribe(cb),
+    () => (live ? qc.getQueryState<T>(key as readonly unknown[]) : undefined),
+  );
+  // A key-less / org-less read stays unsettled, which callers treat as "not resolved yet".
+  return { data: state?.data, settled: Boolean(state) && state?.status !== 'pending' };
 }
 
 /** The detail query key (the page's own by-id read) for a detail route, plus its record id. */
