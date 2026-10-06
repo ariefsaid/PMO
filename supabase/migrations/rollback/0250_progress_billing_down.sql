@@ -5,7 +5,7 @@ drop function if exists public.get_project_billing(uuid);
 drop view if exists public.sales_invoice_work_billed;
 drop trigger if exists sales_invoices_append_progress_claim_author on public.sales_invoices;
 drop function if exists public.append_progress_claim_author();
-drop trigger if exists external_command_outbox_progress_claim_fence on public.external_command_outbox;
+drop trigger if exists external_command_outbox_zz_progress_claim_fence on public.external_command_outbox;
 drop function if exists public.assert_progress_claim_raisable();
 drop function if exists public.withdraw_progress_claim(uuid);
 drop function if exists public.attach_claim_evidence(uuid, uuid);

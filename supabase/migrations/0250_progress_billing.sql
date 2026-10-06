@@ -656,7 +656,8 @@ begin
   return new;
 end; $$;
 revoke all on function public.assert_progress_claim_raisable() from public, anon, authenticated;
-create trigger external_command_outbox_progress_claim_fence
+-- zz_: it reads NEW.org_id, so it must fire after external_command_outbox_stamp_org_id (triggers fire by name; 0215).
+create trigger external_command_outbox_zz_progress_claim_fence
   before insert on public.external_command_outbox
   for each row when (new.domain = 'revenue')
   execute function public.assert_progress_claim_raisable();

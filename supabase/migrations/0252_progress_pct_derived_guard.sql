@@ -69,6 +69,9 @@ begin
     set pct_complete = excluded.pct_complete,
         note         = excluded.note
   returning id into v_entry;
+  -- Clear the flag at once: it is transaction-local, so leaving it on would let a later direct UPDATE in the
+  -- same transaction slip past the guard.
+  perform set_config('pmo.derived_pct_write', '', true);
 
   delete from public.progress_assessment_quantities q
    where q.entry_id = v_entry
