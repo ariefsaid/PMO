@@ -3020,5 +3020,8 @@ The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) alr
 ## OD-CHG-1 — record change history open questions accepted at their defaults (owner, 2026-10-06)
 #719: owner said go, accepting Q1 first set only · Q3 no export · Q4 no DELETE capture · Q5 read-side audit merge for audit readers · Q6 indefinite retention · Q7 project History includes child events with kind filters (Q2 already resolved: contact email/phone `flag` only); `record-change-history.spec.md`.
 
+## DD-CHG-1 — accept the shipped in-memory whole-row diff (Director, 2026-10-06, #874)
+Keep the shipped `record_change_capture()` approach: an exact no-op returns before JSON materialization; changed rows build whole-row JSONB in memory, but only classified captured values and flag markers persist. The History-tab issue owns the production-shaped `EXPLAIN (ANALYZE, BUFFERS)` review for own-record and project-with-children reads, including audit-union volume, before D5 ships; reassess scan cost and indexes there. No trigger change is required.
+
 **DD-UI-CSS-1 (Director, 2026-10-07, #864/#805) — a lazily-loaded stylesheet never joins the app's `utilities` layer.**
 The minutes editor's chunk re-emitted BlockNote's Tailwind utilities into `utilities`; loading after `index.css`, its `.hidden` beat the app's `max-[920px]:block` (same layer, same specificity, later wins) and hid the phone Back bar app-wide until reload. `index.css` now fixes the order `theme, base, components, minutes-editor, utilities` before the Tailwind import, and the editor CSS imports into `layer(minutes-editor)`. Any future lazy CSS gets its own layer below `utilities`. Guard: `minutesTailwind.css.test.ts`; journey: AC-LRC-008 waits for the editor before the phone Back click.

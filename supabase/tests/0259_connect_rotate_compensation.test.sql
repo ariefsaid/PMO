@@ -3,7 +3,7 @@
 -- AC-653-6: a failed reconnect over a DISCONNECTED binding leaves that row exactly as it was.
 -- AC-653-7: the staging RPC refuses every caller but an active Admin of the org (or an operator).
 begin;
-select plan(41);
+select plan(47);
 insert into organizations (id, name) values ('a2590000-0000-0000-0000-000000000001','Rotate Org');
 insert into auth.users (id, email) values ('a2590000-0000-0000-0000-0000000000a1','a259-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -16,6 +16,9 @@ select is((select has_function_privilege('anon','public.cleanup_external_connect
 select is((select has_function_privilege('authenticated','public.cleanup_external_connect_attempt(uuid,text,text,uuid)','execute')), false, 'AC-653-5 cleanup RPC is not executable by authenticated');
 select is((select has_function_privilege('anon','public.finalize_external_connect(uuid,text,text,boolean,boolean,uuid)','execute')), false, 'AC-653-5 finalize RPC is not executable by anon');
 select is((select has_function_privilege('authenticated','public.finalize_external_connect(uuid,text,text,boolean,boolean,uuid)','execute')), false, 'AC-653-5 finalize RPC is not executable by authenticated');
+select throws_ok(
+  $$select public.finalize_external_connect('a2590000-0000-0000-0000-000000000001','clickup','a259_body_guard','true','true','a2590000-0000-0000-0000-0000000000a1')$$,
+  '42501', 'service role required', 'AC-653-5 direct caller is rejected by finalize body service-role guard');
 
 -- AC-653-7 denial matrix fixtures: an Admin of ANOTHER org, a non-Admin member, a disabled Admin.
 insert into organizations (id, name) values ('a2590000-0000-0000-0000-000000000002','Other Org');
@@ -86,6 +89,23 @@ set local role service_role;
 select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','first','a259_first','a2590000-0000-0000-0000-0000000000a1');
 select public.finalize_external_connect('a2590000-0000-0000-0000-000000000001','clickup','a259_first',true,false,'a2590000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup') + (select count(*)::int from vault.secrets where name='a259_first'), 0, 'AC-653-4 failed FIRST connect removes the binding and its secret');
+
+-- AC-EAC-006: a later successful first-connect rotate revokes the abandoned attempt's credential.
+select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','abandoned-1','a259_abandoned_1','a2590000-0000-0000-0000-0000000000a1');
+select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','abandoned-2','a259_abandoned_2','a2590000-0000-0000-0000-0000000000a1');
+select is((select config->'prev_binding'->>'secret_ref' from external_org_bindings
+            where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'a259_abandoned_1',
+  'AC-EAC-006 later stage records the abandoned first-connect credential as its prior binding');
+select is(public.finalize_external_connect('a2590000-0000-0000-0000-000000000001','clickup','a259_abandoned_2',true,true,'a2590000-0000-0000-0000-0000000000a1'), 'active',
+  'AC-EAC-006 successful later rotate finalizes');
+select is((select count(*)::int from vault.secrets where name='a259_abandoned_1'), 0,
+  'AC-EAC-006 successful later rotate revokes the abandoned attempt credential');
+select is((select secret_ref from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'a259_abandoned_2',
+  'AC-EAC-006 binding points at the successful later credential');
+select is((select config ? 'prev_binding' from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), false,
+  'AC-EAC-006 successful later rotate clears its prior-binding marker');
+delete from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup';
+select public.delete_vault_secret('a259_abandoned_2');
 
 -- Reconnect over a DISCONNECTED binding (its secret was already deleted at disconnect).
 reset role;
