@@ -47,6 +47,8 @@ const winRateOracle = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+// BoardPackAction (#765) reads the management pack via react-query; these tests render without a QueryClient.
+vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: () => null }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: populated, isPending: false, isError: false, refetch: vi.fn() }),

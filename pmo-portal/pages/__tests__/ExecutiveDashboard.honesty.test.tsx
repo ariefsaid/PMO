@@ -52,6 +52,8 @@ const winRateOracle = {
   win_rate_value: 0.924855,
 };
 
+// BoardPackAction (#765) reads the management pack via react-query; these tests render without a QueryClient.
+vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: () => null }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: populated, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: winRateOracle, isPending: false, isError: false }),
