@@ -7,7 +7,7 @@ import { canonicalCommandDigest } from '../../../../../supabase/functions/adapte
 type Row = Record<string, unknown>;
 const ORG = 'org-1';
 const CLAIM: Row = {
-  id: 'claim-1', org_id: ORG, kind: 'progress', project_id: 'proj-1', work_order_id: null,
+  id: 'claim-1', org_id: ORG, kind: 'progress', currency: 'IDR', project_id: 'proj-1', work_order_id: null,
   down_payment_amount: null, dp_recovery_amount: '40000.00', dp_item_code: 'DP-ITEM', withdrawn_at: null,
 };
 // Deliberately out of BoQ order: the resolver must sort by boq_item_id so every resolution is identical.
@@ -21,13 +21,15 @@ const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {}): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' } } }],
-    companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }],
+    companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }, { id: 'cust-org2', org_id: 'org-2' }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-2', external_record_id: 'Customer:Other Customer' },
     ],
     projects: [
       { id: 'proj-1', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1, ...projectTax },
+      { id: 'proj-org2', org_id: 'org-2', client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-3', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
       { id: 'proj-2', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
     ],
     work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01', tax_base_numerator: 1, tax_base_denominator: 1, ...workOrderTax }],
@@ -76,14 +78,17 @@ function command(record: Row, operation: AdapterCommand['operation'] = 'create')
 
 const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10, description: 'VAT' }] };
 
-function erpFetch(opts: { negativeRates?: boolean; template?: unknown } = {}) {
-  const { negativeRates = true, template = TAX_TEMPLATE } = opts;
+function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; customerCurrency?: string | null; companyCurrency?: string } = {}) {
+  const { negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
   const sent: { body: Row } = { body: {} };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = decodeURIComponent(new URL(String(url)).pathname);
     if (path === '/api/resource/Item' && init?.method === 'GET') {
       return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
+    if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
+    if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
+    if (path === '/api/resource/Selling Settings/Selling Settings' && settingsDenied) return Response.json({ exc_type: 'PermissionError' }, { status: 403 });
     if (path === '/api/resource/Selling Settings/Selling Settings') return Response.json({ data: { allow_negative_rates_for_items: negativeRates ? 1 : 0 } });
     if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] });
     if (path === '/api/resource/Sales Taxes and Charges Template/Synthetic Sales Tax') return Response.json({ data: template });
@@ -265,5 +270,84 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(body.po_date).toBeUndefined();
     expect(body.custom_received_date).toBeUndefined();
     expect(cmd.record.reference_number).toBeNull();
+  });
+
+  it('AC-858-1 a replayed claim create uses the persisted items and taxes: no ERPNext read, same digest after the template, VAT flag and negative-rates setting change', async () => {
+    const first = await push({});
+    const persisted = structuredClone(first.command.record) as Row;
+    const { fetchImpl } = erpFetch({ negativeRates: false, template: { ...TAX_TEMPLATE, taxes: [{ ...TAX_TEMPLATE.taxes[0], rate: 99 }] } });
+    const replay = command({});
+    replay.record = structuredClone(persisted) as AdapterCommand['record'];
+    await resolveErpDispatchAdapter({
+      serviceClient: serviceClient(CLAIM, EVIDENCE, {}, { subject_to_vat: false }), orgId: ORG, command: replay, replay: true,
+      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await digest(replay)).toBe(await digest(first.command));
+  });
+
+  /** A recovery replays a persisted record, but the org link and project gates are not derivations: they must still run. */
+  async function replayOf(patch: Row) {
+    const first = await push({});
+    const replay = command({});
+    replay.record = { ...structuredClone(first.command.record), ...patch } as AdapterCommand['record'];
+    const { fetchImpl } = erpFetch();
+    const attempt = resolveErpDispatchAdapter({
+      serviceClient: serviceClient(CLAIM), orgId: ORG, command: replay, replay: true,
+      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    return { attempt, fetchImpl };
+  }
+
+  it('AC-858-1 a replay whose persisted customer or project belongs to another org is refused before any ERPNext fetch', async () => {
+    for (const patch of [{ customerId: 'cust-org2' }, { projectId: 'proj-org2' }]) {
+      const { attempt, fetchImpl } = await replayOf(patch);
+      await expect(attempt).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  });
+
+  it('AC-858-1 a replay with an unmapped project is refused while require_project_on_si is on', async () => {
+    const { attempt, fetchImpl } = await replayOf({ projectId: 'proj-3' });
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('no ERP project mapping') });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('AC-858-2 a claim invoice body carries the claim currency, and a replay sends the same', async () => {
+    const first = await push({});
+    expect(first.body.currency).toBe('IDR');
+    expect(first.command.record.currency).toBe('IDR');
+    const usd = await push({}, { ...CLAIM, currency: 'USD' }, { customerCurrency: 'USD', companyCurrency: 'USD' });
+    expect(usd.body.currency).toBe('USD');
+  });
+
+  it('AC-858-2 a caller-supplied currency on a non-claim invoice is dropped', async () => {
+    const { body } = await push({ id: 'not-a-claim', currency: 'USD', items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null);
+    expect(body.currency).toBeUndefined();
+  });
+
+  it('AC-858-3 an unreadable Selling Settings gives the action-required message, not a raw permission error, before any ERP write', async () => {
+    const { attempt, fetchImpl } = refused(command({}), CLAIM, EVIDENCE, { settingsDenied: true });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('read Selling Settings') });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+  });
+
+  it('AC-858-2 refuses a claim whose currency differs from the customer billing currency, before any ERP write', async () => {
+    const { attempt, fetchImpl } = refused(command({}), { ...CLAIM, currency: 'USD' });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('USD') });
+    await expect(attempt).rejects.toMatchObject({ message: expect.stringContaining('IDR') });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+  });
+
+  it('AC-858-2 falls back to the ERPNext company currency when the customer states none', async () => {
+    const { attempt } = refused(command({}), { ...CLAIM, currency: 'USD' }, EVIDENCE, { customerCurrency: null, companyCurrency: 'USD' });
+    await expect(attempt).resolves.toBeDefined();
+  });
+
+  it('AC-858-2 accepts a claim in the customer billing currency', async () => {
+    const { body } = await push({});
+    expect(body.items).toBeDefined();
   });
 });
