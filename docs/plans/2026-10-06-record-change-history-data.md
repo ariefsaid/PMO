@@ -38,6 +38,8 @@ indefinite retention · Q7 project History includes child events, with kind filt
      p_before_at)`; the last page (fewer change rows than `p_limit`) has no lower bound. The client passes the smallest
      `seq` and the smallest `created_at` it has received so far as the next cursor, so every audit line lands on exactly
      one page.
+   - Audit lines are the requested record's own (`entity_id = p_entity_id`), also when children are included:
+     audit rows carry no entity type or parent, and resolving child ids per page would scan every child event.
    - Audit actions already covered by a captured field change, or with no record page, are excluded:
      `project.create`, `project.transition`, `project.contract_value.set`, `work_order.create`,
      `work_order.transition`, `work_order.value.set`, `budget_version.create`, `budget_version.update`,
@@ -154,3 +156,25 @@ CI's `pgtap` job is the proof of record.
 2. M1 / M2 as above; record red counts; revert; re-run green.
 3. Local gate: `npm ci`, `npm run typecheck`, `npx eslint --max-warnings=0` (no TS source touched except the types
    file), `npm run check:i18n`, `npm run build`.
+
+## Results (2026-10-06, scratch Postgres 16 with the Supabase roles/auth/storage shimmed; CI `pgtap` is the proof of record)
+
+- New files: 8 pgTAP files, 105 assertions, all green.
+- Full suite: every existing `supabase/tests/*.sql` file run before and after 0260. The set of failing files is the
+  same (shim gaps: dblink, per-database role settings, local default privileges); none fails because of 0260, and
+  `dead_authenticated_write_grants` AC-DWG-011's offender list is identical before and after (no new table in it).
+- Hosted grant shape: 0260 applied on a database whose `postgres` default privileges grant EXECUTE on functions and
+  ALL on tables to `anon`/`authenticated` → the §8 self-assertion passes and `record_changes_grants` is 22/22.
+  With the `record_change_capture` revoke removed, §8 raises (`function ACL is not the intended shape`).
+- Rollback: forward → `rollback/0260_…_down.sql` → forward on one database; triggers, functions and tables gone after
+  the down, capture suite green after the re-apply.
+- `node scripts/check-isolation-denominator.mjs` against the migrated database: PASS (tables=97); with the old
+  manifest it names both new tables as MISSING.
+- Mutation M1 (`record_changes_select` predicate → `true`): `record_changes_visibility` 6 red (cross-org ×2,
+  deactivated ×2, narrower-policy, hard-deleted) and `record_history_read` 1 red (deactivated). Reverted → green.
+- Mutation M2 (actor = `app.actor_id` ahead of `auth.uid()`): `record_changes_actor` 2 red (JWT user re-attributed).
+  Reverted → green.
+- TDD note: `list_record_history` was written with §5–§7 before `record_history_read.test.sql`; the test's binding
+  was proven by mutating the function (window bound and delete exclusion removed → 7 of 14 red), then restored.
+- Local gate: `npm ci`, `npm run typecheck`, `npx eslint --max-warnings=0 src/lib/supabase/database.types.ts`,
+  `npm run check:i18n`, `npm run build` all exit 0.
