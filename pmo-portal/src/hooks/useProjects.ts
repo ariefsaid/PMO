@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   listProjects,
+  getProject,
   type ProjectWithRefs,
   type CreateProjectInput,
   type ProjectHeaderInput,
@@ -13,13 +14,24 @@ import { useAuth } from '@/src/auth/useAuth';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
 /** Org-scoped project list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-002). */
-export function useProjects() {
+export function useProjects(opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs[]>({
     queryKey: ['projects', orgId],
     queryFn: () => listProjects(),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
+/** One project by id (the detail route) — never loads the list. Org-scoped key (FR-QRY-002). */
+export function useProject(id: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ProjectWithRefs | null>({
+    queryKey: ['project', orgId, id],
+    queryFn: () => getProject(id!),
+    enabled: Boolean(orgId && id),
   });
 }
 
@@ -94,6 +106,7 @@ export function useProjectMutations() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['projects'] });
     qc.invalidateQueries({ queryKey: ['opportunity'] });
+    qc.invalidateQueries({ queryKey: ['project'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'project'] });
     // #758: a project write can change the end customer (and client/status), so the sales
     // pipeline and lost-deal queries must refetch or they retain a stale value after the write.

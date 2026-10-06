@@ -16,7 +16,7 @@ import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
 import { currencySymbol, formatCurrency, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
+import { ProcurementFilesSubsection, type EmbeddedProcurementFile } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
@@ -39,7 +39,7 @@ const ADD_QUOTE_INTENT_KEY = 'add-quotation';
 // Columns absent:   lead_time, payment_terms → omitted per plan.
 // ---------------------------------------------------------------------------
 
-type QuotationRow = Tables<'procurement_quotations'>;
+type QuotationRow = Tables<'procurement_quotations'> & { files?: EmbeddedProcurementFile[] };
 
 export interface VendorQuotesTabProps {
   quotations: QuotationRow[];
@@ -385,6 +385,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                     procurementId={procurementId}
                     canWrite={canManageFiles}
                     uploadedById={currentUserId}
+                    files={q.files}
                   />
                 </div>
               </div>

@@ -15,6 +15,7 @@ import {
 } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -65,7 +66,10 @@ export async function refreshAccessToken(
     });
     return false;
   }
-  const tokenRes = await fetchImpl(
+  let tokenRes: Response;
+  try {
+    tokenRes = await fetchBounded(
+    fetchImpl,
     `${TOKEN_ENDPOINT}/${connection.entra_tenant_id}/oauth2/v2.0/token`,
     {
       method: 'POST',
@@ -78,7 +82,17 @@ export async function refreshAccessToken(
         scope: connection.scopes.join(' '),
       }),
     },
-  );
+    );
+  } catch {
+    // Transient (deadline/network): record it and report failure WITHOUT classifying the connection —
+    // a hung token endpoint says nothing about the refresh token, so it must not be marked revoked.
+    await recordM365Error(serviceClient, {
+      errorCode: 'TOKEN_EXCHANGE_FAILED',
+      contextId: connection.id,
+      orgId: connection.org_id,
+    });
+    return false;
+  }
 
   const tokenData = (await tokenRes.json()) as Record<string, unknown>;
 

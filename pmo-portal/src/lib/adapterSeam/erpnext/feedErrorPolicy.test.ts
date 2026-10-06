@@ -24,6 +24,13 @@ describe('erpFeedApplyErrorPolicy (HIGH-A — one Desk-created doc must never we
     ).toBe('skip');
   });
 
+  it('AC-CON-003 #828: a refused ERP Contact (classified `contact-not-adopted`) is SKIPPED so it cannot wedge later contacts', () => {
+    expect(erpFeedApplyErrorPolicy(new AppError('Contact links match multiple adopted companies', 'contact-not-adopted'))).toBe('skip');
+    expect(terminalApplyReason(new AppError('…', 'contact-not-adopted'))).toBe('contact-not-adopted');
+    // a bare party-adopt `action-required` is NOT a contact refusal and still halts
+    expect(erpFeedApplyErrorPolicy(new AppError('ambiguous party', 'action-required'))).toBe('halt');
+  });
+
   it('⚑ a transient DB/network fault HALTS — never skipped past by an advancing watermark', () => {
     expect(erpFeedApplyErrorPolicy(new AppError('connection terminated unexpectedly', '08006'))).toBe('halt');
     expect(erpFeedApplyErrorPolicy(new Error('fetch failed'))).toBe('halt');

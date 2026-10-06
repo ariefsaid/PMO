@@ -20,6 +20,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   createBudgetCategoryAccountMapRow: vi.fn(),
   updateBudgetCategoryAccountMapRow: vi.fn(),
   deleteBudgetCategoryAccountMapRow: vi.fn(),
+  setBudgetPushAccount: vi.fn(),
 }));
 
 let realRole: Role = 'Admin';
@@ -49,7 +50,7 @@ beforeEach(() => {
 
 describe('Budget account map in Bahasa (#693 F-1)', () => {
   it('AC-CAT-005: translates the new category in the row and mapping dialog while retaining existing names', async () => {
-    listMock.mockResolvedValue([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
+    listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
     expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
     expect(screen.getByText('Labor')).toBeInTheDocument();
@@ -58,7 +59,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
   });
 
   it('#693: heading, intro, column headers, unmapped pill and row actions are Bahasa', async () => {
-    listMock.mockResolvedValue([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
+    listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Peta akun anggaran' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Peta kategori anggaran ke akun ERP' })).toBeInTheDocument();
@@ -71,9 +72,9 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
     expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(7);
-    expect(screen.getByRole('button', { name: 'Edit Labor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Petakan Materials' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hapus pemetaan Labor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hapus 5100 - Direct Costs' })).toBeInTheDocument();
   });
 
   it('#693: the load-error state is Bahasa', async () => {
@@ -84,7 +85,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
   });
 
   it('#693: the map form and its conflict message are Bahasa', async () => {
-    listMock.mockResolvedValue([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
+    listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Petakan Materials' }));
     const dialog = await screen.findByRole('dialog', { name: 'Petakan Materials' });
@@ -97,9 +98,9 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
   });
 
   it('#693: the unmap confirm is Bahasa', async () => {
-    listMock.mockResolvedValue([{ category: 'Labor', erpAccount: '5100 - Direct Costs' }]);
+    listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Hapus pemetaan Labor' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Hapus 5100 - Direct Costs' }));
     const confirm = await screen.findByRole('alertdialog', { name: 'Hapus pemetaan Labor?' });
     expect(within(confirm).getByRole('button', { name: 'Hapus pemetaan' })).toBeInTheDocument();
     expect(

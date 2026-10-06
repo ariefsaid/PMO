@@ -7,6 +7,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from '../../components/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
+import { classificationValueLabel } from '@/src/lib/projectClassification';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
@@ -34,8 +35,8 @@ const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ pro
       {project.service_line && <DetailRow label={t('projectClassification.serviceLine', 'Service line')} value={project.service_line} />}
       {project.sector && <DetailRow label={t('projectClassification.sector', 'Sector')} value={project.sector} />}
       {project.location && <DetailRow label={t('projectClassification.location', 'Location')} value={project.location} />}
-      {project.award_type && <DetailRow label={t('projectClassification.awardType', 'Award type')} value={project.award_type === 'tender' ? t('projectClassification.tender', 'Tender') : t('projectClassification.direct', 'Direct award')} />}
-      {project.bidding_entity && <DetailRow label={t('projectClassification.biddingEntity', 'Bidding entity')} value={project.bidding_entity === 'alone' ? t('projectClassification.alone', 'Alone') : t('projectClassification.consortium', 'Consortium')} />}
+      {project.award_type && <DetailRow label={t('projectClassification.awardType', 'Award type')} value={classificationValueLabel(t, project.award_type)} />}
+      {project.bidding_entity && <DetailRow label={t('projectClassification.biddingEntity', 'Bidding entity')} value={classificationValueLabel(t, project.bidding_entity)} />}
     </>
   );
 };

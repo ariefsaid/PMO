@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { capturePosthogException } from '../../../../supabase/functions/_shared/posthogError';
+import { OUTBOUND_FETCH_TIMEOUT_MS } from '../../../../supabase/functions/_shared/fetchWithDeadline';
 
 // AC-EET-001: edge-function errors forward into PostHog Error Tracking (the server-side half of the
 // "error monitoring via PostHog, not Sentry" story). The forwarder is a guarded, fire-and-forget
@@ -68,5 +69,21 @@ describe('capturePosthogException (AC-EET-001)', () => {
     setDeno({ POSTHOG_PROJECT_KEY: 'phc_test' });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')));
     await expect(capturePosthogException({ fn: 'agent-chat', errorCode: 'X' })).resolves.toBeUndefined();
+  });
+});
+
+describe('capturePosthogException deadline (AC-OUT-841)', () => {
+  it('AC-OUT-841: aborts a hung PostHog host at the deadline and resolves (never stalls the caller)', async () => {
+    vi.useFakeTimers();
+    try {
+      setDeno({ POSTHOG_PROJECT_KEY: 'phc_test' });
+      vi.stubGlobal('fetch', vi.fn((_u: unknown, init?: RequestInit) =>
+        new Promise<Response>((_res, rej) => init?.signal?.addEventListener('abort', () => rej(new Error('aborted'))))));
+      const p = capturePosthogException({ fn: 'agent-chat', errorCode: 'X' });
+      await vi.advanceTimersByTimeAsync(OUTBOUND_FETCH_TIMEOUT_MS);
+      await expect(p).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

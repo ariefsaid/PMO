@@ -457,23 +457,26 @@ values
    '{"company":"PMO Smoke Co"}'::jsonb,'active', now(), now())
 on conflict (org_id, external_tier) do update set status = 'active', activated_at = now();
 
--- FR-BUD-111 bijection: PMO category → the client's own ERP account. An UNMAPPED category's actuals are
--- deliberately NULL ("no account to look at"), never 0 — 'Contingency' is left unmapped on purpose so
--- the seeded screen shows BOTH states side by side.
--- ⚑ THE MAP IS A BIJECTION IN BOTH DIRECTIONS — unique on `(org_id, category)` AND on
--- `(org_id, erp_account)`. So these accounts MUST NOT collide with the ones the budget e2e lane binds
--- per run (`e2e/serial/_budHelpers.ts`: LABOR_ACCOUNT = 'Administrative Expenses - PSC',
--- MATERIALS_ACCOUNT = 'Commission on Sales - PSC'). If they do, the helper's upsert — which conflicts
--- on CATEGORY — trips the ACCOUNT constraint instead and every budget spec dies in seeding with a
--- 23505 that points at the helper rather than at this block. (Found exactly that way, round 7.)
-insert into budget_category_account_map (org_id, category, erp_account) values
-  ('00000000-0000-0000-0000-000000000001','Materials','Cost of Goods Sold - PSC'),
-  ('00000000-0000-0000-0000-000000000001','Labor','Salary - PSC'),
-  ('00000000-0000-0000-0000-000000000001','Equipment','Expenses Included In Asset Valuation - PSC'),
+-- FR-BUD-110/111 + #768: PMO category → the client's own ERP account(s). An UNMAPPED category's actuals are
+-- deliberately NULL ("no account to look at"), never 0 — 'Contingency' is left unmapped on purpose so the
+-- seeded screen shows BOTH states side by side.
+-- ⚑ An ERP account still belongs to ONE category (`unique (org_id, erp_account)`), and a category has at most
+-- ONE push account (partial unique index, 0246). So these accounts MUST NOT collide with the ones the budget
+-- e2e lane binds per run (`e2e/serial/_budHelpers.ts`: LABOR_ACCOUNT = 'Administrative Expenses - PSC',
+-- LABOR_SIBLING_ACCOUNT = 'Travel Expenses - PSC', MATERIALS_ACCOUNT = 'Commission on Sales - PSC').
+-- `on conflict do nothing` has no target on purpose: 0246 replaced the (org_id, category) constraint with a
+-- partial index, which a bare conflict target cannot name.
+insert into budget_category_account_map (org_id, category, erp_account, is_push_target) values
+  ('00000000-0000-0000-0000-000000000001','Materials','Cost of Goods Sold - PSC', true),
+  ('00000000-0000-0000-0000-000000000001','Labor','Salary - PSC', true),
+  ('00000000-0000-0000-0000-000000000001','Equipment','Expenses Included In Asset Valuation - PSC', true),
   -- Mapped but with NO GL rows below -> a REAL, computed zero, which is a DIFFERENT fact from
   -- 'Contingency'/'Subcontractors' (unmapped -> unobtainable/NULL). The seeded screen shows all three.
-  ('00000000-0000-0000-0000-000000000001','Permits & Fees','Entertainment Expenses - PSC')
-on conflict (org_id, category) do nothing;
+  ('00000000-0000-0000-0000-000000000001','Permits & Fees','Entertainment Expenses - PSC', true),
+  -- #768: Labor's second, READ-ONLY account — its actuals count toward Labor, its budget is never pushed.
+  -- No GL rows below, so no seeded figure changes; the account map shows a multi-account category.
+  ('00000000-0000-0000-0000-000000000001','Labor','Payroll Allowances - PSC', false)
+on conflict do nothing;
 
 -- The landed push itself.
 insert into budget_version_erp_mirror

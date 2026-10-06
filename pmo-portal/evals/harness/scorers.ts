@@ -175,3 +175,29 @@ export async function runScorers(
     reasons: failing.map((r) => r.reason),
   };
 }
+
+/**
+ * `proposesAction(name, check?)` — passes iff the run ended in a `needs-approval` proposal for `name` (and, when
+ * given, `check(structuredArgs)` holds). A confirm action emits no `tool` event until approved, so `usesTool`
+ * cannot see a proposal — this scorer can. Free (no model call). #787 / AC-AIN-003.
+ */
+export function proposesAction(name: string, check?: (args: Record<string, unknown>) => boolean): Scorer {
+  return (run) => {
+    const proposal = run.events.find((e) => {
+      const p = e.payload as { status?: string; actionName?: string } | undefined;
+      return e.type === 'status' && p?.status === 'needs-approval' && p.actionName === name;
+    });
+    if (!proposal) {
+      return { pass: false, reason: `expected a needs-approval proposal for "${name}"; tools: [${run.toolCalls.map((t) => t.name).join(', ') || 'none'}]` };
+    }
+    const args = (proposal.payload as { structuredArgs?: Record<string, unknown> }).structuredArgs ?? {};
+    if (check && !check(args)) return { pass: false, reason: `proposal for "${name}" did not carry the expected arguments` };
+    return { pass: true, reason: `run proposed "${name}"` };
+  };
+}
+
+/** Repeated-run bar: a case passes iff at least `minPasses` of its runs passed (NFR-AIN-QUAL-001). */
+export function summarizeRuns(results: boolean[], minPasses: number): { pass: boolean; passes: number; runs: number } {
+  const passes = results.filter(Boolean).length;
+  return { pass: passes >= minPasses, passes, runs: results.length };
+}

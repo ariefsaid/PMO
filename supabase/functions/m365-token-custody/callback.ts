@@ -11,6 +11,7 @@ import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode, toByteaPa
 import { logAudit, recordM365Error } from './audit.ts';
 import { readM365MembershipState } from './auth.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
+import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -121,7 +122,9 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   }
 
   // Exchange the auth code for tokens (confidential client + PKCE verifier).
-  const tokenRes = await fetchImpl(`${TOKEN_ENDPOINT}/${env.m365TenantId}/oauth2/v2.0/token`, {
+  let tokenRes: Response;
+  try {
+    tokenRes = await fetchBounded(fetchImpl, `${TOKEN_ENDPOINT}/${env.m365TenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -132,7 +135,16 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
       client_secret: env.m365ClientSecret,
       redirect_uri: env.m365RedirectUri,
     }),
-  });
+    });
+  } catch (err) {
+    // A hung or unreachable Microsoft token endpoint (deadline or network) takes the same path as a
+    // rejected exchange — never an unhandled throw that leaves the consent redirect hanging.
+    console.error('[m365-token-custody] token exchange unreachable', {
+      error: err instanceof FetchDeadlineError ? 'DEADLINE' : 'NETWORK',
+    });
+    await recordM365Error(serviceClient, { errorCode: 'TOKEN_EXCHANGE_FAILED', contextId: state, orgId: pkce.orgId });
+    return redirectToFeError(env, 'Connection failed. Please try again.');
+  }
 
   const tokenData = (await tokenRes.json()) as Record<string, unknown>;
 

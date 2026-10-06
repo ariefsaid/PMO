@@ -204,3 +204,11 @@ export const COMPOSE_VIEW_INPUT_SCHEMA = {
     },
   },
 };
+
+/** whats_overdue (#787, ADR-0079 §1) — deliberately NO arguments: one call, nothing for a weak model to get wrong. */
+export const WHATS_OVERDUE_SCHEMA = {
+  type: 'object' as const,
+  required: [] as string[],
+  additionalProperties: false,
+  properties: {},
+};

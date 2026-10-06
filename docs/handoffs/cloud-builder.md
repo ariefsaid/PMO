@@ -12,6 +12,13 @@ Rules:
 - UI strictly `DESIGN.md` tokens; every new label in BOTH `pmo-portal/public/locales/en/common.json` and `id/common.json` (Bahasa Indonesia).
 - Tests red-first at the cheapest layer; each AC id leads its owning test title; never weaken an assertion.
 
+DB checklist — each of these has turned a PR's CI red (you can't run them here, so get them right by reading):
+- Every new table, security-definer function or storage bucket goes into `scripts/isolation-probe-denominator.json`, following the existing entries. CI's `check-isolation-denominator.mjs --self-test` fails otherwise.
+- A new `storage.objects` policy that reads a table `anon` can't read needs `to authenticated`. Without a `TO` clause it is evaluated for anon on every bucket, and the other buckets' storage tests abort with "permission denied".
+- In pgTAP, never put a data-modifying CTE inside a subquery (`select is((with u as (update … returning 1) …))`). Postgres rejects it and the file aborts partway through its plan. Run the update at top level, then assert on the stored row.
+- A DAL type that restates a generated row type must follow your migration's nullability, or better, derive from `Tables<'…'>`. The shadow-types check in `verify` fails otherwise.
+- A new PostgREST embed that crosses tables (e.g. `expense_claims -> profiles`) needs its entry in `supabase/tests/postgrest_embed_ambiguity_guard.test.sql`.
+
 Verify (inside `pmo-portal/`): `npm ci`, `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`, `VITEST_MAX_THREADS=2 npx vitest run <affected test files>`, `npm run check:i18n`, `npm run build`. All must pass before you push.
 
 Finish: commit, `git push origin <branch>`, and end your final message with exactly

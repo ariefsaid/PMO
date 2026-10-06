@@ -62,6 +62,7 @@ export function useProjectTransition(): UseMutationResult<void, Error, Transitio
       queryClient.invalidateQueries({ queryKey: ['integrations', 'project-erp', orgId] });
       queryClient.invalidateQueries({ queryKey: ['integrations', 'setup', orgId] });
       queryClient.invalidateQueries({ queryKey: ['opportunity'] });
+      queryClient.invalidateQueries({ queryKey: ['project'] });
     },
   });
   return { ...mutation, erpSetupPending };
