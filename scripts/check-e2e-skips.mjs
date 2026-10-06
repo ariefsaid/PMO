@@ -88,7 +88,7 @@ export const ALLOWED_SKIPS = [
   },
   {
     file: 'serial/AC-PB-003-progress-billing-erp.spec.ts',
-    reason: 'Progress-billing ledger proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle is the ERP GL).',
+    reason: 'Progress-billing ledger proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle is the ERP GL). The spec now enables Allow Negative rates and its tax template on the bench itself; the bench is still not provisioned in CI.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
     verified: '2026-10-06',
   },

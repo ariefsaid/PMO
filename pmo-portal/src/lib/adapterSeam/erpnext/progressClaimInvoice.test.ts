@@ -18,19 +18,19 @@ const LINES: Row[] = [
 const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
-function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE): DispatchServiceClient {
+function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
-    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' } } }],
+    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-2', external_record_id: 'Customer:Other Customer' },
     ],
     projects: [
-      { id: 'proj-1', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null },
-      { id: 'proj-2', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null },
+      { id: 'proj-1', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-2', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, tax_base_numerator: 1, tax_base_denominator: 1 },
     ],
-    work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01' }],
+    work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01', tax_base_numerator: 1, tax_base_denominator: 1, ...workOrderTax }],
     sales_invoices: [],
     progress_claims: claim ? [claim] : [],
     progress_claim_lines: LINES,
@@ -72,23 +72,30 @@ function command(record: Row, operation: AdapterCommand['operation'] = 'create')
   };
 }
 
-function erpFetch() {
+const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10, description: 'VAT' }] };
+
+function erpFetch(opts: { negativeRates?: boolean; template?: unknown } = {}) {
+  const { negativeRates = true, template = TAX_TEMPLATE } = opts;
   const sent: { body: Row } = { body: {} };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-    if (new URL(String(url)).pathname === '/api/resource/Item' && init?.method === 'GET') {
+    const path = decodeURIComponent(new URL(String(url)).pathname);
+    if (path === '/api/resource/Item' && init?.method === 'GET') {
       return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
+    if (path === '/api/resource/Selling Settings/Selling Settings') return Response.json({ data: { allow_negative_rates_for_items: negativeRates ? 1 : 0 } });
+    if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] });
+    if (path === '/api/resource/Sales Taxes and Charges Template/Synthetic Sales Tax') return Response.json({ data: template });
     sent.body = JSON.parse(String(init?.body)) as Row;
     return new Response(JSON.stringify({ data: { name: 'SYNTHETIC-SI-766', ...sent.body, docstatus: 0 } }), { status: 200 });
   });
   return { sent, fetchImpl };
 }
 
-async function push(record: Row, claim: Row | null = CLAIM) {
+async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<typeof erpFetch>[0] = {}, workOrderTax: Row = {}) {
   const cmd = command(record);
-  const { sent, fetchImpl } = erpFetch();
+  const { sent, fetchImpl } = erpFetch(erp);
   const adapter = await resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, EVIDENCE, workOrderTax), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
@@ -97,8 +104,8 @@ async function push(record: Row, claim: Row | null = CLAIM) {
 }
 
 /** Synchronous on purpose: the caller attaches `.rejects` in the same tick, so no rejection goes unhandled. */
-function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE) {
-  const { fetchImpl } = erpFetch();
+function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {}) {
+  const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
     serviceClient: serviceClient(claim, evidence), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
@@ -177,5 +184,60 @@ describe('billing claim invoice (AC-PB-006)', () => {
   it('AC-PB-006 leaves an invoice that is not a claim on the caller lines', async () => {
     const { body } = await push({ items: [{ item_code: 'OWN-ITEM', qty: 2, rate: 10 }] }, null);
     expect(body.items).toEqual([{ item_code: 'OWN-ITEM', qty: 2, rate: 10 }]);
+  });
+
+  it('AC-PB-020 sends the default template rows explicitly as On Net Total, and the net total excludes the recovery', async () => {
+    const { body } = await push({});
+    expect(body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
+    // ERP taxes the net total: 4×50,000 + 1×100,000 − 40,000 recovery = 260,000 (the recovery line is in the items).
+    const items = body.items as Array<{ qty: number; rate: number }>;
+    expect(items.reduce((sum, item) => sum + item.qty * item.rate, 0)).toBe(260000);
+  });
+
+  it('AC-PB-020 sends the tax row on a down payment invoice too', async () => {
+    const { body } = await push({}, { ...CLAIM, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00' });
+    expect(body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
+  });
+
+  it('AC-PB-020 scales the rate by the work order\'s reduced tax base (11/12 of 12% is 11%)', async () => {
+    const { body } = await push({}, { ...CLAIM, work_order_id: 'wo-1' },
+      { template: { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 12 }] } },
+      { tax_base_numerator: 11, tax_base_denominator: 12 });
+    expect((body.taxes as Row[])[0].rate).toBe(11);
+  });
+
+  it('AC-PB-020 sends no tax rows when the company has no default template', async () => {
+    const { body } = await push({}, CLAIM, { template: null });
+    expect(body.taxes).toBeUndefined();
+  });
+
+  it('AC-PB-020 refuses a template row that is not On Net Total', async () => {
+    const { attempt } = refused(command({}), CLAIM, EVIDENCE, { template: { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'Actual', account_head: 'VAT - SC', rate: 0 }] } });
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('AC-PB-020 never lets a caller smuggle tax rows into any invoice', async () => {
+    const forged = [{ charge_type: 'On Net Total', account_head: 'EVIL', rate: 99 }];
+    expect((await push({ taxes: forged })).body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
+    expect((await push({ taxes: forged, items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null)).body.taxes).toBeUndefined();
+  });
+
+  it('AC-PB-021 refuses a claim with a recovery line, before any ERP write, when negative rates are off', async () => {
+    const { attempt, fetchImpl } = refused(command({}), CLAIM, EVIDENCE, { negativeRates: false });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('Allow Negative rates for Items') });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+  });
+
+  it('AC-PB-021 does not need the setting for a claim without a recovery line', async () => {
+    const { body } = await push({}, { ...CLAIM, dp_recovery_amount: '0.00' }, { negativeRates: false });
+    expect((body.items as Row[]).every((item) => (item.rate as number) > 0)).toBe(true);
+  });
+
+  it('AC-PB-006 ignores a caller-supplied reference_number and received_date on a claim invoice', async () => {
+    const { body, command: cmd } = await push({ reference_number: 'FORGED-PO', po_date: '2020-01-01', received_date: '2020-02-02' });
+    expect(body.po_no).toBeUndefined();
+    expect(body.po_date).toBeUndefined();
+    expect(body.custom_received_date).toBeUndefined();
+    expect(cmd.record.reference_number).toBeNull();
   });
 });

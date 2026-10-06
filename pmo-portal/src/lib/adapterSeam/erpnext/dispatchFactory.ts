@@ -19,6 +19,8 @@ import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
+import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
+import { resolveSalesTaxRows } from './erpSalesTaxRows.ts';
 import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
@@ -947,15 +949,23 @@ async function readReceiptAccountCurrencies(
  * body — a wrong claim invoice is cancelled and a new claim raised (DD-PBL-7).
  */
 const MAX_CLAIM_LINES = 500;
-async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps): Promise<void> {
+function taxBaseFraction(row: unknown): { numerator: number; denominator: number } {
+  const r = (row ?? {}) as { tax_base_numerator?: unknown; tax_base_denominator?: unknown };
+  const numerator = Number(r.tax_base_numerator ?? 1);
+  const denominator = Number(r.tax_base_denominator ?? 1);
+  return numerator > 0 && denominator >= numerator ? { numerator, denominator } : { numerator: 1, denominator: 1 };
+}
+async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<void> {
   const record = deps.command.record as Record<string, unknown>;
   if (record.erp_doc_kind !== 'sales-invoice') return;
+  delete record.taxes;
   if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return;
   if (typeof record.id !== 'string' || !record.id) return;
   const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
     .select('id,kind,project_id,work_order_id,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
+  // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
   if (!claimData) return;
   const claim = claimData as ProgressClaimRecord;
   if (deps.command.operation !== 'create') {
@@ -965,9 +975,10 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps): Promis
     throw new AppError('The invoice project must be the progress claim project', 'commit-rejected');
   }
   const { data: project, error: projectError } = await deps.serviceClient.from('projects')
-    .select('client_id').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
+    .select('client_id,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
   if (projectError) throw new AppError(projectError.message, projectError.code);
   const clientId = (project as { client_id?: string | null } | null)?.client_id ?? null;
+  let fraction = taxBaseFraction(project);
   if (!clientId || record.customerId !== clientId) {
     throw new AppError('The invoice customer must be the project client', 'commit-rejected');
   }
@@ -989,8 +1000,35 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps): Promis
       throw new AppError(`A progress claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
     }
   }
+  if (claim.work_order_id) {
+    const { data: workOrder, error: workOrderError } = await deps.serviceClient.from('work_orders')
+      .select('tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.work_order_id).maybeSingle();
+    if (workOrderError) throw new AppError(workOrderError.message, workOrderError.code);
+    if (workOrder) fraction = taxBaseFraction(workOrder);
+  }
   record.items = progressClaimItems(claim, lines);
   record.workOrderId = claim.work_order_id;
+  // DD-PBL-7: the server builds the invoice from the claim alone — a caller's PO reference or receipt date is dropped
+  // (the PO is re-derived from the claim's work order by `resolveSalesInvoicePo`).
+  delete record.reference_number;
+  delete record.po_date;
+  delete record.received_date;
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
+  // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never
+  // ran onboarding or had it switched back off.
+  if (Number(claim.dp_recovery_amount) > 0 && !(await readNegativeRatesAllowed(client))) {
+    throw new AppError('ERPNext does not allow negative rates yet, which this claim needs to recover the down payment. An ERP administrator must turn on "Allow Negative rates for Items" in Selling Settings (or re-run ERP onboarding), then raise the invoice again.', 'config-rejected');
+  }
+  // DD-PBL-12b: ERPNext does not expand a template named over REST, so the tax rows are sent explicitly.
+  const company = binding.config?.company;
+  if (typeof company === 'string' && company) {
+    const taxes = await resolveSalesTaxRows(client, company, fraction);
+    if (taxes.length > 0) record.taxes = taxes; else delete record.taxes;
+  } else {
+    delete record.taxes;
+  }
 }
 
 /**
@@ -1019,7 +1057,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
-  await resolveProgressClaimInvoice(deps);
+  await resolveProgressClaimInvoice(deps, binding);
   let receiptConfig = binding.config;
   if (deps.command.record.erp_doc_kind === 'incoming-payment'
       && Number(deps.command.record.withheld_amount ?? 0) > 0) {

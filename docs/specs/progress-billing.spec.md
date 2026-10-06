@@ -48,8 +48,9 @@ Renumbered after the ruling. "Was" gives the previous number; **changed** / **ne
   down-payment claim. Each billing claim recovers `round(gross × % / 100, 2)`, capped at the unrecovered balance;
   "recover the rest" takes `min(balance, gross)`. A billing claim is refused while the live down payment's
   invoice is not yet submitted.
-- **DD-PBL-6 — tax basis.** *(was 4; unchanged)* BoQ rates and the DP amount exclude tax; ERPNext applies tax as
-  for any invoice. The recovery line lowers each claim's taxable base by the DP already taxed.
+- **DD-PBL-6 — tax basis.** *(was 4; unchanged)* BoQ rates and the DP amount exclude tax. ERPNext does NOT expand a tax
+  template named over REST, so the dispatch reads the company's default Sales Taxes and Charges template and sends its
+  rows explicitly as `On Net Total` (DD-PBL-12b), scaled by the contract's reduced tax base (#798). The recovery line lowers each claim's taxable base by the DP already taxed.
 - **DD-PBL-7 — a billing claim is immutable, IS its invoice's record, and needs evidence.** *(was 5; changed)*
   The claim id is the invoice's PMO record id, so one claim mints at most one invoice. The server builds the
   invoice from the claim only and refuses edit/amend. **No invoice can be raised for a claim until at least one
@@ -77,6 +78,10 @@ Renumbered after the ruling. "Was" gives the previous number; **changed** / **ne
   precision).
 - **DD-PBL-11 — retention is out of scope.** *(was 9; unchanged)* Indonesian PPN is charged on the full progress
   value, so a negative retention line would wrongly cut the tax base; retention needs its own decision.
+- **DD-PBL-12 — the ERP site must be set up for claims (spike 2026-10-06).** (a) Selling Settings "Allow Negative rates for Items"
+  must be on, or ERPNext refuses the recovery line at submit: ERP onboarding enables it (reported, never fatal), and a claim
+  with a recovery line fails fast with the action to take if the site still has it off. (b) Tax rows are sent explicitly
+  (DD-PBL-6) — ordinary invoices send none today; that is a separate, pre-existing behaviour outside this slice.
 
 ## Owner questions (each has a default the build uses)
 

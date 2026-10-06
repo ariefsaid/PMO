@@ -22,6 +22,8 @@ const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const DP_ITEM = 'PB-DOWN-PAYMENT';
 const ADVANCE_ACCOUNT = 'Customer Advances - PSC';
+const TAX_ACCOUNT = 'Progress Billing VAT - PSC';
+const TAX_TEMPLATE = 'Progress Billing VAT 10%';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && BENCH_KEY && BENCH_SECRET);
 if (FUNCTIONS_URL && !READY) {
@@ -35,6 +37,12 @@ const benchHeaders = { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`, 'Con
 /** Idempotent bench fixture: a duplicate-name refusal means Task 0 (or a previous run) already created it. */
 async function benchEnsure(doctype: string, body: Record<string, unknown>): Promise<void> {
   await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}`, { method: 'POST', headers: benchHeaders, body: JSON.stringify(body) });
+}
+
+/** Selling Settings is site-wide; the recovery line (negative rate) is refused at submit unless this is on (DD-PBL-12a). */
+async function benchAllowNegativeRates(): Promise<void> {
+  const res = await fetch(`${BENCH_URL}/api/resource/Selling%20Settings/Selling%20Settings`, { method: 'PUT', headers: benchHeaders, body: JSON.stringify({ allow_negative_rates_for_items: 1 }) });
+  expect(res.status, 'the bench must allow enabling Selling Settings → Allow Negative rates for Items').toBe(200);
 }
 
 async function glEntries(voucher: string): Promise<Array<{ account: string; debit: number; credit: number }>> {
@@ -79,7 +87,17 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
     let boqId: string | null = null;
     let documentId: string | null = null;
 
+    let createdTemplate = false;
     try {
+      await benchAllowNegativeRates();
+      await benchEnsure('Account', { account_name: 'Progress Billing VAT', parent_account: 'Duties and Taxes - PSC', company: 'PMO Smoke Co', is_group: 0, account_type: 'Tax' });
+      const existingDefault = (await (await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template?${new URLSearchParams({
+        filters: JSON.stringify([['company', '=', 'PMO Smoke Co'], ['is_default', '=', 1]]), fields: JSON.stringify(['name']) })}`, { headers: benchHeaders })).json()) as { data: unknown[] };
+      if (existingDefault.data.length === 0) {
+        await benchEnsure('Sales Taxes and Charges Template', { title: TAX_TEMPLATE, company: 'PMO Smoke Co', is_default: 1,
+          taxes: [{ charge_type: 'On Net Total', account_head: TAX_ACCOUNT, description: 'VAT 10%', rate: 10 }] });
+        createdTemplate = true;
+      }
       await benchEnsure('Account', { account_name: 'Customer Advances', parent_account: 'Current Liabilities - PSC', company: 'PMO Smoke Co', is_group: 0 });
       await benchEnsure('Item', { item_code: DP_ITEM, item_name: 'Down payment', item_group: 'Services', stock_uom: 'Nos', is_stock_item: 0, is_sales_item: 1,
         item_defaults: [{ company: 'PMO Smoke Co', income_account: ADVANCE_ACCOUNT }] });
@@ -112,15 +130,19 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
       // 3. The goal: the ledger.
       const dpGl = await glEntries(dpInvoice);
       expect(dpGl.filter((e) => e.account === ADVANCE_ACCOUNT).reduce((sum, e) => sum + e.credit - e.debit, 0)).toBe(200000);
+      expect(dpGl.filter((e) => e.account === TAX_ACCOUNT).reduce((sum, e) => sum + e.credit - e.debit, 0), 'the down payment is taxed 10% on its net').toBe(20000);
       const si = (await (await fetch(`${BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(claimInvoice)}`, { headers: benchHeaders })).json()) as
-        { data: { grand_total: number; items: Array<{ item_code: string; qty: number; rate: number }> } };
-      expect(si.data.grand_total).toBe(160000);
+        { data: { grand_total: number; net_total: number; taxes: Array<{ account_head: string; rate: number; tax_amount: number }>; items: Array<{ item_code: string; qty: number; rate: number }> } };
+      expect(si.data.net_total).toBe(160000);
+      expect(si.data.taxes.map((t) => [t.account_head, t.rate, t.tax_amount])).toEqual([[TAX_ACCOUNT, 10, 16000]]);
+      expect(si.data.grand_total).toBe(176000);
       expect(si.data.items.map((i) => [i.item_code, i.qty, i.rate])).toEqual([['SPIKE-ITEM-1', 4, 50000], [DP_ITEM, 1, -40000]]);
       const claimGl = await glEntries(claimInvoice);
       const netDebit = (match: (account: string) => boolean) => claimGl.filter((e) => match(e.account)).reduce((sum, e) => sum + e.debit - e.credit, 0);
       expect(netDebit((account) => account === ADVANCE_ACCOUNT)).toBe(40000);
-      expect(netDebit((account) => account.startsWith('Debtors'))).toBe(160000);
-      expect(claimGl.filter((e) => e.account !== ADVANCE_ACCOUNT).reduce((sum, e) => sum + e.credit, 0)).toBe(200000);
+      expect(netDebit((account) => account.startsWith('Debtors'))).toBe(176000);
+      expect(netDebit((account) => account === TAX_ACCOUNT)).toBe(-16000); // tax on the REDUCED base (net of the recovery)
+      expect(claimGl.filter((e) => e.account !== ADVANCE_ACCOUNT && e.account !== TAX_ACCOUNT).reduce((sum, e) => sum + e.credit, 0)).toBe(200000);
 
       // 4. PMO's own figures agree.
       const summary = await author.rpc('get_project_billing', { p_project_id: seeded.projectId });
@@ -137,6 +159,7 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
         await admin.from('progress_claim_lines').delete().in('claim_id', claimIds);
         await admin.from('progress_claims').delete().in('id', claimIds);
       }
+      if (createdTemplate) await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template/${encodeURIComponent(TAX_TEMPLATE)}`, { method: 'DELETE', headers: benchHeaders });
       if (documentId) await admin.from('project_documents').delete().eq('id', documentId);
       if (boqId) await admin.from('boq_items').delete().eq('id', boqId);
       await admin.from('organizations').update({ down_payment_item: previousItem }).eq('id', ORG_ID);
