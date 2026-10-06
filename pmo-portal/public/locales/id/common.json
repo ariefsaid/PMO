@@ -3152,5 +3152,23 @@
       "save": "Simpan progres",
       "saved": "Progres disimpan"
     }
+  },
+  "comments": {
+    "title": "Komentar",
+    "empty": "Belum ada komentar.",
+    "loading": "Memuat komentar…",
+    "loadError": "Komentar gagal dimuat. Coba lagi sebentar lagi.",
+    "label": "Tambah komentar",
+    "placeholder": "Tulis komentar. Ketik @ untuk menyebut rekan kerja.",
+    "post": "Kirim komentar",
+    "posting": "Mengirim…",
+    "postError": "Komentar gagal dikirim. Coba lagi.",
+    "delete": "Hapus",
+    "deleteTitle": "Hapus komentar ini?",
+    "deleteDescription": "Komentar tidak akan tampil lagi pada data ini.",
+    "deleteError": "Komentar gagal dihapus.",
+    "tooLong": "Komentar dibatasi 4000 karakter.",
+    "mentionList": "Sebut rekan kerja",
+    "unknownAuthor": "Mantan anggota"
   }
 }

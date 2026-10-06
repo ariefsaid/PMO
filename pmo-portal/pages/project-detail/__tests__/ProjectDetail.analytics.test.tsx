@@ -86,6 +86,8 @@ vi.mock('../ProjectDetailHeader', () => ({
 
 import ProjectDetail from '../ProjectDetail';
 
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
+
 const renderAt = (path: string) =>
   render(
     <ImpersonationProvider realRole="Project Manager">

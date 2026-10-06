@@ -42,6 +42,7 @@ import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhase
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { buildTaskRenderOrder, collectDescendants } from '@/src/lib/tasks/taskTree';
 import ProjectGantt from '../ProjectGantt';
+import { CommentsSection } from '@/src/components/comments/CommentsSection';
 
 /**
  * OD-INT-9 subtask nesting — the horizontal indent applied per depth level in the Task-name
@@ -1049,6 +1050,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           )}
         </FormSection>
       )}
+      {task && <CommentsSection entityType="task" entityId={task.id} />}
     </EntityFormModal>
   );
 };
