@@ -144,6 +144,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       await queryClient.invalidateQueries({ queryKey: ['integrations', 'setup', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['sales-pipeline', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['projects', currentUser?.org_id] });
+      await queryClient.invalidateQueries({ queryKey: ['project', currentUser?.org_id, project.id] });
       await queryClient.invalidateQueries({ queryKey: ['opportunity', currentUser?.org_id, project.id] });
       setShowWonPanel(false);
       setContractRef('');

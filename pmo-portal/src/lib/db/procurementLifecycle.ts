@@ -160,7 +160,7 @@ export function formatDocNumber(
 // archived_at is null filtering is done client-side in buildLedgerRows (filePresence())
 // since PostgREST embedded `.is(archived_at, null)` filters are applied via query
 // params on the main select, not sub-selects. We fetch all and discard archived in JS.
-const FILE_FIELDS = 'title, file_path, archived_at';
+const FILE_FIELDS = 'id, title, file_path, archived_at';
 
 const DETAIL_SELECT = [
   '*',

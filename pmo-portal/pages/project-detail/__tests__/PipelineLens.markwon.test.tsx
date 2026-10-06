@@ -13,8 +13,9 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
  * date inputs, so the user confirms against the actual figure before committing the win.
  */
 
-const { transitionProject } = vi.hoisted(() => ({
+const { transitionProject, invalidateQueries } = vi.hoisted(() => ({
   transitionProject: vi.fn().mockResolvedValue(undefined),
+  invalidateQueries: vi.fn().mockResolvedValue(undefined),
 }));
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
 // rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
@@ -47,7 +48,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+  return { ...actual, useQueryClient: () => ({ invalidateQueries }) };
 });
 
 import PipelineLens from '../PipelineLens';
@@ -82,6 +83,7 @@ const renderLens = () =>
 
 beforeEach(() => {
   transitionProject.mockClear();
+  invalidateQueries.mockClear();
 });
 
 describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
@@ -102,6 +104,17 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
     );
     expect(bookingLine).toHaveTextContent(
       new RegExp(`Booking\\s*${formatted.replace(/[$,]/g, '\\$&')}\\s*to contract value on win`, 'i'),
+    );
+  });
+});
+
+describe('PipelineLens — a transition refreshes the detail page (AC-OVERFETCH-001)', () => {
+  it('AC-OVERFETCH-001: Advance invalidates the project detail key the page reads', async () => {
+    renderLens();
+    await userEvent.click(screen.getByRole('button', { name: /Advance/i }));
+    await vi.waitFor(() => expect(transitionProject).toHaveBeenCalled());
+    await vi.waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['project', 'org-1', 'd1'] }),
     );
   });
 });

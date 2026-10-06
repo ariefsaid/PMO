@@ -11,7 +11,7 @@ import {
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useProcurements } from '@/src/hooks/useProcurements';
+import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -31,10 +31,8 @@ export interface ProcurementTabProps {
 }
 
 /**
- * REAL, project-scoped procurement (OQ-5). Filters the cached org-wide
- * `useProcurements()` list client-side by `project_id` — the documented
- * "page filters cached list client-side" pattern; no new DAL, RLS already
- * scopes the org. No drawer, no pie chart, no advisory card. Rows reuse the
+ * REAL, project-scoped procurement (OQ-5). Reads procurement filtered by
+ * `project_id` server-side (`useProjectProcurements`); RLS scopes the org. No drawer, no pie chart, no advisory card. Rows reuse the
  * Procurement surface's row (title + mono PR-id · value · inline lifecycle pips
  * · StatusPill) and drill to `/procurement/:id`. ProcurementStatusBadge retired
  * → StatusPill.
@@ -43,7 +41,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
-  const { data, isPending, isError, refetch } = useProcurements();
+  const { data, isPending, isError, refetch } = useProjectProcurements(projectId);
   const create = useCreateProcurement();
   const { toast } = useToast();
   const canCreate = may('create', 'procurement');
@@ -51,10 +49,9 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
 
   const rows = useMemo(
     () =>
-      (data ?? [])
-        .filter((p) => p.project_id === projectId)
+      [...(data ?? [])]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [data, projectId],
+    [data],
   );
 
   const columns: Column<ProcurementWithRefs>[] = [

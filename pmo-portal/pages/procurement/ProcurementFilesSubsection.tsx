@@ -22,7 +22,14 @@ export interface ProcurementFilesSubsectionProps {
   canWrite: boolean;
   /** Current user id stamped onto new file rows (who uploaded). */
   uploadedById: string | null;
+  /**
+   * The row's files as already embedded by the procurement detail query. When given, no per-row
+   * list query runs (one detail read serves every row); archived rows are hidden here.
+   */
+  files?: EmbeddedProcurementFile[];
 }
+
+export type EmbeddedProcurementFile = Pick<ProcurementFileRow, 'id' | 'title' | 'file_path' | 'archived_at'>;
 
 function filename(path: string | null): string {
   if (!path) return 'file';
@@ -45,14 +52,21 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   procurementId,
   canWrite,
   uploadedById,
+  files: embedded,
 }) => {
   const { toast } = useToast();
   const { list, upload, archive, download, progress, uploadError, clearUploadError } =
-    useProcurementFiles(phase, parentId, procurementId, uploadedById);
+    useProcurementFiles(phase, parentId, procurementId, uploadedById, {
+      list: embedded === undefined,
+    });
   const inputRef = useRef<HTMLInputElement>(null);
-  const [pendingArchive, setPendingArchive] = useState<ProcurementFileRow | null>(null);
+  const [pendingArchive, setPendingArchive] = useState<EmbeddedProcurementFile | null>(null);
 
-  const files = list.data ?? [];
+  const files: EmbeddedProcurementFile[] = embedded
+    ? embedded.filter((f) => f.archived_at == null)
+    : (list.data ?? []);
+  const listPending = embedded === undefined && list.isPending;
+  const listError = embedded === undefined && list.isError;
   const uploading = progress != null;
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,7 +86,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
     );
   };
 
-  const openFile = async (file: ProcurementFileRow, asDownload: boolean) => {
+  const openFile = async (file: EmbeddedProcurementFile, asDownload: boolean) => {
     if (!file.file_path) return;
     try {
       const url = await download(file.file_path, { download: asDownload });
@@ -126,9 +140,9 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
         )}
       </div>
 
-      {list.isPending ? (
+      {listPending ? (
         <p className="text-[12px] text-muted-foreground">Loading attachments…</p>
-      ) : list.isError ? (
+      ) : listError ? (
         <p role="alert" className="text-[12px] text-destructive">
           Couldn&apos;t load attachments.
         </p>
