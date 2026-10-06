@@ -2262,6 +2262,12 @@
       "placeholder": "Cari proyek…"
     },
     "summaryLabel": "Ringkasan pipeline",
+    "boardEmpty": {
+      "classification": {
+        "sub": "Hapus filter klasifikasi untuk melihat lebih banyak proyek.",
+        "title": "Tidak ada proyek yang cocok dengan klasifikasi ini"
+      }
+    },
     "tableEmpty": {
       "clearFilters": "Hapus filter",
       "lost": {
@@ -3089,6 +3095,7 @@
     "select": "— pilih —"
   },
   "projectClassification": {
+    "tooLong": "Gunakan maksimal {{max}} karakter.",
     "title": "Klasifikasi",
     "serviceLine": "Lini layanan",
     "sector": "Sektor",

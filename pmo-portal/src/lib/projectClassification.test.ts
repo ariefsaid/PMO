@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { matchesProjectClassification, parseClassificationOptions } from './projectClassification';
+import { activeClassificationCount, classificationValueLabel, matchesProjectClassification, parseClassificationOptions, pickClassification } from './projectClassification';
+import type { ProjectClassificationFilters } from './projectClassification';
+import type { TFunction } from 'i18next';
+
+const t = ((_key: string, fallback: string) => fallback) as unknown as TFunction;
 
 const project = {
   service_line: 'Engineering', sector: 'Energy', location: 'West Java',
@@ -17,7 +21,7 @@ describe('AC-TAG-002 classification filter intersection', () => {
     })).toBe(true);
     expect(project.location).toBe('West Java');
   });
-  it.each([
+  it.each<ProjectClassificationFilters>([
     { serviceLine: 'Consulting' }, { sector: 'Transport' }, { location: 'Sumatra' },
     { awardType: 'direct' }, { biddingEntity: 'alone' },
   ])('excludes a project when one selected classification disagrees: %j', (filter) => {
@@ -41,5 +45,20 @@ describe('AC-TAG-001 org option-list input', () => {
   });
   it('lets an Admin deliberately empty an org-defined list', () => {
     expect(parseClassificationOptions(' \n ')).toEqual([]);
+  });
+});
+
+describe('classification helpers (#830)', () => {
+  it.each([['tender', 'Tender'], ['direct', 'Direct award'], ['alone', 'Alone'], ['consortium', 'Consortium']])(
+    'AC-TAG-002 labels %s as its own label', (value, label) => expect(classificationValueLabel(t, value)).toBe(label));
+  it('AC-TAG-002 shows an unknown stored value as stored instead of collapsing it to Direct award', () => {
+    expect(classificationValueLabel(t, 'negotiated')).toBe('negotiated');
+  });
+  it('AC-TAG-002 counts only the set classification filters', () => {
+    expect(activeClassificationCount({})).toBe(0);
+    expect(activeClassificationCount({ sector: 'Energy', awardType: 'direct', location: '' })).toBe(2);
+  });
+  it('AC-TAG-002 picks only the five classification fields from a full row', () => {
+    expect(pickClassification({ ...project, name: 'x' } as typeof project)).toEqual(project);
   });
 });

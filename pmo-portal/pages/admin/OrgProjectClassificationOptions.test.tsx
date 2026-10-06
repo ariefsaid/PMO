@@ -20,5 +20,11 @@ describe('AC-TAG-001 organization classification options', () => {
  });
  it('shows stored options without edit controls to non-Admins', () => { h.may = false; setup(); expect(screen.getByText('Engineering')).toBeVisible(); expect(screen.queryByRole('button', { name: 'Save options' })).toBeNull(); });
  it('shows a retry when reads fail instead of editing empty invented lists', () => { h.failed = true; setup(); expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible(); expect(screen.queryByLabelText('Service lines')).toBeNull(); });
- it('surfaces refused writes', async () => { h.save.mockRejectedValue(new Error('Save refused')); setup(); await userEvent.click(screen.getByRole('button', { name: 'Save options' })); expect(await screen.findByText('Save refused')).toBeVisible(); });
+ it('surfaces refused writes', async () => { h.save.mockRejectedValue(new Error('Save refused')); setup(); await userEvent.type(screen.getByLabelText('Service lines'), 'X'); await userEvent.click(screen.getByRole('button', { name: 'Save options' })); expect(await screen.findByText('Save refused')).toBeVisible(); });
+ it('AC-TAG-001 disables Save until a list changes', async () => { setup(); const save = screen.getByRole('button', { name: 'Save options' }); expect(save).toBeDisabled(); await userEvent.type(screen.getByLabelText('Service lines'), 'X'); expect(save).toBeEnabled(); });
+ it('AC-TAG-001 flags an option over 140 characters inline and blocks Save', async () => {
+  setup(); await userEvent.type(screen.getByLabelText('Sectors'), 'y'.repeat(141));
+  expect(screen.getByText('Use 140 characters or fewer.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Save options' })).toBeDisabled();
+ });
 });

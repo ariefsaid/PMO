@@ -1,4 +1,5 @@
-import type { ProjectClassificationFilters } from './projectClassification';
+import { AWARD_TYPES, BIDDING_ENTITIES, CLASSIFICATION_FILTER_KEYS } from './projectClassification';
+import type { AwardType, BiddingEntity, ProjectClassificationFilters } from './projectClassification';
 import { DEFAULT_PROJECT_VIEW, PROJECT_VIEWS, type ProjectView } from '../hooks/useProjectView';
 import { DEFAULT_PIPELINE_VIEW, PIPELINE_VIEWS, type PipelineView } from '../hooks/usePipelineView';
 import {
@@ -306,20 +307,21 @@ type Schemas = { [K in ListName]: ListSchema<K> };
  * not a framework. Parsers validate untrusted URL input; serializers trust their already-typed
  * working set and only omit/default-encode values (they never re-validate enum membership).
  */
-const CLASSIFICATION_KEYS = ['serviceLine', 'sector', 'location', 'awardType', 'biddingEntity'] as const;
 function classificationValues(params: URLSearchParams): ProjectClassificationFilters {
   const result: ProjectClassificationFilters = {};
-  for (const key of CLASSIFICATION_KEYS) {
+  for (const key of CLASSIFICATION_FILTER_KEYS) {
     const value = (params.get(key) ?? '').replace(/\p{Cc}/gu, '');
     if (!value) continue;
-    if (key === 'awardType' && !['tender', 'direct'].includes(value)) continue;
-    if (key === 'biddingEntity' && !['alone', 'consortium'].includes(value)) continue;
-    result[key] = value;
+    if (key === 'awardType') {
+      if ((AWARD_TYPES as readonly string[]).includes(value)) result.awardType = value as AwardType;
+    } else if (key === 'biddingEntity') {
+      if ((BIDDING_ENTITIES as readonly string[]).includes(value)) result.biddingEntity = value as BiddingEntity;
+    } else result[key] = value;
   }
   return result;
 }
 function putClassification(params: URLSearchParams, values: ProjectClassificationFilters): void {
-  for (const key of CLASSIFICATION_KEYS) putParam(params, key, values[key] ?? '');
+  for (const key of CLASSIFICATION_FILTER_KEYS) putParam(params, key, values[key] ?? '');
 }
 
 const LIST_WORKING_SET_SCHEMAS: Schemas = {

@@ -35,6 +35,7 @@ import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTa
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { projectIconColor } from './projects';
+import { AWARD_TYPES, BIDDING_ENTITIES, CLASSIFICATION_MAX_LENGTH, classificationValueOptions } from '@/src/lib/projectClassification';
 import {
   PROJECT_ORIGINATION_STATUSES,
   type CreateProjectInput,
@@ -154,6 +155,9 @@ const makeValidate =
     if (!v.clientId) errors.clientId = t('projectForm.client.required', 'Select a client company.');
     const valueErr = moneyError(v.value, t);
     if (valueErr) errors.value = valueErr;
+    if (v.location.trim().length > CLASSIFICATION_MAX_LENGTH) {
+      errors.location = t('projectClassification.tooLong', 'Use {{max}} characters or fewer.', { max: CLASSIFICATION_MAX_LENGTH });
+    }
     return errors;
   };
 
@@ -620,12 +624,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           })}
           <SelectField id="project-classification-award" label={t('projectClassification.awardType', 'Award type')}
             value={form.values.awardType} onChange={(value) => form.setValue('awardType', value)}
-            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, { value: 'tender', label: t('projectClassification.tender', 'Tender') }, { value: 'direct', label: t('projectClassification.direct', 'Direct award') }]} />
+            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, ...classificationValueOptions(t, AWARD_TYPES)]} />
           <SelectField id="project-classification-bidding" label={t('projectClassification.biddingEntity', 'Bidding entity')}
             value={form.values.biddingEntity} onChange={(value) => form.setValue('biddingEntity', value)}
-            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, { value: 'alone', label: t('projectClassification.alone', 'Alone') }, { value: 'consortium', label: t('projectClassification.consortium', 'Consortium') }]} />
-          <TextField id="project-classification-location" label={t('projectClassification.location', 'Location')}
-            value={form.values.location} onChange={(value) => form.setValue('location', value)} fullWidth />
+            options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
+          <TextField {...form.fieldProps('location')} id="project-classification-location" label={t('projectClassification.location', 'Location')} fullWidth />
         </FormGrid>
       </FormSection>
 
