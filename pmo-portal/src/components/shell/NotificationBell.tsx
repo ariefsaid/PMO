@@ -104,6 +104,9 @@ export const NotificationBell: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [inbox, setInbox] = useState<InboxState>({ status: 'idle' });
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  // Bumped by every inbox (re)load; a Load more response from an earlier generation is stale.
+  const generation = useRef(0);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const refreshUnreadCount = useCallback(() => {
@@ -126,6 +129,9 @@ export const NotificationBell: React.FC = () => {
   }, [refreshUnreadCount]);
 
   const loadInbox = useCallback(() => {
+    generation.current += 1;
+    setLoadingMore(false);
+    setLoadMoreError(false);
     setInbox({ status: 'loading' });
     listNotificationsPage()
       .then(({ rows, nextCursor }) => {
@@ -138,9 +144,12 @@ export const NotificationBell: React.FC = () => {
   // Keyset "Load more" (#843): append the next page; a failure keeps the rows already shown.
   const loadMore = useCallback(() => {
     if (inbox.status !== 'ready' || !inbox.nextCursor || loadingMore) return;
+    const gen = generation.current;
     setLoadingMore(true);
+    setLoadMoreError(false);
     listNotificationsPage({ cursor: inbox.nextCursor })
       .then(({ rows, nextCursor }) => {
+        if (gen !== generation.current) return;
         setInbox((prev) =>
           prev.status === 'ready'
             ? {
@@ -151,8 +160,12 @@ export const NotificationBell: React.FC = () => {
             : prev,
         );
       })
-      .catch(() => {})
-      .finally(() => setLoadingMore(false));
+      .catch(() => {
+        if (gen === generation.current) setLoadMoreError(true);
+      })
+      .finally(() => {
+        if (gen === generation.current) setLoadingMore(false);
+      });
   }, [inbox, loadingMore]);
 
   useEffect(() => {
@@ -317,13 +330,20 @@ export const NotificationBell: React.FC = () => {
               })}
               {inbox.nextCursor && (
                 <li>
+                  <p aria-live="polite" className="px-2.5 py-1 text-[12px] text-muted-foreground">
+                    {loadMoreError &&
+                      t('shell.notifications.loadMoreError', "Couldn't load more. Try again.")}
+                  </p>
                   <button
                     type="button"
                     onClick={loadMore}
                     disabled={loadingMore}
-                    className="w-full rounded-md px-2.5 py-2 text-center text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                    aria-busy={loadingMore}
+                    className="touch-target w-full rounded-md px-2.5 py-2 text-center text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                   >
-                    {t('shell.notifications.loadMore', 'Load more')}
+                    {loadingMore
+                      ? t('shell.notifications.loadingMore', 'Loading…')
+                      : t('shell.notifications.loadMore', 'Load more')}
                   </button>
                 </li>
               )}

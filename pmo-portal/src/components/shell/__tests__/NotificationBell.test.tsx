@@ -402,4 +402,69 @@ describe('NotificationBell', () => {
     expect(screen.getByRole('button', { name: /notifications.*57 unread/i })).toBeInTheDocument();
     expect(screen.getByText('57')).toBeInTheDocument();
   });
+
+  it('AC-843-007 a stale Load more response (inbox reloaded meanwhile) is ignored', async () => {
+    const staleCursor = { createdAt: '2026-07-01T00:00:00.000Z', id: 'old' };
+    const freshCursor = { createdAt: '2026-07-09T00:00:00.000Z', id: 'fresh' };
+    let resolveStale: (v: unknown) => void = () => {};
+    listNotifications
+      .mockResolvedValueOnce({ rows: [row({ id: 'n1', title: 'Old first' })], nextCursor: staleCursor })
+      .mockReturnValueOnce(new Promise((r) => { resolveStale = r; }))
+      .mockResolvedValueOnce({ rows: [row({ id: 'n9', title: 'Fresh first' })], nextCursor: freshCursor });
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+    await userEvent.click(bell);
+    await screen.findByText('Old first');
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    await userEvent.click(bell); // close
+    await userEvent.click(bell); // reopen -> reload
+    await screen.findByText('Fresh first');
+    resolveStale({ rows: [row({ id: 'n2', title: 'Stale page item' })], nextCursor: null });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText('Stale page item')).not.toBeInTheDocument();
+    expect(screen.getByText('Fresh first')).toBeInTheDocument();
+    // the fresh cursor survived: Load more is still offered and uses it
+    listNotifications.mockResolvedValueOnce({ rows: [], nextCursor: null });
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    expect(listNotifications.mock.calls.at(-1)?.[0]).toMatchObject({ cursor: freshCursor });
+  });
+
+  it('AC-843-008 a failed Load more shows an inline alert and can be retried', async () => {
+    const cursor = { createdAt: '2026-07-02T00:00:00.000Z', id: 'n1' };
+    listNotifications
+      .mockResolvedValueOnce({ rows: [row({ id: 'n1', title: 'First page item' })], nextCursor: cursor })
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ rows: [row({ id: 'n3', title: 'Second page item' })], nextCursor: null });
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await screen.findByText('First page item');
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    const msg = await screen.findByText(/couldn't load more/i);
+    expect(msg.closest('[aria-live]')).not.toBeNull();
+    expect(screen.getByText('First page item')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    expect(await screen.findByText('Second page item')).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't load more/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-843-009 Load more is aria-busy, disabled and says Loading… while fetching; has the touch target', async () => {
+    const cursor = { createdAt: '2026-07-02T00:00:00.000Z', id: 'n1' };
+    let resolveMore: (v: unknown) => void = () => {};
+    listNotifications
+      .mockResolvedValueOnce({ rows: [row({ id: 'n1', title: 'First page item' })], nextCursor: cursor })
+      .mockReturnValueOnce(new Promise((r) => { resolveMore = r; }));
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await screen.findByText('First page item');
+    const btn = screen.getByRole('button', { name: /load more/i });
+    expect(btn).toHaveClass('touch-target');
+    expect(btn).not.toBeDisabled();
+    expect(btn).toHaveAttribute('aria-busy', 'false');
+    await userEvent.click(btn);
+    const busy = await screen.findByRole('button', { name: /loading…/i });
+    expect(busy).toBeDisabled();
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    resolveMore({ rows: [], nextCursor: null });
+    await waitFor(() => expect(screen.queryByRole('button', { name: /loading…/i })).not.toBeInTheDocument());
+  });
 });

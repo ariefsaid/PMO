@@ -2745,6 +2745,8 @@
       "listLabel": "Notifications",
       "loadError": "Couldn't load notifications. Try again shortly.",
       "loadMore": "Load more",
+      "loadMoreError": "Couldn't load more. Try again.",
+      "loadingMore": "Loading…",
       "loading": "Loading notifications…",
       "noneUnread": "No unread notifications",
       "read": "Read",

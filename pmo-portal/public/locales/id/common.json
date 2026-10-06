@@ -2745,6 +2745,8 @@
       "listLabel": "Notifikasi",
       "loadError": "Gagal memuat notifikasi. Coba lagi sebentar lagi.",
       "loadMore": "Muat lebih banyak",
+      "loadMoreError": "Gagal memuat lagi. Coba lagi.",
+      "loadingMore": "Memuat…",
       "loading": "Memuat notifikasi…",
       "noneUnread": "Tidak ada notifikasi yang belum dibaca",
       "read": "Dibaca",
