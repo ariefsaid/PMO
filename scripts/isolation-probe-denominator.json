@@ -8,7 +8,7 @@
     {"table":"agent_runs","has_org":true,"pk":"id"},
     {"table":"agent_threads","has_org":true,"pk":"id"},
     {"table":"agent_usage","has_org":true,"pk":"id"},
-    {"table":"alert_send_log","has_org":false,"pk":"error_code"},
+    {"table":"alert_send_log","has_org":true,"pk":"id"},
     {"table":"audit_events","has_org":true,"pk":"id"},
     {"table":"boq_items","has_org":true,"pk":"id"},
     {"table":"budget_category_account_map","has_org":true,"pk":"id"},

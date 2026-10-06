@@ -482,19 +482,33 @@ export type Database = {
         Row: {
           delivered_at: string | null
           error_code: string
+          id: string
           last_sent_at: string
+          org_id: string | null
         }
         Insert: {
           delivered_at?: string | null
           error_code: string
+          id?: string
           last_sent_at: string
+          org_id?: string | null
         }
         Update: {
           delivered_at?: string | null
           error_code?: string
+          id?: string
           last_sent_at?: string
+          org_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "alert_send_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_events: {
         Row: {
