@@ -145,4 +145,22 @@ describe('ordinary sales invoice tax rows (#856)', () => {
     const { body } = await push(VAT_OFF, {}, null);
     expect(body).not.toHaveProperty('taxes');
   });
+
+  it('AC-858-1 a replayed ordinary create keeps its persisted tax rows: no ERPNext read, same digest after the template rate or VAT flag changes', async () => {
+    const first = await push(TAXED);
+    const persisted = structuredClone(first.command.record) as Row;
+    for (const [project, template] of [[TAXED, { ...TEMPLATE, taxes: [{ ...TEMPLATE.taxes[0], rate: 99 }] }], [VAT_OFF, TEMPLATE]] as const) {
+      const erp = erpFetch(template);
+      const replay = command();
+      replay.record = structuredClone(persisted);
+      await resolveErpDispatchAdapter({
+        serviceClient: serviceClient(project), orgId: ORG, command: replay, replay: true,
+        fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+        doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+      });
+      expect(erp.fetchImpl).not.toHaveBeenCalled();
+      expect(await canonicalCommandDigest({ domain: replay.domain, operation: replay.operation, record: replay.record }))
+        .toBe(await canonicalCommandDigest({ domain: first.command.domain, operation: first.command.operation, record: first.command.record }));
+    }
+  });
 });

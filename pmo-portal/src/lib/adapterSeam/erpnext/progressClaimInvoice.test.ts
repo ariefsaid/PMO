@@ -266,4 +266,19 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(body.custom_received_date).toBeUndefined();
     expect(cmd.record.reference_number).toBeNull();
   });
+
+  it('AC-858-1 a replayed claim create uses the persisted items and taxes: no ERPNext read, same digest after the template, VAT flag and negative-rates setting change', async () => {
+    const first = await push({});
+    const persisted = structuredClone(first.command.record) as Row;
+    const { fetchImpl } = erpFetch({ negativeRates: false, template: { ...TAX_TEMPLATE, taxes: [{ ...TAX_TEMPLATE.taxes[0], rate: 99 }] } });
+    const replay = command({});
+    replay.record = structuredClone(persisted);
+    await resolveErpDispatchAdapter({
+      serviceClient: serviceClient(CLAIM, EVIDENCE, {}, { subject_to_vat: false }), orgId: ORG, command: replay, replay: true,
+      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await digest(replay)).toBe(await digest(first.command));
+  });
 });

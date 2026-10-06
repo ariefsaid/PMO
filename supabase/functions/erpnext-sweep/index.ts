@@ -1807,6 +1807,8 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     apiSecret,
     rateLimiter: { acquire: async () => {} },
     doctypeBodies: DOCTYPE_BODIES,
+    // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
+    replay: true,
   });
 
   const anchorField = entry.anchorField;

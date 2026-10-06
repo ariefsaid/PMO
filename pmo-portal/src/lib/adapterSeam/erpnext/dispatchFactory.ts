@@ -921,6 +921,9 @@ export interface ErpDispatchFactoryDeps {
   /** Threaded straight into `ErpAdapterDeps.afterCancelHook` (⚑ HIGH-1 — the `after-cancel-before-create`
    *  fault seam). Optional; omitted callers are a true no-op. */
   afterCancelHook?: () => Promise<void>;
+  /** #858: a sweep recovery of an already-persisted command. A sales-invoice create then keeps the server-built `items`/`taxes`
+   *  the outbox payload already carries (they are inside its digest) and makes no ERPNext read; only the foreground create resolves them. */
+  replay?: boolean;
 }
 
 /**
@@ -999,6 +1002,9 @@ async function resolveOrdinaryInvoiceTaxes(
 async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<'ordinary' | 'claim' | 'none'> {
   const record = deps.command.record as Record<string, unknown>;
   if (record.erp_doc_kind !== 'sales-invoice') return 'none';
+  // #858: a recovery replays the persisted, server-built items and taxes (the digest covers them); re-deriving them would read
+  // ERPNext again and could drift from the original digest if the template, the VAT flag or the negative-rates setting moved since.
+  if (deps.replay && deps.command.operation === 'create') return 'none';
   delete record.taxes;
   if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return 'none';
   if (typeof record.id !== 'string' || !record.id) return 'none';
