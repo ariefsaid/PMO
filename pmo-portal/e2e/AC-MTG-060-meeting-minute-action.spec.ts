@@ -71,7 +71,7 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 1. The Engineer signs in and opens Meetings from the rail (OD-MTG-1: the nav exists
     //       for every role, Engineer included). ─────────────────────────────────────────────
     await signIn(page, 'engineer@acme.test');
-    await page.getByRole('link', { name: 'Meetings', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Meetings', exact: true }).click();
     await page.waitForURL('**/meetings');
 
     // ── 2. Create the meeting (no project — the project-less path is the strictest one:
@@ -154,7 +154,7 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 7. The DD-MTG-5 find story (I5): back on the list, search a term that lives ONLY in
     //       the minute's NOTES ("flange" — the title never contains it), so the hit can only
     //       come from the DB-side notes_search projection. ─────────────────────────────────
-    await page.getByRole('link', { name: 'Meetings', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Meetings', exact: true }).click();
     await page.waitForURL('**/meetings');
     await page.getByLabel('Search meetings').fill(`flange ${suffix}`);
     await expect(page.getByRole('table').getByText(meetingTitle)).toBeVisible({
