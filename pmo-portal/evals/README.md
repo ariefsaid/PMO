@@ -87,3 +87,11 @@ Each new agent behavior should land a regression case here alongside its build.
 
 The default `verify` job is unchanged: `**/*.eval.ts` and `evals/harness/runEval.ts`
 are excluded from the default Vitest project (`vite.config.ts` `test.exclude`).
+
+## Invoice-reach fixture (#787)
+
+`evals/cases/invoice-reach.eval.ts` expects the eval test user to be a **Finance** user in an org where:
+Revenue is switched on; revenue is owned by an ERPNext binding whose catalogue has exactly **one** sales item;
+there is ≥1 open task past its end date on a project, and ≥1 Unpaid invoice past its due date; work order
+`WO-EVAL-0001` is **Issued**, tax-exclusive, value 1,000,000.00; project `EVAL-P1` has ≥2 milestones.
+The suite only proposes — it never approves — so it never creates an ERP document.

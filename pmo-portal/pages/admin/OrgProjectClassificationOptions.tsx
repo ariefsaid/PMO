@@ -6,7 +6,7 @@ import { Button, FormGrid, ListState, TextArea, useToast } from '@/src/component
 import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseClassificationOptions } from '@/src/lib/projectClassification';
+import { CLASSIFICATION_MAX_LENGTH, parseClassificationOptions } from '@/src/lib/projectClassification';
 import { useProjectClassificationOptions, PROJECT_CLASSIFICATION_OPTIONS_KEY } from '@/src/hooks/useProjectClassificationOptions';
 
 export default function OrgProjectClassificationOptions() {
@@ -24,6 +24,12 @@ export default function OrgProjectClassificationOptions() {
     ? <ListState variant="error" title={t('projectClassification.loadError', "Couldn't load classification options")} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void query.refetch()} />
     : <ListState variant="loading" rows={2} />;
   const values = draft ?? { serviceLines: query.data.serviceLines.join('\n'), sectors: query.data.sectors.join('\n') };
+  const tooLong = (text: string) => parseClassificationOptions(text).some((option) => option.length > CLASSIFICATION_MAX_LENGTH);
+  const lengthError = t('projectClassification.tooLong', 'Use {{max}} characters or fewer.', { max: CLASSIFICATION_MAX_LENGTH });
+  const serviceLinesError = tooLong(values.serviceLines) ? lengthError : undefined;
+  const sectorsError = tooLong(values.sectors) ? lengthError : undefined;
+  const unchanged = parseClassificationOptions(values.serviceLines).join('\n') === query.data.serviceLines.join('\n')
+    && parseClassificationOptions(values.sectors).join('\n') === query.data.sectors.join('\n');
   const save = async () => {
     try {
       await mutation.mutateAsync({ serviceLines: parseClassificationOptions(values.serviceLines), sectors: parseClassificationOptions(values.sectors) });
@@ -40,12 +46,12 @@ export default function OrgProjectClassificationOptions() {
       <FormGrid>
         <TextArea id="org-service-lines" label={t('projectClassification.serviceLines', 'Service lines')} value={values.serviceLines}
           onChange={(serviceLines) => setDraft({ ...values, serviceLines })} disabled={mutation.isPending} rows={6}
-          helper={t('projectClassification.onePerLine', 'One option per line. Leave empty to offer no options.')} />
+          error={serviceLinesError} helper={t('projectClassification.onePerLine', 'One option per line. Leave empty to offer no options.')} />
         <TextArea id="org-sectors" label={t('projectClassification.sectors', 'Sectors')} value={values.sectors}
           onChange={(sectors) => setDraft({ ...values, sectors })} disabled={mutation.isPending} rows={6}
-          helper={t('projectClassification.onePerLine', 'One option per line. Leave empty to offer no options.')} />
+          error={sectorsError} helper={t('projectClassification.onePerLine', 'One option per line. Leave empty to offer no options.')} />
       </FormGrid>
-      <Button onClick={() => void save()} disabled={mutation.isPending}>{t('projectClassification.save', 'Save options')}</Button>
+      <Button onClick={() => void save()} disabled={mutation.isPending || unchanged || Boolean(serviceLinesError || sectorsError)}>{t('projectClassification.save', 'Save options')}</Button>
     </> : <>
       <dl className="space-y-4 text-sm">
         <div><dt className="text-muted-foreground">{t('projectClassification.serviceLines', 'Service lines')}</dt><dd className="break-words">{query.data.serviceLines.join(', ') || t('projectClassification.notSet', 'Not set')}</dd></div>

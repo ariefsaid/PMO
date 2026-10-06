@@ -30,9 +30,31 @@ const milestonesState = {
   refetch: vi.fn(),
 };
 
+// The pre-win record the by-id read resolves (#840) — a 'Tender Submitted' deal so legal targets
+// include 'Won, Pending KoM' (enabling the Mark won button).
+const oppRecord = vi.hoisted(() => ({
+    id: 'opp1',
+    name: 'Alpha Solar Bid',
+    code: 'OPP-0001',
+    status: 'Tender Submitted',
+    client_id: 'c1',
+    project_manager_id: 'u-pm',
+    contract_value: 500000,
+    currency: 'USD',
+    start_date: null,
+    end_date: null,
+    contract_date: null,
+    customer_contract_ref: null,
+    client: { name: 'Alpha Corp' },
+    pm: { full_name: 'PM Name' },
+  }));
+
 // ── module mocks ─────────────────────────────────────────────────────────────
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
+  // #840: the detail route reads ONE project by id (any stage), never the whole list.
+  // #840: the detail route reads ONE project by id; the pre-win deal is not in the active list.
+  useProject: () => ({ data: oppRecord, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -42,30 +64,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   }),
   useClientCompanies: () => ({ data: [], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),
-}));
-
-vi.mock('@/src/lib/db/opportunity', () => ({
-  // The pre-win record is NOT in the active cache (projectsState=[]) — falls back to useOpportunity.
-  // Use 'Tender Submitted' so legal targets include 'Won, Pending KoM' (enabling the Mark won button).
-  useOpportunity: () => ({
-    data: {
-      id: 'opp1',
-      name: 'Alpha Solar Bid',
-      code: 'OPP-0001',
-      status: 'Tender Submitted',
-      client_id: 'c1',
-      project_manager_id: 'u-pm',
-      contract_value: 500000,
-      currency: 'USD',
-      start_date: null,
-      end_date: null,
-      contract_date: null,
-      customer_contract_ref: null,
-      client: { name: 'Alpha Corp' },
-      pm: { full_name: 'PM Name' },
-    },
-    isPending: false,
-  }),
 }));
 
 vi.mock('@/src/hooks/useMilestones', () => ({
@@ -91,6 +89,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 

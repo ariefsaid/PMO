@@ -10,7 +10,7 @@
  *  - A pre-activated `external_org_bindings` row carrying `company` + `project_map`. ⚑ This ACTIVE
  *    binding is the spec-faithful employ signal (FR-BUD-010); NO `external_domain_ownership('budget')`
  *    row is ever created (FR-BUD-006(a) — budget is Posture B, PMO stays SoT).
- *  - The Admin-administered `budget_category_account_map` bijection (FR-BUD-111) — PMO's
+ *  - The Admin-administered `budget_category_account_map` (FR-BUD-111, #768: several accounts, one push) — PMO's
  *    `budget_category` → the client's own ERP account. Without it the push fails closed.
  *  - A Draft `budget_versions` row + its `budget_line_items`.
  *
@@ -33,6 +33,9 @@ export const ERP_COMPANY = 'PMO Smoke Co';
 /** Two REAL leaf expense accounts on the bench chart (never a group node, never a suspense default). */
 export const LABOR_ACCOUNT = 'Administrative Expenses - PSC';
 export const MATERIALS_ACCOUNT = 'Commission on Sales - PSC';
+/** #768: a second, READ-ONLY Labor account. It must never appear in a pushed ERP Budget — AC-BUD-030's exact
+ *  `accounts[]` equality proves that against the real bench on every run. Not used by `seed.sql`. */
+export const LABOR_SIBLING_ACCOUNT = 'Travel Expenses - PSC';
 
 /** A Finance user may activate a budget version (OD-BUDGET-3 write roles). */
 export const ACTIVATOR_EMAIL = 'finance@acme.test';
@@ -137,7 +140,7 @@ export interface BudSeed {
     /** The org's whole erpnext binding row before this run, or `null` if there was none. */
     binding: Record<string, unknown> | null;
     /** The category→account rows this run overwrites, exactly as they were. */
-    categoryMap: Array<{ org_id: string; category: string; erp_account: string }>;
+    categoryMap: Array<{ org_id: string; category: string; erp_account: string; is_push_target: boolean }>;
   };
 }
 
@@ -247,17 +250,20 @@ export async function seedBud(
   // forbidden from ever being created, so this lane no longer seeds one; the FE panel gate and the
   // `get_budget_push_status` gate both read the binding (mig 0160), so the feature still renders.
 
-  // THE CRUX (FR-BUD-110..113): the Admin-administered category→account bijection.
-  const { data: priorMapRows } = await admin
-    .from('budget_category_account_map').select('org_id, category, erp_account')
+  // THE CRUX (FR-BUD-110..113, #768). 0246 replaced unique(org_id, category) with a partial push index, which a
+  // PostgREST upsert cannot target — so: snapshot every Labor/Materials row as found, clear them, insert ours.
+  const { data: priorMapRows, error: priorMapErr } = await admin
+    .from('budget_category_account_map').select('org_id, category, erp_account, is_push_target')
     .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
-  const { error: mapErr } = await admin.from('budget_category_account_map').upsert(
-    [
-      { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_ACCOUNT },
-      { org_id: ORG_ID, category: 'Materials', erp_account: MATERIALS_ACCOUNT },
-    ],
-    { onConflict: 'org_id,category' },
-  );
+  if (priorMapErr) throw new Error(`read budget_category_account_map failed: ${priorMapErr.message}`);
+  const { error: clearErr } = await admin
+    .from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
+  if (clearErr) throw new Error(`clear budget_category_account_map failed: ${clearErr.message}`);
+  const { error: mapErr } = await admin.from('budget_category_account_map').insert([
+    { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_ACCOUNT, is_push_target: true },
+    { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_SIBLING_ACCOUNT, is_push_target: false },
+    { org_id: ORG_ID, category: 'Materials', erp_account: MATERIALS_ACCOUNT, is_push_target: true },
+  ]);
   if (mapErr) throw new Error(`seed budget_category_account_map failed: ${mapErr.message}`);
 
   return {
@@ -267,7 +273,7 @@ export async function seedBud(
     versionIds: [],
     prior: {
       binding: priorBinding,
-      categoryMap: (priorMapRows as Array<{ org_id: string; category: string; erp_account: string }> | null) ?? [],
+      categoryMap: (priorMapRows as Array<{ org_id: string; category: string; erp_account: string; is_push_target: boolean }> | null) ?? [],
     },
   };
 }
@@ -388,15 +394,11 @@ export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<
   // seeded org's ERPNext binding for the rest of the run — after which any surface gated on the active
   // binding silently renders its not-employed branch, and the failure surfaces somewhere else entirely,
   // as flake. Put back exactly what was found; delete only what this run introduced.
+  // Put back exactly what was found: clear every Labor/Materials row this run wrote, re-insert the prior rows.
   const priorMap = seed.prior?.categoryMap ?? [];
-  const priorCategories = priorMap.map((r) => r.category);
-  // Rows this run ADDED (a category with no prior row) go; rows it OVERWROTE are restored verbatim.
-  const addedCategories = ['Labor', 'Materials'].filter((c) => !priorCategories.includes(c));
-  if (addedCategories.length > 0) {
-    await admin.from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', addedCategories);
-  }
+  await admin.from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
   if (priorMap.length > 0) {
-    await admin.from('budget_category_account_map').upsert(priorMap, { onConflict: 'org_id,category' });
+    await admin.from('budget_category_account_map').insert(priorMap);
   }
 
   if (seed.prior?.binding) {

@@ -1,3 +1,4 @@
+import { fetchBounded } from './fetchWithDeadline.ts';
 /**
  * posthogError — fire-and-forget forwarder of edge-function error signals into PostHog Error
  * Tracking, so SERVER-side errors land in the SAME issues view as the frontend's captureException
@@ -53,7 +54,7 @@ export async function capturePosthogException(ctx: PosthogExceptionContext): Pro
   if (ctx.orgId !== undefined) properties.org_id = ctx.orgId;
 
   try {
-    await fetch(`${host}/i/v0/e/`, {
+    await fetchBounded(undefined, `${host}/i/v0/e/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

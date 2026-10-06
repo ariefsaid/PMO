@@ -48,3 +48,15 @@ it('AC-TAG-002 header editing retains a retired org option and allows explicit c
   await waitFor(() => expect(onSave).toHaveBeenCalledWith('p1', expect.objectContaining({ service_line: 'Retired practice', sector: null })));
   expect(await axe(container)).toHaveNoViolations();
 });
+it('AC-TAG-002 a location over 140 characters is refused inline and not submitted', async () => {
+  const user = userEvent.setup(); const onSubmit = vi.fn().mockResolvedValue(undefined);
+  render(<ToastProvider><ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} /></ToastProvider>);
+  await user.type(screen.getByLabelText(/^Project name/), 'Long location');
+  await user.click(screen.getByRole('combobox', { name: /Client company/ }));
+  await user.click(await screen.findByRole('option', { name: /Synthetic Client/ }));
+  await user.click(screen.getByLabelText('Location'));
+  await user.paste('x'.repeat(141));
+  await user.click(screen.getByRole('button', { name: 'Create project' }));
+  expect(await screen.findByText('Use 140 characters or fewer.')).toBeVisible();
+  expect(onSubmit).not.toHaveBeenCalled();
+});

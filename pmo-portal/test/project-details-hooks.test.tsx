@@ -41,6 +41,13 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
+  // #840: the detail route reads ONE project by id (null when absent).
+  useProject: (id: string) => ({
+    data: id === project.id ? project : null,
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
   useProjectMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
@@ -69,6 +76,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({

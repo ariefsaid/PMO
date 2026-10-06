@@ -1,4 +1,4 @@
-import { applyErpContact } from '../_shared/erpnextContacts.ts';
+import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
 /**
  * erpnext-webhook — Deno Edge Function entry point (task 8.2, AC-ENA-070, FR-ENA-082/083).
  *
@@ -377,7 +377,7 @@ async function applyEventLive(
     erp_docstatus: event.docstatus,
     erp_amended_from: event.amendedFrom,
   };
-  if (kind === 'contact') return applyErpContact(serviceClient, orgId, event.externalRecordId, canonical, Date.parse(event.modified));
+  if (kind === 'contact') return applyErpContactFeed(serviceClient, orgId, event.externalRecordId, canonical, Date.parse(event.modified));
   const feedDeps = createErpFeedDeps(serviceClient, orgId, kind);
   return applyErpFeedEvent({ tier: ERPNEXT_TIER, domain: event.domain! }, event.externalRecordId, canonical, Date.parse(event.modified), feedDeps);
 }
@@ -389,7 +389,11 @@ serveWithErrorReporting('erpnext-webhook', async (req: Request): Promise<Respons
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseClient;
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    // Service-role client in a per-request worker: no session to refresh or persist, so don't arm the
+    // auth-js auto-refresh timer (it outlives the request and trips Deno's timer-leak sanitizer in tests).
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  }) as unknown as SupabaseClient;
   return handleErpWebhook(req, {
     resolveEmployingOrgs: () => resolveEmployingOrgsLive(serviceClient),
     applyEvent: (orgId, event) => applyEventLive(serviceClient, orgId, event),

@@ -32,7 +32,7 @@ export interface DispatchServiceClient {
   };
 }
 export interface DispatchFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
-  eq(column: string, value: string): DispatchFilterBuilder;
+  eq(column: string, value: string | boolean): DispatchFilterBuilder;
   order(column: string, opts?: { ascending?: boolean }): DispatchFilterBuilder;
   limit(n: number): DispatchFilterBuilder;
   /** The KEYSET cursor: resume strictly AFTER the last row of the previous page. */
@@ -636,18 +636,20 @@ function isBudgetCommand(command: AdapterCommand): boolean {
 }
 
 /**
- * Read the org's `budget_category_account_map` (mig 0137) — the Admin-administered bijection that turns
- * PMO's `budget_category` into the client's own ERP account. It is a TABLE, not binding config, so it is
- * resolved SERVER-SIDE here and injected into `ctx.config`; the command payload never carries it (a
- * client-supplied map would let the caller pick which GL accounts their budget constrains).
+ * Read the org's PUSH accounts from `budget_category_account_map` (0137, #768) — the Admin-administered map
+ * that turns PMO's `budget_category` into the client's own ERP account. A category may list several accounts
+ * (its actuals sum across all of them, 0153); exactly the ONE flagged `is_push_target` (at most one per
+ * category, 0246's partial unique index) receives the pushed budget. Read-only accounts never reach the body.
+ * It is a TABLE, not binding config, so it is resolved SERVER-SIDE here and injected into `ctx.config`; the
+ * command payload never carries it (a client-supplied map would let the caller pick which GL accounts their
+ * budget constrains).
  *
  * Fails CLOSED on a read error rather than proceeding with an empty map: "we could not read the map" and
- * "the org has no map" must both refuse the push (the second is refused downstream by
+ * "the org has no push account for X" must both refuse the push (the second is refused downstream by
  * `resolveBudgetAccounts`, naming the categories).
  *
- * Exported so `adapter-dispatch/index.ts`'s budget gate (`budgetGate.ts`'s `runBudgetGate`) reads the
- * SAME map this factory injects into `ctx.config` — one definition, so a gate PASS can never be followed
- * by a push-time "actually unmapped" surprise.
+ * Exported so `adapter-dispatch/index.ts`'s budget gate and `erpnext-sweep` read the SAME map this factory
+ * injects into `ctx.config` — one definition, so a gate PASS can never be followed by a push-time surprise.
  */
 export async function readCategoryAccountMap(
   serviceClient: DispatchServiceClient,
@@ -656,11 +658,14 @@ export async function readCategoryAccountMap(
   const { data, error } = await serviceClient
     .from('budget_category_account_map')
     .select('category, erp_account')
-    .eq('org_id', orgId);
+    .eq('org_id', orgId)
+    .eq('is_push_target', true);
   if (error) {
     throw new AppError(`budget push: the category→account map could not be read: ${error.message}`, 'commit-rejected');
   }
-  return Array.isArray(data) ? (data as Array<{ category: string; erp_account: string }>) : [];
+  return Array.isArray(data)
+    ? (data as Array<{ category: string; erp_account: string }>).map((r) => ({ category: r.category, erp_account: r.erp_account }))
+    : [];
 }
 
 /**

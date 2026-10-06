@@ -35,6 +35,11 @@ const milestonesState = {
 // ── module mocks ─────────────────────────────────────────────────────────────
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
+  // #840: the detail route reads ONE project by id (any stage), never the whole list.
+  useProject: (id: string) => {
+    const l = (projectsState) as { data?: { id: string }[] | null; isPending?: boolean; isError?: boolean; refetch?: () => void };
+    return { isPending: false, isError: false, refetch: vi.fn(), ...l, data: (l.data ?? []).find((p) => p.id === id) ?? null };
+  },
   useProjectMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -62,6 +67,7 @@ vi.mock('@/src/hooks/useMilestones', () => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 

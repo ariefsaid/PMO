@@ -99,7 +99,15 @@ export interface DeputyContext {
   userId: string;
   orgId: string;
   supabase: SupabaseLike;
+  /** #787 / ADR-0079: the caller's role as read under their own JWT at turn start (profiles.role). A scoping and
+   *  UX input for coarse tools — never an authority (RLS and the served write path are). */
+  role?: string | null;
 }
+
+/** ADR-0079 §2: what an async `prepare` returns. `value` becomes the chip's structuredArgs; `summary` its text. */
+export type PrepareResult =
+  | { ok: true; value: object; summary: string }
+  | { ok: false; error: Record<string, unknown> };
 
 export interface AgentAction {
   name: string;
@@ -117,6 +125,13 @@ export interface AgentAction {
    * enforcement authority.
    */
   needsApproval?: (input: unknown, ctx: DeputyContext) => boolean;
+  /**
+   * ADR-0079 §2: optional async resolution of a confirm action's proposal, run under the deputy context AFTER
+   * `validate` and BEFORE the chip. An action with `prepare` ALWAYS shows the chip.
+   */
+  prepare?: (input: unknown, ctx: DeputyContext) => Promise<PrepareResult>;
+  /** ADR-0079 §2: validates the REPLAYED prepared value on approve (an allow-list rebuild of `prepare`'s value). */
+  validatePrepared?: (input: unknown) => { ok: true; value: unknown } | { ok: false; error: string };
   run: (input: unknown, ctx: DeputyContext) => Promise<unknown>;
 }
 
@@ -185,7 +200,7 @@ export interface NeedsApprovalPayload {
   actionName: string;
   /** Server-composed human-readable summary — NOT model-generated (D-A3-5). */
   humanSummary: string;
-  /** Validated tool input (the args the model supplied, post-schema check). */
+  /** Validated tool input — or, for an action with `prepare`, the server-resolved record (ADR-0079). */
   structuredArgs: object;
 }
 

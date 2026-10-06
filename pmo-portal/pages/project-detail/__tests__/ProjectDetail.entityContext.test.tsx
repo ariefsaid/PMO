@@ -41,6 +41,11 @@ const projData = [
 
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: projData, isPending: false }),
+  // #840: the detail route reads ONE project by id (any stage), never the whole list.
+  useProject: (id: string) => {
+    const l = (({ data: projData, isPending: false })) as { data?: { id: string }[] | null; isPending?: boolean; isError?: boolean; refetch?: () => void };
+    return { isPending: false, isError: false, refetch: vi.fn(), ...l, data: (l.data ?? []).find((p) => p.id === id) ?? null };
+  },
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
   useProjectMutations: () => ({
@@ -86,6 +91,7 @@ vi.mock('@/src/hooks/useMilestones', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('../ProjectDetailHeader', () => ({
   default: () => <div data-testid="stubbed-header">Header</div>,

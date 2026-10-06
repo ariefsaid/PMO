@@ -17,6 +17,8 @@ async function run(state?: string, mapped = false) {
       ...(mapped ? [{ org_id: ORG, domain: 'companies', pmo_record_id: 'contact-1', external_record_id: 'Contact:CON-1' }] : []),
     ],
     external_command_outbox: state ? [{ org_id: ORG, domain: 'companies', operation: 'create', state, payload: { erp_doc_kind: 'contact' } }] : [],
+    profiles: [{ id: 'admin-1', org_id: ORG, status: 'active', role: 'Admin' }],
+    notifications: [],
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', activated_at: '2026-01-01', webhook_secret_ref: 'synthetic-webhook', config: {} }],
     external_domain_ownership: [{ org_id: ORG, external_tier: 'erpnext', domain: 'companies' }],
   });
@@ -65,6 +67,7 @@ Deno.test('AC-CON-001 signed Contact webhook defers competing adoption for every
   for (const state of ['pending', 'committing', 'committed', 'quarantined', 'held']) {
     const result = await run(state);
     assertEquals(result.status, 500, JSON.stringify(result.body));
+    assertEquals(result.db.rows.notifications.length, 0);
     assertEquals(result.db.rows.contacts.length, 0);
     assert(!result.db.rows.external_refs.some(r => r.external_record_id === 'Contact:CON-1'));
   }

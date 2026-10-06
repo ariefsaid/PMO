@@ -183,15 +183,34 @@
         "actions": "Aksi"
       },
       "unmapped": "Belum dipetakan — memblokir setiap pengiriman",
-      "edit": "Edit {{category}}",
       "map": "Petakan {{category}}",
-      "unmap": "Hapus pemetaan {{category}}",
+      "multiNote": "Satu kategori boleh memiliki beberapa akun. Realisasinya dijumlahkan dari semua akun tersebut; anggarannya hanya dikirim ke akun bertanda Pengiriman anggaran.",
+      "noPush": "Tanpa akun pengiriman — memblokir setiap pengiriman",
+      "pushBadge": "Pengiriman anggaran",
+      "addAccount": "Tambah akun ke {{category}}",
+      "editAccount": "Edit {{account}}",
+      "usePush": "Gunakan {{account}} untuk pengiriman anggaran",
+      "removeAccount": "Hapus {{account}}",
+      "removePushHint": "Jadikan akun lain sebagai akun pengiriman untuk menghapus akun ini.",
+      "confirmPush": {
+        "title": "Kirim {{category}} ke {{account}}?",
+        "fallbackTitle": "Ubah akun pengiriman?",
+        "description": "Pengiriman anggaran berikutnya mengirim seluruh total kategori ini ke akun ini. Anggaran yang sudah ada di ERP tetap memakai akun lamanya sampai dikirim ulang.",
+        "confirm": "Gunakan untuk pengiriman"
+      },
+      "confirmRemove": {
+        "title": "Hapus {{account}}?",
+        "description": "Realisasi pada akun ini tidak lagi dihitung untuk kategori ini. Pengiriman anggaran tidak berubah.",
+        "confirm": "Hapus"
+      },
       "error": {
         "title": "Gagal memuat peta akun"
       },
       "toast": {
         "unmapped": "Pemetaan kategori dihapus",
-        "saved": "Peta akun disimpan"
+        "saved": "Peta akun disimpan",
+        "removed": "Akun dihapus",
+        "pushSet": "Akun pengiriman diubah"
       },
       "confirm": {
         "title": "Hapus pemetaan {{category}}?",
@@ -207,7 +226,8 @@
         "legend": "Akun",
         "placeholder": "mis. 5100 - Biaya Langsung",
         "required": "Akun ERP wajib diisi.",
-        "conflict": "{{account}} sudah dipetakan ke {{category}}."
+        "conflict": "{{account}} sudah dipetakan ke {{category}}.",
+        "readOnlySubtitle": "Realisasinya dihitung untuk kategori ini; anggarannya tidak dikirim ke sini"
       }
     },
     "projectNumberPattern": {
@@ -2242,6 +2262,12 @@
       "placeholder": "Cari proyek…"
     },
     "summaryLabel": "Ringkasan pipeline",
+    "boardEmpty": {
+      "classification": {
+        "sub": "Hapus filter klasifikasi untuk melihat lebih banyak proyek.",
+        "title": "Tidak ada proyek yang cocok dengan klasifikasi ini"
+      }
+    },
     "tableEmpty": {
       "clearFilters": "Hapus filter",
       "lost": {
@@ -3069,6 +3095,7 @@
     "select": "— pilih —"
   },
   "projectClassification": {
+    "tooLong": "Gunakan maksimal {{max}} karakter.",
     "title": "Klasifikasi",
     "serviceLine": "Lini layanan",
     "sector": "Sektor",

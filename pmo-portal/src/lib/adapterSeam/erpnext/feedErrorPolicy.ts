@@ -35,6 +35,7 @@ const TERMINAL_APPLY_REASONS = [
   'native-budget-not-adopted',
   'native-timesheet-not-adopted',
   'procurement-inbound-adopt-no-case-link',
+  'contact-not-adopted',
 ] as const;
 
 /**

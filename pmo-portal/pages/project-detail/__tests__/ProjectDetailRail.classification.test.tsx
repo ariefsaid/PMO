@@ -19,3 +19,10 @@ it('AC-TAG-002 pre-win detail (no rail) states the recorded classifications and 
  rerender(<ProjectClassificationSummary project={{ ...project, service_line: null, location: null, award_type: null } as ProjectWithRefs} />);
  expect(container).toBeEmptyDOMElement();
 });
+it('AC-TAG-002 rail shows the stored award type and bidding entity as stored, never collapsed to Direct award or Consortium', () => {
+ const project = { id: 'p1', name: 'Synthetic project', status: 'Leads', award_type: 'negotiated', bidding_entity: 'joint venture' } as ProjectWithRefs;
+ render(<ProjectDetailRail project={project} showActionSection={false} />);
+ expect(screen.getByText('negotiated')).toBeVisible();
+ expect(screen.getByText('joint venture')).toBeVisible();
+ expect(screen.queryByText('Direct award')).not.toBeInTheDocument();
+});

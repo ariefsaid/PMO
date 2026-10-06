@@ -181,7 +181,7 @@ async function readErpSetup(ctx: ErpSetupContext) {
         ctx.orgId,
       ).eq("external_tier", "erpnext"),
       read("projects", "id,name,code"),
-      read("budget_category_account_map", "id,category,erp_account"),
+      read("budget_category_account_map", "id,category,erp_account,is_push_target"),
       read("profiles", "id", true),
       read("erp_employees", "id,profile_id,link_state"),
     ],
@@ -211,9 +211,16 @@ async function readErpSetup(ctx: ErpSetupContext) {
       typeof projectMap[row.id] !== "string" ||
       !String(projectMap[row.id]).trim()
     ),
-    budgetMappedCategories: accounts.filter((row) =>
-      typeof row.erp_account === "string" && row.erp_account.trim()
-    ).map((row) => row.category),
+    // #768 FR-BAM-009: a category may list several accounts; it is push-ready only when one is its push
+    // account, and it counts ONCE however many accounts it lists ("N of 8 configured").
+    budgetMappedCategories: [
+      ...new Set(
+        accounts.filter((row) =>
+          row.is_push_target === true &&
+          typeof row.erp_account === "string" && row.erp_account.trim()
+        ).map((row) => row.category),
+      ),
+    ],
     unlinkedEmployeeCount:
       members.filter((row) => !linkedProfiles.has(row.id)).length,
   };

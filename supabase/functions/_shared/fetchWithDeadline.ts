@@ -57,3 +57,19 @@ export async function fetchWithDeadline(
     clearTimeout(timer);
   }
 }
+
+/** Default deadline for an outbound third-party call (ClickUp, Graph, Telegram, PostHog). Same 20s budget
+ *  as the ERPNext probe (`ERP_PROBE_TIMEOUT_MS`): long enough for a slow-but-alive host, short enough that a
+ *  hung one surfaces as `external-unreachable` instead of stalling the worker until the platform kills it. */
+export const OUTBOUND_FETCH_TIMEOUT_MS = 20_000;
+
+/** `fetchWithDeadline` at the default outbound deadline. Resolves the transport lazily so a caller that
+ *  passes no `fetchImpl` (or a test that swaps `globalThis.fetch`) is honoured at call time. */
+export function fetchBounded(
+  fetchImpl: typeof fetch | undefined,
+  input: string | URL,
+  init: RequestInit = {},
+  timeoutMs: number = OUTBOUND_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  return fetchWithDeadline(fetchImpl ?? ((...a) => globalThis.fetch(...a)), input, init, timeoutMs);
+}

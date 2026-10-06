@@ -37,6 +37,7 @@ import {
   AGENT_READ_ROW_CAP,
 } from './actions.ts';
 import { buildAgentSystemPrompt } from './prompt.ts';
+import { whatsOverdueAction } from './overdue.ts';
 import {
   hashToolArgs,
   createThreadAndRun,
@@ -86,6 +87,8 @@ export function stepLabel(toolName: string, input: unknown): string {
     case 'compose_view': return 'Building a view…';
     case 'create_automation': return 'Setting up an automation…';
     case 'notify': return 'Preparing a notification…';
+    case 'whats_overdue': return "Checking what's overdue…";
+    case 'draft_invoice': return 'Preparing a draft invoice…';
     default: return 'Working…';
   }
 }
@@ -111,6 +114,7 @@ const denoGlobal = (globalThis as { Deno?: DenoEnvLike }).Deno;
 const AUTOMATIONS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_AUTOMATIONS') !== 'false';
 const BASE_ACTIONS: AgentAction[] = [
   queryEntityAction,
+  whatsOverdueAction,
   createActivityAction,
   updateTaskStatusAction,
   ...(AUTOMATIONS_ENABLED ? [notifyAction, createAutomationAction] : []),
@@ -357,6 +361,14 @@ function buildDataTableWidgetFromQueryResult(
   // client re-validates against gates the server emit too — a schema drift
   // fails safe to no-widget (text path), never a malformed emit.
   return WIDGET_PAYLOAD_SCHEMA.safeParse(widget).success ? widget : null;
+}
+
+/** ADR-0079 §3: a coarse read tool's server-rendered answer — shown to the user verbatim; the model gets only
+ *  `receipt`, so links and figures never depend on the model copying them. */
+export function isRenderedAnswer(r: unknown): r is { markdown: string; receipt: object } {
+  if (!r || typeof r !== 'object') return false;
+  const o = r as { markdown?: unknown; receipt?: unknown };
+  return typeof o.markdown === 'string' && typeof o.receipt === 'object' && o.receipt !== null;
 }
 
 // ── Event builders ─────────────────────────────────────────────────────────────
@@ -1090,21 +1102,13 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         }
       }
 
-      yield emit('tool', {
-        payload: {
-          name: toolName,
-          input: toolInput,
-          result: toolResult,
-        },
-      });
+      const rendered = isRenderedAnswer(toolResult) ? toolResult : null;
+      const modelResult = rendered ? rendered.receipt : toolResult;
+      yield emit('tool', { payload: { name: toolName, input: toolInput, result: modelResult } });
+      if (rendered) yield emit('assistant', { text: rendered.markdown });
 
       // Append the single tool-result message for the next round (FR-MC-006).
-      messages.push({
-        role: 'tool',
-        tool_call_id: toolId,
-        name: toolName,
-        content: JSON.stringify(toolResult),
-      });
+      messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(modelResult) });
     }
 
     // Loop fell through — step cap reached (D7/R4: graceful completed, not errored).
@@ -1297,6 +1301,7 @@ async function* agentChatHandlerInner(
     jwt: '',
     userId: deps.userId,
     orgId,
+    role: initialRole,
     supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port.ts').SupabaseLike,
   };
 

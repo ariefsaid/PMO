@@ -183,15 +183,34 @@
         "actions": "Actions"
       },
       "unmapped": "Not mapped — blocks every push",
-      "edit": "Edit {{category}}",
       "map": "Map {{category}}",
-      "unmap": "Unmap {{category}}",
+      "multiNote": "A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.",
+      "noPush": "No push account — blocks every push",
+      "pushBadge": "Budget push",
+      "addAccount": "Add account to {{category}}",
+      "editAccount": "Edit {{account}}",
+      "usePush": "Use {{account}} for budget push",
+      "removeAccount": "Remove {{account}}",
+      "removePushHint": "Make another account the push account to remove this one.",
+      "confirmPush": {
+        "title": "Push {{category}} to {{account}}?",
+        "fallbackTitle": "Change push account?",
+        "description": "Future budget pushes send this category's whole total to this account. A budget already in the ERP keeps its current account until it is pushed again.",
+        "confirm": "Use for push"
+      },
+      "confirmRemove": {
+        "title": "Remove {{account}}?",
+        "description": "Actuals posted to this account will stop counting toward this category. The budget push is unchanged.",
+        "confirm": "Remove"
+      },
       "error": {
         "title": "Couldn't load the account map"
       },
       "toast": {
         "unmapped": "Category unmapped",
-        "saved": "Account map saved"
+        "saved": "Account map saved",
+        "removed": "Account removed",
+        "pushSet": "Push account changed"
       },
       "confirm": {
         "title": "Unmap {{category}}?",
@@ -207,7 +226,8 @@
         "legend": "Account",
         "placeholder": "e.g. 5100 - Direct Costs",
         "required": "An ERP account is required.",
-        "conflict": "{{account}} is already mapped to {{category}}."
+        "conflict": "{{account}} is already mapped to {{category}}.",
+        "readOnlySubtitle": "Its actuals count toward this category; its budget is not pushed here"
       }
     },
     "projectNumberPattern": {
@@ -2242,6 +2262,12 @@
       "placeholder": "Search projects…"
     },
     "summaryLabel": "Pipeline summary",
+    "boardEmpty": {
+      "classification": {
+        "sub": "Clear a classification filter to see more projects.",
+        "title": "No projects match these classifications"
+      }
+    },
     "tableEmpty": {
       "clearFilters": "Clear filters",
       "lost": {
@@ -3069,6 +3095,7 @@
     "generate": "Generate"
   },
   "projectClassification": {
+    "tooLong": "Use {{max}} characters or fewer.",
     "title": "Classification",
     "serviceLine": "Service line",
     "sector": "Sector",

@@ -8,6 +8,7 @@ import { resolveOrgOrResult } from './auth.ts';
 import { decryptToken, deserializeEnvelope, resolveKek, fromByteaValue } from './crypto.ts';
 import { refreshAccessToken } from './refresh.ts';
 import { recordM365Error } from './audit.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000; // refresh if the access token expires within 30s
@@ -138,11 +139,18 @@ export async function handleGraphProxy(
     for (const [k, v] of Object.entries(req.query)) graphUrl.searchParams.set(k, v);
   }
   const fetchImpl = deps.fetch ?? fetch;
-  const graphRes = await fetchImpl(graphUrl.toString(), {
+  let graphRes: Response;
+  try {
+    graphRes = await fetchBounded(fetchImpl, graphUrl.toString(), {
     method,
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: req.body !== undefined ? JSON.stringify(req.body) : undefined,
-  });
+    });
+  } catch {
+    // Deadline or network failure → the same opaque 502 an upstream error returns.
+    await recordM365Error(serviceClient, { errorCode: 'GRAPH_ERROR', contextId: connection.id, orgId });
+    return { status: 502, body: { error: 'GRAPH_ERROR', message: 'Graph API request failed' }, headers };
+  }
 
   if (!graphRes.ok) {
     // #445 permanent remedy: Graph's status/code/message/request-id go to the STRUCTURED SERVER

@@ -9,13 +9,13 @@ import { withTimeout, DEFAULT_MUTATION_TIMEOUT_MS } from '@/src/lib/withTimeout'
  * org_id so the cache is tenant-scoped (FR-QRY); an optional `status` narrows to one
  * workflow state (Open / Investigating / Closed). Rows are returned newest-first by the DAL.
  */
-export function useIncidents(status?: IncidentStatus) {
+export function useIncidents(status?: IncidentStatus, opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<IncidentRow[]>({
     queryKey: ['incidents', orgId, status ?? 'all'],
     queryFn: () => repositories.incident.list(status ? { status } : undefined),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
 
