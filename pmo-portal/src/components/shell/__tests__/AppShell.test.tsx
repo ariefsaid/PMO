@@ -395,7 +395,7 @@ describe('AppShell — parent breadcrumb record return', () => {
       },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Companies' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Companies' }));
 
     const loc = screen.getByTestId('loc');
     expect(loc).toHaveAttribute('data-path', '/companies?type=Client&q=harbor');
@@ -413,7 +413,7 @@ describe('AppShell — parent breadcrumb record return', () => {
       pmoListReturn: { list: 'companies', path: '/contacts?company=evil' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Companies' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Companies' }));
 
     const loc = screen.getByTestId('loc');
     expect(loc).toHaveAttribute('data-path', '/companies');
@@ -431,8 +431,8 @@ describe('AppShell — parent breadcrumb record return', () => {
       },
     });
 
-    expect(screen.queryByRole('button', { name: 'Sales Pipeline' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    expect(screen.queryByRole('link', { name: 'Sales Pipeline' })).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Projects' }));
 
     const loc = screen.getByTestId('loc');
     expect(loc).toHaveAttribute('data-path', '/projects');
