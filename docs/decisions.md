@@ -2995,5 +2995,8 @@ The app mounts under `<BrowserRouter>`, where `useBlocker` throws, so migrating 
 Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
 
 
+**DD-ENA-15a (Director, 2026-10-06, #654, under FR-ENA-015's #651 carve-out) — the external-integrations kill switch applies to ERPNext onboarding too.**
+`erpnext-onboard` resolves its credential through the shared `_shared/erpAuthPair.ts` (kill switch → Vault → env pair → refuse; an unreadable store refuses, never falls back), so a disabled integration cannot be onboarded. Behaviour delta from the pre-#651 path: onboarding with the switch off now fails `config-rejected` (422) instead of reading the env pair. A credential miss logs the failure class only (ADR-0072). Tests: AC-ENA-091, AC-ENA-090.
+
 ## OD-CHG-1 — record change history open questions accepted at their defaults (owner, 2026-10-06)
 #719: owner said go, accepting Q1 first set only · Q3 no export · Q4 no DELETE capture · Q5 read-side audit merge for audit readers · Q6 indefinite retention · Q7 project History includes child events with kind filters (Q2 already resolved: contact email/phone `flag` only); `record-change-history.spec.md`.
