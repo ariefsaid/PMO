@@ -1194,7 +1194,13 @@
       "archiveTitle": "Arsipkan rapat ini?",
       "deleteConfirm": "Hapus rapat",
       "deleteDescription": "Tindakan ini menghapus rapat beserta notulennya secara permanen. Rapat yang action item-nya masih ada sebagai tugas tidak dapat dihapus; arsipkan saja.",
-      "deleteTitle": "Hapus rapat ini?"
+      "deleteTitle": "Hapus rapat ini?",
+      "unsavedMinutes": {
+        "description": "Notulen rapat memiliki perubahan yang belum disimpan. Tinggalkan halaman ini dan buang perubahan tersebut?",
+        "leave": "Tinggalkan",
+        "stay": "Tetap di halaman",
+        "title": "Notulen belum disimpan"
+      }
     },
     "delete": "Hapus",
     "edit": "Edit",
@@ -1501,7 +1507,8 @@
       "documents": "Dokumen",
       "lineItems": "Rincian item",
       "overview": "Ringkasan",
-      "vendorQuotes": "Penawaran vendor"
+      "vendorQuotes": "Penawaran vendor",
+      "history": "Riwayat"
     },
     "tabsLabel": "Bagian pengadaan",
     "tile": {
@@ -1547,6 +1554,11 @@
       "label": "Ref. grup",
       "optional": "(opsional)",
       "placeholder": "mis. PRQ-0026100001"
+    },
+    "erpTaxTemplate": {
+      "label": "Templat pajak ERPNext",
+      "default": "Bawaan ERPNext",
+      "loadError": "Templat pajak ERPNext tidak dapat dimuat. Bawaan ERPNext akan digunakan."
     }
   },
   "projectDetail": {
@@ -2161,7 +2173,8 @@
       "overview": "Ringkasan",
       "procurement": "Pengadaan",
       "tasks": "Tugas",
-      "workOrders": "Work Order"
+      "workOrders": "Work Order",
+      "history": "Riwayat"
     },
     "tasks": {
       "action": {
@@ -3589,5 +3602,112 @@
     "unknownAuthor": "Mantan anggota",
     "mentionsFull": "Anda dapat menyebut paling banyak 20 rekan dalam satu komentar.",
     "open": "Komentar"
+  },
+  "history": {
+    "title": "Riwayat",
+    "system": "Sistem",
+    "unknownUser": "Pengguna tidak dikenal",
+    "created": "Dibuat",
+    "archived": "Diarsipkan",
+    "restored": "Dipulihkan",
+    "fieldChanged": "{{field}} diubah",
+    "emptyValue": "kosong",
+    "yes": "Ya",
+    "no": "Tidak",
+    "unavailable": "Tidak tersedia",
+    "loadOlder": "Muat yang lebih lama",
+    "retry": "Coba lagi",
+    "error": "Tidak dapat memuat riwayat",
+    "filterLabel": "Saring menurut jenis catatan",
+    "empty": {
+      "title": "Belum ada perubahan tercatat",
+      "sub": "Riwayat dimulai {{date}}. Perubahan sebelum tanggal itu dan penghapusan tidak ditampilkan."
+    },
+    "field": {
+      "code": "Kode",
+      "name": "Nama",
+      "status": "Status",
+      "client_id": "Klien",
+      "project_manager_id": "Manajer proyek",
+      "contract_value": "Nilai kontrak",
+      "budget": "Anggaran",
+      "spent": "Terpakai",
+      "tax_amount": "Jumlah pajak",
+      "tax_rate": "Tarif pajak",
+      "start_date": "Tanggal mulai",
+      "end_date": "Tanggal selesai",
+      "contract_date": "Tanggal kontrak",
+      "archived_at": "Diarsipkan",
+      "currency": "Mata uang",
+      "tax_template": "Templat pajak",
+      "tax_treatment": "Perlakuan pajak",
+      "subject_to_vat": "Kena PPN",
+      "project_id": "Proyek",
+      "version": "Versi",
+      "budget_version_id": "Versi anggaran",
+      "category": "Kategori",
+      "description": "Deskripsi",
+      "fiscal_year": "Tahun fiskal",
+      "budgeted_amount": "Jumlah dianggarkan",
+      "actual_amount": "Jumlah aktual",
+      "wo_number": "Nomor surat perintah kerja",
+      "client_po_number": "Nomor PO klien",
+      "title": "Judul",
+      "order_value": "Nilai pesanan",
+      "order_date": "Tanggal pesanan",
+      "pr_number": "Nomor PR",
+      "po_number": "Nomor PO",
+      "requested_by_id": "Diminta oleh",
+      "vendor_id": "Vendor",
+      "budget_category": "Kategori anggaran",
+      "total_value": "Nilai total",
+      "procurement_id": "Pengadaan",
+      "reference_number": "Nomor referensi",
+      "date": "Tanggal",
+      "amount": "Jumlah",
+      "rfq_number": "Nomor RFQ",
+      "invoice_id": "Faktur",
+      "pay_number": "Nomor pembayaran",
+      "assignee_id": "Penerima tugas",
+      "milestone_id": "Tonggak",
+      "parent_task_id": "Tugas induk",
+      "meeting_id": "Rapat",
+      "priority": "Prioritas",
+      "short_name": "Nama singkat",
+      "client_number_segment": "Segmen nomor klien",
+      "type": "Jenis",
+      "company_id": "Perusahaan",
+      "full_name": "Nama lengkap",
+      "approval_notes": "Catatan persetujuan",
+      "rejection_notes": "Catatan penolakan",
+      "email": "Email",
+      "phone": "Telepon",
+      "notes": "Catatan"
+    },
+    "kind": {
+      "project": "Proyek",
+      "budget_version": "Versi anggaran",
+      "budget_line_item": "Baris anggaran",
+      "work_order": "Surat perintah kerja",
+      "procurement": "Pengadaan",
+      "purchase_request": "Permintaan pembelian",
+      "rfq": "RFQ",
+      "purchase_order": "Pesanan pembelian",
+      "payment": "Pembayaran",
+      "task": "Tugas",
+      "company": "Perusahaan",
+      "contact": "Kontak"
+    },
+    "filter": {
+      "all": "Semua",
+      "project": "Proyek"
+    },
+    "filteredEmpty": {
+      "project": "Tidak ada perubahan proyek",
+      "budget": "Tidak ada perubahan anggaran",
+      "workOrders": "Tidak ada perubahan work order",
+      "procurement": "Tidak ada perubahan pengadaan",
+      "tasks": "Tidak ada perubahan tugas"
+    }
   }
 }

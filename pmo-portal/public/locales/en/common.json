@@ -1194,7 +1194,13 @@
       "archiveTitle": "Archive meeting?",
       "deleteConfirm": "Delete meeting",
       "deleteDescription": "This permanently removes the meeting and its minutes. A meeting whose action items still exist as tasks cannot be deleted; archive it instead.",
-      "deleteTitle": "Delete meeting?"
+      "deleteTitle": "Delete meeting?",
+      "unsavedMinutes": {
+        "description": "Your meeting minutes have unsaved changes. Leave this page and discard them?",
+        "leave": "Leave",
+        "stay": "Stay",
+        "title": "Unsaved minutes"
+      }
     },
     "delete": "Delete",
     "edit": "Edit",
@@ -1506,7 +1512,8 @@
       "documents": "Documents",
       "lineItems": "Line items",
       "overview": "Overview",
-      "vendorQuotes": "Vendor quotes"
+      "vendorQuotes": "Vendor quotes",
+      "history": "History"
     },
     "tabsLabel": "Procurement sections",
     "tile": {
@@ -1547,6 +1554,11 @@
         "amountInvalid": "its amount includes a negative value, so it cannot be checked against the project budget."
       },
       "adminOnly": "Approval for this request needs an Admin: no one in the senior approver set can act on it."
+    },
+    "erpTaxTemplate": {
+      "label": "ERPNext tax template",
+      "default": "ERPNext default",
+      "loadError": "Could not load the ERPNext tax templates. The ERPNext default will apply."
     }
   },
   "projectDetail": {
@@ -2161,7 +2173,8 @@
       "overview": "Overview",
       "procurement": "Procurement",
       "tasks": "Tasks",
-      "workOrders": "Work orders"
+      "workOrders": "Work orders",
+      "history": "History"
     },
     "tasks": {
       "action": {
@@ -3589,5 +3602,112 @@
     "unknownAuthor": "Former member",
     "mentionsFull": "You can mention at most 20 colleagues in one comment.",
     "open": "Comments"
+  },
+  "history": {
+    "title": "History",
+    "system": "System",
+    "unknownUser": "Unknown user",
+    "created": "Created",
+    "archived": "Archived",
+    "restored": "Restored",
+    "fieldChanged": "{{field}} changed",
+    "emptyValue": "empty",
+    "yes": "Yes",
+    "no": "No",
+    "unavailable": "Unavailable",
+    "loadOlder": "Load older",
+    "retry": "Retry",
+    "error": "Couldn't load history",
+    "filterLabel": "Filter by record kind",
+    "empty": {
+      "title": "No changes recorded yet",
+      "sub": "History begins {{date}}. Edits made before then and deletions are not shown."
+    },
+    "field": {
+      "code": "Code",
+      "name": "Name",
+      "status": "Status",
+      "client_id": "Client",
+      "project_manager_id": "Project manager",
+      "contract_value": "Contract value",
+      "budget": "Budget",
+      "spent": "Spent",
+      "tax_amount": "Tax amount",
+      "tax_rate": "Tax rate",
+      "start_date": "Start date",
+      "end_date": "End date",
+      "contract_date": "Contract date",
+      "archived_at": "Archived",
+      "currency": "Currency",
+      "tax_template": "Tax template",
+      "tax_treatment": "Tax treatment",
+      "subject_to_vat": "Subject to VAT",
+      "project_id": "Project",
+      "version": "Version",
+      "budget_version_id": "Budget version",
+      "category": "Category",
+      "description": "Description",
+      "fiscal_year": "Fiscal year",
+      "budgeted_amount": "Budgeted amount",
+      "actual_amount": "Actual amount",
+      "wo_number": "Work order number",
+      "client_po_number": "Client PO number",
+      "title": "Title",
+      "order_value": "Order value",
+      "order_date": "Order date",
+      "pr_number": "PR number",
+      "po_number": "PO number",
+      "requested_by_id": "Requested by",
+      "vendor_id": "Vendor",
+      "budget_category": "Budget category",
+      "total_value": "Total value",
+      "procurement_id": "Procurement",
+      "reference_number": "Reference number",
+      "date": "Date",
+      "amount": "Amount",
+      "rfq_number": "RFQ number",
+      "invoice_id": "Invoice",
+      "pay_number": "Payment number",
+      "assignee_id": "Assignee",
+      "milestone_id": "Milestone",
+      "parent_task_id": "Parent task",
+      "meeting_id": "Meeting",
+      "priority": "Priority",
+      "short_name": "Short name",
+      "client_number_segment": "Client number segment",
+      "type": "Type",
+      "company_id": "Company",
+      "full_name": "Full name",
+      "approval_notes": "Approval notes",
+      "rejection_notes": "Rejection notes",
+      "email": "Email",
+      "phone": "Phone",
+      "notes": "Notes"
+    },
+    "kind": {
+      "project": "Project",
+      "budget_version": "Budget version",
+      "budget_line_item": "Budget line",
+      "work_order": "Work order",
+      "procurement": "Procurement",
+      "purchase_request": "Purchase request",
+      "rfq": "RFQ",
+      "purchase_order": "Purchase order",
+      "payment": "Payment",
+      "task": "Task",
+      "company": "Company",
+      "contact": "Contact"
+    },
+    "filter": {
+      "all": "All",
+      "project": "Project"
+    },
+    "filteredEmpty": {
+      "project": "No project changes",
+      "budget": "No budget changes",
+      "workOrders": "No work order changes",
+      "procurement": "No procurement changes",
+      "tasks": "No task changes"
+    }
   }
 }

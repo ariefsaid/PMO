@@ -249,7 +249,12 @@ const administrationBreadcrumbForPath = (
     ADMINISTRATION_SECTION_I18N_KEY[section as keyof typeof ADMINISTRATION_SECTION_I18N_KEY] ??
     ADMINISTRATION_SECTION_I18N_KEY.users;
   return [
-    { label: parentLabel, i18nKey: 'shell.nav.administration', onClick: () => navigate?.('/administration/users') },
+    {
+      label: parentLabel,
+      i18nKey: 'shell.nav.administration',
+      href: '/administration/users',
+      onClick: () => navigate?.('/administration/users'),
+    },
     { label: sectionLabel, i18nKey: sectionKey },
   ];
 };
@@ -333,7 +338,12 @@ export function breadcrumbForPath(
   if (pathname.startsWith('/views/')) {
     const viewCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
     return [
-      { label: 'My Views', onClick: () => navigate?.('/'), ariaLabel: 'My Views — back to Dashboard' },
+      {
+        label: 'My Views',
+        href: '/',
+        onClick: () => navigate?.('/'),
+        ariaLabel: 'My Views — back to Dashboard',
+      },
       { label: viewCrumb },
     ];
   }
@@ -364,6 +374,7 @@ export function breadcrumbForPath(
             // list URL, or the owning index when there is no usable context, with cleaned router
             // state (a one-shot scroll restore only when an offset was captured). Other modules'
             // detail routes have no descriptor and navigate to their bare index path.
+            href: contextualParent?.path ?? parentPath,
             onClick: () => navigate?.(contextualParent ?? parentPath),
           },
           { label: recordCrumb },

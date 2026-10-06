@@ -28,12 +28,13 @@ import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import WorkOrdersTab from './tabs/WorkOrdersTab';
 import BillingTab from './tabs/BillingTab';
+import { RecordHistory } from '@/src/components/history/RecordHistory';
 import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
 import { ProjectErpLink } from './ProjectErpLink';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
-type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'billing' | 'documents';
+type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'billing' | 'documents' | 'history';
 
 /**
  * Route shell for `/projects/:projectId` — the ONE canonical detail route for a project at EVERY
@@ -52,7 +53,7 @@ type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'b
  *  Overview but Engineer on Tasks). Engineer task entry points deep-link to `/projects/:id/tasks`
  *  explicitly (e.g. the My Tasks project headers) rather than mutating the default. An explicit
  *  :tab param always wins (every tab stays deep-linkable). */
-const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'work-orders', 'billing', 'documents'];
+const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'work-orders', 'billing', 'documents', 'history'];
 function tabFromParam(param: string | undefined): PTab {
   if (param && (TAB_VALUES as string[]).includes(param)) return param as PTab;
   return 'overview';
@@ -88,6 +89,7 @@ const ProjectDetail: React.FC = () => {
       { value: 'work-orders', label: t('projectDetail.tabs.workOrders', 'Work orders') },
       ...(canSeeBilling ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
       { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
+      { value: 'history', label: t('projectDetail.tabs.history', 'History') },
     ],
     [t, canSeeBilling],
   );
@@ -235,6 +237,9 @@ const ProjectDetail: React.FC = () => {
           projectManagerId={project.project_manager_id ?? null} />
       )}
       {tab === 'documents' && <DocumentsTab projectId={project.id} />}
+      {tab === 'history' && (
+        <RecordHistory entityType="project" entityId={project.id} includeChildren kindFilters />
+      )}
     </div>
   );
 

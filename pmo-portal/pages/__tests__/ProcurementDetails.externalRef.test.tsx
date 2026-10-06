@@ -43,6 +43,10 @@ const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+// #520: the ERP template list is read from ERPNext; pinned so the staged-confirm forwarding is what is under test.
+vi.mock('@/src/hooks/usePurchaseTaxTemplates', () => ({
+  usePurchaseTaxTemplates: () => ({ data: [{ name: 'Input VAT 11' }], isError: false }),
+}));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -282,5 +286,18 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
     renderPage();
     await userEvent.click(screen.getByTestId('btn-create-vi'));
     expect(screen.queryByTestId('vendor_invoice-group-ref-input')).not.toBeInTheDocument();
+  });
+
+  it('AC-520-9 an ERP-owned org: the chosen ERPNext tax template reaches createInvoice after the confirm', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-template-select'), 'Input VAT 11');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vi/i }));
+    await waitFor(() =>
+      expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxTemplate: 'Input VAT 11' })),
+    );
   });
 });

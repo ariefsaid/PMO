@@ -62,7 +62,7 @@ test(
     //    return to the bare Projects index, never the narrowed Sales URL (design decision 3). ──
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^projects$/i })
+      .getByRole('link', { name: /^projects$/i })
       .click();
     await expect(page).toHaveURL(/\/projects$/, { timeout: 10_000 });
 
@@ -105,7 +105,7 @@ test(
     );
     await freshPage
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^projects$/i })
+      .getByRole('link', { name: /^projects$/i })
       .click();
     await expect(freshPage).toHaveURL(/\/projects$/, { timeout: 10_000 });
     await freshPage.close();

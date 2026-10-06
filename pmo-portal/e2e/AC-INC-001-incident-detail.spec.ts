@@ -68,7 +68,7 @@ test.skip(
     // GET BACK: the breadcrumb "Incidents" crumb returns to the register (the desktop back
     // affordance; the in-content BackBar is the mobile-only escape). Either way the journey's
     // goal-oracle is the same: the user can get back out of the record to the list.
-    await page.getByRole('navigation', { name: /breadcrumb/i }).getByRole('button', { name: /^incidents$/i }).click();
+    await page.getByRole('navigation', { name: /breadcrumb/i }).getByRole('link', { name: /^incidents$/i }).click();
     await expect(page).toHaveURL(/\/incidents$/, { timeout: 10_000 });
     await waitReady(page);
     // The just-filed incident's row is still in the register (the activation control names it

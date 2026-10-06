@@ -73,7 +73,7 @@ test(
     // ── Desktop parent breadcrumb return ──────────────────────────────────────────────────────
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^companies$/i })
+      .getByRole('link', { name: /^companies$/i })
       .click();
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=r(&|$)/);
@@ -115,7 +115,7 @@ test(
     });
     await freshPage
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^companies$/i })
+      .getByRole('link', { name: /^companies$/i })
       .click();
     await expect(freshPage).toHaveURL(/\/companies$/, { timeout: 10_000 });
     await freshPage.close();

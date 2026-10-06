@@ -1,3 +1,11 @@
+/* Cascade-layer order, declared BEFORE Tailwind's own `@layer theme, base, components, utilities;` so it
+   sticks (a layer's priority is fixed where it is first declared). `minutes-editor` holds the BlockNote
+   utilities the lazy minutes-editor chunk ships (src/components/meetings/minutesTailwind.css). That sheet
+   loads after this one, so in the shared `utilities` layer its `.hidden`/`.flex`/… won every tie and
+   overrode this app's responsive variants app-wide once a meeting was opened (#864: the phone Back bar
+   vanished). Below `utilities`, the app's own utilities win; above `components`, BlockNote's still beat
+   preflight. */
+@layer theme, base, components, minutes-editor, utilities;
 @import "tailwindcss";
 
 /* =============================================================================
