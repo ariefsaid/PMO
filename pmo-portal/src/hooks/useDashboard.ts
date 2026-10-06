@@ -51,13 +51,13 @@ export function useWinRate(range: WinRateRange) {
  * Sales pipeline stages + flat project list for the caller's org (FR-SPD-011).
  * queryKey includes org_id for cache isolation.
  */
-export function useSalesPipeline() {
+export function useSalesPipeline(opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<SalesPipeline>({
     queryKey: ['sales-pipeline', orgId],
     queryFn: () => getSalesPipeline(),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
 

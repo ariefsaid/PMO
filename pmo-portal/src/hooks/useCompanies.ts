@@ -18,13 +18,13 @@ import {
  * org_id so the cache is tenant-scoped (FR-QRY); an optional `type` narrows to one
  * company_type (Internal / Client / Vendor). Archived rows are hidden by the DAL.
  */
-export function useCompanies(type?: CompanyType) {
+export function useCompanies(type?: CompanyType, opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<CompanyRow[]>({
     queryKey: ['companies', orgId, type ?? 'all'],
     queryFn: () => repositories.company.list(type ? { type } : undefined),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
 

@@ -40,6 +40,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procurementsState,
+  useProjectProcurements: () => procurementsState,
 }));
 
 vi.mock('react-router', () => ({

@@ -53,6 +53,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
+  useProjectProcurements: () => procState,
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useBudget', () => ({

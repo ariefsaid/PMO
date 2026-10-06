@@ -7,20 +7,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * All mocks are hoisted so they are available to vi.mock factories.
  */
-const { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange } = vi.hoisted(() => {
+const { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle } = vi.hoisted(() => {
+  const mockMaybeSingle = vi.fn();
   const mockEq = vi.fn();
   const mockIn = vi.fn();
   const mockSelect = vi.fn();
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
   const mockRange = vi.fn();
-  return { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange };
+  return { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }));
 
 import {
   listProjects,
+  getProject,
   createProject,
   updateProjectHeader,
   archiveProject,
@@ -38,6 +40,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     eq: mockEq,
     in: mockIn,
     range: mockRange,
+    maybeSingle: mockMaybeSingle,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
@@ -45,6 +48,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   mockEq.mockReturnValue(builder);
   mockIn.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
+  mockMaybeSingle.mockImplementation(() => Promise.resolve(resolved));
   mockFrom.mockReturnValue(builder);
   return builder;
 }
@@ -643,5 +647,22 @@ describe('AC-TAG-002 project classification writes', () => {
     const cleared = { service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
     await updateProjectHeader('p1', { ...base, code: null, ...cleared });
     expect(calls.update).toEqual([expect.objectContaining(cleared)]);
+  });
+});
+
+describe('getProject (AC-OVERFETCH-002)', () => {
+  it('reads ONE project by id at any stage — no status partition, same ref embeds as the list', async () => {
+    makeBuilder({ data: { id: 'p1', name: 'Alpha', status: 'Leads' }, error: null });
+    const row = await getProject('p1');
+    expect(mockFrom).toHaveBeenCalledWith('projects');
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('client:companies!projects_client_id_fkey'));
+    expect(mockEq).toHaveBeenCalledWith('id', 'p1');
+    expect(mockIn).not.toHaveBeenCalled();
+    expect(row?.id).toBe('p1');
+  });
+
+  it('returns null when the project is absent or not visible', async () => {
+    makeBuilder({ data: null, error: null });
+    expect(await getProject('nope')).toBeNull();
   });
 });

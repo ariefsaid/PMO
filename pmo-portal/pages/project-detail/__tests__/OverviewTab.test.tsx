@@ -122,6 +122,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
+  useProjectProcurements: () => procState,
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => revenueState,

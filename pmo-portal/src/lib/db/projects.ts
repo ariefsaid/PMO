@@ -210,6 +210,16 @@ export async function listProjects(
 }
 
 /**
+ * One project by id at ANY stage (on-hand, internal, pipeline or lost) — the project detail route's
+ * read. Same select as the list, so the row shape is identical; `null` when absent / not visible.
+ */
+export async function getProject(id: string): Promise<ProjectWithRefs | null> {
+  const { data, error } = await supabase.from('projects').select(SELECT).eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as unknown as ProjectWithRefs) ?? null;
+}
+
+/**
  * Create a new opportunity (AC-PRJ-003). org_id is NEVER sent — the column default +
  * the `projects_write` WITH CHECK (org_id = auth_org_id() AND role in the 4 write-roles)
  * are the authority. The origination status is constrained to Leads / Internal Project

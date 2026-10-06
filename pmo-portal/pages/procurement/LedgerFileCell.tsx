@@ -148,7 +148,9 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   const { toast } = useToast();
   const phase = PHASE_BY_TYPE[type];
   const inputRef = useRef<HTMLInputElement>(null);
-  const { upload } = useProcurementFiles(phase, recordId, procurementId, uploadedById);
+  const { upload } = useProcurementFiles(phase, recordId, procurementId, uploadedById, {
+    list: false,
+  });
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
