@@ -59,7 +59,9 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
   const orgId = body.orgId;
   if (!orgId) return json({ error: 'BAD_REQUEST', message: 'orgId is required' }, 400);
 
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
 
   try {
     const { data: bindingRow, error: bindingError } = await serviceClient
