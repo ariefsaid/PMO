@@ -34,3 +34,11 @@ export const AGENT_DELIVERY_WITH_ENGINEER_ROLES: string[] = [
   'Project Manager',
   'Engineer',
 ];
+
+/** Roles that may VIEW sales invoices (salesInvoice.view in policy.ts) — gates the invoice half of
+ *  whats_overdue (#787, DD-AIN-2). UX scoping only; RLS is the read authority. */
+export const AGENT_REVENUE_VIEW_ROLES: string[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
+
+/** Roles that may RAISE a sales invoice (salesInvoice.create in policy.ts, and adapter-dispatch's
+ *  REVENUE_WRITE_ROLES — the enforcement authority). draft_invoice preflight (#787, DD-AIN-3). */
+export const AGENT_REVENUE_WRITE_ROLES: string[] = ['Admin', 'Finance'];

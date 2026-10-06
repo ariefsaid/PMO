@@ -33,13 +33,7 @@ import {
 } from '@/src/components/shell';
 import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
-import { useProjects } from '@/src/hooks/useProjects';
-import { useProcurements } from '@/src/hooks/useProcurements';
-import { useIncidents } from '@/src/hooks/useIncidents';
-import { useCompanies } from '@/src/hooks/useCompanies';
-import { useContacts } from '@/src/hooks/useContacts';
-import { useMeetings } from '@/src/hooks/useMeetings';
-import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
+import { useCachedRecordLists } from '@/src/hooks/useCachedRecordLists';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
@@ -48,7 +42,6 @@ import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
-import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
@@ -207,7 +200,7 @@ export const AppRoutes: React.FC = () => (
 );
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
-const ShellChrome: React.FC = () => {
+export const ShellChrome: React.FC = () => {
   const location = useLocation();
   const { pathname } = location;
   const { t } = useTranslation();
@@ -226,40 +219,17 @@ const ShellChrome: React.FC = () => {
     onToggle: togglePanel,
   });
 
-  // Cached index lists — already fetched by the index pages; read here only to
-  // resolve a detail route's human record name for the breadcrumb (no new
-  // query). The breadcrumb falls back to "Loading…" on a cold deep-link, never
-  // a raw UUID — and to "Not found" once the relevant list has resolved without
-  // the record (item I), never a perpetual "Loading…".
-  const { data: projects, isPending: projectsPending } = useProjects();
-  const { data: procurements, isPending: procurementsPending } = useProcurements();
-  const { data: pipeline, isPending: pipelinePending } = useSalesPipeline();
-  // Blocker 1 (AC-IXD-PROJ-005, ADR-0020 §4): a Loss-Tender deal opened at /projects/:id lives in
-  // NEITHER the active-projects cache (excluded by the Wave-1 listProjects scoping) nor the open-
-  // pipeline cache (get_sales_pipeline returns only the five open stages). Read the lost-deals list
-  // (the same cache the Sales Pipeline shows in its "Lost" column) and UNION it into the
-  // `opportunities` array threaded into the breadcrumb resolvers, so a lost record resolves to its
-  // name + the Sales-Pipeline ancestry instead of "Projects > Not found".
-  const { data: lostDeals, isPending: lostDealsPending } = useLostDeals();
-  // CW-4a: the incident register backs the /incidents/:id breadcrumb's record name (its `type`).
-  // Already fetched by the Incidents index; read here only to resolve the crumb (no new query).
-  // Intentionally retained while the `incidents` feature flag hides the module (features.ts):
-  // the /incidents routes redirect, so this branch is dormant — kept so re-enabling stays a
-  // one-line flag flip rather than re-plumbing. Do NOT "tidy" it away.
-  const { data: incidents, isPending: incidentsPending } = useIncidents();
-  // CW-4b: the companies + contacts directories back the /companies/:id and /contacts/:id
-  // breadcrumbs' record names. Already fetched by their index pages (and the ⌘K record search);
-  // read here only to resolve the crumb (no new query).
-  const { data: companies, isPending: companiesPending } = useCompanies();
-  const { data: contacts, isPending: contactsPending } = useContacts();
-  // #526: the meetings list backs the /meetings/:id breadcrumb's record name. RLS-scoped to the
-  // caller's readable meetings (attendance ∪ author ∪ grant ∪ Admin); read here only for the crumb.
-  const { data: meetings, isPending: meetingsPending } = useMeetings();
-  const { data: userViewsList, isPending: userViewsPending } = useUserViews();
-  const opportunities = useMemo(
-    () => [...(pipeline?.projects ?? []), ...(lostDeals ?? [])],
-    [pipeline, lostDeals],
-  );
+  // Cache-only record lists (#840) — read from whatever the index / detail pages already loaded;
+  // the shell NEVER triggers a list fetch just to name a crumb. A cold deep link shows "Loading…"
+  // until the page's own by-id query resolves, then the record name; "Not found" once that settles
+  // without the record (item I), never a perpetual "Loading…". A Loss-Tender deal (Blocker 1,
+  // AC-IXD-PROJ-005, ADR-0020 §4) lives in neither the active-projects nor open-pipeline cache, so
+  // it resolves from the project detail record or the lost-deals cache (unioned into
+  // `opportunities`). The incidents list is read although the `incidents` flag hides the module
+  // (CW-4a): the routes redirect, so it stays dormant — a one-line flag flip, do NOT "tidy" it away.
+  const { lists: cachedLists, resolved: recordResolved } = useCachedRecordLists(pathname);
+  const { projects, opportunities, procurements, companies, contacts } = cachedLists;
+  const userViewsList = cachedLists.userViews;
   const contextualParent = useMemo(() => {
     return contextualListReturnNavigation(pathname, location.state);
   }, [location.state, pathname]);
@@ -288,10 +258,10 @@ const ShellChrome: React.FC = () => {
     return () => setEntity(undefined);
   }, [routeEntity, setEntity]);
 
-  // ⌘K record search: index the three cached lists into Records rows that open
-  // the matching detail route. Reads the same caches as the breadcrumb — no new
-  // query. (AC-CMDK-001/003/004/005)
-  const recordSearch = useRecordSearch(navigate);
+  // ⌘K record search: indexes the record lists into Records rows that open the matching detail
+  // route. The lists load only while the palette is open (#840) — never on a cold page load.
+  // (AC-CMDK-001/003/004/005)
+  const recordSearch = useRecordSearch(navigate, { enabled: paletteOpen });
 
   // Global ⌘K / Ctrl-K → open the command palette.
   useEffect(() => {
@@ -322,42 +292,15 @@ const ShellChrome: React.FC = () => {
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
-    const recordLabel = recordLabelForPath(pathname, {
-      projects,
-      opportunities,
-      procurements,
-      incidents,
-      companies,
-      contacts,
-      meetings,
-      userViews: userViewsList?.map((v) => ({ id: v.id, name: v.name })),
-    });
+    const recordLabel = recordLabelForPath(pathname, cachedLists);
     // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
-    // STAGE — resolve its status group from the cached lists (the pipeline list carries pre-win
+    // STAGE — resolve its status group from the cached records (the pipeline list carries pre-win
     // / lost rows that the active projects list no longer holds) and thread it in so a pipeline
     // record reads "Sales Pipeline > …" and an on-hand record reads "Projects > …".
     const recordStatusGroup = recordStatusGroupForPath(pathname, {
       projects,
       opportunities,
     });
-    // The list that backs THIS detail route has settled (not pending) → an
-    // unresolved record is a genuine not-found, so resolve the crumb to a
-    // friendly label rather than a perpetual "Loading…". For /projects/:id the
-    // record can live in ANY of the three caches (Model B: active projects, open
-    // pipeline, or lost deals), so all must have settled before "Not found".
-    // (recordStatusGroup, computed above, is also reused below to derive railActiveOverride — Option A.)
-    const recordResolved =
-      (pathname.startsWith('/projects/') &&
-        !projectsPending &&
-        !pipelinePending &&
-        !lostDealsPending) ||
-      (pathname.startsWith('/procurement/') && !procurementsPending) ||
-      (pathname.startsWith('/incidents/') && !incidentsPending) ||
-      (pathname.startsWith('/companies/') && !companiesPending) ||
-      (pathname.startsWith('/contacts/') && !contactsPending) ||
-      (pathname.startsWith('/meetings/') && !meetingsPending) ||
-      (pathname.startsWith('/sales/') && !pipelinePending) ||
-      (pathname.startsWith('/views/') && !userViewsPending);  // I3 (FR-VR-053)
     return breadcrumbForPath(
       pathname,
       recordLabel,
@@ -371,23 +314,10 @@ const ShellChrome: React.FC = () => {
     contextualParent,
     t,
     breadcrumbNavigate,
+    cachedLists,
+    recordResolved,
     projects,
-    procurements,
-    incidents,
-    companies,
-    contacts,
-    userViewsList,
     opportunities,
-    projectsPending,
-    procurementsPending,
-    pipelinePending,
-    lostDealsPending,
-    incidentsPending,
-    companiesPending,
-    contactsPending,
-    meetings,
-    meetingsPending,
-    userViewsPending,
   ]);
 
   // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.

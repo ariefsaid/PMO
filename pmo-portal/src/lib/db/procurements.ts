@@ -110,6 +110,21 @@ export async function listProcurements(
 }
 
 /**
+ * List procurements for ONE project (project detail Overview + Procurement tabs). Filters
+ * server-side with `.eq('project_id', …)` instead of loading the org's whole list and filtering in
+ * the browser; same row shape as `listProcurements` (refs + approval routes). org_id is NEVER sent —
+ * RLS scopes rows.
+ */
+export async function listProcurementsByProject(projectId: string): Promise<ProcurementWithRefs[]> {
+  const { data, error } = await supabase
+    .from('procurements')
+    .select(SELECT)
+    .eq('project_id', projectId);
+  if (error) throw new Error(error.message);
+  return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
+}
+
+/**
  * List procurements for a given vendor company (AC-IFW-COMPANY-01). Returns all PRs where
  * `vendor_id = vendorId` so the company record shows the full procurement history. org_id is
  * NEVER sent — RLS (procurements select: org_id = auth_org_id()) scopes rows. No new RLS.

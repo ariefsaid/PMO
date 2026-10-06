@@ -11,7 +11,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   contains,
   llmJudge,
+  proposesAction,
   runScorers,
+  summarizeRuns,
   usesTool,
   type EvalRunResult,
 } from './scorers';
@@ -162,5 +164,20 @@ describe('AC-AT2-015 usesTool/contains/llmJudge scorers pass/fail with reasons',
     );
     expect(both.pass).toBe(false);
     expect(both.reasons).toHaveLength(2);
+  });
+});
+
+describe('proposesAction / summarizeRuns (#787)', () => {
+  const run = (payload: object) => ({ toolCalls: [], answerText: '', events: [{ id: 'e', runId: 'r', type: 'status', createdAt: '', payload }] }) as never;
+  it('passes on a needs-approval proposal for the named action and checks its args', async () => {
+    const r = run({ status: 'needs-approval', actionName: 'draft_invoice', structuredArgs: { items: [{ rate: 5 }] } });
+    expect((await proposesAction('draft_invoice')(r)).pass).toBe(true);
+    expect((await proposesAction('draft_invoice', (a) => (a.items as Array<{ rate: number }>)[0].rate === 5)(r)).pass).toBe(true);
+    expect((await proposesAction('draft_invoice', () => false)(r)).pass).toBe(false);
+    expect((await proposesAction('create_activity')(r)).pass).toBe(false);
+  });
+  it('summarizeRuns applies the minimum-passes bar', () => {
+    expect(summarizeRuns([true, true, false], 2)).toEqual({ pass: true, passes: 2, runs: 3 });
+    expect(summarizeRuns([true, false, false], 2)).toEqual({ pass: false, passes: 1, runs: 3 });
   });
 });

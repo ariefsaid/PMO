@@ -10,6 +10,40 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.14.0](https://github.com/ariefsaid/PMO/compare/v0.13.0...v0.14.0) (2026-10-06)
+
+
+### Features
+
+* add fixed special expenses budget category ([#816](https://github.com/ariefsaid/PMO/issues/816)) ([29a39ff](https://github.com/ariefsaid/PMO/commit/29a39ff6feb66d5c3b6036a9eec8b6f6b2ea0979))
+* carry purchase project and vendor references ([#764](https://github.com/ariefsaid/PMO/issues/764)) ([80a08d1](https://github.com/ariefsaid/PMO/commit/80a08d10e702b82e6b08722271aa667562192071))
+* **cli:** pmo load — a client's starting data through the app's own write paths ([#796](https://github.com/ariefsaid/PMO/issues/796)) ([#827](https://github.com/ariefsaid/PMO/issues/827)) ([c7c44cd](https://github.com/ariefsaid/PMO/commit/c7c44cdcc96e394305988cd2a55154acb846a24e))
+* **companies:** support short display names ([#807](https://github.com/ariefsaid/PMO/issues/807)) ([ebe319d](https://github.com/ariefsaid/PMO/commit/ebe319d7556f91f75abe16f0de924b7e21a9c6c1))
+* **erpnext:** send sales invoice client purchase references ([#809](https://github.com/ariefsaid/PMO/issues/809)) ([f27e026](https://github.com/ariefsaid/PMO/commit/f27e0269690c751f35d1a17ef645f6ef95f51600))
+* Monthly management pack ([#765](https://github.com/ariefsaid/PMO/issues/765)) ([#835](https://github.com/ariefsaid/PMO/issues/835)) ([ff70dd7](https://github.com/ariefsaid/PMO/commit/ff70dd765b9934286e7ae1c0b8e7ff127d2e6fa2))
+* **notifications:** tell the next person when something waits on them ([#788](https://github.com/ariefsaid/PMO/issues/788)) ([#825](https://github.com/ariefsaid/PMO/issues/825)) ([808cac8](https://github.com/ariefsaid/PMO/commit/808cac8b00cfc3ff12d49b490d8a67acdcfe4516))
+* **pipeline:** Declined outcome, separate from a lost tender ([#774](https://github.com/ariefsaid/PMO/issues/774)) ([#824](https://github.com/ariefsaid/PMO/issues/824)) ([25f41a5](https://github.com/ariefsaid/PMO/commit/25f41a51fc381aa64ba9110c31fbd68597071e6e))
+* **procurement:** external reference number on PR, PO and vendor invoice ([#769](https://github.com/ariefsaid/PMO/issues/769)) ([#826](https://github.com/ariefsaid/PMO/issues/826)) ([e5cbc04](https://github.com/ariefsaid/PMO/commit/e5cbc0404c875a529303049719c55b9f1937ecf0))
+* **procurement:** route approvals by budget ([#803](https://github.com/ariefsaid/PMO/issues/803)) ([#832](https://github.com/ariefsaid/PMO/issues/832)) ([e5d0d6a](https://github.com/ariefsaid/PMO/commit/e5d0d6a44dadb752011db23baf39d6d287f7e48e))
+* **projects:** classification tags — service line, sector, tender/direct, location, bidding entity ([#770](https://github.com/ariefsaid/PMO/issues/770)) ([#823](https://github.com/ariefsaid/PMO/issues/823)) ([93530c3](https://github.com/ariefsaid/PMO/commit/93530c33eb1bbb8c8a7e8ca610868280bc0d5fdc))
+* **projects:** record the end customer alongside the client ([#758](https://github.com/ariefsaid/PMO/issues/758)) ([#761](https://github.com/ariefsaid/PMO/issues/761)) ([52e0514](https://github.com/ariefsaid/PMO/commit/52e051437ff82169994ed68e804d9e9bb34b356c))
+* Receipt due date follows the client's receipt date ([#767](https://github.com/ariefsaid/PMO/issues/767)) ([#834](https://github.com/ariefsaid/PMO/issues/834)) ([aa33b40](https://github.com/ariefsaid/PMO/commit/aa33b40fc47a15357f993342df5bec761d6491c9))
+* record income tax withheld on client receipts ([#762](https://github.com/ariefsaid/PMO/issues/762)) ([#815](https://github.com/ariefsaid/PMO/issues/815)) ([96f8127](https://github.com/ariefsaid/PMO/commit/96f812730a12aa260599812c73f1036a8e2be991))
+* select ERP items and describe invoice lines ([#763](https://github.com/ariefsaid/PMO/issues/763)) ([#813](https://github.com/ariefsaid/PMO/issues/813)) ([fe177f5](https://github.com/ariefsaid/PMO/commit/fe177f502bd7ff09618c3be1d8895b03aa628736))
+* **tax:** support exact reduced tax bases ([#811](https://github.com/ariefsaid/PMO/issues/811)) ([10d074b](https://github.com/ariefsaid/PMO/commit/10d074b4b441fed3f09bf838522c72ce1d39e3f3))
+* translate budget and finance screens to Bahasa ([#789](https://github.com/ariefsaid/PMO/issues/789)) ([#817](https://github.com/ariefsaid/PMO/issues/817)) ([34ab65a](https://github.com/ariefsaid/PMO/commit/34ab65a0c744fcf590fc2f4bcffebb880e6f4a8f))
+
+
+### Bug Fixes
+
+* **erpnext:** key onboarded parties by the ERPNext ID, not the display name ([#760](https://github.com/ariefsaid/PMO/issues/760)) ([#782](https://github.com/ariefsaid/PMO/issues/782)) ([2224ec6](https://github.com/ariefsaid/PMO/commit/2224ec6a4fa992099ad07ea6b047f31d5f0b4e9e))
+* **features:** let operators entitle an org to the revenue section ([#778](https://github.com/ariefsaid/PMO/issues/778)) ([3690810](https://github.com/ariefsaid/PMO/commit/369081039c0bbcecef67a199936dc31bbfaadcc3))
+* **finance:** show customer names, Finance breadcrumbs and locale dates ([#781](https://github.com/ariefsaid/PMO/issues/781)) ([#799](https://github.com/ariefsaid/PMO/issues/799)) ([c20add2](https://github.com/ariefsaid/PMO/commit/c20add21cd23066a6835938409b53081fb648fc5))
+* match adopted ERP parties by tax identity ([#814](https://github.com/ariefsaid/PMO/issues/814)) ([2ab0b62](https://github.com/ariefsaid/PMO/commit/2ab0b629dec104b0de11965496522f00ae83097a))
+* project table width and initials contrast ([#776](https://github.com/ariefsaid/PMO/issues/776), [#777](https://github.com/ariefsaid/PMO/issues/777)) ([538e7cc](https://github.com/ariefsaid/PMO/commit/538e7cccbb82c2c6274456990655e7135d057d12))
+* **reports:** preserve export dates and revenue currency ([#808](https://github.com/ariefsaid/PMO/issues/808)) ([95a744a](https://github.com/ariefsaid/PMO/commit/95a744ad3d033d20f2428149284bee62145826f7))
+* six release journeys — keep status/name in ERP-pending toasts, item picker follows domain ownership, Project setup breadcrumb, Projects table width ([#837](https://github.com/ariefsaid/PMO/issues/837)) ([526a566](https://github.com/ariefsaid/PMO/commit/526a566628b2f1480f722e3199295e547a6156ec))
+
 ## [0.13.0](https://github.com/ariefsaid/PMO/compare/v0.12.0...v0.13.0) (2026-09-30)
 
 

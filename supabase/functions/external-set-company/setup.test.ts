@@ -818,3 +818,26 @@ Deno.test("project map persistence is bound to the ERP site used for the returne
     assertEquals(calls.filter((call) => call.method === "PATCH").length, 1);
   });
 });
+
+Deno.test("AC-BAM-007 readiness counts each category with a push account exactly once", async () => {
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("external_domain_ownership", () => jsonResponse([])),
+    supabaseSelect("projects", () => jsonResponse([])),
+    supabaseSelect("budget_category_account_map", () =>
+      jsonResponse([
+        { id: "m1", category: "Labor", erp_account: "Salary - EX", is_push_target: true },
+        { id: "m2", category: "Labor", erp_account: "Allowances - EX", is_push_target: false },
+        { id: "m3", category: "Materials", erp_account: "Materials - EX", is_push_target: false },
+        { id: "m4", category: "Equipment", erp_account: "Equipment - EX", is_push_target: true },
+      ])),
+    supabaseSelect("erp_employees", () => jsonResponse([])),
+  ], async () => {
+    const response = await handleSetCompanyRequest(
+      await request({ tier: "erpnext", setupAction: "readiness" }),
+    );
+    assertEquals(response.status, 200);
+    const body = await response.json();
+    assertEquals(body.budgetMappedCategories, ["Labor", "Equipment"]);
+  });
+});

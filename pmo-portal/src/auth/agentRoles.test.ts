@@ -12,7 +12,8 @@
  * RLS/SoD is the enforcement authority.
  */
 import { describe, it, expect } from 'vitest';
-import { AGENT_MASTER_DATA_ROLES, AGENT_DELIVERY_WITH_ENGINEER_ROLES } from './agentRoles';
+import { AGENT_MASTER_DATA_ROLES, AGENT_DELIVERY_WITH_ENGINEER_ROLES, AGENT_REVENUE_VIEW_ROLES, AGENT_REVENUE_WRITE_ROLES } from './agentRoles';
+import { moneyWriteRolesForDomain } from '../../../supabase/functions/adapter-dispatch/authGuard';
 import { can } from './policy';
 import type { Role } from './AuthContext';
 
@@ -42,5 +43,17 @@ describe('agentRoles (Blocker-2 drift guard)', () => {
     expect(AGENT_DELIVERY_WITH_ENGINEER_ROLES).toContain('Engineer');
     // Finance is NOT in DELIVERY and should not be in the agent set
     expect(AGENT_DELIVERY_WITH_ENGINEER_ROLES).not.toContain('Finance');
+  });
+});
+
+describe('agentRoles — revenue sets (#787)', () => {
+  it('AC-AIN-004 AGENT_REVENUE_VIEW_ROLES matches policy view salesInvoice', () => {
+    const allow = ALL_ROLES.filter((r) => can('view', 'salesInvoice', { realRole: r }));
+    expect(AGENT_REVENUE_VIEW_ROLES.slice().sort()).toEqual(allow.slice().sort());
+  });
+  it('AC-AIN-007 AGENT_REVENUE_WRITE_ROLES matches policy create salesInvoice AND the dispatch guard', () => {
+    const allow = ALL_ROLES.filter((r) => can('create', 'salesInvoice', { realRole: r }));
+    expect(AGENT_REVENUE_WRITE_ROLES.slice().sort()).toEqual(allow.slice().sort());
+    expect(AGENT_REVENUE_WRITE_ROLES.slice().sort()).toEqual([...moneyWriteRolesForDomain('revenue')].sort());
   });
 });

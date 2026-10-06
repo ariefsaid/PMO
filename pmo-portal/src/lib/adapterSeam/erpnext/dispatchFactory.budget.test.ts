@@ -8,9 +8,10 @@
  * controls).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { resolveErpDispatchAdapter, readBudgetLineItems, type DispatchServiceClient } from './dispatchFactory';
+import { resolveErpDispatchAdapter, readBudgetLineItems, readCategoryAccountMap, type DispatchServiceClient } from './dispatchFactory';
 import { FakePostgrest } from '@/test/postgrestFake.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies';
+import { resolveBudgetAccounts, BudgetCategoryUnmappedError } from '../../budget/categoryAccountMap';
 
 const MAP_ROWS = [
   { category: 'Labor', erp_account: 'Salary - PSC' },
@@ -347,5 +348,40 @@ describe('dispatchFactory — readBudgetLineItems is PAGED past PostgREST max_ro
     );
     await expect(readBudgetLineItems(fake as unknown as DispatchServiceClient, 'ver-1'))
       .rejects.toThrow('statement timeout');
+  });
+});
+
+/**
+ * #768 — a category may map to several ERP accounts, but the budget is pushed to ONE of them. The SHIPPED
+ * reader (shared by the dispatch, the adapter-dispatch gate and the sweep) is driven through the
+ * PostgREST-faithful fake, so the filter is really applied, not assumed.
+ */
+describe('#768 readCategoryAccountMap — only the push account reaches the ERP body', () => {
+  const MULTI = [
+    { org_id: 'org-1', category: 'Labor', erp_account: 'Salary - PSC', is_push_target: true },
+    { org_id: 'org-1', category: 'Labor', erp_account: 'Allowances - PSC', is_push_target: false },
+    { org_id: 'org-1', category: 'Labor', erp_account: 'Social Security - PSC', is_push_target: false },
+    { org_id: 'org-2', category: 'Labor', erp_account: 'Other Tenant Salary', is_push_target: true },
+  ];
+
+  it('AC-BAM-003 a multi-account category pushes its whole total to the push account only', async () => {
+    const fake = new FakePostgrest({ budget_category_account_map: MULTI });
+    const map = await readCategoryAccountMap(fake as unknown as DispatchServiceClient, 'org-1');
+    expect(map).toEqual([{ category: 'Labor', erp_account: 'Salary - PSC' }]);
+    expect(resolveBudgetAccounts(
+      [{ category: 'Labor', budgeted_amount: '30000.00' }, { category: 'Labor', budgeted_amount: '20000.00' }],
+      map,
+    )).toEqual([{ account: 'Salary - PSC', budget_amount: '50000.00' }]);
+  });
+
+  it('AC-BAM-005 a category whose accounts are all read-only fails closed as unmapped, naming it', async () => {
+    const fake = new FakePostgrest({
+      budget_category_account_map: MULTI.map((r) => (r.org_id === 'org-1' ? { ...r, is_push_target: false } : r)),
+    });
+    const map = await readCategoryAccountMap(fake as unknown as DispatchServiceClient, 'org-1');
+    let err: unknown;
+    try { resolveBudgetAccounts([{ category: 'Labor', budgeted_amount: '1.00' }], map); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(BudgetCategoryUnmappedError);
+    expect((err as BudgetCategoryUnmappedError).unmappedCategories).toEqual(['Labor']);
   });
 });

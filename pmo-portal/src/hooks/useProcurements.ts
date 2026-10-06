@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   listProcurements,
+  listProcurementsByProject,
   getProjectCommittedSpend,
   getProjectReservedSpend,
   type ProcurementWithRefs,
@@ -13,14 +14,28 @@ import { useAuth } from '@/src/auth/useAuth';
  * under its own cache key, so Approvals/dashboards keep the lean payload. Both keys share the
  * `['procurements', orgId]` prefix, so existing invalidations still refetch it.
  */
-export function useProcurements(opts?: { withRefs?: boolean }) {
+export function useProcurements(opts?: { withRefs?: boolean; enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const withRefs = opts?.withRefs === true;
   return useQuery<ProcurementWithRefs[]>({
     queryKey: withRefs ? ['procurements', orgId, 'with-refs'] : ['procurements', orgId],
     queryFn: () => listProcurements(undefined, withRefs ? { withRefs: true } : undefined),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
+/**
+ * Procurement for ONE project, filtered server-side. Keyed `['procurements', orgId, 'by-project', id]`, i.e. under the `['procurements', orgId]` prefix, so every
+ * existing invalidation refetches it; the Overview and Procurement tabs share one cache entry.
+ */
+export function useProjectProcurements(projectId: string | null | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ProcurementWithRefs[]>({
+    queryKey: ['procurements', orgId, 'by-project', projectId],
+    queryFn: () => listProcurementsByProject(projectId as string),
+    enabled: Boolean(orgId && projectId),
   });
 }
 

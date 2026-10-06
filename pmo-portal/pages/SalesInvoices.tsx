@@ -23,7 +23,7 @@ import {
   type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
@@ -130,7 +130,10 @@ const SalesInvoices: React.FC = () => {
 
   const all = useMemo(() => data ?? [], [data]);
 
-  const [search, setSearch] = useState('');
+  // #787 (AC-AIN-015): the assistant links an overdue invoice as /sales-invoices?q=<number>; seed the search
+  // from it once on mount. Typing afterwards is local state as before (the URL is not kept in sync).
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
 
   const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
