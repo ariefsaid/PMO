@@ -32,7 +32,7 @@
 -- shape, the Draft budget line-item editor, an Admin's project hard-delete, and the whole legitimate
 -- two-person win.
 begin;
-select plan(97);
+select plan(99);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — an unattributed BYPASSRLS authority, exempt by design).
@@ -1000,6 +1000,23 @@ select lives_ok(
   $$ select transition_work_order('01710000-0000-0000-0000-0000000000e9','Issued') $$,
   'AC-SCC-095 …and THEN the PM may issue — the gate closes the forgery, not the workflow');
 reset role;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- K. progress_claims / progress_claim_lines / progress_claim_evidence (0250, #766) — billing records written
+--    only by create_progress_claim / withdraw_progress_claim / attach_claim_evidence.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+select is(
+  (select count(*)::int from information_schema.table_privileges
+    where table_schema = 'public' and table_name in ('progress_claims','progress_claim_lines','progress_claim_evidence')
+      and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE','DELETE')),
+  0,
+  'AC-SCC-096 no client role holds a TABLE-level INSERT/UPDATE/DELETE on the billing claim tables');
+select is(
+  (select count(*)::int from information_schema.column_privileges
+    where table_schema = 'public' and table_name in ('progress_claims','progress_claim_lines','progress_claim_evidence')
+      and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
+  0,
+  'AC-SCC-097 no client role holds a COLUMN-level INSERT/UPDATE on the billing claim tables — the RPCs are the sole writers');
 
 select * from finish();
 rollback;
