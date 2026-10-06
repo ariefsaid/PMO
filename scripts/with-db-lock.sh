@@ -24,8 +24,8 @@
 # The flock core lives in scripts/lib/flock-run.sh.
 #
 # ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
-# This is the OUTERMOST lock — acquire it FIRST. (with-erpnext-lock.sh and
-# with-test-lock.sh nest inside it; see scripts/lib/flock-run.sh.)
+# This is the MIDDLE lock — acquire it after ERPNext and before the test lock
+# when all are needed (see scripts/lib/flock-run.sh).
 #
 #   PMO_DB_LOCK          override the lock path (default ~/.pmo-supabase-db.lock)
 #   PMO_DB_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)

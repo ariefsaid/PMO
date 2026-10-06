@@ -18,6 +18,8 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPTS = path.dirname(fileURLToPath(import.meta.url));
 const DB_LOCK = path.join(SCRIPTS, 'with-db-lock.sh');
+const E2E_LOCAL = path.join(SCRIPTS, 'e2e-local.sh');
+const FLOCK_RUN = path.join(SCRIPTS, 'lib/flock-run.sh');
 const TEST_LOCK = path.join(SCRIPTS, 'with-test-lock.sh');
 const RENUMBER = path.join(SCRIPTS, 'renumber-migration.sh');
 
@@ -146,6 +148,64 @@ test('wrapper exports its *_LOCK_HELD var into the child environment', async () 
     const out = execFileSync('bash', [DB_LOCK, 'bash', '-c', 'echo "held=${PMO_DB_LOCK_HELD:-unset}"'],
       { env: { ...process.env, PMO_DB_LOCK: lock }, encoding: 'utf8' });
     assert.match(out, /held=1/, 'PMO_DB_LOCK_HELD must be exported so self-wraps skip re-locking');
+  });
+});
+
+test('AC-822-002: e2e-local reuses an inherited DB lock without re-acquiring it', () => {
+  withTemp('pmo-e2e-lock-held-', (dir) => {
+    const scriptsDir = path.join(dir, 'scripts');
+    const fakeBin = path.join(dir, 'fake-bin');
+    fs.mkdirSync(path.join(scriptsDir, 'lib'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'pmo-portal'), { recursive: true });
+    fs.mkdirSync(fakeBin);
+
+    const copies = [
+      [E2E_LOCAL, path.join(scriptsDir, 'e2e-local.sh')],
+      [DB_LOCK, path.join(scriptsDir, 'with-db-lock.sh')],
+      [FLOCK_RUN, path.join(scriptsDir, 'lib/flock-run.sh')],
+    ];
+    for (const [source, destination] of copies) {
+      fs.copyFileSync(source, destination);
+      fs.chmodSync(destination, 0o755);
+    }
+
+    const writeCommand = (name, content) => {
+      const command = path.join(fakeBin, name);
+      fs.writeFileSync(command, `#!/usr/bin/env bash\n${content}\n`);
+      fs.chmodSync(command, 0o755);
+    };
+    writeCommand('docker', "printf '1\\n'");
+    writeCommand('supabase', [
+      "printf \"API_URL='http://127.0.0.1:54321'\\n\"",
+      "printf \"ANON_KEY='stub-anon'\\n\"",
+      "printf \"SERVICE_ROLE_KEY='stub-service'\\n\"",
+    ].join('\n'));
+
+    const log = path.join(dir, 'npx.log');
+    writeCommand('npx', 'printf \'%s\\n\' "$*" >> "$E2E_NPX_LOG"');
+
+    const result = spawnSync('bash', [path.join(scriptsDir, 'with-db-lock.sh'), path.join(scriptsDir, 'e2e-local.sh')], {
+      cwd: dir,
+      env: {
+        ...process.env,
+        HOME: dir,
+        PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
+        PMO_DB_LOCK: path.join(dir, 'db.lock'),
+        PMO_DB_LOCK_TIMEOUT: '1',
+        E2E_NPX_LOG: log,
+      },
+      encoding: 'utf8',
+      timeout: 15_000,
+    });
+
+    assert.equal(result.status, 0,
+      `e2e-local should complete under its inherited DB hold; exit=${result.status}, stderr=${result.stderr}`);
+    assert.equal((result.stderr.match(/ACQUIRED/g) ?? []).length, 1,
+      `only the outer wrapper should acquire the DB lock; stderr=${result.stderr}`);
+    assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
+      'playwright test --project=chromium --workers=2',
+      'playwright test --project=serial --workers=1',
+    ]);
   });
 });
 
