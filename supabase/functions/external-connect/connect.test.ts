@@ -263,11 +263,30 @@ describe('external-connect — ClickUp branch', () => {
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 422);
-        assertEquals(rpcCall(calls, 'finalize_external_connect').length, 1);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
-        for (const c of rpcCall(calls, 'delete_vault_secret')) {
-          assertEquals((c.bodyJson as Record<string, unknown>).p_secret_name, 'clickup_new_ref');
-        }
+        // The DB finalize(ready=false) is the ONE compensating call, and it names only the new secret;
+        // the edge performs no Vault delete or cleanup of its own on this path.
+        const finalize = rpcCall(calls, 'finalize_external_connect').map((c) => c.bodyJson as Record<string, unknown>);
+        assertEquals(finalize.length, 1);
+        assertEquals(finalize[0].p_secret_ref, 'clickup_new_ref');
+        assertEquals(finalize[0].p_ready, false);
+        assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
+        assertEquals(rpcCall(calls, 'cleanup_external_connect_attempt').length, 0);
+      },
+    );
+  });
+
+  it('AC-653-1 when the readiness finalize RPC itself fails, the fallback removes only the new secret', async () => {
+    await withFetchMock(
+      rotateMocks('clickup_new_ref', () => jsonResponse({ message: 'boom', code: 'P0001' }, { status: 400 }), null),
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+        assertEquals(res.status, 422);
+        const deleted = rpcCall(calls, 'delete_vault_secret').map((c) => (c.bodyJson as Record<string, unknown>).p_secret_name);
+        assertEquals(deleted, ['clickup_new_ref']);
+        const cleanup = rpcCall(calls, 'cleanup_external_connect_attempt').map((c) => c.bodyJson as Record<string, unknown>);
+        assertEquals(cleanup.length, 1);
+        assertEquals(cleanup[0].p_secret_ref, 'clickup_new_ref');
       },
     );
   });

@@ -1,6 +1,6 @@
 -- Reverses 0259: drops stage_vault_secret_for_org and restores 0147's cleanup/finalize bodies verbatim.
--- Any in-flight config.prev_secret_ref marker is cleared; a previous secret still retained would be orphaned.
-update public.external_org_bindings set config = config - 'prev_secret_ref' where config ? 'prev_secret_ref';
+-- Any in-flight config.prev_binding marker is cleared; a previous secret still retained would be orphaned.
+update public.external_org_bindings set config = config - 'prev_binding' where config ? 'prev_binding';
 drop function if exists public.stage_vault_secret_for_org(uuid,text,text,text,uuid);
 create or replace function public.finalize_external_connect(
   p_org_id uuid,
