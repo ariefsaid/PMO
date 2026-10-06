@@ -19,6 +19,7 @@ import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
+import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
  *  [.order(...).limit(...)][.maybeSingle()]` — every filter-builder is ALSO directly awaitable
@@ -145,12 +146,13 @@ async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): P
  *
  *  Round-7 B10 added the `procurement` half: only the three revenue links were pre-flighted, so a
  *  direct command carrying another tenant's known `procurementId` was accepted. */
-type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'procurementId' | 'vendorId' | 'invoiceId';
+type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'workOrderId' | 'procurementId' | 'vendorId' | 'invoiceId';
 
 const LINK_TABLE: Readonly<Record<LinkField, string>> = {
   customerId: 'companies',
   projectId: 'projects',
   salesInvoiceId: 'sales_invoices',
+  workOrderId: 'work_orders',
   procurementId: 'procurements',
   vendorId: 'companies',
   invoiceId: 'procurement_invoices',
@@ -159,7 +161,7 @@ const LINK_TABLE: Readonly<Record<LinkField, string>> = {
 /** The links each ERPNext domain's commands can carry (the fields `readModelWriters` copies into the
  *  service-role mirror insert). `companies` (supplier/customer parties) carries none. */
 const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
-  revenue: ['customerId', 'projectId', 'salesInvoiceId'],
+  revenue: ['customerId', 'projectId', 'salesInvoiceId', 'workOrderId'],
   procurement: ['procurementId', 'vendorId', 'invoiceId'],
   // P3c: a budget push is scoped to ONE project. A cross-org `projectId` would push this org's figures
   // onto another tenant's ERP project dimension — refused here, before the adapter exists.
@@ -326,7 +328,8 @@ async function resolveSalesInvoicePo(deps: ErpDispatchFactoryDeps): Promise<void
     typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 
   const invoice = await read('sales_invoices', 'reference_number,work_order_id,project_id', record.id);
-  const workOrderId = nonblank(invoice?.work_order_id);
+  // #766: a claim invoice has no mirror row yet on its first push; its work order rides on the record.
+  const workOrderId = nonblank(invoice?.work_order_id) ?? nonblank(record.workOrderId);
   const projectId = nonblank(record.projectId) ?? nonblank(invoice?.project_id);
   const workOrder = workOrderId
     ? await read('work_orders', 'client_po_number,order_date', workOrderId)
@@ -937,6 +940,60 @@ async function readReceiptAccountCurrencies(
 }
 
 /**
+ * #766 / ADR-0077 — a Sales Invoice whose PMO record id is a billing claim's id IS that claim's invoice.
+ * Its lines come from the claim alone and are rebuilt on EVERY resolution (a sweep recovery re-derives the
+ * identical payload and digest); the caller's project and customer must be the claim's; the claim must carry
+ * evidence (the outbox fence is the database half of this rule); and nothing but a create may build its
+ * body — a wrong claim invoice is cancelled and a new claim raised (DD-PBL-7).
+ */
+const MAX_CLAIM_LINES = 500;
+async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps): Promise<void> {
+  const record = deps.command.record as Record<string, unknown>;
+  if (record.erp_doc_kind !== 'sales-invoice') return;
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return;
+  if (typeof record.id !== 'string' || !record.id) return;
+  const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
+    .select('id,kind,project_id,work_order_id,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
+    .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  if (!claimData) return;
+  const claim = claimData as ProgressClaimRecord;
+  if (deps.command.operation !== 'create') {
+    throw new AppError('A progress claim invoice cannot be edited or amended from PMO — cancel the invoice and raise a new claim', 'commit-rejected');
+  }
+  if (record.projectId !== claim.project_id) {
+    throw new AppError('The invoice project must be the progress claim project', 'commit-rejected');
+  }
+  const { data: project, error: projectError } = await deps.serviceClient.from('projects')
+    .select('client_id').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
+  if (projectError) throw new AppError(projectError.message, projectError.code);
+  const clientId = (project as { client_id?: string | null } | null)?.client_id ?? null;
+  if (!clientId || record.customerId !== clientId) {
+    throw new AppError('The invoice customer must be the project client', 'commit-rejected');
+  }
+  const { data: evidence, error: evidenceError } = await deps.serviceClient.from('progress_claim_evidence')
+    .select('id').eq('org_id', deps.orgId).eq('claim_id', claim.id).limit(1);
+  if (evidenceError) throw new AppError(evidenceError.message, evidenceError.code);
+  if (!Array.isArray(evidence) || evidence.length === 0) {
+    throw new AppError("Attach the billing evidence (for example the progress report or the client's acceptance) before raising this invoice", 'commit-rejected');
+  }
+  let lines: ProgressClaimLineRecord[] = [];
+  if (claim.kind === 'progress') {
+    const { data, error: linesError } = await deps.serviceClient.from('progress_claim_lines')
+      .select('item_code,description,unit,quantity,rate')
+      .eq('org_id', deps.orgId).eq('claim_id', claim.id)
+      .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+    if (linesError) throw new AppError(linesError.message, linesError.code);
+    lines = (data ?? []) as ProgressClaimLineRecord[];
+    if (lines.length > MAX_CLAIM_LINES) {
+      throw new AppError(`A progress claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
+    }
+  }
+  record.items = progressClaimItems(claim, lines);
+  record.workOrderId = claim.work_order_id;
+}
+
+/**
  * Resolve the erpnext adapter for one command: read the org's `external_org_bindings` row, refuse
  * `config-rejected` when it is missing or not yet activated (`activated_at === null` — a version
  * mismatch or a binding never activated, FR-ENA-012), then build the adapter over the resolved
@@ -962,6 +1019,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
+  await resolveProgressClaimInvoice(deps);
   let receiptConfig = binding.config;
   if (deps.command.record.erp_doc_kind === 'incoming-payment'
       && Number(deps.command.record.withheld_amount ?? 0) > 0) {
