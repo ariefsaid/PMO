@@ -92,9 +92,12 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
 
     // ── 3. Minute a line. The author sees the editor (attendance-keyed read, author-keyed
     //       write — 0205); a fresh meeting starts with no lines. ──────────────────────────
-    await page.getByTestId('minutes-add-line').click();
-    await page.getByPlaceholder('Type a minute…').fill(minuteLine);
+    //       #805: the minutes are a BlockNote editor — the author just types into it.
+    const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
+    await editor.click();
+    await page.keyboard.type(minuteLine);
     const save = page.getByTestId('minutes-save');
+    await expect(save).toBeEnabled();
     await save.click();
     // The save round-trips: the button re-disables only when the saved copy equals the editor.
     await expect(save).toBeDisabled();
@@ -102,7 +105,9 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 4. /action — DD-MTG-8: the STANDARD task-create modal opens, prefilled from the line
     //       and fully editable. The author edits the name before publishing (the informed act:
     //       what they submit — and only that — reaches the org-visible tasks system). ───────
-    await page.getByTestId('minute-action-0').click();
+    //       #805: invoked as the slash command at the end of the line; the line's text prefills.
+    await page.keyboard.type(' /action');
+    await page.getByRole('option', { name: /Action item/ }).first().click();
     const actionModal = page.getByRole('dialog');
     await expect(actionModal).toBeVisible();
     const nameBox = actionModal.getByRole('textbox', { name: 'Task name' });
@@ -115,12 +120,18 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       linkage oracle, not a DOM detail. It carries the EDITED name, never the raw line.
     const actionItems = page.getByTestId('action-items-list');
     await expect(actionItems.getByText(taskName)).toBeVisible({ timeout: 15_000 });
+    //       …and the minutes carry an actionItem block that renders the LIVE task (id-only, DD-MTG-2).
+    await expect(page.getByTestId('minutes-blocknote').getByTestId('action-item').getByText(taskName)).toBeVisible();
+    // The block was inserted after the line; persist it.
+    await save.click();
+    await expect(save).toBeDisabled();
 
     // ── 6. And it is server truth, not optimistic client cache: a full reload re-reads the
     //       meeting, the minute line, and the linked task through RLS from a cold cache. ────
     await page.reload();
     await expect(page.getByRole('heading', { name: meetingTitle })).toBeVisible();
-    await expect(page.getByPlaceholder('Type a minute…')).toHaveValue(minuteLine); // the persisted minute
+    await expect(page.getByTestId('minutes-blocknote')).toContainText(minuteLine); // the persisted minute
+    await expect(page.getByTestId('minutes-blocknote').getByTestId('action-item').getByText(taskName)).toBeVisible();
     await expect(page.getByTestId('action-items-list').getByText(taskName)).toBeVisible({
       timeout: 15_000,
     });

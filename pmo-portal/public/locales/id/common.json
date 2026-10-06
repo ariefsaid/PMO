@@ -1154,8 +1154,6 @@
   },
   "meetingDetail": {
     "action": {
-      "button": "Action",
-      "buttonTitle": "Buat tugas dari baris ini (rapat hanya menyimpan referensinya)",
       "externalGate": "Tugas dikelola oleh sistem tugas yang terhubung, jadi action item tidak dapat dibuat dari notulen ini.",
       "modalSection": "Tugas",
       "modalSubmit": "Buat tugas",
@@ -1230,13 +1228,18 @@
       }
     },
     "minutes": {
-      "addLine": "Tambah baris",
+      "actionError": "Butir tindakan ini tidak dapat dimuat.",
+      "actionLoading": "Memuat butir tindakan…",
+      "actionTombstone": "Butir tindakan ini sudah tidak tersedia.",
+      "editorLabel": "Notulen rapat",
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
-      "emptyEditor": "Belum ada notulen — tambahkan baris pertama.",
-      "lineLabel": "Baris notulen",
-      "linePlaceholder": "Ketik notulen…",
-      "removeLine": "Hapus baris",
       "save": "Simpan notulen",
+      "slash": {
+        "actionTitle": "Butir tindakan",
+        "actionSubtext": "Buat tugas dari baris ini",
+        "actionGroup": "Blok dasar",
+        "actionAliases": "aksi,tindakan,tugas,todo"
+      },
       "title": "Notulen"
     },
     "notFound": {
