@@ -28,6 +28,11 @@
 > - **`DD-MTG-8` — `/action` opens the task-create modal prefilled and editable** (an informed
 >   publication into the org-visible task system), never a silent copy of the line.
 >
+> - **`DD-MTG-10` (2026-10-06, #805) — the BlockNote editor and the atomic `actionItem` block are BACK IN.**
+>   FR-MTG-003/004/006/017..020/022..027 and AC-MTG-001..009/021..026 apply again (FR-MTG-021 template
+>   copy-on-create stays deferred). Owning tests: `supabase/tests/0254_meeting_blocknote.test.sql`,
+>   `src/components/meetings/*.test.*`, `src/lib/meetingNotes.test.ts`, `e2e/AC-MTG-022-minutes-editor-surface.spec.ts`.
+>
 > **Where the shipped oracles live (the greppable map — the build's test ids are `AC-MTG-1xx`, this
 > spec's are `AC-MTG-0xx`; this table is the join):** access model + persistence + /action seam →
 > `supabase/tests/0205_meeting_access.test.sql` (`AC-MTG-101..129`: attendance reads 106..110,
