@@ -389,8 +389,10 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     ? credential.token!
     : `${credential.apiKey}:${credential.apiSecret}`;
 
+  // ClickUp stages the secret (the previous credential is retained until finalize commits, so a failed
+  // rotate compensates to the prior binding — #653); ERPNext keeps the revoke-on-write RPC.
   const { data: secretRef, error: rpcError } = await serviceClient.rpc(
-    'create_vault_secret_for_org',
+    tier === 'clickup' ? 'stage_vault_secret_for_org' : 'create_vault_secret_for_org',
     {
       p_org_id: profile.org_id,
       p_external_tier: tier,
