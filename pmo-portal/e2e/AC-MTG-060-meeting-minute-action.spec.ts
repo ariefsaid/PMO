@@ -33,7 +33,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, requireServiceRoleKey } from './helpers';
+import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 
 const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -115,6 +115,7 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // Save took focus, so the author clicks back to the end of the action line first.
     // Clicking the block's far right puts the caret at the end of the line on every platform.
     const actionBlock = editor.locator('.bn-block-content', { hasText: actionLine });
+    await waitForFonts(page);
     const box = await actionBlock.boundingBox();
     await actionBlock.click({ position: { x: box!.width - 4, y: box!.height / 2 } });
     await page.keyboard.type(' /action');
