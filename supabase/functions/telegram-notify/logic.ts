@@ -7,6 +7,7 @@
  * testable in Vitest (ADR-0039 decision-7).
  */
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 export interface ErrorEventRow {
   id: string;
@@ -18,6 +19,7 @@ export interface ErrorEventRow {
 }
 
 export interface MessageGroup {
+  orgId: string | null;
   errorCode: string;
   fn: string;
   count: number;
@@ -37,10 +39,15 @@ export interface TelegramPayload {
   parse_mode: 'Markdown';
 }
 
+/** Collision-free in-memory key for a cooldown record in one nullable organization scope. */
+export function alertKey(orgId: string | null, errorCode: string): string {
+  return JSON.stringify([orgId, errorCode]);
+}
+
 /**
- * groupIntoMessages — collapses unnotified rows into one group per error_code
+ * groupIntoMessages — collapses unnotified rows into one group per (org_id, error_code)
  * (FR-OF-005/006, LD-OF-005), each carrying a `suppressed` flag computed from
- * `lastNotifiedByCode` + `cooldownSec` (I-2's cross-drain cooldown input) AND the
+ * `lastNotifiedByKey` + `cooldownSec` (I-2's cross-drain cooldown input) AND the
  * group's own row `ids` (Fix 1). A suppressed group's rows are still marked
  * notified_at by the caller (index.ts) — this function only decides WHICH groups
  * send + WHICH ids belong to each group, never performs the DB write.
@@ -52,26 +59,31 @@ export interface TelegramPayload {
  */
 export function groupIntoMessages(
   rows: ErrorEventRow[],
-  lastNotifiedByCode: Record<string, string | undefined>,
+  lastNotifiedByKey: Record<string, string | undefined>,
   cooldownSec: number,
 ): MessageGroup[] {
-  const byCode = new Map<string, ErrorEventRow[]>();
+  const byKey = new Map<string, ErrorEventRow[]>();
   for (const row of rows) {
-    const existing = byCode.get(row.error_code) ?? [];
+    const key = alertKey(row.org_id, row.error_code);
+    const existing = byKey.get(key) ?? [];
     existing.push(row);
-    byCode.set(row.error_code, existing);
+    byKey.set(key, existing);
   }
 
   const groups: MessageGroup[] = [];
-  for (const [errorCode, groupRows] of byCode) {
+  for (const groupRows of byKey.values()) {
     const sorted = [...groupRows].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const first = sorted[0];
+    const errorCode = first.error_code;
+    const orgId = first.org_id;
     const lastCreatedAt = sorted[sorted.length - 1].created_at;
-    const last = lastNotifiedByCode[errorCode];
+    const last = lastNotifiedByKey[alertKey(orgId, errorCode)];
     const suppressed =
       last !== undefined && (new Date(lastCreatedAt).getTime() - new Date(last).getTime()) / 1000 < cooldownSec;
     groups.push({
+      orgId,
       errorCode,
-      fn: sorted[0].fn,
+      fn: first.fn,
       count: sorted.length,
       firstCreatedAt: sorted[0].created_at,
       lastCreatedAt: sorted[sorted.length - 1].created_at,
@@ -110,15 +122,17 @@ export function buildTelegramPayload(group: MessageGroup): TelegramPayload {
 export async function pingHeartbeat(url: string | undefined): Promise<void> {
   if (!url) return;
   try {
-    await fetch(url, { method: 'GET' });
+    await fetchBounded(undefined, url, { method: 'GET' });
   } catch {
     // Swallowed by design (FR-OF-021) — a dead heartbeat URL must never affect the
     // drain's own success/failure or notified_at stamping.
   }
 }
 
-/** A row from `alert_send_log`: the write-ahead attempt record for one error_code. */
+/** A row from `alert_send_log`: the write-ahead attempt record for one organization/code key. */
 export interface SendLogEntry {
+  orgId: string | null;
+  errorCode: string;
   /** Written BEFORE the send (the cooldown source, FR-HRD-001/002). */
   lastSentAt: string;
   /** Written ONLY after a CONFIRMED successful send. Null = attempted but never delivered. */
@@ -146,14 +160,14 @@ export interface DrainDeps {
    */
   secretsConfigured: boolean;
   selectUnnotified: () => Promise<ErrorEventRow[]>;
-  /** error_code -> the write-ahead attempt record (alert_send_log), if one exists. */
-  selectLastSentByCode: () => Promise<Record<string, SendLogEntry | undefined>>;
+  /** Scoped write-ahead attempt records for only the error codes in this bounded batch. */
+  selectLastSentByKey: (errorCodes: string[]) => Promise<SendLogEntry[]>;
   /** Write-ahead: MUST resolve before sendTelegram is called (FR-HRD-002). */
-  recordSendAhead: (errorCode: string, atIso: string) => Promise<{ error: unknown }>;
+  recordSendAhead: (orgId: string | null, errorCode: string, atIso: string) => Promise<{ error: unknown }>;
   /** Written ONLY after sendTelegram resolves ok (C1) — never before, never on a failed send. */
-  markDelivered: (errorCode: string, atIso: string) => Promise<{ error: unknown }>;
+  markDelivered: (orgId: string | null, errorCode: string, atIso: string) => Promise<{ error: unknown }>;
   sendTelegram: (payload: TelegramPayload) => Promise<{ ok: boolean }>;
-  stampNotified: (ids: string[], atIso: string) => Promise<{ error: unknown }>;
+  stampNotified: (orgId: string | null, ids: string[], atIso: string) => Promise<{ error: unknown }>;
   readHeartbeat: (job: string) => Promise<HeartbeatRow | null>;
   /**
    * Write-ahead (I2, 2026-07-28 review): record the OUTBOUND intent for a job BEFORE attempting to
@@ -220,21 +234,23 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
   }
 
   const rows = await deps.selectUnnotified();
-  const sendLog = await deps.selectLastSentByCode();
-  const lastSentByCode: Record<string, string | undefined> = {};
-  for (const [code, entry] of Object.entries(sendLog)) {
-    if (entry) lastSentByCode[code] = entry.lastSentAt;
+  const errorCodes = [...new Set(rows.map((row) => row.error_code))];
+  const sendLog = await deps.selectLastSentByKey(errorCodes);
+  const sendLogByKey: Record<string, SendLogEntry> = {};
+  const lastSentByKey: Record<string, string> = {};
+  for (const entry of sendLog) {
+    const key = alertKey(entry.orgId, entry.errorCode);
+    sendLogByKey[key] = entry;
+    lastSentByKey[key] = entry.lastSentAt;
   }
-  const groups = groupIntoMessages(rows, lastSentByCode, deps.cooldownSec);
+  const groups = groupIntoMessages(rows, lastSentByKey, deps.cooldownSec);
 
   for (const group of groups) {
-    let delivered = false;
-
     if (!group.suppressed) {
       // WRITE-AHEAD (FR-HRD-002): record the send BEFORE performing it, in a table that is not
       // the one being stamped. A failure here aborts the send — better a delayed alert than an
       // unbounded re-alert loop.
-      const ahead = await deps.recordSendAhead(group.errorCode, nowIso);
+      const ahead = await deps.recordSendAhead(group.orgId, group.errorCode, nowIso);
       if (ahead.error) {
         logStructuredError({
           fn: 'telegram-notify',
@@ -250,12 +266,11 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
         continue; // leave notified_at NULL — retried next tick (FR-OF-007)
       }
       result.sent += 1;
-      delivered = true;
       // C1: mark delivery ONLY after a confirmed successful send. If this write itself fails, a
-      // FUTURE suppressed occurrence of this error_code won't be eligible to stamp until the
-      // cooldown lapses naturally — conservative (a delay), never a silent loss, and this tick's
-      // own rows are still stamped below because `delivered` is already true for THIS send.
-      const mark = await deps.markDelivered(group.errorCode, nowIso);
+      // FUTURE suppressed occurrence of this scoped key won't be eligible to stamp until the
+      // cooldown lapses naturally — conservative (a delay), never a silent loss. This tick's own
+      // rows remain eligible for stamping after the successful send.
+      const mark = await deps.markDelivered(group.orgId, group.errorCode, nowIso);
       if (mark.error) {
         logStructuredError({
           fn: 'telegram-notify',
@@ -265,14 +280,15 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
       }
     } else {
       result.suppressed += 1;
-      // C1: a suppressed group may stamp notified_at ONLY if the write-ahead that suppressed it
-      // was actually delivered — never on the mere existence of a (possibly failed) attempt.
-      delivered = sendLog[group.errorCode]?.deliveredAt != null;
     }
 
+    // A sent group just confirmed delivery; a suppressed group may stamp only if the scoped
+    // write-ahead record that suppressed it was actually delivered (C1).
+    const delivered = !group.suppressed ||
+      sendLogByKey[alertKey(group.orgId, group.errorCode)]?.deliveredAt != null;
     if (delivered && group.ids.length > 0) {
       // FR-HRD-001: the stamp result is INSPECTED, not discarded.
-      const stamp = await deps.stampNotified(group.ids, nowIso);
+      const stamp = await deps.stampNotified(group.orgId, group.ids, nowIso);
       if (stamp.error) {
         result.stampFailures += 1;
         logStructuredError({

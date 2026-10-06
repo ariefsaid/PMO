@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { assertNoBinary, type NoteBlock } from '@/src/lib/meetingNotes';
 import type { Json, Tables, TablesInsert, TablesUpdate } from '@/src/lib/supabase/database.types';
 
 export type MeetingRow = Tables<'meetings'>;
@@ -81,7 +82,8 @@ export interface MeetingPatch {
   occurred_at?: string;
   location?: string | null;
   project_id?: string | null;
-  notes?: MeetingNoteBlock[];
+  /** v2: BlockNote's Block[] verbatim (FR-MTG-002); v1 line blocks still type-check for old callers. */
+  notes?: Array<MeetingNoteBlock | NoteBlock>;
 }
 
 /** FR-MTG-035 (list): an explicit row cap + explicit ordering rather than a required filter. */
@@ -240,7 +242,10 @@ export async function updateMeeting(id: string, patch: MeetingPatch): Promise<vo
   if (patch.occurred_at !== undefined) next.occurred_at = patch.occurred_at;
   if (patch.location !== undefined) next.location = patch.location || null;
   if (patch.project_id !== undefined) next.project_id = patch.project_id;
-  if (patch.notes !== undefined) next.notes = patch.notes as unknown as Json;
+  if (patch.notes !== undefined) {
+    assertNoBinary(patch.notes); // FR-MTG-022: no embedded binary in the persisted document
+    next.notes = patch.notes as unknown as Json;
+  }
   const { data, error } = await supabase.from('meetings').update(next).eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Meeting not found or you do not have permission to edit it.');

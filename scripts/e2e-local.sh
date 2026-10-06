@@ -45,9 +45,9 @@ if ! node -p 'const [a,b]=process.versions.node.split(".").map(Number); a>22||(a
   echo "[e2e-local] Run 'nvm install 22' — continuing, but failures here may be toolchain, not the app." >&2
 fi
 
-# Re-exec the whole body under the DB lock (serializes shared-stack access). The sentinel prevents
-# infinite recursion once we are already inside the lock.
-if [ "${_E2E_LOCAL_LOCKED:-}" != "1" ]; then
+# Re-exec the whole body under the DB lock only when no caller already holds it. The wrapper
+# exports PMO_DB_LOCK_HELD=1 for this case; _E2E_LOCAL_LOCKED prevents recursion after re-exec.
+if [ "${_E2E_LOCAL_LOCKED:-}" != "1" ] && [ -z "${PMO_DB_LOCK_HELD:-}" ]; then
   export _E2E_LOCAL_LOCKED=1
   [ "$reset" -eq 1 ] && set -- --reset "$@"
   exec "$REPO/scripts/with-db-lock.sh" "$0" "$@"

@@ -60,6 +60,8 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
+  { to: '/expenses', text: 'Expenses', icon: 'dollar', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
   // Engineer approval stays OFF (OD-W2-2 decision) — an IC landing on /approvals sees only
   // "sheets from your reports" which is misleading. Finance is now included: Finance approves
@@ -179,6 +181,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/sales': t('shell.nav.sales', 'Sales Pipeline'),
     '/procurement': t('shell.nav.procurement', 'Procurement'),
     '/timesheets': t('shell.nav.timesheets', 'Timesheets'),
+    '/expenses': t('shell.nav.expenses', 'Expenses'),
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
     '/contacts': t('shell.nav.contacts', 'Contacts'),

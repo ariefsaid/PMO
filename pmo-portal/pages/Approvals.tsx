@@ -18,6 +18,7 @@ import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
 import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
+import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -752,6 +753,7 @@ const ApprovalsPage: React.FC = () => {
       {canApproveTimesheets && <PushAttentionSection />}
       {canApproveTimesheets && <EmployeeLinkConfirmSection />}
       {canApproveTimesheets && <ReopenableApprovedSection />}
+      {canApproveProcurement && <ExpenseClaimApprovalSection />}
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">

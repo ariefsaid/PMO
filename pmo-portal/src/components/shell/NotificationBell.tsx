@@ -25,10 +25,11 @@ import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import {
-  listNotifications,
+  listNotificationsPage,
   listUnreadCount,
   markNotificationRead,
-  type NotificationRow,
+  type NotificationCursor,
+  type NotificationListItem as NotificationRow,
 } from '@/src/lib/db/notifications';
 import { formatRelativeTime } from '@/src/lib/format';
 
@@ -54,6 +55,7 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   company: '/companies',
   contact: '/contacts',
   opportunity: '/sales',
+  expense_claim: '/expenses',
 };
 
 /** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
@@ -92,7 +94,7 @@ type InboxState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; rows: NotificationRow[] };
+  | { status: 'ready'; rows: NotificationRow[]; nextCursor: NotificationCursor | null };
 
 export const NotificationBell: React.FC = () => {
   const { t } = useTranslation();
@@ -101,6 +103,10 @@ export const NotificationBell: React.FC = () => {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const [inbox, setInbox] = useState<InboxState>({ status: 'idle' });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  // Bumped by every inbox (re)load; a Load more response from an earlier generation is stale.
+  const generation = useRef(0);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const refreshUnreadCount = useCallback(() => {
@@ -123,14 +129,44 @@ export const NotificationBell: React.FC = () => {
   }, [refreshUnreadCount]);
 
   const loadInbox = useCallback(() => {
+    generation.current += 1;
+    setLoadingMore(false);
+    setLoadMoreError(false);
     setInbox({ status: 'loading' });
-    listNotifications()
-      .then((rows) => {
-        setInbox({ status: 'ready', rows });
+    listNotificationsPage()
+      .then(({ rows, nextCursor }) => {
+        setInbox({ status: 'ready', rows, nextCursor });
         refreshUnreadCount();
       })
       .catch(() => setInbox({ status: 'error' }));
   }, [refreshUnreadCount]);
+
+  // Keyset "Load more" (#843): append the next page; a failure keeps the rows already shown.
+  const loadMore = useCallback(() => {
+    if (inbox.status !== 'ready' || !inbox.nextCursor || loadingMore) return;
+    const gen = generation.current;
+    setLoadingMore(true);
+    setLoadMoreError(false);
+    listNotificationsPage({ cursor: inbox.nextCursor })
+      .then(({ rows, nextCursor }) => {
+        if (gen !== generation.current) return;
+        setInbox((prev) =>
+          prev.status === 'ready'
+            ? {
+                status: 'ready',
+                rows: [...prev.rows, ...rows.filter((r) => !prev.rows.some((p) => p.id === r.id))],
+                nextCursor,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        if (gen === generation.current) setLoadMoreError(true);
+      })
+      .finally(() => {
+        if (gen === generation.current) setLoadingMore(false);
+      });
+  }, [inbox, loadingMore]);
 
   useEffect(() => {
     if (open) loadInbox();
@@ -159,7 +195,7 @@ export const NotificationBell: React.FC = () => {
       setInbox((prev) =>
         prev.status === 'ready'
           ? {
-              status: 'ready',
+              ...prev,
               rows: prev.rows.map((r) =>
                 r.id === row.id ? { ...r, read_at: r.read_at ?? new Date().toISOString() } : r,
               ),
@@ -292,6 +328,25 @@ export const NotificationBell: React.FC = () => {
                   </li>
                 );
               })}
+              {inbox.nextCursor && (
+                <li>
+                  <p aria-live="polite" className="px-2.5 py-1 text-[12px] text-muted-foreground">
+                    {loadMoreError &&
+                      t('shell.notifications.loadMoreError', "Couldn't load more. Try again.")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    aria-busy={loadingMore}
+                    className="touch-target w-full rounded-md px-2.5 py-2 text-center text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  >
+                    {loadingMore
+                      ? t('shell.notifications.loadingMore', 'Loading…')
+                      : t('shell.notifications.loadMore', 'Load more')}
+                  </button>
+                </li>
+              )}
             </ul>
           )}
         </div>

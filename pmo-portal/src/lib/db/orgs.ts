@@ -208,3 +208,23 @@ export async function setOrgProjectClassificationOptions(options: ProjectClassif
   if (error) throw new AppError(error.message, error.code);
   assertWriteLanded(data, 'You do not have permission to change classification options.');
 }
+
+/** #766 — the ERPNext item that bills and recovers down payments (its income account is the advance account). */
+export async function getOrgDownPaymentItem(): Promise<string | null> {
+  const { data, error } = await supabase.from('organizations').select('down_payment_item').limit(1);
+  if (error) throw new AppError(error.message, error.code);
+  return data?.[0]?.down_payment_item ?? null;
+}
+
+/** Admin-only (RLS + column grant, 0250 §1); audited server-side. */
+export async function setOrgDownPaymentItem(item: string | null): Promise<void> {
+  const value = item?.trim() || null;
+  if (value && value.length > 140) throw new Error('The down payment item code must be at most 140 characters.');
+  const visible = await supabase.from('organizations').select('id');
+  if (visible.error) throw new AppError(visible.error.message, visible.error.code);
+  if (visible.data?.length !== 1) throw new Error('Exactly one organization must be readable to change its down payment item.');
+  const { data, error } = await supabase.from('organizations').update({ down_payment_item: value })
+    .eq('id', visible.data[0].id).select('id');
+  if (error) throw new AppError(error.message, error.code);
+  assertWriteLanded(data, 'Only an Admin can change the down payment item.');
+}

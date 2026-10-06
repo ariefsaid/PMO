@@ -68,7 +68,7 @@ test(
     // ── Desktop parent breadcrumb return ──────────────────────────────────────────────────────
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^procurement$/i })
+      .getByRole('link', { name: /^procurement$/i })
       .click();
     await expect(page).toHaveURL(/[?&]status=Paid/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=Meridian/);
@@ -115,7 +115,7 @@ test(
     });
     await freshPage
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^procurement$/i })
+      .getByRole('link', { name: /^procurement$/i })
       .click();
     await expect(freshPage).toHaveURL(/\/procurement$/, { timeout: 10_000 });
     await freshPage.close();

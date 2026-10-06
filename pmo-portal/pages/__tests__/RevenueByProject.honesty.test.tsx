@@ -23,7 +23,7 @@ import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 const hoisted = vi.hoisted(() => ({
   revenueState: {
     data: undefined as
-      | Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
+      | Array<{ project_id: string | null; project_name: string | null; currency: string; total_amount: number; open_ar: number; invoice_count: number }>
       | undefined,
     isPending: false,
     isError: false,
@@ -124,8 +124,8 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
   it('reports the real totals once the data has actually loaded', () => {
     revenueState.data = [
-      { project_id: 'p1', project_name: 'Alpha', total_amount: 4_000_000, open_ar: 250_000, invoice_count: 12 },
-      { project_id: null, project_name: null, total_amount: 200_000, open_ar: 0, invoice_count: 3 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 4_000_000, open_ar: 250_000, invoice_count: 12 },
+      { project_id: null, project_name: null, currency: 'USD', total_amount: 200_000, open_ar: 0, invoice_count: 3 },
     ];
 
     renderPage();
@@ -161,7 +161,7 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
   it('AC-802-001: does not render USD labels while the non-USD organization currency is unresolved', () => {
     revenueState.data = [
-      { project_id: 'p1', project_name: 'Alpha', total_amount: 4_000, open_ar: 2_500, invoice_count: 2 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 4_000, open_ar: 2_500, invoice_count: 2 },
     ];
     orgCurrencyState.currency = 'USD'; // useOrgCurrency's pending placeholder
     orgCurrencyState.isResolved = false;
@@ -174,7 +174,7 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
   it('AC-802-001: formats resolved organization totals with the org currency', () => {
     revenueState.data = [
-      { project_id: 'p1', project_name: 'Alpha', total_amount: 4_000, open_ar: 2_500, invoice_count: 2 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'IDR', total_amount: 4_000, open_ar: 2_500, invoice_count: 2 },
     ];
     orgCurrencyState.currency = 'IDR';
 
@@ -186,7 +186,7 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
   it('AC-L10N-B03 formats finance totals with the id-ID number locale', async () => {
     revenueState.data = [
-      { project_id: 'p1', project_name: 'Alpha', total_amount: 1_234_567, open_ar: 12_345, invoice_count: 2 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'IDR', total_amount: 1_234_567, open_ar: 12_345, invoice_count: 2 },
     ];
     orgCurrencyState.currency = 'IDR';
     await testI18n.changeLanguage('id');
@@ -201,8 +201,8 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
   it('AC-L10N-B03 uses localized singular and plural invoice counts in both catalogues', async () => {
     revenueState.data = [
-      { project_id: 'p1', project_name: 'Alpha', total_amount: 1_000, open_ar: 0, invoice_count: 1 },
-      { project_id: 'p2', project_name: 'Beta', total_amount: 2_000, open_ar: 0, invoice_count: 2 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 1_000, open_ar: 0, invoice_count: 1 },
+      { project_id: 'p2', project_name: 'Beta', currency: 'USD', total_amount: 2_000, open_ar: 0, invoice_count: 2 },
     ];
 
     const { unmount } = renderPage();
@@ -214,5 +214,30 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     renderPage();
     expect(screen.getByText('1 faktur')).toBeInTheDocument();
     expect(screen.getByText('2 faktur')).toBeInTheDocument();
+  });
+
+  it('AC-831-2: a project billed in two currencies shows two rows, each labelled with its own currency', () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 1_000, open_ar: 0, invoice_count: 1 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'IDR', total_amount: 2_000_000, open_ar: 0, invoice_count: 1 },
+    ];
+
+    renderPage();
+
+    expect(screen.getAllByText('$1,000.00').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/IDR[\s\u00a0]?2,000,000/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-831-3: the org-wide total never adds two currencies into one number', () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 1_000, open_ar: 0, invoice_count: 1 },
+      { project_id: 'p2', project_name: 'Beta', currency: 'IDR', total_amount: 2_000_000, open_ar: 0, invoice_count: 1 },
+    ];
+
+    renderPage();
+
+    // One tile value carrying both per-currency totals; no 2,001,000 blend anywhere.
+    expect(screen.getByText(/\$1,000 · IDR[\s\u00a0]?2,000,000/)).toBeInTheDocument();
+    expect(screen.queryByText(/2,001,000/)).not.toBeInTheDocument();
   });
 });

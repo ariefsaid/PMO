@@ -18,6 +18,7 @@ import type { ErrorEventRow, SendLogEntry } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 // M4 (perf, 2026-07-28 review): caps the unnotified-rows query so one error storm cannot load the
 // whole error_events table into the worker every 2-minute tick. Served by error_events_unnotified_idx
@@ -25,7 +26,7 @@ import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 // still drains in FIFO order rather than starving old, still-unnotified rows.
 const UNNOTIFIED_BATCH_LIMIT = 500;
 
-serveWithErrorReporting('telegram-notify', async (req: Request): Promise<Response> => {
+export async function handleTelegramNotifyRequest(req: Request): Promise<Response> {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const dispatchSecret = Deno.env.get('TELEGRAM_NOTIFY_SECRET') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';
@@ -73,38 +74,58 @@ serveWithErrorReporting('telegram-notify', async (req: Request): Promise<Respons
           .limit(UNNOTIFIED_BATCH_LIMIT);
         return (data ?? []) as ErrorEventRow[];
       },
-      selectLastSentByCode: async () => {
+      selectLastSentByKey: async (errorCodes) => {
+        if (errorCodes.length === 0) return [];
         const { data } = await serviceClient
           .from('alert_send_log')
-          .select('error_code, last_sent_at, delivered_at');
-        const out: Record<string, SendLogEntry> = {};
-        for (const r of (data ?? []) as { error_code: string; last_sent_at: string; delivered_at: string | null }[]) {
-          out[r.error_code] = { lastSentAt: r.last_sent_at, deliveredAt: r.delivered_at };
-        }
-        return out;
+          .select('org_id, error_code, last_sent_at, delivered_at')
+          .in('error_code', errorCodes);
+        return ((data ?? []) as {
+          org_id: string | null;
+          error_code: string;
+          last_sent_at: string;
+          delivered_at: string | null;
+        }[]).map((r): SendLogEntry => ({
+          orgId: r.org_id,
+          errorCode: r.error_code,
+          lastSentAt: r.last_sent_at,
+          deliveredAt: r.delivered_at,
+        }));
       },
       // Wrapped in an explicit async function (not a bare arrow returning the builder): the
       // supabase-js query builder is PromiseLike, not a real Promise (missing catch/finally/
       // Symbol.toStringTag), which deno check correctly rejects against DrainDeps's
       // Promise<{ error }> signature.
-      recordSendAhead: async (errorCode, atIso) =>
+      recordSendAhead: async (orgId, errorCode, atIso) =>
         await serviceClient.from('alert_send_log').upsert(
-          { error_code: errorCode, last_sent_at: atIso, delivered_at: null },
-          { onConflict: 'error_code' },
+          { org_id: orgId, error_code: errorCode, last_sent_at: atIso, delivered_at: null },
+          { onConflict: 'org_id,error_code' },
         ),
       // C1: written ONLY after sendTelegram resolves ok — never before, never on a failed send.
-      markDelivered: async (errorCode, atIso) =>
-        await serviceClient.from('alert_send_log').update({ delivered_at: atIso }).eq('error_code', errorCode),
-      sendTelegram: async (payload) => {
-        const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, chat_id: chatId }),
-        });
-        return { ok: res.ok };
+      markDelivered: async (orgId, errorCode, atIso) => {
+        let query = serviceClient.from('alert_send_log').update({ delivered_at: atIso }).eq('error_code', errorCode);
+        query = orgId === null ? query.is('org_id', null) : query.eq('org_id', orgId);
+        return await query;
       },
-      stampNotified: async (ids, atIso) =>
-        await serviceClient.from('error_events').update({ notified_at: atIso }).in('id', ids),
+      sendTelegram: async (payload) => {
+        // A hung Telegram API resolves to a failed send (ok:false) — the write-ahead row stays undelivered
+        // and the next drain retries — instead of stalling the drain until the platform kills it.
+        try {
+          const res = await fetchBounded(undefined, `https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, chat_id: chatId }),
+          });
+          return { ok: res.ok };
+        } catch {
+          return { ok: false };
+        }
+      },
+      stampNotified: async (orgId, ids, atIso) => {
+        let query = serviceClient.from('error_events').update({ notified_at: atIso }).in('id', ids);
+        query = orgId === null ? query.is('org_id', null) : query.eq('org_id', orgId);
+        return await query;
+      },
       readHeartbeat: async (job) => {
         const { data } = await serviceClient
           .from('ops_job_heartbeats')
@@ -143,5 +164,13 @@ serveWithErrorReporting('telegram-notify', async (req: Request): Promise<Respons
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
+  } finally {
+    // This request-scoped service client has no user session to refresh. Stop its auth timer so
+    // repeated edge invocations do not retain per-request intervals in the long-lived isolate.
+    await serviceClient.auth.stopAutoRefresh();
   }
-});
+}
+
+if (import.meta.main) {
+  serveWithErrorReporting('telegram-notify', handleTelegramNotifyRequest);
+}

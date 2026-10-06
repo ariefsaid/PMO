@@ -28,6 +28,11 @@
 > - **`DD-MTG-8` — `/action` opens the task-create modal prefilled and editable** (an informed
 >   publication into the org-visible task system), never a silent copy of the line.
 >
+> - **`DD-MTG-10` (2026-10-06, #805) — the BlockNote editor and the atomic `actionItem` block are BACK IN.**
+>   FR-MTG-003/004/006/017..020/022..027 and AC-MTG-001..009/021..026 apply again (FR-MTG-021 template
+>   copy-on-create stays deferred). Owning tests: `supabase/tests/0254_meeting_blocknote.test.sql`,
+>   `src/components/meetings/*.test.*`, `src/lib/meetingNotes.test.ts`, `e2e/AC-MTG-022-minutes-editor-surface.spec.ts`.
+>
 > **Where the shipped oracles live (the greppable map — the build's test ids are `AC-MTG-1xx`, this
 > spec's are `AC-MTG-0xx`; this table is the join):** access model + persistence + /action seam →
 > `supabase/tests/0205_meeting_access.test.sql` (`AC-MTG-101..129`: attendance reads 106..110,
@@ -600,3 +605,24 @@ If yes, §8.5 applies from day one and `/action` — the module's single structu
 a task. That is not a defect to fix in this spec; it is a different feature (create in ClickUp through
 the adapter, then reference it), and it must be known before the module is sized. *Answer with: at
 go-live, does RIS keep its tasks in ClickUp, in PMO, or in neither?*
+
+## 10. Amendment (#864, 2026-10-06) — warn before leaving with unsaved minutes
+
+Ruling: `DD-MTG-11`. The app mounts under `<BrowserRouter>`, where react-router's `useBlocker` is unavailable,
+so the guard is scoped to what can be intercepted without a data-router migration.
+
+- **FR-MTG-040** — *While* the minutes have unsaved edits, *when* the user activates a same-origin in-app link
+  (breadcrumb, rail, any `<a href>` inside the app shell) *or* reloads/closes the tab, the system shall ask for
+  confirmation before leaving. Saved or pristine minutes navigate without a prompt. Browser Back/Forward is not
+  intercepted (known boundary; revisit with a data router).
+
+- **AC-MTG-300** — *Given* a meeting whose minutes have unsaved edits, *when* the user clicks the Meetings
+  breadcrumb, *then* a confirm dialog appears; *when* they choose Stay, *then* they remain on the meeting with
+  their edits intact; *when* they choose Leave, *then* they reach the Meetings list.
+- **AC-MTG-301** — *Given* a meeting whose minutes are saved or untouched, *when* the user clicks the Meetings
+  breadcrumb, *then* they reach the Meetings list with no dialog.
+- **AC-MTG-302** — *Given* unsaved minutes, *then* a `beforeunload` handler is registered (the browser's own
+  leave prompt); *given* saved minutes, *then* none is.
+
+Owning layers: AC-MTG-300 e2e (curated journey); AC-MTG-301 and AC-MTG-302 unit (RTL). The confirm uses the
+shared `ConfirmDialog`; en + id copy.

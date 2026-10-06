@@ -1,4 +1,4 @@
-import { applyErpContact } from '../_shared/erpnextContacts.ts';
+import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
 /**
  * erpnext-sweep — Deno Edge Function entry point (task 8.6, AC-ENA-045/071, ADR-0055 §3 + ADR-0058 §Consequences).
  *
@@ -730,7 +730,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
           ...feedDeps,
           ...watermarkDeps,
           applyChange: (ctx, externalRecordId, canonical, sourceModMs, d) =>
-            kind === 'contact' ? applyErpContact(serviceClient, org.orgId, externalRecordId, canonical, sourceModMs) : applyErpFeedEvent(ctx, externalRecordId, canonical, sourceModMs, d as Parameters<typeof applyErpFeedEvent>[4]),
+            kind === 'contact' ? applyErpContactFeed(serviceClient, org.orgId, externalRecordId, canonical, sourceModMs) : applyErpFeedEvent(ctx, externalRecordId, canonical, sourceModMs, d as Parameters<typeof applyErpFeedEvent>[4]),
           // HIGH-A: a document PMO must NEVER adopt (a Desk-created Budget/Timesheet, or a procurement
           // doc whose PMO case link only the dispatch path can make) throws BY DESIGN. That is a
           // terminal, already-surfaced outcome for that ONE document — ack it and keep going, so the
@@ -1807,6 +1807,8 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     apiSecret,
     rateLimiter: { acquire: async () => {} },
     doctypeBodies: DOCTYPE_BODIES,
+    // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
+    replay: true,
   });
 
   const anchorField = entry.anchorField;

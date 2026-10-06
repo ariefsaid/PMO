@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
  * #765 — facts for the monthly management pack (ADR-0076). One SECURITY INVOKER RPC: RLS scopes the org,
@@ -28,13 +29,17 @@ export interface PackFactsProject {
   client_name: string | null;
 }
 
-export interface PackFactsInvoiced {
-  project_id: string | null;
-  currency: string;
+/**
+ * Derived from the view the RPC reads (0250 §8), so a change to it reaches the typechecker. A view's columns
+ * are all nullable to the generated types; the RPC drops rows with a null `net` (0251) and groups on the
+ * invoice currency, so those two are narrowed here and `month`/`invoice_count` are the RPC's own aggregates.
+ */
+export type PackFactsInvoiced = Pick<Tables<'sales_invoice_work_billed'>, 'project_id'> & {
+  currency: NonNullable<Tables<'sales_invoice_work_billed'>['currency']>;
   month: string;
-  net: number;
+  net: NonNullable<Tables<'sales_invoice_work_billed'>['net']>;
   invoice_count: number;
-}
+};
 
 export interface PackFactsInvoicedBefore {
   project_id: string | null;

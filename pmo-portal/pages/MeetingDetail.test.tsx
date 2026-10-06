@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { Breadcrumb } from '@/src/components/shell/Breadcrumb';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const { meetingState, attendeesState, grantsState, actionItemsState, mutations, routeTaskWriteMock } =
@@ -81,6 +82,61 @@ vi.mock('@/src/lib/repositories', () => ({
   },
 }));
 
+
+// #805: the real BlockNote editor is a lazy chunk exercised by its own tests + e2e. Here a stub honours
+// the same contract (onReady baseline, onChange, /action request, imperative insertActionItem) so
+// the page's save / modal / gate wiring is what is under test.
+const { insertActionItem } = vi.hoisted(() => ({ insertActionItem: vi.fn() }));
+vi.mock('@/src/components/meetings/MinutesEditor', async () => {
+  const React = await import('react');
+  type Block = { content?: Array<{ text?: string }>; children: unknown[]; type: string };
+  const Stub = React.forwardRef<
+    { insertActionItem: (id: string) => void },
+    {
+      initialBlocks: Block[];
+      editable: boolean;
+      tasksExternal: boolean;
+      onReady: (b: Block[]) => void;
+      onChange: (b: Block[]) => void;
+      onRequestAction: (line: string) => void;
+    }
+  >(function Stub({ initialBlocks, editable, tasksExternal, onReady, onChange, onRequestAction }, ref) {
+    React.useImperativeHandle(ref, () => ({ insertActionItem }), []);
+    React.useEffect(() => onReady(initialBlocks), []); // eslint-disable-line react-hooks/exhaustive-deps
+    return (
+      <div data-testid="stub-editor" data-editable={String(editable)} data-tasks-external={String(tasksExternal)}>
+        {initialBlocks.map((b, i) => (
+          <p key={i}>{(b.content ?? []).map((r) => r.text).join('')}</p>
+        ))}
+        {editable && (
+          <button
+            type="button"
+            data-testid="stub-type"
+            onClick={() =>
+              onChange([
+                ...initialBlocks,
+                { type: 'paragraph', content: [{ text: 'by Friday' }], children: [] },
+              ])
+            }
+          >
+            type
+          </button>
+        )}
+        {editable && !tasksExternal && (
+          <button
+            type="button"
+            data-testid="stub-action"
+            onClick={() => onRequestAction('Order the flange samples')}
+          >
+            /action
+          </button>
+        )}
+      </div>
+    );
+  });
+  return { default: Stub };
+});
+
 import MeetingDetail from './MeetingDetail';
 
 const baseMeeting = {
@@ -141,6 +197,35 @@ const renderRouted = (initialEntry: string | { pathname: string; state?: unknown
   );
 };
 
+const MeetingDetailWithBreadcrumb: React.FC = () => {
+  const navigate = useNavigate();
+  return (
+    <>
+      <Breadcrumb
+        parts={[
+          { label: 'Meetings', href: '/meetings', onClick: () => navigate('/meetings') },
+          { label: 'Kickoff with Acme' },
+        ]}
+      />
+      <MeetingDetail />
+    </>
+  );
+};
+
+const renderRoutedWithBreadcrumb = (role: Role = 'Engineer') => {
+  realRole = role;
+  return render(
+    <ToastProvider>
+      <MemoryRouter initialEntries={['/meetings/m1']}>
+        <Routes>
+          <Route path="/meetings/:meetingId" element={<MeetingDetailWithBreadcrumb />} />
+          <Route path="/meetings" element={<MeetingsIndexProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
+  );
+};
+
 beforeEach(() => {
   meetingState.data = { ...baseMeeting };
   meetingState.isPending = false;
@@ -159,26 +244,161 @@ beforeEach(() => {
   realRole = 'Engineer';
 });
 
-describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes their own meeting)', () => {
-  it('the AUTHOR sees the minutes editor with their lines and a Save affordance', () => {
+describe('MeetingDetail — unsaved minutes navigation guard', () => {
+  it('AC-MTG-301: pristine minutes breadcrumb reaches Meetings without a dialog', async () => {
+    renderRoutedWithBreadcrumb();
+    expect(await screen.findByTestId('stub-editor', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByTestId('minutes-save')).toBeDisabled();
+
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent('Meetings index');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('AC-MTG-302: beforeunload is armed only while Save minutes is enabled', async () => {
     renderPage('Engineer');
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+
+    const pristineEvent = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(pristineEvent);
+    expect(pristineEvent.defaultPrevented).toBe(false);
+
+    await userEvent.click(screen.getByTestId('stub-type'));
+    expect(screen.getByTestId('minutes-save')).toBeEnabled();
+    const dirtyEvent = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(dirtyEvent);
+    expect(dirtyEvent.defaultPrevented).toBe(true);
+    expect(dirtyEvent.returnValue).toBe(false);
+
+    await userEvent.click(screen.getByTestId('minutes-save'));
+    await waitFor(() => expect(screen.getByTestId('minutes-save')).toBeDisabled());
+    const savedEvent = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(savedEvent);
+    expect(savedEvent.defaultPrevented).toBe(false);
+  });
+
+  it('blocks ordinary same-origin anchor activation while dirty; Stay preserves edits', async () => {
+    renderRoutedWithBreadcrumb();
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('stub-type'));
+
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Unsaved minutes' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
+    expect(screen.getByTestId('minutes-save')).toBeEnabled();
+  });
+
+  it('the mobile Back to Meetings bar goes through the same guard: dialog while dirty; Leave returns to the captured list context', async () => {
+    renderRouted({
+      pathname: '/meetings/m1',
+      state: {
+        pmoListReturn: {
+          list: 'meetings',
+          path: '/meetings?project=33333333-3333-4333-8333-333333333333',
+        },
+      },
+    });
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('stub-type'));
+
+    await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+    expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent(
+      'Meetings index?project=33333333-3333-4333-8333-333333333333',
+    );
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('Leave from a breadcrumb runs the crumb\'s own navigation (router state intact)', async () => {
+    const CrumbWithState: React.FC = () => {
+      const navigate = useNavigate();
+      return (
+        <>
+          <Breadcrumb
+            parts={[
+              {
+                label: 'Meetings',
+                href: '/meetings?project=p1',
+                onClick: () => navigate('/meetings?project=p1', { state: { restoreScroll: 120 } }),
+              },
+              { label: 'Kickoff with Acme' },
+            ]}
+          />
+          <MeetingDetail />
+        </>
+      );
+    };
+    const StateProbe: React.FC = () => {
+      const location = useLocation();
+      return <div data-testid="state-probe">{`${location.search}|${JSON.stringify(location.state)}`}</div>;
+    };
+    realRole = 'Engineer';
+    render(
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/meetings/m1']}>
+          <Routes>
+            <Route path="/meetings/:meetingId" element={<CrumbWithState />} />
+            <Route path="/meetings" element={<StateProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('stub-type'));
+
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+
+    expect(await screen.findByTestId('state-probe')).toHaveTextContent('?project=p1|{"restoreScroll":120}');
+  });
+
+  it('navigates to the captured local destination after Leave without saving minutes', async () => {
+    renderRoutedWithBreadcrumb();
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('stub-type'));
+
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+
+    expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent('Meetings index');
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes their own meeting)', () => {
+  it('the AUTHOR sees the editable minutes editor — v1 lines upgraded to blocks — and a Save affordance', async () => {
+    renderPage('Engineer');
+    expect(await screen.findByTestId('stub-editor')).toHaveAttribute('data-editable', 'true');
     expect(screen.getByTestId('minutes-editor')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Discussed the pipeline schedule')).toBeInTheDocument();
+    // AC-MTG-201: the v1 lines reach the editor as paragraphs with the same text — no data loss.
+    expect(screen.getByText('Discussed the pipeline schedule')).toBeInTheDocument();
+    expect(screen.getByText('Order the flange samples')).toBeInTheDocument();
     expect(screen.getByTestId('minutes-save')).toBeInTheDocument();
   });
 
-  it('Save persists the edited block array through the repository (never notes_text)', async () => {
+  it('Save is disabled until the document changes, then persists the BlockNote document through the repository', async () => {
     renderPage('Engineer');
-    const line = screen.getByDisplayValue('Order the flange samples');
-    await userEvent.type(line, ' by Friday');
+    await screen.findByTestId('stub-editor');
+    expect(screen.getByTestId('minutes-save')).toBeDisabled();
+    await userEvent.click(screen.getByTestId('stub-type'));
     await userEvent.click(screen.getByTestId('minutes-save'));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
     const call = mutations.update.mutateAsync.mock.calls[0][0];
     expect(call.id).toBe('m1');
-    expect(call.patch.notes).toEqual([
-      { type: 'p', text: 'Discussed the pipeline schedule' },
-      { type: 'p', text: 'Order the flange samples by Friday' },
-    ]);
+    // v2: the saved array is the editor's blocks (upgraded v1 + the new one) — never notes_text.
+    expect(call.patch.notes).toHaveLength(3);
+    expect(call.patch.notes[0]).toMatchObject({ type: 'paragraph', content: [{ text: 'Discussed the pipeline schedule' }] });
+    expect(call.patch.notes[2]).toMatchObject({ type: 'paragraph', content: [{ text: 'by Friday' }] });
+    expect(call.patch).not.toHaveProperty('notes_text');
   });
 
   // DD-MTG-8: /action is an INFORMED authoring act — the modal, never a silent copy. The task
@@ -186,17 +406,19 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
   // author must consciously publish exactly the text they choose.
   it('/action opens the task-create modal PREFILLED from the line — no task exists yet (DD-MTG-8)', async () => {
     renderPage('Engineer');
-    await userEvent.click(screen.getByTestId('minute-action-1'));
+    await userEvent.click(await screen.findByTestId('stub-action'));
     const dialog = await screen.findByRole('dialog', { name: /New action item/ });
     expect(within(dialog).getByLabelText(/Task name/)).toHaveValue('Order the flange samples');
     expect(within(dialog).getByTestId('action-modal-project')).toHaveTextContent('Harbour Upgrade');
     // The privacy point: NOTHING was created by merely opening the modal.
     expect(mutations.createActionItem.mutateAsync).not.toHaveBeenCalled();
+    expect(insertActionItem).not.toHaveBeenCalled();
   });
 
-  it('submitting the modal creates the task with the text the author EDITED, meeting linkage set', async () => {
+  it('submitting the modal creates the task with the text the author EDITED and inserts a block referencing ONLY its id (DD-MTG-2)', async () => {
+    mutations.createActionItem.mutateAsync.mockResolvedValue({ id: 'task-new' });
     renderPage('Engineer');
-    await userEvent.click(screen.getByTestId('minute-action-1'));
+    await userEvent.click(await screen.findByTestId('stub-action'));
     const dialog = await screen.findByRole('dialog', { name: /New action item/ });
     const name = within(dialog).getByLabelText(/Task name/);
     await userEvent.clear(name);
@@ -209,11 +431,13 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
         name: 'Chase the flange samples (redacted client)',
       }),
     );
+    await waitFor(() => expect(insertActionItem).toHaveBeenCalledWith('task-new'));
   });
 
   it('an emptied name falls back to the FR-MTG-017 placeholder on save', async () => {
+    mutations.createActionItem.mutateAsync.mockResolvedValue({ id: 'task-new' });
     renderPage('Engineer');
-    await userEvent.click(screen.getByTestId('minute-action-0'));
+    await userEvent.click(await screen.findByTestId('stub-action'));
     const dialog = await screen.findByRole('dialog', { name: /New action item/ });
     await userEvent.clear(within(dialog).getByLabelText(/Task name/));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create task' }));
@@ -223,23 +447,34 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
       ),
     );
   });
+
+  it('a v2 note (notes_schema_version 2) reaches the editor untouched, not re-upgraded', async () => {
+    const v2 = [
+      { id: 'a', type: 'heading', props: { level: 1 }, content: [{ type: 'text', text: 'Agenda', styles: {} }], children: [] },
+    ];
+    meetingState.data = { ...baseMeeting, notes: v2, notes_schema_version: 2 };
+    renderPage('Engineer');
+    expect(await screen.findByText('Agenda')).toBeInTheDocument();
+  });
 });
 
 describe('MeetingDetail — non-author read-only (grants are VIEW-ONLY, OD-MTG-2)', () => {
-  it('a non-author viewer gets read-only minutes: no editor, no Save, no Edit header action', () => {
+  it('a non-author viewer gets read-only minutes: a non-editable editor, no Save, no Edit header action', async () => {
     currentUserId = 'peer-1';
     renderPage('Project Manager');
+    expect((await screen.findByTestId('stub-editor'))).toHaveAttribute('data-editable', 'false');
     expect(screen.getByTestId('minutes-readonly')).toBeInTheDocument();
     expect(screen.queryByTestId('minutes-editor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('stub-action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('minutes-save')).not.toBeInTheDocument();
     expect(screen.queryByTestId('meeting-edit')).not.toBeInTheDocument();
     expect(screen.getByText('Discussed the pipeline schedule')).toBeInTheDocument();
   });
 
-  it('Admin (break-glass) gets the editor on a meeting they did not author', () => {
+  it('Admin (break-glass) gets the editor on a meeting they did not author', async () => {
     currentUserId = 'someone-else';
     renderPage('Admin');
-    expect(screen.getByTestId('minutes-editor')).toBeInTheDocument();
+    expect(await screen.findByTestId('minutes-editor')).toBeInTheDocument();
   });
 });
 
@@ -328,11 +563,12 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
     expect(within(list).getByText('Putri Peer')).toBeInTheDocument();
   });
 
-  it('when the tasks domain is externally owned, /action is disabled WITH an explanation', () => {
+  it('when the tasks domain is externally owned, /action is not offered and the page explains why', async () => {
     routeTaskWriteMock.mockReturnValue('external');
     renderPage('Engineer');
+    expect(await screen.findByTestId('stub-editor')).toHaveAttribute('data-tasks-external', 'true');
     expect(screen.getByTestId('minutes-external-gate')).toBeInTheDocument();
-    expect(screen.getByTestId('minute-action-0')).toBeDisabled();
+    expect(screen.queryByTestId('stub-action')).not.toBeInTheDocument();
   });
 });
 

@@ -12,6 +12,8 @@ const h = vi.hoisted(() => {
     update: [] as unknown[],
     eq: [] as unknown[],
     range: [] as unknown[],
+    or: [] as unknown[],
+    limit: [] as unknown[],
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
@@ -24,6 +26,8 @@ const h = vi.hoisted(() => {
   builder.update = chain('update');
   builder.eq = chain('eq');
   builder.range = chain('range');
+  builder.or = chain('or');
+  builder.limit = chain('limit');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
@@ -34,7 +38,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
-import { listNotifications, listUnreadCount, markNotificationRead } from './notifications';
+import { listNotifications, listNotificationsPage, listUnreadCount, markNotificationRead } from './notifications';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -133,5 +137,63 @@ describe('FR-AAN-036 markNotificationRead', () => {
     await expect(markNotificationRead('n1')).rejects.toBeInstanceOf(AppError);
     await expect(markNotificationRead('n1')).rejects.toMatchObject({ code: '42501' });
     expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+});
+
+describe('#843 listNotificationsPage (keyset paging)', () => {
+  const mk = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `n${i}`,
+      created_at: `2026-07-01T00:00:${String(59 - i).padStart(2, '0')}+00:00`,
+    }));
+
+  it('AC-843-001 orders created_at desc then id desc, with an explicit column list and no org/owner', async () => {
+    h.result.value = { data: [], error: null, count: null };
+    await listNotificationsPage();
+    expect(h.calls.from).toEqual(['notifications']);
+    expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
+    const cols = String(h.calls.select[0]);
+    expect(cols).not.toBe('*');
+    expect(cols).not.toContain('*');
+    expect(cols).not.toContain('org_id');
+    expect(cols).not.toContain('owner_id');
+    for (const c of ['id', 'title', 'body', 'severity', 'metadata', 'read_at', 'created_at']) {
+      expect(cols.split(',')).toContain(c);
+    }
+  });
+
+  it('AC-843-002 fetches pageSize+1 and returns a nextCursor only when more rows exist', async () => {
+    h.result.value = { data: mk(4), error: null, count: null };
+    const page = await listNotificationsPage({ pageSize: 3 });
+    expect(h.calls.limit).toContainEqual(4);
+    expect(page.rows).toHaveLength(3);
+    expect(page.nextCursor).toEqual({ createdAt: mk(3)[2].created_at, id: 'n2' });
+
+    h.result.value = { data: mk(3), error: null, count: null };
+    const last = await listNotificationsPage({ pageSize: 3 });
+    expect(last.rows).toHaveLength(3);
+    expect(last.nextCursor).toBeNull();
+  });
+
+  it('AC-843-003 a cursor adds the keyset filter on (created_at, id)', async () => {
+    h.result.value = { data: [], error: null, count: null };
+    await listNotificationsPage({ cursor: { createdAt: '2026-07-01T00:00:10+00:00', id: 'abc' } });
+    expect(h.calls.or).toContainEqual(
+      'created_at.lt.2026-07-01T00:00:10+00:00,and(created_at.eq.2026-07-01T00:00:10+00:00,id.lt.abc)',
+    );
+  });
+
+  it('AC-843-004 unreadOnly filters read_at is null server-side', async () => {
+    h.result.value = { data: [], error: null, count: null };
+    await listNotificationsPage({ unreadOnly: true });
+    expect(h.calls.is).toContainEqual(['read_at', null]);
+    h.calls.is.length = 0;
+    await listNotificationsPage();
+    expect(h.calls.is).toEqual([]);
+  });
+
+  it('throws AppError preserving the PG code on a read error', async () => {
+    h.result.value = { data: null, error: { message: 'denied', code: '42501' }, count: null };
+    await expect(listNotificationsPage()).rejects.toMatchObject({ code: '42501' });
   });
 });

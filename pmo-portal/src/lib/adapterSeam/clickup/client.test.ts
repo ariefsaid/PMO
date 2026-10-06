@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { clickUpRequest, ClickUpHttpError } from './client.ts';
+import { clickUpRequest, ClickUpHttpError, CLICKUP_REQUEST_TIMEOUT_MS } from './client.ts';
 
 describe('AC-CUA-081 clickUpRequest surfaces X-RateLimit-Remaining so callers can throttle early', () => {
   it('invokes onRateLimitInfo with the parsed X-RateLimit-* headers on a successful response', async () => {
@@ -89,5 +89,26 @@ describe('AC-CUA-081 an exhausted 429 retry budget fails cleanly through the Ada
     expect((thrown as ClickUpHttpError).code).toBe('external-unreachable');
     // 1 initial + 3 default retries = 4 calls, then it gives up (bounded, not infinite).
     expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('AC-OUT-841 clickUpRequest is deadline-bounded', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('AC-OUT-841: a hung ClickUp host rejects at the deadline as external-unreachable (never a hang)', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(
+      (_url: unknown, init?: RequestInit) =>
+        new Promise<Response>((_res, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        }),
+    );
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, { method: 'GET', path: '/task/t1' })
+      .then(() => null, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CLICKUP_REQUEST_TIMEOUT_MS);
+    const err = await settled;
+    expect(err).toBeInstanceOf(ClickUpHttpError);
+    expect((err as ClickUpHttpError).code).toBe('external-unreachable');
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // a timeout is not retried as a 429/5xx
   });
 });

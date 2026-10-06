@@ -1,5 +1,5 @@
 import TaxBasisLabel from '@/src/components/ui/TaxBasisLabel';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -93,6 +93,9 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // of the Next-actions card (Advance/Lost) and the page header h1 (Won, where the
   // page becomes the delivery layout). A keyboard/SR user is told what changed.
   const nextActionsHeadRef = useRef<HTMLDivElement>(null);
+  // The post-Won focus defer must not fire after unmount (a torn-down page has no document to focus).
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (focusTimerRef.current) clearTimeout(focusTimerRef.current); }, []);
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -144,6 +147,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       await queryClient.invalidateQueries({ queryKey: ['integrations', 'setup', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['sales-pipeline', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['projects', currentUser?.org_id] });
+      await queryClient.invalidateQueries({ queryKey: ['project', currentUser?.org_id, project.id] });
       await queryClient.invalidateQueries({ queryKey: ['opportunity', currentUser?.org_id, project.id] });
       setShowWonPanel(false);
       setContractRef('');
@@ -161,7 +165,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       // to the Next-actions card heading so a keyboard/SR user is told what changed.
       if (to === 'Won, Pending KoM') {
         // Brief defer so the re-render (delivery header mounting) can complete first.
-        setTimeout(() => {
+        focusTimerRef.current = setTimeout(() => {
           const h1 = document.querySelector<HTMLElement>('h1');
           h1?.focus();
         }, 80);

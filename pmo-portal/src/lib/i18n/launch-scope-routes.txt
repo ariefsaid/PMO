@@ -63,7 +63,7 @@
 #    without anyone remembering to add a line. `MilestonePhaseHeader` is named separately because
 #    it lives elsewhere and is reached only from here.
 /projects/:projectId           pages/project-detail/*.tsx src/components/milestones/MilestonePhaseHeader.tsx
-/projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/*.tsx
+/projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/*.tsx src/components/history/RecordHistory.tsx src/components/history/historyLabels.ts
 # ── Project Budget and projection (#789): every label and state on the budget tab.
 /projects/:projectId/budget    pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/BudgetTab.tsx pages/ProjectBudget.tsx pages/BudgetProjection.tsx
 
@@ -76,6 +76,7 @@
 #    OUTSIDE that directory, and an entry covers only the files it NAMES. The drawdown card is
 #    also mounted on the Overview tab, so its English is on the landing screen too.
 /projects/:projectId/work-orders  pages/project-detail/tabs/WorkOrdersTab.tsx pages/project-detail/ProjectDrawdown.tsx pages/project-detail/WorkOrderFormModal.tsx pages/project-detail/WorkOrderValueModal.tsx
+/projects/:projectId/billing      pages/project-detail/tabs/BillingTab.tsx pages/project-detail/BoqItemFormModal.tsx pages/project-detail/ProgressClaimModal.tsx pages/project-detail/ProgressAssessmentModal.tsx pages/project-detail/ClaimEvidenceModal.tsx
 
 
 # ── Daily IC entry, and the surface with the widest non-manager audience at the client.
@@ -83,7 +84,7 @@
 
 # ── Daily manager action. An untranslated approve/reject is the highest-consequence English
 #    left on screen.
-/approvals                     pages/Approvals.tsx
+/approvals                     pages/Approvals.tsx pages/approvals/ExpenseClaimApprovalSection.tsx
 
 # ── Delivery spend register, worked daily by PM/procurement alongside the project. The record
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would
@@ -108,17 +109,21 @@
 /companies                     pages/Companies.tsx
 # `BackBar` (the mobile "Back to …" return control) is named on each record line it renders on:
 # its sentence is a key, and a shared component is checked only where a line names it.
-/companies/:companyId          pages/CompanyDetail.tsx src/components/shell/BackBar.tsx
+/companies/:companyId          pages/CompanyDetail.tsx src/components/shell/BackBar.tsx src/components/history/HistorySection.tsx
 
 # ── Same directory pairing — a project's people, reached daily from the company record.
 /contacts                      pages/Contacts.tsx
-/contacts/:contactId           pages/ContactDetail.tsx src/components/shell/BackBar.tsx
+/contacts/:contactId           pages/ContactDetail.tsx src/components/shell/BackBar.tsx src/components/history/HistorySection.tsx
 
 # ── Meetings (#526, launch-scope item 3 on map #450): minuted meetings with attendees, action
 #    items and view-only shares. Added by the slice that built the screens (DD-I18N-9's additive
 #    rule — a launch-scope screen shipping without its line silently shrinks this gate).
 /meetings                      pages/Meetings.tsx
 /meetings/:meetingId           pages/MeetingDetail.tsx src/components/shell/BackBar.tsx
+
+# ── Expenses (#775): claims and cash advances — the field team's own money, filed by every role.
+/expenses                      pages/ExpenseClaims.tsx pages/expenses/*.tsx pages/expenses/expenseLabels.ts pages/expenses/useOwnAdvanceOptions.ts
+/expenses/:claimId             pages/ExpenseClaimDetail.tsx pages/expenses/*.tsx pages/expenses/expenseLabels.ts src/components/shell/BackBar.tsx
 
 # ── Personal profile language settings (RIS readiness slice): every signed-in user's choice of
 #    interface-language override (inherit / Bahasa Indonesia / English).

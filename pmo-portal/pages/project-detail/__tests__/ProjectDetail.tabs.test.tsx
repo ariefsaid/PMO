@@ -45,6 +45,11 @@ const projData = [
 
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: projData, isPending: false }),
+  // #840: the detail route reads ONE project by id (any stage), never the whole list.
+  useProject: (id: string) => {
+    const l = (({ data: projData, isPending: false })) as { data?: { id: string }[] | null; isPending?: boolean; isError?: boolean; refetch?: () => void };
+    return { isPending: false, isError: false, refetch: vi.fn(), ...l, data: (l.data ?? []).find((p) => p.id === id) ?? null };
+  },
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
   useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
@@ -67,6 +72,7 @@ vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budge
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
+vi.mock('../tabs/BillingTab', () => ({ default: () => <div data-testid="tab-billing">Billing</div> }));
 vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
 // ProjectSCurve reads useTasks (ADR-0032) and renders inside ProjectDetail → mock it.
 vi.mock('@/src/hooks/useTasks', () => ({
@@ -84,6 +90,7 @@ vi.mock('@/src/hooks/useMilestones', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('../ProjectDetailHeader', () => ({
   default: () => <div>Header</div>,
@@ -95,6 +102,8 @@ vi.mock('../ProjectDetailHeader', () => ({
 }));
 
 import ProjectDetail from '../ProjectDetail';
+
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 
 const renderAt = (path: string) =>
   render(
@@ -134,6 +143,26 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
   it('AC-W2-IA-004: /projects/:id/documents pre-selects the Documents tab', () => {
     renderAt('/projects/p1/documents');
     expect(screen.getByTestId('tab-documents')).toBeInTheDocument();
+  });
+
+  it('AC-PB-008: /projects/:id/billing pre-selects the Billing tab', () => {
+    renderAt('/projects/p1/billing');
+    expect(screen.getByTestId('tab-billing')).toBeInTheDocument();
+  });
+
+  it('AC-PB-008: an Engineer has no Billing tab, even by deep link', () => {
+    render(
+      <ImpersonationProvider realRole="Engineer">
+        <MemoryRouter initialEntries={['/projects/p1/billing']}>
+          <ToastProvider>
+            <Routes>
+              <Route path="/projects/:projectId/:tab?" element={<ProjectDetail />} />
+            </Routes>
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>,
+    );
+    expect(screen.queryByTestId('tab-billing')).toBeNull();
   });
 
   it('AC-W2-IA-004: an unknown tab falls back to Overview (no crash)', () => {

@@ -1,6 +1,6 @@
 // @e2e-isolation: serial — temporarily adds options to the org-wide project setup lists and restores them.
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption, openPipelineCard } from '../helpers';
+import { login, pickComboboxOption } from '../helpers';
 
 test.setTimeout(120_000);
 test('AC-TAG-002 classifications persist through form, detail editing, Projects and Pipeline filters', async ({ page }) => {
@@ -45,8 +45,12 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await page.getByLabel('Filter by award type').selectOption('tender');
     await page.getByLabel('Filter by bidding entity').selectOption('consortium');
     await page.getByLabel('Filter by location').fill('West Java');
-    await expect(page.getByText(deal, { exact: true })).toBeVisible();
-    await openPipelineCard(page, deal);
+    await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe('West Java');
+    const pipelineTable = page.getByRole('table');
+    const dealRow = pipelineTable.getByRole('button', { name: `Open ${deal}`, exact: true });
+    await expect(dealRow).toHaveCount(1);
+    await expect(dealRow).toBeVisible();
+    await dealRow.click();
     // Pre-win records have no rail: the classification list is a named region.
     const rail = page.getByRole('region', { name: 'Classification' });
     for (const value of [serviceLine, sector, 'West Java', 'Tender', 'Consortium']) await expect(rail.getByText(value, { exact: true })).toBeVisible();
@@ -63,6 +67,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await page.getByLabel('Filter by service line').last().selectOption(serviceLine);
     await expect(page.getByText(internal, { exact: true })).toBeVisible();
     await page.getByLabel('Filter by location').last().fill('Bali');
+    await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe('Bali');
     await expect(page.getByText(internal, { exact: true })).toHaveCount(0);
   } finally {
     // Retiring the synthetic options preserves the rows' recorded classifications.

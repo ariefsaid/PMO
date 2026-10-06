@@ -9,7 +9,7 @@
 # flock idiom as with-db-lock.sh, a DIFFERENT lockfile — these two locks are
 # independent and BOTH must be held for the full money-e2e recipe:
 #
-#   scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
+#   scripts/with-erpnext-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- \
 #     npx playwright test e2e/AC-ENA-053-*
 #
 # Cooperative: it only works if ALL agents route ERPNext work through it. The lock
@@ -18,8 +18,8 @@
 # scripts/lib/flock-run.sh.
 #
 # ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
-# This lock sits BETWEEN the db lock (outer) and the test lock (inner). Acquire db
-# first, then this, then test — never the reverse (see scripts/lib/flock-run.sh).
+# This is the OUTERMOST lock — acquire it before DB, then test when also needed
+# (see scripts/lib/flock-run.sh).
 #
 #   PMO_ERPNEXT_LOCK          override the lock path (default ~/.pmo-erpnext.lock)
 #   PMO_ERPNEXT_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)

@@ -34,6 +34,8 @@ import { HELP_CORPUS } from './helpCorpus.ts';
 export interface AgentPromptOptions {
   composeEnabled?: boolean;
   automationsEnabled?: boolean;
+  /** #787: draft_invoice is registered (AGENT_INVOICE_DRAFTS kill switch). */
+  invoiceDraftsEnabled?: boolean;
 }
 
 /**
@@ -53,6 +55,7 @@ export function buildAgentSystemPrompt(
 ): string {
   const composeEnabled = opts.composeEnabled === true;
   const automationsEnabled = opts.automationsEnabled === true;
+  const invoiceDraftsEnabled = opts.invoiceDraftsEnabled === true;
 
   // Build entity descriptions (schema metadata only — no data rows, NFR-AR-SEC-005)
   const entityDescriptions = entities
@@ -79,8 +82,12 @@ export function buildAgentSystemPrompt(
   // plus ask_user — these are registered unconditionally, never behind AUTOMATIONS_ENABLED.
   const toolIndexLines = [
     '- query_entity — read the caller\'s own rows (RLS-scoped) for one whitelisted entity.',
+    '- whats_overdue — ONE call answers "what\'s overdue?": the user\'s overdue tasks across their projects, plus overdue invoices when their role may see invoices. The list is shown to the user for you.',
     '- create_activity — log a CRM activity (call, email, meeting, note) against a company/contact. Write action — goes through the approve/deny chip.',
     '- update_task_status — move a task to To Do / In Progress / Done / Blocked. Write action — goes through the approve/deny chip.',
+    invoiceDraftsEnabled
+      ? '- draft_invoice — prepare a DRAFT sales invoice for a work order or project milestone. Write action — goes through the approve/deny chip; it saves as Draft and is never submitted.'
+      : '',
     '- ask_user — pose a structured clarifying question with tappable option chips.',
     composeEnabled
       ? '- compose_view — build a saved/dashboard/reusable view from a natural-language request.'
@@ -96,6 +103,18 @@ export function buildAgentSystemPrompt(
     .join('\n');
 
   // ── (c) Skills — progressively-disclosed "Use when…" triggers (FR-AXP-011..015) ─
+  const overdueSkill = `
+
+### overdue — Use when the user asks what is overdue, late, past due or behind
+Call \`whats_overdue\` (no arguments). ONE call covers every project the user works on plus overdue invoices — do NOT query \`tasks\` project by project for this. The list is displayed to the user automatically; afterwards add at most one short sentence and do not repeat the list.`;
+
+  const invoiceSkill = invoiceDraftsEnabled
+    ? `
+
+### draft-invoice — Use when the user asks to invoice or bill a work order or a milestone
+Call \`draft_invoice\` with \`workOrder\` (its number like WO-… or its title) OR \`milestone\` (its name, or its number in the project such as "2"), plus \`project\` when known (use the context-hint id when the user is on a project page). Pass \`amount\` only when the user stated it (before tax) and \`itemCode\` only when the user named or picked one. If it returns \`needs\` with \`candidates\`, call \`ask_user\` with those candidates as the options, then call \`draft_invoice\` again with the chosen id; if it asks for an amount, ask the user. The user confirms on the approve/deny chip. NEVER say an invoice is approved or submitted — it is saved as a Draft only after the user confirms, and a different Finance or Admin user submits it.`
+    : '';
+
   const composeSkill = composeEnabled
     ? `
 
@@ -151,12 +170,13 @@ When the request is ambiguous — an underspecified entity, an unresolved "which
 
 ### log-activity-and-task-writes — Use when the user asks to log an activity or change a task's status
 When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call \`create_activity\`. When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call \`update_task_status\`. Both are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.
-CRM activity history (calls/emails/meetings/notes logged against a company, contact, or project) lives in the \`crm_activities\` entity — query THAT to answer "what activity is there on this deal?", "have we followed up?", "any recent contact?". Filter by \`project_id\`, \`company_id\`, or \`contact_id\` to scope it. Do NOT hunt for activities in companies/contacts/tasks/milestones — they do not hold activity logs. To ADD a new activity, use the \`create_activity\` write action.
+CRM activity history (calls/emails/meetings/notes logged against a company, contact, or project) lives in the \`crm_activities\` entity — query THAT to answer "what activity is there on this deal?", "have we followed up?", "any recent contact?". Filter by \`project_id\`, \`company_id\`, or \`contact_id\` to scope it. Do NOT hunt for activities in companies/contacts/tasks/milestones — they do not hold activity logs. To ADD a new activity, use the \`create_activity\` write action.${overdueSkill}${invoiceSkill}
 
 ### map-questions-to-entities — Use when the user's words do not name an entity exactly
 Before refusing that something "isn't available", map the ask to an available entity and query it. FIRST pick the entity whose NAME matches the noun the user asked about — "tasks" → \`tasks\`, "incidents" → \`incidents\`, "milestones" → \`milestones\`, "timesheets" → \`timesheets\`, "companies/vendors" → \`companies\`. ONLY translate a word when it has NO matching entity (e.g. sales words → \`projects\`). NEVER answer a question about one entity by querying a different entity (a "tasks" question must query \`tasks\`, not \`projects\`). Then call query_entity (filter on the REAL status column; do not invent values):
 - "opportunities", "pipeline", "deals", "leads", "prospects" (NO \`opportunities\` entity exists) → query \`projects\` filtered to open/early stages: filter \`status\` in ["Leads","PQ Submitted","Quotation Submitted","Tender Submitted","Negotiation"]. Won / on-hand / active delivery work → \`status\` in ["Won, Pending KoM","Ongoing Project"]. NOTE: "Won, Pending KoM" is ONE status value — a single enum label that happens to contain a comma. Copy status values EXACTLY as written here; never split a value on its internal comma ("Won" and "Pending KoM" alone are invalid values and the query will fail with a 22P02 error).
-- "tasks", "to-dos", "action items", "assignments", "my work", "what's on my plate", "overdue" → query \`tasks\`. Open/outstanding work → filter \`status\` in ["To Do","In Progress","Blocked"]; completed → \`status\` "Done". Do NOT query \`projects\` for a tasks question.
+- "overdue", "late", "past due", "behind", "what's slipping" → call \`whats_overdue\` (one call, no arguments) — never query_entity for this.
+- "tasks", "to-dos", "action items", "assignments", "my work", "what's on my plate" → query \`tasks\`. Open/outstanding work → filter \`status\` in ["To Do","In Progress","Blocked"]; completed → \`status\` "Done". Do NOT query \`projects\` for a tasks question.
 - "how many X", "count of X", "total X" → query the entity named by X (per the noun-match rule above) and report the rowCount (the count); do not estimate or refuse.
 - "milestones", "delivery phases", "percent complete" → query \`milestones\`.
 - "procurement", "spend", "committed", "cases" (the folder/case level) → query \`procurements\`; its line items ("what's on this order") → \`procurement_items\`; its stage history ("where is this in the process") → \`procurement_status_events\`.

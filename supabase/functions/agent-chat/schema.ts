@@ -204,3 +204,25 @@ export const COMPOSE_VIEW_INPUT_SCHEMA = {
     },
   },
 };
+
+/** whats_overdue (#787, ADR-0079 §1) — deliberately NO arguments: one call, nothing for a weak model to get wrong. */
+export const WHATS_OVERDUE_SCHEMA = {
+  type: 'object' as const,
+  required: [] as string[],
+  additionalProperties: false,
+  properties: {},
+};
+
+/** draft_invoice (#787, ADR-0079) — the model's REQUEST; the server resolves it before the chip. */
+export const DRAFT_INVOICE_SCHEMA = {
+  type: 'object' as const,
+  required: [] as string[],
+  additionalProperties: false,
+  properties: {
+    workOrder: { type: 'string' as const, maxLength: 100, description: 'Work order number (e.g. WO-20261001-001) or its title. Give this OR milestone.' },
+    milestone: { type: 'string' as const, maxLength: 100, description: 'Milestone name, or its number within the project (e.g. "2"). Give this OR workOrder.' },
+    project: { type: 'string' as const, maxLength: 200, description: 'Project id, number, code or name. Use the context-hint id when the user is on a project page.' },
+    amount: { type: 'number' as const, exclusiveMinimum: 0, description: 'Amount to invoice BEFORE tax — only if the user stated it. Needed for a milestone.' },
+    itemCode: { type: 'string' as const, maxLength: 140, description: 'ERPNext item code — only if the user named or picked one.' },
+  },
+};

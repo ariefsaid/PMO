@@ -2567,6 +2567,34 @@ comment is invisible to the next spec reader; this entry plus the spec amendment
 
 ---
 
+## DD-MTG-10 — the BlockNote minutes editor and the `actionItem` block are IN (Director, 2026-10-06, #805)
+
+**Reverses the editor half of `DD-MTG-9`.** #526 shipped a line-per-block editor "as scoped by the brief"
+with no ruling behind the cut; the owner filed #805 to build what the spec said. Minutes are taken live,
+and a line editor (no headings, lists, slash menu or paste-from-docs) sends people to take notes elsewhere.
+Built on the `DD-MTG-9` terms — *a fresh design under `DD-MTG-2`*:
+
+- **`meetings.notes` v2 = BlockNote `Block[]` verbatim**; `notes_schema_version` is **derived by the
+  trigger from the document's shape** (2 when the array is empty or any element carries `children`, else 1)
+  — still server-written, never client-set (FR-MTG-005). Migration `0254` also makes `notes_text` collect every
+  text run once from both shapes (`strict $.**.text`, FR-MTG-008).
+- **v1 notes upgrade one-way on load** (`upgradeNotes`): each line becomes a paragraph with the same text; the
+  next Save writes v2. No data migration over live rows.
+- **The `actionItem` block is atomic** (`content:'none'`, `props:{taskId}` only — the spike's `content:'inline'`
+  copy of task state is exactly what `DD-MTG-2` forbids). It renders the live `tasks` row, tombstones when it
+  no longer resolves, and deleting/pasting it never writes. `DD-MTG-8` stands: `/action` opens the prefilled
+  task-create modal and the block is inserted with the created task's id; the item is hidden when tasks are
+  externally owned (§8.5).
+- **Palette without media** (FR-MTG-022): image/video/audio/file blocks are omitted from the schema, and
+  `updateMeeting` refuses any `data:` URI as a backstop.
+- **Still out:** template copy-on-create (FR-MTG-021, deferred with templates), attachments, autosave.
+- **Bundle:** the editor is a lazy chunk (`React.lazy` in `MeetingDetail`); its Tailwind utilities ship in
+  that chunk's CSS rather than `index.css`, so the initial route bundle is unchanged (measured in #805).
+  BlockNote ships no Bahasa dictionary, so `src/components/meetings/minutesDictionary.ts` is the `id` one.
+- **No check list; "Action item" is the first palette entry (Director, 2026-10-06, rendered review of #863):** the check-list block is withheld from the slash menu and the block-type picker — it looks like a to-do but never becomes a task; `/action` on a line that has text REPLACES that line with the block (the modal is prefilled from it), so the minutes never show the same words twice.
+
+---
+
 ## DD-TAX-2 — the contract-value SoD editor keeps its empty treatment, deliberately (Director, 2026-08-25)
 
 **Question raised by #548's build.** `OD-TAX-1` pre-selects on NEW rows and shows the stored value when
@@ -2937,3 +2965,63 @@ line nets it with tax on the reduced base. Two requirements follow: ERP setup mu
 Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
 body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
 Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
+
+**DD-PBL-13 (Director, 2026-10-06, #856) — every sales invoice and claim sends explicit tax rows, gated by the project's VAT flag (OD-TAX-4).**
+One helper (`resolveSalesTaxRows`) serves ordinary invoice creates and claim/down-payment invoices: rate and account come from
+the ERP default template, scaled by the project's reduced-base fraction (0227; 12% on 11/12 = 11% effective). The gate is
+`projects.subject_to_vat` (migration 0253, default on), read server-side in the dispatch: off → no rows and no template read;
+a caller's `taxes` is always dropped. Rows are part of the command, so the outbox payload and digest cover them; sweep
+recovery of an already-sent invoice still re-reads the template (#858). Edits and amends send none.
+
+**OD-TAX-4 (owner, 2026-10-06) — a project says whether it is subject to VAT; every invoice follows it.**
+Owner proposal, Director timing: projects carry a "Subject to VAT (PPN)" flag, default on. It is set where the
+contract value is recorded (at the win) by the same Finance/Admin value-setter, editable by Finance/Admin until the
+project's first invoice exists, then locked (to change it, cancel the invoices first). Every sales invoice and every
+progress/down-payment claim on the project follows it: on → explicit tax rows from the org's sales-tax setup (PPN
+12% on a reduced base of 11/12, i.e. 11% effective; the full 12% rate is not in use); off → no tax rows. Resolves
+the #855 review item M-3 (a VAT-free contract got the template VAT) and governs #856.
+
+**DD-TAX-4a (Director, 2026-10-06, #856, under OD-TAX-4) — a cancelled invoice still locks the project's VAT flag; a VAT-on invoice is never sent untaxed.**
+ERPNext keeps the taxed history of a cancelled invoice, so the flag stays locked once the project has any invoice (cancelled
+included) or a sales-invoice create still in flight in the outbox (otherwise recovery would see a changed payload digest). When
+the flag is on and ERPNext has no enabled default Sales Taxes and Charges template for the company, the dispatch is refused with
+`config-rejected` and the setup action, for ordinary, progress-claim and down-payment invoices alike.
+
+**DD-MTG-11 (Director, 2026-10-06, #864) — the unsaved-minutes guard is scoped; no data-router migration for it.**
+The app mounts under `<BrowserRouter>`, where `useBlocker` throws, so migrating the whole route tree to a data router
+(an ADR-level change) is not justified by one page. While minutes are dirty, `MeetingDetail` registers a
+`beforeunload` handler and a capture-phase click listener on same-origin in-app links that opens the shared
+`ConfirmDialog` (`useUnsavedChangesGuard`; the mobile Back bar goes through the same guard). Browser Back/Forward stays unguarded (known boundary). Exits that are not same-origin anchors — notification bell items, assistant deep links, sign-out — are also unguarded, out of scope for v1. Revisit if the app ever adopts a data router.
+Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
+
+
+**DD-VI-3 (cloud builder, 2026-10-06, #520) — on a flipped org the vendor-invoice author may choose the ERPNext purchase tax template; the default is no choice.**
+The issue left the default and the chooser open; the most conservative reading was taken. Default: "ERPNext default" — nothing
+is sent and ERPNext applies the supplier's or company's own default, exactly the pre-#520 behaviour. Chooser: whoever may record
+the vendor invoice (no new role; the choice is part of authoring the invoice, and submit keeps its own approval). The list is read
+live from ERPNext (`external-items`, purpose `purchase-tax-templates`: enabled templates of the binding's company), not stored on
+the binding, so it cannot go stale. Mechanism mirrors DD-PBL-13: the dispatch re-checks the chosen name server-side (enabled, the
+binding's company, at least one row; otherwise `config-rejected`), sends `taxes_and_charges` with explicit `On Net Total` rows
+read from that template (rate verbatim; no project reduced-base scaling, which is a sales-contract fact), drops any caller `taxes`,
+and writes the rows into the command before the outbox snapshot, so a sweep replay sends the persisted rows with no ERPNext read.
+Edits and amends send none. Only the "Record vendor invoice" form offers the picker; the inline "Mark Vendor Invoiced" capture
+writes through the PMO-only atomic RPC and does not dispatch, so it is not offered there (asking and discarding is #505's defect).
+The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) already sends explicit rows. Plan:
+`docs/plans/2026-10-06-purchase-tax-template.md`.
+- **DD-VI-3a (Director, 2026-10-06, #520 review):** a template with any `Deduct` row or negative rate (withholding, e.g. PPh) is
+  refused before any ERP write (`config-rejected`, "This template withholds tax (e.g. PPh), which PMO cannot record yet — choose a
+  template without withholding."): the vendor-invoice mirror allows a negative tax only on a negative amount (0196), so the ERP
+  document would land and its mirror fail on every sweep replay. Rows are copied with `included_in_print_rate` (and `cost_center`
+  when set) so an inclusive template is not applied on top. Revisit when PMO records withholding.
+
+**DD-ENA-15a (Director, 2026-10-06, #654, under FR-ENA-015's #651 carve-out) — the external-integrations kill switch applies to ERPNext onboarding too.**
+`erpnext-onboard` resolves its credential through the shared `_shared/erpAuthPair.ts` (kill switch → Vault → env pair → refuse; an unreadable store refuses, never falls back), so a disabled integration cannot be onboarded. Behaviour delta from the pre-#651 path: onboarding with the switch off now fails `config-rejected` (422) instead of reading the env pair. A credential miss logs the failure class only (ADR-0072). Tests: AC-ENA-091, AC-ENA-090.
+
+## OD-CHG-1 — record change history open questions accepted at their defaults (owner, 2026-10-06)
+#719: owner said go, accepting Q1 first set only · Q3 no export · Q4 no DELETE capture · Q5 read-side audit merge for audit readers · Q6 indefinite retention · Q7 project History includes child events with kind filters (Q2 already resolved: contact email/phone `flag` only); `record-change-history.spec.md`.
+
+## DD-CHG-1 — accept the shipped in-memory whole-row diff (Director, 2026-10-06, #874)
+Keep the shipped `record_change_capture()` approach: an exact no-op returns before JSON materialization; changed rows build whole-row JSONB in memory, but only classified captured values and flag markers persist. The History-tab issue owns the production-shaped `EXPLAIN (ANALYZE, BUFFERS)` review for own-record and project-with-children reads, including audit-union volume, before D5 ships; reassess scan cost and indexes there. No trigger change is required.
+
+**DD-UI-CSS-1 (Director, 2026-10-07, #864/#805) — a lazily-loaded stylesheet never joins the app's `utilities` layer.**
+The minutes editor's chunk re-emitted BlockNote's Tailwind utilities into `utilities`; loading after `index.css`, its `.hidden` beat the app's `max-[920px]:block` (same layer, same specificity, later wins) and hid the phone Back bar app-wide until reload. `index.css` now fixes the order `theme, base, components, minutes-editor, utilities` before the Tailwind import, and the editor CSS imports into `layer(minutes-editor)`. Any future lazy CSS gets its own layer below `utilities`. Guard: `minutesTailwind.css.test.ts`; journey: AC-LRC-008 waits for the editor before the phone Back click.

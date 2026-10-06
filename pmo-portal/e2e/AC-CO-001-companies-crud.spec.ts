@@ -161,7 +161,7 @@ test(
     //    back affordance (the in-content BackBar is the mobile-only escape). ────────────
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^companies$/i })
+      .getByRole('link', { name: /^companies$/i })
       .click();
     await expect(page).toHaveURL(/\/companies$/, { timeout: 10_000 });
     await waitReady(page);

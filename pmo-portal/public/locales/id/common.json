@@ -183,15 +183,34 @@
         "actions": "Aksi"
       },
       "unmapped": "Belum dipetakan — memblokir setiap pengiriman",
-      "edit": "Edit {{category}}",
       "map": "Petakan {{category}}",
-      "unmap": "Hapus pemetaan {{category}}",
+      "multiNote": "Satu kategori boleh memiliki beberapa akun. Realisasinya dijumlahkan dari semua akun tersebut; anggarannya hanya dikirim ke akun bertanda Pengiriman anggaran.",
+      "noPush": "Tanpa akun pengiriman — memblokir setiap pengiriman",
+      "pushBadge": "Pengiriman anggaran",
+      "addAccount": "Tambah akun ke {{category}}",
+      "editAccount": "Edit {{account}}",
+      "usePush": "Gunakan {{account}} untuk pengiriman anggaran",
+      "removeAccount": "Hapus {{account}}",
+      "removePushHint": "Jadikan akun lain sebagai akun pengiriman untuk menghapus akun ini.",
+      "confirmPush": {
+        "title": "Kirim {{category}} ke {{account}}?",
+        "fallbackTitle": "Ubah akun pengiriman?",
+        "description": "Pengiriman anggaran berikutnya mengirim seluruh total kategori ini ke akun ini. Anggaran yang sudah ada di ERP tetap memakai akun lamanya sampai dikirim ulang.",
+        "confirm": "Gunakan untuk pengiriman"
+      },
+      "confirmRemove": {
+        "title": "Hapus {{account}}?",
+        "description": "Realisasi pada akun ini tidak lagi dihitung untuk kategori ini. Pengiriman anggaran tidak berubah.",
+        "confirm": "Hapus"
+      },
       "error": {
         "title": "Gagal memuat peta akun"
       },
       "toast": {
         "unmapped": "Pemetaan kategori dihapus",
-        "saved": "Peta akun disimpan"
+        "saved": "Peta akun disimpan",
+        "removed": "Akun dihapus",
+        "pushSet": "Akun pengiriman diubah"
       },
       "confirm": {
         "title": "Hapus pemetaan {{category}}?",
@@ -207,7 +226,8 @@
         "legend": "Akun",
         "placeholder": "mis. 5100 - Biaya Langsung",
         "required": "Akun ERP wajib diisi.",
-        "conflict": "{{account}} sudah dipetakan ke {{category}}."
+        "conflict": "{{account}} sudah dipetakan ke {{category}}.",
+        "readOnlySubtitle": "Realisasinya dihitung untuk kategori ini; anggarannya tidak dikirim ke sini"
       }
     },
     "projectNumberPattern": {
@@ -908,13 +928,232 @@
       "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     }
   },
+  "expenses": {
+    "actions": {
+      "approve": "Setujui",
+      "cancel": "Batalkan",
+      "newClaim": "Klaim baru",
+      "pay": "Tandai dibayar",
+      "recordReturn": "Catat pengembalian kas",
+      "reject": "Tolak",
+      "reopen": "Ubah dan ajukan ulang",
+      "requestAdvance": "Ajukan uang muka",
+      "submit": "Ajukan persetujuan"
+    },
+    "aging": {
+      "bucket": {
+        "d31to60": "31–60 hari",
+        "d61to90": "61–90 hari",
+        "over90": "Lebih dari 90 hari",
+        "upTo30": "0–30 hari"
+      },
+      "columns": {
+        "advance": "Uang muka",
+        "age": "Umur (hari)",
+        "claimant": "Pengaju",
+        "outstanding": "Belum diselesaikan",
+        "project": "Proyek"
+      },
+      "errorSub": "Daftar di bawah tidak terpengaruh. Coba lagi.",
+      "errorTitle": "Gagal memuat uang muka yang belum diselesaikan",
+      "title": "Uang muka belum diselesaikan",
+      "truncated": "Menampilkan {{count}} uang muka tertua."
+    },
+    "approvals": {
+      "errorSub": "Permintaan pembelian dan timesheet di bawah tidak terpengaruh.",
+      "errorTitle": "Gagal memuat klaim biaya yang menunggu Anda",
+      "heading": "Klaim biaya menunggu Anda ({{count}})",
+      "label": "Klaim biaya menunggu Anda"
+    },
+    "columns": {
+      "amount": "Jumlah",
+      "category": "Kategori anggaran",
+      "claimant": "Pengaju",
+      "kind": "Jenis",
+      "number": "Nomor",
+      "project": "Proyek",
+      "status": "Status",
+      "title": "Judul"
+    },
+    "confirm": {
+      "approveTitle": "Setujui ini?",
+      "cancelConfirm": "Batalkan",
+      "cancelDescription": "Tetap tercatat sebagai Dibatalkan dan tidak dapat lagi disetujui atau dibayar.",
+      "cancelTitle": "Batalkan ini?",
+      "keep": "Simpan",
+      "notesLabel": "Catatan untuk pengaju (opsional)",
+      "payTitle": "Tandai sebagai dibayar?",
+      "previewApplied": "Uang muka dipakai",
+      "previewCash": "Kas yang dibayar",
+      "referenceLabel": "Referensi pembayaran (opsional)",
+      "rejectTitle": "Tolak ini?",
+      "returnAmountHelper": "Maksimal {{amount}} belum diselesaikan.",
+      "returnAmountLabel": "Jumlah dikembalikan",
+      "returnConfirm": "Catat pengembalian",
+      "returnReferenceLabel": "Referensi (opsional)",
+      "returnTitle": "Catat pengembalian kas"
+    },
+    "description": "Klaim biaya dan uang muka. Anda melihat milik Anda; penyetuju melihat seluruh tim.",
+    "detail": {
+      "advanceApplied": "Uang muka dipakai",
+      "amount": "Jumlah",
+      "back": "Biaya",
+      "cashPaid": "Kas dibayar",
+      "editDetails": "Ubah detail",
+      "errorSub": "Terjadi kesalahan saat memuat. Coba lagi.",
+      "errorTitle": "Gagal memuat catatan ini",
+      "linkedAdvance": "Menyelesaikan uang muka",
+      "notFoundSub": "Tidak ada, atau bukan milik Anda dan Anda tidak menyetujui pengeluaran.",
+      "notFoundTitle": "Tidak ditemukan",
+      "outstanding": "Belum diselesaikan",
+      "reference": "Referensi pembayaran",
+      "rejectionNote": "Ditolak: {{note}}",
+      "summary": "Ringkasan"
+    },
+    "draftNumber": "Draf",
+    "filters": {
+      "allCategories": "Semua kategori",
+      "allKinds": "Klaim dan uang muka",
+      "allStatuses": "Semua status",
+      "category": "Kategori anggaran",
+      "kind": "Jenis",
+      "status": "Status"
+    },
+    "form": {
+      "advance": {
+        "current": "Uang muka yang sudah ditautkan",
+        "label": "Selesaikan dengan uang muka",
+        "none": "Tanpa uang muka"
+      },
+      "advanceSubtitle": "Kas yang Anda ambil sebelum pekerjaan. Klaim yang Anda ajukan sesudahnya menyelesaikannya.",
+      "advanceTitle": "Ajukan uang muka",
+      "amount": {
+        "label": "Jumlah"
+      },
+      "category": {
+        "helper": "Menentukan penyetuju: pengeluaran dalam anggaran proyek untuk kategori ini disetujui oleh penyetuju proyek.",
+        "label": "Kategori anggaran",
+        "none": "Tanpa kategori"
+      },
+      "claimSubtitle": "Tambahkan rincian dan bukti di layar berikutnya.",
+      "claimTitle": "Klaim biaya baru",
+      "editTitle": "Ubah detail",
+      "errors": {
+        "amountPositive": "Masukkan jumlah lebih dari nol.",
+        "titleRequired": "Beri judul singkat."
+      },
+      "project": {
+        "label": "Proyek",
+        "none": "Overhead (tanpa proyek)"
+      },
+      "purpose": {
+        "label": "Keperluan",
+        "placeholder": "Untuk apa uang ini"
+      },
+      "sections": {
+        "details": "Detail"
+      },
+      "submitCreate": "Buat",
+      "submitSave": "Simpan",
+      "title": {
+        "label": "Judul",
+        "placeholder": "mis. Kunjungan lapangan, minggu 41"
+      }
+    },
+    "kind": {
+      "advance": "Uang muka",
+      "claim": "Klaim biaya"
+    },
+    "lines": {
+      "add": "Tambah rincian",
+      "addTitle": "Tambah rincian",
+      "amount": "Jumlah",
+      "columns": {
+        "amount": "Jumlah",
+        "date": "Tanggal",
+        "description": "Keterangan",
+        "type": "Jenis"
+      },
+      "date": "Tanggal",
+      "description": "Keterangan",
+      "edit": "Ubah",
+      "editAria": "Ubah rincian {{description}}",
+      "editTitle": "Ubah rincian",
+      "empty": "Belum ada rincian. Tambahkan satu per bukti.",
+      "error": "Gagal memuat rincian.",
+      "errors": {
+        "amountPositive": "Masukkan jumlah lebih dari nol.",
+        "dateRequired": "Masukkan tanggal pengeluaran.",
+        "descriptionRequired": "Jelaskan pengeluarannya."
+      },
+      "remove": "Hapus",
+      "removeAria": "Hapus rincian {{description}}",
+      "removeTitle": "Hapus rincian ini?",
+      "save": "Simpan rincian",
+      "sectionLegend": "Pengeluaran",
+      "title": "Rincian",
+      "total": "Total",
+      "type": "Jenis"
+    },
+    "overhead": "Overhead",
+    "receipts": {
+      "attach": "Lampirkan bukti",
+      "attachAria": "Pilih berkas bukti",
+      "attached": "Bukti terlampir",
+      "download": "Unduh {{name}}",
+      "empty": "Belum ada bukti terlampir.",
+      "error": "Gagal memuat bukti.",
+      "loading": "Memuat bukti…",
+      "remove": "Hapus {{name}}",
+      "removeConfirm": "Hapus",
+      "removeDescription": "Bukti dihapus dari klaim ini. Anda dapat melampirkannya lagi.",
+      "removeTitle": "Hapus bukti ini?",
+      "removed": "Bukti dihapus",
+      "title": "Bukti",
+      "uploading": "Mengunggah {{percent}}%"
+    },
+    "states": {
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat biaya"
+    },
+    "status": {
+      "approved": "Disetujui",
+      "cancelled": "Dibatalkan",
+      "draft": "Draf",
+      "paid": "Dibayar",
+      "rejected": "Ditolak",
+      "submitted": "Diajukan"
+    },
+    "table": {
+      "emptySub": "Ajukan klaim setelah pekerjaan, atau uang muka sebelumnya.",
+      "emptyTitle": "Belum ada biaya",
+      "rowLabel": "Buka {{title}}"
+    },
+    "title": "Biaya",
+    "toast": {
+      "approved": "Disetujui",
+      "cancelled": "Dibatalkan",
+      "created": "Dibuat",
+      "paid": "Ditandai dibayar",
+      "rejected": "Ditolak",
+      "reopened": "Kembali ke Draf",
+      "returned": "Pengembalian dicatat",
+      "submitted": "Diajukan untuk persetujuan"
+    },
+    "truncated": "Menampilkan {{count}} terbaru. Persempit filter untuk melihat catatan lama.",
+    "type": {
+      "accommodation": "Akomodasi",
+      "localTransport": "Transportasi lokal",
+      "meals": "Makan",
+      "other": "Lainnya",
+      "travel": "Perjalanan"
+    }
+  },
   "funnel": {
     "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
   },
   "meetingDetail": {
     "action": {
-      "button": "Action",
-      "buttonTitle": "Buat tugas dari baris ini (rapat hanya menyimpan referensinya)",
       "externalGate": "Tugas dikelola oleh sistem tugas yang terhubung, jadi action item tidak dapat dibuat dari notulen ini.",
       "modalSection": "Tugas",
       "modalSubmit": "Buat tugas",
@@ -930,7 +1169,7 @@
       "readDeniedHeadline": "Action item tidak dibuat"
     },
     "actionItems": {
-      "empty": "Belum ada action item. Gunakan Action pada baris notulen untuk membuatnya.",
+      "empty": "Belum ada action item. Ketik /action di notulen untuk membuatnya.",
       "error": "Gagal memuat action item rapat ini.",
       "title": "Action item"
     },
@@ -955,7 +1194,13 @@
       "archiveTitle": "Arsipkan rapat ini?",
       "deleteConfirm": "Hapus rapat",
       "deleteDescription": "Tindakan ini menghapus rapat beserta notulennya secara permanen. Rapat yang action item-nya masih ada sebagai tugas tidak dapat dihapus; arsipkan saja.",
-      "deleteTitle": "Hapus rapat ini?"
+      "deleteTitle": "Hapus rapat ini?",
+      "unsavedMinutes": {
+        "description": "Notulen rapat memiliki perubahan yang belum disimpan. Tinggalkan halaman ini dan buang perubahan tersebut?",
+        "leave": "Tinggalkan",
+        "stay": "Tetap di halaman",
+        "title": "Notulen belum disimpan"
+      }
     },
     "delete": "Hapus",
     "edit": "Edit",
@@ -989,13 +1234,18 @@
       }
     },
     "minutes": {
-      "addLine": "Tambah baris",
+      "actionError": "Action item ini tidak dapat dimuat.",
+      "actionLoading": "Memuat action item…",
+      "actionTombstone": "Action item ini sudah tidak tersedia.",
+      "editorLabel": "Notulen rapat",
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
-      "emptyEditor": "Belum ada notulen — tambahkan baris pertama.",
-      "lineLabel": "Baris notulen",
-      "linePlaceholder": "Ketik notulen…",
-      "removeLine": "Hapus baris",
       "save": "Simpan notulen",
+      "slash": {
+        "actionTitle": "Action item",
+        "actionSubtext": "Buat tugas dari baris ini",
+        "actionGroup": "Tindakan",
+        "actionAliases": "action,aksi,tindakan,tugas,todo"
+      },
       "title": "Notulen"
     },
     "notFound": {
@@ -1257,7 +1507,8 @@
       "documents": "Dokumen",
       "lineItems": "Rincian item",
       "overview": "Ringkasan",
-      "vendorQuotes": "Penawaran vendor"
+      "vendorQuotes": "Penawaran vendor",
+      "history": "Riwayat"
     },
     "tabsLabel": "Bagian pengadaan",
     "tile": {
@@ -1286,6 +1537,7 @@
       "note": "Persetujuan permintaan ini diarahkan ke {{names}}: {{why}}",
       "nameJoiner": " atau ",
       "why": {
+        "projectApprover": "mereka adalah penyetuju yang ditetapkan untuk proyek ini.",
         "withinBudget": "permintaan ini masih dalam anggaran {{category}} proyek.",
         "exceedsLine": "permintaan ini akan melampaui batas anggaran {{category}} proyek.",
         "noProject": "ini pengeluaran overhead, tidak dibebankan ke proyek.",
@@ -1302,10 +1554,171 @@
       "label": "Ref. grup",
       "optional": "(opsional)",
       "placeholder": "mis. PRQ-0026100001"
+    },
+    "erpTaxTemplate": {
+      "label": "Templat pajak ERPNext",
+      "default": "Bawaan ERPNext",
+      "loadError": "Templat pajak ERPNext tidak dapat dimuat. Bawaan ERPNext akan digunakan."
     }
   },
   "projectDetail": {
     "backToProjects": "Proyek",
+    "billing": {
+      "assessment": {
+        "errors": {
+          "month": "Isi bulan dengan format YYYY-MM",
+          "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal"
+        },
+        "month": "Bulan (YYYY-MM)",
+        "note": "Catatan (opsional)",
+        "quantityToDate": "{{item}} — selesai s.d. saat ini ({{unit}})",
+        "record": "Catat progres",
+        "save": "Simpan progres",
+        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional — tidak pernah membuat faktur.",
+        "title": "Catat progres",
+        "toast": {
+          "saved": "Progres tercatat: {{pct}}% selesai"
+        }
+      },
+      "boq": {
+        "add": "Tambah baris",
+        "column": {
+          "actions": "Aksi",
+          "assessed": "Dinilai",
+          "claimed": "Ditagih",
+          "item": "Item",
+          "quantity": "Kuantitas",
+          "rate": "Harga satuan",
+          "remaining": "Sisa untuk ditagih"
+        },
+        "confirmDelete": {
+          "body": "Baris dihapus dari bill of quantities. Baris yang sudah dinilai atau ditagih tidak dapat dihapus.",
+          "confirm": "Hapus baris",
+          "title": "Hapus baris ini?"
+        },
+        "delete": "Hapus",
+        "edit": "Ubah",
+        "empty": "Belum ada bill of quantities",
+        "emptySub": "Tambahkan baris harga kontrak untuk menilai progres dan menagih per kuantitas.",
+        "error": "Bill of quantities tidak dapat dimuat",
+        "errorSub": "Coba lagi, atau buka ulang proyek.",
+        "overClaimed": "Melebihi tagihan",
+        "title": "Bill of quantities",
+        "toast": {
+          "deleted": "Baris bill of quantities dihapus",
+          "saved": "Baris bill of quantities disimpan"
+        }
+      },
+      "boqForm": {
+        "description": "Deskripsi",
+        "errors": {
+          "quantity": "Isi kuantitas di atas 0 dengan paling banyak 3 angka desimal",
+          "rate": "Isi harga 0 atau lebih dengan paling banyak 2 angka desimal",
+          "required": "Wajib diisi"
+        },
+        "item": "Item ERP",
+        "legend": "Baris",
+        "noWorkOrder": "Tidak ada — seluruh kontrak",
+        "quantity": "Kuantitas",
+        "rate": "Harga satuan (belum termasuk PPN)",
+        "save": "Simpan baris",
+        "subtitle": "Harga belum termasuk pajak. Satu baris dapat terkait satu work order di proyek ini.",
+        "titleEdit": "Ubah baris bill of quantities",
+        "titleNew": "Tambah baris bill of quantities",
+        "unit": "Satuan",
+        "workOrder": "Work order"
+      },
+      "claimForm": {
+        "dpAmount": "Nilai uang muka (belum termasuk PPN)",
+        "errors": {
+          "dpAmount": "Isi uang muka di atas 0 dengan paling banyak 2 angka desimal",
+          "noQuantity": "Isi kuantitas untuk setidaknya satu baris",
+          "quantity": "Setiap kuantitas harus di atas 0 dengan paling banyak 3 angka desimal",
+          "recoveryPct": "Isi persentase di atas 0 dan paling tinggi 100, dengan paling banyak 3 angka desimal"
+        },
+        "kind": "Jenis tagihan",
+        "kindDownPayment": "Uang muka",
+        "kindProgress": "Progres — kuantitas terhadap bill of quantities",
+        "linesLegend": "Kuantitas yang ditagih",
+        "noLines": "Tidak ada baris bill of quantities dalam cakupan ini.",
+        "prefill": "Mulai dari penilaian {{month}}",
+        "quantity": "{{item}} — {{description}} ({{unit}})",
+        "recoverRest": "Pulihkan sisa uang muka dengan tagihan ini",
+        "recoveryHelp": "Proporsional terhadap kontrak: {{pct}}%",
+        "recoveryPct": "Dipulihkan dari setiap tagihan (%)",
+        "save": "Buat tagihan",
+        "scope": "Menagih",
+        "scopeContract": "Baris tanpa work order",
+        "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
+        "title": "Tagihan baru"
+      },
+      "claims": {
+        "attachEvidence": "Lampirkan bukti",
+        "column": {
+          "actions": "Aksi",
+          "claim": "Tagihan",
+          "evidence": "Bukti",
+          "gross": "Ditagih",
+          "invoice": "Faktur",
+          "net": "Neto",
+          "recovery": "Uang muka dipulihkan"
+        },
+        "confirmRaise": {
+          "body": "Draf faktur penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
+          "confirm": "Buat faktur ERP",
+          "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
+          "title": "Terbitkan faktur tagihan ini?"
+        },
+        "confirmWithdraw": {
+          "body": "Penarikan bersifat final. Kuantitas dan pemulihan uang mukanya dilepas untuk tagihan baru.",
+          "confirm": "Tarik tagihan",
+          "title": "Tarik tagihan ini?"
+        },
+        "empty": "Belum ada tagihan",
+        "emptySub": "Satu tagihan menagih uang muka atau kuantitas yang selesai, sebagai satu faktur ERP.",
+        "error": "Tagihan tidak dapat dimuat",
+        "errorSub": "Coba lagi, atau buka ulang proyek.",
+        "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
+        "kind": {
+          "downPayment": "Uang muka",
+          "progress": "Progres"
+        },
+        "new": "Tagihan baru",
+        "notRaised": "Belum diterbitkan",
+        "raise": "Terbitkan faktur",
+        "title": "Tagihan",
+        "toast": {
+          "created": "Tagihan dibuat",
+          "evidenceAttached": "Bukti dilampirkan",
+          "raised": "Faktur diterbitkan di ERP",
+          "withdrawn": "Tagihan ditarik"
+        },
+        "withdraw": "Tarik",
+        "withdrawn": "Ditarik"
+      },
+      "evidence": {
+        "document": "Dokumen bukti",
+        "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
+        "revision": "rev {{revision}}",
+        "save": "Lampirkan",
+        "subtitle": "Pilih dokumen terbit atau disetujui dari register proyek ini, seperti laporan progres atau berita acara serah terima (BAST) klien.",
+        "title": "Lampirkan bukti penagihan"
+      },
+      "summary": {
+        "assessed": "Dinilai s.d. saat ini",
+        "assessedAsOf": "per {{month}}, {{pct}}% selesai",
+        "billed": "Ditagih s.d. saat ini",
+        "contract": "Nilai kontrak",
+        "dpHeld": "Uang muka tertahan",
+        "error": "Data penagihan tidak dapat dimuat",
+        "exclTax": "belum termasuk PPN",
+        "gap": "Pekerjaan selesai, belum ditagih",
+        "noAssessment": "Belum ada penilaian",
+        "notSubmitted": "Diterbitkan, belum di-submit",
+        "remaining": "Kontrak belum ditagih",
+        "title": "Ringkasan penagihan"
+      }
+    },
     "documents": {
       "action": {
         "approve": "Setujui",
@@ -1519,7 +1932,10 @@
       },
       "pmoNumber": "Nomor Proyek PMO",
       "clientCode": "Kode Proyek Klien",
-      "notSet": "Belum diatur"
+      "notSet": "Belum diatur",
+      "subjectToVat": "Kena PPN",
+      "subjectToVatLocked": "Terkunci setelah proyek memiliki faktur.",
+      "subjectToVatHint": "Jika aktif, faktur proyek ini membawa pajak penjualan ERP. Terkunci setelah proyek memiliki faktur."
     },
     "milestoneForm": {
       "create": "Buat milestone",
@@ -1751,12 +2167,14 @@
     },
     "tabs": {
       "ariaLabel": "Bagian proyek",
+      "billing": "Penagihan",
       "budget": "Anggaran",
       "documents": "Dokumen",
       "overview": "Ringkasan",
       "procurement": "Pengadaan",
       "tasks": "Tugas",
-      "workOrders": "Work Order"
+      "workOrders": "Work Order",
+      "history": "Riwayat"
     },
     "tasks": {
       "action": {
@@ -2187,7 +2605,7 @@
   "revenueByProject": {
     "currencyErrorSub": "Coba lagi untuk melihat pendapatan.",
     "currencyErrorTitle": "Mata uang organisasi tidak dapat dimuat",
-    "subtitle": "Pendapatan per proyek, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
+    "subtitle": "Pendapatan per proyek, tidak termasuk pajak, dalam mata uang masing-masing invoice, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
   },
   "sales": {
     "accessDenied": {
@@ -2242,6 +2660,12 @@
       "placeholder": "Cari proyek…"
     },
     "summaryLabel": "Ringkasan pipeline",
+    "boardEmpty": {
+      "classification": {
+        "sub": "Hapus filter klasifikasi untuk melihat lebih banyak proyek.",
+        "title": "Tidak ada proyek yang cocok dengan klasifikasi ini"
+      }
+    },
     "tableEmpty": {
       "clearFilters": "Hapus filter",
       "lost": {
@@ -2328,6 +2752,7 @@
       "salesInvoices": "Invoice Penjualan",
       "timesheets": "Timesheet",
       "profileSettings": "Profil & preferensi",
+      "expenses": "Biaya",
       "managementPack": "Laporan manajemen"
     },
     "notifications": {
@@ -2335,6 +2760,9 @@
       "inboxHeading": "Kotak masuk notifikasi",
       "listLabel": "Notifikasi",
       "loadError": "Gagal memuat notifikasi. Coba lagi sebentar lagi.",
+      "loadMore": "Muat lebih banyak",
+      "loadMoreError": "Gagal memuat lagi. Coba lagi.",
+      "loadingMore": "Memuat…",
       "loading": "Memuat notifikasi…",
       "noneUnread": "Tidak ada notifikasi yang belum dibaca",
       "read": "Dibaca",
@@ -2986,7 +3414,8 @@
     "erpItem": "Item ERP",
     "selectOrSearchItem": "Pilih atau cari item…",
     "searchItemCodeOrName": "Cari kode atau nama item…",
-    "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…"
+    "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…",
+    "currency": "Mata uang"
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",
@@ -3069,6 +3498,7 @@
     "select": "— pilih —"
   },
   "projectClassification": {
+    "tooLong": "Gunakan maksimal {{max}} karakter.",
     "title": "Klasifikasi",
     "serviceLine": "Lini layanan",
     "sector": "Sektor",
@@ -3151,6 +3581,133 @@
       "note": "Catatan",
       "save": "Simpan progres",
       "saved": "Progres disimpan"
+    }
+  },
+  "comments": {
+    "title": "Komentar",
+    "empty": "Belum ada komentar.",
+    "loading": "Memuat komentar…",
+    "loadError": "Komentar gagal dimuat. Coba lagi sebentar lagi.",
+    "label": "Tambah komentar",
+    "placeholder": "Tulis komentar. Ketik @ untuk menyebut rekan kerja.",
+    "post": "Kirim komentar",
+    "posting": "Mengirim…",
+    "postError": "Komentar gagal dikirim. Coba lagi.",
+    "delete": "Hapus",
+    "deleteTitle": "Hapus komentar ini?",
+    "deleteDescription": "Komentar tidak akan tampil lagi pada data ini.",
+    "deleteError": "Komentar gagal dihapus.",
+    "tooLong": "Komentar dibatasi 4000 karakter.",
+    "mentionList": "Sebut rekan kerja",
+    "unknownAuthor": "Mantan anggota",
+    "mentionsFull": "Anda dapat menyebut paling banyak 20 rekan dalam satu komentar.",
+    "open": "Komentar"
+  },
+  "history": {
+    "title": "Riwayat",
+    "system": "Sistem",
+    "unknownUser": "Pengguna tidak dikenal",
+    "created": "Dibuat",
+    "archived": "Diarsipkan",
+    "restored": "Dipulihkan",
+    "fieldChanged": "{{field}} diubah",
+    "emptyValue": "kosong",
+    "yes": "Ya",
+    "no": "Tidak",
+    "unavailable": "Tidak tersedia",
+    "loadOlder": "Muat yang lebih lama",
+    "retry": "Coba lagi",
+    "error": "Tidak dapat memuat riwayat",
+    "filterLabel": "Saring menurut jenis catatan",
+    "empty": {
+      "title": "Belum ada perubahan tercatat",
+      "sub": "Riwayat dimulai {{date}}. Perubahan sebelum tanggal itu dan penghapusan tidak ditampilkan."
+    },
+    "field": {
+      "code": "Kode",
+      "name": "Nama",
+      "status": "Status",
+      "client_id": "Klien",
+      "project_manager_id": "Manajer proyek",
+      "contract_value": "Nilai kontrak",
+      "budget": "Anggaran",
+      "spent": "Terpakai",
+      "tax_amount": "Jumlah pajak",
+      "tax_rate": "Tarif pajak",
+      "start_date": "Tanggal mulai",
+      "end_date": "Tanggal selesai",
+      "contract_date": "Tanggal kontrak",
+      "archived_at": "Diarsipkan",
+      "currency": "Mata uang",
+      "tax_template": "Templat pajak",
+      "tax_treatment": "Perlakuan pajak",
+      "subject_to_vat": "Kena PPN",
+      "project_id": "Proyek",
+      "version": "Versi",
+      "budget_version_id": "Versi anggaran",
+      "category": "Kategori",
+      "description": "Deskripsi",
+      "fiscal_year": "Tahun fiskal",
+      "budgeted_amount": "Jumlah dianggarkan",
+      "actual_amount": "Jumlah aktual",
+      "wo_number": "Nomor surat perintah kerja",
+      "client_po_number": "Nomor PO klien",
+      "title": "Judul",
+      "order_value": "Nilai pesanan",
+      "order_date": "Tanggal pesanan",
+      "pr_number": "Nomor PR",
+      "po_number": "Nomor PO",
+      "requested_by_id": "Diminta oleh",
+      "vendor_id": "Vendor",
+      "budget_category": "Kategori anggaran",
+      "total_value": "Nilai total",
+      "procurement_id": "Pengadaan",
+      "reference_number": "Nomor referensi",
+      "date": "Tanggal",
+      "amount": "Jumlah",
+      "rfq_number": "Nomor RFQ",
+      "invoice_id": "Faktur",
+      "pay_number": "Nomor pembayaran",
+      "assignee_id": "Penerima tugas",
+      "milestone_id": "Tonggak",
+      "parent_task_id": "Tugas induk",
+      "meeting_id": "Rapat",
+      "priority": "Prioritas",
+      "short_name": "Nama singkat",
+      "client_number_segment": "Segmen nomor klien",
+      "type": "Jenis",
+      "company_id": "Perusahaan",
+      "full_name": "Nama lengkap",
+      "approval_notes": "Catatan persetujuan",
+      "rejection_notes": "Catatan penolakan",
+      "email": "Email",
+      "phone": "Telepon",
+      "notes": "Catatan"
+    },
+    "kind": {
+      "project": "Proyek",
+      "budget_version": "Versi anggaran",
+      "budget_line_item": "Baris anggaran",
+      "work_order": "Surat perintah kerja",
+      "procurement": "Pengadaan",
+      "purchase_request": "Permintaan pembelian",
+      "rfq": "RFQ",
+      "purchase_order": "Pesanan pembelian",
+      "payment": "Pembayaran",
+      "task": "Tugas",
+      "company": "Perusahaan",
+      "contact": "Kontak"
+    },
+    "filter": {
+      "all": "Semua",
+      "project": "Proyek"
+    },
+    "filteredEmpty": {
+      "project": "Tidak ada perubahan proyek",
+      "budget": "Tidak ada perubahan anggaran",
+      "workOrders": "Tidak ada perubahan work order",
+      "procurement": "Tidak ada perubahan pengadaan",
+      "tasks": "Tidak ada perubahan tugas"
     }
   }
 }

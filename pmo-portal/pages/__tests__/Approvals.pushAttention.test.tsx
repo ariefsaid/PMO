@@ -72,6 +72,7 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => {
   return { ...actual, useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) };
 });
 
+vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 import ApprovalsPage from '../Approvals';
 
 const renderPage = () =>

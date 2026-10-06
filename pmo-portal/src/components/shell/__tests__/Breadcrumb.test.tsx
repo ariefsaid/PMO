@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,6 +23,54 @@ describe('Breadcrumb', () => {
     const link = screen.getByRole('button', { name: 'Projects' });
     await userEvent.click(link);
     expect(onNavigate).toHaveBeenCalled();
+  });
+
+  it('renders a parent with href as a link and keeps callback navigation', async () => {
+    const onNavigate = vi.fn();
+    render(
+      <Breadcrumb
+        parts={[
+          { label: 'Meetings', href: '/meetings', onClick: onNavigate },
+          { label: 'Kickoff' },
+        ]}
+      />,
+    );
+
+    const link = screen.getByRole('link', { name: 'Meetings' });
+    expect(link).toHaveAttribute('href', '/meetings');
+    expect(screen.queryByRole('button', { name: 'Meetings' })).not.toBeInTheDocument();
+    await userEvent.click(link);
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves browser-native modified link activation', () => {
+    const onNavigate = vi.fn();
+    render(
+      <Breadcrumb
+        parts={[
+          { label: 'Meetings', href: '#meetings', onClick: onNavigate },
+          { label: 'Kickoff' },
+        ]}
+      />,
+    );
+
+    const link = screen.getByRole('link', { name: 'Meetings' });
+    const modifiedClick = createEvent.click(link, { ctrlKey: true });
+    fireEvent(link, modifiedClick);
+
+    expect(modifiedClick.defaultPrevented).toBe(false);
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('a parent with href but no onClick is a plain link that keeps native navigation', () => {
+    render(<Breadcrumb parts={[{ label: 'Meetings', href: '#meetings' }, { label: 'Kickoff' }]} />);
+
+    const link = screen.getByRole('link', { name: 'Meetings' });
+    expect(link).toHaveAttribute('href', '#meetings');
+    expect(link).not.toHaveAttribute('aria-current');
+    const click = createEvent.click(link, { button: 0 });
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(false);
   });
 
   it('current part is not a button', () => {

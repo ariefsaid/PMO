@@ -26,6 +26,7 @@ const { procState } = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
+  useProjectProcurements: () => procState,
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({

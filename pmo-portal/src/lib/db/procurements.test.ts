@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSelect, mockFrom, mockRange } = vi.hoisted(() => {
+const { mockSelect, mockFrom, mockRange, mockEq } = vi.hoisted(() => {
   const mockSelect = vi.fn();
+  const mockEq = vi.fn();
   const mockFrom = vi.fn();
   const mockRange = vi.fn();
-  return { mockSelect, mockFrom, mockRange };
+  return { mockSelect, mockFrom, mockRange, mockEq };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
 
 import {
   listProcurements,
+  listProcurementsByProject,
   getProjectCommittedSpend,
   getProjectReservedSpend,
   COMMITTED_STATUSES,
@@ -21,16 +23,18 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
     select: mockSelect,
     range: mockRange,
+    eq: mockEq,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
   mockSelect.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
+  mockEq.mockReturnValue(builder);
   mockFrom.mockReturnValue(builder);
   return builder;
 }
 
-beforeEach(() => { mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
+beforeEach(() => { mockEq.mockReset(); mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
 
 describe('listProcurements', () => {
   it('selects procurements joining project/vendor/requester; returns rows (AC-509, FR-DAL-PROC-001)', async () => {
@@ -179,5 +183,17 @@ describe('AC-RB-003: Committed and Reserved sets are disjoint', () => {
   });
   it('AC-RB-003: COMMITTED_STATUSES is exactly Ordered/Received/Vendor Invoiced/Paid (unchanged)', () => {
     expect(COMMITTED_STATUSES).toEqual(['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
+  });
+});
+
+describe('listProcurementsByProject', () => {
+  it('AC-OVERFETCH-002 filters server-side with project_id and keeps the list row shape', async () => {
+    const rows = [{ id: 'pr1', project_id: 'proj-1', status: 'Draft', title: 'T' }];
+    makeBuilder({ data: rows, error: null });
+    const out = await listProcurementsByProject('proj-1');
+    expect(mockFrom).toHaveBeenCalledWith('procurements');
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('project:projects(name,code)'));
+    expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
+    expect(out.map((r) => r.id)).toEqual(['pr1']);
   });
 });

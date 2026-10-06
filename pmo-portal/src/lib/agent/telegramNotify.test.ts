@@ -8,10 +8,12 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import {
+  alertKey,
   groupIntoMessages,
   buildTelegramPayload,
   pingHeartbeat,
 } from '../../../../supabase/functions/telegram-notify/logic';
+import { OUTBOUND_FETCH_TIMEOUT_MS } from '../../../../supabase/functions/_shared/fetchWithDeadline';
 
 const ROW = (overrides: Partial<{
   id: string;
@@ -47,7 +49,7 @@ describe('telegram-notify/logic', () => {
   it('AC-OF-002: a code within the cooldown window (lastNotifiedByCode) is suppressed, rows still marked notified', () => {
     const rows = [ROW({ error_code: 'TICK_FAILED', created_at: '2026-07-04T10:14:00.000Z' })];
     // 5 minutes ago; cooldown is 900s (15 min) — within window.
-    const lastNotifiedByCode = { TICK_FAILED: '2026-07-04T10:09:00.000Z' };
+    const lastNotifiedByCode = { [alertKey(null, 'TICK_FAILED')]: '2026-07-04T10:09:00.000Z' };
     const groups = groupIntoMessages(rows, lastNotifiedByCode, 900);
     expect(groups.find((g) => g.errorCode === 'TICK_FAILED' && !g.suppressed)).toBeUndefined();
     const suppressed = groups.find((g) => g.errorCode === 'TICK_FAILED');
@@ -56,7 +58,7 @@ describe('telegram-notify/logic', () => {
 
   it('AC-OF-002: a code OUTSIDE the cooldown window (>=15 min since lastNotified) is NOT suppressed', () => {
     const rows = [ROW({ error_code: 'TICK_FAILED', created_at: '2026-07-04T10:30:00.000Z' })];
-    const lastNotifiedByCode = { TICK_FAILED: '2026-07-04T10:09:00.000Z' }; // 21 min ago
+    const lastNotifiedByCode = { [alertKey(null, 'TICK_FAILED')]: '2026-07-04T10:09:00.000Z' }; // 21 min ago
     const groups = groupIntoMessages(rows, lastNotifiedByCode, 900);
     const group = groups.find((g) => g.errorCode === 'TICK_FAILED')!;
     expect(group.suppressed).toBe(false);
@@ -117,12 +119,37 @@ describe('telegram-notify/logic', () => {
 
     it('a suppressed group\'s ids are still returned (caller stamps them even though nothing was sent)', () => {
       const row = ROW({ id: 'suppressed-1', error_code: 'TICK_FAILED', created_at: '2026-07-04T10:14:00.000Z' });
-      const lastNotifiedByCode = { TICK_FAILED: '2026-07-04T10:09:00.000Z' };
+      const lastNotifiedByCode = { [alertKey(null, 'TICK_FAILED')]: '2026-07-04T10:09:00.000Z' };
       const groups = groupIntoMessages([row], lastNotifiedByCode, 900);
       const group = groups[0];
       expect(group.suppressed).toBe(true);
       expect(group.ids).toEqual(['suppressed-1']);
     });
+  });
+
+  it('AC-629-001: groups same-code events and cooldown independently by organization, keeping NULL global', () => {
+    const orgA = '62900000-0000-0000-0000-000000000001';
+    const orgB = '62900000-0000-0000-0000-000000000002';
+    const at = '2026-07-04T10:14:00.000Z';
+    const lastSentAt = '2026-07-04T10:09:00.000Z';
+    const organizationGroups = groupIntoMessages([
+      ROW({ id: 'a-1', error_code: 'TICK_FAILED', org_id: orgA, created_at: at }),
+      ROW({ id: 'b-1', error_code: 'TICK_FAILED', org_id: orgB, created_at: at }),
+    ], { [alertKey(orgA, 'TICK_FAILED')]: lastSentAt }, 900);
+    expect(organizationGroups).toHaveLength(2);
+    expect(organizationGroups.map(({ orgId, ids, suppressed }) => ({ orgId, ids, suppressed }))).toEqual([
+      { orgId: orgA, ids: ['a-1'], suppressed: true },
+      { orgId: orgB, ids: ['b-1'], suppressed: false },
+    ]);
+
+    const globalGroups = groupIntoMessages([
+      ROW({ id: 'global-1', error_code: 'TICK_FAILED', org_id: null, created_at: at }),
+      ROW({ id: 'a-2', error_code: 'TICK_FAILED', org_id: orgA, created_at: at }),
+    ], { [alertKey(null, 'TICK_FAILED')]: lastSentAt }, 900);
+    expect(globalGroups.map(({ orgId, ids, suppressed }) => ({ orgId, ids, suppressed }))).toEqual([
+      { orgId: null, ids: ['global-1'], suppressed: true },
+      { orgId: orgA, ids: ['a-2'], suppressed: false },
+    ]);
   });
 
   it('AC-OF-006: message body carries fn/error_code/count/timestamps/context_id, no token/org_id-UUID/PII', () => {
@@ -133,6 +160,7 @@ describe('telegram-notify/logic', () => {
       firstCreatedAt: '2026-07-04T09:00:00.000Z',
       lastCreatedAt: '2026-07-04T09:10:00.000Z',
       sampleContextId: 'run_abc',
+      orgId: null,
       suppressed: false,
       ids: ['a1', 'a2', 'a3'],
     };
@@ -167,5 +195,19 @@ describe('telegram-notify/logic', () => {
     vi.stubGlobal('fetch', fetchMock);
     await expect(pingHeartbeat('https://uptime.betterstack.com/api/v1/heartbeat/abc')).resolves.toBeUndefined();
     vi.unstubAllGlobals();
+  });
+
+  it('AC-OUT-841: pingHeartbeat aborts a hung monitor at the deadline and resolves (never hangs the drain)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn((_u: unknown, init?: RequestInit) =>
+        new Promise<Response>((_res, rej) => init?.signal?.addEventListener('abort', () => rej(new Error('aborted'))))));
+      const p = pingHeartbeat('https://uptime.betterstack.com/api/v1/heartbeat/abc');
+      await vi.advanceTimersByTimeAsync(OUTBOUND_FETCH_TIMEOUT_MS);
+      await expect(p).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 });

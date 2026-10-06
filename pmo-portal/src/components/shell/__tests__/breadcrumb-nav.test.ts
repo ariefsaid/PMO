@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import {
   agentEntityForPath,
   breadcrumbForPath,
@@ -38,6 +39,7 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     const crumbs = breadcrumbForPath('/projects/abc', 'Alpha', navigate);
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('Projects');
+    expect(crumbs[0].href).toBe('/projects');
     expect(typeof crumbs[0].onClick).toBe('function');
     // the module segment navigates to the module index (not the detail route)
     crumbs[0].onClick!();
@@ -130,13 +132,41 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
 
       expect(crumbs).toHaveLength(2);
       // Parent crumb carries the i18n key that matches the shell's rail label (localized).
-      expect(crumbs[0]).toMatchObject({ label: 'Administration', i18nKey: 'shell.nav.administration' });
+      expect(crumbs[0]).toMatchObject({
+        label: 'Administration',
+        i18nKey: 'shell.nav.administration',
+        href: '/administration/users',
+      });
       expect(crumbs[0].onClick).toBeTypeOf('function');
       crumbs[0].onClick!();
       expect(navigate).toHaveBeenCalledWith('/administration/users');
       // Section crumb carries the i18n key that matches the section nav (localized).
       expect(crumbs[1]).toEqual({ label: currentLabel, i18nKey: sectionKey });
     }
+  });
+
+  it('uses the validated list-return path for an adopting detail breadcrumb href', () => {
+    const contextualParent = contextualListReturnNavigation('/companies/company-1', {
+      pmoListReturn: {
+        list: 'companies',
+        path: '/companies?type=Client&q=harbor',
+        scrollTop: 240,
+      },
+    });
+    expect(contextualParent).toBeDefined();
+    const navigate = vi.fn();
+    const crumbs = breadcrumbForPath(
+      '/companies/company-1',
+      'Harbor Co',
+      navigate,
+      true,
+      undefined,
+      contextualParent,
+    );
+
+    expect(crumbs[0].href).toBe('/companies?type=Client&q=harbor');
+    crumbs[0].onClick!();
+    expect(navigate).toHaveBeenCalledWith(contextualParent);
   });
 
   it('AC-ADMIA-003: the unknown Administration section resolves to the Users destination', () => {

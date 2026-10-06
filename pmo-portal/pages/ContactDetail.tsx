@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { HistorySection } from '@/src/components/history/HistorySection';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -277,6 +278,9 @@ const ContactDetail: React.FC = () => {
           <ContactActivityPanel contactId={contact.id} />
         </CardPad>
       </Card>
+
+      {/* #719 (spec D5): read-only change history — a collapsed Card section (this page has no tab bar). */}
+      <HistorySection entityType="contact" entityId={contact.id} />
 
       {/* Edit modal — reuses the shared create/edit form. */}
       {editOpen && (

@@ -176,7 +176,9 @@ export interface ProjectHeaderInput extends ProjectClassification {
  * internal) — a single `.in('status', [...])` filter — so a pre-win pipeline/lost deal is
  * NOT in the active Projects list (it lives in the Sales Pipeline). A caller wanting a
  * specific status (e.g. a future "Lost" filter) passes `params.status` to override the
- * default partition with a precise `.eq('status', …)`.
+ * default partition with a precise `.eq('status', …)`. Every default and explicit status
+ * scope is live-only via `.is('archived_at', null)`; explicit id and client-history reads
+ * use their separate functions and retain their own archive semantics.
  *
  * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
  * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
@@ -201,12 +203,23 @@ export async function listProjects(
     // Default → the active Projects partition (on-hand ∪ internal), disjoint from the pipeline.
     q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
   }
+  q = q.is('archived_at', null);
   if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
   const range = resolveRange(params);
   if (range) q = q.range(range.from, range.to);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as ProjectWithRefs[];
+}
+
+/**
+ * One project by id at ANY stage (on-hand, internal, pipeline or lost) — the project detail route's
+ * read. Same select as the list, so the row shape is identical; `null` when absent / not visible.
+ */
+export async function getProject(id: string): Promise<ProjectWithRefs | null> {
+  const { data, error } = await supabase.from('projects').select(SELECT).eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as unknown as ProjectWithRefs) ?? null;
 }
 
 /**
@@ -324,8 +337,9 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
 
 /**
  * Soft-archive a project by stamping `archived_at` (AC-PRJ-005) so it drops out of the
- * default list (ADR-0018). org_id is NEVER sent — `projects_write` scopes the update; the
- * `archived_at` column UPDATE grant comes from 0012. Throws an `AppError` (code preserved).
+ * default and explicit-status `listProjects` scopes via their `archived_at IS NULL` filter
+ * (ADR-0018). org_id is NEVER sent — `projects_write` scopes the update; the `archived_at`
+ * column UPDATE grant comes from 0012. Throws an `AppError` (code preserved).
  */
 export async function archiveProject(id: string): Promise<void> {
   const { data, error } = await supabase
@@ -381,6 +395,8 @@ export interface SetProjectContractValueInput {
   taxBaseDenominator?: number;
   /** ERPNext taxes-and-charges template name; absent for a standalone org. */
   taxTemplate?: string | null;
+  /** OD-TAX-4: is the project subject to VAT (PPN)? Omit to leave it unchanged; only Finance/Admin may move it. */
+  subjectToVat?: boolean;
 }
 
 /**
@@ -412,6 +428,7 @@ export async function setProjectContractValue(
     p_tax_template: input.taxTemplate ?? undefined,
     ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
     ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
+    ...(input.subjectToVat !== undefined ? { p_subject_to_vat: input.subjectToVat } : {}),
   });
   if (error) throwWrite(error as PostgrestErrorLike);
 }

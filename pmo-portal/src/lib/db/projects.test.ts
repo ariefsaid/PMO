@@ -7,20 +7,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * All mocks are hoisted so they are available to vi.mock factories.
  */
-const { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange } = vi.hoisted(() => {
+const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle } = vi.hoisted(() => {
+  const mockMaybeSingle = vi.fn();
   const mockEq = vi.fn();
   const mockIn = vi.fn();
+  const mockIs = vi.fn();
   const mockSelect = vi.fn();
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
   const mockRange = vi.fn();
-  return { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange };
+  return { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }));
 
 import {
   listProjects,
+  getProject,
   createProject,
   updateProjectHeader,
   archiveProject,
@@ -37,14 +40,18 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     select: mockSelect,
     eq: mockEq,
     in: mockIn,
+    is: mockIs,
     range: mockRange,
+    maybeSingle: mockMaybeSingle,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
   mockIn.mockReturnValue(builder);
+  mockIs.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
+  mockMaybeSingle.mockImplementation(() => Promise.resolve(resolved));
   mockFrom.mockReturnValue(builder);
   return builder;
 }
@@ -100,6 +107,7 @@ beforeEach(() => {
   mockSelect.mockReset();
   mockEq.mockReset();
   mockIn.mockReset();
+  mockIs.mockReset();
   mockRpc.mockReset();
   mockRange.mockReset();
 });
@@ -145,6 +153,13 @@ describe('listProjects', () => {
     expect(result[0].end_client?.name).toBe('Asset Owner');
   });
 
+  it('AC-PRJ-005b: default list filters out archived projects at PostgREST', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects();
+    expect(mockIs).toHaveBeenCalledTimes(1);
+    expect(mockIs).toHaveBeenCalledWith('archived_at', null);
+  });
+
   it('sends no org_id (RLS scopes it) (FR-DAL-004)', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects();
@@ -177,6 +192,13 @@ describe('listProjects', () => {
     expect(scoped).not.toContain('Loss Tender');
     expect(scoped).toContain('Ongoing Project');
     expect(scoped).toContain('Internal Project');
+  });
+
+  it('AC-PRJ-005b: Lost/Declined status list filters out archived projects at PostgREST', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects({ statuses: ['Loss Tender', 'Declined'] });
+    expect(mockIs).toHaveBeenCalledTimes(1);
+    expect(mockIs).toHaveBeenCalledWith('archived_at', null);
   });
 
   it('AC-DEC-001: a statuses[] override filters with one .in("status", …) (the Lost column = Loss Tender + Declined)', async () => {
@@ -643,5 +665,22 @@ describe('AC-TAG-002 project classification writes', () => {
     const cleared = { service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
     await updateProjectHeader('p1', { ...base, code: null, ...cleared });
     expect(calls.update).toEqual([expect.objectContaining(cleared)]);
+  });
+});
+
+describe('getProject (AC-OVERFETCH-002)', () => {
+  it('reads ONE project by id at any stage — no status partition, same ref embeds as the list', async () => {
+    makeBuilder({ data: { id: 'p1', name: 'Alpha', status: 'Leads' }, error: null });
+    const row = await getProject('p1');
+    expect(mockFrom).toHaveBeenCalledWith('projects');
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('client:companies!projects_client_id_fkey'));
+    expect(mockEq).toHaveBeenCalledWith('id', 'p1');
+    expect(mockIn).not.toHaveBeenCalled();
+    expect(row?.id).toBe('p1');
+  });
+
+  it('returns null when the project is absent or not visible', async () => {
+    makeBuilder({ data: null, error: null });
+    expect(await getProject('nope')).toBeNull();
   });
 });

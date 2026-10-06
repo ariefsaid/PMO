@@ -482,19 +482,33 @@ export type Database = {
         Row: {
           delivered_at: string | null
           error_code: string
+          id: string
           last_sent_at: string
+          org_id: string | null
         }
         Insert: {
           delivered_at?: string | null
           error_code: string
+          id?: string
           last_sent_at: string
+          org_id?: string | null
         }
         Update: {
           delivered_at?: string | null
           error_code?: string
+          id?: string
           last_sent_at?: string
+          org_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "alert_send_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_events: {
         Row: {
@@ -529,11 +543,73 @@ export type Database = {
         }
         Relationships: []
       }
+      boq_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          item_code: string
+          org_id: string
+          project_id: string
+          quantity: number
+          rate: number
+          unit: string
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          item_code: string
+          org_id?: string
+          project_id: string
+          quantity: number
+          rate: number
+          unit: string
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          item_code?: string
+          org_id?: string
+          project_id?: string
+          quantity?: number
+          rate?: number
+          unit?: string
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boq_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_category_account_map: {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
           erp_account: string
           id: string
+          is_push_target: boolean
           org_id: string
           updated_at: string
           updated_by: string | null
@@ -542,6 +618,7 @@ export type Database = {
           category: Database["public"]["Enums"]["budget_category"]
           erp_account: string
           id?: string
+          is_push_target?: boolean
           org_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -550,6 +627,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["budget_category"]
           erp_account?: string
           id?: string
+          is_push_target?: boolean
           org_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -868,6 +946,57 @@ export type Database = {
           webhook_id?: string | null
         }
         Relationships: []
+      }
+      comments: {
+        Row: {
+          archived_at: string | null
+          author_id: string
+          body: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          mentions: string[]
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          author_id?: string
+          body: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          mentions?: string[]
+          org_id?: string
+        }
+        Update: {
+          archived_at?: string | null
+          author_id?: string
+          body?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          mentions?: string[]
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       companies: {
         Row: {
@@ -1595,6 +1724,204 @@ export type Database = {
           org_id?: string | null
         }
         Relationships: []
+      }
+      expense_claim_files: {
+        Row: {
+          archived_at: string | null
+          claim_id: string
+          created_at: string
+          file_path: string
+          id: string
+          org_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          claim_id: string
+          created_at?: string
+          file_path: string
+          id?: string
+          org_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          claim_id?: string
+          created_at?: string
+          file_path?: string
+          id?: string
+          org_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_claim_files_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_claim_lines: {
+        Row: {
+          amount: number
+          claim_id: string
+          created_at: string
+          description: string
+          expense_date: string
+          expense_type: Database["public"]["Enums"]["expense_type"]
+          id: string
+          org_id: string
+        }
+        Insert: {
+          amount: number
+          claim_id: string
+          created_at?: string
+          description: string
+          expense_date: string
+          expense_type: Database["public"]["Enums"]["expense_type"]
+          id?: string
+          org_id?: string
+        }
+        Update: {
+          amount?: number
+          claim_id?: string
+          created_at?: string
+          description?: string
+          expense_date?: string
+          expense_type?: Database["public"]["Enums"]["expense_type"]
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_claim_lines_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_claims: {
+        Row: {
+          advance_applied: number
+          advance_id: string | null
+          amount: number
+          approval_notes: string | null
+          approved_at: string | null
+          approved_by_id: string | null
+          budget_category: Database["public"]["Enums"]["budget_category"] | null
+          cancelled_at: string | null
+          claim_number: string | null
+          claimant_id: string
+          created_at: string
+          currency: string
+          id: string
+          kind: Database["public"]["Enums"]["expense_kind"]
+          org_id: string
+          paid_at: string | null
+          paid_by_id: string | null
+          paid_on: string | null
+          payment_reference: string | null
+          project_id: string | null
+          purpose: string | null
+          rejection_notes: string | null
+          returned_amount: number
+          status: Database["public"]["Enums"]["expense_claim_status"]
+          submitted_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          advance_applied?: number
+          advance_id?: string | null
+          amount?: number
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          cancelled_at?: string | null
+          claim_number?: string | null
+          claimant_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["expense_kind"]
+          org_id?: string
+          paid_at?: string | null
+          paid_by_id?: string | null
+          paid_on?: string | null
+          payment_reference?: string | null
+          project_id?: string | null
+          purpose?: string | null
+          rejection_notes?: string | null
+          returned_amount?: number
+          status?: Database["public"]["Enums"]["expense_claim_status"]
+          submitted_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          advance_applied?: number
+          advance_id?: string | null
+          amount?: number
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          cancelled_at?: string | null
+          claim_number?: string | null
+          claimant_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["expense_kind"]
+          org_id?: string
+          paid_at?: string | null
+          paid_by_id?: string | null
+          paid_on?: string | null
+          payment_reference?: string | null
+          project_id?: string | null
+          purpose?: string | null
+          rejection_notes?: string | null
+          returned_amount?: number
+          status?: Database["public"]["Enums"]["expense_claim_status"]
+          submitted_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_claims_advance_id_fkey"
+            columns: ["advance_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_claimant_id_fkey"
+            columns: ["claimant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       external_command_outbox: {
         Row: {
@@ -2549,6 +2876,7 @@ export type Database = {
           default_number_locale: string | null
           default_tax_treatment: string
           default_timezone: string
+          down_payment_item: string | null
           id: string
           lifecycle_state: string | null
           name: string
@@ -2564,6 +2892,7 @@ export type Database = {
           default_number_locale?: string | null
           default_tax_treatment?: string
           default_timezone?: string
+          down_payment_item?: string | null
           id?: string
           lifecycle_state?: string | null
           name: string
@@ -2579,6 +2908,7 @@ export type Database = {
           default_number_locale?: string | null
           default_tax_treatment?: string
           default_timezone?: string
+          down_payment_item?: string | null
           id?: string
           lifecycle_state?: string | null
           name?: string
@@ -3628,6 +3958,265 @@ export type Database = {
           },
         ]
       }
+      progress_assessment_quantities: {
+        Row: {
+          boq_item_id: string
+          entry_id: string
+          id: string
+          org_id: string
+          quantity_to_date: number
+        }
+        Insert: {
+          boq_item_id: string
+          entry_id: string
+          id?: string
+          org_id?: string
+          quantity_to_date: number
+        }
+        Update: {
+          boq_item_id?: string
+          entry_id?: string
+          id?: string
+          org_id?: string
+          quantity_to_date?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_assessment_quantities_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_assessment_quantities_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_assessment_quantities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_claim_evidence: {
+        Row: {
+          attached_at: string
+          attached_by: string
+          claim_id: string
+          document_id: string
+          document_revision: string | null
+          document_status: Database["public"]["Enums"]["doc_status"]
+          id: string
+          org_id: string
+        }
+        Insert: {
+          attached_at?: string
+          attached_by: string
+          claim_id: string
+          document_id: string
+          document_revision?: string | null
+          document_status: Database["public"]["Enums"]["doc_status"]
+          id?: string
+          org_id: string
+        }
+        Update: {
+          attached_at?: string
+          attached_by?: string
+          claim_id?: string
+          document_id?: string
+          document_revision?: string | null
+          document_status?: Database["public"]["Enums"]["doc_status"]
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_claim_evidence_attached_by_fkey"
+            columns: ["attached_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_evidence_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "progress_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_evidence_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_evidence_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_claim_lines: {
+        Row: {
+          amount: number
+          boq_item_id: string
+          claim_id: string
+          description: string
+          id: string
+          item_code: string
+          org_id: string
+          quantity: number
+          rate: number
+          unit: string
+        }
+        Insert: {
+          amount: number
+          boq_item_id: string
+          claim_id: string
+          description: string
+          id?: string
+          item_code: string
+          org_id: string
+          quantity: number
+          rate: number
+          unit: string
+        }
+        Update: {
+          amount?: number
+          boq_item_id?: string
+          claim_id?: string
+          description?: string
+          id?: string
+          item_code?: string
+          org_id?: string
+          quantity?: number
+          rate?: number
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_claim_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_lines_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "progress_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claim_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_claims: {
+        Row: {
+          created_at: string
+          created_by: string
+          currency: string
+          down_payment_amount: number | null
+          dp_item_code: string | null
+          dp_recovery_amount: number
+          gross_amount: number
+          id: string
+          kind: string
+          org_id: string
+          project_id: string
+          recovery_pct: number | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          currency: string
+          down_payment_amount?: number | null
+          dp_item_code?: string | null
+          dp_recovery_amount?: number
+          gross_amount: number
+          id?: string
+          kind: string
+          org_id: string
+          project_id: string
+          recovery_pct?: number | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          currency?: string
+          down_payment_amount?: number | null
+          dp_item_code?: string | null
+          dp_recovery_amount?: number
+          gross_amount?: number
+          id?: string
+          kind?: string
+          org_id?: string
+          project_id?: string
+          recovery_pct?: number | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_claims_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_documents: {
         Row: {
           author_id: string | null
@@ -3873,6 +4462,7 @@ export type Database = {
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
+          subject_to_vat: boolean
           tax_amount: number | null
           tax_base_denominator: number
           tax_base_numerator: number
@@ -3912,6 +4502,7 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          subject_to_vat?: boolean
           tax_amount?: number | null
           tax_base_denominator?: number
           tax_base_numerator?: number
@@ -3951,6 +4542,7 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          subject_to_vat?: boolean
           tax_amount?: number | null
           tax_base_denominator?: number
           tax_base_numerator?: number
@@ -4261,6 +4853,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      record_changes: {
+        Row: {
+          actor_id: string | null
+          changes: Json
+          created_at: string
+          currency: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          op: string
+          org_id: string
+          parent_id: string | null
+          parent_type: string | null
+          seq: number
+        }
+        Insert: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          currency?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          op: string
+          org_id: string
+          parent_id?: string | null
+          parent_type?: string | null
+          seq?: never
+        }
+        Update: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          currency?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          op?: string
+          org_id?: string
+          parent_id?: string | null
+          parent_type?: string | null
+          seq?: never
+        }
+        Relationships: []
+      }
+      record_history_config: {
+        Row: {
+          captured: Json
+          entity_type: string
+          flag_cols: string[]
+          omit_cols: string[]
+          parent_col: string | null
+          parent_type: string | null
+          parent_via: string | null
+          table_name: string
+        }
+        Insert: {
+          captured: Json
+          entity_type: string
+          flag_cols?: string[]
+          omit_cols?: string[]
+          parent_col?: string | null
+          parent_type?: string | null
+          parent_via?: string | null
+          table_name: string
+        }
+        Update: {
+          captured?: Json
+          entity_type?: string
+          flag_cols?: string[]
+          omit_cols?: string[]
+          parent_col?: string | null
+          parent_type?: string | null
+          parent_via?: string | null
+          table_name?: string
+        }
+        Relationships: []
       }
       request_rate_counters: {
         Row: {
@@ -5163,9 +5833,54 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      sales_invoice_work_billed: {
+        Row: {
+          currency: string | null
+          id: string | null
+          invoice_date: string | null
+          is_down_payment: boolean | null
+          net: number | null
+          org_id: string | null
+          project_id: string | null
+          recovery: number | null
+          status: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
+      get_expense_advance_aging: {
+        Args: never
+        Returns: {
+          advance_id: string
+          age_days: number
+          amount: number
+          bucket: string
+          claim_number: string
+          claimant_id: string
+          claimant_name: string
+          currency: string
+          outstanding: number
+          paid_on: string
+          project_id: string
+          project_name: string
+          returned: number
+          settled: number
+        }[]
+      }
+      get_expense_claim_approval_routes: {
+        Args: { p_ids: string[] }
+        Returns: {
+          approvers: Json
+          claim_id: string
+          line_budget: number
+          line_used: number
+          reason: string
+          request_amount: number
+          route: string
+        }[]
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -5229,6 +5944,10 @@ export type Database = {
         Returns: undefined
       }
       assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
+      attach_claim_evidence: {
+        Args: { p_claim_id: string; p_document_id: string }
+        Returns: undefined
+      }
       attest_timesheet_no_erp_document: {
         Args: { p_reason: string; p_timesheet_id: string }
         Returns: undefined
@@ -5542,6 +6261,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_progress_claim: {
+        Args: {
+          p_down_payment_amount?: number
+          p_kind: string
+          p_lines?: Json
+          p_project_id: string
+          p_recover_remaining?: boolean
+          p_recovery_pct?: number
+          p_work_order_id?: string
+        }
+        Returns: string
+      }
       create_purchase_order: {
         Args: {
           p_amount: number
@@ -5741,6 +6472,7 @@ export type Database = {
           route: string
         }[]
       }
+      get_project_billing: { Args: { p_project_id: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_project_drawdown: {
         Args: { p_project_id: string }
@@ -5897,6 +6629,33 @@ export type Database = {
         Returns: {
           fiscal_year: string
           is_active_push: boolean
+        }[]
+      }
+      list_record_history: {
+        Args: {
+          p_before_at?: string
+          p_before_seq?: number
+          p_entity_id: string
+          p_entity_type: string
+          p_entity_types?: string[]
+          p_include_children?: boolean
+          p_limit?: number
+        }
+        Returns: {
+          action: string | null
+          actor_id: string | null
+          changes: Json | null
+          created_at: string
+          currency: string | null
+          detail: Json | null
+          entity_id: string
+          entity_type: string
+          event_id: string
+          op: string | null
+          parent_id: string | null
+          parent_type: string | null
+          seq: number | null
+          source: string
         }[]
       }
       log_audit: {
@@ -6224,6 +6983,14 @@ export type Database = {
         Returns: boolean
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
+      record_expense_advance_return: {
+        Args: { p_amount: number; p_id: string; p_reference?: string }
+        Returns: undefined
+      }
+      record_history_visible: {
+        Args: { p_entity_id: string; p_entity_type: string }
+        Returns: boolean
+      }
       record_outbox_ref: {
         Args: {
           p_domain: string
@@ -6232,6 +6999,15 @@ export type Database = {
           p_generation: number
           p_id: string
           p_pmo_record_id: string
+        }
+        Returns: number
+      }
+      record_progress_assessment: {
+        Args: {
+          p_month: string
+          p_note?: string
+          p_project_id: string
+          p_quantities: Json
         }
         Returns: number
       }
@@ -6325,6 +7101,10 @@ export type Database = {
           to_status: string
         }[]
       }
+      set_budget_push_account: {
+        Args: { p_map_id: string }
+        Returns: undefined
+      }
       set_external_binding_site_url: {
         Args: {
           p_actor_id: string
@@ -6337,6 +7117,7 @@ export type Database = {
       set_project_contract_value: {
         Args: {
           p_id: string
+          p_subject_to_vat?: boolean
           p_tax_amount?: number
           p_tax_base_denominator?: number
           p_tax_base_numerator?: number
@@ -6470,6 +7251,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      transition_expense_claim: {
+        Args: {
+          p_id: string
+          p_notes?: string
+          p_payment_reference?: string
+          p_to: Database["public"]["Enums"]["expense_claim_status"]
+        }
+        Returns: undefined
+      }
       transition_procurement: {
         Args: {
           p_id: string
@@ -6507,6 +7297,7 @@ export type Database = {
         Args: { p_options: string[] }
         Returns: boolean
       }
+      withdraw_progress_claim: { Args: { p_id: string }; Returns: undefined }
     }
     Enums: {
       budget_category:
@@ -6528,6 +7319,20 @@ export type Database = {
         | "Rejected"
         | "Closed"
         | "Superseded"
+      expense_claim_status:
+        | "Draft"
+        | "Submitted"
+        | "Approved"
+        | "Rejected"
+        | "Paid"
+        | "Cancelled"
+      expense_kind: "claim" | "advance"
+      expense_type:
+        | "Travel"
+        | "Accommodation"
+        | "Meals"
+        | "Local transport"
+        | "Other"
       incident_severity: "Low" | "Medium" | "High" | "Critical"
       incident_status: "Open" | "Investigating" | "Closed"
       procurement_invoice_status: "Received" | "Scheduled" | "Paid"
@@ -6718,6 +7523,22 @@ export const Constants = {
         "Rejected",
         "Closed",
         "Superseded",
+      ],
+      expense_claim_status: [
+        "Draft",
+        "Submitted",
+        "Approved",
+        "Rejected",
+        "Paid",
+        "Cancelled",
+      ],
+      expense_kind: ["claim", "advance"],
+      expense_type: [
+        "Travel",
+        "Accommodation",
+        "Meals",
+        "Local transport",
+        "Other",
       ],
       incident_severity: ["Low", "Medium", "High", "Critical"],
       incident_status: ["Open", "Investigating", "Closed"],

@@ -53,6 +53,14 @@ describe('AC-APR-030 approvalRouteNote', () => {
       "Approval for this request is routed to Ana Approver: it is within the project's Materials budget.",
     );
   });
+  it('AC-APR-030: an Engineer is not told the spend is within budget (their visibility can understate it)', () => {
+    const note = approvalRouteNote(route(), 'Materials', t, 'Engineer');
+    expect(note).toBe('Approval for this request is routed to Ana Approver: they are the approver set for this project.');
+    expect(note).not.toContain('within');
+  });
+  it('AC-APR-030: a Project Manager still sees the within-budget line', () => {
+    expect(approvalRouteNote(route(), 'Materials', t, 'Project Manager')).toContain("within the project's Materials budget");
+  });
   it('AC-APR-030: joins a senior set with "or" and states overhead', () => {
     const r = route({
       route: 'org',

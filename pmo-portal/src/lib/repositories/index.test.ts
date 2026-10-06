@@ -176,10 +176,11 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // RPC. FALSE — it holds COLUMN-level INSERT on 16 columns and UPDATE on 8, so create and
       // body-edit are ordinary table writes; `order_value`, `tax_treatment`, `tax_amount`, `status`
       // and every witness column are absent from UPDATE, which is what forces the MONEY and
+      // 'expenseClaim' + 'expenseReceipts' from #775 (migration 0247).
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'project', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expenseReceipts', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
     );
   });
 
@@ -192,7 +193,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort());
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {

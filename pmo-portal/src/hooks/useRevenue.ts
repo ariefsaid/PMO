@@ -9,7 +9,7 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import type { SalesInvoiceRow, IncomingPaymentRow } from '@/src/lib/db/revenue';
+import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 /**
@@ -78,9 +78,7 @@ export function useIncomingPayment(id: string | undefined) {
 export function useRevenuePerProject() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<
-    Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
-  >({
+  return useQuery<RevenueByProjectRow[]>({
     queryKey: ['revenueByProject', orgId],
     queryFn: () => repositories.revenue.getRevenueByProject?.() ?? Promise.resolve([]),
     enabled: Boolean(orgId),

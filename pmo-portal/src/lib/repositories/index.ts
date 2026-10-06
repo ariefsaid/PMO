@@ -10,7 +10,9 @@
  * A future ERP/REST backend = a new module exporting the same `Repositories` shape; the FE
  * imports `repositories` and never changes.
  */
+import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
+import { recordHistoryRepository } from './recordHistory';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -206,6 +208,19 @@ import {
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
 import {
+  listBoqItems, createBoqItem, updateBoqItem, deleteBoqItem, recordProgressAssessment,
+  listProjectClaims, createProgressClaim, attachClaimEvidence, withdrawProgressClaim, getProjectBilling,
+} from '@/src/lib/db/progressBilling';
+import {
+  listExpenseClaims, getExpenseClaim, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim,
+  addExpenseLine, updateExpenseLine, removeExpenseLine, transitionExpenseClaim, recordExpenseAdvanceReturn,
+  getExpenseAdvanceOutstanding, getExpenseClaimRoutes, getExpenseAdvanceAging,
+} from '@/src/lib/db/expenseClaims';
+import {
+  listExpenseReceipts, prepareExpenseReceiptUpload, confirmExpenseReceiptUpload, archiveExpenseReceipt,
+  getExpenseReceiptUrl, cleanupExpenseReceiptObject,
+} from '@/src/lib/db/expenseReceipts';
+import {
   listProcurementFiles,
   prepareUpload as prepareProcurementFileUpload,
   confirmUpload as confirmProcurementFileUpload,
@@ -244,6 +259,8 @@ import {
   getOrgProjectNumberPattern,
   setOrgProjectNumberPattern,
   getOrgWithholdingAccount,
+  getOrgDownPaymentItem,
+  setOrgDownPaymentItem,
   setOrgWithholdingAccount,
   getOrgProjectClassificationOptions,
   setOrgProjectClassificationOptions,
@@ -276,7 +293,10 @@ import type {
   IncidentRepository,
   MilestoneRepository,
   WorkOrderRepository,
+  ProgressBillingRepository,
   ProcurementFileRepository,
+  ExpenseClaimRepository,
+  ExpenseReceiptRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
@@ -524,9 +544,13 @@ const procurement: ProcurementRepository = {
             //
             // On a flipped org the ERP computes the tax from its own template and OWNS the answer;
             // `upsertInvoiceMirror` writes 'inclusive' as a fact about the grand_total it just set.
-            // So the form does not ask (see `taxIsPmoAuthored`), and nothing is forwarded. Letting a
-            // user CHOOSE the ERPNext tax template on this path is a real feature, tracked
-            // separately — it is not this omission.
+            // So the form does not ask (see `taxIsPmoAuthored`), and nothing else is forwarded.
+            //
+            // #520: the ONE tax input this path takes is the ERPNext Purchase Taxes and Charges
+            // Template the user chose — and it IS consumed: the dispatch validates it against the
+            // ERP company, resolves its rows server-side and sends them (`resolvePurchaseTaxRows`).
+            // No choice → nothing sent, and ERPNext applies its own default.
+            ...(input.taxTemplate?.trim() ? { taxTemplate: input.taxTemplate.trim() } : {}),
             erp_doc_kind: 'purchase-invoice',
           },
           intent,
@@ -595,7 +619,7 @@ const revenue: RevenueRepository = {
   // Write methods — route through dispatch when externally-owned
   createInvoice: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
-      ? dispatchCreate('revenue', { ...input, erp_doc_kind: 'sales-invoice' }, intent)
+      ? dispatchCreate('revenue', salesInvoiceCreateFields(input), intent)
           .then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
   createPayment: (input, intent) =>
@@ -777,6 +801,32 @@ const workOrder: WorkOrderRepository = {
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
 };
 
+/**
+ * Progress billing (#766). Assessments are operational and never dispatch. Raising a billing claim's invoice
+ * dispatches a sales-invoice CREATE whose record id is the CLAIM id, so the outbox's one-in-flight-per-record
+ * rule makes a claim mint at most one ERP invoice. The body is built server-side from the claim.
+ */
+const progressBilling: ProgressBillingRepository = {
+  listBoq: (projectId) => wrap(() => listBoqItems(projectId)),
+  createBoq: (projectId, input) => wrap(() => createBoqItem(projectId, input)),
+  updateBoq: (id, input) => wrap(() => updateBoqItem(id, input)),
+  deleteBoq: (id) => wrap(() => deleteBoqItem(id)),
+  recordAssessment: (input) => wrap(() => recordProgressAssessment(input)),
+  listClaims: (projectId) => wrap(() => listProjectClaims(projectId)),
+  createClaim: (input) => wrap(() => createProgressClaim(input)),
+  attachEvidence: (claimId, documentId) => wrap(() => attachClaimEvidence(claimId, documentId)),
+  withdrawClaim: (id) => wrap(() => withdrawProgressClaim(id)),
+  raiseInvoice: (claim, intent) =>
+    routeDomainWrite('revenue') === 'external'
+      ? dispatchCreate(
+          'revenue',
+          { erp_doc_kind: 'sales-invoice', projectId: claim.projectId, customerId: claim.customerId },
+          { id: claim.claimId, idempotencyKey: intent?.idempotencyKey ?? crypto.randomUUID() },
+        ).then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
+      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  summary: (projectId) => wrap(() => getProjectBilling(projectId)),
+};
+
 const procurementFiles: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
   prepareUpload: (phase, procurementId, fileName) =>
@@ -786,6 +836,31 @@ const procurementFiles: ProcurementFileRepository = {
   archive: (phase, id) => wrap(() => archiveProcurementFile(phase, id)),
   getSignedUrl: (filePath, opts) => wrap(() => getProcurementFileSignedUrl(filePath, opts)),
   cleanupObject: (filePath) => wrap(() => cleanupProcurementFileObject(filePath)),
+};
+
+const expenseClaim: ExpenseClaimRepository = {
+  list: (filters) => wrap(() => listExpenseClaims(filters)),
+  get: (id) => wrap(() => getExpenseClaim(id)),
+  lines: (claimId) => wrap(() => listExpenseClaimLines(claimId)),
+  create: (input) => wrap(() => createExpenseClaim(input)),
+  update: (id, kind, patch) => wrap(() => updateExpenseClaim(id, kind, patch)),
+  addLine: (claimId, input) => wrap(() => addExpenseLine(claimId, input)),
+  updateLine: (id, input) => wrap(() => updateExpenseLine(id, input)),
+  removeLine: (id) => wrap(() => removeExpenseLine(id)),
+  transition: (id, to, opts) => wrap(() => transitionExpenseClaim(id, to, opts)),
+  recordReturn: (id, amount, reference) => wrap(() => recordExpenseAdvanceReturn(id, amount, reference)),
+  outstanding: (advanceId) => wrap(() => getExpenseAdvanceOutstanding(advanceId)),
+  routes: (ids) => wrap(() => getExpenseClaimRoutes(ids)),
+  aging: () => wrap(() => getExpenseAdvanceAging()),
+};
+
+const expenseReceipts: ExpenseReceiptRepository = {
+  list: (claimId) => wrap(() => listExpenseReceipts(claimId)),
+  prepareUpload: (claimId, fileName) => wrap(() => prepareExpenseReceiptUpload(claimId, fileName)),
+  confirmUpload: (claimId, path, title) => wrap(() => confirmExpenseReceiptUpload(claimId, path, title)),
+  archive: (id) => wrap(() => archiveExpenseReceipt(id)),
+  getSignedUrl: (path, opts) => wrap(() => getExpenseReceiptUrl(path, opts)),
+  cleanupObject: (path) => wrap(() => cleanupExpenseReceiptObject(path)),
 };
 
 const contact: ContactRepository = {
@@ -845,6 +920,8 @@ const orgFeature: OrgFeatureRepository = {
 const orgSettings: OrgSettingsRepository = {
   getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
   setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
+  getDownPaymentItem: () => wrap(() => getOrgDownPaymentItem()),
+  setDownPaymentItem: (item) => wrap(() => setOrgDownPaymentItem(item)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
   setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
   getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),
@@ -1029,6 +1106,12 @@ const integrationsImpl: IntegrationsRepository = {
       return (data as { companies: { name: string }[] }).companies;
     });
   },
+  listPurchaseTaxTemplates: () => wrap(async () => {
+    const { data, error } = await invokeWithTimeout(supabase.functions.invoke<{ templates: Array<{ name: string }> }>('external-items', { body: { purpose: 'purchase-tax-templates' } }));
+    if (error) throw error;
+    if (!data?.templates) throw new Error('ERP purchase tax templates could not be read');
+    return data.templates;
+  }),
   listItems: (purpose) => wrap(async () => {
     const { data, error } = await invokeWithTimeout(supabase.functions.invoke<{ items: Array<{ code: string; name: string }> }>('external-items', { body: { purpose } }));
     if (error) throw error;
@@ -1062,6 +1145,7 @@ const reports: ReportsRepository = {
 
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
+  recordHistory: recordHistoryRepository,
   project,
   company,
   document,
@@ -1075,7 +1159,10 @@ export const repositories: Repositories = {
   incident,
   milestone,
   workOrder,
+  progressBilling,
   procurementFiles,
+  expenseClaim,
+  expenseReceipts,
   contact,
   meeting,
   userView,
@@ -1105,7 +1192,10 @@ export type {
   IncidentRepository,
   MilestoneRepository,
   WorkOrderRepository,
+  ProgressBillingRepository,
   ProcurementFileRepository,
+  ExpenseClaimRepository,
+  ExpenseReceiptRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,

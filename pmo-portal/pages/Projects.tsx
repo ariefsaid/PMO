@@ -1,5 +1,5 @@
 import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
-import { matchesProjectClassification } from '@/src/lib/projectClassification';
+import { activeClassificationCount, matchesProjectClassification, pickClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -314,7 +314,7 @@ const Projects: React.FC = () => {
     [projectManagers, t],
   );
 
-  const classificationCount = [workingSet.serviceLine, workingSet.sector, workingSet.location, workingSet.awardType, workingSet.biddingEntity].filter(Boolean).length;
+  const classificationCount = activeClassificationCount(workingSet);
   const classificationFilters = <ProjectClassificationFilters rows={all} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />;
   const filtersActive =
     classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
@@ -426,12 +426,15 @@ const Projects: React.FC = () => {
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
                 )}
               </div>
-              <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
-                {t('projects.identifiers.pmo', 'PMO Project Number')}: {p.pmo_project_number}
+              {/* #838: value first — the label is screen-reader-only so it can't eat the width. */}
+              <div className="flex min-w-0 font-mono text-[11px] text-muted-foreground">
+                <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>
+                <span className="break-words md:truncate" title={p.pmo_project_number}>{p.pmo_project_number}</span>
               </div>
               {p.code && (
-                <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
-                  {t('projects.identifiers.client', 'Client Project Code')}: {p.code}
+                <div className="flex min-w-0 font-mono text-[11px] text-muted-foreground">
+                  <span className="sr-only">{t('projects.identifiers.client', 'Client Project Code')}: </span>
+                  <span className="break-words md:truncate" title={p.code}>{p.code}</span>
                 </div>
               )}
               {p.customer_contract_ref && (
@@ -1241,7 +1244,7 @@ const Projects: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
-            ...editTarget,
+            ...pickClassification(editTarget),
             id: editTarget.id,
             name: editTarget.name,
             code: editTarget.code,

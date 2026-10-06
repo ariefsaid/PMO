@@ -1,4 +1,9 @@
+import type { RecordHistoryRepository } from './recordHistory';
 import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type {
+  BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
+} from '@/src/lib/db/progressBilling';
+import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
@@ -29,6 +34,11 @@ import type {
   SetWorkOrderValueInput,
   ProjectDrawdown,
 } from '@/src/lib/db/workOrders';
+import type {
+  ExpenseClaimWithRefs, ExpenseClaimLineRow, ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch,
+  ExpenseLineInput, ExpenseClaimStatus, ExpenseKind, ExpenseClaimRoute, ExpenseAdvanceAgingRow,
+} from '@/src/lib/db/expenseClaims';
+import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -111,6 +121,7 @@ import type {
 import type {
   SalesInvoiceRow,
   IncomingPaymentRow,
+  RevenueByProjectRow,
 } from '@/src/lib/db/revenue';
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
@@ -470,9 +481,7 @@ export interface RevenueRepository {
   /** Get a single incoming payment by id. */
   getPayment(id: string): Promise<IncomingPaymentRow | null>;
   /** Revenue rollup per project — SUM(amount) grouped by project_id. */
-  getRevenueByProject(): Promise<
-    Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
-  >;
+  getRevenueByProject(): Promise<RevenueByProjectRow[]>;
 }
 
 export interface TimesheetRepository {
@@ -570,6 +579,25 @@ export interface WorkOrderRepository {
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
 }
 
+/** Progress billing (#766): BoQ, assessments (operational), billing claims + evidence, the summary. */
+export interface ProgressBillingRepository {
+  listBoq(projectId: string): Promise<BoqItemRow[]>;
+  createBoq(projectId: string, input: BoqItemInput): Promise<BoqItemRow>;
+  updateBoq(id: string, input: BoqItemInput): Promise<void>;
+  deleteBoq(id: string): Promise<void>;
+  /** Records the month's quantities done to date; returns the derived percent. Never reaches the ERP. */
+  recordAssessment(input: ProgressAssessmentInput): Promise<number>;
+  listClaims(projectId: string): Promise<ProgressClaimWithInvoice[]>;
+  /** Returns the new claim id. The server computes gross and recovery. */
+  createClaim(input: ProgressClaimInput): Promise<string>;
+  attachEvidence(claimId: string, documentId: string): Promise<void>;
+  withdrawClaim(id: string): Promise<void>;
+  /** Raise the claim's ERP invoice; the claim id IS the invoice's PMO record id (ADR-0077). */
+  raiseInvoice(claim: { claimId: string; projectId: string; customerId: string }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
+  /** Null when the project is invisible — never a zero summary. */
+  summary(projectId: string): Promise<ProjectBillingFacts | null>;
+}
+
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
@@ -641,6 +669,36 @@ export interface UserViewRepository {
   delete(id: string): Promise<void>;
 }
 
+/**
+ * Expense claims and cash advances (#775, migration 0247). One-to-one with the DAL: header writes over granted
+ * columns, lines as plain writes, every status move through the transition RPC, a cash return through its own
+ * RPC — collapsing any pair would hide a control behind a convenience.
+ */
+export interface ExpenseClaimRepository {
+  list(filters?: ExpenseClaimFilters): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }>;
+  get(id: string): Promise<ExpenseClaimWithRefs | null>;
+  lines(claimId: string): Promise<ExpenseClaimLineRow[]>;
+  create(input: ExpenseClaimInput): Promise<ExpenseClaimWithRefs>;
+  update(id: string, kind: ExpenseKind, patch: ExpenseClaimPatch): Promise<void>;
+  addLine(claimId: string, input: ExpenseLineInput): Promise<ExpenseClaimLineRow>;
+  updateLine(id: string, input: ExpenseLineInput): Promise<void>;
+  removeLine(id: string): Promise<void>;
+  transition(id: string, to: ExpenseClaimStatus, opts?: { notes?: string | null; paymentReference?: string | null }): Promise<void>;
+  recordReturn(id: string, amount: number, reference: string | null): Promise<void>;
+  outstanding(advanceId: string): Promise<number | null>;
+  routes(ids: string[]): Promise<ExpenseClaimRoute[]>;
+  aging(): Promise<{ rows: ExpenseAdvanceAgingRow[]; truncated: boolean }>;
+}
+
+export interface ExpenseReceiptRepository {
+  list(claimId: string): Promise<ExpenseReceiptRow[]>;
+  prepareUpload(claimId: string, fileName: string): Promise<{ signedUrl: string; path: string }>;
+  confirmUpload(claimId: string, path: string, title: string | null): Promise<ExpenseReceiptRow>;
+  archive(id: string): Promise<void>;
+  getSignedUrl(path: string, opts?: { download?: boolean }): Promise<string>;
+  cleanupObject(path: string): Promise<void>;
+}
+
 /** #765 — the monthly management pack (ADR-0076). */
 export interface ReportsRepository {
   /** Facts for the pack from ONE SECURITY INVOKER RPC; RLS scopes the org. */
@@ -651,6 +709,7 @@ export interface ReportsRepository {
 
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
+  recordHistory: RecordHistoryRepository;
   project: ProjectRepository;
   company: CompanyRepository;
   document: DocumentRepository;
@@ -664,7 +723,10 @@ export interface Repositories {
   incident: IncidentRepository;
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
+  progressBilling: ProgressBillingRepository;
   procurementFiles: ProcurementFileRepository;
+  expenseClaim: ExpenseClaimRepository;
+  expenseReceipts: ExpenseReceiptRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;
@@ -695,6 +757,8 @@ export interface OrgSettingsRepository {
   setProjectNumberPattern(value: string | null): Promise<void>;
   getWithholdingAccount(): Promise<string | null>;
   setWithholdingAccount(account: string | null): Promise<void>;
+  getDownPaymentItem(): Promise<string | null>;
+  setDownPaymentItem(item: string | null): Promise<void>;
   getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
   setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
@@ -913,6 +977,8 @@ export interface IntegrationsRepository {
   listCompanies(orgId: string, tier: ExternalTier): Promise<Array<{ name: string }>>;
   /** Current enabled items; org is resolved from the caller JWT at the endpoint. */
   listItems(purpose: 'sales' | 'purchase'): Promise<Array<{ code: string; name: string }>>;
+  /** #520: the ERP company's enabled Purchase Taxes and Charges Templates (flipped-org vendor-invoice picker). */
+  listPurchaseTaxTemplates(): Promise<Array<{ name: string }>>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

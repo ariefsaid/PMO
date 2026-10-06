@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, SelectField, useToast } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
+import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
 import { formatDateOnly } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
@@ -53,6 +54,7 @@ const NO_PROJECT = '\u0000no-project';
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
+  const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   const { toast } = useToast();
@@ -215,6 +217,15 @@ const MyTasks: React.FC = () => {
                     </div>
                     {/* Action cluster: Log time + status control. */}
                     <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
+                      {/* #790: comments for ANY task of mine — also the only surface for a project-less task. */}
+                      <button
+                        type="button"
+                        aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
+                        onClick={() => setCommentsTask({ id: task.id, name: task.name })}
+                        className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {t('comments.open', 'Comments')}
+                      </button>
                       {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project.
                           ⚑ FR-FCT-042: absent entirely on a project-less task. `timesheet_entries`
                           keeps `project_id NOT NULL` (FR-FCT-005), so the destination CANNOT accept
@@ -258,6 +269,7 @@ const MyTasks: React.FC = () => {
           ))}
         </div>
       )}
+      <TaskCommentsDrawer task={commentsTask} onClose={() => setCommentsTask(null)} />
     </div>
   );
 };

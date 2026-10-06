@@ -38,6 +38,8 @@ test('AC-MTG-023: the seeded /meetings/:id detail — editor + share popover ope
   ).toBeVisible();
   // The author surface is fully rendered: editor lines + attendees + the share panel.
   await expect(page.getByTestId('minutes-editor')).toBeVisible();
+  // #805: the editor is a lazy BlockNote chunk — scan only once it has actually mounted.
+  await expect(page.getByTestId('minutes-blocknote').locator('.bn-editor')).toBeVisible();
   await expect(page.getByTestId('attendees-list')).toBeVisible();
 
   // Scan 1: the resting detail page.

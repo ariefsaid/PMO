@@ -32,10 +32,19 @@ export function useProcurementFiles(
   parentId: string,
   procurementId: string,
   uploadedById: string | null,
+  /** `list: false` skips the per-row file-list query — for callers that already hold the files
+   *  (the procurement detail query embeds them) and only need the upload/archive mutations. */
+  opts?: { list?: boolean },
 ) {
   const qc = useQueryClient();
   const queryKey = ['procurement-files', phase, parentId] as const;
-  const invalidate = () => qc.invalidateQueries({ queryKey });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey });
+    // The detail query embeds each row's files, so a change must refetch it too.
+    qc.invalidateQueries({
+      predicate: (q) => q.queryKey[0] === 'procurement' && q.queryKey[2] === procurementId,
+    });
+  };
 
   // A single in-flight upload per phase row (one file picker at a time).
   const [progress, setProgress] = useState<number | null>(null);
@@ -45,6 +54,7 @@ export function useProcurementFiles(
   const list = useQuery<ProcurementFileRow[]>({
     queryKey,
     queryFn: () => repositories.procurementFiles.list(phase, parentId),
+    enabled: opts?.list !== false,
   });
 
   const runUpload = async ({ file, title }: ProcFileUploadArgs): Promise<ProcurementFileRow> => {

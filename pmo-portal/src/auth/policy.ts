@@ -27,6 +27,7 @@ export type Action =
   | 'delete'
   | 'transition'
   | 'editContractValue'
+  | 'setVatFlag'
   | 'setValue'
   | 'submit_sales_invoice'
   | 'record_received_date'
@@ -55,6 +56,9 @@ export type Entity =
   | 'approval'
   | 'milestone'
   | 'workOrder'
+  | 'boqItem'
+  | 'progressClaim'
+  | 'expenseClaim'
   | 'contact'
   | 'contactActivity'
   | 'meeting'
@@ -160,6 +164,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       const status = ctx.record?.status ?? '';
       return ON_HAND_SET.has(status) ? has(MONEY_AUTHORITY, role) : has(DELIVERY, role);
     },
+    // OD-TAX-4: whether the project is subject to VAT — Finance/Admin only (set_project_contract_value enforces it).
+    setVatFlag: allow(REVENUE_WRITE),
   },
   /**
    * Work orders (#566) — the client's inbound PO drawing down against a project's ceiling.
@@ -190,6 +196,40 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
+  },
+  /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
+  boqItem: {
+    view: allow(MASTER_DATA),
+    create: allow(MASTER_DATA),
+    edit: allow(MASTER_DATA),
+    delete: allow(MASTER_DATA),
+  },
+  /**
+   * Billing claims (#766). view = the revenue read set; create (raise included) and transition (evidence,
+   * withdraw) = REVENUE_WRITE, mirroring the claim RPCs and the dispatch's revenue money-write roles.
+   * Assessing progress is #765's `projectProgress.edit`, unchanged. The server is the authority.
+   */
+  progressClaim: {
+    view: allow(MASTER_DATA),
+    create: allow(REVENUE_WRITE),
+    transition: allow(REVENUE_WRITE),
+  },
+  /**
+   * Expense claims and cash advances (#775, migration 0247). Mirrors the server:
+   *   view/create ← every active member raises their own (RLS insert: claimant = auth.uid()); reads are RLS-scoped
+   *                 to own ∪ approval rank, so the page is safe for every role.
+   *   edit        ← the claimant only, while Draft/Rejected (RLS update policy + the 0247 §2 freeze).
+   * Status moves are NOT modelled here — who may approve/pay/cancel/return depends on identity, route and SoD;
+   * `availableExpenseActions` (src/lib/expenses/expenseRules.ts) projects that and the RPC decides.
+   */
+  expenseClaim: {
+    view: allow(ALL),
+    create: allow(ALL),
+    edit: (role, ctx) =>
+      has(ALL, role) &&
+      !!ctx.currentUserId &&
+      ctx.record?.claimant_id === ctx.currentUserId &&
+      (ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected'),
   },
   company: {
     // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no

@@ -33,7 +33,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, requireServiceRoleKey } from './helpers';
+import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 
 const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -63,12 +63,15 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // "flange" deliberately appears ONLY in the minute body, never in the title — so the search
     // step below proves the NOTES projection, not an accidental title match.
     const minuteLine = `Order flange samples ${suffix}`;
+    // The line /action is invoked on: it is REPLACED by the action-item block (the block renders the
+    // task's own name, so keeping the line would show the same words twice).
+    const actionLine = `Samples follow-up ${suffix}`;
     const taskName = `Chase flange samples ${suffix}`;
 
     // ── 1. The Engineer signs in and opens Meetings from the rail (OD-MTG-1: the nav exists
     //       for every role, Engineer included). ─────────────────────────────────────────────
     await signIn(page, 'engineer@acme.test');
-    await page.getByRole('link', { name: 'Meetings', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Meetings', exact: true }).click();
     await page.waitForURL('**/meetings');
 
     // ── 2. Create the meeting (no project — the project-less path is the strictest one:
@@ -92,9 +95,14 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
 
     // ── 3. Minute a line. The author sees the editor (attendance-keyed read, author-keyed
     //       write — 0205); a fresh meeting starts with no lines. ──────────────────────────
-    await page.getByTestId('minutes-add-line').click();
-    await page.getByPlaceholder('Type a minute…').fill(minuteLine);
+    //       #805: the minutes are a BlockNote editor — the author just types into it.
+    const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
+    await editor.click();
+    await page.keyboard.type(minuteLine);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type(actionLine);
     const save = page.getByTestId('minutes-save');
+    await expect(save).toBeEnabled();
     await save.click();
     // The save round-trips: the button re-disables only when the saved copy equals the editor.
     await expect(save).toBeDisabled();
@@ -102,11 +110,20 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 4. /action — DD-MTG-8: the STANDARD task-create modal opens, prefilled from the line
     //       and fully editable. The author edits the name before publishing (the informed act:
     //       what they submit — and only that — reaches the org-visible tasks system). ───────
-    await page.getByTestId('minute-action-0').click();
+    //       #805: invoked as the slash command at the end of the line; the line's text prefills
+    //       and, once the task exists, the line is replaced by the action-item block.
+    // Save took focus, so the author clicks back to the end of the action line first.
+    // Clicking the block's far right puts the caret at the end of the line on every platform.
+    const actionBlock = editor.locator('.bn-block-content', { hasText: actionLine });
+    await waitForFonts(page);
+    const box = await actionBlock.boundingBox();
+    await actionBlock.click({ position: { x: box!.width - 4, y: box!.height / 2 } });
+    await page.keyboard.type(' /action');
+    await page.getByRole('option', { name: /Action item/ }).first().click();
     const actionModal = page.getByRole('dialog');
     await expect(actionModal).toBeVisible();
     const nameBox = actionModal.getByRole('textbox', { name: 'Task name' });
-    await expect(nameBox).toHaveValue(minuteLine); // prefilled from the minute line
+    await expect(nameBox).toHaveValue(actionLine); // prefilled from the minute line
     await nameBox.fill(taskName); // …and consciously edited before publishing
     await actionModal.getByRole('button', { name: 'Create task' }).click();
 
@@ -115,12 +132,21 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       linkage oracle, not a DOM detail. It carries the EDITED name, never the raw line.
     const actionItems = page.getByTestId('action-items-list');
     await expect(actionItems.getByText(taskName)).toBeVisible({ timeout: 15_000 });
+    //       …and the minutes carry an actionItem block that renders the LIVE task (id-only, DD-MTG-2).
+    await expect(page.getByTestId('minutes-blocknote').getByTestId('action-item').getByText(taskName)).toBeVisible();
+    //       The block REPLACED the line — the same words are not shown twice (the other minute stays).
+    await expect(page.getByTestId('minutes-blocknote')).not.toContainText(actionLine);
+    await expect(page.getByTestId('minutes-blocknote')).toContainText(minuteLine);
+    // Persist it.
+    await save.click();
+    await expect(save).toBeDisabled();
 
     // ── 6. And it is server truth, not optimistic client cache: a full reload re-reads the
     //       meeting, the minute line, and the linked task through RLS from a cold cache. ────
     await page.reload();
     await expect(page.getByRole('heading', { name: meetingTitle })).toBeVisible();
-    await expect(page.getByPlaceholder('Type a minute…')).toHaveValue(minuteLine); // the persisted minute
+    await expect(page.getByTestId('minutes-blocknote')).toContainText(minuteLine); // the persisted minute
+    await expect(page.getByTestId('minutes-blocknote').getByTestId('action-item').getByText(taskName)).toBeVisible();
     await expect(page.getByTestId('action-items-list').getByText(taskName)).toBeVisible({
       timeout: 15_000,
     });
@@ -128,7 +154,7 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 7. The DD-MTG-5 find story (I5): back on the list, search a term that lives ONLY in
     //       the minute's NOTES ("flange" — the title never contains it), so the hit can only
     //       come from the DB-side notes_search projection. ─────────────────────────────────
-    await page.getByRole('link', { name: 'Meetings', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Meetings', exact: true }).click();
     await page.waitForURL('**/meetings');
     await page.getByLabel('Search meetings').fill(`flange ${suffix}`);
     await expect(page.getByRole('table').getByText(meetingTitle)).toBeVisible({

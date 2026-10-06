@@ -39,7 +39,7 @@ export interface ApprovalRoute {
  * no restriction (FR-APR-035) — the server enforces either way.
  */
 export function mayDecideRoutedApproval(
-  route: ApprovalRoute | null | undefined,
+  route: Pick<ApprovalRoute, 'route' | 'approvers'> | null | undefined,
   userId: string | null | undefined,
   isAdmin: boolean,
 ): boolean {
@@ -48,8 +48,17 @@ export function mayDecideRoutedApproval(
   return Boolean(userId) && route.approvers.some((a) => a.id === userId);
 }
 
-/** One line telling a viewer who is not routed this request who decides it, and why (FR-APR-031). */
-export function approvalRouteNote(route: ApprovalRoute, category: string | null, t: TFunction): string {
+/** Roles at or above the spend-approval ranks; below them a viewer's reads cannot see all the spend behind a budget line. */
+const APPROVER_RANK_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'];
+
+/**
+ * One line telling a viewer who is not routed this request who decides it, and why (FR-APR-031). */
+export function approvalRouteNote(
+  route: Pick<ApprovalRoute, 'route' | 'reason' | 'approvers'>,
+  category: string | null,
+  t: TFunction,
+  viewerRole?: string | null,
+): string {
   if (route.route === 'admin') {
     return t(
       'procurementDetail.route.adminOnly',
@@ -63,6 +72,10 @@ export function approvalRouteNote(route: ApprovalRoute, category: string | null,
   let why: string;
   if (route.route === 'org' && route.reason === 'within_budget') {
     why = t('procurementDetail.route.why.escalated', "the project's own approver cannot approve it.");
+  } else if (route.reason === 'within_budget' && viewerRole != null && !APPROVER_RANK_ROLES.includes(viewerRole)) {
+    // The budget-used figure behind "within budget" is summed under the viewer's own row visibility, so below the
+    // approver ranks it can understate what is already spent: say who decides, not that the spend fits.
+    why = t('procurementDetail.route.why.projectApprover', 'they are the approver set for this project.');
   } else if (route.reason === 'within_budget') {
     why = t('procurementDetail.route.why.withinBudget', {
       defaultValue: "it is within the project's {{category}} budget.",

@@ -13,6 +13,10 @@ const h = vi.hoisted(() => {
   const state = {
     /** Successive `sales_invoices` responses, one per `.range()` page the DAL requests. */
     invoicePages: [] as Array<Array<Record<string, unknown>>>,
+    /** Successive `sales_invoice_work_billed` responses (the net-of-tax billed-work view, #831). */
+    workPages: [] as Array<Array<Record<string, unknown>>>,
+    /** Tables the DAL scanned, in order. */
+    scanned: [] as string[],
     projects: [] as Array<{ id: string; name: string }>,
     /** Singular reads: data served by `.maybeSingle()` per table. */
     singles: {} as Record<string, Record<string, unknown> | null>,
@@ -61,9 +65,13 @@ const h = vi.hoisted(() => {
       then(resolve: (v: { data: unknown; error: unknown }) => unknown) {
         if (table === 'projects') return resolve({ data: state.projects, error: null });
         state.invoiceQueries += 1;
+        state.scanned.push(table);
+        if (table === 'sales_invoice_work_billed' && !state.table) {
+          return resolve({ data: state.workPages.shift() ?? [], error: null });
+        }
         // LIVE-TABLE mode (NIT 2): a real, id-ordered table that a hook may MUTATE between page
         // reads — the only way to observe an offset scan double-counting a row.
-        if (state.table) {
+        if (state.table && table === 'sales_invoice_work_billed') {
           const ordered = [...state.table].sort((x, y) => String(x.id).localeCompare(String(y.id)));
           const after = cursor === null ? ordered : ordered.filter((r) => String(r.id) > cursor!);
           const page = window ? after.slice(window[0], window[1] + 1) : after.slice(0, cap);
@@ -90,13 +98,27 @@ function invoices(n: number, projectId: string | null, amount: number, outstandi
   return Array.from({ length: n }, () => ({
     id: `si-${String(nextInvoiceId++).padStart(6, '0')}`,
     project_id: projectId,
+    currency: 'USD',
     amount,
     erp_outstanding_amount: outstanding,
   }));
 }
 
+/** `n` billed-work view rows (net of tax) — what `sales_invoice_work_billed` serves. */
+function work(n: number, projectId: string | null, net: number, currency = 'USD', recovery = 0) {
+  return Array.from({ length: n }, () => ({
+    id: `si-${String(nextInvoiceId++).padStart(6, '0')}`,
+    project_id: projectId,
+    currency,
+    net,
+    recovery,
+  }));
+}
+
 beforeEach(() => {
   h.state.invoicePages = [];
+  h.state.workPages = [];
+  h.state.scanned = [];
   h.state.projects = [];
   h.state.singles = {};
   h.state.columnCalls = [];
@@ -113,116 +135,154 @@ beforeEach(() => {
   h.from.mockClear();
 });
 
-describe('db/revenue getRevenueByProject — the rollup must not silently truncate at PostgREST max_rows', () => {
-  it('aggregates EVERY invoice past the 1000-row PostgREST cap (no silent understatement)', async () => {
+describe('db/revenue getRevenueByProject — net of tax, per currency, paged', () => {
+  it('AC-831-1: sums the NET (shared work-billed view), never the gross amount, and reads Open AR from the invoices', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
-    // A full page (exactly the cap) followed by a partial one — what PostgREST returns for 1500 rows.
-    h.state.invoicePages = [
-      invoices(1000, 'proj-1', 10, 4),
-      invoices(500, 'proj-1', 10, 4),
-    ];
+    // The view already nets tax out: a gross 111 PPN invoice arrives as net 100.
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    h.state.invoicePages = [invoices(2, 'proj-1', 111, 40)];
 
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', total_amount: 15_000, open_ar: 6_000, invoice_count: 1500 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 80, invoice_count: 2 },
     ]);
-    // It kept paging until a SHORT page proved the end of the set — in bounded, cursor-advanced
-    // pages (NIT 2: keyset, not offset).
-    expect(h.state.limits).toEqual([1000, 1000]);
-    expect(h.state.cursors).toEqual([['id', 'si-000999']]);
+    expect(h.state.scanned).toEqual(['sales_invoice_work_billed', 'sales_invoices']);
+    // Down-payment invoices are advances, not work — filtered server-side, as the management pack does.
+    expect(h.state.eqCalls).toContainEqual(['is_down_payment', false]);
+  });
+
+  it('AC-831-1: a claim invoice counts at net plus the down-payment recovery its negative line removed', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(1, 'proj-1', 80, 'USD', 20)];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows[0].total_amount).toBe(100);
+  });
+
+  it('AC-831-2: a project billed in two currencies yields one row per currency, never a blended total', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [[...work(1, 'proj-1', 100, 'USD'), ...work(1, 'proj-1', 5_000_000, 'IDR')]];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toHaveLength(2);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ project_id: 'proj-1', currency: 'USD', total_amount: 100 }),
+        expect.objectContaining({ project_id: 'proj-1', currency: 'IDR', total_amount: 5_000_000 }),
+      ]),
+    );
+  });
+
+  it('aggregates EVERY invoice past the 1000-row PostgREST cap (no silent understatement)', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(1000, 'proj-1', 10), work(500, 'proj-1', 10)];
+    h.state.invoicePages = [invoices(1000, 'proj-1', 10, 4), invoices(500, 'proj-1', 10, 4)];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 15_000, open_ar: 6_000, invoice_count: 1500 },
+    ]);
+    // Both scans kept paging until a SHORT page proved the end — bounded, cursor-advanced pages.
+    expect(h.state.limits).toEqual([1000, 1000, 1000, 1000]);
   });
 
   it('scans ONLY submitted-invoice statuses — a Draft never inflates project revenue (SHOULD-FIX 4, owner ruling)', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(3, 'proj-1', 10)];
     h.state.invoicePages = [invoices(3, 'proj-1', 10, 4)];
 
     await getRevenueByProject();
 
-    // The exclusion is a server-side filter (drafts must never reach the client aggregate), so the
-    // oracle is the query the DAL issues: a positive allow-list of the submitted states, never a
-    // bare "not Cancelled" that would let Draft through, and never omitted. (A separate `.in('id',…)`
-    // on `projects` resolves names — assert on the `status` filter specifically, not every `.in`.)
-    const statusFilter = h.state.inFilters.find((f) => f.column === 'status');
-    expect(statusFilter?.values).toEqual(['Submitted', 'Unpaid', 'Paid']);
-    expect(statusFilter?.values).not.toContain('Draft');
-    expect(statusFilter?.values).not.toContain('Cancelled');
+    const statusFilters = h.state.inFilters.filter((f) => f.column === 'status');
+    expect(statusFilters).toHaveLength(2);
+    for (const f of statusFilters) {
+      expect(f.values).toEqual(['Submitted', 'Unpaid', 'Paid']);
+    }
   });
 
   it('pages on a STABLE order (id asc) — without one, a concurrent write can double-count or skip an invoice (S1)', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
-    h.state.invoicePages = [invoices(1000, 'proj-1', 10, 4), invoices(1, 'proj-1', 10, 4)];
+    h.state.workPages = [work(1000, 'proj-1', 10), work(1, 'proj-1', 10)];
 
     await getRevenueByProject();
 
-    // Postgres guarantees NO row order across statements: `.range()` without an ORDER BY can move a
-    // tuple between page reads, so Total Revenue silently drifts by up to a whole invoice.
     expect(h.state.orders).toContainEqual({ column: 'id', ascending: true });
   });
 
-  it('stops after a single request when the first page is short (no needless round-trips)', async () => {
+  it('stops after a single request per scan when the first page is short (no needless round-trips)', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(3, 'proj-1', 100)];
     h.state.invoicePages = [invoices(3, 'proj-1', 100, 25)];
 
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', total_amount: 300, open_ar: 75, invoice_count: 3 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 300, open_ar: 75, invoice_count: 3 },
     ]);
-    expect(h.state.invoiceQueries).toBe(1);
-  });
-
-  it('stops when a full page is followed by an empty one (an exact multiple of the page size)', async () => {
-    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
-    h.state.invoicePages = [invoices(1000, 'proj-1', 1, 0), []];
-
-    const rows = await getRevenueByProject();
-
-    expect(rows[0].invoice_count).toBe(1000);
     expect(h.state.invoiceQueries).toBe(2);
   });
 
   it('keeps the Unassigned bucket and the per-project names across pages', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
-    h.state.invoicePages = [
-      [...invoices(999, 'proj-1', 10, 0), ...invoices(1, null, 50, 50)],
-      invoices(1, null, 50, 50),
+    h.state.workPages = [
+      [...work(999, 'proj-1', 10), ...work(1, null, 50)],
+      work(1, null, 50),
     ];
+    h.state.invoicePages = [[...invoices(999, 'proj-1', 10, 0), ...invoices(1, null, 50, 0)], invoices(1, null, 50, 0)];
 
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual(
       expect.arrayContaining([
-        { project_id: 'proj-1', project_name: 'Alpha', total_amount: 9_990, open_ar: 0, invoice_count: 999 },
-        { project_id: null, project_name: null, total_amount: 100, open_ar: 100, invoice_count: 2 },
+        expect.objectContaining({ project_id: 'proj-1', project_name: 'Alpha', total_amount: 9_990, invoice_count: 999 }),
+        expect.objectContaining({ project_id: null, project_name: null, total_amount: 100, invoice_count: 2 }),
       ]),
     );
     expect(rows).toHaveLength(2);
   });
 
-  // ── Round-6 re-audit, NIT 2: OFFSET paging is repeatable under a stable ORDER BY, but it still
-  // MIS-COUNTS when a row is written between page reads — an insert with a lower-sorting id shifts
-  // every later row one slot right, so `range(1000, 1999)` re-reads the invoice that was already
-  // counted as the last row of page 0. Total Revenue then silently overstates by a whole invoice,
-  // on every org past 1000 invoices. A keyset cursor (`id > last-seen`) cannot: it names the row it
-  // resumes AFTER, so a concurrent insert can neither duplicate nor skip an already-scanned row.
   it('NIT 2: a concurrent insert between page reads never double-counts (keyset cursor, not offset)', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
-    // Exactly one full page of invoices, each 10.00 — so the scan must ask for a second page.
-    h.state.table = invoices(1000, 'proj-1', 10, 0);
-    // …and, between the two reads, someone raises an invoice that sorts BEFORE every existing row.
+    h.state.table = work(1000, 'proj-1', 10);
     h.state.mutateAfterQuery = () => {
-      h.state.table!.push({ id: 'si-000000-a', project_id: 'proj-1', amount: 10, erp_outstanding_amount: 0 });
+      h.state.table!.push({ id: 'si-000000-a', project_id: 'proj-1', currency: 'USD', net: 10, recovery: 0 });
     };
 
     const rows = await getRevenueByProject();
 
-    expect(rows[0].invoice_count).toBe(1000);
     expect(rows[0].total_amount).toBe(10_000);
   });
 
+  it('stops when a full page is followed by an empty one, on BOTH scans (an exact multiple of the page size)', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(1000, 'proj-1', 1), []];
+    h.state.invoicePages = [invoices(1000, 'proj-1', 1, 0), []];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows[0].invoice_count).toBe(1000);
+    expect(rows[0].total_amount).toBe(1000);
+    expect(h.state.invoiceQueries).toBe(4);
+  });
+
+  it('AC-831-1: a down-payment invoice adds to the invoice count and Open AR but not to Total Revenue', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    // The work view filters the down-payment out; the AR scan sees every submitted invoice.
+    h.state.workPages = [[]];
+    h.state.invoicePages = [invoices(1, 'proj-1', 50_000, 50_000)];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 0, open_ar: 50_000, invoice_count: 1 },
+    ]);
+  });
+
   it('returns an empty rollup (and asks for no project names) when the org has no invoices', async () => {
-    h.state.invoicePages = [[]];
     const rows = await getRevenueByProject();
     expect(rows).toEqual([]);
     expect(h.from).not.toHaveBeenCalledWith('projects');

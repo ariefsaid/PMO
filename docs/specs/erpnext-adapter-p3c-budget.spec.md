@@ -489,6 +489,9 @@ the client's GL controls — the feature's entire point.
   - **Accepted cost:** an org that wants two categories in one GL account cannot express it. A deliberate
     refusal — the alternative is a fabricated actuals split. Such an org merges the categories or splits the
     account. *(Surfaced in the admin UI as a validation error naming the conflicting category/account.)*
+  - **Superseded in part by #768 (2026-10-06, `docs/specs/budget-account-map-multi.spec.md`, mig `0246`):** a
+    category may now map to several accounts. Exactly one is the **push** account (partial unique index), and
+    actuals sum across all of them. `unique (org_id, erp_account)` and its rationale above are unchanged.
 - **FR-BUD-112 (who administers)** — Map rows shall be writable **only** by **Admin**
   (`can('manage_external_bindings', …)` — the privileged, audited config gate P3a's `process_gates` flip
   uses), org-scoped, stamping `updated_by`/`updated_at`. It is a per-org accounting-configuration change, not

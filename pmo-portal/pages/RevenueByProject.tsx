@@ -16,10 +16,13 @@ import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { formatCurrencyAuto, formatCurrencyCents, formatNumber } from '@/src/lib/format';
+import { sumPerCurrency } from '@/src/lib/sumPerCurrency';
+import type { RevenueByProjectRow } from '@/src/lib/db/revenue';
 
 const RevenueByProject: React.FC = () => {
-  // FR-L10N-020: every figure here is an AGGREGATE — per-project revenue sums and org-wide KPI
-  // totals — so none carries a record currency. The org default is the honest denomination.
+  // #831: revenue is net of tax and grouped per (project, currency) — each figure is labelled with its
+  // OWN currency and never converted or added across currencies. The org default only denominates the
+  // empty-org zero.
   const { currency: orgCurrency, isResolved: currencyResolved, isError: currencyError } = useOrgCurrencyState();
   const { t } = useTranslation();
   const may = usePermission();
@@ -28,14 +31,12 @@ const RevenueByProject: React.FC = () => {
   const all = useMemo(() => data ?? [], [data]);
 
   // Calculate totals (must be before any early return for hooks rules)
-  const totalRevenue = useMemo(
-    () => all.reduce((sum, row) => sum + row.total_amount, 0),
-    [all]
-  );
-  const totalOpenAR = useMemo(
-    () => all.reduce((sum, row) => sum + row.open_ar, 0),
-    [all]
-  );
+  const revenueTotals = useMemo(() => sumPerCurrency(all, (row) => row.total_amount), [all]);
+  const openARTotals = useMemo(() => sumPerCurrency(all, (row) => row.open_ar), [all]);
+  const money = (totals: Array<{ currency: string; amount: number }>) =>
+    totals.length === 0
+      ? formatCurrencyAuto(0, orgCurrency)
+      : totals.map((x) => formatCurrencyAuto(x.amount, x.currency)).join(' · ');
   const totalInvoices = useMemo(
     () => all.reduce((sum, row) => sum + row.invoice_count, 0),
     [all]
@@ -67,9 +68,7 @@ const RevenueByProject: React.FC = () => {
     );
   }
 
-  const columns: Column<
-    { project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }
-  >[] = [
+  const columns: Column<RevenueByProjectRow>[] = [
     {
       key: 'project_name',
       header: t('financeCopy.project', "Project"),
@@ -90,15 +89,22 @@ const RevenueByProject: React.FC = () => {
       exportValue: (row) => row.project_name ?? 'Unassigned',
     },
     {
+      // #831: the export must name each row's currency, or a USD and an IDR row sum together in a spreadsheet.
+      key: 'currency',
+      header: t('financeCopy.currency', 'Currency'),
+      cell: (row) => <span className="font-mono text-[13px]">{row.currency}</span>,
+      exportValue: (row) => row.currency,
+    },
+    {
       key: 'total_amount',
       header: t('financeCopy.totalRevenue', "Total Revenue"),
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {formatCurrencyCents(row.total_amount, orgCurrency)}
+          {formatCurrencyCents(row.total_amount, row.currency)}
         </span>
       ),
-      exportValue: (row) => row.total_amount.toString(),
+      exportValue: (row) => row.total_amount,
     },
     {
       key: 'open_ar',
@@ -106,10 +112,10 @@ const RevenueByProject: React.FC = () => {
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {formatCurrencyCents(row.open_ar, orgCurrency)}
+          {formatCurrencyCents(row.open_ar, row.currency)}
         </span>
       ),
-      exportValue: (row) => row.open_ar.toString(),
+      exportValue: (row) => row.open_ar,
     },
     {
       key: 'invoice_count',
@@ -120,7 +126,7 @@ const RevenueByProject: React.FC = () => {
           {row.invoice_count}
         </span>
       ),
-      exportValue: (row) => row.invoice_count.toString(),
+      exportValue: (row) => row.invoice_count,
     },
   ];
 
@@ -143,7 +149,7 @@ const RevenueByProject: React.FC = () => {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <KPITile
           label={t('financeCopy.totalRevenue', "Total Revenue")}
-          value={formatCurrencyAuto(totalRevenue, orgCurrency)}
+          value={money(revenueTotals)}
           icon="dollar"
           tone="blue"
           loading={isPending || currencyPending}
@@ -151,7 +157,7 @@ const RevenueByProject: React.FC = () => {
         />
         <KPITile
           label={t('financeCopy.openAR', "Open AR")}
-          value={formatCurrencyAuto(totalOpenAR, orgCurrency)}
+          value={money(openARTotals)}
           icon="dollar"
           tone="amber"
           loading={isPending || currencyPending}
@@ -167,7 +173,7 @@ const RevenueByProject: React.FC = () => {
         />
         <KPITile
           label={t('financeCopy.projects', "Projects")}
-          value={formatNumber(all.filter((r) => r.project_id).length)}
+          value={formatNumber(new Set(all.map((r) => r.project_id).filter(Boolean)).size)}
           icon="pipe"
           tone="green"
           loading={isPending}
@@ -208,11 +214,11 @@ const RevenueByProject: React.FC = () => {
           <DataTable
             rows={all}
             columns={columns}
-            rowKey={(row) => row.project_id ?? 'unassigned'}
+            rowKey={(row) => `${row.project_id ?? 'unassigned'}|${row.currency}`}
             onActivate={(row) => {
               if (row.project_id) navigate(`/projects/${row.project_id}`);
             }}
-            rowLabel={(row) => `Open ${row.project_name ?? 'Unassigned'}`}
+            rowLabel={(row) => `Open ${row.project_name ?? 'Unassigned'} (${row.currency})`}
             state={all.length === 0 ? 'empty' : undefined}
             emptyTitle={t('financeCopy.noRevenueData', "No revenue data")}
             emptySub={t('financeCopy.invoicesWithAmountsWillAppearHere', "Invoices with amounts will appear here.")}
