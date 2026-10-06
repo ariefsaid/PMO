@@ -23,7 +23,8 @@
       "platform": "Platform",
       "title": "Administrasi",
       "usage": "Pemakaian",
-      "users": "Pengguna"
+      "users": "Pengguna",
+      "projects": "Pengaturan proyek"
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
@@ -862,7 +863,10 @@
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
     },
-    "title": "Dashboard Eksekutif"
+    "title": "Dashboard Eksekutif",
+    "winRate": {
+      "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+    }
   },
   "funnel": {
     "scrollableRegion": "Ringkasan tahap, dapat digulir secara horizontal"
@@ -1124,7 +1128,7 @@
     "raiseRequest": "Ajukan permintaan",
     "search": {
       "label": "Filter permintaan",
-      "placeholder": "Filter permintaan…"
+      "placeholder": "Filter permintaan atau referensi…"
     },
     "stage": {
       "gr": "Penerimaan Barang",
@@ -1237,6 +1241,11 @@
       "quoteSelectedDetail": "Permintaan maju ke Penawaran Dipilih",
       "requestUpdated": "Permintaan diperbarui",
       "viRecorded": "Invoice vendor dicatat"
+    },
+    "groupRef": {
+      "label": "Ref. grup",
+      "optional": "(opsional)",
+      "placeholder": "mis. PRQ-0026100001"
     }
   },
   "projectDetail": {
@@ -1558,6 +1567,18 @@
         "spend": "Pengeluaran",
         "title": "Ringkasan keuangan"
       },
+      "invoicing": {
+        "contract": "Nilai kontrak",
+        "error": "Total invoice gagal dimuat.",
+        "invoicedToDate": "Invoice sampai saat ini",
+        "loading": "Memuat total invoice…",
+        "remaining": "Sisa yang perlu ditagih",
+        "retry": "Coba lagi",
+        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk.",
+        "title": "Penagihan terhadap kontrak",
+        "unavailable": "Tidak tersedia",
+        "unavailableDetail": "Total invoice tidak dapat dibandingkan dengan mata uang atau basis pajak kontrak ini."
+      },
       "procSummary": {
         "closed": "Ditutup",
         "committedAcross": "<amount>{{amount}}</amount> terkomitmen di {{n}} {{unit}}",
@@ -1593,6 +1614,12 @@
       },
       "lostNotice": "Proyek ini ditandai kalah. Proyek sudah keluar dari pipeline aktif.",
       "markLost": "Tandai kalah",
+      "markDeclined": "Tidak ikut tender",
+      "declinedConfirm": {
+        "title": "Tidak ikut tender",
+        "body": "Ini mencatat {{project}} sebagai tidak diikuti: kami memilih tidak mengajukan penawaran. Proyek keluar dari pipeline aktif dan tidak dihitung dalam win rate.",
+        "confirm": "Tidak ikut tender"
+      },
       "markWon": "Tandai menang",
       "nextActionsHeading": "Tindakan berikutnya",
       "notSet": "Belum diisi",
@@ -1885,6 +1912,22 @@
       "title": "Gagal memuat proyek ini",
       "sub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "retry": "Coba lagi"
+    },
+    "erpLink": {
+      "title": "Proyek ERPNext",
+      "pending": "Proyek tersimpan di PMO. Penghubungan ERP belum selesai; coba hubungkan lagi.",
+      "failed": "Gagal menyimpan tautan proyek ERP. Periksa pilihan lalu coba lagi.",
+      "loading": "Memuat tautan ERP…",
+      "unavailable": "Tautan ERP tidak tersedia",
+      "missing": "Proyek ini belum memiliki tautan ERP.",
+      "link": "Hubungkan proyek ERP",
+      "change": "Ubah proyek ERP",
+      "save": "Simpan tautan proyek",
+      "help": "Pilih Proyek ERPNext aktif untuk Perusahaan yang terhubung. Identitas yang dikembalikan akan disimpan sebagai tautan proyek ini.",
+      "noun": "proyek ERP",
+      "createdPending": "Proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
+      "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
+      "retry": "Coba lagi"
     }
   },
   "projectForm": {
@@ -2076,6 +2119,7 @@
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
       "lossTender": "Tender kalah",
+      "declined": "Tidak ikut tender",
       "internalProject": "Proyek internal"
     },
     "identifiers": {
@@ -2178,7 +2222,8 @@
       "tender": "Tender",
       "negotiation": "Negosiasi",
       "lost": "Kalah"
-    }
+    },
+    "lostCounts": "Kalah {{lost}} · Tidak ikut tender {{declined}}"
   },
   "shell": {
     "backBar": {
@@ -2528,6 +2573,56 @@
       "approve": "Setujui di Microsoft 365",
       "approving": "Membuka Microsoft 365…",
       "errorFallback": "Tidak dapat memulai persetujuan organisasi Microsoft 365."
+    },
+    "erpSetup": {
+      "title": "Pengaturan ERPNext",
+      "description": "Koneksi siap digunakan setelah pengaturan yang diperlukan selesai.",
+      "defaultsFailed": "Gagal menyimpan nilai bawaan ERP. Periksa nilainya lalu coba lagi.",
+      "domainFailed": "Gagal menggunakan domain ini. Periksa izin baca ERP lalu coba lagi.",
+      "onboarded": "Pihak ERP telah dihubungkan. Tinjau daftar Perusahaan.",
+      "onboardFailed": "Penghubungan pihak ERP belum selesai. Coba lagi.",
+      "unavailable": "Pengaturan ERP tidak tersedia",
+      "unavailableHelp": "Daftar pengaturan tidak dapat dibaca. Coba lagi.",
+      "domains": "Domain yang digunakan",
+      "noDomains": "Belum ada domain ERP yang digunakan",
+      "employ": "Gunakan domain ERP",
+      "companyDefaults": "Nilai bawaan Perusahaan",
+      "configured": "{{count}} dari {{total}} dikonfigurasi",
+      "refreshCompany": "Perbarui nilai bawaan Perusahaan",
+      "activityReceivable": "Nilai bawaan aktivitas dan piutang",
+      "activityMissing": "Jenis aktivitas belum diatur",
+      "receivableMissing": "Akun piutang belum diatur",
+      "setDefaults": "Atur nilai bawaan aktivitas dan piutang",
+      "budgetMap": "Pemetaan akun anggaran",
+      "mapBudget": "Petakan akun anggaran",
+      "employeeLinks": "Tautan karyawan",
+      "employeesMissing": "{{count}} anggota aktif memerlukan tautan karyawan ERP yang dikonfirmasi",
+      "reviewEmployees": "Tinjau tautan karyawan",
+      "projects": "Proyek belum terpetakan",
+      "linkProject": "Hubungkan {{name}}",
+      "projectsLinked": "Semua proyek PMO aktif memiliki tautan ERP.",
+      "onboard": "Hubungkan pihak ERP",
+      "reviewParties": "Tinjau perusahaan",
+      "refresh": "Perbarui daftar pengaturan",
+      "defaultsTitle": "Nilai bawaan ERPNext",
+      "domainTitle": "Gunakan domain ERP",
+      "saveDefaults": "Simpan nilai bawaan",
+      "employDomain": "Gunakan domain",
+      "activityType": "Jenis aktivitas",
+      "activityHelp": "Masukkan nama Jenis Aktivitas yang aktif di ERPNext.",
+      "receivableAccount": "Akun piutang",
+      "receivableHelp": "Masukkan akun piutang aktif untuk Perusahaan yang terhubung.",
+      "domainHelp": "ERPNext akan mengelola domain ini. Pastikan data dan izin integrasinya siap sebelum melanjutkan.",
+      "domainLabel": "Domain",
+      "onboardTitle": "Hubungkan pihak ERP?",
+      "onboardHelp": "Impor tautan Pemasok dan Pelanggan dari ERPNext yang terhubung. Tautan yang telah diselesaikan akan digunakan kembali.",
+      "startOnboard": "Mulai penghubungan",
+      "domainNames": {
+        "companies": "Perusahaan",
+        "procurement": "Pengadaan",
+        "revenue": "Pendapatan",
+        "timesheets": "Lembar waktu"
+      }
     }
   },
   "profileSettings": {
@@ -2785,6 +2880,18 @@
     "paidAmountPositive": "Jumlah dibayar harus lebih dari nol dengan maksimal 2 angka desimal.",
     "receivedAmountPositive": "Jumlah diterima harus lebih dari nol dengan maksimal 2 angka desimal.",
     "paymentDateRequired": "Tanggal wajib diisi.",
+    "cashReceived": "Kas diterima",
+    "taxWithheld": "Pajak dipotong",
+    "withholdingSlip": "Bukti potong",
+    "withheldAmountLabel": "Jumlah pajak dipotong",
+    "withholdingSlipNumberLabel": "Nomor bukti potong",
+    "paidAmountHelper": "Jumlah penuh yang dialokasikan ke faktur, termasuk pajak yang dipotong klien.",
+    "receivedAmountHelper": "Kas yang benar-benar diterima.",
+    "withheldAmountHelper": "Masukkan jumlah yang dipotong klien; PMO tidak menghitung pajak penghasilan. Isi 0 bila tidak ada pemotongan.",
+    "withholdingSlipHelper": "Wajib diisi bila klien memotong pajak.",
+    "withheldAmountInvalid": "Pajak dipotong tidak boleh negatif, dengan maksimal 2 angka desimal.",
+    "withheldAmountUnbalanced": "Kas diterima ditambah pajak dipotong harus sama dengan jumlah yang dialokasikan ke faktur.",
+    "withholdingSlipInvalid": "Masukkan nomor bukti potong maksimal 140 karakter.",
     "paymentCancelled": "Pembayaran dibatalkan",
     "paymentCreated": "Pembayaran dibuat",
     "viewArchived": "Tampilan diarsipkan",
@@ -2902,5 +3009,34 @@
     "previewUnavailable": "Pratinjau tidak tersedia:",
     "none": "— tidak ada —",
     "select": "— pilih —"
+  },
+  "projectClassification": {
+    "title": "Klasifikasi",
+    "serviceLine": "Lini layanan",
+    "sector": "Sektor",
+    "location": "Lokasi",
+    "awardType": "Jenis perolehan",
+    "biddingEntity": "Entitas penawar",
+    "notSet": "Belum diatur",
+    "tender": "Tender",
+    "direct": "Penunjukan langsung",
+    "alone": "Sendiri",
+    "consortium": "Konsorsium",
+    "unavailable": "Pilihan tidak dapat dimuat. Buka kembali formulir untuk mencoba lagi.",
+    "loadError": "Pilihan klasifikasi tidak dapat dimuat",
+    "saved": "Pilihan klasifikasi disimpan",
+    "retained": "Klasifikasi proyek yang ada tetap tersimpan.",
+    "setupHelp": "Tentukan lini layanan dan sektor pada formulir proyek. Menghapus pilihan tidak mengubah proyek yang sudah menggunakannya.",
+    "serviceLines": "Lini layanan",
+    "sectors": "Sektor",
+    "onePerLine": "Satu pilihan per baris. Kosongkan jika tidak ada pilihan.",
+    "save": "Simpan pilihan",
+    "adminOnly": "Hanya Admin yang dapat mengubah pilihan ini.",
+    "all": "Semua",
+    "filterServiceLine": "Filter menurut lini layanan",
+    "filterSector": "Filter menurut sektor",
+    "filterAwardType": "Filter menurut jenis perolehan",
+    "filterBiddingEntity": "Filter menurut entitas penawar",
+    "filterLocation": "Filter menurut lokasi"
   }
 }

@@ -58,6 +58,8 @@ interface FormValues {
   salesInvoiceId: string | null;
   paidAmount: string;
   receivedAmount: string;
+  withheldAmount: string;
+  withholdingSlipNumber: string;
   date: string;
 }
 
@@ -81,6 +83,19 @@ const validate = (v: FormValues, t: (key: string, fallback: string) => string): 
     errors.receivedAmount = t('financeCopy.receivedAmountPositive', 'Received amount must be positive, with no more than 2 decimal places.');
   }
   if (!v.date) errors.date = t('financeCopy.paymentDateRequired', 'Date is required.');
+  const withheld = v.withheldAmount.trim() ? parseMoneyInputAtScale(v.withheldAmount, 2) : 0;
+  if (withheld === null || withheld < 0) {
+    errors.withheldAmount = t('financeCopy.withheldAmountInvalid', "Withheld tax must be non-negative, with no more than 2 decimal places.");
+  } else if (withheld > 0) {
+    const paid = parsePaymentAmount(v.paidAmount);
+    const received = parsePaymentAmount(v.receivedAmount);
+    if (paid !== null && received !== null && Math.round(received * 100) + Math.round(withheld * 100) !== Math.round(paid * 100)) {
+      errors.withheldAmount = t('financeCopy.withheldAmountUnbalanced', "Cash received plus withheld tax must equal the amount allocated to the invoice.");
+    }
+    if (!v.withholdingSlipNumber.trim() || v.withholdingSlipNumber.trim().length > 140) {
+      errors.withholdingSlipNumber = t('financeCopy.withholdingSlipInvalid', "Enter a withholding-slip number of at most 140 characters.");
+    }
+  }
   return errors;
 };
 
@@ -225,6 +240,21 @@ const IncomingPayments: React.FC = () => {
       header: t('financeCopy.date', "Date"),
       cell: (p) => (p.date ? formatDateOnly(p.date) : '—'),
       exportValue: (p) => p.date ?? '',
+    },
+    {
+      key: 'received_amount', header: t('financeCopy.cashReceived', "Cash received"), align: 'num',
+      cell: (p) => p.received_amount != null ? formatCurrencyCents(p.received_amount, p.currency) : '—',
+      exportValue: (p) => p.received_amount ?? '',
+    },
+    {
+      key: 'withheld_amount', header: t('financeCopy.taxWithheld', "Tax withheld"), align: 'num',
+      cell: (p) => p.withheld_amount != null ? formatCurrencyCents(p.withheld_amount, p.currency) : '—',
+      exportValue: (p) => p.withheld_amount ?? '',
+    },
+    {
+      key: 'withholding_slip_number', header: t('financeCopy.withholdingSlip', "Withholding slip"),
+      cell: (p) => <span className="font-mono text-[13px]">{p.withholding_slip_number ?? '—'}</span>,
+      exportValue: (p) => p.withholding_slip_number ?? '',
     },
   ];
 
@@ -382,6 +412,8 @@ interface IncomingPaymentFormModalProps {
       salesInvoiceId: string | null;
       paidAmount: number;
       receivedAmount: number;
+      withheldAmount?: number;
+      withholdingSlipNumber?: string | null;
       date: string;
     },
     intent: CommandIntent,
@@ -414,6 +446,8 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       salesInvoiceId: null,
       paidAmount: '0',
       receivedAmount: '0',
+      withheldAmount: '0',
+      withholdingSlipNumber: '',
       date: new Date().toISOString().split('T')[0],
     },
     validate: (values) => validate(values, t),
@@ -438,14 +472,18 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   const salesInvoiceField = form.fieldProps('salesInvoiceId');
   const paidAmountField = form.fieldProps('paidAmount');
   const receivedAmountField = form.fieldProps('receivedAmount');
+  const withheldAmountField = form.fieldProps('withheldAmount');
+  const slipField = form.fieldProps('withholdingSlipNumber');
   const dateField = form.fieldProps('date');
 
-  const errorSummary = form.errors.customerId || form.errors.paidAmount || form.errors.receivedAmount || form.errors.date
+  const errorSummary = form.errors.customerId || form.errors.paidAmount || form.errors.receivedAmount || form.errors.date || form.errors.withheldAmount || form.errors.withholdingSlipNumber
     ? [
         ...(form.errors.customerId ? [{ fieldId: customerField.id, message: form.errors.customerId }] : []),
         ...(form.errors.paidAmount ? [{ fieldId: paidAmountField.id, message: form.errors.paidAmount }] : []),
         ...(form.errors.receivedAmount ? [{ fieldId: receivedAmountField.id, message: form.errors.receivedAmount }] : []),
         ...(form.errors.date ? [{ fieldId: dateField.id, message: form.errors.date }] : []),
+        ...(form.errors.withheldAmount ? [{ fieldId: withheldAmountField.id, message: form.errors.withheldAmount }] : []),
+        ...(form.errors.withholdingSlipNumber ? [{ fieldId: slipField.id, message: form.errors.withholdingSlipNumber }] : []),
       ]
     : undefined;
 
@@ -463,11 +501,16 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       const receivedAmount = parsePaymentAmount(values.receivedAmount);
       // Unreachable after `validate`, which applies the same parse — kept so the types prove it.
       if (paidAmount === null || receivedAmount === null) return;
+      const withheldAmount = values.withheldAmount.trim() ? parseMoneyInputAtScale(values.withheldAmount, 2)! : 0;
       const input = {
         customerId: values.customerId,
         salesInvoiceId: values.salesInvoiceId,
         paidAmount,
         receivedAmount,
+        ...(withheldAmount > 0 ? {
+          withheldAmount,
+          withholdingSlipNumber: values.withholdingSlipNumber.trim(),
+        } : {}),
         date: values.date,
       };
       try {
@@ -532,6 +575,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix={moneyPrefix}
             error={paidAmountField.error}
+            helper={t('financeCopy.paidAmountHelper', "The full amount applied to the invoice, including tax withheld by the client.")}
             localeAware
           />
           <NumberField
@@ -543,7 +587,29 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix={moneyPrefix}
             error={receivedAmountField.error}
+            helper={t('financeCopy.receivedAmountHelper', "The cash actually received.")}
             localeAware
+          />
+          <NumberField
+            id={withheldAmountField.id}
+            label={t('financeCopy.withheldAmountLabel', "Withheld tax amount")}
+            value={withheldAmountField.value}
+            onChange={withheldAmountField.onChange}
+            onBlur={withheldAmountField.onBlur}
+            prefix={moneyPrefix}
+            localeAware
+            error={withheldAmountField.error}
+            helper={t('financeCopy.withheldAmountHelper', "Enter the amount the client withheld; PMO does not calculate income tax. Enter 0 for no withholding.")}
+          />
+          <TextField
+            id={slipField.id}
+            label={t('financeCopy.withholdingSlipNumberLabel', "Withholding-slip number")}
+            value={slipField.value}
+            onChange={slipField.onChange}
+            onBlur={slipField.onBlur}
+            maxLength={140}
+            error={slipField.error}
+            helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
           />
           <TextField
             label={t('financeCopy.date', "Date")}

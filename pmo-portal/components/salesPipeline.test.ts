@@ -54,7 +54,7 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(won.statuses).toContain('Won, Pending KoM');
     expect(won.statuses).not.toContain('Loss Tender');
     expect(lost.terminal).toBe(true);
-    expect(lost.statuses).toEqual(['Loss Tender']);
+    expect(lost.statuses).toEqual(['Loss Tender', 'Declined']); // #774: Declined is a terminal Lost-column outcome
     expect(lost.testId).toBe('stage-Lost');
     // both terminal columns are excluded from the funnel/weighted totals
     expect(SALES_COLUMNS.filter((c) => c.terminal)).toHaveLength(2);

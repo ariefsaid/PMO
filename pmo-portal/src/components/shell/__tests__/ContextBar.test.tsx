@@ -35,8 +35,12 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/src/lib/features')>();
   return { ...real };
 });
+// The bell now always mounts (#788); the stub renders only when a test opts in so the tab-order
+// assertions about the account menu stay independent of it.
+const bell = vi.hoisted(() => ({ show: false }));
 vi.mock('@/src/components/shell/NotificationBell', () => ({
-  NotificationBell: () => <button type="button" aria-label="Notifications, 0 unread">Bell</button>,
+  NotificationBell: () =>
+    bell.show ? <button type="button" aria-label="Notifications, 0 unread">Bell</button> : null,
 }));
 
 const breadcrumb = [{ label: 'Dashboard' }];
@@ -73,9 +77,11 @@ describe('ContextBar', () => {
     expect(onOpenPalette).toHaveBeenCalled();
   });
 
-  it('FR-AAN-038: the notification bell is absent while `agentAssistant` is off', () => {
+  it('AC-WFN-001: the notification bell shows even while `agentAssistant` is off', () => {
+    bell.show = true;
     renderBar();
-    expect(screen.queryByRole('button', { name: /notification/i })).not.toBeInTheDocument();
+    bell.show = false;
+    expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
   });
 
   it('the rail toggle (open navigation) is present', () => {
@@ -335,7 +341,9 @@ describe('ContextBar — agentAssistant flag on (REC-3)', () => {
     const features = await import('@/src/lib/features');
     vi.spyOn(features, 'isFeatureEnabled').mockImplementation((key) => key === 'agentAssistant');
     canImpersonate = false;
+    bell.show = true;
     renderBar();
+    bell.show = false;
     expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
     vi.restoreAllMocks();
   });

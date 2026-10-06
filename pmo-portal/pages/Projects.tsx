@@ -1,3 +1,5 @@
+import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
+import { matchesProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -198,6 +200,7 @@ const Projects: React.FC = () => {
             return true;
         }
       })
+      .filter((p) => matchesProjectClassification(p, workingSet))
       .filter((p) => filterClient === 'All' || p.client_id === filterClient)
       // #758: end-customer filter mirrors the client filter on the nullable end_client_id.
       .filter((p) => filterEndCustomer === 'All' || p.end_client_id === filterEndCustomer)
@@ -224,7 +227,7 @@ const Projects: React.FC = () => {
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
     return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
-  }, [all, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
+  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -311,10 +314,12 @@ const Projects: React.FC = () => {
     [projectManagers, t],
   );
 
+  const classificationCount = [workingSet.serviceLine, workingSet.sector, workingSet.location, workingSet.awardType, workingSet.biddingEntity].filter(Boolean).length;
+  const classificationFilters = <ProjectClassificationFilters rows={all} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />;
   const filtersActive =
-    filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
+    classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
   const hasNonDefaultFilter =
-    filter !== roleDefault || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
+    classificationCount > 0 || filter !== roleDefault || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
 
   // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
   // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
@@ -375,7 +380,7 @@ const Projects: React.FC = () => {
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
         const row = await create.mutateAsync(input);
-        toast(t('projects.toast.created', 'Project created'), input.name, 'success');
+        toast(t('projects.toast.created', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', 'Project saved. ERP linking needs attention; retry from the project page.') : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
         setCreateOpen(false);
         // Opens the new record with this list as its return context (#688 AC-RAM-006, #682).
         openRecord(`/projects/${row.id}`);
@@ -708,7 +713,7 @@ const Projects: React.FC = () => {
   // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
   // it into cards.
   const secondaryCount =
-    (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
+    classificationCount + (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
   const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
   const selectedEndCustomer = endCustomerFilterOptions.find((o) => o.value === filterEndCustomer);
   const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
@@ -912,7 +917,16 @@ const Projects: React.FC = () => {
                     </p>
                   )}
               </div>
+              {classificationFilters}
             </div>
+          </MobileToolbarDisclosure>
+        )}
+
+        {isEngineer && (
+          <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
+            count={classificationCount} open={filtersOpen} closeOnSelectChange
+            onOpenChange={(next) => { setFiltersOpen(next); if (next) setMoreOpen(false); }}>
+            {classificationFilters}
           </MobileToolbarDisclosure>
         )}
 
@@ -1073,8 +1087,9 @@ const Projects: React.FC = () => {
               options={pmFilterOptions}
               className="w-auto"
             />
+            {classificationFilters}
           </>
-        ) : undefined
+        ) : classificationFilters
       }
       exportAction={
         <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
@@ -1215,6 +1230,7 @@ const Projects: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
+            ...editTarget,
             id: editTarget.id,
             name: editTarget.name,
             code: editTarget.code,

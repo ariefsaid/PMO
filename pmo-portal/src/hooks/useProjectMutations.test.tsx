@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // The CRUD mutation hook consumes the repository seam (ADR-0017), not the DAL directly.
-const { project } = vi.hoisted(() => ({
+const { project, integrations } = vi.hoisted(() => ({
+  integrations: { getBinding: vi.fn(async () => null), ensureErpProject: vi.fn() },
   project: {
     create: vi.fn(),
     updateHeader: vi.fn(),
@@ -13,7 +14,7 @@ const { project } = vi.hoisted(() => ({
     setContractValue: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { project, integrations } }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
@@ -132,5 +133,19 @@ describe('useProjectMutations', () => {
       taxTreatment: 'exclusive',
       taxAmount: 565400,
     });
+  });
+});
+
+describe('ERP setup after native creation', () => {
+  it('AC-SETUP-001 keeps the saved project identity when ERP setup fails, so linking retries cannot recreate it', async () => {
+    integrations.getBinding.mockResolvedValueOnce({status:'active',config:{company:'Example Company'}} as never);
+    integrations.ensureErpProject.mockRejectedValueOnce(new Error('unavailable'));
+    const {result}=renderHook(()=>useProjectMutations(),{wrapper:wrap(freshClient())});
+    let saved: {id:string;erpSetup?:string} | undefined;
+    await act(async()=>{ saved=await result.current.create.mutateAsync({name:'Delivery',status:'Leads',client_id:'c1',project_manager_id:null,contract_value:0,start_date:null,end_date:null}); });
+    expect(saved).toMatchObject({id:'p9',erpSetup:'pending'});
+    await waitFor(() => expect(result.current.create.isSuccess).toBe(true));
+    expect(integrations.ensureErpProject).toHaveBeenCalledWith('p9');
+    expect(project.create).toHaveBeenCalledTimes(1);
   });
 });

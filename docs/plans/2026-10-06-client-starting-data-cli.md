@@ -7,13 +7,13 @@
 ## 0. Preconditions (Director, before dispatch)
 
 1. #770 is merged to `dev` (the load passes `service_line`, `sector`, `location`, `award_type`,
-   `bidding_entity` to the `projects` insert; without 0232 PostgREST answers `PGRST204`).
+   `bidding_entity` to the `projects` insert; without #770's migration (0234) PostgREST answers `PGRST204`).
 2. Worktree off `origin/dev`, feature branch `codex/796-pmo-load`. All commands below run from the
    worktree root unless a `cd` is shown.
-3. Migration number: `ls supabase/migrations | tail -3`. This plan uses `0234`. If `0234` is taken, or
-   `0233` lands after this branch, renumber with `scripts/renumber-migration.sh <old> <new>` and update the
+3. Migration number: `ls supabase/migrations | tail -3`. This plan uses `0239`. If `0239` is taken, or
+   `0238` lands after this branch, renumber with `scripts/renumber-migration.sh <old> <new>` and update the
    two references in Task 2's header comment and the rollback file name.
-4. No type regeneration: `0234` replaces a function body only; no table, column or RPC signature changes.
+4. No type regeneration: `0239` replaces a function body only; no table, column or RPC signature changes.
 
 ## 1. Design summary
 
@@ -21,7 +21,7 @@
   `{ problems, plan }`, and an **apply** phase that writes the plan in order (or lists it, `dryRun`).
 - `scripts/pmo.mjs`: new `load` verb (validate → active-Admin check → resolve → apply), the load-tier
   constants, `external_domain_ownership` as a read-only table, refusals pointing to `pmo load`.
-- `supabase/migrations/0234_api_client_seed_surface.sql`: the guard's active-Admin tier (ADR-0074).
+- `supabase/migrations/0239_api_client_seed_surface.sql`: the guard's active-Admin tier (ADR-0074).
 - Writes reuse shipped paths only: RLS inserts (`companies`, `projects`, `budget_versions`,
   `budget_line_items`) and the definer RPCs `set_project_contract_value`, `transition_project`.
 
@@ -57,7 +57,7 @@ Create `supabase/tests/api_client_seed_surface.test.sql`:
 
 ```sql
 -- api_client_seed_surface.test.sql — the active-Admin tier of the OAuth API-client guard (#796, ADR-0074).
--- Migration 0234: a token carrying `client_id` may POST set_project_contract_value / transition_project and
+-- Migration 0239: a token carrying `client_id` may POST set_project_contract_value / transition_project and
 -- GET/POST budget_versions / budget_line_items ONLY when its user is an active Admin; any such token may
 -- GET external_domain_ownership. Everything else stays as 0222 left it (42501).
 -- Mutation check (Task 17): make the Admin conditional `if true` and the four non-Admin rows must go red.
@@ -134,12 +134,12 @@ rollback;
 **Verify (expect RED — the Admin lives_ok rows and external_domain_ownership fail):**
 `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/api_client_seed_surface.test.sql'`
 
-### Task 2 — migration `0234` + rollback (AC-CSD-013 green)
+### Task 2 — migration `0239` + rollback (AC-CSD-013 green)
 
-Create `supabase/migrations/0234_api_client_seed_surface.sql`:
+Create `supabase/migrations/0239_api_client_seed_surface.sql`:
 
 ```sql
--- 0234_api_client_seed_surface.sql — an active-Admin tier in the OAuth API-client guard for `pmo load`
+-- 0239_api_client_seed_surface.sql — an active-Admin tier in the OAuth API-client guard for `pmo load`
 -- (#796, ADR-0074, spec docs/specs/client-starting-data-cli.spec.md). Amends 0222.
 --
 -- OD-SEED-5 lets the owner load a client's won projects at their real stage, with contract value, and
@@ -159,7 +159,7 @@ Create `supabase/migrations/0234_api_client_seed_surface.sql`:
 -- Lists mirrored by scripts/pmo.mjs (ALLOWED_TABLES / READ_ONLY_TABLES / ALLOWED_RPCS / LOAD_TABLES /
 -- LOAD_RPCS); scripts/pmo.test.mjs (AC-CLI-015, AC-CSD-014) fails if they drift.
 -- Proof: supabase/tests/api_client_seed_surface.test.sql (AC-CSD-013) + api_client_request_guard.test.sql.
--- Rollback (staged, not automatic): supabase/migrations/rollback/0234_api_client_seed_surface_down.sql
+-- Rollback (staged, not automatic): supabase/migrations/rollback/0239_api_client_seed_surface_down.sql
 
 create or replace function public.api_client_request_guard()
   returns void
@@ -232,10 +232,10 @@ grant execute on function public.api_client_request_guard() to anon, authenticat
 notify pgrst, 'reload config';
 ```
 
-Create `supabase/migrations/rollback/0234_api_client_seed_surface_down.sql` (restores 0222's body):
+Create `supabase/migrations/rollback/0239_api_client_seed_surface_down.sql` (restores 0222's body):
 
 ```sql
--- Reverses 0234: restores 0222's api_client_request_guard() (no Admin tier, profiles-only read list).
+-- Reverses 0239: restores 0222's api_client_request_guard() (no Admin tier, profiles-only read list).
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
@@ -441,7 +441,7 @@ export const READ_ONLY_TABLES = Object.freeze({
 ```js
 /**
  * The ACTIVE-ADMIN tier (#796, ADR-0074), used only by `pmo load` — never by get/create/update/rpc.
- * The database guard (migration 0234) allows these only to an active Admin's OAuth token: POST on the
+ * The database guard (migration 0239) allows these only to an active Admin's OAuth token: POST on the
  * RPCs, GET/POST on the tables. The RPCs keep their own org, role, SoD and audit rules.
  */
 export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project']);
@@ -1582,7 +1582,7 @@ Mutations — each must turn the named test RED, then restore and re-run green (
 
 | # | Break | Must go red |
 |---|---|---|
-| M1 | `0234`: both Admin conditionals → `if true then return; end if;` | AC-CSD-013 (four non-Admin rows) |
+| M1 | `0239`: both Admin conditionals → `if true then return; end if;` | AC-CSD-013 (four non-Admin rows) |
 | M2 | `pmo.mjs` load: `if (false && (profile.role !== 'Admin' …))` | AC-CSD-001 |
 | M3 | `applyLoad`: delete the `if (dryRun) {…}` branch in `write` | AC-CSD-003 (both layers) |
 | M4 | `validateLoadFile`: delete the `if (won) {…}` artifact block | AC-CSD-002 |
@@ -1619,4 +1619,4 @@ Mutations — each must turn the named test RED, then restore and re-run green (
 - **Classification option lists and a `{CLIENT}` number pattern** are not visible to the preflight (no
   `organizations` read); a mismatch refuses the project insert (`23514` / `P0001`), the load stops, and a
   re-run resumes after the fix in the app.
-- **Hosted:** needs `0234` pushed with the owner's per-instance production yes (spec §8).
+- **Hosted:** needs `0239` pushed with the owner's per-instance production yes (spec §8).

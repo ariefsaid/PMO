@@ -169,6 +169,17 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({
           const gross = colProjects.reduce((s, p) => s + p.contract_value, 0);
           const weighted = colProjects.reduce((s, p) => s + weightedValue(p), 0);
           const colTitle = stageLabel(col);
+          // #774: the Lost column also holds Declined deals; show the two counts separately.
+          const declinedCount = colProjects.filter((p) => p.status === 'Declined').length;
+          const lostCountsLine =
+            declinedCount > 0 ? (
+              <span data-testid="lost-column-counts" className="text-[11.5px] text-muted-foreground tabular">
+                {t('sales.lostCounts', 'Lost {{lost}} · Declined {{declined}}', {
+                  lost: colProjects.length - declinedCount,
+                  declined: declinedCount,
+                })}
+              </span>
+            ) : undefined;
           return (
             <div
               key={col.title}
@@ -180,7 +191,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({
                 title={colTitle}
                 dotColor={col.dotColor}
                 count={colProjects.length}
-                totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : undefined}
+                totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : lostCountsLine}
                 emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
                 selected={colIdx === selectedStageIndex}
               >

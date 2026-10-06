@@ -24,7 +24,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Engineer', canImpersonate: false, viewAs: () => {} }),
 }));
 
-// NotificationBell is feature-gated off so it doesn't render.
+vi.mock('@/src/components/shell/NotificationBell', () => ({ NotificationBell: () => null }));
 vi.mock('@/src/lib/features', () => ({ isFeatureEnabled: () => false }));
 
 import { ContextBar } from '@/src/components/shell/ContextBar';

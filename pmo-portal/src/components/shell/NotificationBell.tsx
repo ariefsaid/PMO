@@ -4,8 +4,8 @@
  *
  * REC-3: an OWN component with its OWN query against `src/lib/db/notifications` —
  * it does NOT consume a `notificationCount` prop (that dead prop is dropped from
- * `ContextBarProps` in the same change, OBS-AAN-001). Mounted behind the
- * `agentAssistant` flag by `ContextBar` (FR-AAN-038).
+ * `ContextBarProps` in the same change, OBS-AAN-001). Mounted for every
+ * signed-in user by `ContextBar` (#788; was behind `agentAssistant`, FR-AAN-038).
  *
  * Severity idiom (DESIGN.md "The Status-As-Dot Rule", ADR-0068 monochrome-calm):
  * a quiet colored dot + AA-text label — NEVER a loud filled slab. Reuses the same
@@ -56,6 +56,13 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   opportunity: '/sales',
 };
 
+/** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
+ * a submitted timesheet opens the approvals page, an assigned task opens My tasks. */
+const ENTITY_LIST_ROUTE: Record<string, string> = {
+  timesheet: '/timesheets',
+  task: '/my-tasks',
+};
+
 interface NotificationEntity {
   type?: string;
   id?: string;
@@ -75,6 +82,7 @@ function readMetadata(metadata: NotificationRow['metadata']): NotificationMetada
 }
 
 function entityRoute(entity: NotificationEntity | undefined): string | null {
+  if (entity?.type && ENTITY_LIST_ROUTE[entity.type]) return ENTITY_LIST_ROUTE[entity.type];
   if (!entity?.type || !entity.id) return null;
   const base = ENTITY_ROUTE_BASE[entity.type];
   return base ? `${base}/${entity.id}` : null;

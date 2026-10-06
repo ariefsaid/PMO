@@ -10,6 +10,7 @@ export enum ProjectStatus {
   OnHold = 'On Hold', // Added recommendation
   CloseOut = 'Close Out',
   Loss = 'Loss Tender',
+  Declined = 'Declined',
   Internal = 'Internal Project'
 }
 

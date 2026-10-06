@@ -59,6 +59,26 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByText('Lost')).toBeInTheDocument();
   });
 
+  // AC-DEC-002 (#774): declined-to-bid deals sit outside both denominators but are still reported.
+  it('AC-DEC-002: shows the declined count beside the rate without changing the rate', () => {
+    oracle = { ...populatedOracle, declined_count: 3 } as typeof populatedOracle;
+    render(<WinRateCard currency="USD" />);
+    expect(screen.getByTestId('win-rate-declined')).toHaveTextContent('3 declined to bid');
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+  });
+
+  it('AC-DEC-002: when ONLY declined deals exist in the window, the declined count shows instead of being hidden', () => {
+    oracle = { ...zeroOracle, declined_count: 2 } as typeof populatedOracle;
+    render(<WinRateCard currency="USD" />);
+    expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-declined')).toHaveTextContent('2 declined to bid');
+  });
+
+  it('AC-DEC-002: no declined line when there are none', () => {
+    render(<WinRateCard currency="USD" />);
+    expect(screen.queryByTestId('win-rate-declined')).toBeNull();
+  });
+
   it('shows an empty message (not a fabricated 0%) when there are no closed projects', () => {
     oracle = zeroOracle;
     render(<WinRateCard currency="USD" />);

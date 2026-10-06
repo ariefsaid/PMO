@@ -55,6 +55,7 @@ const WORKFLOW_VARIANT: Record<string, StatusVariant> = {
   Failed: 'lost',
   Blocked: 'lost',
   'Loss Tender': 'lost',
+  Declined: 'neutral', // #774: we chose not to bid — closed, but not a loss (no red)
 
   // ── Awaiting-action / at-risk → amber ───────────────────────────────────
   'On Hold': 'warn',

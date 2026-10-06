@@ -5,13 +5,45 @@
  * erpnext/**, never in the edge-fn wrapper).
  */
 import { describe, expect, it } from 'vitest';
-import { listErpPartySources, onboardParties, type OnboardPartiesDeps } from './onboarding.ts';
+import { listErpContactSources, listErpPartySources, onboardParties, type OnboardPartiesDeps } from './onboarding.ts';
 import type { PmoRecord } from '../contract.ts';
 import type { ErpClientDeps } from './client.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
+
+describe('ERP Contact onboarding hydration', () => {
+  it('AC-CON-001 reads each full Contact to retain primary child tables and company links', async () => {
+    const calls: URL[] = [];
+    const fetchImpl = async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      calls.push(url);
+      return jsonResponse(200, { data: url.pathname.endsWith('/Contact')
+        ? [{ name: 'CONTACT-001', modified: '2026-10-05 09:00:00', first_name: 'List-only' }]
+        : { name: 'CONTACT-001', modified: '2026-10-05 09:00:00', full_name: 'Synthetic Contact',
+          email_ids: [{ email_id: 'synthetic@example.test', is_primary: 1 }],
+          links: [{ link_doctype: 'Customer', link_name: 'C-001' }] } });
+    };
+    const changes = await listErpContactSources({ fetchImpl: fetchImpl as typeof fetch,
+      apiKey: 'fixture', apiSecret: 'fixture', baseUrl: 'https://erp.example.test' });
+    expect(calls.map((url) => url.pathname)).toEqual(['/api/resource/Contact', '/api/resource/Contact/CONTACT-001']);
+    expect(JSON.parse(calls[0].searchParams.get('fields')!)).not.toContain('links');
+    expect(changes).toHaveLength(1);
+    expect(changes[0].record).toMatchObject({ id: 'Contact:CONTACT-001', full_name: 'Synthetic Contact',
+      email: 'synthetic@example.test', erp_contact_links: [{ link_doctype: 'Customer', link_name: 'C-001' }] });
+  });
+
+  it('does not hydrate a document when the Contact list is empty', async () => {
+    let calls = 0;
+    const changes = await listErpContactSources({ fetchImpl: (async () => {
+      calls += 1;
+      return jsonResponse(200, { data: [] });
+    }) as typeof fetch, apiKey: 'fixture', apiSecret: 'fixture', baseUrl: 'https://erp.example.test' });
+    expect(changes).toEqual([]);
+    expect(calls).toBe(1);
+  });
+});
 
 describe('erpnext/onboarding — listErpPartySources (confined GET-list mapping)', () => {
   it('AC-ONB-002 fetches Supplier + Customer lists and maps them into ErpPartySource[] (ID == name: id and name agree, as before)', async () => {

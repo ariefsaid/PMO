@@ -914,6 +914,29 @@ export interface ErpDispatchFactoryDeps {
 }
 
 /**
+ * #762 — the currencies of the two accounts a withholding receipt posts between. DD-RCPT-1's shape (the
+ * cash in both headers, the tax as a deduction) holds only when they match; `peReceiveToBody` refuses
+ * otherwise. Read only for a receipt with tax withheld, so no other command pays for the two reads.
+ */
+async function readReceiptAccountCurrencies(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ paid_from_account_currency: string | null; paid_to_account_currency: string | null }> {
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  const currencyOf = async (account: unknown): Promise<string | null> => {
+    if (typeof account !== 'string' || !account) return null;
+    const currency = (await getDoc(client, 'Account', account) as { account_currency?: unknown } | null)?.account_currency;
+    return typeof currency === 'string' && currency ? currency : null;
+  };
+  const config = binding.config ?? {};
+  return {
+    paid_from_account_currency: await currencyOf(config.default_receivable_account),
+    paid_to_account_currency: await currencyOf(config.default_cash_account ?? config.default_bank_account),
+  };
+}
+
+/**
  * Resolve the erpnext adapter for one command: read the org's `external_org_bindings` row, refuse
  * `config-rejected` when it is missing or not yet activated (`activated_at === null` — a version
  * mismatch or a binding never activated, FR-ENA-012), then build the adapter over the resolved
@@ -939,11 +962,34 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
+  let receiptConfig = binding.config;
+  if (deps.command.record.erp_doc_kind === 'incoming-payment'
+      && Number(deps.command.record.withheld_amount ?? 0) > 0) {
+    const { data: settings, error: settingError } = await deps.serviceClient.from('organizations')
+      .select('tax_prepaid_account').eq('id', deps.orgId).maybeSingle();
+    const account = (settings as { tax_prepaid_account?: unknown } | null)?.tax_prepaid_account;
+    if (settingError || typeof account !== 'string' || !account.trim() || account.length > 140) {
+      throw new AppError('Set the Tax-prepaid account in Administration → Accounting before recording withheld tax.', 'config-rejected');
+    }
+    receiptConfig = { ...binding.config, tax_prepaid_account: account.trim(),
+      ...(await readReceiptAccountCurrencies(deps, binding)) };
+  }
   // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
   assertSiProjectGate(deps, binding);
 
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
+  const contactRefs: Record<string, string | null> = {};
+  if (deps.command.record.erp_doc_kind === 'contact') {
+    const companyId = deps.command.record.company_id;
+    if (typeof companyId !== 'string' || !companyId) throw new AppError('Contact company is required', 'commit-rejected');
+    await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, 'companies', companyId);
+    const externalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', companyId);
+    const match = externalId?.match(/^(Customer|Supplier):(.+)$/);
+    if (!match) throw new AppError('Contact company must be mapped to ERPNext', 'commit-rejected');
+    contactRefs.contact_party_type = match[1];
+    contactRefs.contact_party_name = match[2];
+  }
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
@@ -976,7 +1022,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // category refuses with zero ERP calls).
   const budgetConfig = isBudgetCommand(deps.command)
     ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
-    : binding.config;
+    : receiptConfig;
   const { refs: budgetRefs } = await resolveBudgetRefs(deps, binding, budgetConfig);
 
   const adapterDeps: ErpAdapterDeps = {
@@ -998,9 +1044,24 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
+    },
+    validateAuthoringPartyIdentity: async (command) => {
+      const kind = command.record.erp_doc_kind;
+      if (command.domain !== 'companies' || !['contact', 'customer', 'supplier'].includes(String(kind))) return;
+      if (kind === 'contact' && command.operation === 'create') {
+        const { data: existing, error } = await deps.serviceClient.from('contacts')
+          .select('id').eq('id', command.record.id).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        if (existing) throw new AppError('Contact create requires a new record identity', 'commit-rejected');
+      }
+      const oppositeTable = kind === 'contact' ? 'companies' : 'contacts';
+      const { data: opposite, error: identityError } = await deps.serviceClient.from(oppositeTable)
+        .select('id').eq('org_id', deps.orgId).eq('id', command.record.id).maybeSingle();
+      if (identityError) throw new AppError(identityError.message, identityError.code);
+      if (opposite) throw new AppError('This record identity already belongs to another party type', 'commit-rejected');
     },
     afterSubmitHook: deps.afterSubmitHook,
     afterCancelHook: deps.afterCancelHook,

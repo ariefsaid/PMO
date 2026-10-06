@@ -6,6 +6,7 @@ import { formatDateOnly } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from '../../components/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
+import { ProjectErpLink } from './ProjectErpLink';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
@@ -22,9 +23,38 @@ const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children })
 const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 py-3 text-sm">
     <dt className="text-muted-foreground">{label}</dt>
-    <dd className="min-w-0 text-right font-medium text-foreground">{value}</dd>
+    <dd className="min-w-0 break-words text-right font-medium text-foreground">{value}</dd>
   </div>
 );
+
+const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation();
+  return (
+    <>
+      {project.service_line && <DetailRow label={t('projectClassification.serviceLine', 'Service line')} value={project.service_line} />}
+      {project.sector && <DetailRow label={t('projectClassification.sector', 'Sector')} value={project.sector} />}
+      {project.location && <DetailRow label={t('projectClassification.location', 'Location')} value={project.location} />}
+      {project.award_type && <DetailRow label={t('projectClassification.awardType', 'Award type')} value={project.award_type === 'tender' ? t('projectClassification.tender', 'Tender') : t('projectClassification.direct', 'Direct award')} />}
+      {project.bidding_entity && <DetailRow label={t('projectClassification.biddingEntity', 'Bidding entity')} value={project.bidding_entity === 'alone' ? t('projectClassification.alone', 'Alone') : t('projectClassification.consortium', 'Consortium')} />}
+    </>
+  );
+};
+
+/** Pre-win (pipeline/lost) records render no rail, so their classifications get this standalone list. */
+export const ProjectClassificationSummary: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation();
+  if (!(project.service_line || project.sector || project.location || project.award_type || project.bidding_entity)) return null;
+  return (
+    <section aria-labelledby="project-classification-heading" className="mb-8 max-w-md">
+      <RailSectionLabel>
+        <span id="project-classification-heading">{t('projectClassification.title', 'Classification')}</span>
+      </RailSectionLabel>
+      <dl className="divide-y divide-border/70 border-y border-border/70">
+        <ProjectClassificationRows project={project} />
+      </dl>
+    </section>
+  );
+};
 
 const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true }) => {
   const { t } = useTranslation();
@@ -83,6 +113,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
                 </span>
               }
             />
+            <ProjectClassificationRows project={project} />
             <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
             <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
             <DetailRow
@@ -105,6 +136,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
             />
           </dl>
         </section>
+        <ProjectErpLink projectId={project.id} />
       </div>
 
     </aside>

@@ -1,6 +1,23 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
+
+export async function getOrgWithholdingAccount(): Promise<string | null> {
+  const { data, error } = await supabase.from('organizations').select('tax_prepaid_account').limit(1);
+  if (error) throw new Error(error.message);
+  return data?.[0]?.tax_prepaid_account ?? null;
+}
+
+export async function setOrgWithholdingAccount(account: string | null): Promise<void> {
+  const value = account?.trim() || null;
+  if (value && value.length > 140) throw new Error('Tax-prepaid account must be at most 140 characters.');
+  const { data, error } = await supabase.from('organizations').select('id');
+  if (error) throw new Error(error.message);
+  if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax-prepaid account.');
+  const { error: updateError } = await supabase.from('organizations').update({ tax_prepaid_account: value }).eq('id', data[0].id);
+  if (updateError) throw new Error(updateError.message);
+}
 
 /**
  * Explicit org lifecycle marker (DD-ORG-3, migration 0191). `NULL` and any future value are
@@ -171,4 +188,23 @@ export async function setOrgTaxDefault(value: TaxTreatment): Promise<void> {
     .update({ default_tax_treatment: value })
     .eq('id', orgId);
   if (updateError) throw new Error(updateError.message);
+}
+
+export interface ProjectClassificationOptions { serviceLines: string[]; sectors: string[] }
+export async function getOrgProjectClassificationOptions(): Promise<ProjectClassificationOptions> {
+  const { data, error } = await supabase.from('organizations').select('service_line_options,sector_options').limit(1);
+  if (error) throw new AppError(error.message, error.code);
+  const row = data?.[0];
+  if (!row) throw new Error('Project classification options are not available.');
+  return { serviceLines: row.service_line_options, sectors: row.sector_options };
+}
+export async function setOrgProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void> {
+  const visible = await supabase.from('organizations').select('id');
+  if (visible.error) throw new AppError(visible.error.message, visible.error.code);
+  if (visible.data?.length !== 1) throw new Error('Exactly one organization must be readable to change its classification options.');
+  const { data, error } = await supabase.from('organizations')
+    .update({ service_line_options: options.serviceLines, sector_options: options.sectors })
+    .eq('id', visible.data[0].id).select('id');
+  if (error) throw new AppError(error.message, error.code);
+  assertWriteLanded(data, 'You do not have permission to change classification options.');
 }

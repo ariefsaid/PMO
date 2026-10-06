@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 
+vi.mock('@/src/components/shell/NotificationBell', () => ({ NotificationBell: () => null }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
     effectiveRole: 'Admin',

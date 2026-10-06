@@ -1,5 +1,5 @@
 -- #767: the client's RECEIPT date drives the invoice due date (AC-DUE-001..003).
--- Reversal: supabase/migrations/rollback/0240_sales_invoice_received_date_down.sql.
+-- Reversal: supabase/migrations/rollback/0244_sales_invoice_received_date_down.sql.
 --
 -- `received_date`  — the date the client received the invoice (nullable). A user records it ONLY
 --                    through set_sales_invoice_received_date() below: `authenticated` holds no UPDATE
