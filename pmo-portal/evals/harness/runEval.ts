@@ -27,6 +27,7 @@ import {
   type EvalRunResult,
   type Scorer,
   runScorers,
+  summarizeRuns,
 } from './scorers';
 
 /** One eval case: a natural-language prompt + composable scorers. FR-AT2-EV-001. */
@@ -36,6 +37,10 @@ export interface EvalCase {
   /** Optional grounding context — the SAME `RunContext` the browser sends. */
   context?: RunContext;
   expect: Scorer[];
+  /** Repeat the case this many times (default 1). */
+  runs?: number;
+  /** Minimum passing runs (default = runs). */
+  minPasses?: number;
 }
 
 /** A named suite of cases. */
@@ -174,12 +179,19 @@ export function runEvalSuite(suite: EvalSuite): EvalSuite {
         it.skip(`${c.name} [SKIPPED: eval env not provisioned]`, () => {});
         continue;
       }
+      const runs = c.runs ?? 1;
       it(c.name, async () => {
-        const run = await runEvalCase(c);
-        const { pass, reasons } = await runScorers(c.expect, run);
-        // Each failing scorer's reason is surfaced in the assertion message.
-        expect(pass, reasons.join(' | ') || 'eval scorers failed').toBe(true);
-      });
+        const results: boolean[] = [];
+        const failures: string[] = [];
+        for (let i = 0; i < runs; i++) {
+          const run = await runEvalCase(c);
+          const { pass, reasons } = await runScorers(c.expect, run);
+          results.push(pass);
+          if (!pass) failures.push(`run ${i + 1}: ${reasons.join(' | ')}`);
+        }
+        const verdict = summarizeRuns(results, c.minPasses ?? runs);
+        expect(verdict.pass, `passed ${verdict.passes}/${verdict.runs} (need ${c.minPasses ?? runs}). ${failures.slice(0, 3).join(' || ')}`).toBe(true);
+      }, runs * 60_000);
     }
   });
 
