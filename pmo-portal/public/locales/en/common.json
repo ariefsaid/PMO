@@ -2586,7 +2586,7 @@
   "revenueByProject": {
     "currencyErrorSub": "Try again to view revenue.",
     "currencyErrorTitle": "Couldn't load organization currency",
-    "subtitle": "Project revenue, with a separate Unassigned group for invoices not linked to a project."
+    "subtitle": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
   },
   "sales": {
     "accessDenied": {
@@ -3392,7 +3392,8 @@
     "erpItem": "ERP item",
     "selectOrSearchItem": "Select or search item…",
     "searchItemCodeOrName": "Search item code or name…",
-    "describeWorkOrGoods": "Describe the work or goods…"
+    "describeWorkOrGoods": "Describe the work or goods…",
+    "currency": "Currency"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",

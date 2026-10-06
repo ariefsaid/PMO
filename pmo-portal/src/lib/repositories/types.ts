@@ -120,6 +120,7 @@ import type {
 import type {
   SalesInvoiceRow,
   IncomingPaymentRow,
+  RevenueByProjectRow,
 } from '@/src/lib/db/revenue';
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
@@ -479,9 +480,7 @@ export interface RevenueRepository {
   /** Get a single incoming payment by id. */
   getPayment(id: string): Promise<IncomingPaymentRow | null>;
   /** Revenue rollup per project — SUM(amount) grouped by project_id. */
-  getRevenueByProject(): Promise<
-    Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
-  >;
+  getRevenueByProject(): Promise<RevenueByProjectRow[]>;
 }
 
 export interface TimesheetRepository {

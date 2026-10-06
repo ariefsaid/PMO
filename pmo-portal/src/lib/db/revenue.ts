@@ -286,40 +286,77 @@ export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: st
  * (`Submitted`/`Unpaid`/`Paid`), not merely "not Cancelled"; a Draft never inflates project revenue,
  * and any status added later is excluded until deliberately admitted here.
  */
-export async function getRevenueByProject(): Promise<
-  Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
-> {
-  const agg = new Map<string, { total_amount: number; open_ar: number; invoice_count: number }>();
+export interface RevenueByProjectRow {
+  project_id: string | null;
+  project_name: string | null;
+  /** The invoices' own currency — totals are per (project, currency), never converted (#831). */
+  currency: string;
+  /** NET of tax, from the shared `sales_invoice_work_billed` view (the management pack's definition). */
+  total_amount: number;
+  open_ar: number;
+  invoice_count: number;
+}
+
+type RevenueAgg = { currency: string; total_amount: number; open_ar: number; invoice_count: number };
+
+/**
+ * #831: Total Revenue is billed WORK, net of tax, read from the one shared definition the management
+ * pack uses (`sales_invoice_work_billed`, DD-PBL-9): a down-payment invoice is an advance, not work
+ * (excluded), and a claim invoice counts at net plus the recovery its negative line removed. Totals are
+ * grouped per (project, currency) and never converted. Open AR stays the invoices' outstanding amount
+ * (what is owed, tax included), read from `sales_invoices` and grouped the same way; that scan covers EVERY
+ * submitted invoice, so it also owns `invoice_count` (the work view feeds only the revenue total).
+ */
+export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
+  const agg = new Map<string, RevenueAgg & { project_id: string | null }>();
+  const bucket = (projectId: string | null, currency: string) => {
+    const key = `${projectId ?? '__unassigned__'}|${currency}`;
+    let entry = agg.get(key);
+    if (!entry) {
+      entry = { project_id: projectId, currency, total_amount: 0, open_ar: 0, invoice_count: 0 };
+      agg.set(key, entry);
+    }
+    return entry;
+  };
   // NIT 2 (round-6 re-audit) / audit round 8: KEYSET, not OFFSET — the shared money-sum loop
-  // (`src/lib/pagedRead.ts`). A stable ORDER BY makes an offset scan repeatable but not
-  // concurrency-safe: an invoice raised between two page reads with a lower-sorting id shifts every
-  // later row one slot right, so the next page re-reads the row already counted at the end of the
-  // previous one (and a delete skips one). The cursor names the row to RESUME AFTER.
-  const invoices = await fetchAllRowsByKeyset<{ id: string; project_id: string | null; amount: number | null; erp_outstanding_amount: number | null }>(
-    (afterId, limit) => {
-      let query = supabase
-        .from('sales_invoices')
-        .select('id, project_id, amount, erp_outstanding_amount')
-        .in('status', REVENUE_STATUSES as unknown as string[])
-        // S1: Postgres guarantees NO row order across statements, so a paged scan without a total
-        // ORDER BY can count one invoice twice and skip another when a concurrent write moves a
-        // tuple between page reads — Total Revenue then drifts by a whole invoice, silently.
-        .order('id', { ascending: true });
-      if (afterId !== null) query = query.gt('id', afterId);
-      return query.limit(limit) as unknown as PromiseLike<PageResult<{ id: string; project_id: string | null; amount: number | null; erp_outstanding_amount: number | null }>>;
-    },
-  );
-  for (const row of invoices) {
-    const key = row.project_id ?? '__unassigned__';
-    const existing = agg.get(key) ?? { total_amount: 0, open_ar: 0, invoice_count: 0 };
-    existing.total_amount += Number(row.amount ?? 0);
-    existing.open_ar += Number(row.erp_outstanding_amount ?? 0);
-    existing.invoice_count += 1;
-    agg.set(key, existing);
+  // (`src/lib/pagedRead.ts`). The cursor names the row to RESUME AFTER, so a concurrent insert can
+  // neither duplicate nor skip an already-scanned invoice. S1: a total ORDER BY id makes it repeatable.
+  type WorkRow = { id: string; project_id: string | null; currency: string | null; net: number | null; recovery: number | null };
+  const work = await fetchAllRowsByKeyset<WorkRow>((afterId, limit) => {
+    let query = supabase
+      .from('sales_invoice_work_billed')
+      .select('id, project_id, currency, net, recovery')
+      .in('status', REVENUE_STATUSES as unknown as string[])
+      .eq('is_down_payment', false)
+      .order('id', { ascending: true });
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query.limit(limit) as unknown as PromiseLike<PageResult<WorkRow>>;
+  });
+  for (const row of work) {
+    if (row.net === null || row.net === undefined) continue;
+    const entry = bucket(row.project_id, row.currency ?? '');
+    entry.total_amount += Number(row.net) + Number(row.recovery ?? 0);
+  }
+
+  type ArRow = { id: string; project_id: string | null; currency: string | null; erp_outstanding_amount: number | null };
+  const ar = await fetchAllRowsByKeyset<ArRow>((afterId, limit) => {
+    let query = supabase
+      .from('sales_invoices')
+      .select('id, project_id, currency, erp_outstanding_amount')
+      .in('status', REVENUE_STATUSES as unknown as string[])
+      .order('id', { ascending: true });
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query.limit(limit) as unknown as PromiseLike<PageResult<ArRow>>;
+  });
+  for (const row of ar) {
+    // Every submitted invoice counts (down payments and all) so the count matches the Sales Invoices list.
+    const entry = bucket(row.project_id, row.currency ?? '');
+    entry.open_ar += Number(row.erp_outstanding_amount ?? 0);
+    entry.invoice_count += 1;
   }
 
   // Resolve project names for non-null project_ids
-  const projectIds = Array.from(agg.keys()).filter((k) => k !== '__unassigned__');
+  const projectIds = Array.from(new Set(Array.from(agg.values()).map((v) => v.project_id).filter((id): id is string => id !== null)));
   let projectNames = new Map<string, string>();
   if (projectIds.length > 0) {
     const { data: projects } = await supabase
@@ -331,14 +368,12 @@ export async function getRevenueByProject(): Promise<
     }
   }
 
-  const result: Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }> = [];
-  for (const [key, value] of agg.entries()) {
-    if (key === '__unassigned__') {
-      result.push({ project_id: null, project_name: null, ...value });
-    } else {
-      const pName = projectNames.get(key) ?? null;
-      result.push({ project_id: key, project_name: pName, ...value });
-    }
-  }
-  return result;
+  return Array.from(agg.values()).map((v) => ({
+    project_id: v.project_id,
+    project_name: v.project_id ? (projectNames.get(v.project_id) ?? null) : null,
+    currency: v.currency,
+    total_amount: v.total_amount,
+    open_ar: v.open_ar,
+    invoice_count: v.invoice_count,
+  }));
 }
