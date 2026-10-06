@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -467,4 +467,38 @@ it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible dea
   await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull());
   expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
   if (view === 'kanban') expect(screen.getByText('No projects match these classifications')).toBeVisible();
+});
+
+describe('#830 location filter debounce', () => {
+  const rowsWithClassification = () => seedProjects.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' }));
+  const probeSearch = () => screen.getByTestId('location-probe').getAttribute('data-search') ?? '';
+
+  it('AC-TAG-002 typing a location writes the URL only after the 300ms pause', async () => {
+    pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
+    vi.useFakeTimers();
+    try {
+      renderPage('/sales?view=table');
+      fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });
+      expect(probeSearch()).not.toContain('location=');
+      await act(async () => { await vi.advanceTimersByTimeAsync(299); });
+      expect(probeSearch()).not.toContain('location=');
+      await act(async () => { await vi.advanceTimersByTimeAsync(2); });
+      expect(probeSearch()).toContain('location=Bali');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('AC-TAG-002 Clear filters within the pause cancels the pending location', async () => {
+    pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
+    vi.useFakeTimers();
+    try {
+      renderPage('/sales?view=table&serviceLine=Engineering');
+      fireEvent.change(screen.getByLabelText(/Search projects/i), { target: { value: 'no-such-deal' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+      fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });
+      fireEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+      expect(probeSearch()).not.toContain('location=');
+      expect((screen.getByLabelText('Filter by location') as HTMLInputElement).value).toBe('');
+    } finally { vi.useRealTimers(); }
+  });
 });

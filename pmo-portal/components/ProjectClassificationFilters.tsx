@@ -14,7 +14,9 @@ export default function ProjectClassificationFilters({ rows, value, onChange }: 
   // Typing updates the box at once; the URL (and so the working set) follows after a pause.
   const [locationText, setLocationText] = useState(value.location ?? '');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => { setLocationText(value.location ?? ''); }, [value.location]);
+  // Any outside change to the working set (e.g. Clear filters) drops a pending typed value, so the
+  // stale timer cannot re-apply it.
+  useEffect(() => { clearTimeout(timer.current); setLocationText(value.location ?? ''); }, [value]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const all = t('projectClassification.all', 'All');
   const optionsFor = (field: 'service_line' | 'sector', selected?: string) =>
