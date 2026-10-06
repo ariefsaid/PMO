@@ -3392,7 +3392,8 @@
     "erpItem": "Item ERP",
     "selectOrSearchItem": "Pilih atau cari item…",
     "searchItemCodeOrName": "Cari kode atau nama item…",
-    "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…"
+    "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…",
+    "currency": "Mata uang"
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",

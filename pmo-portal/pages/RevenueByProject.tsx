@@ -89,6 +89,13 @@ const RevenueByProject: React.FC = () => {
       exportValue: (row) => row.project_name ?? 'Unassigned',
     },
     {
+      // #831: the export must name each row's currency, or a USD and an IDR row sum together in a spreadsheet.
+      key: 'currency',
+      header: t('financeCopy.currency', 'Currency'),
+      cell: (row) => <span className="font-mono text-[13px]">{row.currency}</span>,
+      exportValue: (row) => row.currency,
+    },
+    {
       key: 'total_amount',
       header: t('financeCopy.totalRevenue', "Total Revenue"),
       align: 'num',
@@ -97,7 +104,7 @@ const RevenueByProject: React.FC = () => {
           {formatCurrencyCents(row.total_amount, row.currency)}
         </span>
       ),
-      exportValue: (row) => row.total_amount.toString(),
+      exportValue: (row) => row.total_amount,
     },
     {
       key: 'open_ar',
@@ -108,7 +115,7 @@ const RevenueByProject: React.FC = () => {
           {formatCurrencyCents(row.open_ar, row.currency)}
         </span>
       ),
-      exportValue: (row) => row.open_ar.toString(),
+      exportValue: (row) => row.open_ar,
     },
     {
       key: 'invoice_count',
@@ -119,7 +126,7 @@ const RevenueByProject: React.FC = () => {
           {row.invoice_count}
         </span>
       ),
-      exportValue: (row) => row.invoice_count.toString(),
+      exportValue: (row) => row.invoice_count,
     },
   ];
 

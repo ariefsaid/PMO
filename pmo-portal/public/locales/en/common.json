@@ -3392,7 +3392,8 @@
     "erpItem": "ERP item",
     "selectOrSearchItem": "Select or search item…",
     "searchItemCodeOrName": "Search item code or name…",
-    "describeWorkOrGoods": "Describe the work or goods…"
+    "describeWorkOrGoods": "Describe the work or goods…",
+    "currency": "Currency"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
