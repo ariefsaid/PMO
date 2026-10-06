@@ -2930,3 +2930,10 @@ recovery % capped at what is left · amounts exclude tax · one shared billed-wo
 recoveries added back) feeds this feature and the pack · over-measuring/over-claiming is shown, not blocked ·
 retention out of scope. Task 0 (ERP accepts the negative line and the liability income account) gates the
 adapter slice.
+
+**DD-PBL-12 (Director, 2026-10-06, #766) — ERP prerequisites proven by the Task 0 spike.** On ERPNext v15.94 the
+advance-item mechanism (ADR-0077) holds: the down payment books to the liability, and a claim's negative recovery
+line nets it with tax on the reduced base. Two requirements follow: ERP setup must turn on Selling Settings "Allow
+Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
+body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
+Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
