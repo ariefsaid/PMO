@@ -112,6 +112,11 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       what they submit — and only that — reaches the org-visible tasks system). ───────
     //       #805: invoked as the slash command at the end of the line; the line's text prefills
     //       and, once the task exists, the line is replaced by the action-item block.
+    // Save took focus, so the author clicks back to the end of the action line first.
+    // Clicking the block's far right puts the caret at the end of the line on every platform.
+    const actionBlock = editor.locator('.bn-block-content', { hasText: actionLine });
+    const box = await actionBlock.boundingBox();
+    await actionBlock.click({ position: { x: box!.width - 4, y: box!.height / 2 } });
     await page.keyboard.type(' /action');
     await page.getByRole('option', { name: /Action item/ }).first().click();
     const actionModal = page.getByRole('dialog');
