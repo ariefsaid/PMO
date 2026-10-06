@@ -39,10 +39,7 @@ import { logStructuredError } from '../_shared/errorLog.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 import type { AgentChatRequest } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
-import {
-  AGENT_MASTER_DATA_ROLES,
-  AGENT_DELIVERY_WITH_ENGINEER_ROLES,
-} from '../../../pmo-portal/src/auth/agentRoles.ts';
+import { agentCan } from './agentCan.ts';
 import {
   verifyCallerJwt,
   bearerToken,
@@ -187,20 +184,6 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
-
-  // ── A3: Shared can() role sets for v1 write actions (FR-AW-010, ADR-0016) ────
-  // Role sets imported from agentRoles.ts — single source of truth shared with policy.ts.
-  // Drift guard: agentRoles.test.ts asserts these match the policy.ts RBAC expectations.
-  // RLS/SoD is the enforcement authority; this is a UX preflight only (ADR-0016).
-  const MASTER_DATA_SET = new Set(AGENT_MASTER_DATA_ROLES);
-  const DELIVERY_WITH_ENGINEER_SET = new Set(AGENT_DELIVERY_WITH_ENGINEER_ROLES);
-  const agentCan = (action: string, entity: string, ctx: { realRole: string | null }): boolean => {
-    const role = ctx.realRole;
-    if (!role) return false;
-    if (entity === 'contactActivity' && action === 'create') return MASTER_DATA_SET.has(role);
-    if (entity === 'taskStatus' && action === 'edit') return DELIVERY_WITH_ENGINEER_SET.has(role);
-    return false;
-  };
 
   // ── ADR-0043 §6: persistence deps bound to the SAME callerClient (never verifierClient/
   // service_role — the deputy invariant, AC-AGP-018). Gated on AGENT_PERSISTENCE (default ON;

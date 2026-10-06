@@ -38,6 +38,7 @@ import {
 } from './actions.ts';
 import { buildAgentSystemPrompt } from './prompt.ts';
 import { whatsOverdueAction } from './overdue.ts';
+import { draftInvoiceAction } from './draftInvoice.ts';
 import {
   hashToolArgs,
   createThreadAndRun,
@@ -112,11 +113,15 @@ interface DenoEnvLike {
  */
 const denoGlobal = (globalThis as { Deno?: DenoEnvLike }).Deno;
 const AUTOMATIONS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_AUTOMATIONS') !== 'false';
+/** #787 kill switch: AGENT_INVOICE_DRAFTS=false removes draft_invoice without a redeploy (default ON; ON in
+ *  a Deno-less test context, mirroring AUTOMATIONS_ENABLED). */
+const INVOICE_DRAFTS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_INVOICE_DRAFTS') !== 'false';
 const BASE_ACTIONS: AgentAction[] = [
   queryEntityAction,
   whatsOverdueAction,
   createActivityAction,
   updateTaskStatusAction,
+  ...(INVOICE_DRAFTS_ENABLED ? [draftInvoiceAction] : []),
   ...(AUTOMATIONS_ENABLED ? [notifyAction, createAutomationAction] : []),
 ];
 const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
@@ -551,6 +556,8 @@ function getPermissionCheck(
       return { action: 'create', entity: 'contactActivity' };
     case 'update_task_status':
       return { action: 'edit', entity: 'taskStatus' };
+    case 'draft_invoice':
+      return { action: 'create', entity: 'salesInvoice' };
     default:
       return null;
   }
@@ -982,17 +989,36 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           continue;
         }
 
-        const requiresApproval = resolveNeedsApproval(action, validation.value, deputyCtx);
+        // ADR-0079 §2: resolve the proposal on the server BEFORE the chip — the chip shows the resolved record,
+        // and that record (replayed by the client) is exactly what an approval executes.
+        let proposalArgs: unknown = validation.value;
+        let proposalSummary: string | null = null;
+        if (action.prepare) {
+          let prepared: Awaited<ReturnType<NonNullable<AgentAction['prepare']>>>;
+          try {
+            prepared = await action.prepare(validation.value, deputyCtx);
+          } catch {
+            prepared = { ok: false, error: { error: 'The request could not be prepared right now.' } };
+          }
+          if (prepared.ok === false) {
+            messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(prepared.error) });
+            continue;
+          }
+          proposalArgs = prepared.value;
+          proposalSummary = prepared.summary;
+        }
+        // A prepared action ALWAYS chips: its auto-approve path would execute the unresolved request.
+        const requiresApproval = action.prepare ? true : resolveNeedsApproval(action, validation.value, deputyCtx);
         if (requiresApproval) {
           // Valid material args → emit needs-approval and END the stream (D-A3-1)
           const pendingId = makeId();
-          const humanSummary = writeAction.summarize(validation.value);
+          const humanSummary = proposalSummary ?? writeAction.summarize(validation.value);
 
           yield statusEvent('needs-approval', {
             pendingId,
             actionName: action.name,
             humanSummary,
-            structuredArgs: validation.value as object,
+            structuredArgs: proposalArgs as object,
           });
           // End the stream — the client re-POSTs with decision on the next turn
           return;
@@ -1362,6 +1388,7 @@ async function* agentChatHandlerInner(
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
+    invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   // The full conversation messages for the model call — system prompt is
@@ -1445,6 +1472,7 @@ async function* handleAnswer(
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
+    invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
@@ -1519,6 +1547,7 @@ async function* handleDecision(
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
     composeEnabled: false,
     automationsEnabled: AUTOMATIONS_ENABLED,
+    invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
@@ -1582,7 +1611,11 @@ async function* handleDecision(
   // ── Approve path ───────────────────────────────────────────────────────────
 
   // Step 1: Re-validate args (D-A3-2, defence-in-depth)
-  const validation = writeAction.validate(toolInput);
+  // ADR-0079 §2: a prepared action's replayed input IS the resolved record the user saw — validate THAT
+  // (allow-list rebuild), never the original model request.
+  const validation: { ok: boolean; error?: string; value?: unknown } = action.validatePrepared
+    ? action.validatePrepared(toolInput)
+    : writeAction.validate(toolInput);
   if (!validation.ok) {
     // Malformed args on re-POST — reject
     yield emit('system', {
