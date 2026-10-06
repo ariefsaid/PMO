@@ -5,9 +5,12 @@ import { Icon } from '@/src/components/ui/icons';
 
 export interface BreadcrumbPart {
   label: string;
-  /** When present, the part is a clickable link; the last part omits it (current). */
+  /** Client-side navigation for a parent crumb; the last part omits it (current). */
   onClick?: () => void;
-  /** Local URL for an anchor-backed parent crumb; callback navigation remains authoritative. */
+  /**
+   * Local URL for an anchor-backed parent crumb. With `onClick`, a plain click runs the callback;
+   * without it, the link navigates natively. Modified clicks always stay native.
+   */
   href?: string;
   /**
    * Optional accessible name override for the clickable crumb button when the label
@@ -60,7 +63,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 <Icon name="chev" />
               </span>
             )}
-            {last || !part.onClick ? (
+            {last || (!part.onClick && !part.href) ? (
               <span
                 aria-current="page"
                 // C3: at ≤921px truncate harder (20ch) — only the current crumb
@@ -76,7 +79,9 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 <a
                   href={part.href}
                   onClick={(event) => {
+                    // No callback → plain link: the browser (or a guard upstream) handles it.
                     if (
+                      !part.onClick ||
                       event.defaultPrevented ||
                       event.button !== 0 ||
                       event.metaKey ||
@@ -87,7 +92,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                       return;
                     }
                     event.preventDefault();
-                    part.onClick?.();
+                    part.onClick();
                   }}
                   aria-label={part.ariaLabel}
                   className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"

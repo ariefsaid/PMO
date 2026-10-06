@@ -62,6 +62,17 @@ describe('Breadcrumb', () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
+  it('a parent with href but no onClick is a plain link that keeps native navigation', () => {
+    render(<Breadcrumb parts={[{ label: 'Meetings', href: '#meetings' }, { label: 'Kickoff' }]} />);
+
+    const link = screen.getByRole('link', { name: 'Meetings' });
+    expect(link).toHaveAttribute('href', '#meetings');
+    expect(link).not.toHaveAttribute('aria-current');
+    const click = createEvent.click(link, { button: 0 });
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(false);
+  });
+
   it('current part is not a button', () => {
     render(<Breadcrumb parts={[{ label: 'Alpha' }]} />);
     expect(screen.queryByRole('button', { name: 'Alpha' })).not.toBeInTheDocument();

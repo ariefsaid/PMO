@@ -1,5 +1,5 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router';
+import React, { Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { useParams, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -27,6 +27,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useAuth } from '@/src/auth/useAuth';
 import {
   useMeeting,
@@ -74,8 +75,6 @@ const attendeeName = (a: MeetingAttendeeWithRefs): string =>
 const MeetingDetail: React.FC = () => {
   const { t } = useTranslation();
   const { meetingId } = useParams<{ meetingId: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
   const may = usePermission();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -107,7 +106,7 @@ const MeetingDetail: React.FC = () => {
   const [guestName, setGuestName] = useState('');
   // DD-MTG-8: /action opens the task-create modal prefilled from THIS line (null = closed).
   const [actionLine, setActionLine] = useState<string | null>(null);
-  const [pendingLeaveTarget, setPendingLeaveTarget] = useState<string | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const savedBlocks = useMemo(
     () => (meeting ? upgradeNotes(meeting.notes, meeting.notes_schema_version) : []),
@@ -118,57 +117,10 @@ const MeetingDetail: React.FC = () => {
     [blocks, baseline],
   );
 
-  useEffect(() => {
-    if (!minutesDirty) return;
-
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (
-        event.defaultPrevented ||
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      ) {
-        return;
-      }
-
-      const eventTarget = event.target;
-      if (!(eventTarget instanceof Element)) return;
-      const anchor = eventTarget.closest('a[href]');
-      if (!(anchor instanceof HTMLAnchorElement) || anchor.hasAttribute('download')) return;
-      const target = anchor.getAttribute('target');
-      if (target && target.toLowerCase() !== '_self') return;
-
-      let destination: URL;
-      try {
-        destination = new URL(anchor.href, window.location.href);
-      } catch {
-        return;
-      }
-      if (destination.origin !== window.location.origin) return;
-
-      const leaveTarget = `${destination.pathname}${destination.search}${destination.hash}`;
-      const currentTarget = `${location.pathname}${location.search}${location.hash}`;
-      if (leaveTarget === currentTarget) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      setPendingLeaveTarget(leaveTarget);
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('click', handleDocumentClick, true);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('click', handleDocumentClick, true);
-    };
-  }, [minutesDirty, location.pathname, location.search, location.hash]);
+  // FR-MTG-040 / DD-MTG-11: hold in-app exits while the minutes are unsaved. The held exit is a
+  // callback, so Leave performs it exactly as asked (crumb/list-return router state intact).
+  const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
+  const guardLeave = useUnsavedChangesGuard({ dirty: minutesDirty, onBlocked: holdLeave });
 
   const canEdit = may('edit', 'meeting', {
     currentUserId,
@@ -188,7 +140,7 @@ const MeetingDetail: React.FC = () => {
   // (project filter + search + scroll) when opened from that list; a direct/copied link falls back
   // to the bare index.
   const { returnToList } = useListReturn({ list: 'meetings' });
-  const goBack = () => returnToList();
+  const goBack = () => guardLeave(() => returnToList());
   const backLabel = t('meetingDetail.backToMeetings', 'Meetings');
 
   const onMutationError = (err: unknown) => {
@@ -706,7 +658,7 @@ const MeetingDetail: React.FC = () => {
       />
 
       <ConfirmDialog
-        open={pendingLeaveTarget !== null}
+        open={pendingLeave !== null}
         tone="default"
         title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved minutes')}
         description={t(
@@ -716,12 +668,11 @@ const MeetingDetail: React.FC = () => {
         confirmLabel={t('meetingDetail.confirm.unsavedMinutes.leave', 'Leave')}
         cancelLabel={t('meetingDetail.confirm.unsavedMinutes.stay', 'Stay')}
         onConfirm={() => {
-          if (pendingLeaveTarget === null) return;
-          const target = pendingLeaveTarget;
-          setPendingLeaveTarget(null);
-          navigate(target);
+          const leave = pendingLeave;
+          setPendingLeave(null);
+          leave?.();
         }}
-        onCancel={() => setPendingLeaveTarget(null)}
+        onCancel={() => setPendingLeave(null)}
       />
     </div>
   );

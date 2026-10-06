@@ -2991,7 +2991,7 @@ the flag is on and ERPNext has no enabled default Sales Taxes and Charges templa
 The app mounts under `<BrowserRouter>`, where `useBlocker` throws, so migrating the whole route tree to a data router
 (an ADR-level change) is not justified by one page. While minutes are dirty, `MeetingDetail` registers a
 `beforeunload` handler and a capture-phase click listener on same-origin in-app links that opens the shared
-`ConfirmDialog`. Browser Back/Forward stays unguarded (known boundary). Revisit if the app ever adopts a data router.
+`ConfirmDialog` (`useUnsavedChangesGuard`; the mobile Back bar goes through the same guard). Browser Back/Forward stays unguarded (known boundary). Exits that are not same-origin anchors — notification bell items, assistant deep links, sign-out — are also unguarded, out of scope for v1. Revisit if the app ever adopts a data router.
 Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
 
 

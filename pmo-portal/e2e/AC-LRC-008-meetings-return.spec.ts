@@ -110,7 +110,7 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     // ── Desktop parent breadcrumb return ──────────────────────────────────────────────────────
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^meetings$/i })
+      .getByRole('link', { name: /^meetings$/i })
       .click();
     await expect(page).toHaveURL(/[?&]project=[0-9a-f-]+/i, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=coordination(&|$)/);
@@ -144,7 +144,7 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     await expect(freshPage.getByTestId('record-header')).toContainText(titleB, { timeout: 15_000 });
     await freshPage
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^meetings$/i })
+      .getByRole('link', { name: /^meetings$/i })
       .click();
     await expect(freshPage).toHaveURL(/\/meetings$/, { timeout: 10_000 });
     await freshPage.close();

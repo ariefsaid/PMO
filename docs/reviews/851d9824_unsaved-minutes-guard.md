@@ -20,7 +20,7 @@ The shell breadcrumb now supports an optional `href`. Route-derived parent crumb
 - `pmo-portal/pages/MeetingDetail.test.tsx` — AC-MTG-301 pristine navigation, AC-MTG-302 unload lifecycle, and dirty Stay/Leave coverage.
 - `pmo-portal/e2e/AC-MTG-300-unsaved-minutes.spec.ts` — read-only Playwright journey covering edit, Stay preservation, and Leave navigation.
 - `pmo-portal/src/components/shell/__tests__/Breadcrumb.test.tsx`, `breadcrumb-nav.test.ts`, `routeMatch.test.ts`, `AppShell.test.tsx`, and `AppShell.mobile.test.tsx` — anchor semantics, href derivation, callback preservation, and updated shell role/mobile assertions.
-- `docs/plans/2026-10-06-unsaved-minutes-guard-851d9824.md` and `_v2.md` — implementation design, acceptance-test ownership, verification commands, and scope boundaries.
+- `docs/plans/2026-10-06-unsaved-minutes-guard-851d9824_v2.md` — implementation design, acceptance-test ownership, verification commands, and scope boundaries.
 
 ## Verification
 

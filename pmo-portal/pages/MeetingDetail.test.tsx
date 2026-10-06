@@ -292,6 +292,74 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     expect(screen.getByTestId('minutes-save')).toBeEnabled();
   });
 
+  it('the mobile Back to Meetings bar goes through the same guard: dialog while dirty; Leave returns to the captured list context', async () => {
+    renderRouted({
+      pathname: '/meetings/m1',
+      state: {
+        pmoListReturn: {
+          list: 'meetings',
+          path: '/meetings?project=33333333-3333-4333-8333-333333333333',
+        },
+      },
+    });
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('stub-type'));
+
+    await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+    expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent(
+      'Meetings index?project=33333333-3333-4333-8333-333333333333',
+    );
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('Leave from a breadcrumb runs the crumb\'s own navigation (router state intact)', async () => {
+    const CrumbWithState: React.FC = () => {
+      const navigate = useNavigate();
+      return (
+        <>
+          <Breadcrumb
+            parts={[
+              {
+                label: 'Meetings',
+                href: '/meetings?project=p1',
+                onClick: () => navigate('/meetings?project=p1', { state: { restoreScroll: 120 } }),
+              },
+              { label: 'Kickoff with Acme' },
+            ]}
+          />
+          <MeetingDetail />
+        </>
+      );
+    };
+    const StateProbe: React.FC = () => {
+      const location = useLocation();
+      return <div data-testid="state-probe">{`${location.search}|${JSON.stringify(location.state)}`}</div>;
+    };
+    realRole = 'Engineer';
+    render(
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/meetings/m1']}>
+          <Routes>
+            <Route path="/meetings/:meetingId" element={<CrumbWithState />} />
+            <Route path="/meetings" element={<StateProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('stub-type'));
+
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+
+    expect(await screen.findByTestId('state-probe')).toHaveTextContent('?project=p1|{"restoreScroll":120}');
+  });
+
   it('navigates to the captured local destination after Leave without saving minutes', async () => {
     renderRoutedWithBreadcrumb();
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
