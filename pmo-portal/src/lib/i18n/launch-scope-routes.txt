@@ -101,6 +101,7 @@
 /sales-invoices                pages/SalesInvoices.tsx
 /incoming-payments             pages/IncomingPayments.tsx
 /revenue-by-project            pages/RevenueByProject.tsx
+/reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
 
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is
 #    also the reference slice, so its patterns propagate to whatever is built next.

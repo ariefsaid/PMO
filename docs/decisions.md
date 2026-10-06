@@ -2841,6 +2841,17 @@ unchanged: invoice settled in full, cash and withholding both recorded. Only the
 assertion and the synthetic mapper fixture change to ERPNext's real shape; the mapper derives the gross
 only from an explicitly marked withholding deduction, leaving other deductions alone.
 
+**DD-DUE-1 (Director, 2026-10-06, #767) — the received date lives in PMO; ERP keeps its own due date.**
+ERPNext v16 forbids changing `due_date` or the payment schedule on a submitted Sales Invoice (no
+`allow_on_submit`; `base_document.py` refuses it), and refuses a due date past the customer's terms
+template even at create. Receipt is learned after submission, so PMO records the received date and shows
+due date = received date + terms on the Sales Invoices list and export; it never sends `due_date`. The
+value travels to ERP only as `custom_received_date` (created by onboarding, editable after submit) when
+an invoice is created or amended. ERP's own AR aging keeps ERP's due date — ADR-0048 keeps ERPNext the
+accounting truth, so PMO does not re-derive aging. Known limit: if ERP already carries a received date,
+a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
+field-only update route if it bites.
+
 ## DD-ERP-SITE-1 — one ERP site serves one PMO org (Director, 2026-10-06)
 
 PMO assumes an ERPNext site is connected to at most one PMO org. Customers, Suppliers and their Contacts
@@ -2896,3 +2907,33 @@ as the form, Draft only, never submitted · Issued/Closed work orders invoice at
 need a stated amount · one invoice line · what the user approves is what is saved · the overdue list is
 server-written · reminders to others are out · eval bar 9 of 10 runs per journey, with a server switch to turn
 drafting off. The live eval needs an owner-approved deploy of the agent functions.
+
+**DD-EXP-1..11 (Director, 2026-10-06, #775) — expense claims and cash advances, phase A (PMO-only).** Ruled as
+proposed in `docs/specs/expense-claims.spec.md` and ADR-0078: one record, kind claim|advance; approval calls the
+shipped spend routing (0243) — approved/paid claims count against the budget line, advances never do · four
+server-enforced separations even for an Admin (approver≠claimant, payer≠approver, payer≠claimant, advance-return
+recorder≠claimant) · visible to the claimant and PM and above · the claimant is always the signed-in person · at
+payment the outstanding advance settles first, outstanding is computed, never stored · aging in org-zone days,
+0–30/31–60/61–90/90+ · "Special expenses" is the existing category, no extra workflow (name the owner in the
+senior set to review them) · the later ERP path (phase B) uses core Journal/Payment Entry with an Employee party,
+never HRMS doctypes; it waits for a bench test · content frozen after submit · one currency per claim.
+
+**DD-PBL-1..11 (Director, 2026-10-06, #766; owner ruling folded in) — down payment, progress assessment, billing
+claims.** Ruled as proposed in `docs/specs/progress-billing.spec.md` and ADR-0077. Owner ruling: a PM's progress
+claim is an operational, subjective assessment and never an invoice; billing needs administrative evidence. So:
+the down payment and each claim post as ERPNext invoice lines on an advance-account item (recovery = a negative
+line) · a PROGRESS ASSESSMENT (PM or Finance+, per month, quantities against the BoQ) extends the management
+pack's progress table and never invoices · a BILLING CLAIM (Admin/Finance) is immutable, becomes the invoice
+record, and the database refuses to raise it without an Issued/Approved evidence document with a file from the
+project register · scope = project lines or one Issued/Closed work order · one live down payment per project,
+recovery % capped at what is left · amounts exclude tax · one shared billed-work view (down payments excluded,
+recoveries added back) feeds this feature and the pack · over-measuring/over-claiming is shown, not blocked ·
+retention out of scope. Task 0 (ERP accepts the negative line and the liability income account) gates the
+adapter slice.
+
+**DD-PBL-12 (Director, 2026-10-06, #766) — ERP prerequisites proven by the Task 0 spike.** On ERPNext v15.94 the
+advance-item mechanism (ADR-0077) holds: the down payment books to the liability, and a claim's negative recovery
+line nets it with tax on the reduced base. Two requirements follow: ERP setup must turn on Selling Settings "Allow
+Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
+body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
+Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
