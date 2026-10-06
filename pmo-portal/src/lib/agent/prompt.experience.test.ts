@@ -140,3 +140,13 @@ it('AC-AIN-017 prompt routes "overdue" to whats_overdue, never to a tasks read',
   expect(p).toMatch(/"overdue"[^\n]*→ call `whats_overdue`/);
   expect(p).not.toMatch(/"overdue"[^\n]*→ query `tasks`/);
 });
+
+it('AC-AIN-017 draft_invoice is advertised only when enabled, and never claims approval', () => {
+  const on = buildAgentSystemPrompt(ENTITIES as unknown as never, ROW_CAP, 'Finance', { invoiceDraftsEnabled: true });
+  expect(on).toContain('- draft_invoice —');
+  expect(on).toMatch(/### draft-invoice — Use when the user asks to invoice or bill/);
+  expect(on).toMatch(/call `ask_user` with those candidates/);
+  expect(on).toMatch(/NEVER say an invoice is approved or submitted/);
+  const off = buildAgentSystemPrompt(ENTITIES as unknown as never, ROW_CAP, 'Finance', { invoiceDraftsEnabled: false });
+  expect(off).not.toContain('draft_invoice');
+});
