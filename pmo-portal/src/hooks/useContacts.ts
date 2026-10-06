@@ -9,13 +9,13 @@ import { useAuth } from '@/src/auth/useAuth';
  * Org-scoped Contacts list over the repository seam (ADR-0017). queryKey includes org_id so the
  * cache is tenant-scoped; archived rows are hidden by the DAL.
  */
-export function useContacts() {
+export function useContacts(opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ContactRow[]>({
     queryKey: ['contacts', orgId],
     queryFn: () => repositories.contact.list(),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
 

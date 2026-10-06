@@ -32,8 +32,8 @@ export interface RecordSearch {
 /**
  * Indexes the already-cached TanStack lists (projects, sales-pipeline
  * opportunities, procurements, companies, contacts) into a flat `PaletteItem[]`
- * the ⌘K palette can search. Reads only cached data — it never issues a new query
- * and adds no new DAL/RPC (the lists are already RLS-scoped by the pages that fetched them).
+ * the ⌘K palette can search. Reads the TanStack lists; they are fetched only while
+ * the palette is open (`opts.enabled`, #840), never on page load, and add no new DAL/RPC (RLS-scoped).
  *
  * Each row carries a human `title`, a module `sub`-label, an optional mono
  * `code`, and a `run()` that navigates to the record's detail route — the
@@ -42,18 +42,24 @@ export interface RecordSearch {
  * Filtering, exact-code ranking, and the per-group cap live in `rankRecords`
  * (below) so the palette can apply them uniformly across Records + Navigate.
  */
-export function useRecordSearch(navigate: (path: string) => void): RecordSearch {
-  const projects = useProjects();
-  const procurements = useProcurements();
-  const pipeline = useSalesPipeline();
+export function useRecordSearch(
+  navigate: (path: string) => void,
+  opts?: { enabled?: boolean },
+): RecordSearch {
+  // #840: the six lists load only while the palette is open (`enabled`), not on every cold page;
+  // anything an index page already cached is still searched.
+  const enabled = opts?.enabled !== false;
+  const projects = useProjects({ enabled });
+  const procurements = useProcurements({ enabled });
+  const pipeline = useSalesPipeline({ enabled });
   // CW-7: index master data (Companies + Contacts) too — searching a company/contact name
   // returned nothing before. Both are already-cached, RLS-scoped lists; reads only the cache.
-  const companies = useCompanies();
-  const contacts = useContacts();
+  const companies = useCompanies(undefined, { enabled });
+  const contacts = useContacts({ enabled });
   // CW-4a: index the incident register so ⌘K opens an incident's routable /incidents/:id detail
   // page (the dead-end fix). Incidents are visible to EVERY role (any member may file), so this
   // is indexed unconditionally — no view-gate; RLS scopes the rows.
-  const incidents = useIncidents();
+  const incidents = useIncidents(undefined, { enabled });
   // ⌘K module view-gate (A-8, AC-W2-RBAC-015): a module's records are indexed ONLY when the
   // viewer's REAL role may view that module's index, so a denied role (e.g. Engineer — no
   // Procurement / Sales nav per rbac-visibility §A/§C/§E) never surfaces another module's rows

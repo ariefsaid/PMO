@@ -5,12 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
-import { useProjectMutations, useProjects } from '@/src/hooks/useProjects';
+import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
-import { useOpportunity } from '@/src/lib/db/opportunity';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects';
+import type { ProjectHeaderInput } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
@@ -35,10 +34,8 @@ type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'd
 
 /**
  * Route shell for `/projects/:projectId` — the ONE canonical detail route for a project at EVERY
- * stage (Model B, ADR-0020). It resolves the record from the `useProjects()` cache (the active
- * on-hand ∪ internal partition); a PRE-WIN / LOST record is not in that cache (it lives in the
- * Sales Pipeline), so it falls back to a by-id fetch (`useOpportunity`) — the canonical route
- * therefore opens regardless of stage. ADR-0021 (supersedes ADR-0020 §1): the page is UNIFIED —
+ * stage (Model B, ADR-0020). It reads the record by id (`useProject`, never the whole list), which
+ * resolves a record at any stage — the canonical route opens regardless of stage. ADR-0021 (supersedes ADR-0020 §1): the page is UNIFIED —
  * the shared header + the five delivery Tabs (Overview/Budget/Procurement/Tasks/Documents) render
  * at every stage; a pipeline | lost record additionally gets the PipelineLens deal-progression
  * banner above the tabs. A cold deep-link shows ListState loading; a truly-absent record shows an
@@ -66,7 +63,12 @@ const ProjectDetail: React.FC = () => {
   const { realRole } = useEffectiveRole();
   const may = usePermission();
   const { t } = useTranslation();
-  const { data, isPending, refetch: refetchProjects } = useProjects();
+  const {
+    data: project,
+    isPending,
+    isError: projectError,
+    refetch: refetchProject,
+  } = useProject(projectId);
   const { updateHeader } = useProjectMutations();
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
@@ -85,54 +87,7 @@ const ProjectDetail: React.FC = () => {
     [t],
   );
 
-  const cached = useMemo(
-    () => (data ?? []).find((p) => p.id === projectId),
-    [data, projectId],
-  );
-
-  // Fallback by-id fetch for a record NOT in the active projects cache (a pre-win / lost deal
-  // lives in the Sales Pipeline partition). Only fired when the cache misses, so on-hand records
-  // (the common path) cost no extra query.
-  const {
-    data: opp,
-    isPending: oppPending,
-    isError: oppError,
-    refetch: refetchOpp,
-  } = useOpportunity(cached ? undefined : projectId);
   const { data: committedSpend = 0 } = useProjectCommittedSpend(projectId || null);
-
-  // A pre-win/lost record's full row comes from the opportunity fetch; map it onto the
-  // ProjectWithRefs shape the header + lens consume (delivery-only fields the pipeline lens never
-  // reads — budget/spent/archived_at/created_at/last_update/org_id — default safely).
-  const project = useMemo<ProjectWithRefs | undefined>(() => {
-    if (cached) return cached;
-    if (!opp) return undefined;
-    // ⚑ ANNOTATED, NOT CAST. This used to end `as ProjectWithRefs`, and the cast is precisely what
-    // let `currency` go missing: the opportunity query selects an explicit column list, the field
-    // never reached the header, and `formatCurrency` threw for every pipeline record while the
-    // on-hand path (which selects `*`) looked perfect. With an annotation the compiler checks the
-    // shape, so a column added to `projects` later fails HERE — where someone has to decide what a
-    // pre-win record shows — instead of at a browser journey 133 commits downstream.
-    const merged: ProjectWithRefs = {
-      ...opp,
-      // Delivery-only fields a pre-win record does not have. The pipeline lens never reads them.
-      budget: 0,
-      spent: 0,
-      archived_at: null,
-      created_at: '',
-      last_update: '',
-      org_id: '',
-      // Provenance + money-witness columns: absent on a pre-win record by construction. The
-      // contract-value witness (0177) is only stamped on the win transition.
-      import_batch_id: null,
-      imported_at: null,
-      import_key: null,
-      contract_value_set_by: null,
-      contract_value_set_at: null,
-      tax_template: null,
-    };
-    return merged;
-  }, [cached, opp]);
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed project — grounding only
@@ -182,7 +137,7 @@ const ProjectDetail: React.FC = () => {
   };
 
   if (!project) {
-    if (isPending || oppPending) {
+    if (isPending) {
       return (
         <>
           <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
@@ -192,7 +147,7 @@ const ProjectDetail: React.FC = () => {
     }
     // #695: absence cannot be claimed from a FAILED read. A by-id fetch that errored says nothing
     // about whether the record exists, so it is a load error with Retry - never "not found".
-    if (oppError) {
+    if (projectError) {
       return (
         <>
           <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
@@ -202,8 +157,7 @@ const ProjectDetail: React.FC = () => {
             sub={t('projectDetail.loadError.sub', 'The request failed. Check your connection and try again.')}
             retryLabel={t('projectDetail.loadError.retry', 'Retry')}
             onRetry={() => {
-              void refetchProjects();
-              void refetchOpp();
+              void refetchProject();
             }}
           />
         </>

@@ -7,7 +7,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { calculateProjectInvoiceSummary } from '@/src/lib/projectInvoicing';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
-import { useProcurements } from '@/src/hooks/useProcurements';
+import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
 import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summary';
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
@@ -226,12 +226,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
   const isDelivery = showFinanceSummary && (group === 'onHand' || group === 'internal');
   const isOnHand = showFinanceSummary ? ON_HAND_STATUSES.includes(project.status as string) : false;
 
-  // T14/T15 — Procurement summary (client-side filter by project_id)
-  const { data: allProc, isPending: procPending, isError: procError, refetch: procRefetch } = useProcurements();
-  const projectProc = useMemo(
-    () => (allProc ?? []).filter((p) => p.project_id === project.id),
-    [allProc, project.id],
-  );
+  // T14/T15 — Procurement summary (project-filtered server-side)
+  const { data: projectProcData, isPending: procPending, isError: procError, refetch: procRefetch } = useProjectProcurements(project.id);
+  const projectProc = useMemo(() => projectProcData ?? [], [projectProcData]);
   const procSummary = useMemo(() => summarizeProcurement(projectProc), [projectProc]);
   const top3Proc = useMemo(() => recentRequests(projectProc, 3), [projectProc]);
 

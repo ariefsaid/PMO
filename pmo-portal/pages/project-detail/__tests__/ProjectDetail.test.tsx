@@ -42,6 +42,14 @@ const { roleBox, desktopBox, projectMutations, projectTransition } = vi.hoisted(
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
+  // #840: the detail route reads ONE project by id (any stage), never the whole list. `oppState`
+  // stands in for a record outside `projectsState` (a pre-win / lost deal) — both are the one read.
+  useProject: (id: string) => ({
+    data: (projectsState.data ?? []).find((p) => p.id === id) ?? oppState.data ?? null,
+    isPending: projectsState.isPending || oppState.isPending,
+    isError: projectsState.isError || oppState.isError,
+    refetch: projectsState.refetch,
+  }),
   // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
   useProjectMutations: () => projectMutations,
   useClientCompanies: () => ({ data: [], isError: false }),
@@ -69,6 +77,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
@@ -334,14 +343,13 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
   });
 
-  it('#695: when BOTH project reads fail it shows a load error with Retry, never "Project not found"', async () => {
+  it('#695: when the project read fails it shows a load error with Retry, never "Project not found"', async () => {
     projectsState.data = undefined as unknown as ProjectWithRefs[];
     projectsState.isError = true;
-    oppState.isError = true;
     renderAt('/projects/p1');
     expect(screen.queryByText(/Project not found/i)).toBeNull();
     expect(screen.getByRole('alert')).toHaveTextContent(/Couldn.t load this project/i);
-    // The escape route stays; and Retry re-runs BOTH reads.
+    // The escape route stays; and Retry re-runs the by-id read.
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
     // #707: like the loading / not-found states, the error state's Back bar is phone-only.
     const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
@@ -349,12 +357,11 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(bar.className).toContain('max-[920px]:flex');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(projectsState.refetch).toHaveBeenCalledTimes(1);
-    expect(oppState.refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('#695: a failed by-id read on a list miss is a load error too — absence cannot be claimed from a failed read', () => {
+  it('#695: a failed by-id read is a load error too — absence cannot be claimed from a failed read', () => {
     projectsState.data = [];
-    oppState.isError = true;
+    projectsState.isError = true;
     renderAt('/projects/p1');
     expect(screen.queryByText(/Project not found/i)).toBeNull();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
