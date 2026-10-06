@@ -21,6 +21,7 @@ import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow 
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
 import { resolveSalesTaxRows, type ErpTaxRow } from './erpSalesTaxRows.ts';
+import { resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
@@ -999,6 +1000,33 @@ async function resolveOrdinaryInvoiceTaxes(
   record.taxes = requireTaxRows(await resolveSalesTaxRows(client, company, fraction));
 }
 
+/**
+ * #520 — a vendor invoice create on a flipped org may name the ERPNext Purchase Taxes and Charges Template the user chose.
+ * No choice → no rows and no template read (ERPNext applies its own default, the pre-#520 behaviour). A choice → its rows are
+ * resolved here, validated against the binding's company, and written onto the record BEFORE the outbox snapshot, so the
+ * payload and digest cover them; a sweep replay keeps the persisted rows and makes no ERPNext read (as #858 does for sales).
+ * A caller's `taxes` is always dropped; edits and amends send none.
+ */
+async function resolvePurchaseInvoiceTaxes(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<void> {
+  const record = deps.command.record as Record<string, unknown>;
+  if (record.erp_doc_kind !== 'purchase-invoice') return;
+  if (deps.replay && deps.command.operation === 'create') return;
+  delete record.taxes;
+  const chosen = typeof record.taxTemplate === 'string' ? record.taxTemplate.trim() : '';
+  if (deps.command.operation !== 'create' || !chosen) {
+    delete record.taxTemplate;
+    return;
+  }
+  record.taxTemplate = chosen;
+  const company = binding.config?.company;
+  if (typeof company !== 'string' || !company) {
+    throw new AppError('ERPNext has no company set for this organization, so the chosen purchase tax template cannot be checked. Set the ERP company in Administration → Integrations, then record the invoice again.', 'config-rejected');
+  }
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  record.taxes = await resolvePurchaseTaxRows(client, company, chosen);
+}
+
 /** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */
 async function assertClaimCurrencyMatchesErp(
   deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, client: ErpClientDeps, claimCurrency: string | undefined, customerId: unknown,
@@ -1188,6 +1216,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // #856: ordinary-invoice tax rows read ERPNext, so they wait for the project gate and the PMO source reads (all fail closed before any ERP call).
   if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceTaxes(deps, binding, deps.command.record as Record<string, unknown>);
+  await resolvePurchaseInvoiceTaxes(deps, binding);
   // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
   // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
   const itemKind = deps.command.record.erp_doc_kind;
