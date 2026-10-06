@@ -342,18 +342,18 @@ describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb mobile truncation', () => {
     const { container } = render(
       <Breadcrumb
         parts={[
-          { label: 'Projects', onClick: vi.fn() },
+          { label: 'Projects', href: '/projects', onClick: vi.fn() },
           { label: 'Alpha' },
         ]}
       />
     );
-    // Parent link buttons have the mobile hide class
-    const parentBtn = container.querySelector('button');
-    expect(parentBtn).not.toBeNull();
+    // Parent breadcrumb links have the mobile hide class
+    const parentLink = container.querySelector('a');
+    expect(parentLink).not.toBeNull();
     const { container: bar } = render(<BackBar label="Projects" phoneOnly onBack={vi.fn()} />);
     const showAt = (bar.firstElementChild as HTMLElement).className.match(/max-\[(\d+)px\]:flex/)?.[1];
     expect(showAt).toBeDefined();
-    expect(parentBtn!.className).toContain(`max-[${showAt}px]:hidden`);
+    expect(parentLink!.className).toContain(`max-[${showAt}px]:hidden`);
   });
 
   it('with only one part (no parent), nothing is hidden', () => {

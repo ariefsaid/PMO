@@ -1194,7 +1194,13 @@
       "archiveTitle": "Archive meeting?",
       "deleteConfirm": "Delete meeting",
       "deleteDescription": "This permanently removes the meeting and its minutes. A meeting whose action items still exist as tasks cannot be deleted; archive it instead.",
-      "deleteTitle": "Delete meeting?"
+      "deleteTitle": "Delete meeting?",
+      "unsavedMinutes": {
+        "description": "Your meeting minutes have unsaved changes. Leave this page and discard them?",
+        "leave": "Leave",
+        "stay": "Stay",
+        "title": "Unsaved minutes"
+      }
     },
     "delete": "Delete",
     "edit": "Edit",

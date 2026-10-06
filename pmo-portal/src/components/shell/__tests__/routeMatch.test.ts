@@ -71,6 +71,7 @@ describe('breadcrumbForPath — Administration route prefix matching', () => {
       {
         label: 'Administration',
         i18nKey: 'shell.nav.administration',
+        href: '/administration/users',
         onClick: expect.any(Function),
       },
       { label: 'Users', i18nKey: 'admin.nav.users' },
