@@ -152,7 +152,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       toast(
         t('projectDetail.pipeline.toast.updated', 'Project updated'),
         erpPending
-          ? t('projectDetail.erpLink.createdPending', 'Project saved. ERP linking needs attention; retry from the project page.')
+          ? t('projectDetail.erpLink.movedPending', 'Moved to {{status}}. ERP linking needs attention; retry from the project page.', { status: to })
           : `${t('projectDetail.pipeline.toast.movedTo', 'Moved to')} ${to}`,
         erpPending ? 'warning' : 'success',
       );

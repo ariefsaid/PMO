@@ -2841,6 +2841,17 @@ unchanged: invoice settled in full, cash and withholding both recorded. Only the
 assertion and the synthetic mapper fixture change to ERPNext's real shape; the mapper derives the gross
 only from an explicitly marked withholding deduction, leaving other deductions alone.
 
+**DD-DUE-1 (Director, 2026-10-06, #767) — the received date lives in PMO; ERP keeps its own due date.**
+ERPNext v16 forbids changing `due_date` or the payment schedule on a submitted Sales Invoice (no
+`allow_on_submit`; `base_document.py` refuses it), and refuses a due date past the customer's terms
+template even at create. Receipt is learned after submission, so PMO records the received date and shows
+due date = received date + terms on the Sales Invoices list and export; it never sends `due_date`. The
+value travels to ERP only as `custom_received_date` (created by onboarding, editable after submit) when
+an invoice is created or amended. ERP's own AR aging keeps ERP's due date — ADR-0048 keeps ERPNext the
+accounting truth, so PMO does not re-derive aging. Known limit: if ERP already carries a received date,
+a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
+field-only update route if it bites.
+
 ## DD-ERP-SITE-1 — one ERP site serves one PMO org (Director, 2026-10-06)
 
 PMO assumes an ERPNext site is connected to at most one PMO org. Customers, Suppliers and their Contacts
@@ -2896,3 +2907,13 @@ as the form, Draft only, never submitted · Issued/Closed work orders invoice at
 need a stated amount · one invoice line · what the user approves is what is saved · the overdue list is
 server-written · reminders to others are out · eval bar 9 of 10 runs per journey, with a server switch to turn
 drafting off. The live eval needs an owner-approved deploy of the agent functions.
+
+**DD-EXP-1..11 (Director, 2026-10-06, #775) — expense claims and cash advances, phase A (PMO-only).** Ruled as
+proposed in `docs/specs/expense-claims.spec.md` and ADR-0078: one record, kind claim|advance; approval calls the
+shipped spend routing (0243) — approved/paid claims count against the budget line, advances never do · four
+server-enforced separations even for an Admin (approver≠claimant, payer≠approver, payer≠claimant, advance-return
+recorder≠claimant) · visible to the claimant and PM and above · the claimant is always the signed-in person · at
+payment the outstanding advance settles first, outstanding is computed, never stored · aging in org-zone days,
+0–30/31–60/61–90/90+ · "Special expenses" is the existing category, no extra workflow (name the owner in the
+senior set to review them) · the later ERP path (phase B) uses core Journal/Payment Entry with an Employee party,
+never HRMS doctypes; it waits for a bench test · content frozen after submit · one currency per claim.

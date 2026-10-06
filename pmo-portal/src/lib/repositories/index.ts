@@ -77,6 +77,7 @@ import {
 } from '@/src/lib/db/agentAttachments';
 import { createAgentThread } from '@/src/lib/db/agentThreads';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
+import { listSpendApprovers, addSpendApprover, removeSpendApprover } from '@/src/lib/db/spendApprovers';
 import { listUsers, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
 import { isOperator } from '@/src/lib/db/operators';
 import {
@@ -256,7 +257,9 @@ import {
   getIncomingPayment,
   getRevenueByProject,
   submitSalesInvoiceSod,
+  setSalesInvoiceReceivedDate,
 } from '@/src/lib/db/revenue';
+import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
   CommandIntent,
   Repositories,
@@ -284,6 +287,7 @@ import type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  ReportsRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -615,6 +619,7 @@ const revenue: RevenueRepository = {
           intent,
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
   submitInvoice: (siId, intent) =>
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {
@@ -846,6 +851,9 @@ const orgSettings: OrgSettingsRepository = {
   setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
+  listSpendApprovers: () => wrap(() => listSpendApprovers()),
+  addSpendApprover: (profileId, projectId) => wrap(() => addSpendApprover(profileId, projectId)),
+  removeSpendApprover: (id) => wrap(() => removeSpendApprover(id)),
 };
 
 const credits: CreditsRepository = {
@@ -1047,6 +1055,11 @@ const integrationsImpl: IntegrationsRepository = {
   },
 };
 
+const reports: ReportsRepository = {
+  managementPack: (range) => wrap(() => getManagementPackFacts(range)),
+  recordProgress: (input) => wrap(() => recordProjectProgress(input)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -1074,6 +1087,7 @@ export const repositories: Repositories = {
   externalDomainOwnership,
   erpSnapshots,
   integrations: integrationsImpl,
+  reports,
 };
 
 export type {
@@ -1102,5 +1116,6 @@ export type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  ReportsRepository,
   IntegrationsRepository,
 } from './types';

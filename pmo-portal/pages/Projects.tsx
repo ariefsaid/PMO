@@ -380,7 +380,7 @@ const Projects: React.FC = () => {
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
         const row = await create.mutateAsync(input);
-        toast(t('projects.toast.created', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', 'Project saved. ERP linking needs attention; retry from the project page.') : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
+        toast(t('projects.toast.created', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', '{{name}} saved. ERP linking needs attention; retry from the project page.', { name: input.name }) : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
         setCreateOpen(false);
         // Opens the new record with this list as its return context (#688 AC-RAM-006, #682).
         openRecord(`/projects/${row.id}`);
@@ -400,7 +400,7 @@ const Projects: React.FC = () => {
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
         return (
-          <div className="flex min-w-0 max-w-[190px] items-center gap-2.5">
+          <div className="flex min-w-0 max-w-[160px] items-center gap-2.5">
             <span
               aria-hidden
               className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
@@ -457,7 +457,7 @@ const Projects: React.FC = () => {
           <CompanyNameLink
             companyId={p.client_id}
             name={p.client ? companyDisplayName(p.client) : null}
-            className="block max-w-[105px] text-[13px]"
+            className="block max-w-[96px] text-[13px]"
           />
         </div>
       ),
@@ -476,7 +476,7 @@ const Projects: React.FC = () => {
           <CompanyNameLink
             companyId={p.end_client_id}
             name={p.end_client ? companyDisplayName(p.end_client) : null}
-            className="block max-w-[105px] text-[13px]"
+            className="block max-w-[96px] text-[13px]"
           />
         </div>
       ),
@@ -504,7 +504,7 @@ const Projects: React.FC = () => {
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
         return (
-          <span className="flex max-w-[100px] items-center gap-1.5">
+          <span className="flex max-w-[96px] items-center gap-1.5">
             <span
               aria-hidden
               className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
@@ -526,7 +526,9 @@ const Projects: React.FC = () => {
       cell: (p) => (
         <StatusPill
           variant={pillVariantForProjectStatus(p.status as string)}
-          className="max-w-[110px] flex-wrap whitespace-normal"
+          // The label wraps beside its dot: `!` overrides the pill's own whitespace-nowrap (cn does
+          // not merge conflicting utilities), so a long status never forces the column wider.
+          className="max-w-[92px] leading-tight whitespace-normal!"
         >
           {p.status}
         </StatusPill>
@@ -542,11 +544,20 @@ const Projects: React.FC = () => {
       // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
       // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
       // there reads as comparable when it is not.
+      // The basis note takes its own wrapping line under the amount (the DESIGN.md invoice-card
+      // rule): inline, its rate + DPP details (#811) widened the column past the 1440px table
+      // budget (AC-TBL-OVERFLOW-001).
       cell: (p) => (
-        <span className="inline-flex flex-wrap items-baseline gap-1.5">
-          {formatCurrency(p.contract_value, p.currency)}
-          <TaxBasisLabel treatment={p.tax_treatment} taxRate={p.tax_rate} taxBaseNumerator={p.tax_base_numerator} taxBaseDenominator={p.tax_base_denominator} />
-        </span>
+        <div className="flex flex-col items-end gap-0.5">
+          <span>{formatCurrency(p.contract_value, p.currency)}</span>
+          <TaxBasisLabel
+            treatment={p.tax_treatment}
+            taxRate={p.tax_rate}
+            taxBaseNumerator={p.tax_base_numerator}
+            taxBaseDenominator={p.tax_base_denominator}
+            className="block max-w-[110px] whitespace-normal leading-tight"
+          />
+        </div>
       ),
     },
     {
