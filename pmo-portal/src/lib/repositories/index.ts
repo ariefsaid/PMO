@@ -10,6 +10,7 @@
  * A future ERP/REST backend = a new module exporting the same `Repositories` shape; the FE
  * imports `repositories` and never changes.
  */
+import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
@@ -613,7 +614,7 @@ const revenue: RevenueRepository = {
   // Write methods — route through dispatch when externally-owned
   createInvoice: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
-      ? dispatchCreate('revenue', { ...input, erp_doc_kind: 'sales-invoice' }, intent)
+      ? dispatchCreate('revenue', salesInvoiceCreateFields(input), intent)
           .then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
   createPayment: (input, intent) =>
