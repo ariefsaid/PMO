@@ -21,13 +21,15 @@ const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {}): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' } } }],
-    companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }],
+    companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }, { id: 'cust-org2', org_id: 'org-2' }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-2', external_record_id: 'Customer:Other Customer' },
     ],
     projects: [
       { id: 'proj-1', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1, ...projectTax },
+      { id: 'proj-org2', org_id: 'org-2', client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-3', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
       { id: 'proj-2', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
     ],
     work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01', tax_base_numerator: 1, tax_base_denominator: 1, ...workOrderTax }],
@@ -283,6 +285,47 @@ describe('billing claim invoice (AC-PB-006)', () => {
     });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(await digest(replay)).toBe(await digest(first.command));
+  });
+
+  /** A recovery replays a persisted record, but the org link and project gates are not derivations: they must still run. */
+  async function replayOf(patch: Row) {
+    const first = await push({});
+    const replay = command({});
+    replay.record = { ...structuredClone(first.command.record), ...patch } as AdapterCommand['record'];
+    const { fetchImpl } = erpFetch();
+    const attempt = resolveErpDispatchAdapter({
+      serviceClient: serviceClient(CLAIM), orgId: ORG, command: replay, replay: true,
+      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    return { attempt, fetchImpl };
+  }
+
+  it('AC-858-1 a replay whose persisted customer or project belongs to another org is refused before any ERPNext fetch', async () => {
+    for (const patch of [{ customerId: 'cust-org2' }, { projectId: 'proj-org2' }]) {
+      const { attempt, fetchImpl } = await replayOf(patch);
+      await expect(attempt).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  });
+
+  it('AC-858-1 a replay with an unmapped project is refused while require_project_on_si is on', async () => {
+    const { attempt, fetchImpl } = await replayOf({ projectId: 'proj-3' });
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('no ERP project mapping') });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('AC-858-2 a claim invoice body carries the claim currency, and a replay sends the same', async () => {
+    const first = await push({});
+    expect(first.body.currency).toBe('IDR');
+    expect(first.command.record.currency).toBe('IDR');
+    const usd = await push({}, { ...CLAIM, currency: 'USD' }, { customerCurrency: 'USD', companyCurrency: 'USD' });
+    expect(usd.body.currency).toBe('USD');
+  });
+
+  it('AC-858-2 a caller-supplied currency on a non-claim invoice is dropped', async () => {
+    const { body } = await push({ id: 'not-a-claim', currency: 'USD', items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null);
+    expect(body.currency).toBeUndefined();
   });
 
   it('AC-858-3 an unreadable Selling Settings gives the action-required message, not a raw permission error, before any ERP write', async () => {

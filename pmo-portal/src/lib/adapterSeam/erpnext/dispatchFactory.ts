@@ -1037,6 +1037,7 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   // ERPNext again and could drift from the original digest if the template, the VAT flag or the negative-rates setting moved since.
   if (deps.replay && deps.command.operation === 'create') return 'none';
   delete record.taxes;
+  delete record.currency; // only a claim sets it, from the claim row below
   if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return 'none';
   if (typeof record.id !== 'string' || !record.id) return 'none';
   const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
@@ -1097,6 +1098,8 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   }
   record.items = progressClaimItems(claim, lines);
   record.workOrderId = claim.work_order_id;
+  // #858: sent explicitly so ERPNext itself rejects a mismatch with the party account currency; part of the persisted body, so a replay sends the same.
+  if (claim.currency) record.currency = claim.currency;
   // DD-PBL-7: the server builds the invoice from the claim alone — a caller's PO reference or receipt date is dropped
   // (the PO is re-derived from the claim's work order by `resolveSalesInvoicePo`).
   delete record.reference_number;
