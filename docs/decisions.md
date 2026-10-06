@@ -2907,3 +2907,13 @@ as the form, Draft only, never submitted · Issued/Closed work orders invoice at
 need a stated amount · one invoice line · what the user approves is what is saved · the overdue list is
 server-written · reminders to others are out · eval bar 9 of 10 runs per journey, with a server switch to turn
 drafting off. The live eval needs an owner-approved deploy of the agent functions.
+
+**DD-EXP-1..11 (Director, 2026-10-06, #775) — expense claims and cash advances, phase A (PMO-only).** Ruled as
+proposed in `docs/specs/expense-claims.spec.md` and ADR-0078: one record, kind claim|advance; approval calls the
+shipped spend routing (0243) — approved/paid claims count against the budget line, advances never do · four
+server-enforced separations even for an Admin (approver≠claimant, payer≠approver, payer≠claimant, advance-return
+recorder≠claimant) · visible to the claimant and PM and above · the claimant is always the signed-in person · at
+payment the outstanding advance settles first, outstanding is computed, never stored · aging in org-zone days,
+0–30/31–60/61–90/90+ · "Special expenses" is the existing category, no extra workflow (name the owner in the
+senior set to review them) · the later ERP path (phase B) uses core Journal/Payment Entry with an Employee party,
+never HRMS doctypes; it waits for a bench test · content frozen after submit · one currency per claim.
