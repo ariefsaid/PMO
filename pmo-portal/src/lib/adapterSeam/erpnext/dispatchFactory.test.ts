@@ -560,7 +560,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       // caller is org-2 this time — cust-org2 is its OWN customer, so the identical id must pass.
       orgId: 'org-2',
       command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-2', erp_doc_kind: 'sales-invoice', customerId: 'cust-org2', items: [] } },
-      fetchImpl: vi.fn() as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => Response.json({ data: [] })) as unknown as typeof fetch, // #856: an ordinary invoice create looks up the default tax template
       apiKey: 'k',
       apiSecret: 's',
     });
@@ -605,7 +605,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: true }, { 'proj-1': 'PROJ-0001' }) }),
       orgId: 'org-1',
       command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [] } },
-      fetchImpl: vi.fn() as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => Response.json({ data: [] })) as unknown as typeof fetch, // #856: an ordinary invoice create looks up the default tax template
       apiKey: 'k',
       apiSecret: 's',
     });
@@ -617,7 +617,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: false }, {}) }),
       orgId: 'org-1',
       command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [] } },
-      fetchImpl: vi.fn() as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => Response.json({ data: [] })) as unknown as typeof fetch, // #856: an ordinary invoice create looks up the default tax template
       apiKey: 'k',
       apiSecret: 's',
     });

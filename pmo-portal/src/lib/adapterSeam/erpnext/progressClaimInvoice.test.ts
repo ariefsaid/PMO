@@ -27,8 +27,8 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-2', external_record_id: 'Customer:Other Customer' },
     ],
     projects: [
-      { id: 'proj-1', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, tax_base_numerator: 1, tax_base_denominator: 1 },
-      { id: 'proj-2', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-1', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, contract_value: 1000000, tax_amount: 100000, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-2', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, contract_value: 1000000, tax_amount: 100000, tax_base_numerator: 1, tax_base_denominator: 1 },
     ],
     work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01', tax_base_numerator: 1, tax_base_denominator: 1, ...workOrderTax }],
     sales_invoices: [],
@@ -221,7 +221,8 @@ describe('billing claim invoice (AC-PB-006)', () => {
   it('AC-PB-020 never lets a caller smuggle tax rows into any invoice', async () => {
     const forged = [{ charge_type: 'On Net Total', account_head: 'EVIL', rate: 99 }];
     expect((await push({ taxes: forged })).body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
-    expect((await push({ taxes: forged, items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null)).body.taxes).toBeUndefined();
+    // An ordinary invoice's rows are built server-side too (#856): the template row, never the caller's.
+    expect((await push({ taxes: forged, items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null)).body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
   });
 
   it('AC-PB-020 an ordinary invoice never takes a caller-supplied work order', async () => {

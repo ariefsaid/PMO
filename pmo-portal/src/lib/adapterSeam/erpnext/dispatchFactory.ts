@@ -960,12 +960,43 @@ function taxBaseFraction(row: unknown): { numerator: number; denominator: number
   const denominator = Number(r.tax_base_denominator ?? 1);
   return numerator > 0 && denominator >= numerator ? { numerator, denominator } : { numerator: 1, denominator: 1 };
 }
-async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<void> {
+/**
+ * #856 — an ordinary (non-claim) Sales Invoice create gets the same explicit tax rows a claim invoice does (ERPNext does
+ * not expand a template over REST, so without them the client is billed untaxed). The tax basis is the invoice's project
+ * (#478/#821, 0197 + 0227): a project that states a contract value with zero tax is tax-exempt and sends NO rows and makes
+ * no template read; otherwise the rows come from `resolveSalesTaxRows` with the project's reduced-base fraction.
+ * Rows are built server-side before the outbox snapshot, so the payload and digest cover them (a caller's `taxes` was
+ * already stripped). Edits and amends send none, as before.
+ */
+async function resolveOrdinaryInvoiceTaxes(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+  record: Record<string, unknown>,
+): Promise<void> {
+  const company = binding.config?.company;
+  if (deps.command.operation !== 'create' || typeof company !== 'string' || !company) return;
+  let fraction = { numerator: 1, denominator: 1 };
+  if (typeof record.projectId === 'string' && record.projectId) {
+    const { data, error } = await deps.serviceClient.from('projects')
+      .select('contract_value,tax_amount,tax_base_numerator,tax_base_denominator')
+      .eq('org_id', deps.orgId).eq('id', record.projectId).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    const basis = (data ?? {}) as { contract_value?: unknown; tax_amount?: unknown };
+    if (Number(basis.contract_value) > 0 && basis.tax_amount !== null && basis.tax_amount !== undefined && Number(basis.tax_amount) === 0) return;
+    fraction = taxBaseFraction(data);
+  }
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  const taxes = await resolveSalesTaxRows(client, company, fraction);
+  if (taxes.length > 0) record.taxes = taxes;
+}
+
+async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<'ordinary' | 'claim' | 'none'> {
   const record = deps.command.record as Record<string, unknown>;
-  if (record.erp_doc_kind !== 'sales-invoice') return;
+  if (record.erp_doc_kind !== 'sales-invoice') return 'none';
   delete record.taxes;
-  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return;
-  if (typeof record.id !== 'string' || !record.id) return;
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return 'none';
+  if (typeof record.id !== 'string' || !record.id) return 'none';
   const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
     .select('id,kind,project_id,work_order_id,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
@@ -973,7 +1004,10 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
   // Likewise the work order: only a claim sets it (from the claim row, below). An ordinary invoice's work order
   // comes from its own mirror row, never from the caller's command.
-  if (!claimData) { delete record.workOrderId; return; }
+  if (!claimData) {
+    delete record.workOrderId;
+    return 'ordinary';
+  }
   const claim = claimData as ProgressClaimRecord;
   // DD-PBL-7 (one claim, one invoice): ids are compared as TEXT downstream (external_refs, the one-in-flight
   // outbox index, withdraw_progress_claim), so a case-variant of the claim id would mint a second invoice.
@@ -1041,6 +1075,7 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   } else {
     delete record.taxes;
   }
+  return 'claim';
 }
 
 /**
@@ -1069,7 +1104,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
   await assertCommandLinksSameOrg(deps);
-  await resolveProgressClaimInvoice(deps, binding);
+  const invoiceKind = await resolveProgressClaimInvoice(deps, binding);
   let receiptConfig = binding.config;
   if (deps.command.record.erp_doc_kind === 'incoming-payment'
       && Number(deps.command.record.withheld_amount ?? 0) > 0) {
@@ -1084,6 +1119,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   }
   // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
   assertSiProjectGate(deps, binding);
+  // #856: ordinary-invoice tax rows read ERPNext, so they wait for the project gate (which fails closed before any ERP call).
+  if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceTaxes(deps, binding, deps.command.record as Record<string, unknown>);
 
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).

@@ -25,7 +25,7 @@ export async function resolveSalesTaxRows(
   const rows: ErpTaxRow[] = [];
   for (const row of template?.taxes ?? []) {
     if (row.charge_type !== 'On Net Total') {
-      throw new AdapterError('commit-rejected', `The default sales tax template "${String(found[0].name)}" has a "${String(row.charge_type)}" row; only "On Net Total" rows can be sent for a billing claim`);
+      throw new AdapterError('commit-rejected', `The default sales tax template "${String(found[0].name)}" has a "${String(row.charge_type)}" row; only "On Net Total" rows can be sent for a sales invoice`);
     }
     const account = typeof row.account_head === 'string' ? row.account_head : '';
     const rate = Number(row.rate);

@@ -2937,3 +2937,10 @@ line nets it with tax on the reduced base. Two requirements follow: ERP setup mu
 Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
 body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
 Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
+
+**DD-PBL-13 (Director, 2026-10-06, #856) — ordinary Sales Invoice creates send explicit tax rows.** Same helper as claim
+invoices (`resolveSalesTaxRows`); rate and account come from the ERP default template, the reduced-base fraction from the
+invoice's project. Tax-exempt means the project states a contract value with a recorded tax of zero: such an invoice sends
+no rows and makes no template read. A project with no stated value, or an invoice with no project, is taxed at the
+template rate. The rows are part of the command, so the outbox payload and digest cover them; sweep recovery of an
+already-sent invoice still re-reads the template (#858).
