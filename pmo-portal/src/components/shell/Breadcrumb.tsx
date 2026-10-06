@@ -5,8 +5,13 @@ import { Icon } from '@/src/components/ui/icons';
 
 export interface BreadcrumbPart {
   label: string;
-  /** When present, the part is a clickable link; the last part omits it (current). */
+  /** Client-side navigation for a parent crumb; the last part omits it (current). */
   onClick?: () => void;
+  /**
+   * Local URL for an anchor-backed parent crumb. With `onClick`, a plain click runs the callback;
+   * without it, the link navigates natively. Modified clicks always stay native.
+   */
+  href?: string;
   /**
    * Optional accessible name override for the clickable crumb button when the label
    * alone does not describe the destination (WCAG 2.4.6). Used for the 'My Views'
@@ -58,7 +63,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 <Icon name="chev" />
               </span>
             )}
-            {last || !part.onClick ? (
+            {last || (!part.onClick && !part.href) ? (
               <span
                 aria-current="page"
                 // C3: at ≤921px truncate harder (20ch) — only the current crumb
@@ -70,14 +75,40 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
             ) : (
               // C3: parent crumb links hide at exactly the breakpoint where the phoneOnly
               // BackBar shows (max-[920px]), so no width has neither way back (#735).
-              <button
-                type="button"
-                onClick={part.onClick}
-                aria-label={part.ariaLabel}
-                className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
-              >
-                {label}
-              </button>
+              part.href ? (
+                <a
+                  href={part.href}
+                  onClick={(event) => {
+                    // No callback → plain link: the browser (or a guard upstream) handles it.
+                    if (
+                      !part.onClick ||
+                      event.defaultPrevented ||
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+                    event.preventDefault();
+                    part.onClick();
+                  }}
+                  aria-label={part.ariaLabel}
+                  className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                >
+                  {label}
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={part.onClick}
+                  aria-label={part.ariaLabel}
+                  className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                >
+                  {label}
+                </button>
+              )
             )}
           </React.Fragment>
         );

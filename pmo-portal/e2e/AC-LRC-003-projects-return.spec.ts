@@ -68,7 +68,7 @@ test(
     // ── Desktop parent breadcrumb return ──────────────────────────────────────────────────────
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^projects$/i })
+      .getByRole('link', { name: /^projects$/i })
       .click();
     await expect(page).toHaveURL(/[?&]filter=Ongoing/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=Innovate/);
@@ -115,7 +115,7 @@ test(
     });
     await freshPage
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^projects$/i })
+      .getByRole('link', { name: /^projects$/i })
       .click();
     await expect(freshPage).toHaveURL(/\/projects$/, { timeout: 10_000 });
     await freshPage.close();

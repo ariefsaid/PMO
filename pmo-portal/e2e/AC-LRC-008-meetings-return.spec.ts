@@ -110,7 +110,7 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     // ── Desktop parent breadcrumb return ──────────────────────────────────────────────────────
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^meetings$/i })
+      .getByRole('link', { name: /^meetings$/i })
       .click();
     await expect(page).toHaveURL(/[?&]project=[0-9a-f-]+/i, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=coordination(&|$)/);
@@ -130,6 +130,10 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     expect(mobileScrolledTop).toBeGreaterThan(0);
     await page.getByText(titleB).click();
     await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+$/i, { timeout: 15_000 });
+    // The user reaches Back with the page fully loaded — including the lazy minutes editor, whose
+    // chunk brings its own stylesheet. That stylesheet once re-emitted `.hidden` after the app's
+    // responsive utilities and hid this bar on phones (#864 CI), so Back is asserted after it loads.
+    await expect(page.getByRole('textbox', { name: 'Meeting minutes' })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Back to Meetings', exact: true }).click();
     await expect(page).toHaveURL(/[?&]project=[0-9a-f-]+/i, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=coordination(&|$)/);
@@ -144,7 +148,7 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     await expect(freshPage.getByTestId('record-header')).toContainText(titleB, { timeout: 15_000 });
     await freshPage
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('button', { name: /^meetings$/i })
+      .getByRole('link', { name: /^meetings$/i })
       .click();
     await expect(freshPage).toHaveURL(/\/meetings$/, { timeout: 10_000 });
     await freshPage.close();

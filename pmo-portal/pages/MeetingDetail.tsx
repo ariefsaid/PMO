@@ -27,6 +27,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useAuth } from '@/src/auth/useAuth';
 import {
   useMeeting,
@@ -105,6 +106,7 @@ const MeetingDetail: React.FC = () => {
   const [guestName, setGuestName] = useState('');
   // DD-MTG-8: /action opens the task-create modal prefilled from THIS line (null = closed).
   const [actionLine, setActionLine] = useState<string | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const savedBlocks = useMemo(
     () => (meeting ? upgradeNotes(meeting.notes, meeting.notes_schema_version) : []),
@@ -114,6 +116,11 @@ const MeetingDetail: React.FC = () => {
     () => blocks !== null && baseline !== null && JSON.stringify(blocks) !== baseline,
     [blocks, baseline],
   );
+
+  // FR-MTG-040 / DD-MTG-11: hold in-app exits while the minutes are unsaved. The held exit is a
+  // callback, so Leave performs it exactly as asked (crumb/list-return router state intact).
+  const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
+  const guardLeave = useUnsavedChangesGuard({ dirty: minutesDirty, onBlocked: holdLeave });
 
   const canEdit = may('edit', 'meeting', {
     currentUserId,
@@ -133,7 +140,7 @@ const MeetingDetail: React.FC = () => {
   // (project filter + search + scroll) when opened from that list; a direct/copied link falls back
   // to the bare index.
   const { returnToList } = useListReturn({ list: 'meetings' });
-  const goBack = () => returnToList();
+  const goBack = () => guardLeave(() => returnToList());
   const backLabel = t('meetingDetail.backToMeetings', 'Meetings');
 
   const onMutationError = (err: unknown) => {
@@ -648,6 +655,24 @@ const MeetingDetail: React.FC = () => {
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={pendingLeave !== null}
+        tone="default"
+        title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved minutes')}
+        description={t(
+          'meetingDetail.confirm.unsavedMinutes.description',
+          'Your meeting minutes have unsaved changes. Leave this page and discard them?',
+        )}
+        confirmLabel={t('meetingDetail.confirm.unsavedMinutes.leave', 'Leave')}
+        cancelLabel={t('meetingDetail.confirm.unsavedMinutes.stay', 'Stay')}
+        onConfirm={() => {
+          const leave = pendingLeave;
+          setPendingLeave(null);
+          leave?.();
+        }}
+        onCancel={() => setPendingLeave(null)}
       />
     </div>
   );
