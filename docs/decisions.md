@@ -2966,3 +2966,17 @@ The app mounts under `<BrowserRouter>`, where `useBlocker` throws, so migrating 
 `ConfirmDialog`. Browser Back/Forward stays unguarded (known boundary). Revisit if the app ever adopts a data router.
 Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
 
+
+**DD-VI-3 (cloud builder, 2026-10-06, #520) — on a flipped org the vendor-invoice author may choose the ERPNext purchase tax template; the default is no choice.**
+The issue left the default and the chooser open; the most conservative reading was taken. Default: "ERPNext default" — nothing
+is sent and ERPNext applies the supplier's or company's own default, exactly the pre-#520 behaviour. Chooser: whoever may record
+the vendor invoice (no new role; the choice is part of authoring the invoice, and submit keeps its own approval). The list is read
+live from ERPNext (`external-items`, purpose `purchase-tax-templates`: enabled templates of the binding's company), not stored on
+the binding, so it cannot go stale. Mechanism mirrors DD-PBL-13: the dispatch re-checks the chosen name server-side (enabled, the
+binding's company, at least one row; otherwise `config-rejected`), sends `taxes_and_charges` with explicit `On Net Total` rows
+read from that template (rate verbatim; no project reduced-base scaling, which is a sales-contract fact), drops any caller `taxes`,
+and writes the rows into the command before the outbox snapshot, so a sweep replay sends the persisted rows with no ERPNext read.
+Edits and amends send none. Only the "Record vendor invoice" form offers the picker; the inline "Mark Vendor Invoiced" capture
+writes through the PMO-only atomic RPC and does not dispatch, so it is not offered there (asking and discarding is #505's defect).
+The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) already sends explicit rows. Plan:
+`docs/plans/2026-10-06-purchase-tax-template.md`.

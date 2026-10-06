@@ -543,9 +543,13 @@ const procurement: ProcurementRepository = {
             //
             // On a flipped org the ERP computes the tax from its own template and OWNS the answer;
             // `upsertInvoiceMirror` writes 'inclusive' as a fact about the grand_total it just set.
-            // So the form does not ask (see `taxIsPmoAuthored`), and nothing is forwarded. Letting a
-            // user CHOOSE the ERPNext tax template on this path is a real feature, tracked
-            // separately — it is not this omission.
+            // So the form does not ask (see `taxIsPmoAuthored`), and nothing else is forwarded.
+            //
+            // #520: the ONE tax input this path takes is the ERPNext Purchase Taxes and Charges
+            // Template the user chose — and it IS consumed: the dispatch validates it against the
+            // ERP company, resolves its rows server-side and sends them (`resolvePurchaseTaxRows`).
+            // No choice → nothing sent, and ERPNext applies its own default.
+            ...(input.taxTemplate?.trim() ? { taxTemplate: input.taxTemplate.trim() } : {}),
             erp_doc_kind: 'purchase-invoice',
           },
           intent,
@@ -1101,6 +1105,12 @@ const integrationsImpl: IntegrationsRepository = {
       return (data as { companies: { name: string }[] }).companies;
     });
   },
+  listPurchaseTaxTemplates: () => wrap(async () => {
+    const { data, error } = await invokeWithTimeout(supabase.functions.invoke<{ templates: Array<{ name: string }> }>('external-items', { body: { purpose: 'purchase-tax-templates' } }));
+    if (error) throw error;
+    if (!data?.templates) throw new Error('ERP purchase tax templates could not be read');
+    return data.templates;
+  }),
   listItems: (purpose) => wrap(async () => {
     const { data, error } = await invokeWithTimeout(supabase.functions.invoke<{ items: Array<{ code: string; name: string }> }>('external-items', { body: { purpose } }));
     if (error) throw error;

@@ -27,6 +27,7 @@ import {
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
+import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -278,6 +279,8 @@ export interface StagedVI {
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
+  /** #520: the ERPNext Purchase Taxes and Charges Template chosen on a flipped org; absent = ERPNext default. */
+  taxTemplate?: string;
 }
 
 export type StagedRecord = StagedGR | StagedVI;
@@ -366,6 +369,11 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       ? taxFields.facts
       : ERP_AUTHORED_TAX;
   const taxIncomplete = isVendorInvoice && parsedTax === null;
+  // #520: on a flipped org the ERP computes the tax, but the user chooses WHICH ERPNext template applies. '' is
+  // "ERPNext default" — the supplier's/company's own default, exactly what happens when nothing is sent.
+  const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax;
+  const [taxTemplate, setTaxTemplate] = useState('');
+  const erpTaxTemplates = usePurchaseTaxTemplates(choosesErpTaxTemplate);
 
   // OD-TAX-1 (#548): pre-select the org's `default_tax_treatment` — this form composes a NEW
   // invoice row, which is the only thing that setting is for. Enabled ONLY where PMO authors the
@@ -416,6 +424,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           taxTreatment: parsedTax.taxTreatment,
           taxAmount: parsedTax.taxAmount,
           ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
+          ...(choosesErpTaxTemplate && taxTemplate ? { taxTemplate } : {}),
         });
       }
       return;
@@ -580,6 +589,24 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           recovers it (migration 0196). Hidden entirely on a flipped org, where the ERP owns the
           answer (`taxIsPmoAuthored`). The copy + testids are single-sourced in vendorInvoiceTax.ts /
           vendorInvoiceTestIds.ts, so the two entry points cannot drift. */}
+      {/* #520: flipped org — which ERPNext purchase tax template applies (validated and expanded server-side). */}
+      {choosesErpTaxTemplate && (
+        <SelectField
+          id={`${formId}-tax-template`}
+          label={t('procurementDetail.erpTaxTemplate.label', 'ERPNext tax template')}
+          value={taxTemplate}
+          onChange={setTaxTemplate}
+          disabled={!erpTaxTemplates.data}
+          helper={erpTaxTemplates.isError
+            ? t('procurementDetail.erpTaxTemplate.loadError', 'Could not load the ERPNext tax templates. The ERPNext default will apply.')
+            : undefined}
+          options={[
+            { value: '', label: t('procurementDetail.erpTaxTemplate.default', 'ERPNext default') },
+            ...(erpTaxTemplates.data ?? []).map((tpl) => ({ value: tpl.name, label: tpl.name })),
+          ]}
+          data-testid={VI_FIELD_TEST_IDS.taxTemplate}
+        />
+      )}
       {pmoAuthorsTax && <TaxRateFields fields={taxFields} />}
       {pmoAuthorsTax && (
         <div className="flex flex-wrap gap-3">
