@@ -11,7 +11,8 @@
 #
 # ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
 # When a command needs MORE THAN ONE of these locks, acquire them in THIS order
-# only, to avoid cross-lock deadlock. (db is outermost; test is innermost.)
+# only, to avoid cross-lock deadlock: ERPNext is outermost, DB sits between it and
+# test, and test is innermost.
 # Each wrapper is independently re-entrant-safe via its OWN *_LOCK_HELD env var:
 # a self-wrapping script — see scripts/m365-race-probe.sh, which relies on
 # with-db-lock.sh exporting PMO_DB_LOCK_HELD=1 — checks that var before re-wrapping
