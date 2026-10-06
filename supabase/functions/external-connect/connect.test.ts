@@ -59,7 +59,7 @@ describe('external-connect — ClickUp branch', () => {
           headers: { 'content-type': 'application/json' },
         })),
 
-        supabaseRpc('create_vault_secret_for_org', (call) => {
+        supabaseRpc('stage_vault_secret_for_org', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_org_id, 'org-1');
           assertEquals(body.p_external_tier, 'clickup');
@@ -102,7 +102,7 @@ describe('external-connect — ClickUp branch', () => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true, binding: { secret_ref: 'vault-ref-123', status: 'active' } });
-        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 1);
         assertEquals(rpcCall(calls, 'finalize_external_connect').length, 1);
         assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 0);
         assertEquals(rpcCall(calls, 'merge_external_org_binding_config').length, 1);
@@ -123,7 +123,7 @@ describe('external-connect — ClickUp branch', () => {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
-        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('vault-ref-456')),
+        supabaseRpc('stage_vault_secret_for_org', () => jsonResponse('vault-ref-456')),
         supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref-456', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
         supabaseRpc('read_vault_secret', () => jsonResponse('valid-token')),
         supabaseRpc('finalize_external_connect', () => jsonResponse('active')),
@@ -138,7 +138,7 @@ describe('external-connect — ClickUp branch', () => {
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 1);
         assertEquals(rpcCall(calls, 'merge_external_org_binding_config').length, 1);
       },
     );
@@ -161,6 +161,7 @@ describe('external-connect — ClickUp branch', () => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'any-token' } }));
         assertEquals(res.status, 403);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
         assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 0);
       },
     );
@@ -179,7 +180,7 @@ describe('external-connect — ClickUp branch', () => {
           headers: { 'content-type': 'application/json' },
         })),
 
-        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('vault-ref-789')),
+        supabaseRpc('stage_vault_secret_for_org', () => jsonResponse('vault-ref-789')),
         supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref-789', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
         supabaseRpc('read_vault_secret', () => jsonResponse('valid-token')),
         supabaseRpc('finalize_external_connect', () => jsonResponse('active')),
@@ -197,7 +198,7 @@ describe('external-connect — ClickUp branch', () => {
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 1);
         // No client-side read-then-write on the config jsonb — the atomic RPC is the only path.
         assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
       },
@@ -210,7 +211,7 @@ describe('external-connect — ClickUp branch', () => {
       supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
       clickup('/api/v2/user', () => jsonResponse({ user: { id: 123 } })),
       clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
-      supabaseRpc('create_vault_secret_for_org', () => jsonResponse('vault-ref-fail')),
+      supabaseRpc('stage_vault_secret_for_org', () => jsonResponse('vault-ref-fail')),
       supabaseSelect('external_org_bindings', () => new Response('null', { status: 200 })),
       supabaseRpc('finalize_external_connect', () => jsonResponse('rejected')),
       supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
@@ -223,6 +224,52 @@ describe('external-connect — ClickUp branch', () => {
       assertEquals(body.includes('top-secret-token'), false);
       assertEquals(rpcCall(calls, 'finalize_external_connect').length, 1);
     });
+  });
+
+  const rotateMocks = (stageRef: string, finalize: () => Response, vaultRead: string | null = 'valid-token') => [
+    supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+    supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
+    clickup('/api/v2/user', () => jsonResponse({ user: { id: 123 } })),
+    clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
+    supabaseRpc('stage_vault_secret_for_org', () => jsonResponse(stageRef)),
+    supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: stageRef, status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+    supabaseRpc('read_vault_secret', () => jsonResponse(vaultRead)),
+    supabaseRpc('finalize_external_connect', finalize),
+    supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
+    supabaseRpc('cleanup_external_connect_attempt', () => jsonResponse(null)),
+  ];
+
+  it('AC-653-1 a failed ClickUp finalize on a reconnect compensates via the DB and revokes only the NEW secret', async () => {
+    await withFetchMock(
+      rotateMocks('clickup_new_ref', () => jsonResponse({ message: 'boom', code: 'P0001' }, { status: 400 })),
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+        assertEquals(res.status, 500);
+        assertEquals((await res.json()).error, 'CONNECT_NOT_COMMITTED');
+        // The revoking write path is never used for ClickUp: the previous secret is retained until commit.
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 1);
+        // Compensation goes through the DB (restore-to-prior), and the only secret the edge removes is the new one.
+        assertEquals(rpcCall(calls, 'cleanup_external_connect_attempt').length, 1);
+        const deleted = rpcCall(calls, 'delete_vault_secret').map((c) => (c.bodyJson as Record<string, unknown>).p_secret_name);
+        assertEquals(deleted, ['clickup_new_ref']);
+      },
+    );
+  });
+
+  it('AC-653-1 a rejected readiness proof on a reconnect never targets any secret but the new one', async () => {
+    await withFetchMock(
+      rotateMocks('clickup_new_ref', () => jsonResponse('rejected'), null),
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+        assertEquals(res.status, 422);
+        assertEquals(rpcCall(calls, 'finalize_external_connect').length, 1);
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        for (const c of rpcCall(calls, 'delete_vault_secret')) {
+          assertEquals((c.bodyJson as Record<string, unknown>).p_secret_name, 'clickup_new_ref');
+        }
+      },
+    );
   });
 
   it('AC-IEM-003 kill-switch failure performs no Vault or ownership write', async () => {
@@ -238,6 +285,7 @@ describe('external-connect — ClickUp branch', () => {
         assertEquals(body.includes('disabled by operator'), true);
         assertEquals(body.includes('secret-token'), false);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
       });
     } finally {
       Deno.env.delete('EXTERNAL_CONNECT_ENABLED');
@@ -263,6 +311,7 @@ describe('external-connect — ClickUp branch', () => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'bad-token' } }));
         assertEquals(res.status, 422);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
       },
     );
   });
@@ -331,6 +380,7 @@ describe('external-connect — ERPNext branch', () => {
         }));
         assertEquals(res.status, 422);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
       },
     );
   });
@@ -358,6 +408,7 @@ describe('external-connect — ERPNext branch', () => {
         assertEquals(res.status, 422);
         assertEquals((await res.json()).error, 'config-rejected');
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
       },
     );
   });
@@ -388,6 +439,7 @@ describe('external-connect — ERPNext branch', () => {
           assertEquals(res.status, 422);
           assertEquals((await res.json()).error, 'config-rejected');
           assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+          assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
         },
       );
     });
@@ -417,6 +469,7 @@ describe('external-connect — ERPNext branch', () => {
         assertEquals(res.status, 422);
         assertEquals((await res.json()).error, 'config-rejected');
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
       },
     );
   });
@@ -445,6 +498,7 @@ describe('external-connect — ERPNext branch', () => {
         assertEquals(res.status, 422);
         assertEquals((await res.json()).error, 'config-rejected');
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
       },
     );
   });

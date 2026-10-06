@@ -196,6 +196,7 @@
     "set_project_contract_value(uuid,numeric,text,numeric,numeric,text,integer,integer,boolean)",
     "set_sales_invoice_received_date(uuid,date)",
     "set_work_order_value(uuid,numeric,text,numeric,numeric,integer,integer)",
+    "stage_vault_secret_for_org(uuid,text,text,text,uuid)",
     "submit_sales_invoice(uuid)",
     "telegram_notify_tick()",
     "transition_document_status(uuid,doc_status)",
