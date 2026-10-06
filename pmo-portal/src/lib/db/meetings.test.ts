@@ -348,6 +348,22 @@ describe('createMeeting (FR-MTG-014 / 0205 stamps)', () => {
 });
 
 describe('updateMeeting (FR-MTG-005/007 — DB-owned projections stay DB-owned)', () => {
+  it('AC-MTG-026 refuses to persist a note holding an embedded data: URI (FR-MTG-022 backstop)', async () => {
+    await expect(
+      updateMeeting('m1', {
+        notes: [{ id: 'i', type: 'image', props: { url: 'data:image/png;base64,AAAA' }, children: [] }],
+      }),
+    ).rejects.toThrow(/binary/i);
+  });
+
+  it('AC-MTG-001 sends a BlockNote document verbatim (v2 blocks, no reshaping)', async () => {
+    const doc = [{ id: 'a', type: 'heading', props: { level: 1 }, content: [{ type: 'text', text: 'T', styles: {} }], children: [] }];
+    h.queue[0] = { data: [{ id: 'm1' }], error: null };
+    await updateMeeting('m1', { notes: doc });
+    const sent = h.calls.update[0] as Record<string, unknown>;
+    expect(sent.notes).toEqual(doc);
+  });
+
   it('sends only the given keys; notes go verbatim; projections are never client-written', async () => {
     h.queue[0] = { data: [{ id: 'm1' }], error: null };
     await updateMeeting('m1', { notes: [{ type: 'p', text: 'pipeline' }] });

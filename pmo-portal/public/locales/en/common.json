@@ -1154,8 +1154,6 @@
   },
   "meetingDetail": {
     "action": {
-      "button": "Action",
-      "buttonTitle": "Create a task from this line (the meeting keeps only a reference)",
       "externalGate": "Tasks are managed by the connected task system, so action items cannot be created from these minutes.",
       "modalSection": "Task",
       "modalSubmit": "Create task",
@@ -1171,7 +1169,7 @@
       "readDeniedHeadline": "Action item not created"
     },
     "actionItems": {
-      "empty": "No action items yet. Use Action on a minute line to create one.",
+      "empty": "No action items yet. Type /action in the minutes to create one.",
       "error": "Couldn't load this meeting's action items.",
       "title": "Action items"
     },
@@ -1230,13 +1228,18 @@
       }
     },
     "minutes": {
-      "addLine": "Add line",
+      "actionError": "Couldn't load this action item.",
+      "actionLoading": "Loading action item…",
+      "actionTombstone": "This action item is no longer available.",
+      "editorLabel": "Meeting minutes",
       "empty": "No minutes were recorded for this meeting.",
-      "emptyEditor": "No minutes yet — add the first line.",
-      "lineLabel": "Minute line",
-      "linePlaceholder": "Type a minute…",
-      "removeLine": "Remove line",
       "save": "Save minutes",
+      "slash": {
+        "actionTitle": "Action item",
+        "actionSubtext": "Create a task from this line",
+        "actionGroup": "Actions",
+        "actionAliases": "action,task,todo"
+      },
       "title": "Minutes"
     },
     "notFound": {
