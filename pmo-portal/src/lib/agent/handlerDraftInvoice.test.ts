@@ -18,7 +18,7 @@ function setup(role: string) {
   return { ...fakeSupabase(respond, invoke), invoke };
 }
 const deps = (client: unknown, create: ReturnType<typeof vi.fn>, can: HandlerDeps['can'] = vi.fn(() => true)): HandlerDeps =>
-  ({ modelClient: { create }, model: 'm', userId: 'u-fin', can, supabase: client as HandlerDeps['supabase'] });
+  ({ modelClient: { create } as unknown as HandlerDeps['modelClient'], model: 'm', userId: 'u-fin', can, supabase: client as HandlerDeps['supabase'] });
 const USER = { role: 'user' as const, content: 'Invoice work order WO-20261001-001' };
 
 async function propose(role = 'Finance') {
