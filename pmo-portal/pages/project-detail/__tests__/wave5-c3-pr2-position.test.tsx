@@ -177,6 +177,8 @@ const onHandRow: ProjectWithRefs = {
 // ── Render helper ─────────────────────────────────────────────────────────────
 
 import ProjectDetail from '../ProjectDetail';
+
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -34,6 +35,16 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
   useMyTaskMutations: () => ({ updateStatus: { mutate: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/lib/db/comments', () => ({
+  listComments: vi.fn().mockResolvedValue([]),
+  createComment: vi.fn(),
+  archiveComment: vi.fn(),
+}));
+vi.mock('@/src/hooks/useTasks', async (orig) => ({
+  ...(await orig<object>()),
+  useAssignableProfiles: () => ({ data: [] }),
+}));
+
 import MyTasksComponent from '../MyTasks';
 
 const projectTask = {
@@ -57,13 +68,17 @@ const looseTask = {
 
 function renderPage() {
   render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ImpersonationProvider realRole="Engineer">
-          <MyTasksComponent />
-        </ImpersonationProvider>
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MemoryRouter>
+        <ToastProvider>
+          <ImpersonationProvider realRole="Engineer">
+            <MyTasksComponent />
+          </ImpersonationProvider>
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -105,5 +120,12 @@ describe('My Tasks — a task with no project (#525)', () => {
     const links = screen.getAllByRole('link').map((a) => a.textContent);
     expect(links).not.toContain('Chase the permit office');
     expect(links).toContain('Wire the inverters');
+  });
+
+  it('AC-CMT-001: a project-less task still has a comments surface', async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Comments Chase the permit office' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByTestId('comments-section')).toBeInTheDocument();
   });
 });

@@ -3402,5 +3402,25 @@
       "save": "Save progress",
       "saved": "Progress saved"
     }
+  },
+  "comments": {
+    "title": "Comments",
+    "empty": "No comments yet.",
+    "loading": "Loading comments…",
+    "loadError": "Couldn't load comments. Try again shortly.",
+    "label": "Add a comment",
+    "placeholder": "Write a comment. Type @ to mention a colleague.",
+    "post": "Post comment",
+    "posting": "Posting…",
+    "postError": "Couldn't post the comment. Try again.",
+    "delete": "Delete",
+    "deleteTitle": "Delete this comment?",
+    "deleteDescription": "It will no longer show on this record.",
+    "deleteError": "Couldn't delete the comment.",
+    "tooLong": "Comments are limited to 4000 characters.",
+    "mentionList": "Mention a colleague",
+    "unknownAuthor": "Former member",
+    "mentionsFull": "You can mention at most 20 colleagues in one comment.",
+    "open": "Comments"
   }
 }

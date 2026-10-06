@@ -6,6 +6,8 @@ import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../pages/project-detail/ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
+
 // F-1 (baseline §9): the legacy ProjectDetails ran useState AFTER an early
 // `return <Navigate/>`, making a hook conditional — React surfaces this as a
 // "Rendered more/fewer hooks" console.error. The decomposed ProjectDetail

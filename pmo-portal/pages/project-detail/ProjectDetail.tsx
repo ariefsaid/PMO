@@ -21,6 +21,7 @@ import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
 import ProjectSCurve from './ProjectSCurve';
 import OverviewTab from './tabs/OverviewTab';
+import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import BudgetTab from './tabs/BudgetTab';
 import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
@@ -215,6 +216,9 @@ const ProjectDetail: React.FC = () => {
               <ProjectSCurve projectId={project.id} />
             </div>
           )}
+          <div className="mt-8">
+            <CommentsSection entityType="project" entityId={project.id} />
+          </div>
         </>
       )}
       {tab === 'budget' && <BudgetTab projectId={project.id} />}
