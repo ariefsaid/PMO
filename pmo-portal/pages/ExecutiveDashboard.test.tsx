@@ -70,6 +70,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   },
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
 }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {}, isLoading: false }) }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }),
 }));

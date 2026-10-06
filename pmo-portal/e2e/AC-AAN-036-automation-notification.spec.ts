@@ -38,7 +38,7 @@
  *
  * Runs in: CI `integration` job (PR→main), flag-gated.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { signIn } from './helpers';
 
@@ -95,6 +95,25 @@ const APPROVE_SSE_FRAMES = buildSseBody([
     createdAt: new Date().toISOString(),
   },
 ]);
+
+/** The bell's unread count, read from its accessible name ("Notifications, N unread"). */
+async function bellUnread(page: Page): Promise<number> {
+  const name = await page.getByRole('button', { name: /notifications, \d+ unread/i }).getAttribute('aria-label');
+  const match = /notifications, (\d+) unread/i.exec(name ?? '');
+  if (!match) throw new Error(`Unexpected bell label: ${name}`);
+  return Number(match[1]);
+}
+
+/** The DB truth the bell must reflect: the owner's own unread notifications (service role). */
+async function dbUnread(ownerId: string): Promise<number> {
+  const { count, error } = await createClient(SERVICE_URL, SERVICE_KEY)
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', ownerId)
+    .is('read_at', null);
+  if (error) throw new Error(`Failed to count unread notifications: ${error.message}`);
+  return count ?? 0;
+}
 
 // IDs the journey (test body) fills in and afterEach cleans up.
 let annAutomationId: string | null = null;
@@ -282,10 +301,20 @@ test.describe('AC-AAN-036: create automation, simulated fire, notification, seco
     // also opens the assistant panel + resumes that run's transcript (FR-AAN-036) — close the panel
     // again before signing out (it is a fixed-position overlay that intercepts pointer events over
     // the app header, the same AC-AGP-023 precedent).
+    // #788: Admin is also a real recipient of workflow hand-offs (procurement/timesheet approvals) that
+    // parallel journeys trigger, so the count is relative — never an absolute zero. The oracle: THIS
+    // notification is now read, and the badge equals Ann's true unread count (so it went down by it).
     await inbox.getByText(NOTIFICATION_TITLE).click();
-    await expect(page.getByRole('button', { name: /notifications, 0 unread/i })).toBeVisible({
-      timeout: 5_000,
-    });
+    await expect
+      .poll(async () => {
+        const { data } = await createClient(SERVICE_URL, SERVICE_KEY)
+          .from('notifications').select('read_at').eq('id', annNotificationId!).single();
+        return data?.read_at ?? null;
+      }, { timeout: 5_000 })
+      .not.toBeNull();
+    await expect
+      .poll(async () => (await bellUnread(page)) === (await dbUnread(annProfile.id)), { timeout: 10_000 })
+      .toBe(true);
     const resumedPanel = page.getByRole('complementary', { name: /agent assistant/i });
     await expect(resumedPanel).toBeVisible({ timeout: 5_000 });
     await resumedPanel.getByRole('button', { name: 'Close assistant' }).click();
@@ -299,14 +328,21 @@ test.describe('AC-AAN-036: create automation, simulated fire, notification, seco
     await signIn(page, BOB_EMAIL);
     const bobBellButton = page.getByRole('button', { name: /notifications, \d+ unread/i });
     await expect(bobBellButton).toBeVisible({ timeout: 10_000 });
-    // Bob's bell shows only Bob's own count — never Ann's unread notification.
-    await expect(bobBellButton).toHaveAccessibleName(/notifications, 0 unread/i);
+    // Bob's bell shows only Bob's own count — never Ann's unread notification. Bob may hold his own
+    // #788 hand-offs (task assignments, timesheet decisions), so the oracle is "equals Bob's own
+    // unread count", not an absolute zero.
+    const { data: bobProfile, error: bobProfileError } = await createClient(SERVICE_URL, SERVICE_KEY)
+      .from('profiles').select('id').eq('email', BOB_EMAIL).single();
+    if (bobProfileError || !bobProfile) throw new Error(`Failed to load Bob's profile: ${bobProfileError?.message}`);
+    await expect
+      .poll(async () => (await bellUnread(page)) === (await dbUnread(bobProfile.id)), { timeout: 10_000 })
+      .toBe(true);
 
     await bobBellButton.click();
-    // Bob's inbox is empty — the popover shows the empty-state message, not a <ul> list (item 7:
-    // the popover is a labelled region, asserted via its heading text since an empty inbox has no
-    // list role to query).
-    await expect(page.getByText(/no notifications yet/i)).toBeVisible({ timeout: 5_000 });
+    // Bob's inbox (his own list, or the empty state) never shows Ann's notification.
+    await expect(
+      page.getByRole('list', { name: /notifications/i }).or(page.getByText(/no notifications yet/i)),
+    ).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText(NOTIFICATION_TITLE)).not.toBeVisible();
 
     // Not fetchable by id either — a direct PostgREST query for Ann's notification, made under

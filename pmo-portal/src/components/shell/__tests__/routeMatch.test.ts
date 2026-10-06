@@ -58,6 +58,11 @@ describe('breadcrumbForPath — Administration route prefix matching', () => {
       label: 'Accounting setup',
       i18nKey: 'admin.nav.accounting',
     });
+    // #770 added Project setup; its crumb must name it, not fall back to Users.
+    expect(breadcrumbForPath('/administration/projects')[1]).toEqual({
+      label: 'Project setup',
+      i18nKey: 'admin.nav.projects',
+    });
     expect(breadcrumbForPath('/administration/usage')[1]).not.toEqual({ label: 'Users' });
   });
 

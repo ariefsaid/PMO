@@ -51,6 +51,8 @@ export interface SalesInvoiceRow {
   erp_payment_terms_days: number | null;
   /** ERP-computed due date from the mirrored SI (when available). */
   erp_due_date: string | null;
+  /** #767: the date the client received the invoice; due = this + the customer's terms when set. */
+  received_date: string | null;
 }
 
 export interface IncomingPaymentRow {
@@ -127,8 +129,8 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
     erp_payment_terms_days: companies?.erp_payment_terms_days ?? null,
     customer_name: companies?.name ?? null,
     author_user_ids: authors.map((a) => a.user_id),
-    // erp_due_date will be populated when ERP mirror includes it (future enhancement)
-    erp_due_date: null,
+    erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
+    received_date: (row.received_date as string | null | undefined) ?? null,
   } as unknown as SalesInvoiceRow;
 }
 
@@ -252,6 +254,18 @@ export async function getIncomingPayment(id: string): Promise<IncomingPaymentRow
 export async function submitSalesInvoiceSod(siId: string): Promise<void> {
   const { error } = await supabase.rpc('submit_sales_invoice', { p_si_id: siId });
   if (error) throw error;
+}
+
+/**
+ * #767 (AC-DUE-001): record (or clear, with null) the date the client received the invoice.
+ * Admin/Finance, draft or submitted — enforced by the SECURITY DEFINER RPC, not the UI.
+ */
+export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: string | null): Promise<void> {
+  const { error } = await supabase.rpc('set_sales_invoice_received_date', {
+    p_si_id: siId,
+    p_received_date: receivedDate as string,
+  });
+  if (error) throwWrite(error);
 }
 
 /**

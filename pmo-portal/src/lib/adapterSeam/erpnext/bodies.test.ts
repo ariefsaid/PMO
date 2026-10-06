@@ -114,7 +114,7 @@ describe('erpnext/bodies — Sales Invoice (AC-SAR-030: SI money shape)', () => 
   it('#478 SI_FROM_DOC_FIELDS requests every field siFromDoc reads — the sweep cannot silently null the tax facts', () => {
     expect([...SI_FROM_DOC_FIELDS]).toEqual([
       'name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no',
-      'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges',
+      'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges', 'due_date',
     ]);
   });
 

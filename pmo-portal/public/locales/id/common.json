@@ -226,6 +226,46 @@
       "saving": "Menyimpan…",
       "save": "Simpan pola",
       "adminOnly": "Hanya Admin yang dapat mengubahnya."
+    },
+    "spendApprovers": {
+      "title": "Penyetuju pengeluaran",
+      "description": "Siapa yang menyetujui permintaan pembelian. Pengeluaran yang dibebankan ke proyek dan masih dalam pos anggarannya disetujui oleh penyetuju proyek tersebut; overhead, dan pengeluaran yang akan melampaui pos anggaran, disetujui oleh penyetuju overhead. Cukup satu penyetuju yang terdaftar untuk menyetujui. Jika belum ada yang terdaftar, aturan peran standar berlaku.",
+      "orgSet": {
+        "title": "Penyetuju overhead dan lebih anggaran"
+      },
+      "projectSet": {
+        "title": "Penyetuju proyek"
+      },
+      "addOrg": "Tambah penyetuju overhead",
+      "addProject": "Tambah penyetuju proyek",
+      "remove": "Hapus {{name}}",
+      "empty": "Belum ada — aturan peran standar berlaku.",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "loadError": {
+        "title": "Gagal memuat penyetuju pengeluaran"
+      },
+      "toast": {
+        "added": "Penyetuju ditambahkan",
+        "removed": "Penyetuju dihapus"
+      },
+      "confirm": {
+        "title": "Hapus {{name}}?",
+        "description": "Mereka tidak lagi menyetujui permintaan ini. Permintaan yang sudah diputuskan tidak berubah.",
+        "confirm": "Hapus"
+      },
+      "form": {
+        "orgTitle": "Tambah penyetuju overhead",
+        "projectTitle": "Tambah penyetuju proyek",
+        "subtitle": "Cukup satu penyetuju yang terdaftar untuk menyetujui permintaan.",
+        "legend": "Penyetuju",
+        "person": "Orang",
+        "personPlaceholder": "Pilih orang…",
+        "personRequired": "Pilih orang.",
+        "project": "Proyek",
+        "projectPlaceholder": "Pilih proyek…",
+        "projectRequired": "Pilih proyek.",
+        "save": "Tambah"
+      }
     }
   },
   "approvals": {
@@ -1242,6 +1282,22 @@
       "requestUpdated": "Permintaan diperbarui",
       "viRecorded": "Invoice vendor dicatat"
     },
+    "route": {
+      "note": "Persetujuan permintaan ini diarahkan ke {{names}}: {{why}}",
+      "nameJoiner": " atau ",
+      "why": {
+        "withinBudget": "permintaan ini masih dalam anggaran {{category}} proyek.",
+        "exceedsLine": "permintaan ini akan melampaui batas anggaran {{category}} proyek.",
+        "noProject": "ini pengeluaran overhead, tidak dibebankan ke proyek.",
+        "noCategory": "kategori anggarannya belum diisi, jadi tidak dapat dicek terhadap anggaran proyek.",
+        "noActiveBudget": "proyek belum memiliki anggaran aktif.",
+        "currencyMismatch": "mata uangnya berbeda dari mata uang anggaran proyek.",
+        "escalated": "penyetuju proyek tidak dapat menyetujui permintaan ini.",
+        "budgetChanged": "anggaran proyek yang menampungnya diaktifkan setelah permintaan diajukan, atau oleh orang yang memutuskannya.",
+        "amountInvalid": "nilainya mengandung angka negatif, jadi tidak dapat dicek terhadap anggaran proyek."
+      },
+      "adminOnly": "Persetujuan permintaan ini memerlukan Admin: tidak ada anggota penyetuju senior yang dapat memprosesnya."
+    },
     "groupRef": {
       "label": "Ref. grup",
       "optional": "(opsional)",
@@ -1925,7 +1981,8 @@
       "save": "Simpan tautan proyek",
       "help": "Pilih Proyek ERPNext aktif untuk Perusahaan yang terhubung. Identitas yang dikembalikan akan disimpan sebagai tautan proyek ini.",
       "noun": "proyek ERP",
-      "createdPending": "Proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
+      "createdPending": "{{name}} tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
+      "movedPending": "Dipindahkan ke {{status}}. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "retry": "Coba lagi"
     }
@@ -2276,7 +2333,8 @@
       "sales": "Pipeline Penjualan",
       "salesInvoices": "Invoice Penjualan",
       "timesheets": "Timesheet",
-      "profileSettings": "Profil & preferensi"
+      "profileSettings": "Profil & preferensi",
+      "managementPack": "Laporan manajemen"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
@@ -2690,6 +2748,11 @@
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
   "financeCopy": {
+    "receivedDate": "Diterima",
+    "recordReceivedDate": "Catat tanggal diterima",
+    "receivedDateHelp": "Tanggal klien menerima faktur ini. Tanggal jatuh tempo mengikuti tanggal ini.",
+    "receivedDateSaved": "Tanggal diterima disimpan",
+    "receivedBeforeInvoiceDate": "Tidak boleh sebelum tanggal faktur",
     "statusDraft": "Draf",
     "statusActive": "Aktif",
     "statusArchived": "Diarsipkan",
@@ -3040,5 +3103,61 @@
     "filterAwardType": "Filter menurut jenis perolehan",
     "filterBiddingEntity": "Filter menurut entitas penawar",
     "filterLocation": "Filter menurut lokasi"
+  },
+  "managementPack": {
+    "title": "Laporan manajemen bulanan",
+    "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
+    "from": "Dari",
+    "asAt": "Per",
+    "exportCsv": "Ekspor CSV",
+    "exportXlsx": "Ekspor XLSX",
+    "noAccessTitle": "Anda tidak memiliki akses ke laporan manajemen",
+    "noAccessSub": "Laporan manajemen tersedia untuk Finance, Project Manager, Executive, dan Admin.",
+    "errorTitle": "Laporan manajemen gagal dimuat",
+    "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
+    "invalidRange": "Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan.",
+    "emptyTitle": "Tidak ada proyek untuk dilaporkan",
+    "emptySub": "Proyek yang dimenangkan dan berjalan, serta proyek yang ditagih pada periode ini, tampil di sini.",
+    "projectsAsAt": "Proyek per {{month}}",
+    "monthlyTotals": "Total bulanan",
+    "unassigned": "Tanpa proyek",
+    "otherCurrency": "Ditagih dalam {{currency}}, bukan mata uang kontrak",
+    "recordProgress": "Catat progres",
+    "billedAhead": "ditagih di muka",
+    "undated": "{{count}} faktur tanpa tanggal tidak dihitung",
+    "total": "Total",
+    "basis": {
+      "invoiced": "Ditagih",
+      "progress": "{{pct}}% selesai",
+      "progressShort": "Progres"
+    },
+    "col": {
+      "month": "Bulan",
+      "projectNumber": "Nomor proyek",
+      "project": "Proyek",
+      "client": "Klien",
+      "currency": "Mata uang",
+      "taxBasis": "Dasar pajak",
+      "contract": "Kontrak",
+      "planned": "Rencana",
+      "recognised": "Diakui",
+      "invoiced": "Ditagih",
+      "recognisedToDate": "Diakui s.d. saat ini",
+      "invoicedToDate": "Ditagih s.d. saat ini",
+      "unbilled": "Belum ditagih",
+      "backlog": "Backlog",
+      "basis": "Dasar"
+    },
+    "progressModal": {
+      "title": "Catat progres",
+      "month": "Bulan",
+      "monthInvalid": "Pilih bulan.",
+      "pct": "Persen selesai s.d. saat ini",
+      "pctHelper": "Progres milestone: {{pct}}%",
+      "pctInvalid": "Masukkan angka 0 sampai 100, maksimal dua desimal.",
+      "note": "Catatan",
+      "save": "Simpan progres",
+      "saved": "Progres disimpan"
+    }
   }
 }

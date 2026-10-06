@@ -101,6 +101,7 @@
 /sales-invoices                pages/SalesInvoices.tsx
 /incoming-payments             pages/IncomingPayments.tsx
 /revenue-by-project            pages/RevenueByProject.tsx
+/reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
 
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is
 #    also the reference slice, so its patterns propagate to whatever is built next.
@@ -133,7 +134,7 @@
 #    shell, so naming the shell (plus its /:section form) is what keeps every Administration label,
 #    description, denial and pending copy inside the gate.
 /administration               pages/Administration.tsx
-/administration/:section      pages/Administration.tsx pages/AdminUsers.tsx pages/AdministrationCredits.tsx pages/admin/OrgTaxDefault.tsx pages/admin/BudgetAccountMap.tsx src/components/integrations/M365OrgApprovalCard.tsx
+/administration/:section      pages/Administration.tsx pages/AdminUsers.tsx pages/AdministrationCredits.tsx pages/admin/OrgTaxDefault.tsx pages/admin/BudgetAccountMap.tsx pages/admin/SpendApprovers.tsx src/components/integrations/M365OrgApprovalCard.tsx
 
 # ── Personal (Member-owner) Microsoft 365 connect home (AC-ADMIA-006) — the OTHER ownership surface.
 #    It shares the "integrations" word with the organization surface at /administration/integrations;
