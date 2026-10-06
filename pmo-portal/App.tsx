@@ -81,7 +81,6 @@ const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
 const AdministrationPage = React.lazy(() => import('./pages/Administration'));
 const IntegrationsPage = React.lazy(() => import('./pages/Integrations'));
-const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
 const UserViewRenderer = React.lazy(() => import('./pages/UserViewRenderer'));
@@ -94,6 +93,7 @@ const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDeta
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
+const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
@@ -167,7 +167,7 @@ export const appRouteConfig: RouteObject[] = [
   // #775: expense claims and cash advances.
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
-  { path: '/reports', element: <PlaceholderPage title="Reports" /> },
+  { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },

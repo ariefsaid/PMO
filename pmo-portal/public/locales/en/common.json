@@ -2549,7 +2549,8 @@
       "salesInvoices": "Sales Invoices",
       "timesheets": "Timesheets",
       "profileSettings": "Profile & preferences",
-      "expenses": "Expenses"
+      "expenses": "Expenses",
+      "managementPack": "Management pack"
     },
     "notifications": {
       "empty": "No notifications yet.",
@@ -3317,5 +3318,61 @@
     "filterAwardType": "Filter by award type",
     "filterBiddingEntity": "Filter by bidding entity",
     "filterLocation": "Filter by location"
+  },
+  "managementPack": {
+    "title": "Monthly management pack",
+    "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
+    "from": "From",
+    "asAt": "As at",
+    "exportCsv": "Export CSV",
+    "exportXlsx": "Export XLSX",
+    "noAccessTitle": "You don't have access to the management pack",
+    "noAccessSub": "The management pack is available to Finance, Project Managers, Executives and Admins.",
+    "errorTitle": "Couldn't load the management pack",
+    "errorSub": "The request failed. Check your connection and try again.",
+    "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
+    "emptyTitle": "No projects to report",
+    "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
+    "projectsAsAt": "Projects as at {{month}}",
+    "monthlyTotals": "Monthly totals",
+    "unassigned": "Unassigned",
+    "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
+    "recordProgress": "Record progress",
+    "billedAhead": "billed ahead",
+    "undated": "{{count}} invoices have no date and are not counted",
+    "total": "Total",
+    "basis": {
+      "invoiced": "Invoiced",
+      "progress": "{{pct}}% complete",
+      "progressShort": "Progress"
+    },
+    "col": {
+      "month": "Month",
+      "projectNumber": "Project number",
+      "project": "Project",
+      "client": "Client",
+      "currency": "Currency",
+      "taxBasis": "Tax basis",
+      "contract": "Contract",
+      "planned": "Planned",
+      "recognised": "Recognised",
+      "invoiced": "Invoiced",
+      "recognisedToDate": "Recognised to date",
+      "invoicedToDate": "Invoiced to date",
+      "unbilled": "Unbilled",
+      "backlog": "Backlog",
+      "basis": "Basis"
+    },
+    "progressModal": {
+      "title": "Record progress",
+      "month": "Month",
+      "monthInvalid": "Choose a month.",
+      "pct": "Percent complete to date",
+      "pctHelper": "Milestone delivery: {{pct}}%",
+      "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
+      "note": "Note",
+      "save": "Save progress",
+      "saved": "Progress saved"
+    }
   }
 }

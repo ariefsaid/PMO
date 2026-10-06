@@ -117,6 +117,7 @@ import type {
   SalesInvoiceRow,
   IncomingPaymentRow,
 } from '@/src/lib/db/revenue';
+import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
@@ -675,6 +676,14 @@ export interface ExpenseReceiptRepository {
   cleanupObject(path: string): Promise<void>;
 }
 
+/** #765 — the monthly management pack (ADR-0076). */
+export interface ReportsRepository {
+  /** Facts for the pack from ONE SECURITY INVOKER RPC; RLS scopes the org. */
+  managementPack(range: ManagementPackRange): Promise<ManagementPackFacts>;
+  /** Record a project's month-end percent complete (one entry per project per month). */
+  recordProgress(input: ProjectProgressInput): Promise<void>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
   project: ProjectRepository;
@@ -704,6 +713,7 @@ export interface Repositories {
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
   integrations: IntegrationsRepository;
+  reports: ReportsRepository;
 }
 
 /**

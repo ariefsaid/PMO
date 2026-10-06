@@ -68,7 +68,7 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, activates, pro
   // ProjectBudget renders ONE card at a time; the newly created Draft may not be
   // auto-selected if an Active version exists. Wait for the option to appear in the
   // select (React Query refetch after mutation), then select it by its value (UUID).
-  const versionSelect = page.getByLabel('Version');
+  const versionSelect = page.getByLabel('Version', { exact: true });
   await expect(versionSelect).toBeVisible({ timeout: 10_000 });
 
   // Wait for the "E2E Test Budget (Draft)" option to appear in the select.
