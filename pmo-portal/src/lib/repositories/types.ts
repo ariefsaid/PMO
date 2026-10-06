@@ -33,6 +33,11 @@ import type {
   SetWorkOrderValueInput,
   ProjectDrawdown,
 } from '@/src/lib/db/workOrders';
+import type {
+  ExpenseClaimWithRefs, ExpenseClaimLineRow, ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch,
+  ExpenseLineInput, ExpenseClaimStatus, ExpenseKind, ExpenseClaimRoute, ExpenseAdvanceAgingRow,
+} from '@/src/lib/db/expenseClaims';
+import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -664,6 +669,36 @@ export interface UserViewRepository {
   delete(id: string): Promise<void>;
 }
 
+/**
+ * Expense claims and cash advances (#775, migration 0247). One-to-one with the DAL: header writes over granted
+ * columns, lines as plain writes, every status move through the transition RPC, a cash return through its own
+ * RPC — collapsing any pair would hide a control behind a convenience.
+ */
+export interface ExpenseClaimRepository {
+  list(filters?: ExpenseClaimFilters): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }>;
+  get(id: string): Promise<ExpenseClaimWithRefs | null>;
+  lines(claimId: string): Promise<ExpenseClaimLineRow[]>;
+  create(input: ExpenseClaimInput): Promise<ExpenseClaimWithRefs>;
+  update(id: string, kind: ExpenseKind, patch: ExpenseClaimPatch): Promise<void>;
+  addLine(claimId: string, input: ExpenseLineInput): Promise<ExpenseClaimLineRow>;
+  updateLine(id: string, input: ExpenseLineInput): Promise<void>;
+  removeLine(id: string): Promise<void>;
+  transition(id: string, to: ExpenseClaimStatus, opts?: { notes?: string | null; paymentReference?: string | null }): Promise<void>;
+  recordReturn(id: string, amount: number, reference: string | null): Promise<void>;
+  outstanding(advanceId: string): Promise<number | null>;
+  routes(ids: string[]): Promise<ExpenseClaimRoute[]>;
+  aging(): Promise<{ rows: ExpenseAdvanceAgingRow[]; truncated: boolean }>;
+}
+
+export interface ExpenseReceiptRepository {
+  list(claimId: string): Promise<ExpenseReceiptRow[]>;
+  prepareUpload(claimId: string, fileName: string): Promise<{ signedUrl: string; path: string }>;
+  confirmUpload(claimId: string, path: string, title: string | null): Promise<ExpenseReceiptRow>;
+  archive(id: string): Promise<void>;
+  getSignedUrl(path: string, opts?: { download?: boolean }): Promise<string>;
+  cleanupObject(path: string): Promise<void>;
+}
+
 /** #765 — the monthly management pack (ADR-0076). */
 export interface ReportsRepository {
   /** Facts for the pack from ONE SECURITY INVOKER RPC; RLS scopes the org. */
@@ -689,6 +724,8 @@ export interface Repositories {
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
   procurementFiles: ProcurementFileRepository;
+  expenseClaim: ExpenseClaimRepository;
+  expenseReceipts: ExpenseReceiptRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;

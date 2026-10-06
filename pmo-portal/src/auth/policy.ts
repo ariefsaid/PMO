@@ -57,6 +57,7 @@ export type Entity =
   | 'workOrder'
   | 'boqItem'
   | 'progressClaim'
+  | 'expenseClaim'
   | 'contact'
   | 'contactActivity'
   | 'meeting'
@@ -209,6 +210,23 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(MASTER_DATA),
     create: allow(REVENUE_WRITE),
     transition: allow(REVENUE_WRITE),
+  },
+  /**
+   * Expense claims and cash advances (#775, migration 0247). Mirrors the server:
+   *   view/create ← every active member raises their own (RLS insert: claimant = auth.uid()); reads are RLS-scoped
+   *                 to own ∪ approval rank, so the page is safe for every role.
+   *   edit        ← the claimant only, while Draft/Rejected (RLS update policy + the 0247 §2 freeze).
+   * Status moves are NOT modelled here — who may approve/pay/cancel/return depends on identity, route and SoD;
+   * `availableExpenseActions` (src/lib/expenses/expenseRules.ts) projects that and the RPC decides.
+   */
+  expenseClaim: {
+    view: allow(ALL),
+    create: allow(ALL),
+    edit: (role, ctx) =>
+      has(ALL, role) &&
+      !!ctx.currentUserId &&
+      ctx.record?.claimant_id === ctx.currentUserId &&
+      (ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected'),
   },
   company: {
     // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no

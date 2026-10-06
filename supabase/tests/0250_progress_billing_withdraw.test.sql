@@ -2,7 +2,7 @@
 -- Claims that get an outbox row are given evidence first (the fence requires it, AC-PB-018).
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(21);
 
 insert into organizations (id, name) values
   ('07660000-0000-0000-0000-000000000001', 'PB Org'),
@@ -101,6 +101,27 @@ values ('07660000-0000-0000-0000-00000000aa02', '07660000-0000-0000-0000-0000000
         '07660000-0000-0000-0000-0000000000f1', 1000, 'inclusive', 0, 'USD', 'Draft');
 select is((select count(*)::int from sales_invoice_authors where sales_invoice_id = '07660000-0000-0000-0000-00000000aa02'), 0,
   'AC-PB-012 CONTROL an invoice that is not a claim gets no author from this rule');                             -- 18
+
+-- DD-PBL-7: ids travel as TEXT through the outbox, so an upper-cased claim id must still block the withdrawal.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"07660000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select lives_ok($$ do $d$ begin perform set_config('pb.d', public.create_progress_claim('07660000-0000-0000-0000-0000000000c1', 'progress', p_lines => '[{"boq_item_id":"07660000-0000-0000-0000-0000000000e1","quantity":1}]'::jsonb)::text, true); end $d$ $$,
+  'AC-PB-007 a claim to raise under a case-variant id');                                                        -- 19
+do $$ begin perform public.attach_claim_evidence(current_setting('pb.d')::uuid, '07660000-0000-0000-0000-00000000d0c1'); end $$;
+reset role;
+insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+values ('07660000-0000-0000-0000-000000000001', 'revenue', upper(current_setting('pb.d')), 'pb-key-d', 'erpnext', 'create', 'pending');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"07660000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$ select public.withdraw_progress_claim(current_setting('pb.d')::uuid) $$,
+  'P0001', 'an invoice for this claim is being raised in the ERP — wait for it to finish, then cancel the invoice if it is wrong',
+  'AC-PB-007 an in-flight attempt under an upper-cased claim id still blocks the withdrawal');                 -- 20
+reset role;
+-- The outbox fence fails CLOSED: this org's claim id under another org is refused, not waved through.
+select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('07660000-0000-0000-0000-000000000002', 'revenue', current_setting('pb.c'), 'pb-key-xorg', 'erpnext', 'create', 'pending') $$,
+  '42501', 'this progress claim belongs to another organisation',
+  'AC-PB-005 the fence refuses a claim id raised under another org');                                         -- 21
 
 select * from finish();
 rollback;

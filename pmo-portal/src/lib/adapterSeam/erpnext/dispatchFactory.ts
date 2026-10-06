@@ -971,8 +971,15 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
-  if (!claimData) return;
+  // Likewise the work order: only a claim sets it (from the claim row, below). An ordinary invoice's work order
+  // comes from its own mirror row, never from the caller's command.
+  if (!claimData) { delete record.workOrderId; return; }
   const claim = claimData as ProgressClaimRecord;
+  // DD-PBL-7 (one claim, one invoice): ids are compared as TEXT downstream (external_refs, the one-in-flight
+  // outbox index, withdraw_progress_claim), so a case-variant of the claim id would mint a second invoice.
+  if (record.id !== claim.id) {
+    throw new AppError('This progress claim must be raised under its own id', 'commit-rejected');
+  }
   if (deps.command.operation !== 'create') {
     throw new AppError('A progress claim invoice cannot be edited or amended from PMO — cancel the invoice and raise a new claim', 'commit-rejected');
   }

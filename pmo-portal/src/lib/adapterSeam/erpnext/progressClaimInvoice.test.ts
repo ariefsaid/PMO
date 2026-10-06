@@ -43,7 +43,9 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
           const filters: Record<string, string> = {};
           let orderBy: string | null = null;
           const matches = () => {
-            const found = (rows[table] ?? []).filter((row) => Object.entries(filters).every(([key, value]) => row[key] === value));
+            // uuid columns compare case-insensitively in Postgres; model that for `id` so a case-variant id finds its row.
+            const found = (rows[table] ?? []).filter((row) => Object.entries(filters).every(([key, value]) =>
+              key === 'id' ? String(row[key]).toLowerCase() === String(value).toLowerCase() : row[key] === value));
             return orderBy === null ? found : [...found].sort((a, b) => String(a[orderBy as string]).localeCompare(String(b[orderBy as string])));
           };
           const pick = (row: Row): Row => Object.fromEntries(columns.split(',').map((col) => col.trim()).map((col) => {
@@ -220,6 +222,18 @@ describe('billing claim invoice (AC-PB-006)', () => {
     const forged = [{ charge_type: 'On Net Total', account_head: 'EVIL', rate: 99 }];
     expect((await push({ taxes: forged })).body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
     expect((await push({ taxes: forged, items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null)).body.taxes).toBeUndefined();
+  });
+
+  it('AC-PB-020 an ordinary invoice never takes a caller-supplied work order', async () => {
+    const { body, command: cmd } = await push({ workOrderId: 'wo-1', items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null);
+    expect(cmd.record.workOrderId).toBeUndefined();
+    expect(body.po_no).toBeUndefined();
+  });
+
+  it('AC-PB-007 refuses a case-variant claim id before any ERP call (one claim, one invoice)', async () => {
+    const { attempt, fetchImpl } = refused(command({ id: 'CLAIM-1' }));
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('AC-PB-021 refuses a claim with a recovery line, before any ERP write, when negative rates are off', async () => {

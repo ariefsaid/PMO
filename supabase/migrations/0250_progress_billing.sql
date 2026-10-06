@@ -621,7 +621,7 @@ begin
     raise exception 'this claim already has an invoice — cancel the invoice instead' using errcode = 'P0001';
   end if;
   if exists (select 1 from public.external_command_outbox o
-              where o.org_id = v_org and o.domain = 'revenue' and o.pmo_record_id = p_id::text
+              where o.org_id = v_org and o.domain = 'revenue' and lower(o.pmo_record_id) = p_id::text
                 and o.state <> 'failed') then
     raise exception 'an invoice for this claim is being raised in the ERP — wait for it to finish, then cancel the invoice if it is wrong'
       using errcode = 'P0001';
@@ -634,17 +634,21 @@ grant execute on function public.withdraw_progress_claim(uuid) to authenticated;
 
 create or replace function public.assert_progress_claim_raisable() returns trigger
   language plpgsql security definer set search_path = public as $$
-declare v_withdrawn timestamptz;
+declare v_withdrawn timestamptz; v_claim_org uuid;
 begin
   if new.pmo_record_id !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
     return new;
   end if;
-  select pc.withdrawn_at into v_withdrawn
+  select pc.withdrawn_at, pc.org_id into v_withdrawn, v_claim_org
     from public.progress_claims pc
-   where pc.id = new.pmo_record_id::uuid and pc.org_id = new.org_id
+   where pc.id = new.pmo_record_id::uuid
      for share;
   if not found then
     return new;   -- not a claim: an ordinary invoice or receipt
+  end if;
+  -- A money fence fails CLOSED: a claim id under another org is refused, never waved through as "not a claim".
+  if v_claim_org is distinct from new.org_id then
+    raise exception 'this progress claim belongs to another organisation' using errcode = '42501';
   end if;
   if v_withdrawn is not null then
     raise exception 'this progress claim was withdrawn, so no invoice can be raised for it' using errcode = '55000';

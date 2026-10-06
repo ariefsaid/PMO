@@ -405,7 +405,7 @@ const ProcurementDetails: React.FC = () => {
   const routeAllows = mayDecideRoutedApproval(p.approvalRoute, currentUser?.id, realRole === 'Admin');
   const routeNote =
     p.approvalRoute && !routeAllows && !isRequester
-      ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
+      ? approvalRouteNote(p.approvalRoute, p.budget_category, t, realRole)
       : null;
   const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows));
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
