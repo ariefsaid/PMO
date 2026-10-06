@@ -89,9 +89,11 @@ test(
     const archiveDialog = page.getByRole('alertdialog');
     await expect(archiveDialog).toBeVisible({ timeout: 8_000 });
     await archiveDialog.getByRole('button', { name: /archive project/i }).click();
+    await expect(page.getByText('Project archived', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // GOAL ORACLE: back in the Pipeline, the archived deal is gone from the default list.
     await page.goto('/sales');
+    await expect(page.getByText('Northwind ERP Rollout').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(editedName)).toHaveCount(0, { timeout: 15_000 });
   },
 );
