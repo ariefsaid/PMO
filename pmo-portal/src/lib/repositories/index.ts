@@ -12,6 +12,7 @@
  */
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
+import { recordHistoryRepository } from './recordHistory';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -1134,6 +1135,7 @@ const reports: ReportsRepository = {
 
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
+  recordHistory: recordHistoryRepository,
   project,
   company,
   document,
