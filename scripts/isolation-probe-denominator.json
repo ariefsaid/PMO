@@ -81,6 +81,8 @@
     {"table":"purchase_orders","has_org":true,"pk":"id"},
     {"table":"purchase_request_files","has_org":true,"pk":"id"},
     {"table":"purchase_requests","has_org":true,"pk":"id"},
+    {"table":"record_changes","has_org":true,"pk":"id"},
+    {"table":"record_history_config","has_org":false,"pk":"entity_type"},
     {"table":"request_rate_counters","has_org":false,"pk":"bucket_key"},
     {"table":"rfq_files","has_org":true,"pk":"id"},
     {"table":"rfqs","has_org":true,"pk":"id"},

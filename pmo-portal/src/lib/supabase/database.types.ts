@@ -4840,6 +4840,84 @@ export type Database = {
           },
         ]
       }
+      record_changes: {
+        Row: {
+          actor_id: string | null
+          changes: Json
+          created_at: string
+          currency: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          op: string
+          org_id: string
+          parent_id: string | null
+          parent_type: string | null
+          seq: number
+        }
+        Insert: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          currency?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          op: string
+          org_id: string
+          parent_id?: string | null
+          parent_type?: string | null
+          seq?: never
+        }
+        Update: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          currency?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          op?: string
+          org_id?: string
+          parent_id?: string | null
+          parent_type?: string | null
+          seq?: never
+        }
+        Relationships: []
+      }
+      record_history_config: {
+        Row: {
+          captured: Json
+          entity_type: string
+          flag_cols: string[]
+          omit_cols: string[]
+          parent_col: string | null
+          parent_type: string | null
+          parent_via: string | null
+          table_name: string
+        }
+        Insert: {
+          captured: Json
+          entity_type: string
+          flag_cols?: string[]
+          omit_cols?: string[]
+          parent_col?: string | null
+          parent_type?: string | null
+          parent_via?: string | null
+          table_name: string
+        }
+        Update: {
+          captured?: Json
+          entity_type?: string
+          flag_cols?: string[]
+          omit_cols?: string[]
+          parent_col?: string | null
+          parent_type?: string | null
+          parent_via?: string | null
+          table_name?: string
+        }
+        Relationships: []
+      }
       request_rate_counters: {
         Row: {
           bucket_key: string
@@ -6539,6 +6617,33 @@ export type Database = {
           is_active_push: boolean
         }[]
       }
+      list_record_history: {
+        Args: {
+          p_before_at?: string
+          p_before_seq?: number
+          p_entity_id: string
+          p_entity_type: string
+          p_entity_types?: string[]
+          p_include_children?: boolean
+          p_limit?: number
+        }
+        Returns: {
+          action: string | null
+          actor_id: string | null
+          changes: Json | null
+          created_at: string
+          currency: string | null
+          detail: Json | null
+          entity_id: string
+          entity_type: string
+          event_id: string
+          op: string | null
+          parent_id: string | null
+          parent_type: string | null
+          seq: number | null
+          source: string
+        }[]
+      }
       log_audit: {
         Args: {
           p_action: string
@@ -6867,6 +6972,10 @@ export type Database = {
       record_expense_advance_return: {
         Args: { p_amount: number; p_id: string; p_reference?: string }
         Returns: undefined
+      }
+      record_history_visible: {
+        Args: { p_entity_id: string; p_entity_type: string }
+        Returns: boolean
       }
       record_outbox_ref: {
         Args: {
