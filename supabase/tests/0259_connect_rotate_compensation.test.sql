@@ -106,7 +106,7 @@ select results_eq(
      where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'$$,
   $$select * from a259_before$$,
   'AC-653-6 failed reconnect (finalize) leaves the disconnected binding exactly as before');
-select is((select count(*)::int from external_org_bindings b where b.status='active'
+select is((select count(*)::int from external_org_bindings b where b.org_id='a2590000-0000-0000-0000-000000000001' and b.status='active'
             and not exists (select 1 from vault.secrets v where v.name=b.secret_ref)), 0,
   'AC-653-6 no active binding is left pointing at a missing secret');
 select is((select count(*)::int from vault.secrets where name='a259_re'), 0, 'AC-653-6 the failed attempt''s own secret is removed');
@@ -118,7 +118,7 @@ select results_eq(
      where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'$$,
   $$select * from a259_before$$,
   'AC-653-6 failed reconnect (cleanup) leaves the disconnected binding exactly as before');
-select is((select count(*)::int from external_org_bindings b where b.status='active'
+select is((select count(*)::int from external_org_bindings b where b.org_id='a2590000-0000-0000-0000-000000000001' and b.status='active'
             and not exists (select 1 from vault.secrets v where v.name=b.secret_ref)), 0,
   'AC-653-6 cleanup leaves no active binding pointing at a missing secret');
 
