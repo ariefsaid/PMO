@@ -1,3 +1,4 @@
+import type { RecordHistoryRepository } from './recordHistory';
 import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
@@ -708,6 +709,7 @@ export interface ReportsRepository {
 
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
+  recordHistory: RecordHistoryRepository;
   project: ProjectRepository;
   company: CompanyRepository;
   document: DocumentRepository;

@@ -1,4 +1,5 @@
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { HistorySection } from '@/src/components/history/HistorySection';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
@@ -289,6 +290,9 @@ const CompanyDetail: React.FC = () => {
           <CompanyContactsList companyId={company.id} />
         </CardPad>
       </Card>
+
+      {/* #719 (spec D5): read-only change history — a collapsed Card section (this page has no tab bar). */}
+      <HistorySection entityType="company" entityId={company.id} />
 
       {/* T14: Add contact modal — company_id pre-filled and locked. */}
       {addContactOpen && (
