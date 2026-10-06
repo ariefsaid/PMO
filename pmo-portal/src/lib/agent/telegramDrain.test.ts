@@ -5,10 +5,10 @@
  * (Vitest's root); the implementation stays in supabase/functions/, imported by relative path.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { runDrain, shouldSendLiveness } from '../../../../supabase/functions/telegram-notify/logic';
+import { alertKey, runDrain, shouldSendLiveness } from '../../../../supabase/functions/telegram-notify/logic';
 
-const row = (id: string, code: string, at: string) => ({
-  id, error_code: code, fn: 'erpnext-sweep', context_id: null, org_id: null, created_at: at,
+const row = (id: string, code: string, at: string, orgId: string | null = null) => ({
+  id, error_code: code, fn: 'erpnext-sweep', context_id: null, org_id: orgId, created_at: at,
 });
 
 function deps(overrides: Partial<Parameters<typeof runDrain>[0]> = {}) {
@@ -18,7 +18,7 @@ function deps(overrides: Partial<Parameters<typeof runDrain>[0]> = {}) {
     livenessIntervalHours: 24,
     secretsConfigured: true,
     selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
-    selectLastSentByCode: async () => ({}),
+    selectLastSentByKey: async () => [],
     recordSendAhead: vi.fn(async () => ({ error: null })),
     markDelivered: vi.fn(async () => ({ error: null })),
     sendTelegram: vi.fn(async () => ({ ok: true })),
@@ -52,13 +52,15 @@ describe('runDrain', () => {
     // suppressed) and therefore still eligible to stamp — this is the "not re-sent" claim, not the
     // C1 "never stamp an undelivered suppression" claim (see the C1 describe block below).
     const sendTelegram = vi.fn(async () => ({ ok: true }));
-    const store: Record<string, { lastSentAt: string; deliveredAt: string | null }> = {};
-    const recordSendAhead = vi.fn(async (code: string, atIso: string) => {
-      store[code] = { lastSentAt: atIso, deliveredAt: store[code]?.deliveredAt ?? null };
+    const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {};
+    const recordSendAhead = vi.fn(async (orgId: string | null, code: string, atIso: string) => {
+      const key = alertKey(orgId, code);
+      store[key] = { orgId, errorCode: code, lastSentAt: atIso, deliveredAt: store[key]?.deliveredAt ?? null };
       return { error: null };
     });
-    const markDelivered = vi.fn(async (code: string, atIso: string) => {
-      if (store[code]) store[code].deliveredAt = atIso;
+    const markDelivered = vi.fn(async (orgId: string | null, code: string, atIso: string) => {
+      const key = alertKey(orgId, code);
+      if (store[key]) store[key].deliveredAt = atIso;
       return { error: null };
     });
     // Heartbeat state must PERSIST across ticks here, exactly as ops_job_heartbeats persists
@@ -68,7 +70,7 @@ describe('runDrain', () => {
     let heartbeat: { lastRunAt: string; lastOutboundAt: string | null } | null = null;
     const shared = {
       selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
-      selectLastSentByCode: async () => ({ ...store }),
+      selectLastSentByKey: async () => Object.values(store),
       recordSendAhead,
       markDelivered,
       sendTelegram,
@@ -104,6 +106,73 @@ describe('runDrain', () => {
     });
     await runDrain(d);
     expect(order).toEqual(['send', 'deliver']);
+  });
+});
+
+describe('bounded cooldown lookup', () => {
+  it('AC-629-001: an empty unnotified batch requests no historical send-log keys', async () => {
+    const selectLastSentByKey = vi.fn(async (_errorCodes: string[]) => []);
+    await runDrain(deps({
+      selectUnnotified: async () => [],
+      selectLastSentByKey,
+      readHeartbeat: async () => ({ lastRunAt: '2026-07-25T11:00:00.000Z', lastOutboundAt: '2026-07-25T11:00:00.000Z' }),
+    }));
+    expect(selectLastSentByKey).toHaveBeenCalledOnce();
+    expect(selectLastSentByKey).toHaveBeenCalledWith([]);
+  });
+});
+
+describe('per-organization alert drain', () => {
+  it('AC-629-001: a delivered cooldown for A does not suppress B and each scope stamps only its own ids', async () => {
+    const orgA = '62900000-0000-0000-0000-000000000001';
+    const orgB = '62900000-0000-0000-0000-000000000002';
+    const code = 'ERP_PUSH_FAILED';
+    const store = new Map<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }>([
+      [alertKey(orgA, code), {
+        orgId: orgA, errorCode: code, lastSentAt: '2026-07-25T11:50:00.000Z', deliveredAt: '2026-07-25T11:50:00.000Z',
+      }],
+    ]);
+    const stampNotified = vi.fn(async () => ({ error: null }));
+    const recordSendAhead = vi.fn(async (orgId: string | null, errorCode: string, atIso: string) => {
+      store.set(alertKey(orgId, errorCode), { orgId, errorCode, lastSentAt: atIso, deliveredAt: null });
+      return { error: null };
+    });
+    const markDelivered = vi.fn(async (orgId: string | null, errorCode: string, atIso: string) => {
+      const entry = store.get(alertKey(orgId, errorCode));
+      if (entry) entry.deliveredAt = atIso;
+      return { error: null };
+    });
+    const selectLastSentByKey = vi.fn(async () => [...store.values()]);
+    const sendTelegram = vi.fn(async () => ({ ok: true }));
+    let tick = 0;
+    const selectUnnotified = async () => tick++ === 0
+      ? [
+        row('a-1', code, '2026-07-25T11:59:00.000Z', orgA),
+        row('b-1', code, '2026-07-25T11:59:00.000Z', orgB),
+      ]
+      : [row('b-2', code, '2026-07-25T11:59:00.000Z', orgB)];
+    const shared = {
+      selectUnnotified, selectLastSentByKey, recordSendAhead, markDelivered, sendTelegram, stampNotified,
+      readHeartbeat: async () => ({ lastRunAt: '2026-07-25T11:00:00.000Z', lastOutboundAt: '2026-07-25T11:00:00.000Z' }),
+    };
+
+    const first = await runDrain(deps(shared));
+    expect(first.suppressed).toBe(1);
+    expect(first.sent).toBe(1);
+    expect(recordSendAhead).toHaveBeenCalledTimes(1);
+    expect(recordSendAhead).toHaveBeenCalledWith(orgB, code, expect.any(String));
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    expect(stampNotified.mock.calls.slice(0, 2)).toEqual([
+      [orgA, ['a-1'], expect.any(String)],
+      [orgB, ['b-1'], expect.any(String)],
+    ]);
+    expect(selectLastSentByKey).toHaveBeenNthCalledWith(1, [code]);
+
+    const second = await runDrain(deps(shared));
+    expect(second.suppressed).toBe(1);
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    expect(stampNotified).toHaveBeenLastCalledWith(orgB, ['b-2'], expect.any(String));
+    expect(selectLastSentByKey).toHaveBeenNthCalledWith(2, [code]);
   });
 });
 
@@ -160,15 +229,16 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
   it('C1: tick 1 send fails (write-ahead already landed); tick 2 is suppressed by that write-ahead ' +
     'and must NOT stamp notified_at — the row was never actually delivered', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const store: Record<string, { lastSentAt: string; deliveredAt: string | null }> = {};
-    const recordSendAhead = vi.fn(async (code: string, atIso: string) => {
-      store[code] = { lastSentAt: atIso, deliveredAt: store[code]?.deliveredAt ?? null };
+    const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {};
+    const recordSendAhead = vi.fn(async (orgId: string | null, code: string, atIso: string) => {
+      const key = alertKey(orgId, code);
+      store[key] = { orgId, errorCode: code, lastSentAt: atIso, deliveredAt: store[key]?.deliveredAt ?? null };
       return { error: null };
     });
     const stampNotified = vi.fn(async () => ({ error: null }));
     const shared = {
       selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
-      selectLastSentByCode: async () => ({ ...store }),
+      selectLastSentByKey: async () => Object.values(store),
       recordSendAhead,
       // Telegram down / secrets briefly wrong — every send fails.
       sendTelegram: vi.fn(async () => ({ ok: false })),
@@ -186,13 +256,14 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
 
   it('C1: once the write-ahead cooldown lapses, the never-delivered alert eventually retries and delivers', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const store: Record<string, { lastSentAt: string; deliveredAt: string | null }> = {
+    const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {
       // Tick 1 (elsewhere) failed to send; the write-ahead landed 20 minutes before "now".
-      ERP_PUSH_FAILED: { lastSentAt: '2026-07-25T11:40:00.000Z', deliveredAt: null },
+      [alertKey(null, 'ERP_PUSH_FAILED')]: { orgId: null, errorCode: 'ERP_PUSH_FAILED', lastSentAt: '2026-07-25T11:40:00.000Z', deliveredAt: null },
     };
     const sendTelegram = vi.fn(async () => ({ ok: true })); // Telegram has recovered
-    const markDelivered = vi.fn(async (code: string, atIso: string) => {
-      store[code] = { ...store[code], deliveredAt: atIso };
+    const markDelivered = vi.fn(async (orgId: string | null, code: string, atIso: string) => {
+      const key = alertKey(orgId, code);
+      store[key] = { ...store[key], deliveredAt: atIso };
       return { error: null };
     });
     const stampNotified = vi.fn(async () => ({ error: null }));
@@ -201,7 +272,7 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
       // The cooldown clock compares the row's OWN created_at against the write-ahead's
       // lastSentAt (never wall-clock) — 20 minutes apart, past cooldownSec=900s (15 min).
       selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T12:00:00.000Z')],
-      selectLastSentByCode: async () => ({ ...store }),
+      selectLastSentByKey: async () => Object.values(store),
       sendTelegram,
       markDelivered,
       stampNotified,
@@ -210,8 +281,8 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
     expect(r.suppressed).toBe(0);
     expect(r.sent).toBe(1);
     expect(sendTelegram).toHaveBeenCalledTimes(1);
-    expect(markDelivered).toHaveBeenCalledWith('ERP_PUSH_FAILED', expect.any(String));
-    expect(stampNotified).toHaveBeenCalledWith(['r1'], expect.any(String)); // eventually delivered
+    expect(markDelivered).toHaveBeenCalledWith(null, 'ERP_PUSH_FAILED', expect.any(String));
+    expect(stampNotified).toHaveBeenCalledWith(null, ['r1'], expect.any(String)); // eventually delivered
   });
 });
 
@@ -341,13 +412,13 @@ describe('I7 — explicit coverage for the write-ahead guard branches', () => {
 
   it('I7(b): once the clock has advanced past cooldownSec, a new occurrence of the same code resends', async () => {
     const sendTelegram = vi.fn(async () => ({ ok: true }));
-    const store: Record<string, { lastSentAt: string; deliveredAt: string | null }> = {
-      ERP_PUSH_FAILED: { lastSentAt: '2026-07-25T12:00:00.000Z', deliveredAt: '2026-07-25T12:00:00.000Z' },
+    const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {
+      [alertKey(null, 'ERP_PUSH_FAILED')]: { orgId: null, errorCode: 'ERP_PUSH_FAILED', lastSentAt: '2026-07-25T12:00:00.000Z', deliveredAt: '2026-07-25T12:00:00.000Z' },
     };
     const r = await runDrain(deps({
       now: () => new Date('2026-07-25T12:20:00.000Z'), // 20 min later — cooldownSec=900s (15 min) has lapsed
       selectUnnotified: async () => [row('r2', 'ERP_PUSH_FAILED', '2026-07-25T12:20:00.000Z')],
-      selectLastSentByCode: async () => ({ ...store }),
+      selectLastSentByKey: async () => Object.values(store),
       sendTelegram,
     }));
     expect(r.suppressed).toBe(0);
