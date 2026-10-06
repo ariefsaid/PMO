@@ -12,6 +12,7 @@ import {
   buildTelegramPayload,
   pingHeartbeat,
 } from '../../../../supabase/functions/telegram-notify/logic';
+import { OUTBOUND_FETCH_TIMEOUT_MS } from '../../../../supabase/functions/_shared/fetchWithDeadline';
 
 const ROW = (overrides: Partial<{
   id: string;
@@ -167,5 +168,19 @@ describe('telegram-notify/logic', () => {
     vi.stubGlobal('fetch', fetchMock);
     await expect(pingHeartbeat('https://uptime.betterstack.com/api/v1/heartbeat/abc')).resolves.toBeUndefined();
     vi.unstubAllGlobals();
+  });
+
+  it('AC-OUT-841: pingHeartbeat aborts a hung monitor at the deadline and resolves (never hangs the drain)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn((_u: unknown, init?: RequestInit) =>
+        new Promise<Response>((_res, rej) => init?.signal?.addEventListener('abort', () => rej(new Error('aborted'))))));
+      const p = pingHeartbeat('https://uptime.betterstack.com/api/v1/heartbeat/abc');
+      await vi.advanceTimersByTimeAsync(OUTBOUND_FETCH_TIMEOUT_MS);
+      await expect(p).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 });

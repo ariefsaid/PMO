@@ -389,7 +389,11 @@ serveWithErrorReporting('erpnext-webhook', async (req: Request): Promise<Respons
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseClient;
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    // Service-role client in a per-request worker: no session to refresh or persist, so don't arm the
+    // auth-js auto-refresh timer (it outlives the request and trips Deno's timer-leak sanitizer in tests).
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  }) as unknown as SupabaseClient;
   return handleErpWebhook(req, {
     resolveEmployingOrgs: () => resolveEmployingOrgsLive(serviceClient),
     applyEvent: (orgId, event) => applyEventLive(serviceClient, orgId, event),

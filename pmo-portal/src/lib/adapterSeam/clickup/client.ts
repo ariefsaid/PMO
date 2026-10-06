@@ -14,6 +14,30 @@ import {
 
 const DEFAULT_BASE_URL = 'https://api.clickup.com/api/v2';
 
+/** Per-ATTEMPT request deadline: the same 20s budget as `ERP_PROBE_TIMEOUT_MS` / the edge-fn
+ *  `OUTBOUND_FETCH_TIMEOUT_MS`. A hung ClickUp host aborts here and surfaces as `external-unreachable`
+ *  instead of stalling a sweep until the platform kills the worker. (Inlined, not imported from the edge
+ *  `_shared/fetchWithDeadline.ts`: this module is app-tree code and must not depend on supabase/.) */
+export const CLICKUP_REQUEST_TIMEOUT_MS = 20_000;
+
+/** One bounded attempt: aborts `fetchImpl` after `timeoutMs`, rejecting with a deterministic timeout error. */
+async function fetchOnce(fetchImpl: typeof fetch, url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (timedOut) throw new Error(`ClickUp request exceeded its ${timeoutMs}ms deadline`, { cause: err });
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** A classified ClickUp HTTP failure — carries the raw status so callers (e.g. reads.ts's 404 ->
  * null) can branch on it, while still satisfying `instanceof AdapterError` for every other caller. */
 export class ClickUpHttpError extends AdapterError {
@@ -64,11 +88,16 @@ export async function clickUpRequest(deps: ClickUpClientDeps, opts: ClickUpReque
   let res: Response;
   try {
     res = await withBackoff(() =>
-      deps.fetchImpl(`${deps.baseUrl ?? DEFAULT_BASE_URL}${opts.path}`, {
-        method: opts.method,
-        headers: { Authorization: deps.token, 'Content-Type': 'application/json' },
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      }),
+      fetchOnce(
+        deps.fetchImpl,
+        `${deps.baseUrl ?? DEFAULT_BASE_URL}${opts.path}`,
+        {
+          method: opts.method,
+          headers: { Authorization: deps.token, 'Content-Type': 'application/json' },
+          body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        },
+        CLICKUP_REQUEST_TIMEOUT_MS,
+      ),
     );
   } catch (err) {
     throw new ClickUpHttpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ClickUp request failed');

@@ -54,6 +54,7 @@ import {
   type ClickUpMemberMap,
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 
 interface LinkBody {
   tier: 'clickup' | 'erpnext';
@@ -140,7 +141,7 @@ async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<numb
     archived: 'true',
     include_timl: 'true',
   });
-  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}/task?${query.toString()}`, {
+  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/list/${listId}/task?${query.toString()}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -159,7 +160,7 @@ interface ClickUpListDetails {
 /** Verify List exists and get its name + configured statuses (statuses feed the status-map builder). */
 async function getListDetails(deps: ClickUpDeps, listId: string): Promise<ClickUpListDetails | null> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}`, {
+  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/list/${listId}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -173,7 +174,7 @@ async function getListDetails(deps: ClickUpDeps, listId: string): Promise<ClickU
 /** Get the List's members (best-effort input to the member-map join — OD-INT-10 §4). */
 async function getListMembers(deps: ClickUpDeps, listId: string): Promise<Array<{ id: number; email?: string }>> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}/member`, {
+  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/list/${listId}/member`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -524,6 +525,9 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
         // contradicted the contract — a missing ClickUp List must be 404.
         const status = err.code === 'action-required' ? 409 : err.code === 'NOT_FOUND' ? 404 : 422;
         return errorResponse(err.message, err.code ?? 'CONFIG_REJECTED', status);
+      }
+      if (err instanceof FetchDeadlineError) {
+        return errorResponse('ClickUp did not respond in time', 'external-unreachable', 502);
       }
       return errorResponse('Direction validation failed', 'CONFIG_REJECTED', 422);
     }

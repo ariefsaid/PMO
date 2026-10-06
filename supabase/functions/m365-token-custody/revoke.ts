@@ -6,6 +6,7 @@ import { resolveOrgOrResult } from './auth.ts';
 import { decryptToken, deserializeEnvelope, resolveKek, fromByteaValue } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 const REVOKE_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -55,7 +56,7 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
     const kek = resolveKek(env, connection.key_id);
     const envelope = deserializeEnvelope(fromByteaValue(connection.refresh_token_ciphertext));
     const refreshToken = await decryptToken(envelope.ciphertext, envelope.iv, kek);
-    await fetchImpl(`${REVOKE_ENDPOINT}/${connection.entra_tenant_id}/oauth2/v2.0/revoke`, {
+    await fetchBounded(fetchImpl, `${REVOKE_ENDPOINT}/${connection.entra_tenant_id}/oauth2/v2.0/revoke`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
