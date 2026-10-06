@@ -95,8 +95,8 @@ describe('AC-CODE-003 active Projects identities', () => {
   it('AC-CODE-003: keeps each identifier readable on a narrow project card', () => {
     mockMobileViewport();
     renderProjects('/projects?view=table');
-    const pmoNumber = screen.getByText('PMO Project Number: PMO-26-7711');
-    const clientCode = screen.getByText('Client Project Code: CLIENT-81');
+    const pmoNumber = screen.getByTitle('PMO-26-7711');
+    const clientCode = screen.getByTitle('CLIENT-81');
 
     expect(pmoNumber).toHaveClass('break-words');
     expect(pmoNumber).toHaveClass('md:truncate');
