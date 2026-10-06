@@ -8,6 +8,7 @@
 // Verify: cd supabase/functions/erpnext-sweep && deno test ../_shared/erpnextFeedDeps.test.ts
 
 import { createErpFeedDeps } from './erpnextFeedDeps.ts';
+import { peReceiveFromDoc } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { terminalApplyReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -949,4 +950,76 @@ Deno.test('AC-BFY-030 BLOCKER 1: an AMEND of the FY2027 Budget stamps ONLY the F
   assert(fy2027.erp_amended_from === OLD_NAME, 'BLOCKER 1: the amended FY2027 row MUST record erp_amended_from');
   assert(fy2026.erp_amended_from === undefined, 'BLOCKER 1: amending FY2027 must NOT stamp the FY2026 row');
   assert(fy2026.erp_modified === '2026-01-01', 'BLOCKER 1: FY2026 erp_modified must be untouched by a FY2027 amend');
+});
+
+Deno.test('AC-WHT-003 sweep update round-trips cash, withholding and slip without action-required', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
+  await deps.updateMirror('receipt-1', { id: 'PE-001', amount: '1000.00', received_amount: '980.00',
+    withheld_amount: '20.00', withholding_slip_number: 'WHT-001', erp_docstatus: 1 },
+    Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  assert(patch?.received_amount === '980.00', 'ERP cash must remain exact');
+  assert(patch?.withheld_amount === '20.00', 'withheld tax must round-trip');
+  assert(patch?.withholding_slip_number === 'WHT-001', 'slip number must round-trip');
+  assert(!calls.some(c => c.table === 'notifications' && c.op === 'insert'), 'read-back cannot flag a body rewrite');
+});
+
+Deno.test('AC-WHT-003 a full ERP receipt with empty deductions clears the prior withholding slip', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const canonical = peReceiveFromDoc({ name: 'PE-CLEAR', paid_amount: '1000.00',
+    received_amount: '1000.00', docstatus: 1, deductions: [] });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the mapped ERP receipt must update its mirror');
+  const stored = { withheld_amount: '20.00', withholding_slip_number: 'WHT-OLD', ...patch };
+  assert(stored.withheld_amount === '0.00', 'empty deductions explicitly clear the prior withheld amount');
+  assert(stored.withholding_slip_number === null, 'empty deductions explicitly clear the prior slip');
+});
+
+Deno.test('AC-WHT-003 a full ERP receipt with unmarked deductions replaces prior tax credit with unknown', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const canonical = peReceiveFromDoc({ name: 'PE-UNKNOWN', paid_amount: '1000.00',
+    received_amount: '980.00', docstatus: 1,
+    deductions: [{ amount: '20.00', description: 'Other adjustment' }] });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the mapped ERP receipt must update its mirror');
+  const stored = { withheld_amount: '20.00', withholding_slip_number: 'WHT-OLD', ...patch };
+  assert(stored.withheld_amount === null, 'unmarked ERP deductions cannot retain an authored tax credit');
+  assert(stored.withholding_slip_number === null, 'unmarked ERP deductions cannot retain a prior tax slip');
+});
+
+Deno.test('AC-WHT-003 a partial ERP receipt without deductions retains prior withholding metadata', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const canonical = peReceiveFromDoc({ name: 'PE-PARTIAL', docstatus: 1 });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the partial lifecycle receipt must update its mirror');
+  assert(!Object.hasOwn(patch, 'withheld_amount'), 'absent deductions must omit the withheld amount');
+  assert(!Object.hasOwn(patch, 'withholding_slip_number'), 'absent deductions must omit the slip');
+  const stored = { withheld_amount: '20.00', withholding_slip_number: 'WHT-OLD', ...patch };
+  assert(stored.withheld_amount === '20.00', 'partial documents retain the prior withheld amount');
+  assert(stored.withholding_slip_number === 'WHT-OLD', 'partial documents retain the prior slip');
+});
+
+Deno.test('AC-WHT-003 an update with unconfirmable withholding clears the tax facts and raises one Action required notice', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'finance-1' }] });
+  const canonical = peReceiveFromDoc({ name: 'PE-REVIEW', paid_amount: '980.00', received_amount: '980.00', docstatus: 1,
+    deductions: [{ amount: '10.00', description: 'Withholding slip: WHT-A' }, { amount: '10.00', description: 'Withholding slip: WHT-B' }] });
+  await createErpFeedDeps(client, 'org-1', 'incoming-payment').updateMirror(
+    'receipt-1', canonical, Date.parse('2026-10-05T09:00:00Z'));
+  const patch = calls.find(c => c.table === 'incoming_payments' && c.op === 'update')?.patch;
+  if (!patch) throw new Error('the mapped ERP receipt must update its mirror');
+  assert(patch.amount === '980.00' && patch.withheld_amount === null && patch.withholding_slip_number === null,
+    `cash kept, tax unknown: ${JSON.stringify(patch)}`);
+  assert(!Object.hasOwn(patch, 'withholding_review'), 'the review marker is never written as a column');
+  const notice = calls.find(c => c.table === 'notifications' && c.op === 'insert')?.patch?.rows as Array<Record<string, unknown>> | undefined;
+  if (!notice) throw new Error('an Action required notice must be raised');
+  assert(notice.length === 1 && notice[0].title === 'Action required', `one notice per recipient: ${JSON.stringify(notice)}`);
+  assert(JSON.stringify(notice[0].metadata) === JSON.stringify({ action_required: 'receipt-withholding-unconfirmed',
+    erpName: 'PE-REVIEW', reason: 'multiple-withholding-deductions' }), `the notice names the receipt: ${JSON.stringify(notice[0].metadata)}`);
 });

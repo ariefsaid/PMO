@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
-import { isFeatureEnabled } from '@/src/lib/features';
 import { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
 import { NotificationBell } from './NotificationBell';
 import { AccountMenu } from './AccountMenu';
@@ -58,9 +57,9 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       </button>
 
       {/* FR-AAN-034/038: the notification bell (B-5/AC-W2-IXD-008 removed it for having
-          no destination — it now has one, the notifications inbox, REC-3). Gated behind
-          `agentAssistant` alongside the rest of the automations + notifications layer. */}
-      {isFeatureEnabled('agentAssistant') && <NotificationBell />}
+          no destination — it now has one, the notifications inbox, REC-3). Shown to every
+          signed-in user (AC-WFN-001..003: workflow hand-offs notify regardless of the assistant flag). */}
+      <NotificationBell />
 
       {/* The one responsive account menu owns identity, profile, theme, role-preview,
           legal and sign-out at every width (AC-ACCT-001). */}

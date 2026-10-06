@@ -1,8 +1,11 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import ProjectDetailRail, { ProjectClassificationSummary } from '../ProjectDetailRail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+
+// ProjectErpLink reads the org's ERP binding (auth + react-query); it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 it('AC-TAG-002 detail states all recorded classifications without defaults for absent ones', () => {
  const project = { id: 'p1', name: 'Synthetic project', status: 'Leads', service_line: 'Engineering', sector: 'Energy', location: 'West Java', award_type: 'direct', bidding_entity: 'consortium' } as ProjectWithRefs;
  render(<ProjectDetailRail project={project} showActionSection={false} />);

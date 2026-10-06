@@ -27,6 +27,8 @@ import {
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
+import { useTranslation } from 'react-i18next';
+import { groupRefIsPmoAuthored } from './groupRef';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
@@ -118,6 +120,9 @@ interface KindConfig {
   cancelTestId: string;
 }
 
+/** #769: kinds that carry the parent group's number (`external_ref`). */
+const GROUP_REF_KINDS: ReadonlySet<RecordKind> = new Set<RecordKind>(['purchase_request', 'purchase_order', 'vendor_invoice']);
+
 const DEFAULT_REF_LABEL = 'External ref';
 const DEFAULT_REF_PLACEHOLDER = 'e.g. VENDOR-PO-001';
 
@@ -196,6 +201,8 @@ function kindConfig(kind: RecordKind): KindConfig {
 
 export interface CreatePRInput {
   referenceNumber: string | null;
+  /** #769: the parent group's number (PR/PO/VI only). */
+  externalRef?: string | null;
   status: string | null;
   date: string | null;
   amount: number | null;
@@ -213,6 +220,8 @@ export interface CreateRfqInput {
 
 export interface CreatePOInput {
   referenceNumber: string | null;
+  /** #769: the parent group's number (PR/PO/VI only). */
+  externalRef?: string | null;
   status: string | null;
   date: string | null;
   amount: number | null;
@@ -258,6 +267,8 @@ export interface StagedVI {
   status: 'Received' | 'Scheduled';
   invoiceDate: string;
   referenceNumber: string | null;
+  /** #769: the parent group's number for this invoice. */
+  externalRef?: string | null;
   amount: number | null;
   /** #505: REQUIRED — the staged payload carries the tax facts through the confirm to the RPC.
    *  Non-optional on purpose: a staged VI that reaches the confirm dialog without them would fail
@@ -308,8 +319,12 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onStage,
 }) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = kindConfig(kind);
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [groupRef, setGroupRef] = useState('');
+  // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
+  const hasGroupRef = GROUP_REF_KINDS.has(kind) && groupRefIsPmoAuthored();
   const [status, setStatus] = useState(cfg.defaultStatus);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amountStr, setAmountStr] = useState('');
@@ -396,6 +411,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           status: status as 'Received' | 'Scheduled',
           invoiceDate: date,
           referenceNumber: refNum,
+          ...(hasGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
           amount: parsedAmount,
           taxTreatment: parsedTax.taxTreatment,
           taxAmount: parsedTax.taxAmount,
@@ -424,6 +440,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       } else {
         input = {
           referenceNumber: refNum,
+          ...(hasGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
           status: statusVal,
           date: dateVal,
           amount: parsedAmount,
@@ -475,6 +492,29 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         />
       </div>
+
+      {/* #769: the parent group's own number — PR / PO / vendor invoice only; bounded at 100 chars */}
+      {hasGroupRef && (
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor={`${formId}-group-ref`}
+            className="text-[12px] font-semibold text-muted-foreground"
+          >
+            {t('procurementDetail.groupRef.label', 'Group ref')}{' '}
+            <span className="font-normal">{t('procurementDetail.groupRef.optional', '(optional)')}</span>
+          </label>
+          <input
+            id={`${formId}-group-ref`}
+            type="text"
+            value={groupRef}
+            onChange={(e) => setGroupRef(e.target.value)}
+            maxLength={100}
+            placeholder={t('procurementDetail.groupRef.placeholder', 'e.g. PRQ-0026100001')}
+            data-testid={`${kind}-group-ref-input`}
+            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </div>
+      )}
 
       {/* Two-column row: date + status */}
       <div className="flex flex-wrap gap-3">

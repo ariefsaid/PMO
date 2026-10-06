@@ -43,6 +43,14 @@ export interface LedgerRow {
   systemNumber: string | null;
   /** Human-set external reference (e.g. "PO/MER/0077"). Null when absent. */
   externalRef: string | null;
+  /**
+   * #769 AC-EXT-001/002: the parent group's own number for this PR / PO / vendor invoice
+   * (the `external_ref` COLUMN, shown in the "Group ref" column). ⚠ NOT `externalRef` above — that
+   * field has always carried the record's own `reference_number` ("External ref" column); renaming it
+   * would rewrite ~30 existing assertions, so the two stay distinct by this comment.
+   * Absent for record types that carry none.
+   */
+  groupRef?: string | null;
   /** Numeric amount (optional — RFQ and GR typically null). */
   amount: number | null;
   /**
@@ -136,6 +144,16 @@ function filePresence(files: EmbeddedFileRow[] | undefined): {
   return { fileHref: path, fileTitle: title, fileCount: active.length };
 }
 
+/** Per-type optional row facts (a PR/PO carries only `groupRef`; a vendor invoice carries its tax basis too). */
+interface MakeRowExtra {
+  groupRef?: string | null;
+  taxTreatment?: string | null;
+  taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
+  taxBaseUnknown?: boolean;
+}
+
 function makeRow(
   type: RecordType,
   recordId: string,
@@ -147,9 +165,9 @@ function makeRow(
   status: string,
   currency: string,
   files?: EmbeddedFileRow[],
-  taxTreatment?: string | null,
-  taxRate?: number | null, taxBaseNumerator?: number, taxBaseDenominator?: number, taxBaseUnknown?: boolean,
+  extra: MakeRowExtra = {},
 ): LedgerRow {
+  const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
   return {
@@ -158,6 +176,7 @@ function makeRow(
     type,
     systemNumber: systemNumber ?? null,
     externalRef: externalRef ?? null,
+    ...(groupRef ? { groupRef } : {}),
     amount: amount ?? null,
     status,
     statusVariant: workflowVariant(status),
@@ -199,6 +218,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         pr.status,
         pr.currency,
         (pr as unknown as { files?: EmbeddedFileRow[] }).files,
+        { groupRef: pr.external_ref },
       ),
     );
   }
@@ -256,6 +276,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         po.status,
         po.currency,
         (po as unknown as { files?: EmbeddedFileRow[] }).files,
+        { groupRef: po.external_ref },
       ),
     );
   }
@@ -294,7 +315,15 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vi.status,
         vi.currency,
         (vi as unknown as { files?: EmbeddedFileRow[] }).files,
-        vi.tax_treatment, vi.tax_rate, vi.tax_base_numerator, vi.tax_base_denominator, vi.erp_docstatus != null, // OD-TAX-1 §2 — the invoice's OWN basis, 0196 NOT NULL
+        {
+          groupRef: vi.external_ref,
+          // OD-TAX-1 §2 — the invoice's OWN basis, 0196 NOT NULL
+          taxTreatment: vi.tax_treatment,
+          taxRate: vi.tax_rate,
+          taxBaseNumerator: vi.tax_base_numerator,
+          taxBaseDenominator: vi.tax_base_denominator,
+          taxBaseUnknown: vi.erp_docstatus != null,
+        },
       ),
     );
   }

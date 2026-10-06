@@ -2866,3 +2866,33 @@ straight-line by calendar day between start and end (DD-MMP-2); unbilled is a ru
 month, neither clamped (DD-MMP-3); read by the existing revenue read set (DD-MMP-4); every figure net of tax
 in the contract's own currency, totals per currency, never converted (DD-MMP-5); the pack is a management
 estimate and never writes to the ERP (DD-MMP-6).
+
+## DD-APR-3..5 — approval routing closes its own escape hatches (Director, 2026-10-06)
+
+Refines the #803 routing (ADR-0075) so the inputs that decide a route cannot be steered by the person the
+route favours:
+- **DD-APR-3 — a budget you just changed doesn't route to you.** When the project's active budget version was
+  activated by the person deciding, or after the request was submitted, the request goes to the senior set.
+- **DD-APR-4 — a configured senior set that nobody can act on means Admin, not everyone.** The flat role matrix
+  is the fallback only when no senior set is configured at all; once one exists but has no eligible member,
+  only an Admin may decide (break-glass, audited).
+- **DD-APR-5 — amounts route up, never down.** A negative header or line amount sends the request to the senior
+  set, and a request never counts below zero in the budget-used sum; NULL amount or route defaults to senior.
+
+**DD-BAM-1..6 (Director, 2026-10-06, #768) — several ERP accounts per budget category.** Ruled as proposed in
+`docs/specs/budget-account-map-multi.spec.md` §0: keep the eight categories (travel, accommodation and field
+accounts map under an existing category; adding categories waits for an owner call) · a push-target flag on the
+existing map, at most one per category, an account still in at most one category · a category with accounts but
+no push account blocks the push like an unmapped one · moving the push account never re-pushes an existing
+budget · actuals already sum every mapped account, no RPC change · ERPNext's overspend warning watches only the
+push account (accepted; the default is warn, not block).
+
+**DD-AIN-1..9 (Director, 2026-10-06, #787) — the assistant's invoice reach.** Ruled as proposed in
+`docs/specs/assistant-invoice-reach.spec.md` and ADR-0079: one coarse tool per journey (`whats_overdue`,
+`draft_invoice`) resolved on the server before the approval card · overdue = past due today in the user's
+zone · visibility follows existing RLS roles (Engineer own tasks; PM their projects; Admin/Executive/Finance
+the org; invoices only with Revenue on) · only Finance and Admin may draft through the assistant, the same rule
+as the form, Draft only, never submitted · Issued/Closed work orders invoice at their pre-tax value, milestones
+need a stated amount · one invoice line · what the user approves is what is saved · the overdue list is
+server-written · reminders to others are out · eval bar 9 of 10 runs per journey, with a server switch to turn
+drafting off. The live eval needs an owner-approved deploy of the agent functions.

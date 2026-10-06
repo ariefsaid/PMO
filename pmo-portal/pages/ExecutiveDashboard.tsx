@@ -49,11 +49,11 @@ const ExecutiveDashboard: React.FC = () => {
   const canApproveProc = can('transition', 'procurement', { realRole });
   const mobileApprovalCount = useMemo(() => {
     const procCount = canApproveProc
-      ? pendingProcurementApprovals(procurements, selfId).length
+      ? pendingProcurementApprovals(procurements, selfId, realRole === 'Admin').length
       : 0;
     const tsCount = timesheets?.length ?? 0;
     return procCount + tsCount;
-  }, [canApproveProc, procurements, selfId, timesheets]);
+  }, [canApproveProc, procurements, selfId, realRole, timesheets]);
 
   /** AC-W2-4-06: true when any contributing query errored (shows "—" on mobile band). */
   const mobileApprovalError = Boolean(procError || tsError);

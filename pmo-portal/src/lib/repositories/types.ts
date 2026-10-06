@@ -1,4 +1,5 @@
 import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -397,6 +398,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #769: optional parent-group number (`external_ref`). PMO-owned path only — never forwarded to the ERP. */
+    externalRef?: string | null,
   ): Promise<PurchaseRequestRow>;
   /** Create an RFQ record via RPC (mints RFQ#). */
   createRfq(
@@ -417,6 +420,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #769: optional parent-group number (`external_ref`). PMO-owned path only — never forwarded to the ERP. */
+    externalRef?: string | null,
   ): Promise<PurchaseOrderRow>;
   /** Create a payment record via RPC (mints PAY#). invoiceId is nullable (FR-PR-004b). */
   createPayment(
@@ -444,6 +449,8 @@ export interface RevenueRepository {
     salesInvoiceId?: string | null;
     paidAmount: number;
     receivedAmount?: number;
+    withheldAmount?: number;
+    withholdingSlipNumber?: string | null;
     date: string;
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
@@ -684,12 +691,20 @@ export interface OrgSettingsRepository {
   getProjectNumberPattern(): Promise<string | null>;
   /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
   setProjectNumberPattern(value: string | null): Promise<void>;
+  getWithholdingAccount(): Promise<string | null>;
+  setWithholdingAccount(account: string | null): Promise<void>;
   getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
   setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
   setTaxDefault(value: TaxTreatment): Promise<void>;
+  /** #803: the org's spend approvers (senior set + project approvers); every active member reads. */
+  listSpendApprovers(): Promise<SpendApproverRow[]>;
+  /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */
+  addSpendApprover(profileId: string, projectId: string | null): Promise<void>;
+  /** #803, Admin-only (RLS): remove one approver row. */
+  removeSpendApprover(id: string): Promise<void>;
 }
 
 /**
@@ -857,7 +872,23 @@ export interface ProjectBinding {
   disconnected_at: string | null;
 }
 
+export interface ErpSetupReadiness {
+  defaults: Record<string, string | null>;
+  domains: string[];
+  unmappedProjects: Array<{ id: string; name: string; code: string | null }>;
+  budgetMappedCategories: string[];
+  unlinkedEmployeeCount: number;
+}
+export interface ErpProjectOption { name: string; project_name: string; company: string; is_active: string }
+export interface ErpProjectLink { ok: true; erpProject: string }
 export interface IntegrationsRepository {
+  getErpSetup(): Promise<ErpSetupReadiness>;
+  saveErpDefaults(input: { activityType: string; receivableAccount: string }): Promise<{ ok: true }>;
+  listErpProjects(query: string): Promise<ErpProjectOption[]>;
+  linkErpProject(projectId: string, erpProject: string): Promise<ErpProjectLink>;
+  ensureErpProject(projectId: string): Promise<ErpProjectLink>;
+  employErpDomain(domain: string): Promise<{ ok: true }>;
+  onboardErpParties(): Promise<{ ok: true }>;
   /** Get the binding status for a specific tier. */
   getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;
   /** List all bindings for the org. */

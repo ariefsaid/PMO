@@ -24,6 +24,8 @@ import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
  * calls, confirm dialog) is UNCHANGED — only layout + Notes disclosure changed.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { groupRefIsPmoAuthored } from './groupRef';
 import {
   Card,
   CardPad,
@@ -105,6 +107,8 @@ export interface ProcurementDecisionZoneProps {
   actions: DecisionAction[];
   /** The SoD blocked-gate message, when present (computed by the page). */
   gateMsg: string | null;
+  /** #803 FR-APR-031: who decides this routed request, and why — shown to a viewer who may not. */
+  routeNote?: string | null;
   isDraft: boolean;
   isRequester: boolean;
   isApprover: boolean;
@@ -135,6 +139,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   p,
   actions,
   gateMsg,
+  routeNote = null,
   isDraft,
   isRequester,
   isApprover,
@@ -162,7 +167,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   // wording (and its SoD meaning) is unchanged. The Draft-author case is already
   // covered by the `sod-pre-announce` line below, so the ready hint suppresses there
   // to avoid two near-identical lines.
-  const showReadyHint = !gateMsg && actions.length > 0 && !(isDraft && isRequester);
+  const showReadyHint = !gateMsg && !routeNote && actions.length > 0 && !(isDraft && isRequester);
 
   // IxD Change 1 — Notes is progressive-disclosure: NOT shown at rest. When
   // Approve/Reject is available (`showNotes`) a quiet "Add a note" link reveals the
@@ -192,6 +197,11 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {readyGateMessage(p.status, isRequester, isApprover)}
             </p>
           ) : null}
+          {routeNote && (
+            <p data-testid="approval-route-note" className="text-[13px] text-muted-foreground">
+              {routeNote}
+            </p>
+          )}
 
           {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
               The author (requester) is about to submit their own request; they need to know
@@ -392,9 +402,13 @@ interface VIInlineCaptureProps {
 }
 
 const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel }) => {
+  const { t } = useTranslation();
+  // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
+  const showGroupRef = groupRefIsPmoAuthored();
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [refNum, setRefNum] = React.useState('');
+  const [groupRef, setGroupRef] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
   const [amtError, setAmtError] = React.useState<string | undefined>(undefined);
   const amtErrorId = React.useId();
@@ -438,6 +452,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       status: viStatus,
       invoiceDate,
       referenceNumber: ref,
+      ...(showGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
       amount: amt,
       taxTreatment: tax.taxTreatment,
       taxAmount: tax.taxAmount,
@@ -463,6 +478,21 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
+        {showGroupRef && (
+          <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+            {t('procurementDetail.groupRef.label', 'Group ref')}{' '}
+            <span className="font-normal">{t('procurementDetail.groupRef.optional', '(optional)')}</span>
+            <input
+              type="text"
+              value={groupRef}
+              onChange={(e) => setGroupRef(e.target.value)}
+              placeholder={t('procurementDetail.groupRef.placeholder', 'e.g. PRQ-0026100001')}
+              maxLength={100}
+              data-testid="vendor_invoice-group-ref-input"
+              className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
           Amount <span className="font-normal">(optional)</span>
           <input

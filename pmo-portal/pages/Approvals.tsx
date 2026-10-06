@@ -13,6 +13,7 @@ import {
   useTimesheetMutations,
 } from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
@@ -617,6 +618,7 @@ const ApprovalsPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const selfId = currentUser?.id;
+  const { realRole } = useEffectiveRole();
   const [searchParams, setSearchParams] = useSearchParams();
   const isLargeScreen = useIsLargeScreen();
 
@@ -627,10 +629,10 @@ const ApprovalsPage: React.FC = () => {
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
 
   const procurementRows = useMemo(
-    () => pendingProcurementApprovals(procurements, selfId).sort(
+    () => pendingProcurementApprovals(procurements, selfId, realRole === 'Admin').sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     ),
-    [procurements, selfId],
+    [procurements, selfId, realRole],
   );
   const timesheetRows = useMemo(() => timesheets ?? [], [timesheets]);
   const timesheetBulk = useTimesheetBulkApprove(timesheetRows);

@@ -2,7 +2,7 @@
  * ProcurementLedger — the Documents tab case ledger (Slice 2).
  *
  * One chronological DataTable for all 7 procurement record types:
- *   Date · Type · System # · External ref · Amount · Status · File
+ *   Date · Type · System # · External ref · Group ref · Amount · Status · File
  *
  * Three filter chips (All / Financial / Has file) — `<button aria-pressed>` per
  * DESIGN.md §6 filter-chips spec. Mobile reflow via the existing DataTable md→card
@@ -23,6 +23,7 @@
  * affordance for canWrite rows with no file.
  */
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CardPad,
   DataTable,
@@ -72,6 +73,12 @@ const FILTER_CHIPS: FilterChipDef[] = [
 // Static column definitions (all except File — that one needs canWrite context)
 // ---------------------------------------------------------------------------
 
+/** Column header via t() — STATIC_COLUMNS is module-level (no hook), so the one translated header is a tiny component. */
+const GroupRefHeader: React.FC = () => {
+  const { t } = useTranslation();
+  return <>{t('procurementDetail.groupRef.label', 'Group ref')}</>;
+};
+
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
@@ -107,6 +114,16 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     cell: (row) =>
       row.externalRef ? (
         <span className="font-mono text-[12.5px] text-muted-foreground">{row.externalRef}</span>
+      ) : (
+        <span className="text-[12px] text-muted-foreground">—</span>
+      ),
+  },
+  {
+    key: 'groupRef',
+    header: <GroupRefHeader />,
+    cell: (row) =>
+      row.groupRef ? (
+        <span className="font-mono text-[12.5px] text-muted-foreground">{row.groupRef}</span>
       ) : (
         <span className="text-[12px] text-muted-foreground">—</span>
       ),

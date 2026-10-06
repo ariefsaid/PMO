@@ -191,8 +191,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
   });
 
-  it('orgSettings exposes its expected methods (OD-TAX-1, migration 0207)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault'].sort());
+  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
