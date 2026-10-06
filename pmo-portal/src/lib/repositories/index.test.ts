@@ -179,7 +179,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'project', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'workOrder'].sort(),
     );
   });
 
@@ -191,8 +191,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
   });
 
-  it('orgSettings exposes its expected methods (OD-TAX-1, migration 0207)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['getTaxDefault', 'setTaxDefault'].sort());
+  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
@@ -203,10 +203,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'setContractValue', 'transition', 'updateHeader'].sort(),
+      ['archive', 'create', 'delete', 'get', 'list', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
+      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [

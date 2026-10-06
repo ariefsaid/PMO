@@ -14,6 +14,10 @@ const allowedRoles = (
 
 describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
   // ── create ───────────────────────────────────────────────────────────────
+  it('AC-CODE-001: manage organisation project numbering = Admin only', () => {
+    expect(allowedRoles('manage', 'orgProjectNumbering')).toEqual(['Admin']);
+  });
+
   it('ADR-0016: create project = Admin·Exec·PM (Finance excluded in FE, Engineer no)', () => {
     expect(allowedRoles('create', 'project')).toEqual(['Admin', 'Executive', 'Project Manager']);
   });
@@ -327,6 +331,10 @@ describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)',
     expect(allowedRoles('transition', 'incomingPayment')).toEqual(['Admin', 'Finance']);
   });
 
+  it('#767 AC-DUE-001: recording the received date is its own action, offered to the revenue write set', () => {
+    expect(allowedRoles('record_received_date', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+  });
+
   it('P3a: no `edit` affordance exists for either revenue entity (no update path is implemented)', () => {
     expect(allowedRoles('edit', 'salesInvoice')).toEqual([]);
     expect(allowedRoles('edit', 'incomingPayment')).toEqual([]);
@@ -566,4 +574,8 @@ describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement au
       expect(can(action, 'workOrder', { realRole: null, record: { status: 'Draft' } })).toBe(false);
     }
   });
+});
+
+it('AC-TAG-001 project classification option administration is Admin-only', () => {
+  expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
 });

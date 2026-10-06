@@ -12,6 +12,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 import { RAW_ADAPTER_TOKEN } from '@/src/lib/adapterSeam/pushErrorCopy';
 import type { BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 
@@ -49,6 +50,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 import BudgetProjection from './BudgetProjection';
+import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
+import { financeTestI18n } from './__tests__/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
@@ -95,17 +98,19 @@ const pushStatus = (over: Partial<BudgetPushStatusRow>): BudgetPushStatusRow => 
 const renderPage = (role: Role = 'Finance') => {
   realRole = role;
   return render(
-    <MemoryRouter>
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <ToastProvider>
-          <BudgetProjection projectId="proj-1" />
-        </ToastProvider>
-      </QueryClientProvider>
-    </MemoryRouter>,
+    <FinanceI18nTestProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <BudgetProjection projectId="proj-1" />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
+    </FinanceI18nTestProvider>,
   );
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   fetchMock.mockReset();
   upsertEtcMock.mockReset();
   retryMock.mockReset();
@@ -125,10 +130,26 @@ beforeEach(() => {
   categoryYearsMock.mockResolvedValue(phasing({}));
   realRole = 'Finance';
   setActiveLocale(EN_LOCALE);
+  await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
 describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
+  it('AC-CAT-005: localizes Special expenses in the projection without changing its amounts', async () => {
+    fetchMock.mockResolvedValue([{ ...ROW, category: 'Special expenses' }]);
+    render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><BudgetProjection projectId="proj-1" /></ToastProvider></QueryClientProvider></MemoryRouter></BahasaProvider>);
+    expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
+    expect(screen.getByText('$100,000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ubah estimasi sisa Biaya khusus' })).toBeInTheDocument();
+  });
+
+  it('AC-L10N-B01 renders budget categories in Bahasa from the shipped catalogue', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(await screen.findByText('Tenaga kerja')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Proyeksi anggaran' })).toBeInTheDocument();
+  });
+
   it('renders the category row: PMO budget, ERP actuals, PMO ETC, projected final, variance, utilization', async () => {
     renderPage();
     expect(await screen.findByText('Labor')).toBeInTheDocument();

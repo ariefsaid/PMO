@@ -872,6 +872,7 @@ export type Database = {
       companies: {
         Row: {
           archived_at: string | null
+          client_number_segment: string | null
           created_at: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -885,10 +886,12 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          short_name: string | null
           type: Database["public"]["Enums"]["company_type"]
         }
         Insert: {
           archived_at?: string | null
+          client_number_segment?: string | null
           created_at?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -902,10 +905,12 @@ export type Database = {
           id?: string
           name: string
           org_id?: string
+          short_name?: string | null
           type: Database["public"]["Enums"]["company_type"]
         }
         Update: {
           archived_at?: string | null
+          client_number_segment?: string | null
           created_at?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -919,6 +924,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          short_name?: string | null
           type?: Database["public"]["Enums"]["company_type"]
         }
         Relationships: [
@@ -937,6 +943,7 @@ export type Database = {
           company_id: string
           created_at: string
           email: string | null
+          erp_modified: string | null
           full_name: string
           id: string
           notes: string | null
@@ -949,6 +956,7 @@ export type Database = {
           company_id: string
           created_at?: string
           email?: string | null
+          erp_modified?: string | null
           full_name: string
           id?: string
           notes?: string | null
@@ -961,6 +969,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           email?: string | null
+          erp_modified?: string | null
           full_name?: string
           id?: string
           notes?: string | null
@@ -2049,9 +2058,12 @@ export type Database = {
           id: string
           ip_number: string | null
           org_id: string
+          received_amount: number | null
           reference_number: string | null
           sales_invoice_id: string | null
           status: string
+          withheld_amount: number | null
+          withholding_slip_number: string | null
         }
         Insert: {
           amount?: number | null
@@ -2066,9 +2078,12 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
           status?: string
+          withheld_amount?: number | null
+          withholding_slip_number?: string | null
         }
         Update: {
           amount?: number | null
@@ -2083,9 +2098,12 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
           status?: string
+          withheld_amount?: number | null
+          withholding_slip_number?: string | null
         }
         Relationships: [
           {
@@ -2534,6 +2552,10 @@ export type Database = {
           id: string
           lifecycle_state: string | null
           name: string
+          project_number_pattern: string | null
+          sector_options: string[]
+          service_line_options: string[]
+          tax_prepaid_account: string | null
         }
         Insert: {
           created_at?: string
@@ -2545,6 +2567,10 @@ export type Database = {
           id?: string
           lifecycle_state?: string | null
           name: string
+          project_number_pattern?: string | null
+          sector_options?: string[]
+          service_line_options?: string[]
+          tax_prepaid_account?: string | null
         }
         Update: {
           created_at?: string
@@ -2556,6 +2582,10 @@ export type Database = {
           id?: string
           lifecycle_state?: string | null
           name?: string
+          project_number_pattern?: string | null
+          sector_options?: string[]
+          service_line_options?: string[]
+          tax_prepaid_account?: string | null
         }
         Relationships: []
       }
@@ -2900,6 +2930,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -2911,6 +2942,8 @@ export type Database = {
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -2925,6 +2958,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2936,6 +2970,8 @@ export type Database = {
           reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment: string
@@ -2950,6 +2986,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2961,6 +2998,8 @@ export type Database = {
           reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount?: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string
@@ -3393,6 +3432,7 @@ export type Database = {
         Row: {
           approval_notes: string | null
           approved_by_id: string | null
+          budget_category: Database["public"]["Enums"]["budget_category"] | null
           code: string | null
           created_at: string
           currency: string
@@ -3416,6 +3456,9 @@ export type Database = {
         Insert: {
           approval_notes?: string | null
           approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
           code?: string | null
           created_at?: string
           currency?: string
@@ -3439,6 +3482,9 @@ export type Database = {
         Update: {
           approval_notes?: string | null
           approved_by_id?: string | null
+          budget_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
           code?: string | null
           created_at?: string
           currency?: string
@@ -3710,9 +3756,95 @@ export type Database = {
           },
         ]
       }
+      project_number_counters: {
+        Row: {
+          business_year: number
+          last_seq: number
+          org_id: string
+        }
+        Insert: {
+          business_year: number
+          last_seq: number
+          org_id: string
+        }
+        Update: {
+          business_year?: number
+          last_seq?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_number_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_progress_entries: {
+        Row: {
+          created_at: string
+          entered_at: string
+          entered_by: string | null
+          id: string
+          month: string
+          note: string | null
+          org_id: string
+          pct_complete: number
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          entered_at?: string
+          entered_by?: string | null
+          id?: string
+          month: string
+          note?: string | null
+          org_id?: string
+          pct_complete: number
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          entered_at?: string
+          entered_by?: string | null
+          id?: string
+          month?: string
+          note?: string | null
+          org_id?: string
+          pct_complete?: number
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_progress_entries_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_progress_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_progress_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           archived_at: string | null
+          award_type: string | null
+          bidding_entity: string | null
           budget: number
           client_id: string | null
           code: string | null
@@ -3731,19 +3863,27 @@ export type Database = {
           import_key: string | null
           imported_at: string | null
           last_update: string
+          location: string | null
           name: string
           org_id: string
+          pmo_project_number: string
           project_manager_id: string | null
+          sector: string | null
+          service_line: string | null
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
           tax_amount: number | null
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string | null
         }
         Insert: {
           archived_at?: string | null
+          award_type?: string | null
+          bidding_entity?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -3762,19 +3902,27 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           last_update?: string
+          location?: string | null
           name: string
           org_id?: string
+          pmo_project_number?: string
           project_manager_id?: string | null
+          sector?: string | null
+          service_line?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           tax_amount?: number | null
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string | null
         }
         Update: {
           archived_at?: string | null
+          award_type?: string | null
+          bidding_entity?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -3793,13 +3941,19 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           last_update?: string
+          location?: string | null
           name?: string
           org_id?: string
+          pmo_project_number?: string
           project_manager_id?: string | null
+          sector?: string | null
+          service_line?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           tax_amount?: number | null
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string | null
@@ -3907,6 +4061,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3926,6 +4081,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3945,6 +4101,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4037,6 +4194,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -4056,6 +4214,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4075,6 +4234,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          external_ref?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -4335,16 +4495,20 @@ export type Database = {
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
+          erp_due_date: string | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
           org_id: string
           project_id: string | null
+          received_date: string | null
           reference_number: string | null
           si_number: string | null
           status: string
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -4359,16 +4523,20 @@ export type Database = {
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
+          erp_due_date?: string | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
           id?: string
           invoice_date?: string | null
           org_id?: string
           project_id?: string | null
+          received_date?: string | null
           reference_number?: string | null
           si_number?: string | null
           status?: string
           tax_amount: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment: string
@@ -4383,16 +4551,20 @@ export type Database = {
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
+          erp_due_date?: string | null
           erp_modified?: string | null
           erp_outstanding_amount?: number | null
           id?: string
           invoice_date?: string | null
           org_id?: string
           project_id?: string | null
+          received_date?: string | null
           reference_number?: string | null
           si_number?: string | null
           status?: string
           tax_amount?: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string
@@ -4418,6 +4590,62 @@ export type Database = {
             columns: ["work_order_id"]
             isOneToOne: false
             referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spend_approvers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          profile_id: string
+          project_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          profile_id: string
+          project_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          profile_id?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spend_approvers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approvers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approvers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approvers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -4827,6 +5055,8 @@ export type Database = {
           start_date: string | null
           status: Database["public"]["Enums"]["work_order_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -4855,6 +5085,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
           tax_amount: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment: string
@@ -4883,6 +5115,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
           tax_amount?: number
+          tax_base_denominator?: number
+          tax_base_numerator?: number
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string
@@ -5024,16 +5258,29 @@ export type Database = {
         Args: { p_fiscal_year: string }
         Returns: string
       }
+      calculate_standalone_tax_amount: {
+        Args: {
+          p_amount: number
+          p_denominator: number
+          p_numerator: number
+          p_rate: number
+          p_treatment: string
+        }
+        Returns: number
+      }
       can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
+          p_external_ref?: string
           p_invoice_date: string
           p_notes?: string
           p_procurement_id: string
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
           p_tax_rate?: number
           p_tax_template?: string
           p_tax_treatment?: string
@@ -5047,6 +5294,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5058,6 +5306,8 @@ export type Database = {
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -5168,6 +5418,7 @@ export type Database = {
       create_procurement_invoice: {
         Args: {
           p_amount?: number
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5176,6 +5427,8 @@ export type Database = {
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
           p_tax_rate?: number
           p_tax_template?: string
           p_tax_treatment?: string
@@ -5189,6 +5442,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5200,6 +5454,8 @@ export type Database = {
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -5290,6 +5546,7 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5306,6 +5563,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5327,6 +5585,7 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_external_ref?: string
           p_import_batch_id?: string
           p_import_key?: string
           p_imported_at?: string
@@ -5343,6 +5602,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          external_ref: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -5464,7 +5724,23 @@ export type Database = {
       }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_management_pack: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: Json
+      }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
+      get_procurement_approval_routes: {
+        Args: { p_ids: string[] }
+        Returns: {
+          approvers: Json
+          line_budget: number
+          line_used: number
+          procurement_id: string
+          reason: string
+          request_amount: number
+          route: string
+        }[]
+      }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_project_drawdown: {
         Args: { p_project_id: string }
@@ -5522,16 +5798,20 @@ export type Database = {
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
+          erp_due_date: string | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
           org_id: string
           project_id: string | null
+          received_date: string | null
           reference_number: string | null
           si_number: string | null
           status: string
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -5550,6 +5830,10 @@ export type Database = {
         Returns: boolean
       }
       holds_profile_admin_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      holds_spend_approval_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
       }
@@ -5604,6 +5888,10 @@ export type Database = {
       is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       is_unattributed_authority: { Args: never; Returns: boolean }
+      is_valid_project_number_pattern: {
+        Args: { p_pattern: string }
+        Returns: boolean
+      }
       list_budget_fiscal_years: {
         Args: { p_project_id: string }
         Returns: {
@@ -5684,6 +5972,10 @@ export type Database = {
         Args: { p_approver_id: string; p_author_id: string }
         Returns: boolean
       }
+      may_record_project_progress: {
+        Args: { p_project_id: string }
+        Returns: boolean
+      }
       merge_external_org_binding_config: {
         Args: { p_external_tier: string; p_org_id: string; p_patch: Json }
         Returns: undefined
@@ -5700,6 +5992,23 @@ export type Database = {
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
         Returns: string
+      }
+      next_project_number: {
+        Args: { p_at?: string; p_client_id: string; p_org: string }
+        Returns: string
+      }
+      notify_workflow_user: {
+        Args: {
+          p_body: string
+          p_entity_id: string
+          p_entity_type: string
+          p_label: string
+          p_org: string
+          p_owner: string
+          p_severity: string
+          p_title: string
+        }
+        Returns: undefined
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
       operator_agent_run_stats: {
@@ -5792,6 +6101,10 @@ export type Database = {
         }[]
       }
       org_credit_balance: { Args: { p_org_id: string }; Returns: number }
+      org_current_month: {
+        Args: { p_at: string; p_timezone: string }
+        Returns: string
+      }
       org_feature_enabled: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
@@ -5857,10 +6170,20 @@ export type Database = {
         }
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
+      procurement_request_amount: {
+        Args: { p_procurement_id: string }
+        Returns: number
+      }
+      procurement_submitted_at: {
+        Args: { p_procurement_id: string }
+        Returns: string
+      }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
       }
+      project_number_null_insert_default: { Args: never; Returns: string }
+      propose_project_number: { Args: { p_client_id: string }; Returns: string }
       purge_error_events: {
         Args: { p_retention_days?: number }
         Returns: number
@@ -5911,6 +6234,15 @@ export type Database = {
           p_pmo_record_id: string
         }
         Returns: number
+      }
+      record_project_progress: {
+        Args: {
+          p_month: string
+          p_note?: string
+          p_pct_complete: number
+          p_project_id: string
+        }
+        Returns: undefined
       }
       record_timesheet_command_held: {
         Args: {
@@ -6006,6 +6338,8 @@ export type Database = {
         Args: {
           p_id: string
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
           p_tax_rate?: number
           p_tax_template?: string
           p_tax_treatment?: string
@@ -6013,16 +6347,75 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_sales_invoice_received_date: {
+        Args: { p_received_date: string; p_si_id: string }
+        Returns: {
+          amount: number | null
+          author_user_id: string | null
+          created_at: string
+          currency: string
+          customer_id: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_due_date: string | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          id: string
+          invoice_date: string | null
+          org_id: string
+          project_id: string | null
+          received_date: string | null
+          reference_number: string | null
+          si_number: string | null
+          status: string
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_work_order_value: {
         Args: {
           p_id: string
           p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
+          p_tax_rate?: number
           p_tax_treatment?: string
           p_value: number
         }
         Returns: undefined
       }
       si_submit_clearance_ttl: { Args: never; Returns: string }
+      spend_approval_route: {
+        Args: {
+          p_amount: number
+          p_category: Database["public"]["Enums"]["budget_category"]
+          p_currency: string
+          p_decider_id?: string
+          p_org_id: string
+          p_project_id: string
+          p_requester_id: string
+          p_submitted_at?: string
+        }
+        Returns: {
+          approver_ids: string[]
+          line_budget: number
+          line_used: number
+          reason: string
+          route: string
+        }[]
+      }
       submit_sales_invoice: {
         Args: { p_si_id: string }
         Returns: {
@@ -6034,16 +6427,20 @@ export type Database = {
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
+          erp_due_date: string | null
           erp_modified: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
           org_id: string
           project_id: string | null
+          received_date: string | null
           reference_number: string | null
           si_number: string | null
           status: string
           tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
@@ -6106,6 +6503,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      valid_project_classification_options: {
+        Args: { p_options: string[] }
+        Returns: boolean
+      }
     }
     Enums: {
       budget_category:
@@ -6116,6 +6517,7 @@ export type Database = {
         | "Permits & Fees"
         | "Overheads"
         | "Contingency"
+        | "Special expenses"
       budget_status: "Draft" | "Active" | "Archived"
       company_type: "Internal" | "Client" | "Vendor"
       crm_activity_kind: "Call" | "Email" | "Meeting" | "Note"
@@ -6155,6 +6557,7 @@ export type Database = {
         | "Close Out"
         | "Loss Tender"
         | "Internal Project"
+        | "Declined"
       task_priority: "Urgent" | "High" | "Normal" | "Low"
       task_status: "To Do" | "In Progress" | "Done" | "Blocked"
       timesheet_status: "Draft" | "Submitted" | "Approved" | "Rejected"
@@ -6303,6 +6706,7 @@ export const Constants = {
         "Permits & Fees",
         "Overheads",
         "Contingency",
+        "Special expenses",
       ],
       budget_status: ["Draft", "Active", "Archived"],
       company_type: ["Internal", "Client", "Vendor"],
@@ -6345,6 +6749,7 @@ export const Constants = {
         "Close Out",
         "Loss Tender",
         "Internal Project",
+        "Declined",
       ],
       task_priority: ["Urgent", "High", "Normal", "Low"],
       task_status: ["To Do", "In Progress", "Done", "Blocked"],

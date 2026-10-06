@@ -97,3 +97,11 @@ describe('useProjectManagerOptions — PM FK picker', () => {
     expect(result.current.data).toEqual([{ value: 'u1', label: 'Alice Manager' }]);
   });
 });
+
+
+it('company pickers prefer the short name and keep the legal name in searchable option text (references AC-NICK-001)', async () => {
+  repo.company.listClients.mockResolvedValue([{ id: 'c1', name: 'Example Legal Company', short_name: 'Example', type: 'Client' }]);
+  const { result } = renderHook(() => useClientCompanyOptions(), { wrapper: wrapper() });
+  await waitFor(() => expect(result.current.data).toBeDefined());
+  expect(result.current.data).toEqual([{ value: 'c1', label: 'Example', sub: 'Example Legal Company' }]);
+});

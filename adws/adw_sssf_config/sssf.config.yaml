@@ -71,6 +71,9 @@ agents:
   # builder — do not soften them on the strength of a cheap builder. Revert lever: set builder
   # and fe_builder back to `openai-codex/gpt-5.6-luna`.
 
+  # ⚑ Owner 2026-10-05 (go-live map #791 brief): builders run on openai-codex/gpt-6-luna at xhigh; the
+  # code reviewer runs on zai/glm-5.3-flash (cross-family). fe_reviewer stays codex — it looks at renders.
+
   - name: planner
     model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: terra and GLM are the THINKERS; terra leads because
     # GLM-5.3 hits its 5-hour cap constantly and a capped first rung spends a retry to learn that every run.
@@ -99,8 +102,9 @@ agents:
       - subagent_remove
 
   - name: builder
-    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds; GLM reviews
-    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3-flash]   # owner 2026-08-20: deepseek builds; GLM is LAST so a GLM build rarely meets a GLM review
+    model: openai-codex/gpt-6-luna   # owner 2026-10-05: luna xhigh builds; GLM reviews
+    fallbacks: [openai-codex/gpt-5.6-luna, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
+    thinking: xhigh
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
     contract: .claude/agents/implementer.md
@@ -147,9 +151,8 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: review is THINKING. Still cross-family — the
-    # builder is deepseek — so the property that mattered when GLM led this rung is unchanged.
-    fallbacks: [zai/glm-5.3-flash, openai-codex/gpt-5.6-luna]
+    model: zai/glm-5.3-flash   # owner 2026-10-05: GLM reviews, cross-family to the luna builder
+    fallbacks: [openai-codex/gpt-5.6-terra]
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -168,8 +171,9 @@ agents:
       - write
 
   - name: fe_builder
-    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds. TEXT-ONLY —
-    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3-flash]   # same ladder as builder; TEXT-ONLY either way — fe_reviewer owns the pixels
+    model: openai-codex/gpt-6-luna   # owner 2026-10-05: luna xhigh builds — fe_reviewer owns the pixels
+    fallbacks: [openai-codex/gpt-5.6-luna, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
+    thinking: xhigh
                                                  # its self-check is the a11y tree / DOM via agent-browser
                                                  # (pi-delegation §3a); pixel judgment stays with fe_reviewer
     color: "#34d399"

@@ -32,6 +32,9 @@
 -- 044/046/047/090/091/095). ⚑ `get_project_drawdown` is deliberately NOT listed: it is SECURITY
 -- INVOKER by design (DD-WO-2), and adding it here would mean the sweep no longer notices if someone
 -- later converts it to definer — the exact silencing this allow-list must never buy.
+-- ⚑ AMENDED BY 0244 (#767): `set_sales_invoice_received_date` joins the retained set (count 54). A
+-- SECURITY DEFINER writer called through PostgREST under a member's JWT; its body re-asserts the row's
+-- org, an active membership and the Admin/Finance role, paired in supabase/tests/0244_sales_invoice_received_date.test.sql.
 -- ⚑ THE COUNT WAS RE-DERIVED BY HAND (52 -> 53 is not the arithmetic: 51 + 2 = 53), per the merge
 -- hazard below.
 --
@@ -108,6 +111,7 @@ insert into client_callable_rpc_names (proname) values
   ('save_timesheet_week'),
   ('select_procurement_quote'),
   ('set_project_contract_value'),
+  ('set_sales_invoice_received_date'),
   ('set_work_order_value'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
@@ -136,8 +140,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  53,
-  'AC-ACL-002 all 53 retained client-callable RPC names still have a public function');
+  54,
+  'AC-ACL-002 all 54 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -146,8 +150,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  53,
-  'AC-ACL-003 all 53 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  54,
+  'AC-ACL-003 all 54 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

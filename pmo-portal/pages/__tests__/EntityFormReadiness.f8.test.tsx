@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
@@ -213,3 +214,11 @@ describe('AC-IXD-FORM-F8: NewProcurementModal readiness', () => {
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'Welding consumables' }));
   });
 });
+
+// Project creation now requires a successful PMO number proposal; keep this
+// journey focused on its original create/navigation or invalid-value outcome.
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: (clientId: string | null) => clientId
+    ? { status: 'success', number: 'PMO-2026-TEST-0001', error: null }
+    : { status: 'idle', number: null, error: null },
+}));

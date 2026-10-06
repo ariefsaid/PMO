@@ -10,6 +10,14 @@ import { companyImportDescriptor } from '../companyDescriptor';
 describe('companyImportDescriptor', () => {
   beforeEach(() => create.mockClear());
 
+  it('AC-NICK-003: import accepts an optional trimmed short name without changing the legal name', async () => {
+    const input = companyImportDescriptor.toInput({ name: ' Example Legal Company ', type: ' Client ', short_name: ' Example ' });
+    expect(input).toEqual({ name: 'Example Legal Company', type: 'Client', short_name: 'Example' });
+    expect(companyImportDescriptor.fields.find((f) => f.key === 'short_name')?.required).toBe(false);
+    await companyImportDescriptor.create(input);
+    expect(create).toHaveBeenCalledWith(input);
+  });
+
   it('AC-IMP-008: descriptor.toInput emits only {name,type} (no org_id) and trims; create delegates to repositories.company.create', async () => {
     const input = companyImportDescriptor.toInput({ name: '  Acme  ', type: ' Client ' });
     // Only name + type — never org_id (a crafted xlsx cannot carry a tenancy key).

@@ -1,3 +1,6 @@
+import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
+import { matchesProjectClassification } from '@/src/lib/projectClassification';
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
@@ -197,6 +200,7 @@ const Projects: React.FC = () => {
             return true;
         }
       })
+      .filter((p) => matchesProjectClassification(p, workingSet))
       .filter((p) => filterClient === 'All' || p.client_id === filterClient)
       // #758: end-customer filter mirrors the client filter on the nullable end_client_id.
       .filter((p) => filterEndCustomer === 'All' || p.end_client_id === filterEndCustomer)
@@ -212,13 +216,18 @@ const Projects: React.FC = () => {
         (p) =>
           !q ||
           p.name.toLowerCase().includes(q) ||
-          (p.code ?? '').toLowerCase().includes(q),
+          (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
+          (p.code ?? '').toLowerCase().includes(q) ||
+          (p.client?.name ?? '').toLowerCase().includes(q) ||
+          (p.client?.short_name ?? '').toLowerCase().includes(q) ||
+          (p.end_client?.name ?? '').toLowerCase().includes(q) ||
+          (p.end_client?.short_name ?? '').toLowerCase().includes(q),
       );
     // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
     return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
-  }, [all, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
+  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -251,7 +260,7 @@ const Projects: React.FC = () => {
   const customerFilterOptions = useMemo(
     () => [
       { value: 'All', label: t('projects.filters.allCustomers', 'All customers') },
-      ...clientCompanies.map((c) => ({ value: c.id, label: c.name })),
+      ...clientCompanies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
     ],
     [clientCompanies, t],
   );
@@ -260,7 +269,7 @@ const Projects: React.FC = () => {
   const endCustomerFilterOptions = useMemo(
     () => [
       { value: 'All', label: t('projects.filters.allEndCustomers', 'All end customers') },
-      ...allCompanies.map((c) => ({ value: c.id, label: c.name })),
+      ...allCompanies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
     ],
     [allCompanies, t],
   );
@@ -305,10 +314,12 @@ const Projects: React.FC = () => {
     [projectManagers, t],
   );
 
+  const classificationCount = [workingSet.serviceLine, workingSet.sector, workingSet.location, workingSet.awardType, workingSet.biddingEntity].filter(Boolean).length;
+  const classificationFilters = <ProjectClassificationFilters rows={all} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />;
   const filtersActive =
-    filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
+    classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
   const hasNonDefaultFilter =
-    filter !== roleDefault || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
+    classificationCount > 0 || filter !== roleDefault || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
 
   // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
   // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
@@ -369,7 +380,7 @@ const Projects: React.FC = () => {
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
         const row = await create.mutateAsync(input);
-        toast(t('projects.toast.created', 'Project created'), input.name, 'success');
+        toast(t('projects.toast.created', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', '{{name}} saved. ERP linking needs attention; retry from the project page.', { name: input.name }) : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
         setCreateOpen(false);
         // Opens the new record with this list as its return context (#688 AC-RAM-006, #682).
         openRecord(`/projects/${row.id}`);
@@ -389,7 +400,7 @@ const Projects: React.FC = () => {
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
         return (
-          <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex min-w-0 max-w-[160px] items-center gap-2.5">
             <span
               aria-hidden
               className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
@@ -405,7 +416,7 @@ const Projects: React.FC = () => {
                     e.stopPropagation();
                     onOpen(p);
                   }}
-                  className="block max-w-[40ch] truncate text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="block max-w-[16ch] truncate text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   title={p.name}
                 >
                   {p.name}
@@ -415,9 +426,14 @@ const Projects: React.FC = () => {
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
                 )}
               </div>
-              <div className="truncate font-mono text-[11px] text-muted-foreground">
-                {p.code ?? p.id.slice(0, 8)}
+              <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
+                {t('projects.identifiers.pmo', 'PMO Project Number')}: {p.pmo_project_number}
               </div>
+              {p.code && (
+                <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
+                  {t('projects.identifiers.client', 'Client Project Code')}: {p.code}
+                </div>
+              )}
               {p.customer_contract_ref && (
                 <div className="truncate font-mono text-[11px] text-muted-foreground">
                   {p.customer_contract_ref}
@@ -431,7 +447,7 @@ const Projects: React.FC = () => {
     {
       key: 'customer',
       header: t('projects.columns.customer', 'Customer'),
-      exportValue: (p) => p.client?.name ?? '',
+      exportValue: (p) => p.client ? companyDisplayName(p.client) : '',
       // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
       // can navigate directly to the client record. stopPropagation prevents the
       // row's own click handler (which opens the project detail) from firing when
@@ -440,30 +456,31 @@ const Projects: React.FC = () => {
         <div onClick={(e) => e.stopPropagation()}>
           <CompanyNameLink
             companyId={p.client_id}
-            name={p.client?.name ?? null}
-            className="text-[13px]"
+            name={p.client ? companyDisplayName(p.client) : null}
+            className="block max-w-[96px] text-[13px]"
           />
         </div>
       ),
-      // Hide below 1280px — frees ~120px so Progress+Action columns fit at 1180px
-      colClassName: 'hidden xl:table-cell',
+      // Keep both customer columns at the high-priority 1440px desktop width.
+      // At narrower laptop widths, the table prioritizes project and delivery data.
+      colClassName: 'hidden min-[1360px]:table-cell',
     },
     {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
       header: t('projects.columns.endCustomer', 'End customer'),
-      exportValue: (p) => p.end_client?.name ?? '',
+      exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()}>
           <CompanyNameLink
             companyId={p.end_client_id}
-            name={p.end_client?.name ?? null}
-            className="text-[13px]"
+            name={p.end_client ? companyDisplayName(p.end_client) : null}
+            className="block max-w-[96px] text-[13px]"
           />
         </div>
       ),
-      colClassName: 'hidden xl:table-cell',
+      colClassName: 'hidden min-[1360px]:table-cell',
     },
     {
       key: 'pm',
@@ -487,14 +504,14 @@ const Projects: React.FC = () => {
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
         return (
-          <span className="flex items-center gap-1.5">
+          <span className="flex max-w-[96px] items-center gap-1.5">
             <span
               aria-hidden
               className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
             >
               {(label.trim().charAt(0) || '?').toUpperCase()}
             </span>
-            <span className="whitespace-normal leading-tight">{label}</span>
+            <span className="min-w-0 break-words whitespace-normal leading-tight">{label}</span>
           </span>
         );
       },
@@ -507,7 +524,14 @@ const Projects: React.FC = () => {
       header: t('projects.columns.status', 'Status'),
       exportValue: (p) => String(p.status),
       cell: (p) => (
-        <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>
+        <StatusPill
+          variant={pillVariantForProjectStatus(p.status as string)}
+          // The label wraps beside its dot: `!` overrides the pill's own whitespace-nowrap (cn does
+          // not merge conflicting utilities), so a long status never forces the column wider.
+          className="max-w-[92px] leading-tight whitespace-normal!"
+        >
+          {p.status}
+        </StatusPill>
       ),
     },
     {
@@ -520,11 +544,20 @@ const Projects: React.FC = () => {
       // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
       // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
       // there reads as comparable when it is not.
+      // The basis note takes its own wrapping line under the amount (the DESIGN.md invoice-card
+      // rule): inline, its rate + DPP details (#811) widened the column past the 1440px table
+      // budget (AC-TBL-OVERFLOW-001).
       cell: (p) => (
-        <span className="inline-flex items-baseline gap-1.5">
-          {formatCurrency(p.contract_value, p.currency)}
-          <TaxBasisLabel treatment={p.tax_treatment} />
-        </span>
+        <div className="flex flex-col items-end gap-0.5">
+          <span>{formatCurrency(p.contract_value, p.currency)}</span>
+          <TaxBasisLabel
+            treatment={p.tax_treatment}
+            taxRate={p.tax_rate}
+            taxBaseNumerator={p.tax_base_numerator}
+            taxBaseDenominator={p.tax_base_denominator}
+            className="block max-w-[110px] whitespace-normal leading-tight"
+          />
+        </div>
       ),
     },
     {
@@ -589,7 +622,7 @@ const Projects: React.FC = () => {
                 (Indonesian will not keep "X of Y budget" word order), and it is exactly the
                 DD-I18N-7 shape: format the money first, interpolate the finished strings. It
                 stays English until `t()` interpolation is safe under the unit suite. */}
-            <div className="text-[11px] text-muted-foreground">
+            <div className="max-w-[120px] whitespace-normal text-[11px] text-muted-foreground">
               {`${formatCompactCurrency(summary.committedSpend, p.currency)} of ${formatCompactCurrency(summary.budget, p.currency)} budget`}
             </div>
           </div>
@@ -691,7 +724,7 @@ const Projects: React.FC = () => {
   // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
   // it into cards.
   const secondaryCount =
-    (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
+    classificationCount + (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
   const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
   const selectedEndCustomer = endCustomerFilterOptions.find((o) => o.value === filterEndCustomer);
   const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
@@ -895,7 +928,16 @@ const Projects: React.FC = () => {
                     </p>
                   )}
               </div>
+              {classificationFilters}
             </div>
+          </MobileToolbarDisclosure>
+        )}
+
+        {isEngineer && (
+          <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
+            count={classificationCount} open={filtersOpen} closeOnSelectChange
+            onOpenChange={(next) => { setFiltersOpen(next); if (next) setMoreOpen(false); }}>
+            {classificationFilters}
           </MobileToolbarDisclosure>
         )}
 
@@ -970,7 +1012,7 @@ const Projects: React.FC = () => {
           <button
             type="button"
             onClick={clearFilters}
-            className="text-[12.5px] font-semibold text-primary underline-offset-2 hover:underline"
+            className="text-[12.5px] font-semibold text-primary-text underline-offset-2 hover:underline"
           >
             {t('projects.mobile.clearAll', 'Clear all')}
           </button>
@@ -1056,8 +1098,9 @@ const Projects: React.FC = () => {
               options={pmFilterOptions}
               className="w-auto"
             />
+            {classificationFilters}
           </>
-        ) : undefined
+        ) : classificationFilters
       }
       exportAction={
         <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
@@ -1112,38 +1155,40 @@ const Projects: React.FC = () => {
           }}
         />
       ) : view === 'table' ? (
-        <DataTable<ProjectWithRefs>
-          rows={filtered}
-          columns={columns}
-          rowKey={(p) => p.id}
-          onActivate={onOpen}
-          rowMenu={canRowWrite ? rowMenu : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={
-            filter === 'at-risk'
-              ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
-              : filtersActive
-                ? t('projects.empty.noMatchTitle', 'No projects match these filters')
-                : t('projects.states.emptyTitle', 'No projects yet')
-          }
-          emptySub={
-            filter === 'at-risk'
-              ? t(
-                  'projects.empty.nothingAtRiskSub',
-                  'Every active project is under 90% budget — nothing needs attention right now.',
-                )
-              : filtersActive
-                ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
-                : t('projects.states.emptySub', 'Projects you create or win will appear here.')
-          }
-          emptyAction={
-            filter === 'at-risk'
-              ? undefined
-              : filtersActive
-                ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
-                : undefined
-          }
-        />
+        <div className="[&_th]:px-1.5 [&_td]:px-1.5">
+          <DataTable<ProjectWithRefs>
+            rows={filtered}
+            columns={columns}
+            rowKey={(p) => p.id}
+            onActivate={onOpen}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            state={filtered.length === 0 ? 'empty' : undefined}
+            emptyTitle={
+              filter === 'at-risk'
+                ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
+                : filtersActive
+                  ? t('projects.empty.noMatchTitle', 'No projects match these filters')
+                  : t('projects.states.emptyTitle', 'No projects yet')
+            }
+            emptySub={
+              filter === 'at-risk'
+                ? t(
+                    'projects.empty.nothingAtRiskSub',
+                    'Every active project is under 90% budget — nothing needs attention right now.',
+                  )
+                : filtersActive
+                  ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
+                  : t('projects.states.emptySub', 'Projects you create or win will appear here.')
+            }
+            emptyAction={
+              filter === 'at-risk'
+                ? undefined
+                : filtersActive
+                  ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
+                  : undefined
+            }
+          />
+        </div>
       ) : filtered.length === 0 ? (
         <ListState
           variant="empty"
@@ -1196,14 +1241,15 @@ const Projects: React.FC = () => {
         <ProjectFormModal
           mode="editHeader"
           initial={{
+            ...editTarget,
             id: editTarget.id,
             name: editTarget.name,
             code: editTarget.code,
             client_id: editTarget.client_id,
             project_manager_id: editTarget.project_manager_id,
-            clientName: editTarget.client?.name ?? null,
+            clientName: editTarget.client ? companyDisplayName(editTarget.client) : null,
             end_client_id: editTarget.end_client_id,
-            endClientName: editTarget.end_client?.name ?? null,
+            endClientName: editTarget.end_client ? companyDisplayName(editTarget.end_client) : null,
             pmName: editTarget.pm?.full_name ?? null,
             start_date: editTarget.start_date,
             end_date: editTarget.end_date,

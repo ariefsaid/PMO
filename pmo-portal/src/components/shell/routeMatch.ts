@@ -193,6 +193,12 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // The label agrees with the rail + H1 (AC-ADMIA-006) and stays distinct from the ORGANIZATION
   // surface, whose label is ADMINISTRATION_SECTION_LABELS.integrations ("Organization integrations").
   '/integrations': 'My integrations',
+  // #781 (AC-FIN-002): the three Finance lists are routable pages (deep-links resolve) but not
+  // shell modules — register each title so the breadcrumb resolves it instead of falling through
+  // to "Not found". The i18n keys (shell.nav.*) already ship and mirror the rail labels.
+  '/sales-invoices': 'Sales Invoices',
+  '/incoming-payments': 'Incoming Payments',
+  '/revenue-by-project': 'Revenue by Project',
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -200,6 +206,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   users: 'Users',
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
+  projects: 'Project setup',
   credits: 'Credits',
   usage: 'Usage',
   features: 'Features',
@@ -218,6 +225,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   users: 'admin.nav.users',
   integrations: 'admin.nav.integrations',
   accounting: 'admin.nav.accounting',
+  projects: 'admin.nav.projects',
   credits: 'admin.nav.credits',
   usage: 'admin.nav.usage',
   features: 'admin.nav.features',
@@ -295,15 +303,19 @@ export function breadcrumbForPath(
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
   const placeholderTitle = PLACEHOLDER_TITLES[pathname];
   if (placeholderTitle) {
-    // The two shell-owned surfaces carry their i18n keys so the crumb agrees with the rail's own
-    // locally-labelled entries (`shell.nav.administration`, `shell.nav.integrations`) in every
-    // locale; all other placeholder routes keep their plain (pure) English crumb.
-    const i18nKey =
-      pathname === '/administration'
-        ? 'shell.nav.administration'
-        : pathname === '/integrations'
-          ? 'shell.nav.integrations'
-          : undefined;
+    // Placeholder routes that own a REAL i18n key carry it so the crumb agrees with the rail's
+    // own locally-labelled entries in every locale; all other placeholder routes keep their plain
+    // (pure) English crumb. #781 (AC-FIN-002): the three Finance routes map to the existing
+    // `shell.nav.salesInvoices` / `shell.nav.incomingPayments` / `shell.nav.revenueByProject` keys
+    // the Finance rail already uses.
+    const PLACEHOLDER_I18N_KEY: Record<string, string> = {
+      '/administration': 'shell.nav.administration',
+      '/integrations': 'shell.nav.integrations',
+      '/sales-invoices': 'shell.nav.salesInvoices',
+      '/incoming-payments': 'shell.nav.incomingPayments',
+      '/revenue-by-project': 'shell.nav.revenueByProject',
+    };
+    const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey
       ? [{ label: placeholderTitle, i18nKey }]
       : [{ label: placeholderTitle }];

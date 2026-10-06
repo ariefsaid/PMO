@@ -10,6 +10,7 @@ export enum ProjectStatus {
   OnHold = 'On Hold', // Added recommendation
   CloseOut = 'Close Out',
   Loss = 'Loss Tender',
+  Declined = 'Declined',
   Internal = 'Internal Project'
 }
 
@@ -135,7 +136,8 @@ export enum BudgetCategory {
     Equipment = 'Equipment',
     Permits = 'Permits & Fees',
     Overheads = 'Overheads',
-    Contingency = 'Contingency'
+    Contingency = 'Contingency',
+    SpecialExpenses = 'Special expenses'
 }
 
 export interface BudgetVersion {

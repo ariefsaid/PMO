@@ -146,3 +146,21 @@ describe('deriveArDueDate — AC-SAR-051 matrix', () => {
     expect(result).toBe('2026-07-15');
   });
 });
+describe('deriveArDueDate — #767 received-date anchor', () => {
+  it('AC-DUE-002 due = received date + customer terms, not invoice date + terms', () => {
+    expect(deriveArDueDate('2026-07-01', 30, null, '2026-07-11')).toBe('2026-08-10');
+  });
+
+  it('AC-DUE-002 the received-date due beats a stale ERP due_date', () => {
+    expect(deriveArDueDate('2026-07-01', 30, '2026-07-31', '2026-07-11')).toBe('2026-08-10');
+  });
+
+  it('AC-DUE-002 absent terms fall back to the 30-day default from the receipt date', () => {
+    expect(deriveArDueDate('2026-07-01', null, null, '2026-07-11')).toBe('2026-08-10');
+  });
+
+  it('AC-DUE-002 with no received date the existing behaviour is unchanged', () => {
+    expect(deriveArDueDate('2026-07-01', 30, null, null)).toBe('2026-07-31');
+    expect(deriveArDueDate('2026-07-01', 30, '2026-08-15', '')).toBe('2026-08-15');
+  });
+});

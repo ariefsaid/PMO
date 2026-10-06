@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 /**
  * AC-RAM-006 (#688) / FR-RAM-009 — creating a project from /projects opens its canonical record.
  * Matrix cell R6 × O6 (docs/specs/ris-admin-route-matrix.spec.md). The F-4 ruling (2026-09-28,
@@ -131,6 +132,22 @@ describe('Projects create navigation (AC-RAM-006)', () => {
     );
   });
 
+  it('AC-RAM-006: when ERP linking needs a retry, the warning still names the created project', async () => {
+    projectMutations.create.mutateAsync.mockResolvedValue({
+      id: '9b1d0c2e-4f6a-4c3b-8d7e-000000000abd',
+      name: 'New project',
+      status: 'Leads',
+      erpSetup: 'pending',
+    });
+    renderPage();
+
+    await submitNewProject('Harborside Annex');
+
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/ERP linking needs attention/);
+    expect(toast).toHaveTextContent(/Harborside Annex/);
+  });
+
   it('AC-RAM-006: a failed create stays on /projects with the modal open', async () => {
     projectMutations.create.mutateAsync.mockRejectedValue(new AppError('denied', '42501'));
     renderPage();
@@ -143,3 +160,10 @@ describe('Projects create navigation (AC-RAM-006)', () => {
     expect(projectMutations.create.mutateAsync).toHaveBeenCalledTimes(1);
   });
 });
+// Project creation now requires a successful PMO number proposal; keep this
+// journey focused on its original create/navigation or invalid-value outcome.
+vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
+  useProjectNumberProposal: (clientId: string | null) => clientId
+    ? { status: 'success', number: 'PMO-2026-TEST-0001', error: null }
+    : { status: 'idle', number: null, error: null },
+}));

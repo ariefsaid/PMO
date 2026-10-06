@@ -12,6 +12,7 @@ import type { PmoRecord } from '../../contract.ts';
  *  are doctype-specific (`schedule_date` for PO/MR, `po_item_child_name` for GR). */
 export interface PmoLineItem {
   item_code: string;
+  description?: string;
   qty: number | string;
   rate?: number | string;
   schedule_date?: string;

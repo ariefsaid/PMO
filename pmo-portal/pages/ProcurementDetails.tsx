@@ -26,10 +26,12 @@ import { BackBar } from '@/src/components/shell';
 import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
+import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
+import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
@@ -120,11 +122,16 @@ type PendingConfirm =
       status: 'Received' | 'Scheduled';
       invoiceDate: string;
       referenceNumber: string | null;
+      /** #769: the parent group's number for this invoice. */
+      externalRef?: string | null;
       amount: number | null;
       /** #505: REQUIRED — staged from the capture form and carried verbatim through the confirm to
        *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
       taxTreatment: TaxTreatment;
       taxAmount: number;
+      taxRate?: number | null;
+      taxBaseNumerator?: number;
+      taxBaseDenominator?: number;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -145,6 +152,8 @@ function allowedActions(
   // into keys resolved at the call site: `i18next-parser` extracts literal keys only, so a
   // `t(action.labelKey)` would be invisible to the en-side completeness gate (FR-L10N-042a).
   t: TFunction,
+  /** #803: false when the request is routed to named approvers who do not include the viewer. */
+  routeAllows: boolean = true,
 ): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
   const actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[] = [];
 
@@ -156,14 +165,14 @@ function allowedActions(
   }
 
   // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
-  if (legal('Approved') && canApproveReject(role) && !isRequester) {
+  if (legal('Approved') && canApproveReject(role) && !isRequester && routeAllows) {
     // Approve is the single per-screen CTA at this stage → the One-Blue `primary`
     // (polish #1). It previously read solid `success` green, which competed with
     // the system's one interactive blue (DESIGN.md One-Blue Rule). Reject stays a
     // quiet outline so only one affordance carries weight.
     actions.push({ to: 'Approved', label: t('procurementDetail.action.approve', 'Approve'), variant: 'primary' });
   }
-  if (legal('Rejected') && canApproveReject(role) && !isRequester) {
+  if (legal('Rejected') && canApproveReject(role) && !isRequester && routeAllows) {
     actions.push({ to: 'Rejected', label: t('procurementDetail.action.reject', 'Reject'), variant: 'destructive' });
   }
 
@@ -270,6 +279,7 @@ const ProcurementDetails: React.FC = () => {
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
+  const erpItems = useErpItemOptions('purchase');
 
   // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
   // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
@@ -391,7 +401,13 @@ const ProcurementDetails: React.FC = () => {
   // SoD-b: a user cannot pay a request they themselves approved.
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
   // D8: sort so primary → outline/success → destructive (Cancel/Reject always last)
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t));
+  // #803 (FR-APR-030/031/035): routing narrows who may decide. UX only — transition_procurement enforces.
+  const routeAllows = mayDecideRoutedApproval(p.approvalRoute, currentUser?.id, realRole === 'Admin');
+  const routeNote =
+    p.approvalRoute && !routeAllows && !isRequester
+      ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
+      : null;
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows));
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -609,10 +625,12 @@ const ProcurementDetails: React.FC = () => {
           status: pendingConfirm.status,
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
+          externalRef: pendingConfirm.externalRef,
           amount: pendingConfirm.amount,
           // #505: forwarded from the staged capture — required by the mutation's type.
           taxTreatment: pendingConfirm.taxTreatment,
           taxAmount: pendingConfirm.taxAmount,
+          taxRate: pendingConfirm.taxRate, taxBaseNumerator: pendingConfirm.taxBaseNumerator, taxBaseDenominator: pendingConfirm.taxBaseDenominator,
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
@@ -886,6 +904,7 @@ const ProcurementDetails: React.FC = () => {
           projectName={p.project?.name ?? null}
           vendorId={p.vendor_id}
           vendorName={p.vendor?.name ?? null}
+          budgetCategory={p.budget_category}
           busy={crud.updateHeader.isPending}
           onError={onMutationError}
           onClose={() => setHeaderEditOpen(false)}
@@ -914,6 +933,7 @@ const ProcurementDetails: React.FC = () => {
         p={p}
         actions={actions}
         gateMsg={gateMsg}
+        routeNote={routeNote}
         isDraft={isDraft}
         isRequester={isRequester}
         isApprover={isApprover}
@@ -968,6 +988,7 @@ const ProcurementDetails: React.FC = () => {
 
         {tab === 'items' && (
           <LineItemsSection
+            erpItems={erpItems.connected ? erpItems : undefined}
             items={p.items}
             editable={canEditItems}
             busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}

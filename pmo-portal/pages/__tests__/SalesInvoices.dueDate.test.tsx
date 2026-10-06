@@ -6,6 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import { formatDateOnly } from '@/src/lib/format';
 
 /** SalesInvoices page — due-date column render test (AC-SAR-051 UI proof). */
 
@@ -18,6 +19,7 @@ const hoisted = vi.hoisted(() => ({
         org_id: 'org-1',
         project_id: null,
         customer_id: 'cust-1',
+        customer_name: 'Acme Energy',
         si_number: 'ACC-SINV-2026-00001',
         reference_number: 'PO-12345',
         invoice_date: '2026-07-01',
@@ -42,6 +44,7 @@ const hoisted = vi.hoisted(() => ({
         org_id: 'org-1',
         project_id: null,
         customer_id: 'cust-2',
+        customer_name: 'Borealis Marine',
         si_number: 'ACC-SINV-2026-00002',
         reference_number: 'PO-67890',
         invoice_date: '2026-07-15',
@@ -152,15 +155,12 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
 
     // First invoice: invoice_date 2026-07-01 + 30 days = 2026-07-31 (no ERP due date)
     // Second invoice: has ERP due date 2026-09-15 (takes precedence)
-    const dueDates = screen.getAllByText(/^(\d{1,2}\/\d{1,2}\/\d{4}|—)$/);
-    // The due dates should appear in the table rows
-    expect(dueDates.length).toBeGreaterThanOrEqual(2);
-
-    // Verify the specific formatted dates appear (locale-dependent, so check pattern)
-    // 2026-07-31 -> "7/31/2026" or "31/7/2026" depending on locale
-    // 2026-09-15 -> "9/15/2026" or "15/9/2026" depending on locale
-    const tableText = screen.getByRole('table').textContent;
-    expect(tableText).toContain('2026'); // Both dates contain 2026
+    // #781 (AC-FIN-003): displayed dates now route through the shared locale formatter.
+    const tableText = screen.getByRole('table').textContent ?? '';
+    expect(tableText).toContain(formatDateOnly('2026-07-01'));
+    expect(tableText).toContain(formatDateOnly('2026-07-31'));
+    expect(tableText).toContain(formatDateOnly('2026-07-15'));
+    expect(tableText).toContain(formatDateOnly('2026-09-15'));
   });
 
   it('shows "—" for invoices with no invoice date', () => {
@@ -172,6 +172,7 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
         org_id: 'org-1',
         project_id: null,
         customer_id: 'cust-3',
+        customer_name: null,
         si_number: 'ACC-SINV-2026-00003',
         reference_number: 'PO-NEW',
         invoice_date: null,
@@ -214,5 +215,14 @@ describe('#548 (OD-TAX-1): the Amount column carries the invoice’s tax basis',
     salesInvoicesState.data = [{ ...SEED_INVOICES[0], id: 'si-noamt', amount: null }];
     renderAs('Project Manager');
     expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
+  });
+});
+
+describe('SalesInvoices — #767 due date follows the received date', () => {
+  it('AC-DUE-002 the Due Date column is received date + terms (invoice 2026-07-01, received 2026-07-11, 30d → 2026-08-10)', () => {
+    salesInvoicesState.data = [{ ...SEED_INVOICES[0], id: 'si-rcv', erp_due_date: null, received_date: '2026-07-11' } as SalesInvoiceRow];
+    renderAs('Finance');
+    expect(screen.getAllByText(formatDateOnly('2026-08-10')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(formatDateOnly('2026-07-31'))).toBeNull();
   });
 });

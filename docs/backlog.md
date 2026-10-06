@@ -4,6 +4,13 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ 2026-10-05 — promote #779 + production (owner yes): **production == main == `0fb733c1`**; hosted DB at 0224
+
+`main` == `dev` trees. Adds #758 (end customer on projects, 0223) and #778 (revenue entitlement key, 0224 + registry
+drift test). Hosted DB: 0223–0224 pushed; nothing pending; anon probes refused (pipeline RPC 401, guard fn 404); no
+edge-function change. Revenue section switched on for RIS. Found live: #781 (finance lists show customer ids,
+breadcrumb, date locale).
+
 ### ⚑ 2026-10-02 — RIS connected to its ERPNext on the hosted project (owner yes); next build #758
 
 Connected and activated through the UI (ERPNext 16). Service-side, audited: four domains employed (companies,

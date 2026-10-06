@@ -55,12 +55,16 @@ function invoiceRows(n: number, offset = 0) {
   return Array.from({ length: n }, (_, i) => ({
     id: `si-${offset + i}`,
     si_number: `ACC-SINV-${offset + i}`,
-    companies: { erp_payment_terms_days: 30 },
+    companies: { erp_payment_terms_days: 30, name: 'Acme Co' },
   }));
 }
 
 function paymentRows(n: number, offset = 0) {
-  return Array.from({ length: n }, (_, i) => ({ id: `ip-${offset + i}`, ip_number: `ACC-PAY-${offset + i}` }));
+  return Array.from({ length: n }, (_, i) => ({
+    id: `ip-${offset + i}`,
+    ip_number: `ACC-PAY-${offset + i}`,
+    customer: { name: 'Acme Co' },
+  }));
 }
 
 beforeEach(() => {
@@ -110,13 +114,36 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
     expect(h.state.calls[0].range).toEqual([50, 99]);
   });
 
-  it('still filters to one project and flattens the customer payment terms', async () => {
+  it('still filters to one project and flattens the customer payment terms + name', async () => {
     h.state.pages.sales_invoices = [invoiceRows(1)];
 
     const rows = await listSalesInvoices({ projectId: 'proj-1' });
 
     expect(h.state.calls[0].eq).toContainEqual(['project_id', 'proj-1']);
     expect(rows[0].erp_payment_terms_days).toBe(30);
+    expect(rows[0].customer_name).toBe('Acme Co');
+  });
+
+  // #781 (AC-FIN-001): the list resolves the customer's company NAME in the SAME query (it must
+  // never render the opaque `customer_id`), so the projection embeds `companies.name` in the
+  // existing explicit-FK join and flattens it to `customer_name`.
+  it('AC-FIN-001: embeds the customer name in the one SI read and flattens it to customer_name', async () => {
+    h.state.pages.sales_invoices = [[
+      { id: 'si-1', si_number: 'ACC-SINV-1', companies: { erp_payment_terms_days: 30, name: 'Acme Co' } },
+    ]];
+
+    const rows = await listSalesInvoices();
+
+    expect(h.state.calls[0].columns).toBe(
+      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name), sales_invoice_authors(user_id)',
+    );
+    expect(rows[0].customer_name).toBe('Acme Co');
+  });
+
+  it('AC-FIN-001: a sales invoice with no resolved company yields customer_name null (never the id)', async () => {
+    h.state.pages.sales_invoices = [[{ id: 'si-2', si_number: 'ACC-SINV-2', companies: null }]];
+    const rows = await listSalesInvoices();
+    expect(rows[0].customer_name).toBeNull();
   });
 
   // ── Round-6 re-audit, NIT 1: the row must carry the SoD oracle the DB actually uses.
@@ -177,5 +204,25 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
 
     expect(h.state.calls).toHaveLength(1);
     expect(h.state.calls[0].range).toEqual([0, 9]);
+  });
+
+  // #781 (AC-FIN-001): incoming payments must ALSO resolve the customer company name in the SAME
+  // read. PostgREST embeds break when the target gains a second FK, so the customer embed is
+  // explicit-FK qualified exactly like projects.ts; the result flattens `customer: { name }`.
+  it('AC-FIN-001: embeds the customer name (explicit FK) and flattens it to customer_name', async () => {
+    h.state.pages.incoming_payments = [[
+      { id: 'ip-1', ip_number: 'ACC-PAY-1', customer: { name: 'Acme Co' } },
+    ]];
+
+    const rows = await listIncomingPayments();
+
+    expect(h.state.calls[0].columns).toBe('*, customer:companies!incoming_payments_customer_id_fkey(name)');
+    expect(rows[0].customer_name).toBe('Acme Co');
+  });
+
+  it('AC-FIN-001: a payment with no resolved company yields customer_name null (never the id)', async () => {
+    h.state.pages.incoming_payments = [[{ id: 'ip-2', ip_number: 'ACC-PAY-2', customer: null }]];
+    const rows = await listIncomingPayments();
+    expect(rows[0].customer_name).toBeNull();
   });
 });

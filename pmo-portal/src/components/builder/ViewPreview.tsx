@@ -13,6 +13,7 @@
  * Does NOT import from src/lib/db/* or src/lib/repositories.
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileQuerySpec } from '@/src/lib/viewspec/compiler';
 import { executeCompiledQuery } from '@/src/lib/viewspec/executor';
@@ -76,6 +77,7 @@ export interface ViewPreviewProps {
 }
 
 const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const [panelStates, setPanelStates] = useState<PreviewPanelState[]>([]);
   // Generation counter: incremented on each spec/user change so stale async
@@ -169,7 +171,7 @@ const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
   if (spec.panels.length === 0) {
     return (
       <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed border-border p-6 text-[13px] text-muted-foreground">
-        Your preview will appear here once you add a panel.
+        {t('viewBuilder.previewEmpty', 'Your preview will appear here once you add a panel.')}
       </div>
     );
   }
@@ -199,7 +201,7 @@ const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
                 role="status"
                 className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800"
               >
-                Preview unavailable: {state.compileError.code}
+                {t('viewBuilder.previewUnavailable', 'Preview unavailable:')} {state.compileError.code}
                 {state.compileError.detail ? ` — ${state.compileError.detail}` : ''}
               </div>
             </div>

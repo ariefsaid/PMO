@@ -64,6 +64,8 @@
 #    it lives elsewhere and is reached only from here.
 /projects/:projectId           pages/project-detail/*.tsx src/components/milestones/MilestonePhaseHeader.tsx
 /projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/*.tsx
+# ── Project Budget and projection (#789): every label and state on the budget tab.
+/projects/:projectId/budget    pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/BudgetTab.tsx pages/ProjectBudget.tsx pages/BudgetProjection.tsx
 
 # ── The other half of the tasks launch item: the IC's own cross-project list, opened daily.
 /my-tasks                      pages/MyTasks.tsx
@@ -95,6 +97,11 @@
 #    `Funnel` is named here (#687 Discover follow-up) because its scroll-viewport a11y label
 #    lives in the shared component, and it also renders on this screen.
 /sales                         pages/SalesPipeline.tsx components/SalesKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/Funnel.tsx
+# ── Finance lists (#789): invoices, receipts, and their project revenue roll-up.
+/sales-invoices                pages/SalesInvoices.tsx
+/incoming-payments             pages/IncomingPayments.tsx
+/revenue-by-project            pages/RevenueByProject.tsx
+/reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
 
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is
 #    also the reference slice, so its patterns propagate to whatever is built next.
@@ -117,12 +124,17 @@
 #    interface-language override (inherit / Bahasa Indonesia / English).
 /settings/profile             pages/ProfileSettings.tsx
 
+# ── Saved user views (#789): the personal list and its empty/error/mutation states.
+/views                         pages/MyViewsPage.tsx
+/views/new                     pages/ViewBuilderPage.tsx src/components/builder/PanelList.tsx src/components/builder/PanelEditorForm.tsx src/components/builder/ViewPreview.tsx src/components/builder/AIComposerModal.tsx
+/views/:viewId/edit            pages/ViewBuilderPage.tsx src/components/builder/PanelList.tsx src/components/builder/PanelEditorForm.tsx src/components/builder/ViewPreview.tsx src/components/builder/AIComposerModal.tsx
+
 # ── Administration (AC-ADMIA-001/006): the organization setup & governance home (route-backed IA).
 #    The six canonical child routes and the compatibility alias /administration all render the same
 #    shell, so naming the shell (plus its /:section form) is what keeps every Administration label,
 #    description, denial and pending copy inside the gate.
 /administration               pages/Administration.tsx
-/administration/:section      pages/Administration.tsx pages/AdminUsers.tsx pages/AdministrationCredits.tsx pages/admin/OrgTaxDefault.tsx pages/admin/BudgetAccountMap.tsx src/components/integrations/M365OrgApprovalCard.tsx
+/administration/:section      pages/Administration.tsx pages/AdminUsers.tsx pages/AdministrationCredits.tsx pages/admin/OrgTaxDefault.tsx pages/admin/BudgetAccountMap.tsx pages/admin/SpendApprovers.tsx src/components/integrations/M365OrgApprovalCard.tsx
 
 # ── Personal (Member-owner) Microsoft 365 connect home (AC-ADMIA-006) — the OTHER ownership surface.
 #    It shares the "integrations" word with the organization surface at /administration/integrations;

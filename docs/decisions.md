@@ -2796,3 +2796,144 @@ matching existing rows by name and skipping them (only budget lines carry an imp
 service-role historical loader, which bypasses RLS. **Order matters:** once ERPNext is connected, company and
 contact names mirror ERPNext and are read-only in PMO (0097), and once ClickUp is connected the same holds for tasks
 (0093) — so seed those before connecting, or let the connection bring them in.
+
+## OD-ID-1 — PMO mints its own record numbers; a client's own codes and the ERP's IDs are separate fields (owner, 2026-10-05)
+
+A client organisation is a tenant of PMO, so its internal numbering (a project-code standard, a group's
+order numbers) is **its** data, not PMO's identifier. PMO mints its own human-readable number for each
+record; the client may bring its own code, stored and shown alongside; an external ERP mints its own ID,
+held in `external_refs`. None of the three is derived from another. For projects this re-scopes #771:
+PMO generates the project number; `projects.code` stays the organisation's own code (free text, unique
+per org). The same rule already holds for parties (ERPNext `C-######` vs the PMO company).
+
+## OD-REEL-1 — the showreel stays as cut; the product catches up (owner, 2026-10-05)
+
+The showreel is not edited to match today's product. Its unmet promises are built instead, sequenced
+around the first client's go-live (map: "RIS go-live and the showreel promise"):
+- **Customer invoicing without an ERP** (#784) — build; after the first client is live. PMO must be able
+  to run with no ERP.
+- **Billing milestones** (#785, with down payment / progress billing #766) — build; after go-live.
+- **Assistant reach into invoices** (#787) — build it to work reliably. **The deployed model may be changed
+  to one that is strong at tool calling** if the eval harness (ADR-0052) shows the current one can't do
+  it; the eval result decides, not preference. This relaxes the earlier binding model choice for this
+  purpose.
+
+## OD-SEED-5 — historical projects load at their real stage under the owner; bids load as submitted (owner, 2026-10-05)
+
+For the first client's starting data: won projects load directly (stage, contract value, dates, budget
+total) as a one-off Director-run load attributed to the owner — an owner-approved exception to DD-API-3's
+"never the service-role loader". Open bids load at their submitted stage, and the owner judges each one
+inside PMO's pipeline rather than in the spreadsheet. Budgets come from each project's own budget
+workbook. Work orders are left for the client's users to create. Client, end customer and prospect are
+**roles** a company plays on a project, not separate kinds of record — in PMO (client / end customer on
+the project) and in ERPNext (one Customer record each). A follow-up widens the CLI so these loads stop
+needing the Director (#796).
+
+## DD-RCPT-1 — a receipt with tax withheld mirrors ERPNext's own Payment Entry shape (Director, 2026-10-06)
+
+For a same-currency receipt where the client withheld income tax (#762), ERPNext's Payment Entry carries
+the **cash** in both header amounts (`paid_amount` = `received_amount` = cash), the withheld tax as a
+**deduction** row, and the **gross** as the invoice allocation; the invoice ends Paid with nothing
+outstanding. ERPNext forces `received_amount = paid_amount` when the account currencies match, so a test
+expecting the gross in `paid_amount` asserts something ERPNext never produces. PMO keeps its own three
+facts unchanged — settled amount (gross), cash received, tax withheld — and the journey's goal is
+unchanged: invoice settled in full, cash and withholding both recorded. Only the raw ERP read-back
+assertion and the synthetic mapper fixture change to ERPNext's real shape; the mapper derives the gross
+only from an explicitly marked withholding deduction, leaving other deductions alone.
+
+**DD-DUE-1 (Director, 2026-10-06, #767) — the received date lives in PMO; ERP keeps its own due date.**
+ERPNext v16 forbids changing `due_date` or the payment schedule on a submitted Sales Invoice (no
+`allow_on_submit`; `base_document.py` refuses it), and refuses a due date past the customer's terms
+template even at create. Receipt is learned after submission, so PMO records the received date and shows
+due date = received date + terms on the Sales Invoices list and export; it never sends `due_date`. The
+value travels to ERP only as `custom_received_date` (created by onboarding, editable after submit) when
+an invoice is created or amended. ERP's own AR aging keeps ERP's due date — ADR-0048 keeps ERPNext the
+accounting truth, so PMO does not re-derive aging. Known limit: if ERP already carries a received date,
+a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
+field-only update route if it bites.
+
+## DD-ERP-SITE-1 — one ERP site serves one PMO org (Director, 2026-10-06)
+
+PMO assumes an ERPNext site is connected to at most one PMO org. Customers, Suppliers and their Contacts
+are site-wide masters in ERPNext, so two orgs sharing a site would each adopt the other's parties and the
+contacts' personal details. Adoption is fail-closed per org (a contact is adopted only when every link
+resolves to this org), but that does not stop shared masters reaching both. Until a second org needs a
+shared site, connecting a site already bound to another org is unsupported; revisit with a site-ownership
+rule if that case appears.
+
+## DD-APR-1 / DD-APR-2 — spend approval routing defaults (Director, 2026-10-06)
+
+For approval routing by budget (#803; spec `docs/specs/approval-routing-by-budget.spec.md`, ADR-0075):
+- **DD-APR-1 — either one approves.** When a request routes to the senior approver set (overhead, or over the
+  project's budget line), one signature from any member of the set is enough. Revisit if the client wants both.
+- **DD-APR-2 — one line, all years.** "Within budget" compares against the project's active budget line for the
+  category across all fiscal years combined, the same basis spend is already counted on.
+
+## DD-MMP-1..6 — monthly management pack (Director, 2026-10-06)
+
+Accepted as proposed in `docs/specs/monthly-management-pack.spec.md` §3 (#765, ADR-0076): recognition on the
+billing basis with an optional month-end percent complete (DD-MMP-1); planned revenue = net contract value
+straight-line by calendar day between start and end (DD-MMP-2); unbilled is a running balance, backlog per
+month, neither clamped (DD-MMP-3); read by the existing revenue read set (DD-MMP-4); every figure net of tax
+in the contract's own currency, totals per currency, never converted (DD-MMP-5); the pack is a management
+estimate and never writes to the ERP (DD-MMP-6).
+
+## DD-APR-3..5 — approval routing closes its own escape hatches (Director, 2026-10-06)
+
+Refines the #803 routing (ADR-0075) so the inputs that decide a route cannot be steered by the person the
+route favours:
+- **DD-APR-3 — a budget you just changed doesn't route to you.** When the project's active budget version was
+  activated by the person deciding, or after the request was submitted, the request goes to the senior set.
+- **DD-APR-4 — a configured senior set that nobody can act on means Admin, not everyone.** The flat role matrix
+  is the fallback only when no senior set is configured at all; once one exists but has no eligible member,
+  only an Admin may decide (break-glass, audited).
+- **DD-APR-5 — amounts route up, never down.** A negative header or line amount sends the request to the senior
+  set, and a request never counts below zero in the budget-used sum; NULL amount or route defaults to senior.
+
+**DD-BAM-1..6 (Director, 2026-10-06, #768) — several ERP accounts per budget category.** Ruled as proposed in
+`docs/specs/budget-account-map-multi.spec.md` §0: keep the eight categories (travel, accommodation and field
+accounts map under an existing category; adding categories waits for an owner call) · a push-target flag on the
+existing map, at most one per category, an account still in at most one category · a category with accounts but
+no push account blocks the push like an unmapped one · moving the push account never re-pushes an existing
+budget · actuals already sum every mapped account, no RPC change · ERPNext's overspend warning watches only the
+push account (accepted; the default is warn, not block).
+
+**DD-AIN-1..9 (Director, 2026-10-06, #787) — the assistant's invoice reach.** Ruled as proposed in
+`docs/specs/assistant-invoice-reach.spec.md` and ADR-0079: one coarse tool per journey (`whats_overdue`,
+`draft_invoice`) resolved on the server before the approval card · overdue = past due today in the user's
+zone · visibility follows existing RLS roles (Engineer own tasks; PM their projects; Admin/Executive/Finance
+the org; invoices only with Revenue on) · only Finance and Admin may draft through the assistant, the same rule
+as the form, Draft only, never submitted · Issued/Closed work orders invoice at their pre-tax value, milestones
+need a stated amount · one invoice line · what the user approves is what is saved · the overdue list is
+server-written · reminders to others are out · eval bar 9 of 10 runs per journey, with a server switch to turn
+drafting off. The live eval needs an owner-approved deploy of the agent functions.
+
+**DD-EXP-1..11 (Director, 2026-10-06, #775) — expense claims and cash advances, phase A (PMO-only).** Ruled as
+proposed in `docs/specs/expense-claims.spec.md` and ADR-0078: one record, kind claim|advance; approval calls the
+shipped spend routing (0243) — approved/paid claims count against the budget line, advances never do · four
+server-enforced separations even for an Admin (approver≠claimant, payer≠approver, payer≠claimant, advance-return
+recorder≠claimant) · visible to the claimant and PM and above · the claimant is always the signed-in person · at
+payment the outstanding advance settles first, outstanding is computed, never stored · aging in org-zone days,
+0–30/31–60/61–90/90+ · "Special expenses" is the existing category, no extra workflow (name the owner in the
+senior set to review them) · the later ERP path (phase B) uses core Journal/Payment Entry with an Employee party,
+never HRMS doctypes; it waits for a bench test · content frozen after submit · one currency per claim.
+
+**DD-PBL-1..11 (Director, 2026-10-06, #766; owner ruling folded in) — down payment, progress assessment, billing
+claims.** Ruled as proposed in `docs/specs/progress-billing.spec.md` and ADR-0077. Owner ruling: a PM's progress
+claim is an operational, subjective assessment and never an invoice; billing needs administrative evidence. So:
+the down payment and each claim post as ERPNext invoice lines on an advance-account item (recovery = a negative
+line) · a PROGRESS ASSESSMENT (PM or Finance+, per month, quantities against the BoQ) extends the management
+pack's progress table and never invoices · a BILLING CLAIM (Admin/Finance) is immutable, becomes the invoice
+record, and the database refuses to raise it without an Issued/Approved evidence document with a file from the
+project register · scope = project lines or one Issued/Closed work order · one live down payment per project,
+recovery % capped at what is left · amounts exclude tax · one shared billed-work view (down payments excluded,
+recoveries added back) feeds this feature and the pack · over-measuring/over-claiming is shown, not blocked ·
+retention out of scope. Task 0 (ERP accepts the negative line and the liability income account) gates the
+adapter slice.
+
+**DD-PBL-12 (Director, 2026-10-06, #766) — ERP prerequisites proven by the Task 0 spike.** On ERPNext v15.94 the
+advance-item mechanism (ADR-0077) holds: the down payment books to the liability, and a claim's negative recovery
+line nets it with tax on the reduced base. Two requirements follow: ERP setup must turn on Selling Settings "Allow
+Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
+body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
+Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.

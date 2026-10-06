@@ -99,7 +99,7 @@ Paths are relative to `pmo-portal/`. A test is cited as `file` › "exact title"
 | O9 | P | `e2e/AC-ADMIA-005-administration-mobile.spec.ts` › "AC-ADMIA-005: Administration destinations stay reachable and overflow-free at desktop, phone, and phone dark mode" |
 | O10 | N | AC-RAM-004 › "AC-RAM-004 administration-users @dark passes axe-core (WCAG-AA)" (dark-theme 390px overflow is already P in AC-ADMIA-005) |
 | O11 | F | **F-1.** The panel's copy in `pages/AdminUsers.tsx` is hard-coded English (for example `title="Couldn't load users"`, `title="Invite user"`, `label="Role"`). Only the shell `pages/Administration.tsx` is in the i18n completeness gate (`src/lib/i18n/launch-scope-routes.txt`, `/administration/:section`). |
-| O12 | P | `e2e/AC-ADMIA-001-administration-navigation.spec.ts` › "AC-ADMIA-001: an org Admin journeys through the four destinations with coherent location/heading/panel and Back restores the prior section" |
+| O12 | P | `e2e/AC-ADMIA-001-administration-navigation.spec.ts` › "AC-ADMIA-001: an org Admin journeys through the five destinations with coherent location/heading/panel and Back restores the prior section" |
 
 ### R2 `/administration/integrations`
 

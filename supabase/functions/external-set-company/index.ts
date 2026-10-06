@@ -45,9 +45,10 @@ import {
   SUPPORTED_VERSION_MAJORS,
   type ReadPermFailure,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
+import { applyErpSetup, type ErpSetupBody } from './setup.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
-interface SetCompanyBody {
+interface SetCompanyBody extends ErpSetupBody {
   tier: 'erpnext';
   companyId: string;
 }
@@ -248,6 +249,18 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
+  // 5. Parse body
+  let body: SetCompanyBody;
+  try {
+    const parsed: unknown = await req.json();
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return errorResponse('Invalid setup request', 'BAD_REQUEST', 400);
+    }
+    body = parsed as SetCompanyBody;
+  } catch {
+    return errorResponse('Invalid JSON body', 'BAD_REQUEST', 400);
+  }
+
   // 4. Role gate: Admin of this org OR platform Operator
   //    REPLACED: is_operator() RPC call (uses auth.uid() which is null under service_role)
   //    WITH: direct platform_operators table check on the verified userId
@@ -259,7 +272,8 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   const isAdmin = profile.role === 'Admin';
   const isPlatformOperator = !!isOperator;
-  if (!isAdmin && !isPlatformOperator) {
+  const mayEnsureProject = body.setupAction === 'ensure-project' && ['Executive', 'Project Manager', 'Finance'].includes(profile.role);
+  if (!isAdmin && !isPlatformOperator && !mayEnsureProject) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 
@@ -275,27 +289,19 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('Only an active member of this organization can activate its ERPNext connection', 'FORBIDDEN', 403);
   }
 
-  // 5. Parse body
-  let body: SetCompanyBody;
-  try {
-    body = (await req.json()) as SetCompanyBody;
-  } catch {
-    return errorResponse('Invalid JSON body', 'BAD_REQUEST', 400);
-  }
-
   const { tier, companyId } = body;
   if (tier !== 'erpnext') {
     return errorResponse('Only erpnext tier is supported for company selection', 'BAD_REQUEST', 400);
   }
 
-  if (!companyId || typeof companyId !== 'string') {
+  if (!body.setupAction && (!companyId || typeof companyId !== 'string')) {
     return errorResponse('companyId is required for ERPNext', 'BAD_REQUEST', 400);
   }
 
   // 6. Load ERPNext binding for this org
   const { data: binding, error: bindingError } = await serviceClient
     .from('external_org_bindings')
-    .select('secret_ref, status, config, site_url')
+    .select('secret_ref, status, config, site_url, activated_at, version_major')
     .eq('org_id', profile.org_id)
     .eq('external_tier', 'erpnext')
     .single();
@@ -331,6 +337,22 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('Invalid ERPNext credential format in Vault', 'CONFIG_REJECTED', 422);
   }
   const [apiKey, apiSecret] = stored;
+
+  if (body.setupAction) {
+    if (!isAdmin && !mayEnsureProject) return errorResponse('Admin role required', 'FORBIDDEN', 403);
+    const company = binding.config?.company;
+    if (!binding.activated_at || typeof company !== 'string' || !company) return errorResponse('Select the ERPNext Company before setup', 'config-rejected', 422);
+    try {
+      const url = new URL(binding.site_url);
+      if (url.protocol !== 'https:' || isPrivateOrReservedHost(url.hostname)) throw new AppError('ERPNext site URL is not allowed', 'config-rejected');
+      return json(await applyErpSetup(body, { serviceClient, orgId: profile.org_id, actorId: userId, company, config: binding.config,
+        client: { fetchImpl: fetch, baseUrl: binding.site_url, apiKey, apiSecret } }));
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? 'INTERNAL';
+      return errorResponse(err instanceof Error ? err.message : 'ERP setup failed', code,
+        code === 'NOT_FOUND' ? 404 : code === 'BAD_REQUEST' ? 400 : code === 'config-rejected' ? 422 : code === 'external-unreachable' ? 502 : 500);
+    }
+  }
 
   // 8. Validate Company exists in ERPNext (SSRF-guarded) and capture the doc — it is the source of
   // the account defaults the activation RPC persists (FR-EAC-106).

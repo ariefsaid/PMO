@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementRow, ProcurementWithRefs } from './procurements';
+import { attachApprovalRoutes } from './approvalRoutes';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §1.6)
@@ -199,7 +200,8 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
     .eq('id', id)
     .single();
   if (error) throwRpc(error);
-  return data as unknown as ProcurementDetail;
+  const [withRoute] = await attachApprovalRoutes([data as unknown as ProcurementDetail]);
+  return withRoute;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +300,8 @@ interface VendorInvoiceTaxInput {
   taxAmount: number;
   /** Authored tax percentage (e.g. 11 for PPN 11%). null/undefined = not recorded — never 0%. */
   taxRate?: number | null;
+  taxBaseNumerator?: number;
+  taxBaseDenominator?: number;
   /** ERPNext "Purchase Taxes and Charges Template" name; absent for a standalone org. */
   taxTemplate?: string | null;
 }
@@ -314,6 +318,8 @@ export interface CreateInvoiceInput extends VendorInvoiceTaxInput {
   importKey?: string;
   importBatchId?: string;
   importedAt?: string;
+  /** #769: the parent group's number for this invoice (optional, ≤100 chars, trimmed server-side). */
+  externalRef?: string | null;
 }
 
 /**
@@ -336,6 +342,9 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Procurem
     p_tax_amount: input.taxAmount,
     p_tax_rate: input.taxRate ?? undefined,
     p_tax_template: input.taxTemplate ?? undefined,
+    ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
+    ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
+    ...(input.externalRef ? { p_external_ref: input.externalRef } : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -359,6 +368,8 @@ export interface CaptureVendorInvoiceInput extends VendorInvoiceTaxInput {
   amount?: number | null;
   /** Transition note, logged on the status event by the inner transition_procurement call. */
   notes?: string | null;
+  /** #769: the parent group's number for this invoice (optional, ≤100 chars, trimmed server-side). */
+  externalRef?: string | null;
 }
 
 export async function captureVendorInvoice(
@@ -376,6 +387,9 @@ export async function captureVendorInvoice(
     p_tax_amount: input.taxAmount,
     p_tax_rate: input.taxRate ?? undefined,
     p_tax_template: input.taxTemplate ?? undefined,
+    ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
+    ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
+    ...(input.externalRef ? { p_external_ref: input.externalRef } : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

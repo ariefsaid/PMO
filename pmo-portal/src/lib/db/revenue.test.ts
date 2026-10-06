@@ -14,6 +14,12 @@ const h = vi.hoisted(() => {
     /** Successive `sales_invoices` responses, one per `.range()` page the DAL requests. */
     invoicePages: [] as Array<Array<Record<string, unknown>>>,
     projects: [] as Array<{ id: string; name: string }>,
+    /** Singular reads: data served by `.maybeSingle()` per table. */
+    singles: {} as Record<string, Record<string, unknown> | null>,
+    /** Every `.select(columns)` the DAL issued, in order. */
+    columnCalls: [] as Array<{ table: string; columns: string }>,
+    /** Every `.eq(col, val)` the DAL issued, in order. */
+    eqCalls: [] as Array<[string, unknown]>,
     /** Every `[from, to]` the DAL asked PostgREST for, in order. */
     ranges: [] as Array<[number, number]>,
     /** Every keyset cursor (`.gt('id', …)`) the DAL asked for, in order. */
@@ -37,7 +43,12 @@ const h = vi.hoisted(() => {
     let cap = Number.POSITIVE_INFINITY;
     let window: [number, number] | null = null;
     const b = {
-      select() { return b; },
+      select(columns?: string) {
+        if (columns) state.columnCalls.push({ table, columns });
+        return b;
+      },
+      eq(column: string, value: unknown) { state.eqCalls.push([column, value]); return b; },
+      maybeSingle() { return Promise.resolve({ data: state.singles[table] ?? null, error: null }); },
       neq() { return b; },
       order(column: string, opts?: { ascending?: boolean }) {
         state.orders.push({ column, ascending: opts?.ascending });
@@ -70,7 +81,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
-import { getRevenueByProject } from './revenue';
+import { getRevenueByProject, getSalesInvoice, getIncomingPayment } from './revenue';
 
 /** `n` invoices for one project, each `amount` billed with `outstanding` still open. Ids are unique
  *  and sort in insertion order — the keyset scan reads its cursor from the last row of each page. */
@@ -87,6 +98,9 @@ function invoices(n: number, projectId: string | null, amount: number, outstandi
 beforeEach(() => {
   h.state.invoicePages = [];
   h.state.projects = [];
+  h.state.singles = {};
+  h.state.columnCalls = [];
+  h.state.eqCalls = [];
   h.state.ranges = [];
   h.state.cursors = [];
   h.state.limits = [];
@@ -212,5 +226,48 @@ describe('db/revenue getRevenueByProject — the rollup must not silently trunca
     const rows = await getRevenueByProject();
     expect(rows).toEqual([]);
     expect(h.from).not.toHaveBeenCalledWith('projects');
+  });
+});
+
+describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC-FIN-001)', () => {
+  it('AC-FIN-001: getSalesInvoice uses the same customer/author projection and flattens customer_name', async () => {
+    h.state.singles.sales_invoices = {
+      id: 'si-1',
+      si_number: 'ACC-SINV-1',
+      companies: { erp_payment_terms_days: 30, name: 'Acme Co' },
+      sales_invoice_authors: [{ user_id: 'u-1' }],
+    };
+
+    const row = await getSalesInvoice('si-1');
+
+    expect(h.state.columnCalls).toContainEqual({
+      table: 'sales_invoices',
+      columns: '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name), sales_invoice_authors(user_id)',
+    });
+    expect(h.state.eqCalls).toContainEqual(['id', 'si-1']);
+    expect(row?.customer_name).toBe('Acme Co');
+    expect(row?.author_user_ids).toEqual(['u-1']);
+  });
+
+  it('AC-FIN-001: getIncomingPayment uses the customer-qualified projection and flattens customer_name', async () => {
+    h.state.singles.incoming_payments = {
+      id: 'ip-1',
+      ip_number: 'ACC-PAY-1',
+      customer: { name: 'Acme Co' },
+    };
+
+    const row = await getIncomingPayment('ip-1');
+
+    expect(h.state.columnCalls).toContainEqual({
+      table: 'incoming_payments',
+      columns: '*, customer:companies!incoming_payments_customer_id_fkey(name)',
+    });
+    expect(h.state.eqCalls).toContainEqual(['id', 'ip-1']);
+    expect(row?.customer_name).toBe('Acme Co');
+  });
+
+  it('AC-FIN-001: a missing relation on a singular read yields customer_name null (never the id)', async () => {
+    h.state.singles.incoming_payments = { id: 'ip-2', ip_number: 'ACC-PAY-2', customer: null };
+    expect((await getIncomingPayment('ip-2'))?.customer_name).toBeNull();
   });
 });

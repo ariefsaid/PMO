@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
+import { useState } from 'react';
+import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 import {
   listPipelineStageConfig,
   transitionProject,
@@ -45,15 +47,22 @@ type TransitionVars = {
  * On success, invalidates the ['projects', orgId] cache so the list refetches.
  * org_id is NEVER sent to the RPC (FR-PR-010).
  */
-export function useProjectTransition(): UseMutationResult<void, Error, TransitionVars> {
+export function useProjectTransition(): UseMutationResult<void, Error, TransitionVars> & { erpSetupPending: boolean } {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const [erpSetupPending, setErpSetupPending] = useState(false);
 
-  return useMutation<void, Error, TransitionVars>({
+  const mutation = useMutation<void, Error, TransitionVars>({
     mutationFn: ({ id, to, opts }) => transitionProject(id, to, opts),
-    onSuccess: () => {
+    onSuccess: async (_data, { id, to }) => {
+      setErpSetupPending(to === 'Won, Pending KoM' && await synchronizeErpProject(id, orgId) === 'pending');
       queryClient.invalidateQueries({ queryKey: ['projects', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['integrations', 'project-erp', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['integrations', 'setup', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity'] });
     },
   });
+  return { ...mutation, erpSetupPending };
 }

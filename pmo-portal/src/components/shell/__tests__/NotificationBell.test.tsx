@@ -187,6 +187,21 @@ describe('NotificationBell', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/procurement/pc-42');
   });
 
+  it('AC-WFN-001 selecting a timesheet or task hand-off navigates to its queue page', async () => {
+    listUnreadCount.mockResolvedValue(2);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Timesheet awaiting', metadata: { entity: { type: 'timesheet', id: 'ts-1', label: 'Week' } } }),
+      row({ id: 'n2', title: 'Task assigned', metadata: { entity: { type: 'task', id: 'tk-1', label: 'T' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /timesheet awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/timesheets'));
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /task assigned/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/my-tasks'));
+  });
+
   it('AC-AAN-035 selecting a notification with only metadata.run_id opens that run', async () => {
     listUnreadCount.mockResolvedValue(1);
     listNotifications.mockResolvedValue([

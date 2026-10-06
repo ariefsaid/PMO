@@ -29,6 +29,7 @@ export type Action =
   | 'editContractValue'
   | 'setValue'
   | 'submit_sales_invoice'
+  | 'record_received_date'
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
@@ -63,8 +64,12 @@ export type Entity =
   | 'externalBinding'
   | 'integration'
   | 'orgAccounting'
+  | 'orgProjectNumbering'
+  | 'orgProjectClassification'
   | 'employeeLink'
-  | 'pushHold';
+  | 'pushHold'
+  | 'managementPack'
+  | 'projectProgress';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -379,6 +384,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // NOTE: no `edit` entry on purpose — the page has no update mutation (the row-menu Edit is a
     // no-op stub), so granting `edit` would surface an affordance that does nothing.
     transition: allow(REVENUE_WRITE),
+    // #767: record the date the client received the invoice — any non-cancelled state. Mirrors the
+    // `set_sales_invoice_received_date` RPC's Admin+Finance gate (the RPC is the authority).
+    record_received_date: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.
@@ -422,7 +430,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // (`auth_role() = 'Admin'` + active membership) rather than approximating it: flipping an org's
   // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
   // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
+  orgProjectClassification: { manage: allow(ADMIN) },
   orgAccounting: {
+    manage: allow(ADMIN),
+  },
+  orgProjectNumbering: {
     manage: allow(ADMIN),
   },
   // P3b (OQ-TSP-10(C) — the owner ruling): the Employee-adopt link is PROPOSE-then-CONFIRM, never
@@ -438,6 +450,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // UX ONLY: the RPC is the enforcement authority (ADR-0016).
   pushHold: {
     manage: allow(ADMIN),
+  },
+  // #765 (DD-MMP-4): the management pack mirrors the revenue READ set (salesInvoice.view). RLS on
+  // sales_invoices admits every active member; the FE is stricter, exactly as for the invoice lists.
+  managementPack: {
+    view: allow(MASTER_DATA),
+  },
+  // #765 (DD-MMP-4): a project's month-end percent complete. Mirrors migration 0245's
+  // `may_record_project_progress`: Finance rank and above on any project, or the project's own PM.
+  // UX ONLY — record_project_progress + RLS are the authority (ADR-0016).
+  projectProgress: {
+    edit: (role, ctx) =>
+      has(MONEY_AUTHORITY, role) ||
+      (role === 'Project Manager' &&
+        !!ctx.currentUserId &&
+        ctx.record?.project_manager_id === ctx.currentUserId),
   },
 };
 

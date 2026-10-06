@@ -87,9 +87,9 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/sales-invoices', text: 'Sales Invoices', icon: 'file', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/incoming-payments', text: 'Incoming Payments', icon: 'dollar', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // Reports is demoted from the rail until the module ships (AC-IXD-DASH-004 / IA F8): an unbuilt
-  // module must not be a top-slot nav item leading to an empty stub. The /reports <Route> is kept
-  // (App.tsx) so a stray deep link still resolves to the honest "arrives later" placeholder.
+  // #765: the Reports module's first report — the monthly management pack. Same read set and the same
+  // `revenue` entitlement as the other Finance items (it is built from sales invoices).
+  { to: '/reports', text: 'Management pack', icon: 'grid', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
 ];
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
@@ -188,6 +188,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
     '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
+    '/reports': t('shell.nav.managementPack', 'Management pack'),
   };
   const groupLabels: Record<NavItem['group'], string> = {
     Overview: t('shell.rail.group.overview', 'Overview'),

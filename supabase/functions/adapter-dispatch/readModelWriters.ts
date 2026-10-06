@@ -125,6 +125,27 @@ const tasksWriter: ReadModelWriter = {
  *  can never clobber a user's soft-archive. */
 const companiesWriter: ReadModelWriter = {
   async upsert(ctx, canonical, command) {
+    if (command.record.erp_doc_kind === 'contact') {
+      const companyId = command.record.company_id;
+      if (typeof companyId !== 'string' || !companyId || await checkLinkSameOrg(ctx, 'companies', companyId) !== 'ok') {
+        throw new AppError('Contact company is unavailable', 'cross-org-link-rejected');
+      }
+      const fields = {
+        full_name: canonical.full_name,
+        email: canonical.email ?? null,
+        phone: canonical.phone ?? null,
+        erp_modified: canonical.erp_modified ?? null,
+      };
+      const query = command.operation === 'create'
+        ? ctx.serviceClient.from('contacts').insert({
+          id: canonical.id, org_id: ctx.orgId, company_id: companyId,
+          title: command.record.title ?? null, notes: command.record.notes ?? null, ...fields,
+        })
+        : ctx.serviceClient.from('contacts').update(fields).eq('org_id', ctx.orgId).eq('id', canonical.id);
+      const { error } = await (query as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+      if (error) throw new AppError(error.message, error.code);
+      return;
+    }
     const patch = {
       name: canonical.name,
       type: canonical.type,
@@ -650,6 +671,14 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   if (siTaxAmount !== null) patch.tax_amount = siTaxAmount;
   const siTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
   if (siTaxTemplate !== null) patch.tax_template = siTaxTemplate;
+  // #767: ERP's due_date and the mirrored receipt date. Written ONLY when ERP carries a value — an ERP
+  // doc without the custom field must never erase a receipt date PMO recorded after submission. Stored
+  // as ERP says it: 0244 checks "not before the invoice date" in the user RPC only, so this read-back
+  // can never be refused (a refusal would stall the invoice's status sync).
+  const siErpDue = (canonical.erp_due_date as string | null | undefined) ?? null;
+  if (siErpDue !== null) patch.erp_due_date = siErpDue;
+  const siReceived = (canonical.received_date as string | null | undefined) ?? null;
+  if (siReceived !== null) patch.received_date = siReceived;
   if (command.operation === 'create') {
     const record = command.record as { projectId?: string; customerId?: string };
     // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
@@ -729,6 +758,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
 async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
   const docstatus = canonical.erp_docstatus as number | null | undefined;
   const patch: Record<string, unknown> = {
+    ...(canonical.received_amount !== undefined ? { received_amount: canonical.received_amount } : {}),
+    ...(canonical.withheld_amount !== undefined ? { withheld_amount: canonical.withheld_amount } : {}),
+    ...(canonical.withholding_slip_number !== undefined ? { withholding_slip_number: canonical.withholding_slip_number } : {}),
     ip_number: canonical.ip_number ?? null,
     // customer_id/sales_invoice_id/date are PMO-side links+values set ONLY on create (from
     // command.record, below) — intentionally absent here: spreading them (even as null) would clobber

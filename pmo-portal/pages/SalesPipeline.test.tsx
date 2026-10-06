@@ -17,7 +17,7 @@ const seedStages = [
   { status: 'Negotiation', count: 0, total_value: 0, win_probability: 0.75, weighted_value: 0 },
 ];
 const seedProjects = [
-  { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
+  { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
   { id: 'p10', name: 'Regional Services', client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
   // #530 / FR-L10N-020: mixed-currency pair for the table regression — each row shows its OWN
   // currency, not the USD org default (a single-currency fixture set could hide a hardcoded literal).
@@ -119,6 +119,19 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument();
     // the live Export outline button is kept.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
+  });
+
+  it('AC-CODE-003: searches pipeline deals by PMO Project Number and Client Project Code', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    await user.type(search, 'PMO-26-7712');
+    await waitFor(() => expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument());
+    expect(screen.queryByText('Regional Services')).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'CLIENT-82');
+    await waitFor(() => expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument());
+    expect(screen.queryByText('Regional Services')).not.toBeInTheDocument();
   });
 
   it('AC-SP-202: funnel band shows the five open stages, not Won/Lost', () => {
@@ -441,4 +454,15 @@ describe('SalesPipeline Board stage selection (#697)', () => {
     renderPage('/sales?view=kanban&status=Tender%20Submitted');
     expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
   });
+});
+
+it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible deals by classification', async (view) => {
+  pipelineState.data = { stages: seedStages, projects: seedProjects.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) };
+  const user = userEvent.setup(); renderPage(`/sales?view=${view}`);
+  await user.selectOptions(screen.getByLabelText('Filter by service line'), 'Engineering');
+  expect(screen.getByText('Northwind ERP Rollout')).toBeVisible();
+  expect(screen.queryByText('Regional Services')).toBeNull();
+  await user.type(screen.getByLabelText('Filter by location'), 'Bali');
+  expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
+  expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
 });
