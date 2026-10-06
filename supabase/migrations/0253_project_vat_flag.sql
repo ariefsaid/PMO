@@ -5,20 +5,28 @@
 -- * `projects.subject_to_vat` — default true, not null. Not insertable by `authenticated` (INSERT is column-granted), so a
 --   new project is always on; the only user writer is `set_project_contract_value`, the contract-value setter, which gains
 --   an optional `p_subject_to_vat` (null = unchanged) that only Finance/Admin may move.
--- * A lock trigger refuses any change once a sales invoice exists for the project (server-enforced, every writer).
+-- * A lock trigger refuses any change once a sales invoice exists for the project (cancelled ones included) or a sales-invoice
+--   create for it is still in flight in the outbox (server-enforced, every writer).
 
 alter table public.projects
   add column subject_to_vat boolean not null default true;
 
 comment on column public.projects.subject_to_vat is
   'OD-TAX-4: is this project subject to VAT (PPN)? ON: its sales invoices and claims send explicit tax rows to ERPNext; '
-  'OFF: no tax rows. Set with the contract value by Finance/Admin; locked once the project has a sales invoice.';
+  'OFF: no tax rows. Set with the contract value by Finance/Admin; locked once the project has an invoice (cancelled included) or one is in flight.';
 
 create function public.guard_project_vat_flag_lock() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if exists (select 1 from public.sales_invoices where project_id = new.id) then
-    raise exception 'this project already has a sales invoice, so whether it is subject to VAT can no longer change — cancel its invoices first'
+  -- Locked by (a) any sales invoice for the project, cancelled ones included (ERPNext keeps the taxed history), and
+  -- (b) any sales-invoice create still in flight for it: a flip then would leave recovery with a changed payload digest.
+  -- Outbox states `confirmed` and `failed` are terminal; everything else (pending, committing, committed, quarantined, held) is in flight.
+  if exists (select 1 from public.sales_invoices where project_id = new.id)
+     or exists (select 1 from public.external_command_outbox o
+                 where o.org_id = new.org_id and o.domain = 'revenue' and o.operation = 'create'
+                   and o.payload->>'erp_doc_kind' = 'sales-invoice' and o.payload->>'projectId' = new.id::text
+                   and o.state not in ('confirmed','failed')) then
+    raise exception 'whether this project is subject to VAT is locked once the project has an invoice'
       using errcode = '42501';
   end if;
   return new;

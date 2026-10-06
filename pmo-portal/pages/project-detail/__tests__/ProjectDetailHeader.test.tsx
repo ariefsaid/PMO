@@ -556,6 +556,6 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
     invoiceBox.data = [{ id: 'si-1' }];
     await openEditor('Finance');
     expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/already has a sales invoice/i);
+    expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/locked once the project has an invoice/i);
   });
 });

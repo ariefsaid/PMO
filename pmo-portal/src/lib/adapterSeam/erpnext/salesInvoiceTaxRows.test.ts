@@ -58,7 +58,7 @@ function erpFetch(template: unknown = TEMPLATE) {
     if (path.startsWith('/api/resource/Sales Taxes and Charges Template')) {
       templateReads.push(path);
       return path === '/api/resource/Sales Taxes and Charges Template'
-        ? Response.json({ data: [{ name: 'Synthetic Sales Tax' }] })
+        ? Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] })
         : Response.json({ data: template });
     }
     const body = JSON.parse(String(init?.body)) as Row;
@@ -128,5 +128,21 @@ describe('ordinary sales invoice tax rows (#856)', () => {
       doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
     })).rejects.toThrow(/only "On Net Total" rows can be sent/);
     expect(erp.writes).toEqual([]);
+  });
+
+  it('AC-856-10 an ordinary invoice on a VAT-on project is refused (config-rejected) when ERPNext has no default tax template', async () => {
+    const cmd = command();
+    const erp = erpFetch(null);
+    await expect(resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TAXED), orgId: ORG, command: cmd,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    })).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('default Sales Taxes and Charges template') });
+    expect(erp.writes).toEqual([]);
+  });
+
+  it('AC-856-10 a VAT-off project with no template still creates, untaxed', async () => {
+    const { body } = await push(VAT_OFF, {}, null);
+    expect(body).not.toHaveProperty('taxes');
   });
 });

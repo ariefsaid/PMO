@@ -215,9 +215,13 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect((body.taxes as Row[])[0].rate).toBe(11);
   });
 
-  it('AC-PB-020 sends no tax rows when the company has no default template', async () => {
-    const { body } = await push({}, CLAIM, { template: null });
-    expect(body.taxes).toBeUndefined();
+  it.each([
+    ['a progress claim', CLAIM],
+    ['a down payment claim', { ...CLAIM, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00' }],
+  ])('AC-856-10 %s on a VAT-on project is refused (config-rejected) when ERPNext has no default tax template', async (_label, claim) => {
+    const { attempt, fetchImpl } = refused(command({}), claim, EVIDENCE, { template: null });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('default Sales Taxes and Charges template') });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
   });
 
   it('AC-PB-020 refuses a template row that is not On Net Total', async () => {

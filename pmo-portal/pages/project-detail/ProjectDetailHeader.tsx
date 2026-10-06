@@ -370,8 +370,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               </div>
               <p data-testid="contract-vat-flag-hint" className="text-[12px] text-muted-foreground">
                 {vatLocked
-                  ? t('projectDetail.header.subjectToVatLocked', 'Locked: this project already has a sales invoice. Cancel its invoices to change it.')
-                  : t('projectDetail.header.subjectToVatHint', 'When on, this project\'s invoices carry the ERP sales tax. Locked once the first invoice exists.')}
+                  ? t('projectDetail.header.subjectToVatLocked', 'Locked once the project has an invoice.')
+                  : t('projectDetail.header.subjectToVatHint', 'When on, this project\'s invoices carry the ERP sales tax. Locked once the project has an invoice.')}
               </p>
             </div>
           )}

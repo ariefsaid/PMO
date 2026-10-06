@@ -1919,8 +1919,8 @@
       "clientCode": "Kode Proyek Klien",
       "notSet": "Belum diatur",
       "subjectToVat": "Kena PPN",
-      "subjectToVatLocked": "Terkunci: proyek ini sudah punya faktur penjualan. Batalkan fakturnya untuk mengubah.",
-      "subjectToVatHint": "Jika aktif, faktur proyek ini membawa pajak penjualan ERP. Terkunci setelah faktur pertama dibuat."
+      "subjectToVatLocked": "Terkunci setelah proyek memiliki faktur.",
+      "subjectToVatHint": "Jika aktif, faktur proyek ini membawa pajak penjualan ERP. Terkunci setelah proyek memiliki faktur."
     },
     "milestoneForm": {
       "create": "Buat milestone",

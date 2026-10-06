@@ -2952,3 +2952,9 @@ project's first invoice exists, then locked (to change it, cancel the invoices f
 progress/down-payment claim on the project follows it: on → explicit tax rows from the org's sales-tax setup (PPN
 12% on a reduced base of 11/12, i.e. 11% effective; the full 12% rate is not in use); off → no tax rows. Resolves
 the #855 review item M-3 (a VAT-free contract got the template VAT) and governs #856.
+
+**DD-TAX-4a (Director, 2026-10-06, #856, under OD-TAX-4) — a cancelled invoice still locks the project's VAT flag; a VAT-on invoice is never sent untaxed.**
+ERPNext keeps the taxed history of a cancelled invoice, so the flag stays locked once the project has any invoice (cancelled
+included) or a sales-invoice create still in flight in the outbox (otherwise recovery would see a changed payload digest). When
+the flag is on and ERPNext has no enabled default Sales Taxes and Charges template for the company, the dispatch is refused with
+`config-rejected` and the setup action, for ordinary, progress-claim and down-payment invoices alike.

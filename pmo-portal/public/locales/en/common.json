@@ -1919,8 +1919,8 @@
       "clientCode": "Client Project Code",
       "notSet": "Not set",
       "subjectToVat": "Subject to VAT (PPN)",
-      "subjectToVatLocked": "Locked: this project already has a sales invoice. Cancel its invoices to change it.",
-      "subjectToVatHint": "When on, this project's invoices carry the ERP sales tax. Locked once the first invoice exists."
+      "subjectToVatLocked": "Locked once the project has an invoice.",
+      "subjectToVatHint": "When on, this project's invoices carry the ERP sales tax. Locked once the project has an invoice."
     },
     "milestoneForm": {
       "create": "Create milestone",

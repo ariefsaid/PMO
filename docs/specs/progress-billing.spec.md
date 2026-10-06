@@ -54,8 +54,8 @@ Renumbered after the ruling. "Was" gives the previous number; **changed** / **ne
 - **DD-PBL-13 — every invoice carries tax rows, gated by the project's VAT flag (#856, OD-TAX-4).** Ordinary invoice creates and
   claim/down-payment invoices send the same explicit `On Net Total` rows, built server-side from the ERP default template
   and the project's reduced-base fraction (#798). The project's "Subject to VAT (PPN)" flag (default on; Finance/Admin
-  set it with the contract value; locked once the project has a sales invoice) decides: off → no rows and no template read.
-  A caller-supplied `taxes` array is always dropped. Edits and amends send none.
+  set it with the contract value; locked once the project has an invoice, cancelled ones included, or one is in flight) decides: off → no rows and no template read.
+  A caller-supplied `taxes` array is always dropped. A VAT-on invoice is never sent untaxed: with no enabled default Sales Taxes and Charges template in ERPNext the dispatch is refused (`config-rejected`) with the setup action. Edits and amends send none.
 - **DD-PBL-7 — a billing claim is immutable, IS its invoice's record, and needs evidence.** *(was 5; changed)*
   The claim id is the invoice's PMO record id, so one claim mints at most one invoice. The server builds the
   invoice from the claim only and refuses edit/amend. **No invoice can be raised for a claim until at least one

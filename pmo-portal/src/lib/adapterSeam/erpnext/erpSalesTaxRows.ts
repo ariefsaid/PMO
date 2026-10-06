@@ -2,7 +2,7 @@
  * Explicit `taxes` rows for a billing-claim Sales Invoice (#766 / DD-PBL-12b). ERPNext does NOT expand a tax template
  * named over REST (spike 2026-10-06), so the dispatch reads the company's default Sales Taxes and Charges template and
  * sends its rows itself: `On Net Total`, so tax lands on the net total AFTER the down-payment recovery line.
- * An org with no default template gets no rows (tax-free), exactly as an ordinary invoice does.
+ * * An org with no default template gets no rows here; the dispatch refuses a VAT-on invoice in that case (config-rejected).
  *
  * `fraction` is the contract's reduced tax base (#798/0227 tax_base_numerator/denominator): the row rate is scaled by it,
  * so ERP taxes the same reduced base PMO records.
