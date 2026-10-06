@@ -34,7 +34,7 @@ export function world(o: Over = {}) {
       case 'projects': return { data: c.terminal === 'maybeSingle' ? PROJECT : [PROJECT], error: null };
       case 'companies': return { data: { name: 'PT Client' }, error: null };
       case 'external_refs': return { data: [{ external_record_id: 'Customer:PT Client' }], error: null };
-      case 'organizations': return { data: { default_locale: 'en-US', default_number_locale: 'en-US' }, error: null };
+      case 'organizations': return { data: { default_locale: 'en-US', default_number_locale: 'en-US', default_currency: 'IDR' }, error: null };
       default: return { data: null, error: null };
     }
   };

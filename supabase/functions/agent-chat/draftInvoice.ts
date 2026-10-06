@@ -126,10 +126,13 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…`
  */
 export function summarizeDraft(p: DraftInvoicePrepared): string {
   const d = p.display;
-  if (d.itemLabel) {
-    return `Save as Draft: invoice ${clip(d.customerName, 14)} ${clip(d.amountText, 16)} excl. tax for ${clip(d.sourceLabel, 14)} (item ${clip(d.itemLabel, 12)}). Not submitted.`;
-  }
-  return `Save as Draft: invoice ${clip(d.customerName, 23)} ${clip(d.amountText, 22)} excl. tax for ${clip(d.sourceLabel, 20)}. Not submitted.`;
+  // The amount is NEVER clipped (a clipped money figure on an approval chip is a wrong figure); the names share
+  // what is left of the 120-char budget.
+  const fixedChars = 'Save as Draft: invoice  '.length + d.amountText.length + ' excl. tax for '.length + '. Not submitted.'.length
+    + (d.itemLabel ? ' (item )'.length : 0);
+  const each = Math.max(4, Math.floor((120 - fixedChars) / (d.itemLabel ? 3 : 2)));
+  const itemText = d.itemLabel ? ` (item ${clip(d.itemLabel, each)})` : '';
+  return `Save as Draft: invoice ${clip(d.customerName, each)} ${d.amountText} excl. tax for ${clip(d.sourceLabel, each)}${itemText}. Not submitted.`;
 }
 
 export type Candidate = { id: string; label: string };
@@ -321,8 +324,8 @@ export async function prepareDraftInvoice(
     readRows<{ external_record_id: string }>(
       sb.from('external_refs').select('external_record_id').eq('domain', 'companies').eq('pmo_record_id', clientId).limit(1),
     ),
-    readOne<{ default_locale: string | null; default_number_locale: string | null }>(
-      sb.from('organizations').select('default_locale, default_number_locale').eq('id', ctx.orgId).maybeSingle(),
+    readOne<{ default_locale: string | null; default_number_locale: string | null; default_currency: string | null }>(
+      sb.from('organizations').select('default_locale, default_number_locale, default_currency').eq('id', ctx.orgId).maybeSingle(),
     ),
   ]);
   if (erpLink.length === 0) {
@@ -345,6 +348,14 @@ export async function prepareDraftInvoice(
   const poRef = source.kind === 'workOrder' ? source.wo.client_po_number ?? null : null;
   if (source.kind === 'workOrder' && poRef !== null && poRef.length > 140) {
     return refuse(`The client PO reference on ${source.wo.wo_number ?? source.wo.title} is longer than 140 characters, so it cannot go on an invoice. Shorten it on the work order first.`);
+  }
+
+  // The dispatched invoice carries NO currency (ERPNext applies the customer's / company's), so a source in any
+  // other currency than the org's would be billed in the wrong one: refuse before the chip.
+  const sourceCurrency = source.kind === 'workOrder' ? source.wo.currency : project.currency;
+  if (org?.default_currency && sourceCurrency !== org.default_currency) {
+    const label = source.kind === 'workOrder' ? source.wo.wo_number ?? source.wo.title : `${project.name} — ${source.ms.name}`;
+    return refuse(`${label} is in ${sourceCurrency}, but this organisation invoices in ${org.default_currency}. Create this one from Sales Invoices instead.`);
   }
 
   const item = await resolveItem(ctx, req.itemCode);

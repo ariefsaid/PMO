@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { summarizeDraft, validateDraftRequest, validatePreparedDraft } from '../../../../supabase/functions/agent-chat/draftInvoice';
+import { formatMoney } from '../../../../supabase/functions/agent-chat/agentFormat';
 import { PREPARED } from './testing/draftInvoiceFixtures';
 
 describe('validateDraftRequest (#787)', () => {
@@ -35,4 +36,17 @@ describe('validatePreparedDraft / summarizeDraft (#787)', () => {
     const long = { ...PREPARED, display: { ...PREPARED.display, customerName: 'C'.repeat(80), sourceLabel: 'S'.repeat(80), amountText: 'A'.repeat(40) } };
     expect(summarizeDraft(long).length).toBeLessThanOrEqual(120);
   });
+  it.each([['en-US', 'IDR', 1_250_000_000], ['id-ID', 'IDR', 999_999_999_999.99], ['id-ID', 'IDR', 12_345_678_901]])(
+    'DD-AIN-6 FR-AIN-024 never clips the amount (%s %s %d), with or without an item, within 120 chars',
+    (locale, currency, amount) => {
+      const amountText = formatMoney(amount, currency, locale);
+      for (const itemLabel of [undefined, 'SVC-LONG-ITEM-CODE — Consulting services']) {
+        const d = { ...PREPARED, display: { ...PREPARED.display, customerName: 'PT Very Long Client Name Indonesia', sourceLabel: 'WO-20261001-001 long source', amountText, ...(itemLabel ? { itemLabel } : {}) } };
+        const out = summarizeDraft(d);
+        expect(out).toContain(amountText);
+        expect(out.length).toBeLessThanOrEqual(120);
+        expect(out).toMatch(/Not submitted\.$/);
+      }
+    },
+  );
 });

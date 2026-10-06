@@ -230,4 +230,12 @@ describe('prepareDraftInvoice — chip honesty and limits (#787)', () => {
     expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({ ok: false, error: {
       error: 'The client PO reference on WO-20261001-001 is longer than 140 characters, so it cannot go on an invoice. Shorten it on the work order first.' } });
   });
+  it('a source currency that differs from the org\'s billing currency is refused before the chip (the dispatch sends no currency)', async () => {
+    const { client } = fakeSupabase(world({ work_orders: () => [{ ...WO, currency: 'USD' }] }), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({ ok: false, error: {
+      error: "WO-20261001-001 is in USD, but this organisation invoices in IDR. Create this one from Sales Invoices instead." } });
+    const ms = fakeSupabase(world({ projects: (c) => (c.terminal === 'maybeSingle' ? { ...PROJECT, currency: 'USD' } : [{ ...PROJECT, currency: 'USD' }]) }), oneItem);
+    expect(await prepareDraftInvoice({ milestone: '2', project: P1, amount: 5 }, ctx('Finance', ms.client), newId))
+      .toMatchObject({ ok: false, error: { error: expect.stringMatching(/in USD, but this organisation invoices in IDR/) } });
+  });
 });
