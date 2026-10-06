@@ -1,6 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
+import { attachApprovalRoutes } from './approvalRoutes';
+import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
 export type ProcurementRow = Tables<'procurements'>;
 
@@ -9,6 +11,8 @@ export type ProcurementWithRefs = ProcurementRow & {
   project: { name: string; code: string | null } | null;
   vendor: { name: string } | null;
   requested_by: { full_name: string } | null;
+  /** #803: present only on a Requested row whose route was read (see attachApprovalRoutes). */
+  approvalRoute?: ApprovalRoute;
   /** #769: the parent group's numbers on this case's PR / PO / vendor-invoice records (search + export). */
   pr_refs?: { external_ref: string | null }[];
   po_refs?: { external_ref: string | null }[];
@@ -102,7 +106,7 @@ export async function listProcurements(
   if (range) q = q.range(range.from, range.to);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as ProcurementWithRefs[];
+  return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
 }
 
 /**

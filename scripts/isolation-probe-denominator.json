@@ -77,6 +77,7 @@
     {"table":"sales_invoice_authors","has_org":true,"pk":"sales_invoice_id"},
     {"table":"sales_invoice_submit_authorizations","has_org":true,"pk":"sales_invoice_id"},
     {"table":"sales_invoices","has_org":true,"pk":"id"},
+    {"table":"spend_approvers","has_org":true,"pk":"id"},
     {"table":"task_dependencies","has_org":true,"pk":"task_id"},
     {"table":"tasks","has_org":true,"pk":"id"},
     {"table":"timesheet_entries","has_org":true,"pk":"id"},

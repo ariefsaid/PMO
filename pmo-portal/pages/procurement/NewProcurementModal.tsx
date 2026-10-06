@@ -6,12 +6,15 @@ import {
   Combobox,
   FormSection,
   FormGrid,
+  SelectField,
   useEntityForm,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { NewProcurementInput } from '@/src/lib/db/procurementCrud';
+import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
+import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './budgetCategoryOptions';
 
 // ---------------------------------------------------------------------------
 // NewProcurementModal — "Raise a purchase request" create form (crud-components
@@ -29,6 +32,7 @@ interface FormValues {
   title: string;
   projectId: string | null;
   vendorId: string | null;
+  budgetCategory: string;
 }
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
@@ -61,7 +65,7 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
   initialProjectId = null,
 }) => {
   const form = useEntityForm<FormValues>({
-    initialValues: { title: '', projectId: initialProjectId, vendorId: null },
+    initialValues: { title: '', projectId: initialProjectId, vendorId: null, budgetCategory: '' },
     validate,
     idPrefix: 'new-pr',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title is present.
@@ -113,6 +117,7 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
           title: values.title.trim(),
           projectId: values.projectId,
           vendorId: values.vendorId,
+          ...(values.budgetCategory ? { budgetCategory: values.budgetCategory as BudgetCategory } : {}),
         });
         onCreated(created.id);
       } catch (err) {
@@ -168,6 +173,14 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
             value={form.values.vendorId}
             onChange={(v) => form.setValue('vendorId', v)}
             loadOptions={loadVendors}
+          />
+          <SelectField
+            id="new-pr-budget-category"
+            label="Budget category"
+            value={form.values.budgetCategory}
+            onChange={(v) => form.setValue('budgetCategory', v)}
+            options={BUDGET_CATEGORY_OPTIONS}
+            helper={BUDGET_CATEGORY_HELPER}
           />
         </FormGrid>
       </FormSection>

@@ -1,4 +1,5 @@
 import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -688,6 +689,12 @@ export interface OrgSettingsRepository {
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
   setTaxDefault(value: TaxTreatment): Promise<void>;
+  /** #803: the org's spend approvers (senior set + project approvers); every active member reads. */
+  listSpendApprovers(): Promise<SpendApproverRow[]>;
+  /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */
+  addSpendApprover(profileId: string, projectId: string | null): Promise<void>;
+  /** #803, Admin-only (RLS): remove one approver row. */
+  removeSpendApprover(id: string): Promise<void>;
 }
 
 /**
