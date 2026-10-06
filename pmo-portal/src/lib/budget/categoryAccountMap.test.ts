@@ -104,4 +104,17 @@ describe('categoryAccountMap (FR-BUD-110..114 — the PMO category ↔ ERP accou
   it('AC-BUD-011 a malformed amount is rejected, never coerced to 0 (a silent under-budget in ERP)', () => {
     expect(() => resolveBudgetAccounts([{ category: 'Labor', budgeted_amount: 'abc' }], MAP)).toThrow(/decimal/i);
   });
+
+  it('AC-BAM-006 refuses a map with two accounts for one category — never pushes to an arbitrary one', () => {
+    const run = () => resolveBudgetAccounts(
+      [{ category: 'Labor', budgeted_amount: '100.00' }],
+      [
+        { category: 'Labor', erp_account: 'Salary - PSC' },
+        { category: 'Labor', erp_account: 'Allowances - PSC' },
+        { category: 'Materials', erp_account: 'Cost of Goods Sold - PSC' },
+      ],
+    );
+    expect(run).toThrow('budget categories have more than one push account: Labor');
+    try { run(); } catch (e) { expect((e as { code?: string }).code).toBe('commit-rejected'); }
+  });
 });

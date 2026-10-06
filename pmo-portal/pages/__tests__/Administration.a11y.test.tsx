@@ -86,6 +86,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   createBudgetCategoryAccountMapRow: vi.fn(),
   updateBudgetCategoryAccountMapRow: vi.fn(),
   deleteBudgetCategoryAccountMapRow: vi.fn(),
+  setBudgetPushAccount: vi.fn(),
 }));
 
 import Administration from '../Administration';

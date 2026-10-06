@@ -38,7 +38,7 @@ export interface BudgetLineItem {
   fiscal_year?: string | null;
 }
 
-/** One row of `budget_category_account_map` (mig 0137) — the org's Admin-administered bijection. */
+/** One PUSH row of `budget_category_account_map` (0137, #768): the account a category's budget is pushed to. The reader (`dispatchFactory.readCategoryAccountMap`) passes only push rows — at most one per category. */
 export interface CategoryAccountMapRow {
   category: BudgetCategory | string;
   erp_account: string;
@@ -104,7 +104,21 @@ export function resolveBudgetAccounts(
     centsByCategory.set(item.category, (centsByCategory.get(item.category) ?? 0) + toCents(item.budgeted_amount));
   }
 
-  const accountFor = new Map(map.map((row) => [row.category, row.erp_account]));
+  // ⚑ #768 FR-BAM-007: the DB allows at most one PUSH account per category and the reader passes only those.
+  // If two rows for one category ever arrive here (a regressed reader), REFUSE — a `new Map` would let the
+  // last row win and push the budget to an arbitrary account.
+  const accountFor = new Map<string, string>();
+  const ambiguous: string[] = [];
+  for (const row of map) {
+    if (accountFor.has(row.category)) {
+      if (!ambiguous.includes(row.category)) ambiguous.push(row.category);
+      continue;
+    }
+    accountFor.set(row.category, row.erp_account);
+  }
+  if (ambiguous.length > 0) {
+    throw new AdapterError('commit-rejected', `budget categories have more than one push account: ${ambiguous.join(', ')}`);
+  }
   const nonZero = [...centsByCategory.entries()].filter(([, cents]) => cents !== 0);
 
   // ⚑ Collect ALL unmapped first — never throw on the first one.
