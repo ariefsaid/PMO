@@ -10,6 +10,43 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.15.0](https://github.com/ariefsaid/PMO/compare/v0.14.0...v0.15.0) (2026-10-06)
+
+
+### Features
+
+* **assistant:** draft a customer invoice for confirmation ([#787](https://github.com/ariefsaid/PMO/issues/787) slice B) ([#861](https://github.com/ariefsaid/PMO/issues/861)) ([ee1bd04](https://github.com/ariefsaid/PMO/commit/ee1bd04ef0a830b3e782334557dbd7e070fc24d8))
+* **assistant:** what's overdue across my projects ([#787](https://github.com/ariefsaid/PMO/issues/787) slice A) ([#849](https://github.com/ariefsaid/PMO/issues/849)) ([2c5a8d8](https://github.com/ariefsaid/PMO/commit/2c5a8d861c51a86e621e85e5d56bc00165f0531d))
+* **billing:** send VAT rows on sales invoices, gated by a per-project flag ([#856](https://github.com/ariefsaid/PMO/issues/856)) ([#862](https://github.com/ariefsaid/PMO/issues/862)) ([f020c3a](https://github.com/ariefsaid/PMO/commit/f020c3a6afcf4d35ac9e297bad4f4fc03b7cf60b))
+* **budget:** several ERP accounts per budget category, one push account ([#768](https://github.com/ariefsaid/PMO/issues/768)) ([#848](https://github.com/ariefsaid/PMO/issues/848)) ([a2f0f60](https://github.com/ariefsaid/PMO/commit/a2f0f6062acfa0557b1557872a568e622feef35f))
+* comments on projects and tasks with mentions ([#790](https://github.com/ariefsaid/PMO/issues/790)) ([#853](https://github.com/ariefsaid/PMO/issues/853)) ([4de113b](https://github.com/ariefsaid/PMO/commit/4de113beb05b2edf4532dc0fb247def93fc84525))
+* expense claims and cash advances, phase A ([#775](https://github.com/ariefsaid/PMO/issues/775)) ([#854](https://github.com/ariefsaid/PMO/issues/854)) ([5887584](https://github.com/ariefsaid/PMO/commit/5887584659a10eb25c3d6532ce185e102ae409a7))
+* **history:** History tab on project and procurement, history card on company and contact ([#719](https://github.com/ariefsaid/PMO/issues/719)) ([#884](https://github.com/ariefsaid/PMO/issues/884)) ([93674e5](https://github.com/ariefsaid/PMO/commit/93674e590848f3fbfcb099e6c2e7cd0c5dc3feb0))
+* **history:** record change history — data layer ([#719](https://github.com/ariefsaid/PMO/issues/719)) ([#872](https://github.com/ariefsaid/PMO/issues/872)) ([eea43dc](https://github.com/ariefsaid/PMO/commit/eea43dcd211935beea5f3a6437222a42927c4d1a))
+* **meetings:** BlockNote minutes editor with action-item blocks ([#805](https://github.com/ariefsaid/PMO/issues/805)) ([#863](https://github.com/ariefsaid/PMO/issues/863)) ([c77ad70](https://github.com/ariefsaid/PMO/commit/c77ad70962ef66029828c53e02a220bc7c072462))
+* **meetings:** warn before leaving unsaved minutes ([#864](https://github.com/ariefsaid/PMO/issues/864)) ([#882](https://github.com/ariefsaid/PMO/issues/882)) ([0a0c386](https://github.com/ariefsaid/PMO/commit/0a0c3869553e5f79901394f633ffa308956447c4))
+* **notifications:** keyset-paged inbox with load more ([#843](https://github.com/ariefsaid/PMO/issues/843), first slice) ([#868](https://github.com/ariefsaid/PMO/issues/868)) ([76c4412](https://github.com/ariefsaid/PMO/commit/76c441253b8f28b466dbba7a3e086736c25d4213))
+* **procurement:** choose the ERPNext purchase tax template on a flipped org ([#520](https://github.com/ariefsaid/PMO/issues/520)) ([#875](https://github.com/ariefsaid/PMO/issues/875)) ([bf5b96c](https://github.com/ariefsaid/PMO/commit/bf5b96caa460f6af4ba123fa9adfcf310e120b6f))
+* progress assessment, evidence-backed billing claims, down payment ([#766](https://github.com/ariefsaid/PMO/issues/766)) ([#855](https://github.com/ariefsaid/PMO/issues/855)) ([7ea285e](https://github.com/ariefsaid/PMO/commit/7ea285ed9d1a99aedcf5308233555c2f1c312d3e))
+
+
+### Bug Fixes
+
+* **alerts:** Telegram alert drain groups, cools down and stamps per organization ([#629](https://github.com/ariefsaid/PMO/issues/629)) ([#877](https://github.com/ariefsaid/PMO/issues/877)) ([982f8d7](https://github.com/ariefsaid/PMO/commit/982f8d7a60e0b8ef7cf7fd070119e91848d9e30f))
+* **billing:** check an ordinary invoice's currency against the customer's ERPNext billing currency ([#866](https://github.com/ariefsaid/PMO/issues/866)) ([#870](https://github.com/ariefsaid/PMO/issues/870)) ([6e4167b](https://github.com/ariefsaid/PMO/commit/6e4167baaf47bf985bbfd8404d7400823fee9fde))
+* **billing:** replay-safe invoice recovery, claim currency check, onboarding wiring, case-safe VAT lock ([#858](https://github.com/ariefsaid/PMO/issues/858)) ([#865](https://github.com/ariefsaid/PMO/issues/865)) ([0521180](https://github.com/ariefsaid/PMO/commit/05211804521142066fa64861ebb8f2cab35959a2))
+* **erpnext:** a refused contact no longer stalls later contact sync ([#828](https://github.com/ariefsaid/PMO/issues/828)) ([#846](https://github.com/ariefsaid/PMO/issues/846)) ([7b6a43b](https://github.com/ariefsaid/PMO/commit/7b6a43bb51296abb5f847bbfac5e8f6f3751316f))
+* **erpnext:** onboarding uses the shared credential resolver and kill switch; miss logs carry codes only ([#654](https://github.com/ariefsaid/PMO/issues/654) items 1, 3) ([#873](https://github.com/ariefsaid/PMO/issues/873)) ([0e243b2](https://github.com/ariefsaid/PMO/commit/0e243b2c9293773ff53bd0b445bc1b6a81435f4d))
+* **projects:** archived projects leave the Sales Pipeline and default project lists ([#883](https://github.com/ariefsaid/PMO/issues/883)) ([#887](https://github.com/ariefsaid/PMO/issues/887)) ([2b63ca8](https://github.com/ariefsaid/PMO/commit/2b63ca8fc96d081ca509631aed46a1696991954a))
+* **projects:** show project number/client code values without label prefix in list cell ([#838](https://github.com/ariefsaid/PMO/issues/838)) ([#859](https://github.com/ariefsaid/PMO/issues/859)) ([1fbe4bb](https://github.com/ariefsaid/PMO/commit/1fbe4bbd37b44b38b2f2ac3f6df932fdbc4bdf67))
+* **reports:** Revenue by Project sums net of tax, one total per currency ([#831](https://github.com/ariefsaid/PMO/issues/831)) ([#860](https://github.com/ariefsaid/PMO/issues/860)) ([0015f2c](https://github.com/ariefsaid/PMO/commit/0015f2c15d057930836f9a47d64875edecbaf31c))
+
+
+### Performance
+
+* cache hashed assets a year; timeouts on outbound calls ([#839](https://github.com/ariefsaid/PMO/issues/839), [#841](https://github.com/ariefsaid/PMO/issues/841)) ([#850](https://github.com/ariefsaid/PMO/issues/850)) ([08a98b2](https://github.com/ariefsaid/PMO/commit/08a98b2cb32527068150d74770b758e8e643b291))
+* stop loading whole tables the screen doesn't show ([#840](https://github.com/ariefsaid/PMO/issues/840)) ([#851](https://github.com/ariefsaid/PMO/issues/851)) ([60df8d3](https://github.com/ariefsaid/PMO/commit/60df8d304b1e134fe20b95999ca7166ed6279cc2))
+
 ## [0.14.0](https://github.com/ariefsaid/PMO/compare/v0.13.0...v0.14.0) (2026-10-06)
 
 
