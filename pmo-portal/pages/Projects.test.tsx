@@ -179,6 +179,24 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.isError = false;
   });
 
+  it('AC-CODE-003: project cell shows identifier values without the label prefix in the truncating element, label kept for AT (#838)', () => {
+    const prev = projectsState.data;
+    projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-26-0042', code: 'CLIENT-77' }] as unknown as ProjectWithRefs[];
+    try {
+      renderPage();
+      const pmo = screen.getByTitle('PMO-26-0042');
+      expect(pmo).toHaveTextContent(/^PMO-26-0042$/);
+      const client = screen.getByTitle('CLIENT-77');
+      expect(client).toHaveTextContent(/^CLIENT-77$/);
+      // The label survives as a screen-reader-only prefix on the same line.
+      expect(pmo.parentElement).toHaveTextContent('PMO Project Number: PMO-26-0042');
+      expect(client.parentElement).toHaveTextContent('Client Project Code: CLIENT-77');
+      expect(within(pmo.parentElement as HTMLElement).getByText('PMO Project Number:')).toHaveClass('sr-only');
+    } finally {
+      projectsState.data = prev;
+    }
+  });
+
   it('renders seeded projects with joined client + PM names (AC-401)', () => {
     renderPage();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();

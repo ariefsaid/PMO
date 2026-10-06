@@ -426,12 +426,15 @@ const Projects: React.FC = () => {
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
                 )}
               </div>
-              <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
-                {t('projects.identifiers.pmo', 'PMO Project Number')}: {p.pmo_project_number}
+              {/* #838: value first — the label is screen-reader-only so it can't eat the width. */}
+              <div className="flex min-w-0 font-mono text-[11px] text-muted-foreground">
+                <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>
+                <span className="break-words md:truncate" title={p.pmo_project_number}>{p.pmo_project_number}</span>
               </div>
               {p.code && (
-                <div className="break-words font-mono text-[11px] text-muted-foreground md:truncate">
-                  {t('projects.identifiers.client', 'Client Project Code')}: {p.code}
+                <div className="flex min-w-0 font-mono text-[11px] text-muted-foreground">
+                  <span className="sr-only">{t('projects.identifiers.client', 'Client Project Code')}: </span>
+                  <span className="break-words md:truncate" title={p.code}>{p.code}</span>
                 </div>
               )}
               {p.customer_contract_ref && (
