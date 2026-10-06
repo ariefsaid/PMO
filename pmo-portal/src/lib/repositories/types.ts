@@ -1,4 +1,8 @@
 import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type {
+  BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
+} from '@/src/lib/db/progressBilling';
+import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
@@ -570,6 +574,25 @@ export interface WorkOrderRepository {
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
 }
 
+/** Progress billing (#766): BoQ, assessments (operational), billing claims + evidence, the summary. */
+export interface ProgressBillingRepository {
+  listBoq(projectId: string): Promise<BoqItemRow[]>;
+  createBoq(projectId: string, input: BoqItemInput): Promise<BoqItemRow>;
+  updateBoq(id: string, input: BoqItemInput): Promise<void>;
+  deleteBoq(id: string): Promise<void>;
+  /** Records the month's quantities done to date; returns the derived percent. Never reaches the ERP. */
+  recordAssessment(input: ProgressAssessmentInput): Promise<number>;
+  listClaims(projectId: string): Promise<ProgressClaimWithInvoice[]>;
+  /** Returns the new claim id. The server computes gross and recovery. */
+  createClaim(input: ProgressClaimInput): Promise<string>;
+  attachEvidence(claimId: string, documentId: string): Promise<void>;
+  withdrawClaim(id: string): Promise<void>;
+  /** Raise the claim's ERP invoice; the claim id IS the invoice's PMO record id (ADR-0077). */
+  raiseInvoice(claim: { claimId: string; projectId: string; customerId: string }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
+  /** Null when the project is invisible — never a zero summary. */
+  summary(projectId: string): Promise<ProjectBillingFacts | null>;
+}
+
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
@@ -664,6 +687,7 @@ export interface Repositories {
   incident: IncidentRepository;
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
+  progressBilling: ProgressBillingRepository;
   procurementFiles: ProcurementFileRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
@@ -695,6 +719,8 @@ export interface OrgSettingsRepository {
   setProjectNumberPattern(value: string | null): Promise<void>;
   getWithholdingAccount(): Promise<string | null>;
   setWithholdingAccount(account: string | null): Promise<void>;
+  getDownPaymentItem(): Promise<string | null>;
+  setDownPaymentItem(item: string | null): Promise<void>;
   getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
   setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
   /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */

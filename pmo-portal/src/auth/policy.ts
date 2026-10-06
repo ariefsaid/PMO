@@ -55,6 +55,8 @@ export type Entity =
   | 'approval'
   | 'milestone'
   | 'workOrder'
+  | 'boqItem'
+  | 'progressClaim'
   | 'contact'
   | 'contactActivity'
   | 'meeting'
@@ -190,6 +192,23 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
+  },
+  /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
+  boqItem: {
+    view: allow(MASTER_DATA),
+    create: allow(MASTER_DATA),
+    edit: allow(MASTER_DATA),
+    delete: allow(MASTER_DATA),
+  },
+  /**
+   * Billing claims (#766). view = the revenue read set; create (raise included) and transition (evidence,
+   * withdraw) = REVENUE_WRITE, mirroring the claim RPCs and the dispatch's revenue money-write roles.
+   * Assessing progress is #765's `projectProgress.edit`, unchanged. The server is the authority.
+   */
+  progressClaim: {
+    view: allow(MASTER_DATA),
+    create: allow(REVENUE_WRITE),
+    transition: allow(REVENUE_WRITE),
   },
   company: {
     // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no
