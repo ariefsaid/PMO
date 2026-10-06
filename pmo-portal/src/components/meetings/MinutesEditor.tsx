@@ -12,6 +12,7 @@ import { useTheme } from '@/src/hooks/useTheme';
 import type { NoteBlock } from '@/src/lib/meetingNotes';
 import { minutesSchema } from './minutesSchema';
 import { minutesDictionary } from './minutesDictionary';
+import './minutesTailwind.css';
 import './minutesEditor.css';
 
 /** What the page can ask of the editor once an action-item task exists (DD-MTG-8 flow). */

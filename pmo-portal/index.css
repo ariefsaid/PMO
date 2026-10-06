@@ -1,6 +1,4 @@
 @import "tailwindcss";
-/* #805: the minutes editor (@blocknote/shadcn) styles itself with Tailwind utilities — scan its dist. */
-@source "./node_modules/@blocknote/shadcn/dist";
 
 /* =============================================================================
    Inter variable webfont — SELF-HOSTED (2026-07-28, IMPORTANT-7 Discover-pass fix,
