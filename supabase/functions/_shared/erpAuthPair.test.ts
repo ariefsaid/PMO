@@ -12,12 +12,13 @@ function fakeDb(opts: {
   binding?: { secret_ref: string } | null;
   bindingError?: { code: string } | null;
   vault?: string | null;
-  vaultError?: { code: string } | null;
+  vaultError?: { code: string; message?: string; details?: string; hint?: string } | null;
 }) {
   let rpcCalls = 0;
   const client = {
     from() {
       // deno-lint-ignore no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const b: any = {
         select: () => b, eq: () => b,
         maybeSingle: () => Promise.resolve({ data: opts.binding ?? null, error: opts.bindingError ?? null }),
@@ -115,6 +116,7 @@ Deno.test('AC-ENA-085: the cache is keyed by org — one shared tick cache still
   const client = {
     from() {
       // deno-lint-ignore no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const b: any = { select: () => b, eq: (_k: string, v: string) => { if (_k === 'org_id') b._org = v; return b; },
         maybeSingle: () => Promise.resolve({ data: bindings[b._org] ? { secret_ref: bindings[b._org] } : null, error: null }) };
       return b;
@@ -147,6 +149,41 @@ Deno.test('FR-ENA-019: a cache resolves once per org and re-resolves after a fai
     assert(db.rpcCalls() === 1, `expected 1 vault read, got ${db.rpcCalls()}`);
   } finally { env.restore(); }
 });
+Deno.test('NFR-ENA-SEC-005: a Vault-read store error logs its code only', async () => {
+  const payloadSentinel = 'payload-sentinel-erp-store-error';
+  const secretRef = 'binding-secret-ref-sentinel';
+  const environmentCoordinate = 'environment-coordinate-sentinel';
+  const credentialValue = 'credential-value-sentinel';
+  const db = fakeDb({
+    binding: { secret_ref: secretRef },
+    vaultError: {
+      code: 'XX000',
+      message: payloadSentinel,
+      details: environmentCoordinate,
+      hint: credentialValue,
+    },
+  });
+  const env = stubEnv({});
+  const logged: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => { logged.push(JSON.stringify(args)); };
+  try {
+    await resolveErpAuthPair(db.client, { orgId: ORG.orgId, secretRef });
+    throw new Error('should have refused an unreadable secret store');
+  } catch (e) {
+    assert(e instanceof AppError, `expected AppError, got ${e}`);
+    assert((e as AppError).code === 'config-rejected', `expected config-rejected, got ${(e as AppError).code}`);
+  } finally { console.error = originalError; env.restore(); }
+
+  assert(logged.length === 1, `expected one resolver log, got ${logged.length}`);
+  assert(logged[0] === JSON.stringify(['read_vault_secret failed', 'XX000']),
+    `expected the fixed label and stable error code only, got ${logged[0]}`);
+  const out = logged.join('\n');
+  for (const sentinel of [payloadSentinel, secretRef, environmentCoordinate, credentialValue]) {
+    assert(!out.includes(sentinel), `log leaked ${sentinel}`);
+  }
+});
+
 Deno.test('AC-ENA-090: an env-pair miss logs the failure class only — no env-var name, secret_ref or value', async () => {
   const db = fakeDb({ binding: { secret_ref: 'local-bench' }, vault: null });
   const env = stubEnv({ LOCAL_BENCH_SECRET: 'super-secret-value' });

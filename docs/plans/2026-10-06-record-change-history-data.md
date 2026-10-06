@@ -10,11 +10,11 @@ indefinite retention · Q7 project History includes child events, with kind filt
 
 ## Decisions taken in this plan (each names what it settles)
 
-1. **Migration slot `0260`** — the spec's `0219` is stale. Forward `supabase/migrations/0260_record_change_history.sql`,
+1. **Migration slot `0260`** — the spec's originally proposed `0219` slot was replaced before shipping. Forward `supabase/migrations/0260_record_change_history.sql`,
    rollback `supabase/migrations/rollback/0260_record_change_history_down.sql`.
 2. **Trigger name `<table>_zz_record_change`**, `AFTER INSERT OR UPDATE ... FOR EACH ROW`. AFTER means it reads `NEW`
-   after every BEFORE trigger (org stamp, currency stamp, tax base, witness stamps); the `zz_` slot also sorts it after the
-   table's other AFTER triggers (audit, cascade, notify), the `0215` convention.
+   after every BEFORE trigger (org stamp, currency stamp, tax base, witness stamps). The `zz_` suffix orders it after
+   triggers sharing the `<table>_` prefix; it makes no ordering claim about unrelated trigger names.
 3. **Parent resolution is static, not dynamic SQL.** The registry carries `parent_col` (a column on the row) and an
    optional `parent_via` (`'budget_versions'` or `'procurements'`, enforced by a CHECK) for the two one-hop cases:
    a budget line rolls up to its version's project, and a PR / RFQ / PO / payment to its procurement's project
@@ -44,10 +44,18 @@ indefinite retention · Q7 project History includes child events, with kind filt
      `project.create`, `project.transition`, `project.contract_value.set`, `work_order.create`,
      `work_order.transition`, `work_order.value.set`, `budget_version.create`, `budget_version.update`,
      `procurement.create`, and every `*.delete`.
-7. **Whole-row `to_jsonb` is in-memory only.** NFR-CHG-005's "flag/omit columns are never serialized" is met for what
-   is *written*: the diff loops over the registry's captured and flag lists, and a flag column contributes only
-   `{"changed":true}`. An exact no-op (`OLD is not distinct from NEW`) returns before any jsonb is built.
-8. **Actor:** `auth.uid()`; only when it is null, the transaction-local `app.actor_id` (empty string = unset); else null.
+7. **Accept the shipped write-cost approach.** On UPDATE, the exact whole-row no-op check (`OLD IS NOT DISTINCT FROM NEW`)
+   returns before JSON materialization. A changed row materializes whole-row `OLD`/`NEW` JSONB in memory, then loops only
+   over the registry's captured and flag lists. `record_changes.changes` persists only classified output: captured fields
+   contain old/new values, flags contribute only `{"changed":true}`, and omitted fields are absent. This replaces the
+   spec's inaccurate claim that the implementation avoids whole-row comparison/serialization; no trigger change is made.
+8. **Actor:** a service-role loader that knows the human actor uses `select set_config('app.actor_id', <uuid>::text, true)`
+   in the same business-write transaction; `true` is mandatory, session-scoped `SET` or `set_config(..., false)` is
+   forbidden. The trigger reads `app.actor_id` only when `auth.uid() IS NULL`; missing or empty is System (`NULL`).
+9. **D3 → D5 History-tab handoff:** before D5 ships, capture `EXPLAIN (ANALYZE, BUFFERS)` for representative own-record
+   and project-with-children `list_record_history` calls, including audit-union volume, then reassess scan cost and
+   indexes. The data-layer tests prove authorization and result semantics, not rendered-History scan cost; do not add
+   an index or change policy semantics in this ticket.
 
 ## Column classification (spec D1 "fixed in the plan's task 1")
 
@@ -85,8 +93,8 @@ exactly one list (gated by AC-CHG-011). Omit reasons: **K** key/tenancy/bookkeep
 | AC-CHG-013 rolled-back change leaves no event | `record_changes_capture.test.sql` |
 | AC-CHG-004 contact `phone` → `{"changed":true}`, values absent from `changes::text`; omit-only update → no event | `record_changes_classification.test.sql` |
 | AC-CHG-005 definer RPC actor; service-role `app.actor_id` set / unset; JWT user cannot override | `record_changes_actor.test.sql` |
-| AC-CHG-007 same-org reader sees; org-B user reads zero and cannot insert into org A | `record_changes_visibility.test.sql` |
-| AC-CHG-008 Engineer reads what they can read; deactivated member reads zero; source hidden by a narrower policy → zero | `record_changes_visibility.test.sql` |
+| AC-CHG-007 same-org reader sees; org-B user reads zero and cannot insert into org A; a permissive source-policy control independently pins the history policy's own-org clause | `record_changes_visibility.test.sql` |
+| AC-CHG-008 Engineer reads what they can read; deactivated member reads zero; a permissive source-policy control independently pins the history policy's active-member clause; source hidden by a narrower policy → zero | `record_changes_visibility.test.sql` |
 | AC-CHG-009 client INSERT/UPDATE/DELETE/TRUNCATE on `record_changes`, any read of `record_history_config` → 42501 | `record_changes_grants.test.sql` |
 | AC-CHG-010 function ACL, checked against the hosted grant shape | `record_changes_grants.test.sql` |
 | AC-CHG-011 catalog gate + planted-defect self-test | `record_changes_catalog_gate.test.sql` |
@@ -124,7 +132,7 @@ CI's `pgtap` job is the proof of record.
 4. Verify T1 files green.
 
 ### T3 — visibility + grants
-1. RED `record_changes_visibility.test.sql` (AC-CHG-007/008), `record_changes_grants.test.sql` (AC-CHG-009/010; grant
+1. RED `record_changes_visibility.test.sql` (AC-CHG-007/008; independently prove the history policy's own-org and active-member clauses while permissive source SELECT controls expose the project), `record_changes_grants.test.sql` (AC-CHG-009/010; grant
    EXECUTE to `anon`/`authenticated` inside the test to mirror the hosted default, then assert the migration's
    explicit revokes hold by re-running the migration's grant block — and assert `proacl` directly).
 2. GREEN §5 `record_history_visible()` (invoker, static `case`, raise on unknown) + `record_changes_select` policy;
@@ -159,7 +167,7 @@ CI's `pgtap` job is the proof of record.
 
 ## Results (2026-10-06, scratch Postgres 16 with the Supabase roles/auth/storage shimmed; CI `pgtap` is the proof of record)
 
-- New files: 8 pgTAP files, 105 assertions, all green.
+- New files: 8 pgTAP files, 109 assertions, all green.
 - Full suite: every existing `supabase/tests/*.sql` file run before and after 0260. The set of failing files is the
   same (shim gaps: dblink, per-database role settings, local default privileges); none fails because of 0260, and
   `dead_authenticated_write_grants` AC-DWG-011's offender list is identical before and after (no new table in it).
@@ -170,8 +178,7 @@ CI's `pgtap` job is the proof of record.
   the down, capture suite green after the re-apply.
 - `node scripts/check-isolation-denominator.mjs` against the migrated database: PASS (tables=97); with the old
   manifest it names both new tables as MISSING.
-- Mutation M1 (`record_changes_select` predicate → `true`): `record_changes_visibility` 6 red (cross-org ×2,
-  deactivated ×2, narrower-policy, hard-deleted) and `record_history_read` 1 red (deactivated). Reverted → green.
+- Mutation M1 (`record_changes_select` predicate → `true`): `record_changes_visibility` 8 red (the prior six cross-org/deactivated/narrower-policy/hard-delete assertions plus the independent own-org and active-member clause assertions) and `record_history_read` 1 red (deactivated). Reverted → green.
 - Mutation M2 (actor = `app.actor_id` ahead of `auth.uid()`): `record_changes_actor` 2 red (JWT user re-attributed).
   Reverted → green.
 - TDD note: `list_record_history` was written with §5–§7 before `record_history_read.test.sql`; the test's binding

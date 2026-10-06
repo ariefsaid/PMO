@@ -7,7 +7,7 @@
 -- Cast: a4 PM · a5 Engineer · a6 Engineer (disabled) of org A; b1 Admin of org B.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(18);
 
 insert into organizations (id, name) values
   ('07190000-0000-0000-0000-000000000001', 'CHG Org A'),
@@ -73,6 +73,25 @@ select is((select coalesce(sum(n), 0)::int from chg_seen), 0,
   'AC-CHG-008 a deactivated member reads zero events');
 select is((select count(*)::int from record_changes), 0,
   'AC-CHG-008 a deactivated member reads zero rows of any kind');
+
+-- Pin record_changes_select's own org and active-member gates independently of source-table RLS.
+-- This temporary permissive policy proves the source row is visible to each negative-case caller.
+reset role;
+create policy chg_test_project_source_permissive on public.projects
+  for select to authenticated using (true);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"07190000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select is((select count(*)::int from projects where id = '07190000-0000-0000-0000-0000000000c1'), 1,
+  'AC-CHG-007 source-policy control: org-B user can see the project');
+select is((select count(*)::int from record_changes where entity_type = 'project' and entity_id = '07190000-0000-0000-0000-0000000000c1'), 0,
+  'AC-CHG-007 org-B user reads zero project history rows under the history policy org predicate');
+set local request.jwt.claims = '{"sub":"07190000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select is((select count(*)::int from projects where id = '07190000-0000-0000-0000-0000000000c1'), 1,
+  'AC-CHG-008 source-policy control: disabled same-org member can see the project');
+select is((select count(*)::int from record_changes where entity_type = 'project' and entity_id = '07190000-0000-0000-0000-0000000000c1'), 0,
+  'AC-CHG-008 disabled same-org member reads zero project history rows under the history active-member predicate');
+reset role;
+drop policy chg_test_project_source_permissive on public.projects;
 
 -- ── AC-CHG-008: the source table's own RLS decides (a narrower policy added in this transaction) ──
 set local request.jwt.claims = '{"sub":"07190000-0000-0000-0000-0000000000a4","role":"authenticated"}';
