@@ -39,7 +39,7 @@ export interface ApprovalRoute {
  * no restriction (FR-APR-035) — the server enforces either way.
  */
 export function mayDecideRoutedApproval(
-  route: ApprovalRoute | null | undefined,
+  route: Pick<ApprovalRoute, 'route' | 'approvers'> | null | undefined,
   userId: string | null | undefined,
   isAdmin: boolean,
 ): boolean {
@@ -49,7 +49,7 @@ export function mayDecideRoutedApproval(
 }
 
 /** One line telling a viewer who is not routed this request who decides it, and why (FR-APR-031). */
-export function approvalRouteNote(route: ApprovalRoute, category: string | null, t: TFunction): string {
+export function approvalRouteNote(route: Pick<ApprovalRoute, 'route' | 'reason' | 'approvers'>, category: string | null, t: TFunction): string {
   if (route.route === 'admin') {
     return t(
       'procurementDetail.route.adminOnly',

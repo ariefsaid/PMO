@@ -206,6 +206,15 @@ import {
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
 import {
+  listExpenseClaims, getExpenseClaim, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim,
+  addExpenseLine, updateExpenseLine, removeExpenseLine, transitionExpenseClaim, recordExpenseAdvanceReturn,
+  getExpenseAdvanceOutstanding, getExpenseClaimRoutes, getExpenseAdvanceAging,
+} from '@/src/lib/db/expenseClaims';
+import {
+  listExpenseReceipts, prepareExpenseReceiptUpload, confirmExpenseReceiptUpload, archiveExpenseReceipt,
+  getExpenseReceiptUrl, cleanupExpenseReceiptObject,
+} from '@/src/lib/db/expenseReceipts';
+import {
   listProcurementFiles,
   prepareUpload as prepareProcurementFileUpload,
   confirmUpload as confirmProcurementFileUpload,
@@ -276,6 +285,8 @@ import type {
   MilestoneRepository,
   WorkOrderRepository,
   ProcurementFileRepository,
+  ExpenseClaimRepository,
+  ExpenseReceiptRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
@@ -786,6 +797,31 @@ const procurementFiles: ProcurementFileRepository = {
   cleanupObject: (filePath) => wrap(() => cleanupProcurementFileObject(filePath)),
 };
 
+const expenseClaim: ExpenseClaimRepository = {
+  list: (filters) => wrap(() => listExpenseClaims(filters)),
+  get: (id) => wrap(() => getExpenseClaim(id)),
+  lines: (claimId) => wrap(() => listExpenseClaimLines(claimId)),
+  create: (input) => wrap(() => createExpenseClaim(input)),
+  update: (id, kind, patch) => wrap(() => updateExpenseClaim(id, kind, patch)),
+  addLine: (claimId, input) => wrap(() => addExpenseLine(claimId, input)),
+  updateLine: (id, input) => wrap(() => updateExpenseLine(id, input)),
+  removeLine: (id) => wrap(() => removeExpenseLine(id)),
+  transition: (id, to, opts) => wrap(() => transitionExpenseClaim(id, to, opts)),
+  recordReturn: (id, amount, reference) => wrap(() => recordExpenseAdvanceReturn(id, amount, reference)),
+  outstanding: (advanceId) => wrap(() => getExpenseAdvanceOutstanding(advanceId)),
+  routes: (ids) => wrap(() => getExpenseClaimRoutes(ids)),
+  aging: () => wrap(() => getExpenseAdvanceAging()),
+};
+
+const expenseReceipts: ExpenseReceiptRepository = {
+  list: (claimId) => wrap(() => listExpenseReceipts(claimId)),
+  prepareUpload: (claimId, fileName) => wrap(() => prepareExpenseReceiptUpload(claimId, fileName)),
+  confirmUpload: (claimId, path, title) => wrap(() => confirmExpenseReceiptUpload(claimId, path, title)),
+  archive: (id) => wrap(() => archiveExpenseReceipt(id)),
+  getSignedUrl: (path, opts) => wrap(() => getExpenseReceiptUrl(path, opts)),
+  cleanupObject: (path) => wrap(() => cleanupExpenseReceiptObject(path)),
+};
+
 const contact: ContactRepository = {
   list: (params) => wrap(() => listContacts(params)),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
@@ -1069,6 +1105,8 @@ export const repositories: Repositories = {
   milestone,
   workOrder,
   procurementFiles,
+  expenseClaim,
+  expenseReceipts,
   contact,
   meeting,
   userView,
@@ -1098,6 +1136,8 @@ export type {
   MilestoneRepository,
   WorkOrderRepository,
   ProcurementFileRepository,
+  ExpenseClaimRepository,
+  ExpenseReceiptRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
