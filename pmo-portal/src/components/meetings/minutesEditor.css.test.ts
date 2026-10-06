@@ -37,6 +37,7 @@ describe('minutesEditor.css — heading scale and scope (FR-MTG-025)', () => {
 
   it('keeps every rule under .minutes-editor / .minutes-action-item so nothing leaks app-wide', () => {
     const selectors = css
+      .replace(/@media[^{]+\{/g, '') // look inside media queries; their closing braces split to empty segments
       .split('}')
       .map((r) => r.split('{')[0].trim())
       .filter(Boolean)
@@ -51,5 +52,35 @@ describe('minutesEditor.css — heading scale and scope (FR-MTG-025)', () => {
 
   it('uses only app tokens for colour (no raw hex)', () => {
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+
+  // The block of rules inside `@media (<query>) { … }` (one nesting level).
+  const media = (query: string): string => {
+    const start = css.indexOf(`@media ${query}`);
+    expect(start, `@media ${query}`).toBeGreaterThan(-1);
+    const open = css.indexOf('{', start);
+    let depth = 0;
+    for (let i = open; i < css.length; i++) {
+      if (css[i] === '{') depth++;
+      if (css[i] === '}' && --depth === 0) return css.slice(open + 1, i);
+    }
+    throw new Error('unbalanced @media');
+  };
+
+  it('AC-MTG-022 the editor reserves room for the side menu (52px) on the inline-start — spacing-14, 56px — from 640px up', () => {
+    expect(media('(min-width: 640px)')).toMatch(/\.minutes-editor \.bn-editor\s*\{\s*padding-inline-start:\s*56px/);
+    // the base rule must not already pad (mobile gets no indent)
+    expect(css).toMatch(/\.minutes-editor \.bn-editor\s*\{\s*padding:\s*0;/);
+  });
+
+  it('AC-MTG-022 below 640px the side menu is not offered (its handle would sit outside the viewport)', () => {
+    expect(media('(max-width: 639px)')).toMatch(/\.minutes-editor \.bn-side-menu\s*\{\s*display:\s*none/);
+  });
+
+  it('AC-MTG-022 below 640px the slash menu hides shortcut hints and keeps a 16px margin from the viewport edge', () => {
+    const mobile = media('(max-width: 639px)');
+    expect(mobile).toMatch(/\.bn-suggestion-menu-item \[data-position='right'\]\s*\{\s*display:\s*none/);
+    expect(mobile).toMatch(/\.minutes-slash-popover\s*\{\s*padding-inline:\s*16px/);
+    expect(mobile).toMatch(/max-width:\s*calc\(100vw - 32px\)/);
   });
 });

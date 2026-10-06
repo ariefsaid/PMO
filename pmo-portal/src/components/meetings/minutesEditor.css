@@ -73,6 +73,23 @@
 .minutes-editor .bn-block-content[data-content-type='heading'][data-level='6'] { font-weight: 600; line-height: 1.45; letter-spacing: 0; }
 
 .minutes-editor .bn-side-menu { color: hsl(var(--muted-foreground)); }
+
+/* The side menu (the "+" add-block and the drag handle, 52px wide) is placed to the LEFT of the block, outside
+   the editor box — so it crossed the sidebar edge on desktop and sat at x<0 on a phone. The editor reserves its
+   own room for it: spacing-14 (56px, DESIGN.md 4px scale). Below 640px the hover-driven menu is not offered at
+   all (a quarter of a phone's width for a handle a thumb can't hover); the "/" menu is the way to add a block. */
+@media (min-width: 640px) {
+  .minutes-editor .bn-editor { padding-inline-start: 56px; }
+}
+@media (max-width: 639px) {
+  .minutes-editor .bn-side-menu { display: none; }
+  /* Keyboard-shortcut hints mean nothing on a phone and crowd the row. */
+  .minutes-editor .bn-suggestion-menu-item [data-position='right'] { display: none; }
+  /* Keep the slash menu off the viewport edge: the floating wrapper (what BlockNote shifts to the edge) carries
+     the 16px (spacing-4) inset, so the menu itself ends up 16px inside on both sides. */
+  .minutes-editor .minutes-slash-popover { padding-inline: 16px; }
+  .minutes-editor .minutes-slash-popover .bn-suggestion-menu { max-width: calc(100vw - 32px); }
+}
 .minutes-editor .bn-suggestion-menu,
 .minutes-editor .bn-formatting-toolbar {
   border: 1px solid hsl(var(--border));

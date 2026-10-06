@@ -1169,7 +1169,7 @@
       "readDeniedHeadline": "Action item tidak dibuat"
     },
     "actionItems": {
-      "empty": "Belum ada action item. Gunakan Action pada baris notulen untuk membuatnya.",
+      "empty": "Belum ada action item. Ketik /action di notulen untuk membuatnya.",
       "error": "Gagal memuat action item rapat ini.",
       "title": "Action item"
     },
@@ -1228,17 +1228,17 @@
       }
     },
     "minutes": {
-      "actionError": "Butir tindakan ini tidak dapat dimuat.",
-      "actionLoading": "Memuat butir tindakan…",
-      "actionTombstone": "Butir tindakan ini sudah tidak tersedia.",
+      "actionError": "Action item ini tidak dapat dimuat.",
+      "actionLoading": "Memuat action item…",
+      "actionTombstone": "Action item ini sudah tidak tersedia.",
       "editorLabel": "Notulen rapat",
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
       "save": "Simpan notulen",
       "slash": {
-        "actionTitle": "Butir tindakan",
+        "actionTitle": "Action item",
         "actionSubtext": "Buat tugas dari baris ini",
         "actionGroup": "Tindakan",
-        "actionAliases": "aksi,tindakan,tugas,todo"
+        "actionAliases": "action,aksi,tindakan,tugas,todo"
       },
       "title": "Notulen"
     },

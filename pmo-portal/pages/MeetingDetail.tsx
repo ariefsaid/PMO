@@ -425,7 +425,7 @@ const MeetingDetail: React.FC = () => {
             <p className="text-sm text-muted-foreground">
               {t(
                 'meetingDetail.actionItems.empty',
-                'No action items yet. Use Action on a minute line to create one.',
+                'No action items yet. Type /action in the minutes to create one.',
               )}
             </p>
           ) : (

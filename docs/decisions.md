@@ -2591,6 +2591,7 @@ Built on the `DD-MTG-9` terms — *a fresh design under `DD-MTG-2`*:
 - **Bundle:** the editor is a lazy chunk (`React.lazy` in `MeetingDetail`); its Tailwind utilities ship in
   that chunk's CSS rather than `index.css`, so the initial route bundle is unchanged (measured in #805).
   BlockNote ships no Bahasa dictionary, so `src/components/meetings/minutesDictionary.ts` is the `id` one.
+- **No check list; "Action item" is the first palette entry (Director, 2026-10-06, rendered review of #863):** the check-list block is withheld from the slash menu and the block-type picker — it looks like a to-do but never becomes a task; `/action` on a line that has text REPLACES that line with the block (the modal is prefilled from it), so the minutes never show the same words twice.
 
 ---
 

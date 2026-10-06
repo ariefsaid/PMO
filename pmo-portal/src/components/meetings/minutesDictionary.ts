@@ -32,7 +32,6 @@ const idOverrides: DeepPartial<Dict> = {
     toggle_list: item('Daftar Lipat', 'Daftar dengan butir yang bisa disembunyikan', 'Blok dasar', ['daftar', 'lipat']),
     numbered_list: item('Daftar Bernomor', 'Daftar berurutan', 'Blok dasar', ['daftar', 'nomor', 'bernomor']),
     bullet_list: item('Daftar Poin', 'Daftar tanpa urutan', 'Blok dasar', ['daftar', 'poin', 'butir']),
-    check_list: item('Daftar Centang', 'Daftar dengan kotak centang', 'Blok dasar', ['daftar', 'centang', 'kotak']),
     paragraph: item('Paragraf', 'Isi dokumen', 'Blok dasar', ['paragraf', 'teks']),
     code_block: item('Blok Kode', 'Blok kode dengan penyorotan sintaks', 'Blok dasar', ['kode']),
     page_break: item('Pemisah Halaman', 'Pemisah halaman', 'Blok dasar', ['halaman', 'pemisah']),
@@ -40,14 +39,7 @@ const idOverrides: DeepPartial<Dict> = {
     emoji: item('Emoji', 'Cari dan sisipkan emoji', 'Lainnya', ['emoji']),
     divider: item('Pembatas', 'Pisahkan blok secara visual', 'Blok dasar', ['pembatas', 'garis', 'pemisah']),
   },
-  placeholders: {
-    default: "Ketik teks atau '/' untuk perintah",
-    heading: 'Judul',
-    toggleListItem: 'Lipat',
-    bulletListItem: 'Daftar',
-    numberedListItem: 'Daftar',
-    checkListItem: 'Daftar',
-  },
+  placeholders: { default: "Ketik teks atau '/' untuk perintah" },
   toggle_blocks: { add_block_button: 'Lipatan kosong. Klik untuk menambah blok.' },
   code_block: { add_source_button_text: 'Tambah kode sumber', ok_button_text: 'OK' },
   side_menu: { add_block_label: 'Tambah blok', drag_handle_label: 'Buka menu blok' },
@@ -119,12 +111,25 @@ function merge<T>(base: T, over: unknown): T {
   return out as T;
 }
 
+/**
+ * BlockNote paints a per-block-type placeholder ("List", "Heading", "Toggle"…) on EVERY empty block of that
+ * type — focused or not, and in a read-only view too. Only `default` (the focused empty block) and
+ * `emptyDocument` are focus-scoped, so those are the only ones the minutes editor keeps.
+ */
+const focusScoped = (d: Dict): Dict => ({
+  ...d,
+  placeholders: { default: d.placeholders.default, emptyDocument: d.placeholders.emptyDocument },
+});
+
 /** The BlockNote dictionary for an app language code (`id…` → Bahasa, anything else → en). */
 export function minutesDictionary(language: string | undefined): Dict {
-  return language?.toLowerCase().startsWith('id') ? merge(en, idOverrides) : en;
+  return focusScoped(language?.toLowerCase().startsWith('id') ? merge(en, idOverrides) : en);
 }
 
-/** Slash-menu keys a v1 palette shows (media is excluded by the schema, FR-MTG-022). */
+/**
+ * Slash-menu keys a v1 palette shows. Media is excluded by the schema (FR-MTG-022); the check list is
+ * withheld (DD-MTG-10) — it looks like a to-do but never becomes a task.
+ */
 export const PALETTE_SLASH_KEYS = (Object.keys(en.slash_menu) as Array<keyof Dict['slash_menu']>).filter(
-  (k) => !['image', 'video', 'audio', 'file'].includes(k),
+  (k) => !['image', 'video', 'audio', 'file', 'check_list'].includes(k),
 );

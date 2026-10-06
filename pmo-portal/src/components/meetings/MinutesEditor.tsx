@@ -1,8 +1,9 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { filterSuggestionItems } from '@blocknote/core/extensions';
 import {
-  getDefaultReactSlashMenuItems,
+  FormattingToolbar,
+  FormattingToolbarController,
   SuggestionMenuController,
   useCreateBlockNote,
 } from '@blocknote/react';
@@ -12,6 +13,8 @@ import { useTheme } from '@/src/hooks/useTheme';
 import type { NoteBlock } from '@/src/lib/meetingNotes';
 import { minutesSchema } from './minutesSchema';
 import { minutesDictionary } from './minutesDictionary';
+import { minutesBlockTypeItems, minutesSlashItems } from './minutesSlashMenu';
+import { placeActionItem } from './placeActionItem';
 import './minutesTailwind.css';
 import './minutesEditor.css';
 
@@ -34,12 +37,18 @@ export interface MinutesEditorProps {
   onRequestAction: (lineText: string) => void;
 }
 
-const inlineText = (content: unknown): string =>
-  Array.isArray(content)
-    ? content
-        .map((r) => (r && typeof r === 'object' && typeof (r as { text?: unknown }).text === 'string' ? (r as { text: string }).text : ''))
-        .join('')
-    : '';
+/**
+ * The slash menu's floating wrapper. `elementProps` REPLACES BlockNote's own (it spreads ours last), so the
+ * two it sets — keep the editor from blurring on a scrollbar click, and stack above the page — are restated.
+ * The class lets `minutesEditor.css` inset the menu from the viewport edge on a phone.
+ */
+const SLASH_POPOVER = {
+  elementProps: {
+    className: 'minutes-slash-popover',
+    onMouseDownCapture: (e: React.MouseEvent) => e.preventDefault(),
+    style: { zIndex: 80 },
+  },
+};
 
 /**
  * The BlockNote minutes editor (#805). Lazy-loaded by `MeetingDetail` (FR-MTG-026) — everything that
@@ -59,6 +68,8 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
       schema: minutesSchema,
       dictionary,
       initialContent: initialBlocks.length ? (initialBlocks as never) : undefined,
+      // WCAG 4.1.2: the name belongs on the element that carries role=textbox, not on a wrapper div (axe aria-input-field-name).
+      domAttributes: { editor: { 'aria-label': t('meetingDetail.minutes.editorLabel', 'Meeting minutes') } },
       // FR-MTG-022: no upload path exists, so a pasted/dropped file can never become an embedded blob.
       uploadFile: undefined,
     },
@@ -78,44 +89,37 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
     ref,
     () => ({
       insertActionItem(taskId: string) {
-        const props = { taskId };
-        const ref = pendingBlockId.current ? editor.getBlock(pendingBlockId.current) : undefined;
+        const blockId = pendingBlockId.current;
         pendingBlockId.current = null;
-        if (ref && ref.type === 'paragraph' && inlineText(ref.content) === '') {
-          editor.updateBlock(ref, { type: 'actionItem', props });
-        } else if (ref) {
-          editor.insertBlocks([{ type: 'actionItem', props }], ref, 'after');
-        } else {
-          const last = editor.document[editor.document.length - 1];
-          editor.insertBlocks([{ type: 'actionItem', props }], last, 'after');
-        }
+        placeActionItem(editor, blockId, taskId);
       },
     }),
     [editor],
   );
 
   const getItems = useCallback(
-    async (query: string) => {
-      const items = getDefaultReactSlashMenuItems(editor);
-      if (!tasksExternal) {
-        items.push({
-          title: t('meetingDetail.minutes.slash.actionTitle', 'Action item'),
-          subtext: t('meetingDetail.minutes.slash.actionSubtext', 'Create a task from this line'),
-          group: t('meetingDetail.minutes.slash.actionGroup', 'Actions'),
-          aliases: t('meetingDetail.minutes.slash.actionAliases', 'action,task,todo')
-            .split(',')
-            .map((a) => a.trim())
-            .filter(Boolean),
-          onItemClick: () => {
-            const block = editor.getTextCursorPosition().block;
-            pendingBlockId.current = block.id;
-            onRequestAction(inlineText(block.content));
+    async (query: string) =>
+      filterSuggestionItems(
+        minutesSlashItems(editor, {
+          t,
+          tasksExternal,
+          onRequestAction: (blockId, lineText) => {
+            pendingBlockId.current = blockId;
+            onRequestAction(lineText);
           },
-        } as (typeof items)[number]);
-      }
-      return filterSuggestionItems(items, query);
-    },
+        }),
+        query,
+      ),
     [editor, t, tasksExternal, onRequestAction],
+  );
+
+  // The formatting toolbar's block-type picker, minus the check list (DD-MTG-10).
+  const toolbar = useMemo(
+    () =>
+      function MinutesFormattingToolbar() {
+        return <FormattingToolbar blockTypeSelectItems={minutesBlockTypeItems(dictionary)} />;
+      },
+    [dictionary],
   );
 
   return (
@@ -125,10 +129,17 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
         theme={theme}
         editable={editable}
         slashMenu={false}
+        formattingToolbar={false}
         onChange={() => onChange(editor.document as unknown as NoteBlock[])}
-        aria-label={t('meetingDetail.minutes.editorLabel', 'Meeting minutes')}
       >
-        {editable && <SuggestionMenuController triggerCharacter="/" getItems={getItems} />}
+        {editable && <FormattingToolbarController formattingToolbar={toolbar} />}
+        {editable && (
+          <SuggestionMenuController
+            triggerCharacter="/"
+            getItems={getItems}
+            floatingUIOptions={SLASH_POPOVER}
+          />
+        )}
       </BlockNoteView>
     </div>
   );

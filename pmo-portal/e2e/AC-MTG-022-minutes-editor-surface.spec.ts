@@ -71,3 +71,47 @@ for (const width of [390, 360]) {
     }
   });
 }
+
+/**
+ * The add-block "+" / drag handle (BlockNote's side menu, 52px wide) is placed to the LEFT of a block, outside
+ * the editor's own box: it used to cross the sidebar edge on desktop and sit at x<0 on a phone. The editor now
+ * reserves its own inline-start room for it (>=640px) and does not offer the hover-only menu below that.
+ * Measured on the rendered boxes — the a11y tree cannot see a clipped handle.
+ */
+for (const width of [1280, 390]) {
+  test(`AC-MTG-022: the add-block handle stays inside the minutes content area at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await signIn(page, 'pm@acme.test');
+    await page.goto(`/meetings/${SEEDED_MEETING}`);
+    const surface = page.getByTestId('minutes-blocknote');
+    await expect(surface.locator('.bn-editor')).toBeVisible();
+    await waitForFonts(page);
+
+    await surface.locator('.bn-block-content').first().hover();
+    const handle = surface.locator('.bn-side-menu');
+    if (width >= 640) {
+      await expect(handle).toBeVisible();
+      const [h, area] = await Promise.all([handle.boundingBox(), surface.boundingBox()]);
+      expect(h, 'handle box').not.toBeNull();
+      expect(area, 'content area box').not.toBeNull();
+      // inside the content area (not over the sidebar), and inside the viewport
+      expect(h!.x, 'handle left edge').toBeGreaterThanOrEqual(area!.x - 0.5);
+      expect(h!.x + h!.width, 'handle right edge').toBeLessThanOrEqual(area!.x + area!.width + 0.5);
+      expect(h!.x, 'handle is not clipped at x<0').toBeGreaterThanOrEqual(0);
+    } else {
+      // Below 640px the hover-only menu is not offered, so nothing can be clipped off the left edge.
+      await expect(handle).toBeHidden();
+    }
+
+    // Either way: no element of the editor surface starts left of the viewport.
+    const worstLeft = await page.evaluate(() =>
+      Math.min(
+        0,
+        ...Array.from(document.querySelectorAll('.minutes-editor *'))
+          .filter((el) => getComputedStyle(el).display !== 'none')
+          .map((el) => el.getBoundingClientRect().left),
+      ),
+    );
+    expect(worstLeft, 'leftmost editor element').toBeGreaterThanOrEqual(-0.5);
+  });
+}

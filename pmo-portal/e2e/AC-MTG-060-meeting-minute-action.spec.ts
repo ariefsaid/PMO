@@ -63,6 +63,9 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // "flange" deliberately appears ONLY in the minute body, never in the title — so the search
     // step below proves the NOTES projection, not an accidental title match.
     const minuteLine = `Order flange samples ${suffix}`;
+    // The line /action is invoked on: it is REPLACED by the action-item block (the block renders the
+    // task's own name, so keeping the line would show the same words twice).
+    const actionLine = `Samples follow-up ${suffix}`;
     const taskName = `Chase flange samples ${suffix}`;
 
     // ── 1. The Engineer signs in and opens Meetings from the rail (OD-MTG-1: the nav exists
@@ -96,6 +99,8 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
     await editor.click();
     await page.keyboard.type(minuteLine);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type(actionLine);
     const save = page.getByTestId('minutes-save');
     await expect(save).toBeEnabled();
     await save.click();
@@ -105,13 +110,14 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 4. /action — DD-MTG-8: the STANDARD task-create modal opens, prefilled from the line
     //       and fully editable. The author edits the name before publishing (the informed act:
     //       what they submit — and only that — reaches the org-visible tasks system). ───────
-    //       #805: invoked as the slash command at the end of the line; the line's text prefills.
+    //       #805: invoked as the slash command at the end of the line; the line's text prefills
+    //       and, once the task exists, the line is replaced by the action-item block.
     await page.keyboard.type(' /action');
     await page.getByRole('option', { name: /Action item/ }).first().click();
     const actionModal = page.getByRole('dialog');
     await expect(actionModal).toBeVisible();
     const nameBox = actionModal.getByRole('textbox', { name: 'Task name' });
-    await expect(nameBox).toHaveValue(minuteLine); // prefilled from the minute line
+    await expect(nameBox).toHaveValue(actionLine); // prefilled from the minute line
     await nameBox.fill(taskName); // …and consciously edited before publishing
     await actionModal.getByRole('button', { name: 'Create task' }).click();
 
@@ -122,7 +128,10 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     await expect(actionItems.getByText(taskName)).toBeVisible({ timeout: 15_000 });
     //       …and the minutes carry an actionItem block that renders the LIVE task (id-only, DD-MTG-2).
     await expect(page.getByTestId('minutes-blocknote').getByTestId('action-item').getByText(taskName)).toBeVisible();
-    // The block was inserted after the line; persist it.
+    //       The block REPLACED the line — the same words are not shown twice (the other minute stays).
+    await expect(page.getByTestId('minutes-blocknote')).not.toContainText(actionLine);
+    await expect(page.getByTestId('minutes-blocknote')).toContainText(minuteLine);
+    // Persist it.
     await save.click();
     await expect(save).toBeDisabled();
 

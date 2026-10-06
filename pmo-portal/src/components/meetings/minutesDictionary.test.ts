@@ -30,8 +30,23 @@ describe('minutesDictionary (FR-MTG-023)', () => {
     expect(id.formatting_toolbar.bold.secondary_tooltip).toBe('Mod+B');
   });
 
-  it('every other locale gets the stock English dictionary', () => {
-    expect(minutesDictionary('en')).toBe(en);
-    expect(minutesDictionary(undefined)).toBe(en);
+  it('every other locale gets the stock English dictionary (placeholders aside)', () => {
+    expect({ ...minutesDictionary('en'), placeholders: null }).toEqual({ ...en, placeholders: null });
+    expect({ ...minutesDictionary(undefined), placeholders: null }).toEqual({ ...en, placeholders: null });
+  });
+
+  // BlockNote paints a per-block-type placeholder ("List", "Heading"…) on EVERY empty block of that type, focused or
+  // not, and even in a read-only view. Only the `default` (focused block) and `emptyDocument` keys are focus-scoped.
+  it.each(['en', 'id'])('AC-MTG-022 (%s) only focus-scoped placeholders remain — no "List" on every empty bullet', (lang) => {
+    const keys = Object.keys(minutesDictionary(lang).placeholders);
+    for (const k of ['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'heading']) {
+      expect(keys, k).not.toContain(k);
+    }
+    expect(minutesDictionary(lang).placeholders.default).toBeTruthy();
+  });
+
+  it('AC-MTG-025 the check-list entry is no longer part of the palette keys', () => {
+    expect(PALETTE_SLASH_KEYS).not.toContain('check_list');
+    expect(PALETTE_SLASH_KEYS).toContain('bullet_list');
   });
 });
