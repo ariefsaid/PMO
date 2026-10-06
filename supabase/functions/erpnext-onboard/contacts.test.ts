@@ -1,10 +1,5 @@
 import { contactDb } from "../_shared/erpnextContacts.fixtures.ts";
-let handler: (r: Request) => Promise<Response>;
-(Deno as unknown as { serve: (h: typeof handler) => unknown }).serve = (h) => {
-  handler = h;
-  return { finished: Promise.resolve() };
-};
-await import("./index.ts");
+import { handleOnboardRequest as handler } from "./index.ts";
 const ORG = "00000000-0000-4000-8000-000000000073";
 function assert(v: unknown, m: string): asserts v {
   if (!v) throw new Error(m);

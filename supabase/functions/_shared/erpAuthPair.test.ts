@@ -147,3 +147,21 @@ Deno.test('FR-ENA-019: a cache resolves once per org and re-resolves after a fai
     assert(db.rpcCalls() === 1, `expected 1 vault read, got ${db.rpcCalls()}`);
   } finally { env.restore(); }
 });
+Deno.test('AC-ENA-090: an env-pair miss logs the failure class only — no env-var name, secret_ref or value', async () => {
+  const db = fakeDb({ binding: { secret_ref: 'local-bench' }, vault: null });
+  const env = stubEnv({ LOCAL_BENCH_SECRET: 'super-secret-value' });
+  const logged: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => { logged.push(JSON.stringify(args)); };
+  try {
+    await resolveErpAuthPair(db.client, ORG);
+    throw new Error('should have refused');
+  } catch (e) {
+    assert(e instanceof AppError, `expected AppError, got ${e}`);
+  } finally { console.error = originalError; env.restore(); }
+  const out = logged.join('\n');
+  assert(out.includes('config-rejected'), 'expected the failure class to be logged');
+  for (const coordinate of ['local-bench', 'LOCAL_BENCH', 'super-secret-value']) {
+    assert(!out.includes(coordinate), `log leaked ${coordinate}`);
+  }
+});

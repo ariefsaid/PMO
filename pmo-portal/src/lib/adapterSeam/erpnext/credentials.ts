@@ -40,11 +40,8 @@ export function resolveErpCredentials(
   const apiKey = getEnv(`${prefix}_KEY`);
   const apiSecret = getEnv(`${prefix}_SECRET`);
   if (!apiKey || !apiSecret) {
-    console.error('ERPNext credential resolution failed', {
-      secretRef,
-      keyEnv: `${prefix}_KEY`,
-      secretEnv: `${prefix}_SECRET`,
-    });
+    // ADR-0072: the failure class only — never the secret_ref or the env-var names derived from it.
+    console.error('ERPNext credential resolution failed', 'config-rejected');
     throw new AppError(
       'ERPNext credentials unresolved for this org — check the binding secret_ref configuration',
       'config-rejected',
