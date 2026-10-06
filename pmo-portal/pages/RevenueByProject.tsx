@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { formatCurrencyAuto, formatCurrencyCents, formatNumber } from '@/src/lib/format';
-import { totalsByCurrency } from '@/src/lib/revenueTotals';
+import { sumPerCurrency } from '@/src/lib/sumPerCurrency';
 import type { RevenueByProjectRow } from '@/src/lib/db/revenue';
 
 const RevenueByProject: React.FC = () => {
@@ -31,8 +31,8 @@ const RevenueByProject: React.FC = () => {
   const all = useMemo(() => data ?? [], [data]);
 
   // Calculate totals (must be before any early return for hooks rules)
-  const revenueTotals = useMemo(() => totalsByCurrency(all, (row) => row.total_amount), [all]);
-  const openARTotals = useMemo(() => totalsByCurrency(all, (row) => row.open_ar), [all]);
+  const revenueTotals = useMemo(() => sumPerCurrency(all, (row) => row.total_amount), [all]);
+  const openARTotals = useMemo(() => sumPerCurrency(all, (row) => row.open_ar), [all]);
   const money = (totals: Array<{ currency: string; amount: number }>) =>
     totals.length === 0
       ? formatCurrencyAuto(0, orgCurrency)
@@ -211,7 +211,7 @@ const RevenueByProject: React.FC = () => {
             onActivate={(row) => {
               if (row.project_id) navigate(`/projects/${row.project_id}`);
             }}
-            rowLabel={(row) => `Open ${row.project_name ?? 'Unassigned'}`}
+            rowLabel={(row) => `Open ${row.project_name ?? 'Unassigned'} (${row.currency})`}
             state={all.length === 0 ? 'empty' : undefined}
             emptyTitle={t('financeCopy.noRevenueData', "No revenue data")}
             emptySub={t('financeCopy.invoicesWithAmountsWillAppearHere', "Invoices with amounts will appear here.")}

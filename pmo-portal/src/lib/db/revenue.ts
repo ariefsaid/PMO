@@ -304,7 +304,8 @@ type RevenueAgg = { currency: string; total_amount: number; open_ar: number; inv
  * pack uses (`sales_invoice_work_billed`, DD-PBL-9): a down-payment invoice is an advance, not work
  * (excluded), and a claim invoice counts at net plus the recovery its negative line removed. Totals are
  * grouped per (project, currency) and never converted. Open AR stays the invoices' outstanding amount
- * (what is owed, tax included), read from `sales_invoices` and grouped the same way.
+ * (what is owed, tax included), read from `sales_invoices` and grouped the same way; that scan covers EVERY
+ * submitted invoice, so it also owns `invoice_count` (the work view feeds only the revenue total).
  */
 export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
   const agg = new Map<string, RevenueAgg & { project_id: string | null }>();
@@ -335,7 +336,6 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     if (row.net === null || row.net === undefined) continue;
     const entry = bucket(row.project_id, row.currency ?? '');
     entry.total_amount += Number(row.net) + Number(row.recovery ?? 0);
-    entry.invoice_count += 1;
   }
 
   type ArRow = { id: string; project_id: string | null; currency: string | null; erp_outstanding_amount: number | null };
@@ -349,9 +349,10 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     return query.limit(limit) as unknown as PromiseLike<PageResult<ArRow>>;
   });
   for (const row of ar) {
-    const outstanding = Number(row.erp_outstanding_amount ?? 0);
-    if (outstanding === 0) continue;
-    bucket(row.project_id, row.currency ?? '').open_ar += outstanding;
+    // Every submitted invoice counts (down payments and all) so the count matches the Sales Invoices list.
+    const entry = bucket(row.project_id, row.currency ?? '');
+    entry.open_ar += Number(row.erp_outstanding_amount ?? 0);
+    entry.invoice_count += 1;
   }
 
   // Resolve project names for non-null project_ids

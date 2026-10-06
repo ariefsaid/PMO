@@ -2586,7 +2586,7 @@
   "revenueByProject": {
     "currencyErrorSub": "Coba lagi untuk melihat pendapatan.",
     "currencyErrorTitle": "Mata uang organisasi tidak dapat dimuat",
-    "subtitle": "Pendapatan per proyek, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
+    "subtitle": "Pendapatan per proyek, tidak termasuk pajak, dalam mata uang masing-masing invoice, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
   },
   "sales": {
     "accessDenied": {

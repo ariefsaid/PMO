@@ -2,7 +2,7 @@
  * #831: org-wide revenue figures are grouped PER CURRENCY — never summed across currencies and never
  * converted. One entry per currency present, in first-seen order.
  */
-export function totalsByCurrency<T extends { currency: string }>(
+export function sumPerCurrency<T extends { currency: string }>(
   rows: readonly T[],
   pick: (row: T) => number,
 ): Array<{ currency: string; amount: number }> {

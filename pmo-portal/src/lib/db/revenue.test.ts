@@ -71,7 +71,7 @@ const h = vi.hoisted(() => {
         }
         // LIVE-TABLE mode (NIT 2): a real, id-ordered table that a hook may MUTATE between page
         // reads — the only way to observe an offset scan double-counting a row.
-        if (state.table) {
+        if (state.table && table === 'sales_invoice_work_billed') {
           const ordered = [...state.table].sort((x, y) => String(x.id).localeCompare(String(y.id)));
           const after = cursor === null ? ordered : ordered.filter((r) => String(r.id) > cursor!);
           const page = window ? after.slice(window[0], window[1] + 1) : after.slice(0, cap);
@@ -232,6 +232,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
       [...work(999, 'proj-1', 10), ...work(1, null, 50)],
       work(1, null, 50),
     ];
+    h.state.invoicePages = [[...invoices(999, 'proj-1', 10, 0), ...invoices(1, null, 50, 0)], invoices(1, null, 50, 0)];
 
     const rows = await getRevenueByProject();
 
@@ -253,8 +254,32 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
 
     const rows = await getRevenueByProject();
 
-    expect(rows[0].invoice_count).toBe(1000);
     expect(rows[0].total_amount).toBe(10_000);
+  });
+
+  it('stops when a full page is followed by an empty one, on BOTH scans (an exact multiple of the page size)', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(1000, 'proj-1', 1), []];
+    h.state.invoicePages = [invoices(1000, 'proj-1', 1, 0), []];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows[0].invoice_count).toBe(1000);
+    expect(rows[0].total_amount).toBe(1000);
+    expect(h.state.invoiceQueries).toBe(4);
+  });
+
+  it('AC-831-1: a down-payment invoice adds to the invoice count and Open AR but not to Total Revenue', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    // The work view filters the down-payment out; the AR scan sees every submitted invoice.
+    h.state.workPages = [[]];
+    h.state.invoicePages = [invoices(1, 'proj-1', 50_000, 50_000)];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 0, open_ar: 50_000, invoice_count: 1 },
+    ]);
   });
 
   it('returns an empty rollup (and asks for no project names) when the org has no invoices', async () => {

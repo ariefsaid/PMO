@@ -117,6 +117,11 @@ recognition); budget versions (cost side only). No monthly progress history exis
 - **OBS-MMP-002** "Revenue by Project" sums invoice `amount` gross of any tax and across currencies under
   the org currency label (`src/lib/db/revenue.ts` `getRevenueByProject`). Out of scope here; reported to
   the Director as a separate finding. The pack does not reuse that sum.
+  **Fixed by #831:** Revenue by Project now reads net billed work from `sales_invoice_work_billed`, grouped per
+  (project, currency) and never converted. AC-831-1 (net, not gross; a down payment counts as an invoice and in
+  Open AR but not in revenue) — `src/lib/db/revenue.test.ts`. AC-831-2 (one row per currency, own label) —
+  `src/lib/db/revenue.test.ts` + `pages/__tests__/RevenueByProject.honesty.test.tsx`. AC-831-3 (org-wide totals
+  never blend currencies) — `pages/__tests__/RevenueByProject.honesty.test.tsx` + `src/lib/sumPerCurrency.test.ts`.
 
 ### Non-functional
 
