@@ -13,7 +13,8 @@ function serviceClient(project: Row | null): DispatchServiceClient {
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }],
     external_refs: [{ org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' }],
-    projects: project ? [{ id: 'proj-1', org_id: ORG, customer_contract_ref: null, contract_date: null, ...project }] : [],
+    projects: project ? [{ id: 'proj-1', org_id: ORG, currency: 'IDR', customer_contract_ref: null, contract_date: null, ...project }] : [],
+    organizations: [{ id: ORG, default_currency: 'IDR' }],
     work_orders: [],
     sales_invoices: [],
     progress_claims: [],
@@ -47,7 +48,8 @@ const ITEMS = [{ item_code: 'OWN-ITEM', qty: 2, rate: 500 }];
 const TAXED = { subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 };
 const VAT_OFF = { subject_to_vat: false, tax_base_numerator: 1, tax_base_denominator: 1 };
 
-function erpFetch(template: unknown = TEMPLATE) {
+function erpFetch(template: unknown = TEMPLATE, opts: { customerCurrency?: string | null; companyCurrency?: string } = {}) {
+  const { customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
   const writes: Row[] = [];
   const templateReads: string[] = [];
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -55,6 +57,8 @@ function erpFetch(template: unknown = TEMPLATE) {
     if (path === '/api/resource/Item' && init?.method === 'GET') {
       return Response.json({ data: [{ name: 'OWN-ITEM', item_name: 'OWN-ITEM', disabled: 0, is_sales_item: 1, is_purchase_item: 0 }] });
     }
+    if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
+    if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
     if (path.startsWith('/api/resource/Sales Taxes and Charges Template')) {
       templateReads.push(path);
       return path === '/api/resource/Sales Taxes and Charges Template'
@@ -75,9 +79,9 @@ function command(record: Row = {}): AdapterCommand {
   };
 }
 
-async function push(project: Row | null, record: Row = {}, template?: unknown) {
+async function push(project: Row | null, record: Row = {}, template?: unknown, opts: Parameters<typeof erpFetch>[1] = {}) {
   const cmd = command(record);
-  const erp = erpFetch(template);
+  const erp = erpFetch(template, opts);
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient(project), orgId: ORG, command: cmd,
     fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
@@ -162,5 +166,59 @@ describe('ordinary sales invoice tax rows (#856)', () => {
       expect(await canonicalCommandDigest({ domain: replay.domain, operation: replay.operation, record: replay.record }))
         .toBe(await canonicalCommandDigest({ domain: first.command.domain, operation: first.command.operation, record: first.command.record }));
     }
+  });
+
+  const posts = (erp: { fetchImpl: ReturnType<typeof vi.fn> }) =>
+    erp.fetchImpl.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST');
+
+  it('AC-866-1 an ordinary invoice in a currency other than the customer billing currency is refused before any ERPNext fetch', async () => {
+    const cmd = command();
+    const erp = erpFetch(TEMPLATE, { customerCurrency: 'IDR' });
+    await expect(resolveErpDispatchAdapter({
+      serviceClient: serviceClient({ ...TAXED, currency: 'USD' }), orgId: ORG, command: cmd,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    })).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringMatching(/USD.*IDR/) });
+    expect(erp.writes).toEqual([]);
+    expect(posts(erp)).toEqual([]);
+    expect(erp.templateReads).toEqual([]);
+  });
+
+  it('AC-866-1 a customer with no billing currency falls back to the company currency, and fails closed when neither is known', async () => {
+    const { body } = await push({ ...TAXED, currency: 'USD' }, {}, TEMPLATE, { customerCurrency: null, companyCurrency: 'USD' });
+    expect(body.currency).toBe('USD');
+    const cmd = command();
+    const erp = erpFetch(TEMPLATE, { customerCurrency: null, companyCurrency: '' });
+    await expect(resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TAXED), orgId: ORG, command: cmd,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    })).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('which currency ERPNext bills') });
+    expect(erp.writes).toEqual([]);
+  });
+
+  it('AC-866-2 a matching invoice passes and its body and persisted record carry the currency explicitly', async () => {
+    const { body, command: cmd } = await push(TAXED);
+    expect(body.currency).toBe('IDR');
+    expect(cmd.record.currency).toBe('IDR');
+  });
+
+  it('AC-866-2 a caller-supplied currency never overrides the project currency', async () => {
+    const { body } = await push(TAXED, { currency: 'USD' });
+    expect(body.currency).toBe('IDR');
+  });
+
+  it('AC-866-3 a replayed ordinary create re-sends the persisted currency and makes no ERPNext read', async () => {
+    const first = await push(TAXED);
+    const erp = erpFetch(TEMPLATE, { customerCurrency: 'USD' });
+    const replay = command();
+    replay.record = structuredClone(first.command.record) as AdapterCommand['record'];
+    await resolveErpDispatchAdapter({
+      serviceClient: serviceClient({ ...TAXED, currency: 'USD' }), orgId: ORG, command: replay, replay: true,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    expect(erp.fetchImpl).not.toHaveBeenCalled();
+    expect(replay.record.currency).toBe('IDR');
   });
 });

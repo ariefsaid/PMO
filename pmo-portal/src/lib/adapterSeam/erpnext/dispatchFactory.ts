@@ -1001,7 +1001,7 @@ async function resolveOrdinaryInvoiceTaxes(
 
 /** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */
 async function assertClaimCurrencyMatchesErp(
-  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, client: ErpClientDeps, claimCurrency: string | undefined, customerId: unknown,
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, client: ErpClientDeps, claimCurrency: string | undefined, customerId: unknown, subject: 'claim' | 'invoice' = 'claim',
 ): Promise<void> {
   const externalId = typeof customerId === 'string'
     ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', customerId) : null;
@@ -1017,8 +1017,32 @@ async function assertClaimCurrencyMatchesErp(
     throw new AppError('PMO cannot tell which currency ERPNext bills this customer in. Set a default currency on the customer (or the company) in ERPNext, then raise the invoice again.', 'config-rejected');
   }
   if (erpCurrency !== claimCurrency) {
-    throw new AppError(`This claim is in ${claimCurrency ?? 'an unknown currency'}, but ERPNext bills this customer in ${erpCurrency}. Align the customer's default currency in ERPNext with the project currency (or raise the claim from a project in ${erpCurrency}), then raise the invoice again.`, 'config-rejected');
+    throw new AppError(`This ${subject} is in ${claimCurrency ?? 'an unknown currency'}, but ERPNext bills this customer in ${erpCurrency}. Align the customer's default currency in ERPNext with the project currency (or raise the ${subject} from a project in ${erpCurrency}), then raise the invoice again.`, 'config-rejected');
   }
+}
+
+/**
+ * #866: an ordinary invoice create is stated in its project's currency (the org's default when it has no project). Refuse a
+ * mismatch with the customer's ERPNext billing currency before any write, and put the currency on the record so the body
+ * (and so the persisted outbox payload a replay re-sends) carries it explicitly.
+ */
+async function resolveOrdinaryInvoiceCurrency(
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, record: Record<string, unknown>,
+): Promise<void> {
+  if (deps.command.operation !== 'create') return;
+  const projectId = typeof record.projectId === 'string' && record.projectId ? record.projectId : null;
+  const { data, error } = projectId
+    ? await deps.serviceClient.from('projects').select('currency').eq('org_id', deps.orgId).eq('id', projectId).maybeSingle()
+    : await deps.serviceClient.from('organizations').select('default_currency').eq('id', deps.orgId).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const row = data as { currency?: unknown; default_currency?: unknown } | null;
+  const value = projectId ? row?.currency : row?.default_currency;
+  const currency = typeof value === 'string' && /^[A-Z]{3}$/.test(value) ? value : undefined;
+  if (!currency) throw new AppError('PMO cannot tell which currency this invoice is in. Set a currency on the project, then raise the invoice again.', 'config-rejected');
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  await assertClaimCurrencyMatchesErp(deps, binding, client, currency, record.customerId, 'invoice');
+  record.currency = currency;
 }
 
 /** #858: the integration user may lack read on Selling Settings; say what to do instead of surfacing the raw permission error. */
@@ -1187,6 +1211,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // #856: ordinary-invoice tax rows read ERPNext, so they wait for the project gate and the PMO source reads (all fail closed before any ERP call).
+  if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceCurrency(deps, binding, deps.command.record as Record<string, unknown>);
   if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceTaxes(deps, binding, deps.command.record as Record<string, unknown>);
   // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
   // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
