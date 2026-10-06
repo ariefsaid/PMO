@@ -2966,3 +2966,6 @@ The app mounts under `<BrowserRouter>`, where `useBlocker` throws, so migrating 
 `ConfirmDialog`. Browser Back/Forward stays unguarded (known boundary). Revisit if the app ever adopts a data router.
 Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
 
+
+## OD-CHG-1 — record change history open questions accepted at their defaults (owner, 2026-10-06)
+#719: owner said go, accepting Q1 first set only · Q3 no export · Q4 no DELETE capture · Q5 read-side audit merge for audit readers · Q6 indefinite retention · Q7 project History includes child events with kind filters (Q2 already resolved: contact email/phone `flag` only); `record-change-history.spec.md`.
