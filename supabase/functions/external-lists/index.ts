@@ -30,7 +30,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 interface ListsBody {
   tier: 'clickup';

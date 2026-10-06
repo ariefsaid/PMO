@@ -45,9 +45,12 @@ const callerClient = () =>
 async function settleAfterDeadline<T>(p: Promise<T>): Promise<T> {
   let done = false;
   const tracked = p.finally(() => { done = true; });
-  for (let waited = 0; !done && waited < 3 * OUTBOUND_FETCH_TIMEOUT_MS; waited += 1000) {
+  // Bounded by real wall-clock (Date is not faked), not tick count: a loaded runner can spend longer
+  // than a fixed number of ticks in the handler's async crypto before it reaches fetch.
+  const realStart = Date.now();
+  while (!done && Date.now() - realStart < 8000) {
     await new Promise((r) => setImmediate(r));
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(OUTBOUND_FETCH_TIMEOUT_MS);
   }
   return tracked;
 }
