@@ -327,12 +327,14 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
           array['application/pdf', 'image/png', 'image/jpeg', 'image/webp'])
   on conflict (id) do nothing;
 
-create policy storage_objects_expense_receipt_read on storage.objects for select
+-- TO authenticated: anon holds no grant on expense_claims, and policies on storage.objects are evaluated
+-- for EVERY bucket, so an anon read of any bucket would otherwise fail with 42501 on this subquery.
+create policy storage_objects_expense_receipt_read on storage.objects for select to authenticated
   using (bucket_id = 'expense-receipts' and auth.uid() is not null
          and split_part(name, '/', 1) = public.auth_org_id()::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and exists (select 1 from public.expense_claims c where c.id::text = split_part(name, '/', 2)));
-create policy storage_objects_expense_receipt_write on storage.objects for all
+create policy storage_objects_expense_receipt_write on storage.objects for all to authenticated
   using (bucket_id = 'expense-receipts' and auth.uid() is not null
          and split_part(name, '/', 1) = public.auth_org_id()::text
          and array_length(string_to_array(name, '/'), 1) = 4
