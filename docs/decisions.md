@@ -2958,3 +2958,11 @@ ERPNext keeps the taxed history of a cancelled invoice, so the flag stays locked
 included) or a sales-invoice create still in flight in the outbox (otherwise recovery would see a changed payload digest). When
 the flag is on and ERPNext has no enabled default Sales Taxes and Charges template for the company, the dispatch is refused with
 `config-rejected` and the setup action, for ordinary, progress-claim and down-payment invoices alike.
+
+**DD-MTG-11 (Director, 2026-10-06, #864) — the unsaved-minutes guard is scoped; no data-router migration for it.**
+The app mounts under `<BrowserRouter>`, where `useBlocker` throws, so migrating the whole route tree to a data router
+(an ADR-level change) is not justified by one page. While minutes are dirty, `MeetingDetail` registers a
+`beforeunload` handler and a capture-phase click listener on same-origin in-app links that opens the shared
+`ConfirmDialog`. Browser Back/Forward stays unguarded (known boundary). Revisit if the app ever adopts a data router.
+Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
+

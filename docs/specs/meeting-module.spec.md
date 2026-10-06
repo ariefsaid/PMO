@@ -600,3 +600,24 @@ If yes, §8.5 applies from day one and `/action` — the module's single structu
 a task. That is not a defect to fix in this spec; it is a different feature (create in ClickUp through
 the adapter, then reference it), and it must be known before the module is sized. *Answer with: at
 go-live, does RIS keep its tasks in ClickUp, in PMO, or in neither?*
+
+## 10. Amendment (#864, 2026-10-06) — warn before leaving with unsaved minutes
+
+Ruling: `DD-MTG-11`. The app mounts under `<BrowserRouter>`, where react-router's `useBlocker` is unavailable,
+so the guard is scoped to what can be intercepted without a data-router migration.
+
+- **FR-MTG-040** — *While* the minutes have unsaved edits, *when* the user activates a same-origin in-app link
+  (breadcrumb, rail, any `<a href>` inside the app shell) *or* reloads/closes the tab, the system shall ask for
+  confirmation before leaving. Saved or pristine minutes navigate without a prompt. Browser Back/Forward is not
+  intercepted (known boundary; revisit with a data router).
+
+- **AC-MTG-300** — *Given* a meeting whose minutes have unsaved edits, *when* the user clicks the Meetings
+  breadcrumb, *then* a confirm dialog appears; *when* they choose Stay, *then* they remain on the meeting with
+  their edits intact; *when* they choose Leave, *then* they reach the Meetings list.
+- **AC-MTG-301** — *Given* a meeting whose minutes are saved or untouched, *when* the user clicks the Meetings
+  breadcrumb, *then* they reach the Meetings list with no dialog.
+- **AC-MTG-302** — *Given* unsaved minutes, *then* a `beforeunload` handler is registered (the browser's own
+  leave prompt); *given* saved minutes, *then* none is.
+
+Owning layers: AC-MTG-300 e2e (curated journey); AC-MTG-301 and AC-MTG-302 unit (RTL). The confirm uses the
+shared `ConfirmDialog`; en + id copy.
