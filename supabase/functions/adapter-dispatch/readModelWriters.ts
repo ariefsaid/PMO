@@ -680,7 +680,7 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   const siReceived = (canonical.received_date as string | null | undefined) ?? null;
   if (siReceived !== null) patch.received_date = siReceived;
   if (command.operation === 'create') {
-    const record = command.record as { projectId?: string; customerId?: string };
+    const record = command.record as { projectId?: string; customerId?: string; workOrderId?: string | null };
     // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
     // the service-role insert (RLS is bypassed, so the writer must enforce tenancy itself). A null link
     // (e.g. an SI without a project) skips the lookup — only asserted links are guarded. A link whose
@@ -689,6 +689,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // throws.
     const customerId = await resolveLinkOrNull(ctx, 'companies', record.customerId);
     const projectId = await resolveLinkOrNull(ctx, 'projects', record.projectId);
+    // #766: a claim invoice records the work order it bills (the dispatch set it from the claim). The
+    // same-project trigger (0193 §10) re-checks it; an absent work order writes no key at all.
+    const workOrderId = await resolveLinkOrNull(ctx, 'work_orders', record.workOrderId);
     // project_id and customer_id are machine-set from the command record
     // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
     // no-op (the RPC skips the approver≠author check when author is null). ctx.callerUserId is
@@ -698,6 +701,7 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
       org_id: ctx.orgId,
       project_id: projectId,
       customer_id: customerId,
+      ...(workOrderId ? { work_order_id: workOrderId } : {}),
       author_user_id: ctx.callerUserId ?? null,
       ...patch,
       // NOT NULL with no DB default (0188), so the create branch must always state it. ERPNext returns
