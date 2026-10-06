@@ -226,6 +226,46 @@
       "saving": "Saving…",
       "save": "Save pattern",
       "adminOnly": "Only an Admin can change this."
+    },
+    "spendApprovers": {
+      "title": "Spend approvers",
+      "description": "Who approves purchase requests. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
+      "orgSet": {
+        "title": "Overhead and over-budget approvers"
+      },
+      "projectSet": {
+        "title": "Project approvers"
+      },
+      "addOrg": "Add overhead approver",
+      "addProject": "Add project approver",
+      "remove": "Remove {{name}}",
+      "empty": "Nobody listed — the standard role rules apply.",
+      "adminOnly": "Only an Admin can change this.",
+      "loadError": {
+        "title": "Couldn't load spend approvers"
+      },
+      "toast": {
+        "added": "Approver added",
+        "removed": "Approver removed"
+      },
+      "confirm": {
+        "title": "Remove {{name}}?",
+        "description": "They will no longer approve these requests. Requests already decided are unchanged.",
+        "confirm": "Remove"
+      },
+      "form": {
+        "orgTitle": "Add an overhead approver",
+        "projectTitle": "Add a project approver",
+        "subtitle": "Any one listed approver can approve a request.",
+        "legend": "Approver",
+        "person": "Person",
+        "personPlaceholder": "Select a person…",
+        "personRequired": "Choose a person.",
+        "project": "Project",
+        "projectPlaceholder": "Select a project…",
+        "projectRequired": "Choose a project.",
+        "save": "Add"
+      }
     }
   },
   "approvals": {
@@ -1246,6 +1286,22 @@
       "quoteSelectedDetail": "The request advanced to Quote Selected",
       "requestUpdated": "Request updated",
       "viRecorded": "Vendor invoice recorded"
+    },
+    "route": {
+      "note": "Approval for this request is routed to {{names}}: {{why}}",
+      "nameJoiner": " or ",
+      "why": {
+        "withinBudget": "it is within the project's {{category}} budget.",
+        "exceedsLine": "it would take the project's {{category}} budget over its limit.",
+        "noProject": "it is overhead spend, not charged to a project.",
+        "noCategory": "it has no budget category, so it cannot be checked against the project budget.",
+        "noActiveBudget": "the project has no active budget.",
+        "currencyMismatch": "its currency differs from the project budget's currency.",
+        "escalated": "the project's own approver cannot approve it.",
+        "budgetChanged": "the project budget it fits was activated after it was submitted, or by the person deciding it.",
+        "amountInvalid": "its amount includes a negative value, so it cannot be checked against the project budget."
+      },
+      "adminOnly": "Approval for this request needs an Admin: no one in the senior approver set can act on it."
     }
   },
   "projectDetail": {
@@ -1925,7 +1981,8 @@
       "save": "Save project link",
       "help": "Choose an active ERPNext Project for the connected Company. Its returned identifier will be saved as this project’s link.",
       "noun": "ERP project",
-      "createdPending": "Project saved. ERP linking needs attention; retry from the project page.",
+      "createdPending": "{{name}} saved. ERP linking needs attention; retry from the project page.",
+      "movedPending": "Moved to {{status}}. ERP linking needs attention; retry from the project page.",
       "statusPending": "Project status saved. ERP linking needs attention; retry from the project page.",
       "retry": "Retry"
     }

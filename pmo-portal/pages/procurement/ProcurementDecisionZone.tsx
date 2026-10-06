@@ -107,6 +107,8 @@ export interface ProcurementDecisionZoneProps {
   actions: DecisionAction[];
   /** The SoD blocked-gate message, when present (computed by the page). */
   gateMsg: string | null;
+  /** #803 FR-APR-031: who decides this routed request, and why — shown to a viewer who may not. */
+  routeNote?: string | null;
   isDraft: boolean;
   isRequester: boolean;
   isApprover: boolean;
@@ -137,6 +139,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   p,
   actions,
   gateMsg,
+  routeNote = null,
   isDraft,
   isRequester,
   isApprover,
@@ -164,7 +167,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   // wording (and its SoD meaning) is unchanged. The Draft-author case is already
   // covered by the `sod-pre-announce` line below, so the ready hint suppresses there
   // to avoid two near-identical lines.
-  const showReadyHint = !gateMsg && actions.length > 0 && !(isDraft && isRequester);
+  const showReadyHint = !gateMsg && !routeNote && actions.length > 0 && !(isDraft && isRequester);
 
   // IxD Change 1 — Notes is progressive-disclosure: NOT shown at rest. When
   // Approve/Reject is available (`showNotes`) a quiet "Add a note" link reveals the
@@ -194,6 +197,11 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {readyGateMessage(p.status, isRequester, isApprover)}
             </p>
           ) : null}
+          {routeNote && (
+            <p data-testid="approval-route-note" className="text-[13px] text-muted-foreground">
+              {routeNote}
+            </p>
+          )}
 
           {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
               The author (requester) is about to submit their own request; they need to know

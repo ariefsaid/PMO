@@ -167,6 +167,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
+  { path: '/administration/projects', element: <AdministrationPage /> },
   { path: '/administration/credits', element: <AdministrationPage /> },
   { path: '/administration/usage', element: <AdministrationPage /> },
   { path: '/administration/features', element: <AdministrationPage /> },

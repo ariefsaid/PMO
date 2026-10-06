@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { assertWriteLanded } from '@/src/lib/appError';
 import { ProcurementError } from './procurementLifecycle';
+import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 // ERROR-TYPE NOTE (intentional ProcurementError reuse, not a divergence): the
 // other CRUD DAL modules (companies / documents / projects / incidents) throw the
@@ -62,6 +63,8 @@ export interface NewProcurementInput {
   title: string;
   projectId: string | null;
   vendorId: string | null;
+  /** #803: the budget line this request spends against — decides approval routing. */
+  budgetCategory?: BudgetCategory | null;
   /** Import provenance (Deliverable 2/3) — undefined for every non-import caller. */
   importKey?: string;
   importBatchId?: string;
@@ -92,6 +95,7 @@ export async function createProcurement(
       requested_by_id: requestedById,
       project_id: input.projectId,
       vendor_id: input.vendorId,
+      ...(input.budgetCategory !== undefined ? { budget_category: input.budgetCategory } : {}),
       ...(input.importKey !== undefined ? { import_key: input.importKey } : {}),
       ...(input.importBatchId !== undefined ? { import_batch_id: input.importBatchId } : {}),
       ...(input.importedAt !== undefined ? { imported_at: input.importedAt } : {}),
@@ -108,6 +112,8 @@ export interface ProcurementHeaderPatch {
   title: string;
   projectId: string | null;
   vendorId: string | null;
+  /** #803: sent only when the editor changed it; `null` clears it. */
+  budgetCategory?: BudgetCategory | null;
 }
 
 /**
@@ -126,6 +132,7 @@ export async function updateProcurementHeader(
       title: patch.title,
       project_id: patch.projectId,
       vendor_id: patch.vendorId,
+      ...(patch.budgetCategory !== undefined ? { budget_category: patch.budgetCategory } : {}),
     })
     .eq('id', id)
     .select('id');

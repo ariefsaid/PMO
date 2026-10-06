@@ -132,6 +132,22 @@ describe('Projects create navigation (AC-RAM-006)', () => {
     );
   });
 
+  it('AC-RAM-006: when ERP linking needs a retry, the warning still names the created project', async () => {
+    projectMutations.create.mutateAsync.mockResolvedValue({
+      id: '9b1d0c2e-4f6a-4c3b-8d7e-000000000abd',
+      name: 'New project',
+      status: 'Leads',
+      erpSetup: 'pending',
+    });
+    renderPage();
+
+    await submitNewProject('Harborside Annex');
+
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/ERP linking needs attention/);
+    expect(toast).toHaveTextContent(/Harborside Annex/);
+  });
+
   it('AC-RAM-006: a failed create stays on /projects with the modal open', async () => {
     projectMutations.create.mutateAsync.mockRejectedValue(new AppError('denied', '42501'));
     renderPage();

@@ -226,6 +226,46 @@
       "saving": "Menyimpan…",
       "save": "Simpan pola",
       "adminOnly": "Hanya Admin yang dapat mengubahnya."
+    },
+    "spendApprovers": {
+      "title": "Penyetuju pengeluaran",
+      "description": "Siapa yang menyetujui permintaan pembelian. Pengeluaran yang dibebankan ke proyek dan masih dalam pos anggarannya disetujui oleh penyetuju proyek tersebut; overhead, dan pengeluaran yang akan melampaui pos anggaran, disetujui oleh penyetuju overhead. Cukup satu penyetuju yang terdaftar untuk menyetujui. Jika belum ada yang terdaftar, aturan peran standar berlaku.",
+      "orgSet": {
+        "title": "Penyetuju overhead dan lebih anggaran"
+      },
+      "projectSet": {
+        "title": "Penyetuju proyek"
+      },
+      "addOrg": "Tambah penyetuju overhead",
+      "addProject": "Tambah penyetuju proyek",
+      "remove": "Hapus {{name}}",
+      "empty": "Belum ada — aturan peran standar berlaku.",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "loadError": {
+        "title": "Gagal memuat penyetuju pengeluaran"
+      },
+      "toast": {
+        "added": "Penyetuju ditambahkan",
+        "removed": "Penyetuju dihapus"
+      },
+      "confirm": {
+        "title": "Hapus {{name}}?",
+        "description": "Mereka tidak lagi menyetujui permintaan ini. Permintaan yang sudah diputuskan tidak berubah.",
+        "confirm": "Hapus"
+      },
+      "form": {
+        "orgTitle": "Tambah penyetuju overhead",
+        "projectTitle": "Tambah penyetuju proyek",
+        "subtitle": "Cukup satu penyetuju yang terdaftar untuk menyetujui permintaan.",
+        "legend": "Penyetuju",
+        "person": "Orang",
+        "personPlaceholder": "Pilih orang…",
+        "personRequired": "Pilih orang.",
+        "project": "Proyek",
+        "projectPlaceholder": "Pilih proyek…",
+        "projectRequired": "Pilih proyek.",
+        "save": "Tambah"
+      }
     }
   },
   "approvals": {
@@ -1242,6 +1282,22 @@
       "requestUpdated": "Permintaan diperbarui",
       "viRecorded": "Invoice vendor dicatat"
     },
+    "route": {
+      "note": "Persetujuan permintaan ini diarahkan ke {{names}}: {{why}}",
+      "nameJoiner": " atau ",
+      "why": {
+        "withinBudget": "permintaan ini masih dalam anggaran {{category}} proyek.",
+        "exceedsLine": "permintaan ini akan melampaui batas anggaran {{category}} proyek.",
+        "noProject": "ini pengeluaran overhead, tidak dibebankan ke proyek.",
+        "noCategory": "kategori anggarannya belum diisi, jadi tidak dapat dicek terhadap anggaran proyek.",
+        "noActiveBudget": "proyek belum memiliki anggaran aktif.",
+        "currencyMismatch": "mata uangnya berbeda dari mata uang anggaran proyek.",
+        "escalated": "penyetuju proyek tidak dapat menyetujui permintaan ini.",
+        "budgetChanged": "anggaran proyek yang menampungnya diaktifkan setelah permintaan diajukan, atau oleh orang yang memutuskannya.",
+        "amountInvalid": "nilainya mengandung angka negatif, jadi tidak dapat dicek terhadap anggaran proyek."
+      },
+      "adminOnly": "Persetujuan permintaan ini memerlukan Admin: tidak ada anggota penyetuju senior yang dapat memprosesnya."
+    },
     "groupRef": {
       "label": "Ref. grup",
       "optional": "(opsional)",
@@ -1925,7 +1981,8 @@
       "save": "Simpan tautan proyek",
       "help": "Pilih Proyek ERPNext aktif untuk Perusahaan yang terhubung. Identitas yang dikembalikan akan disimpan sebagai tautan proyek ini.",
       "noun": "proyek ERP",
-      "createdPending": "Proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
+      "createdPending": "{{name}} tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
+      "movedPending": "Dipindahkan ke {{status}}. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "retry": "Coba lagi"
     }

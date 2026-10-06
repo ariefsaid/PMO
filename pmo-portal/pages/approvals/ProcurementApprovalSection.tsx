@@ -20,6 +20,7 @@ import {
 } from '@/src/components/ui';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useAuth } from '@/src/auth/useAuth';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { ProcurementApprovalRow } from './ProcurementApprovalRow';
@@ -27,14 +28,15 @@ import { ProcurementApprovalRow } from './ProcurementApprovalRow';
 export const ProcurementApprovalSection: React.FC = () => {
   const { currentUser } = useAuth();
   const selfId = currentUser?.id;
+  const { realRole } = useEffectiveRole();
   const { data, isPending, isError, refetch } = useProcurements();
 
   // SoD-a: Requested + not raised by me (H7 — single source of truth).
   const rows = useMemo(
     () =>
-      pendingProcurementApprovals(data, selfId)
+      pendingProcurementApprovals(data, selfId, realRole === 'Admin')
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
-    [data, selfId],
+    [data, selfId, realRole],
   );
 
   const countLabel = isPending ? '…' : String(rows.length);
