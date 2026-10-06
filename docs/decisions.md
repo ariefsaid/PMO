@@ -2841,6 +2841,17 @@ unchanged: invoice settled in full, cash and withholding both recorded. Only the
 assertion and the synthetic mapper fixture change to ERPNext's real shape; the mapper derives the gross
 only from an explicitly marked withholding deduction, leaving other deductions alone.
 
+**DD-DUE-1 (Director, 2026-10-06, #767) — the received date lives in PMO; ERP keeps its own due date.**
+ERPNext v16 forbids changing `due_date` or the payment schedule on a submitted Sales Invoice (no
+`allow_on_submit`; `base_document.py` refuses it), and refuses a due date past the customer's terms
+template even at create. Receipt is learned after submission, so PMO records the received date and shows
+due date = received date + terms on the Sales Invoices list and export; it never sends `due_date`. The
+value travels to ERP only as `custom_received_date` (created by onboarding, editable after submit) when
+an invoice is created or amended. ERP's own AR aging keeps ERP's due date — ADR-0048 keeps ERPNext the
+accounting truth, so PMO does not re-derive aging. Known limit: if ERP already carries a received date,
+a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
+field-only update route if it bites.
+
 ## DD-ERP-SITE-1 — one ERP site serves one PMO org (Director, 2026-10-06)
 
 PMO assumes an ERPNext site is connected to at most one PMO org. Customers, Suppliers and their Contacts

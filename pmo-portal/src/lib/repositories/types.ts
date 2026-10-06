@@ -452,6 +452,8 @@ export interface RevenueRepository {
     withholdingSlipNumber?: string | null;
     date: string;
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
+  /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
+  setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
   submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
   /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
