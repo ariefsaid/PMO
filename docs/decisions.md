@@ -2937,3 +2937,11 @@ line nets it with tax on the reduced base. Two requirements follow: ERP setup mu
 Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
 body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
 Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
+
+**OD-TAX-4 (owner, 2026-10-06) — a project says whether it is subject to VAT; every invoice follows it.**
+Owner proposal, Director timing: projects carry a "Subject to VAT (PPN)" flag, default on. It is set where the
+contract value is recorded (at the win) by the same Finance/Admin value-setter, editable by Finance/Admin until the
+project's first invoice exists, then locked (to change it, cancel the invoices first). Every sales invoice and every
+progress/down-payment claim on the project follows it: on → explicit tax rows from the org's sales-tax setup (PPN
+12% on a reduced base of 11/12, i.e. 11% effective; the full 12% rate is not in use); off → no tax rows. Resolves
+the #855 review item M-3 (a VAT-free contract got the template VAT) and governs #856.
