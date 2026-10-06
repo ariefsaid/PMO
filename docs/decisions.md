@@ -3000,3 +3000,6 @@ Spec: `meeting-module.spec.md` §10 (FR-MTG-040, AC-MTG-300..302).
 
 ## OD-CHG-1 — record change history open questions accepted at their defaults (owner, 2026-10-06)
 #719: owner said go, accepting Q1 first set only · Q3 no export · Q4 no DELETE capture · Q5 read-side audit merge for audit readers · Q6 indefinite retention · Q7 project History includes child events with kind filters (Q2 already resolved: contact email/phone `flag` only); `record-change-history.spec.md`.
+
+**DD-UI-CSS-1 (Director, 2026-10-07, #864/#805) — a lazily-loaded stylesheet never joins the app's `utilities` layer.**
+The minutes editor's chunk re-emitted BlockNote's Tailwind utilities into `utilities`; loading after `index.css`, its `.hidden` beat the app's `max-[920px]:block` (same layer, same specificity, later wins) and hid the phone Back bar app-wide until reload. `index.css` now fixes the order `theme, base, components, minutes-editor, utilities` before the Tailwind import, and the editor CSS imports into `layer(minutes-editor)`. Any future lazy CSS gets its own layer below `utilities`. Guard: `minutesTailwind.css.test.ts`; journey: AC-LRC-008 waits for the editor before the phone Back click.
