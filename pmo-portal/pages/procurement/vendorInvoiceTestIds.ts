@@ -35,6 +35,4 @@ export const VI_FIELD_TEST_IDS = {
   // the tax facts are incomplete. Was a duplicated string literal in each file (a "⚠ KEEP IN SYNC"
   // comment, not an enforced contract) — single-sourced here for the same reason as the fields above.
   taxRequiredHint: 'vi-tax-required-hint',
-  // #520: flipped org only — the ERPNext purchase tax template (RecordCaptureForm, the one VI create that dispatches).
-  taxTemplate: 'vi-tax-template-select',
 } as const;

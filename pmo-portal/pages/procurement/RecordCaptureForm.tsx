@@ -604,7 +604,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             { value: '', label: t('procurementDetail.erpTaxTemplate.default', 'ERPNext default') },
             ...(erpTaxTemplates.data ?? []).map((tpl) => ({ value: tpl.name, label: tpl.name })),
           ]}
-          data-testid={VI_FIELD_TEST_IDS.taxTemplate}
+          data-testid="vi-tax-template-select"
         />
       )}
       {pmoAuthorsTax && <TaxRateFields fields={taxFields} />}
