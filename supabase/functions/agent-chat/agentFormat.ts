@@ -7,8 +7,18 @@
  *  project, person or customer name) render as TEXT — never a link, emphasis, code span or raw HTML. */
 const MD_INLINE = /[\\`*_{}[\]()#+!<>|~]/g;
 
+const ZWSP = '\u200B';
+
 export function escapeMarkdownText(raw: string, max = 200): string {
-  return raw.replace(/[\r\n]+/g, ' ').slice(0, max).replace(MD_INLINE, (c) => `\\${c}`);
+  return raw
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, max)
+    .replace(MD_INLINE, (c) => `\\${c}`)
+    // remark-gfm autolinks bare `scheme://`, `www.` and e-mail text AFTER parsing, so a backslash escape does not
+    // stop it (FR-AIN-008). A zero-width space inside each trigger breaks the match and renders identically.
+    .replace(/\b(https?|ftp|mailto):/gi, `$1:${ZWSP}`)
+    .replace(/\bwww\./gi, `www${ZWSP}.`)
+    .replace(/@/g, `@${ZWSP}`);
 }
 
 /** Today's calendar date (YYYY-MM-DD) in an IANA zone; an unknown zone falls back to UTC. */

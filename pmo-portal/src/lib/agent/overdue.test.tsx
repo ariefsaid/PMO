@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadOverdueFacts, renderOverdueMarkdown, runWhatsOverdue, type OverdueFacts } from '../../../../supabase/functions/agent-chat/overdue';
+import { render } from '@testing-library/react';
+import { Markdown } from '../../components/panel/Markdown';
 import { fakeSupabase, opsOf, type FakeCall } from './testing/fakeSupabase';
 
 const NOW = new Date('2026-10-05T18:00:00Z'); // 2026-10-06 in Asia/Jakarta
@@ -49,6 +51,12 @@ describe('loadOverdueFacts — tasks (#787)', () => {
     expect(facts.tasks[0]).toMatchObject({ projectName: 'Harbor', dueDate: '2026-10-01', daysOverdue: 5 });
   });
 
+  it('AC-AIN-005 archived projects are excluded from the managed set', async () => {
+    const { client, calls } = fakeSupabase(world({ projects: () => [] }));
+    await loadOverdueFacts(ctx('Project Manager', client), NOW);
+    expect(opsOf(calls, 'projects')[0]).toContainEqual(['is', 'archived_at', null]);
+  });
+
   it('Finance sees the whole org (no scope filter) and today follows the profile zone', async () => {
     const { client, calls } = fakeSupabase(world());
     const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
@@ -67,8 +75,8 @@ describe('loadOverdueFacts — tasks (#787)', () => {
 });
 
 describe('loadOverdueFacts — invoices (#787)', () => {
-  const inv = (si: string, date: string, terms: number | null) => ({
-    id: si, si_number: si, invoice_date: date, erp_outstanding_amount: 100, currency: 'IDR',
+  const inv = (si: string, date: string, terms: number | null, extra: Record<string, unknown> = {}) => ({
+    id: si, si_number: si, invoice_date: date, received_date: null, erp_due_date: null, ...extra, erp_outstanding_amount: 100, currency: 'IDR',
     tax_treatment: 'inclusive', project_id: P1, companies: { name: 'PT Client', erp_payment_terms_days: terms },
   });
 
@@ -84,8 +92,54 @@ describe('loadOverdueFacts — invoices (#787)', () => {
     ]);
   });
 
+  it('AC-AIN-013 selects received_date + erp_due_date, the columns the Sales Invoices Due column reads', async () => {
+    const { client, calls } = fakeSupabase(world({ sales_invoices: () => [] }));
+    await loadOverdueFacts(ctx('Finance', client), NOW);
+    const cols = calls.find((c) => c.table === 'sales_invoices')!.columns;
+    expect(cols).toContain('received_date');
+    expect(cols).toContain('erp_due_date');
+  });
+
+  it('AC-AIN-013 an ERP due date is the due date when no receipt date is recorded', async () => {
+    // terms-derived would be 2026-10-01 (overdue); the ERP date 2026-10-20 is authoritative → not overdue.
+    const { client } = fakeSupabase(world({ sales_invoices: () => [inv('SI-E', '2026-09-01', 30, { erp_due_date: '2026-10-20' })] }));
+    expect((await loadOverdueFacts(ctx('Finance', client), NOW)).invoices).toEqual([]);
+    // an ERP date already past is reported as that date.
+    const past = fakeSupabase(world({ sales_invoices: () => [inv('SI-F', '2026-09-30', 30, { erp_due_date: '2026-10-03' })] }));
+    expect((await loadOverdueFacts(ctx('Finance', past.client), NOW)).invoices?.[0]).toMatchObject({ dueDate: '2026-10-03', daysOverdue: 3 });
+  });
+
+  it('AC-AIN-013 the receipt date anchors the terms (and beats the invoice date)', async () => {
+    // invoice 2026-08-01 + 30 = 2026-08-31 (overdue); received 2026-09-20 + 30 = 2026-10-20 → not overdue.
+    const { client } = fakeSupabase(world({ sales_invoices: () => [inv('SI-R', '2026-08-01', 30, { received_date: '2026-09-20' })] }));
+    expect((await loadOverdueFacts(ctx('Finance', client), NOW)).invoices).toEqual([]);
+  });
+
+  it('AC-AIN-013 a terms value other than 30 is honoured', async () => {
+    const { client } = fakeSupabase(world({ sales_invoices: () => [inv('SI-45', '2026-08-20', 45), inv('SI-14', '2026-09-20', 14)] }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(facts.invoices?.map((i) => [i.siNumber, i.dueDate, i.daysOverdue])).toEqual([
+      ['SI-45', '2026-10-04', 2],
+      ['SI-14', '2026-10-04', 2],
+    ].sort((a, b) => String(a[1]).localeCompare(String(b[1]))));
+  });
+
   it('AC-AIN-006 Revenue off → no invoice read, no invoice section', async () => {
     const { client, calls } = fakeSupabase(world({ org_features: () => ({ enabled: false }) }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(calls.some((c) => c.table === 'sales_invoices')).toBe(false);
+    expect(facts.invoices).toBeNull();
+  });
+
+  it('AC-AIN-006 the Revenue flag read is scoped to the caller org (a platform operator can see several)', async () => {
+    const { client, calls } = fakeSupabase(world());
+    await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(opsOf(calls, 'org_features')[0]).toContainEqual(['eq', 'org_id', 'org-1']);
+    expect(opsOf(calls, 'org_features')[0]).toContainEqual(['eq', 'feature_key', 'revenue']);
+  });
+
+  it('AC-AIN-006 a MISSING org_features revenue row means off', async () => {
+    const { client, calls } = fakeSupabase(world({ org_features: () => null }));
     const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
     expect(calls.some((c) => c.table === 'sales_invoices')).toBe(false);
     expect(facts.invoices).toBeNull();
@@ -120,8 +174,47 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
   it('FR-AIN-007 links tasks to the project Tasks tab and invoices to the filtered list; escapes names', () => {
     const md = renderOverdueMarkdown(base);
     expect(md).toContain('**Overdue as of 6 Oct** — 1 task, 1 invoice');
-    expect(md).toContain(`[\\[x\\]\\(https://evil.example\\)](/projects/${P1}/tasks) — Harbor · due 2 Oct (4 days late) · Budi`);
+    expect(md).toContain(`[\\[x\\]\\(https:\u200B//evil.example\\)](/projects/${P1}/tasks) — Harbor · due 2 Oct (4 days late) · Budi`);
     expect(md).toContain('[ACC-SINV-2026-00012](/sales-invoices?q=ACC-SINV-2026-00012) — PT Client · $1,500.50 outstanding (incl. tax) · due 1 Oct (5 days late)');
+  });
+
+  it('FR-AIN-008 every user-authored field renders as inert text (customer, assignee, project, name)', () => {
+    const evil = '[click](https://evil.example) <b>x</b> https://evil.example www.evil.example a@evil.example';
+    const facts: OverdueFacts = {
+      ...base,
+      tasks: [{ ...base.tasks[0], name: evil, projectName: evil, assigneeName: evil }],
+      invoices: [{ ...base.invoices![0], customerName: evil, siNumber: evil }],
+    };
+    const { container } = render(<Markdown text={renderOverdueMarkdown(facts)} />);
+    const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    // only the app's own two list links + the "more" footer may be anchors; nothing external, no raw HTML.
+    expect(hrefs.every((h) => h!.startsWith('/'))).toBe(true);
+    expect(container.querySelector('b')).toBeNull();
+    const text = container.textContent!.replace(/\u200B/g, '');
+    expect(text).toContain('www.evil.example');
+    expect(text).toContain('https://evil.example');
+  });
+
+  it('FR-AIN-008 bare URLs and www. hosts in names never autolink (GFM)', () => {
+    const f: OverdueFacts = {
+      ...base,
+      tasks: [{ ...base.tasks[0], projectId: null, name: 'see https://evil.example now', projectName: 'www.evil.example', assigneeName: 'x@evil.example' }],
+      invoices: null,
+    };
+    const { container } = render(<Markdown text={renderOverdueMarkdown(f)} />);
+    expect(container.querySelectorAll('a')).toHaveLength(0);
+    expect(container.textContent!.replace(/\u200B/g, '')).toContain('see https://evil.example now');
+  });
+
+  it('FR-AIN-007 a non-UUID project id and an invoice number with reserved characters never break the link', () => {
+    const f: OverdueFacts = {
+      ...base,
+      tasks: [{ ...base.tasks[0], projectId: 'x/../../admin)' }],
+      invoices: [{ ...base.invoices![0], siNumber: 'A (1)&q=2 #x' }],
+    };
+    const md = renderOverdueMarkdown(f);
+    expect(md).not.toContain('x/../../admin');
+    expect(md).toContain('/sales-invoices?q=A%20%281%29%26q%3D2%20%23x)');
   });
 
   it('caps each section at 10 rows and says how many more', () => {
@@ -134,7 +227,7 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
   });
 
   it('says plainly when nothing is overdue', () => {
-    expect(renderOverdueMarkdown({ ...base, tasks: [], invoices: [] })).toBe('**Overdue as of 6 Oct** — nothing is overdue.');
+    expect(renderOverdueMarkdown({ ...base, tasks: [], invoices: [] })).toBe('**Overdue as of 6 Oct** — nothing is overdue.\n\n');
   });
 
   it('FR-AIN-006 run returns the markdown plus a receipt without the list', async () => {

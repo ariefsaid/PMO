@@ -5,7 +5,8 @@ import {
 
 describe('agentFormat (#787)', () => {
   it('AC-AIN-012 a link-shaped name is escaped to plain text', () => {
-    expect(escapeMarkdownText('[x](https://evil.example)')).toBe('\\[x\\]\\(https://evil.example\\)');
+    expect(escapeMarkdownText('[x](https://evil.example)')).toBe('\\[x\\]\\(https:\u200B//evil.example\\)');
+    expect(escapeMarkdownText('www.evil.example a@b.example')).toBe('www\u200B.evil.example a@\u200Bb.example');
     expect(escapeMarkdownText('a*b_c<script>')).toBe('a\\*b\\_c\\<script\\>');
     expect(escapeMarkdownText('line1\nline2')).toBe('line1 line2');
     expect(escapeMarkdownText('x'.repeat(300))).toHaveLength(200);

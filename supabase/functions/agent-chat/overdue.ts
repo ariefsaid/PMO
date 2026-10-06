@@ -19,7 +19,7 @@ const OPEN_TASK_STATUSES = ['To Do', 'In Progress', 'Blocked'] as const;
 
 interface TaskRow { id: string; name: string; end_date: string; project_id: string | null; assignee_id: string | null }
 interface InvoiceRow {
-  id: string; si_number: string | null; invoice_date: string | null; erp_outstanding_amount: number | null;
+  id: string; si_number: string | null; invoice_date: string | null; received_date: string | null; erp_due_date: string | null; erp_outstanding_amount: number | null;
   currency: string; tax_treatment: string; project_id: string | null;
   companies: { name: string | null; erp_payment_terms_days: number | null } | null;
 }
@@ -52,7 +52,7 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
     readOne<{ default_timezone: string | null; default_locale: string | null; default_number_locale: string | null }>(
       sb.from('organizations').select('default_timezone, default_locale, default_number_locale').eq('id', ctx.orgId).maybeSingle(),
     ),
-    readOne<{ enabled: boolean }>(sb.from('org_features').select('enabled').eq('feature_key', 'revenue').maybeSingle()),
+    readOne<{ enabled: boolean }>(sb.from('org_features').select('enabled').eq('org_id', ctx.orgId).eq('feature_key', 'revenue').maybeSingle()),
   ]);
   // FR-AIN-002 / DD-AIN-1: "today" in the caller's own zone, else the org's, else UTC.
   const asOf = isoDateInZone(now, profile?.timezone || org?.default_timezone || 'UTC');
@@ -119,7 +119,7 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
       invoices = [];
     } else {
       let q = sb.from('sales_invoices')
-        .select('id, si_number, invoice_date, erp_outstanding_amount, currency, tax_treatment, project_id, companies!sales_invoices_customer_id_fkey(name, erp_payment_terms_days)')
+        .select('id, si_number, invoice_date, received_date, erp_due_date, erp_outstanding_amount, currency, tax_treatment, project_id, companies!sales_invoices_customer_id_fkey(name, erp_payment_terms_days)')
         .eq('status', 'Unpaid');
       if (managedIds) q = q.in('project_id', managedIds);
       const scanned = await readRows<InvoiceRow>(
@@ -128,7 +128,7 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
       const overdue: OverdueInvoice[] = [];
       for (const row of scanned.slice(0, OVERDUE_INVOICE_SCAN_CAP)) {
         // DD-AIN-1: the SAME due-date rule the Sales Invoices "Due" column renders (FR-SAR-141, AC-SAR-051).
-        const due = deriveArDueDate(row.invoice_date, row.companies?.erp_payment_terms_days ?? null, null);
+        const due = deriveArDueDate(row.invoice_date, row.companies?.erp_payment_terms_days ?? null, row.erp_due_date, row.received_date);
         if (!due || due >= asOf) continue;
         overdue.push({
           id: row.id, siNumber: row.si_number, customerName: row.companies?.name ?? null,
@@ -165,7 +165,7 @@ const hrefParam = (v: string) => encodeURIComponent(v).replace(/\(/g, '%28').rep
 /** DD-AIN-7: the deterministic, server-written answer. Every user-authored string is escaped (FR-AIN-008). */
 export function renderOverdueMarkdown(f: OverdueFacts): string {
   const head = `**Overdue as of ${formatShortDate(f.asOf)}**`;
-  if (f.tasks.length === 0 && (f.invoices === null || f.invoices.length === 0)) return `${head} — nothing is overdue.`;
+  if (f.tasks.length === 0 && (f.invoices === null || f.invoices.length === 0)) return `${head} — nothing is overdue.\n\n`;
   const counts = [count(f.tasks.length, f.tasksTruncated, 'task', 'tasks')];
   if (f.invoices) counts.push(count(f.invoices.length, f.invoicesTruncated, 'invoice', 'invoices'));
   const lines = [`${head} — ${counts.join(', ')}`];
@@ -198,7 +198,9 @@ export function renderOverdueMarkdown(f: OverdueFacts): string {
     const rest = f.invoices.length - Math.min(f.invoices.length, OVERDUE_LIST_SHOWN);
     if (rest > 0 || f.invoicesTruncated) lines.push(`- …and ${rest}${f.invoicesTruncated ? '+' : ''} more on [Sales Invoices](/sales-invoices)`);
   }
-  return lines.join('\n');
+  // Blank-line tail: the panel concatenates consecutive assistant events with no separator, so the model's
+  // closing sentence would otherwise run on from the last list row.
+  return `${lines.join('\n')}\n\n`;
 }
 
 export async function runWhatsOverdue(
