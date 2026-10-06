@@ -10,7 +10,7 @@ This change records the follow-ups from the #869/#872/#873 reviews. It is primar
 - `docs/specs/record-change-history.spec.md` now describes the shipped whole-row JSONB-in-memory approach, the transaction-local `set_config('app.actor_id', ..., true)` loader contract, service-role write access, caller-run function/manifest distinctions, the shipped `0260` migration paths, independently pinned visibility clauses, and the deferred History-tab `EXPLAIN (ANALYZE, BUFFERS)` review.
 - `docs/plans/2026-10-06-record-change-history-data.md` aligns the plan with those decisions, narrows the trigger-order claim to triggers sharing the table prefix, updates assertion/mutation results, and records the History-tab scan-cost handoff.
 - `docs/decisions.md` records `DD-CHG-1`, accepting the shipped in-memory diff behavior and assigning the production-shaped read-plan review to the History-tab work.
-- `docs/plans/2026-10-06-review-followups-5db16dfd.md` and its `_v2`, `_v3`, and `_v4` revisions capture the evolving implementation plans, traceability, mutation checks, and scoped verification commands. The final plan iteration keeps the reconnect change as a regression proof only and does not add migration `0262`.
+- `docs/plans/2026-10-06-review-followups-5db16dfd_v4.md` is the implementation plan, traceability, mutation checks, and scoped verification commands. The final plan iteration keeps the reconnect change as a regression proof only and does not add migration `0262`.
 
 ## Verification
 
