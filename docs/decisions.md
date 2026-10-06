@@ -2917,3 +2917,23 @@ payment the outstanding advance settles first, outstanding is computed, never st
 0–30/31–60/61–90/90+ · "Special expenses" is the existing category, no extra workflow (name the owner in the
 senior set to review them) · the later ERP path (phase B) uses core Journal/Payment Entry with an Employee party,
 never HRMS doctypes; it waits for a bench test · content frozen after submit · one currency per claim.
+
+**DD-PBL-1..11 (Director, 2026-10-06, #766; owner ruling folded in) — down payment, progress assessment, billing
+claims.** Ruled as proposed in `docs/specs/progress-billing.spec.md` and ADR-0077. Owner ruling: a PM's progress
+claim is an operational, subjective assessment and never an invoice; billing needs administrative evidence. So:
+the down payment and each claim post as ERPNext invoice lines on an advance-account item (recovery = a negative
+line) · a PROGRESS ASSESSMENT (PM or Finance+, per month, quantities against the BoQ) extends the management
+pack's progress table and never invoices · a BILLING CLAIM (Admin/Finance) is immutable, becomes the invoice
+record, and the database refuses to raise it without an Issued/Approved evidence document with a file from the
+project register · scope = project lines or one Issued/Closed work order · one live down payment per project,
+recovery % capped at what is left · amounts exclude tax · one shared billed-work view (down payments excluded,
+recoveries added back) feeds this feature and the pack · over-measuring/over-claiming is shown, not blocked ·
+retention out of scope. Task 0 (ERP accepts the negative line and the liability income account) gates the
+adapter slice.
+
+**DD-PBL-12 (Director, 2026-10-06, #766) — ERP prerequisites proven by the Task 0 spike.** On ERPNext v15.94 the
+advance-item mechanism (ADR-0077) holds: the down payment books to the liability, and a claim's negative recovery
+line nets it with tax on the reduced base. Two requirements follow: ERP setup must turn on Selling Settings "Allow
+Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
+body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
+Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
