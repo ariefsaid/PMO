@@ -4,7 +4,7 @@ import type { Role } from './AuthContext';
 
 const ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
 
-describe('AC-MMP-012 management pack policy (mirrors migration 0242)', () => {
+describe('AC-MMP-012 management pack policy (mirrors migration 0245)', () => {
   it('AC-MMP-012: the pack is visible to the revenue read set and not to Engineers', () => {
     expect(ROLES.filter((r) => can('view', 'managementPack', { realRole: r })))
       .toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);

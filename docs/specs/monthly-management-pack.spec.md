@@ -128,8 +128,8 @@ recognition); budget versions (cost side only). No monthly progress history exis
 - **NFR-MMP-003 (tenancy/security)** Read RPC is SECURITY INVOKER (RLS is the boundary); no definer
   functions; new table has FORCE RLS, `is_active_member()` on every policy, the 0074 org stamp trigger,
   column-level grants, no anon access.
-- **NFR-MMP-004 (reversibility)** Migration `0242` ships with
-  `supabase/migrations/rollback/0242_management_pack_down.sql`.
+- **NFR-MMP-004 (reversibility)** Migration `0245` ships with
+  `supabase/migrations/rollback/0245_management_pack_down.sql`.
 - **NFR-MMP-005 (i18n)** Every new string has English and Indonesian catalogue entries; `/reports` joins
   the launch-scope route list (DD-I18N-9).
 - **NFR-MMP-006 (honest states)** Loading shows skeletons; a failed load shows an error, never a 0.

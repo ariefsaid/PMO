@@ -1,4 +1,4 @@
--- Reverses 0242_management_pack.sql. Order: functions that read the table, the table (takes its policies,
+-- Reverses 0245_management_pack.sql. Order: functions that read the table, the table (takes its policies,
 -- triggers and indexes with it), then the helpers and the sales_invoices index.
 drop function if exists public.get_management_pack(date, date);
 drop function if exists public.record_project_progress(uuid, date, numeric, text);

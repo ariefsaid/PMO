@@ -5957,7 +5957,6 @@ export type Database = {
         }
         Returns: string
       }
-      may_record_project_progress: { Args: { p_project_id: string }; Returns: boolean }
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
@@ -5971,6 +5970,10 @@ export type Database = {
       }
       may_approve_work_of: {
         Args: { p_approver_id: string; p_author_id: string }
+        Returns: boolean
+      }
+      may_record_project_progress: {
+        Args: { p_project_id: string }
         Returns: boolean
       }
       merge_external_org_binding_config: {
@@ -6221,15 +6224,6 @@ export type Database = {
         Returns: boolean
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
-      record_project_progress: {
-        Args: {
-          p_month: string
-          p_note?: string
-          p_pct_complete: number
-          p_project_id: string
-        }
-        Returns: undefined
-      }
       record_outbox_ref: {
         Args: {
           p_domain: string
@@ -6240,6 +6234,15 @@ export type Database = {
           p_pmo_record_id: string
         }
         Returns: number
+      }
+      record_project_progress: {
+        Args: {
+          p_month: string
+          p_note?: string
+          p_pct_complete: number
+          p_project_id: string
+        }
+        Returns: undefined
       }
       record_timesheet_command_held: {
         Args: {

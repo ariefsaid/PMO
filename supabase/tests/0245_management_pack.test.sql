@@ -1,4 +1,4 @@
--- 0242_management_pack.test.sql — #765. Migration under test: 0242_management_pack.sql.
+-- 0245_management_pack.test.sql — #765. Migration under test: 0245_management_pack.sql.
 -- Every denial asserts errcode AND message (0193's oracle discipline). No assertion reads function source.
 -- Cast: FIN a1 Finance · PM a2 (P1's PM) · PM2 a3 · ENG a4 · OFF a5 Finance, disabled · XORG b1 Admin, org B.
 begin;
