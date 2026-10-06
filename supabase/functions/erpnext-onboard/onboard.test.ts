@@ -19,6 +19,15 @@ async function withWorld(
   run: (seen: Seen[]) => Promise<void>,
 ): Promise<void> {
   const prevFetch = globalThis.fetch;
+  // supabase-js (createClient inside the shipped handler) starts a session auto-refresh interval;
+  // clear what the run started so Deno's leak sanitizer stays ON (same approach as contacts.test.ts).
+  const prevSetInterval = globalThis.setInterval;
+  const intervals: ReturnType<typeof setInterval>[] = [];
+  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+    const id = prevSetInterval(...args);
+    intervals.push(id);
+    return id;
+  }) as typeof setInterval;
   const touched = { SUPABASE_URL: 'https://edge-test.supabase.test', SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY, ...opts.env };
   const previous: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(touched)) {
@@ -40,12 +49,16 @@ async function withWorld(
     if (url.pathname === '/rest/v1/rpc/read_vault_secret') {
       return opts.vaultError ? json({ code: 'XX000', message: 'store down' }, 500) : json(opts.vault ?? null);
     }
-    if (url.host === new URL(SITE).host) return json({ message: 'stop' }, 500); // end the run after the first ERP call
+    // End the run after the first ERP call. 401 is non-retryable: a 5xx would make the real ERP client
+    // sleep through its retry backoff (~9 s per test) on every call.
+    if (url.host === new URL(SITE).host) return json({ message: 'stop' }, 401);
     throw new Error(`Unexpected fetch: ${req.method} ${url}`);
   }) as typeof fetch;
   try {
     await run(seen);
   } finally {
+    intervals.forEach(clearInterval);
+    globalThis.setInterval = prevSetInterval;
     globalThis.fetch = prevFetch;
     for (const [k, v] of Object.entries(previous)) { if (v === undefined) Deno.env.delete(k); else Deno.env.set(k, v); }
   }
