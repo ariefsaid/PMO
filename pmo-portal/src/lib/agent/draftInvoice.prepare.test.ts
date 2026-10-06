@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   prepareDraftInvoice,
+  validatePreparedDraft,
   resolveItem,
   resolveMilestone,
   resolveProject,
@@ -68,7 +69,13 @@ describe('resolveWorkOrder (#787)', () => {
   it('AC-AIN-009 two matches → choice candidates', async () => {
     const { client } = fakeSupabase(world({ work_orders: () => [WO, { ...WO, id: 'w2', wo_number: 'WO-2', title: 'B' }] }));
     expect(await resolveWorkOrder(asLoose(client), 'WO', null)).toEqual({ ok: false, error: { error: 'Which work order?', needs: 'choice', candidates: [
-      { id: 'WO-20261001-001', label: 'WO-20261001-001 — Phase 2 survey' }, { id: 'WO-2', label: 'WO-2 — B' }] } });
+      { id: WO.id, label: 'WO-20261001-001 — Phase 2 survey' }, { id: 'w2', label: 'WO-2 — B' }] } });
+  });
+  it('FR-AIN-023 a candidate id (the work order uuid) resolves in one round', async () => {
+    const { client, calls } = fakeSupabase(world());
+    expect(await resolveWorkOrder(asLoose(client), WO.id, null)).toEqual({ ok: true, value: WO });
+    expect(opsOf(calls, 'work_orders')).toHaveLength(1);
+    expect(opsOf(calls, 'work_orders')[0]).toContainEqual(['eq', 'id', WO.id]);
   });
   it.each(['Draft', 'Cancelled'])('AC-AIN-009 a %s work order is refused', async (status) => {
     const { client } = fakeSupabase(world({ work_orders: () => [{ ...WO, status }] }));
@@ -103,19 +110,50 @@ describe('resolveMilestone (#787)', () => {
   });
 });
 
-describe('resolveItem (#787)', () => {
-  it('a named item is used without reading the catalogue', async () => {
-    const { client, invoke } = fakeSupabase(world(), oneItem);
-    expect(await resolveItem(ctx('Finance', client), 'SVC-2')).toEqual({ ok: true, value: 'SVC-2' });
-    expect(invoke).not.toHaveBeenCalled();
+describe('resolveMilestone — same name on two projects (#787)', () => {
+  const M1 = '44444444-4444-4444-8444-444444444441';
+  const M2 = '44444444-4444-4444-8444-444444444442';
+  const P2 = '55555555-5555-4555-8555-555555555555';
+  const rows = [
+    { id: M1, name: 'Foundation', project_id: P1, sort_order: 2 },
+    { id: M2, name: 'Foundation', project_id: P2, sort_order: 1 },
+  ];
+  const responders = (): Parameters<typeof world>[0] => ({
+    project_milestones: (c) => (c.ops.some((o) => o[0] === 'eq' && o[1] === 'id') ? [rows.find((r) => r.id === c.ops.find((o) => o[1] === 'id')![2])] : rows),
+    projects: () => [{ id: P1, name: 'Harbor Tower' }, { id: P2, name: 'Harbor Annex' }],
   });
-  it('the only sales item is used', async () => {
+  it('FR-AIN-023 candidates are distinct (id = milestone uuid, label names the project) and the chosen id resolves in one round', async () => {
+    const { client } = fakeSupabase(world(responders()));
+    const first = await resolveMilestone(asLoose(client), 'Foundation', null);
+    expect(first).toEqual({ ok: false, error: { error: 'Which milestone?', needs: 'choice', candidates: [
+      { id: M1, label: 'Harbor Tower — Foundation' }, { id: M2, label: 'Harbor Annex — Foundation' }] } });
+    const second = await resolveMilestone(asLoose(client), M2, null);
+    expect(second).toMatchObject({ ok: true, value: { id: M2, project_id: P2 } });
+  });
+});
+
+describe('resolveItem (#787)', () => {
+  it('M1 a named item is checked against the catalogue and used', async () => {
     const { client, invoke } = fakeSupabase(world(), oneItem);
-    expect(await resolveItem(ctx('Finance', client))).toEqual({ ok: true, value: 'SVC' });
+    expect(await resolveItem(ctx('Finance', client), 'SVC')).toEqual({ ok: true, value: { code: 'SVC', name: 'Services', only: true } });
     expect(invoke).toHaveBeenCalledWith('external-items', { body: { purpose: 'sales' } });
   });
-  it('several items → itemCode candidates; none → refusal; unreadable → asks', async () => {
+  it('M1 a named item that is not in the catalogue is refused with the catalogue as candidates', async () => {
+    const { client } = fakeSupabase(world(), oneItem);
+    expect(await resolveItem(ctx('Finance', client), 'MADE-UP')).toEqual({ ok: false, error: {
+      error: 'ERPNext has no sales item "MADE-UP". Which item should the invoice use?', needs: 'itemCode', candidates: [{ id: 'SVC', label: 'SVC — Services' }] } });
+  });
+  it('M1 a named item cannot be verified when the catalogue is unreadable → asks, never trusts the model', async () => {
+    const broken: Invoker = async () => ({ data: null, error: { message: 'x' } });
+    expect(await resolveItem(ctx('Finance', fakeSupabase(world(), broken).client), 'SVC')).toMatchObject({ ok: false, error: { needs: 'itemCode' } });
+  });
+  it('the only sales item is used', async () => {
+    const { client } = fakeSupabase(world(), oneItem);
+    expect(await resolveItem(ctx('Finance', client))).toEqual({ ok: true, value: { code: 'SVC', name: 'Services', only: true } });
+  });
+  it('several items: a valid named one is accepted (not the only one); unnamed → itemCode candidates; none → refusal; unreadable → asks', async () => {
     const many: Invoker = async () => ({ data: { items: [{ code: 'A', name: 'Alpha' }, { code: 'B', name: 'Beta' }] }, error: null });
+    expect(await resolveItem(ctx('Finance', fakeSupabase(world(), many).client), 'B')).toEqual({ ok: true, value: { code: 'B', name: 'Beta', only: false } });
     expect(await resolveItem(ctx('Finance', fakeSupabase(world(), many).client))).toEqual({ ok: false, error: {
       error: 'Which ERPNext item should the invoice use?', needs: 'itemCode', candidates: [{ id: 'A', label: 'A — Alpha' }, { id: 'B', label: 'B — Beta' }] } });
     const none: Invoker = async () => ({ data: { items: [] }, error: null });
@@ -158,5 +196,38 @@ describe('prepareDraftInvoice — assembled draft (#787)', () => {
     const noClient = fakeSupabase(world({ projects: () => ({ ...PROJECT, client_id: null }) }), oneItem);
     expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', noClient.client), newId))
       .toEqual({ ok: false, error: { error: 'Harbor Tower has no client, so there is no one to invoice.' } });
+  });
+});
+
+describe('prepareDraftInvoice — chip honesty and limits (#787)', () => {
+  const many: Invoker = async () => ({ data: { items: [{ code: 'A', name: 'Alpha' }, { code: 'B', name: 'Beta' }] }, error: null });
+  it('M1 the chip shows the item whenever it is not the org\'s only sales item, within 120 chars', async () => {
+    const { client } = fakeSupabase(world(), many);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001', itemCode: 'B' }, ctx('Finance', client), newId);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value.display.itemLabel).toBe('B — Beta');
+    expect(out.summary).toMatch(/B — Beta/);
+    expect(out.summary.length).toBeLessThanOrEqual(120);
+    expect(validatePreparedDraft(out.value)).toEqual({ ok: true, value: out.value });
+  });
+  it('M1 an unknown model-supplied item code is refused before the chip', async () => {
+    const { client } = fakeSupabase(world(), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001', itemCode: 'NOPE' }, ctx('Finance', client), newId))
+      .toMatchObject({ ok: false, error: { needs: 'itemCode' } });
+  });
+  it('M3 long titles and names are clipped so the chip it shows can always be approved', async () => {
+    const big = { ...WO, title: 'T'.repeat(300) };
+    const { client } = fakeSupabase(world({ work_orders: () => [big], companies: () => ({ name: 'C'.repeat(300) }), projects: (c) => (c.terminal === 'maybeSingle' ? { ...PROJECT, name: 'P'.repeat(300) } : [{ ...PROJECT, name: 'P'.repeat(300) }]) }), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    for (const v of Object.values(out.value.display)) expect(v.length).toBeLessThanOrEqual(200);
+    expect(validatePreparedDraft(out.value)).toMatchObject({ ok: true });
+  });
+  it('M3 a client PO reference over 140 chars is refused before the chip with a clear message', async () => {
+    const { client } = fakeSupabase(world({ work_orders: () => [{ ...WO, client_po_number: 'X'.repeat(141) }] }), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({ ok: false, error: {
+      error: 'The client PO reference on WO-20261001-001 is longer than 140 characters, so it cannot go on an invoice. Shorten it on the work order first.' } });
   });
 });

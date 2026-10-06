@@ -68,7 +68,7 @@ export interface DraftInvoicePrepared {
   projectId: string;
   items: [DraftInvoiceLine];
   reference_number: string | null;
-  display: { customerName: string; projectName: string; sourceLabel: string; amountText: string };
+  display: { customerName: string; projectName: string; sourceLabel: string; amountText: string; itemLabel?: string };
 }
 
 const bad = (error: string) => ({ ok: false as const, error });
@@ -95,6 +95,7 @@ export function validatePreparedDraft(
   const d = (p.display ?? {}) as Record<string, unknown>;
   const fields = ['customerName', 'projectName', 'sourceLabel', 'amountText'] as const;
   if (!fields.every((f) => shortText(d[f], 200))) return bad('display is invalid');
+  if (d.itemLabel !== undefined && !shortText(d.itemLabel, 200)) return bad('display is invalid');
   return {
     ok: true,
     value: {
@@ -110,6 +111,7 @@ export function validatePreparedDraft(
         projectName: d.projectName as string,
         sourceLabel: d.sourceLabel as string,
         amountText: d.amountText as string,
+        ...(d.itemLabel !== undefined ? { itemLabel: d.itemLabel as string } : {}),
       },
     },
   };
@@ -117,9 +119,17 @@ export function validatePreparedDraft(
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-/** FR-AIN-024: server-composed chip text, ≤120 chars (ApprovalChip truncates at 120). */
+/**
+ * FR-AIN-024: server-composed chip text, ≤120 chars (ApprovalChip truncates at 120). When the draft is not on the
+ * org's only sales item, the item is shown too — the user must see which item (income account / tax template)
+ * the Draft lands on (M1).
+ */
 export function summarizeDraft(p: DraftInvoicePrepared): string {
-  return `Save as Draft: invoice ${clip(p.display.customerName, 23)} ${clip(p.display.amountText, 22)} excl. tax for ${clip(p.display.sourceLabel, 20)}. Not submitted.`;
+  const d = p.display;
+  if (d.itemLabel) {
+    return `Save as Draft: invoice ${clip(d.customerName, 14)} ${clip(d.amountText, 16)} excl. tax for ${clip(d.sourceLabel, 14)} (item ${clip(d.itemLabel, 12)}). Not submitted.`;
+  }
+  return `Save as Draft: invoice ${clip(d.customerName, 23)} ${clip(d.amountText, 22)} excl. tax for ${clip(d.sourceLabel, 20)}. Not submitted.`;
 }
 
 export type Candidate = { id: string; label: string };
@@ -177,15 +187,22 @@ const INVOICEABLE_WO_STATUSES = ['Issued', 'Closed'];
 export const woLabel = (w: WorkOrderRow) => `${w.wo_number ?? 'Work order'} — ${w.title}`;
 
 export async function resolveWorkOrder(sb: LooseClient, term: string, project: ProjectRow | null): Promise<Resolved<WorkOrderRow>> {
-  const like = toLikeTerm(term);
-  if (!like) return refuse(`No work order matches "${term}".`);
   const scoped = (q: LooseQuery) => (project ? q.eq('project_id', project.id) : q);
-  let rows = await readRows<WorkOrderRow>(scoped(sb.from('work_orders').select(WO_COLS).ilike('wo_number', like)).limit(CANDIDATE_LIMIT));
-  if (rows.length === 0) {
+  let rows: WorkOrderRow[];
+  const like = UUID_RE.test(term) ? '' : toLikeTerm(term);
+  if (UUID_RE.test(term)) {
+    // A candidate id from a previous "Which work order?" round (M2).
+    rows = await readRows<WorkOrderRow>(scoped(sb.from('work_orders').select(WO_COLS).eq('id', term)).limit(1));
+  } else if (!like) {
+    return refuse(`No work order matches "${term}".`);
+  } else {
+    rows = await readRows<WorkOrderRow>(scoped(sb.from('work_orders').select(WO_COLS).ilike('wo_number', like)).limit(CANDIDATE_LIMIT));
+  }
+  if (rows.length === 0 && like) {
     rows = await readRows<WorkOrderRow>(scoped(sb.from('work_orders').select(WO_COLS).ilike('title', `%${like}%`)).limit(CANDIDATE_LIMIT));
   }
   if (rows.length === 0) return refuse(`No work order matches "${term}".`);
-  if (rows.length > 1) return refuse('Which work order?', 'choice', rows.map((w) => ({ id: w.wo_number ?? w.id, label: woLabel(w) })));
+  if (rows.length > 1) return refuse('Which work order?', 'choice', rows.map((w) => ({ id: w.id, label: woLabel(w) })));
   const wo = rows[0];
   if (!INVOICEABLE_WO_STATUSES.includes(wo.status)) {
     return refuse(`${woLabel(wo)} is ${wo.status}; only an Issued or Closed work order can be invoiced.`);
@@ -209,23 +226,39 @@ export async function resolveMilestone(sb: LooseClient, term: string, project: P
     const m = all[n - 1];
     return m ? { ok: true, value: m } : refuse(`${project.name} has ${all.length} milestones; there is no milestone ${n}.`);
   }
-  const like = toLikeTerm(term);
-  if (!like) return refuse(`No milestone matches "${term}".`);
-  let q = sb.from('project_milestones').select(MS_COLS).ilike('name', `%${like}%`);
+  let q = sb.from('project_milestones').select(MS_COLS);
+  if (UUID_RE.test(term.trim())) {
+    // A candidate id from a previous "Which milestone?" round (M2).
+    q = q.eq('id', term.trim());
+  } else {
+    const like = toLikeTerm(term);
+    if (!like) return refuse(`No milestone matches "${term}".`);
+    q = q.ilike('name', `%${like}%`);
+  }
   if (project) q = q.eq('project_id', project.id);
   const rows = await readRows<MilestoneRow>(q.limit(CANDIDATE_LIMIT));
   if (rows.length === 1) return { ok: true, value: rows[0] };
   if (rows.length === 0) return refuse(`No milestone matches "${term}".`);
-  return refuse('Which milestone?', 'choice', rows.map((m) => ({ id: m.name, label: m.name })));
+  // Same-named milestones on different projects must stay distinguishable: label with the project (M2).
+  const names = new Map<string, string>();
+  const ids = [...new Set(rows.map((m) => m.project_id))];
+  for (const pr of await readRows<{ id: string; name: string }>(sb.from('projects').select('id, name').in('id', ids))) names.set(pr.id, pr.name);
+  return refuse('Which milestone?', 'choice', rows.map((m) => ({ id: m.id, label: names.has(m.project_id) ? `${names.get(m.project_id)} — ${m.name}` : m.name })));
 }
 
 export const ITEM_CATALOG_TIMEOUT_MS = 10_000;
 
-/** DD-AIN-5: the named item; else the org's only sales item; else ask (candidates are ask_user options). */
-export async function resolveItem(ctx: DeputyContext, named?: string): Promise<Resolved<string>> {
-  if (named) return { ok: true, value: named }; // adapter-dispatch's item preflight validates it at create time
+export interface ResolvedItem { code: string; name: string; /** the org has exactly one sales item */ only: boolean }
+
+/**
+ * DD-AIN-5 + M1: always read the org's sales-item catalogue under the caller's JWT. A model-named code must be in
+ * it (never trusted on the prompt alone — it picks the income account / Item Tax Template); with no name, the org's
+ * only item is used, else ask (candidates are ask_user options).
+ */
+export async function resolveItem(ctx: DeputyContext, named?: string): Promise<Resolved<ResolvedItem>> {
   const fns = asFunctions(ctx.supabase);
-  if (!fns) return refuse('Which ERPNext item should the invoice use?', 'itemCode');
+  const ask = (msg: string) => refuse(msg, 'itemCode');
+  if (!fns) return ask('Which ERPNext item should the invoice use?');
   let items: Array<{ code: string; name: string }> | undefined;
   try {
     const { data, error } = await withTimeout(
@@ -236,12 +269,16 @@ export async function resolveItem(ctx: DeputyContext, named?: string): Promise<R
   } catch {
     items = undefined;
   }
-  if (!items) return refuse('I could not read the ERPNext item list. Which item code should the invoice use?', 'itemCode');
+  if (!items) return ask('I could not read the ERPNext item list. Which item code should the invoice use?');
   if (items.length === 0) return refuse('ERPNext has no sales item to bill against. Ask an admin to add one.');
-  if (items.length > 1) {
-    return refuse('Which ERPNext item should the invoice use?', 'itemCode', items.map((i) => ({ id: i.code, label: `${i.code} — ${i.name}` })));
+  const candidates = items.map((i) => ({ id: i.code, label: `${i.code} — ${i.name}` }));
+  if (named) {
+    const hit = items.find((i) => i.code === named);
+    if (!hit) return refuse(`ERPNext has no sales item "${named}". Which item should the invoice use?`, 'itemCode', candidates);
+    return { ok: true, value: { code: hit.code, name: hit.name, only: items.length === 1 } };
   }
-  return { ok: true, value: items[0].code };
+  if (items.length > 1) return refuse('Which ERPNext item should the invoice use?', 'itemCode', candidates);
+  return { ok: true, value: { code: items[0].code, name: items[0].name, only: true } };
 }
 
 export async function prepareDraftInvoice(
@@ -305,6 +342,11 @@ export async function prepareDraftInvoice(
   }
   if (!isMoney(rate)) return refuse('The amount to invoice must be more than zero.', 'amount');
 
+  const poRef = source.kind === 'workOrder' ? source.wo.client_po_number ?? null : null;
+  if (source.kind === 'workOrder' && poRef !== null && poRef.length > 140) {
+    return refuse(`The client PO reference on ${source.wo.wo_number ?? source.wo.title} is longer than 140 characters, so it cannot go on an invoice. Shorten it on the work order first.`);
+  }
+
   const item = await resolveItem(ctx, req.itemCode);
   if (!item.ok) return item;
 
@@ -317,13 +359,14 @@ export async function prepareDraftInvoice(
     idempotencyKey: newId(),
     customerId: clientId,
     projectId: project.id,
-    items: [{ item_code: item.value, qty: 1, rate, description }],
-    reference_number: source.kind === 'workOrder' ? source.wo.client_po_number ?? null : null,
+    items: [{ item_code: item.value.code, qty: 1, rate, description }],
+    reference_number: poRef,
     display: {
-      customerName: customer?.name ?? 'the client',
-      projectName: project.name,
-      sourceLabel,
-      amountText: formatMoney(rate, currency, resolveNumberLocale(org)),
+      customerName: clip(customer?.name ?? 'the client', 200),
+      projectName: clip(project.name, 200),
+      sourceLabel: clip(sourceLabel, 200),
+      amountText: clip(formatMoney(rate, currency, resolveNumberLocale(org)), 200),
+      ...(item.value.only ? {} : { itemLabel: clip(`${item.value.code} — ${item.value.name}`, 200) }),
     },
   };
   return { ok: true, value, summary: summarizeDraft(value) };
