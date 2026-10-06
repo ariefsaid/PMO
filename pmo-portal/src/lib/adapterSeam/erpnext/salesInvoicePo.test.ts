@@ -11,7 +11,7 @@ const ORG = 'org-1';
 const ITEM = { item_code: 'SYNTHETIC-ITEM', qty: 1, rate: 100 };
 const INVOICE = { id: 'si-1', org_id: ORG, reference_number: null, work_order_id: 'wo-1', project_id: 'proj-1', erp_modified: null, received_date: null };
 const WO = { id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01' };
-const PROJECT = { id: 'proj-1', org_id: ORG, customer_contract_ref: 'PROJECT-PO-001', contract_date: '2026-08-01', subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 };
+const PROJECT = { id: 'proj-1', org_id: ORG, currency: 'IDR', customer_contract_ref: 'PROJECT-PO-001', contract_date: '2026-08-01', subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 };
 
 /** PostgREST boundary fake: enforce filters and requested columns, including org isolation. */
 function serviceClient(invoice: Row | null, wo: Row | null, project: Row | null, failingTable?: string): DispatchServiceClient {
@@ -82,6 +82,9 @@ async function push(invoice: Row | null = INVOICE, wo: Row | null = WO, project:
     if (new URL(String(_url)).pathname === '/api/resource/Item' && init?.method === 'GET') {
       return Response.json({ data: [{ name: ITEM.item_code, item_name: 'Test invoice service', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
     }
+    // #866: an ordinary invoice create compares its currency with the customer's ERPNext billing currency.
+    const currencyPath = decodeURIComponent(new URL(String(_url)).pathname);
+    if (currencyPath.startsWith('/api/resource/Customer/')) return Response.json({ data: { default_currency: 'IDR' } });
     // #856: a VAT-on project reads the company's default tax template before the create.
     const taxPath = decodeURIComponent(new URL(String(_url)).pathname);
     if (taxPath === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: [{ name: 'Synthetic Tax' }] });

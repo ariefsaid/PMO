@@ -14,7 +14,7 @@ function client(tables: Record<string, unknown> = {}): DispatchServiceClient {
           tables[table] ??
           (table === 'external_org_bindings'
             ? { site_url: 'https://erp.example.com', activated_at: '2026-10-05', config: { company: 'Test Co' } }
-            : null),
+            : table === 'organizations' ? { default_currency: 'USD' } : null), // #866: an invoice with no project is in the org currency
         error: null,
       };
       const builder = {
@@ -36,6 +36,7 @@ describe('item catalog money preflight', () => {
         expect(init?.method).toBe('GET');
         // #856: a VAT-on sales invoice reads the default tax template first; it is not an item-catalog read.
         const path = decodeURIComponent(new URL(String(_url)).pathname);
+        if (path === '/api/resource/Company/Test Co') return Response.json({ data: { default_currency: 'USD' } }); // #866: the billing-currency check
         if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: [{ name: 'Test Tax' }] });
         if (path === '/api/resource/Sales Taxes and Charges Template/Test Tax') {
           return Response.json({ data: { name: 'Test Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT', rate: 11 }] } });

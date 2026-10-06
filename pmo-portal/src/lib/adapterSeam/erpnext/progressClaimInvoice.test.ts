@@ -27,10 +27,10 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-2', external_record_id: 'Customer:Other Customer' },
     ],
     projects: [
-      { id: 'proj-1', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1, ...projectTax },
-      { id: 'proj-org2', org_id: 'org-2', client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
-      { id: 'proj-3', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
-      { id: 'proj-2', org_id: ORG, client_id: 'cust-1', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-1', org_id: ORG, client_id: 'cust-1', currency: 'IDR', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1, ...projectTax },
+      { id: 'proj-org2', org_id: 'org-2', client_id: 'cust-1', currency: 'IDR', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-3', org_id: ORG, client_id: 'cust-1', currency: 'IDR', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
+      { id: 'proj-2', org_id: ORG, client_id: 'cust-1', currency: 'IDR', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 },
     ],
     work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01', tax_base_numerator: 1, tax_base_denominator: 1, ...workOrderTax }],
     sales_invoices: [],
@@ -323,9 +323,9 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(usd.body.currency).toBe('USD');
   });
 
-  it('AC-858-2 a caller-supplied currency on a non-claim invoice is dropped', async () => {
+  it('AC-858-2 a caller-supplied currency on a non-claim invoice is dropped (#866: the project currency is sent instead)', async () => {
     const { body } = await push({ id: 'not-a-claim', currency: 'USD', items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null);
-    expect(body.currency).toBeUndefined();
+    expect(body.currency).toBe('IDR');
   });
 
   it('AC-858-3 an unreadable Selling Settings gives the action-required message, not a raw permission error, before any ERP write', async () => {
