@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -46,10 +46,10 @@ import {
 } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { upgradeNotes, type NoteBlock } from '@/src/lib/meetingNotes';
+import type { MinutesEditorHandle } from '@/src/components/meetings/MinutesEditor';
 import {
-  parseNoteBlocks,
   type MeetingWithRefs,
-  type MeetingNoteBlock,
   type MeetingAttendeeWithRefs,
   type MeetingGrantWithRefs,
 } from '@/src/lib/db/meetings';
@@ -57,14 +57,16 @@ import {
 /**
  * MeetingDetail — the routable `/meetings/:id` record page (#526).
  *
- * The minutes body is the v1 typed-paragraph block editor (spec §3 as scoped by the brief: a
- * line-per-block editor, NOT the BlockNote spike — DD-MTG-2 ruled the typed block down to a task
- * reference, and this slice keeps action items as real `tasks` rows linked via
- * `tasks.meeting_id`). Reading is attendance ∪ author ∪ grant ∪ Admin (FR-MTG-031, RLS is the
+ * The minutes body is the BlockNote editor (#805, lazy-loaded). Action items are real `tasks` rows
+ * linked via `tasks.meeting_id`; the in-document `actionItem` block holds only the task id
+ * (DD-MTG-2). Pre-#805 line-editor notes are upgraded one-way on load (`upgradeNotes`). Reading is attendance ∪ author ∪ grant ∪ Admin (FR-MTG-031, RLS is the
  * authority); editing the minute is the AUTHOR or Admin (grants are view-only, OD-MTG-2).
  * The share panel (FR-MTG-032..034): named users, view-only, no tiers/links/expiry, and the
  * project's PM is PRE-SUGGESTED as a one-click add — never auto-granted (DD-MTG-7).
  */
+
+// FR-MTG-026 / AC-MTG-024: the BlockNote editor is a lazy chunk — it never enters the initial route bundle.
+const MinutesEditor = React.lazy(() => import('@/src/components/meetings/MinutesEditor'));
 
 const attendeeName = (a: MeetingAttendeeWithRefs): string =>
   a.profile?.full_name ?? a.contact?.full_name ?? a.display_name ?? '—';
@@ -85,16 +87,17 @@ const MeetingDetail: React.FC = () => {
   const { update, archive, remove, addAttendee, removeAttendee, addGrant, revokeGrant, createActionItem } =
     useMeetingMutations();
 
-  // ── Minutes editor state (blocks re-seed when a different meeting loads) ──
+  // ── Minutes editor state ──
+  // The editor reports its normalised starting document (baseline) and every change; dirty = they
+  // differ. `key={meeting.id}` remounts the editor when a different meeting loads.
   const meeting = query.data ?? null;
-  const [blocks, setBlocks] = useState<MeetingNoteBlock[]>([]);
-  const [seededFor, setSeededFor] = useState<string | null>(null);
-  useEffect(() => {
-    if (meeting && meeting.id !== seededFor) {
-      setBlocks(parseNoteBlocks(meeting.notes));
-      setSeededFor(meeting.id);
-    }
-  }, [meeting, seededFor]);
+  const editorRef = useRef<MinutesEditorHandle>(null);
+  const [blocks, setBlocks] = useState<NoteBlock[] | null>(null);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const onEditorReady = useCallback((doc: NoteBlock[]) => {
+    setBaseline(JSON.stringify(doc));
+    setBlocks(doc);
+  }, []);
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -103,10 +106,13 @@ const MeetingDetail: React.FC = () => {
   // DD-MTG-8: /action opens the task-create modal prefilled from THIS line (null = closed).
   const [actionLine, setActionLine] = useState<string | null>(null);
 
-  const savedBlocks = useMemo(() => (meeting ? parseNoteBlocks(meeting.notes) : []), [meeting]);
+  const savedBlocks = useMemo(
+    () => (meeting ? upgradeNotes(meeting.notes, meeting.notes_schema_version) : []),
+    [meeting],
+  );
   const minutesDirty = useMemo(
-    () => JSON.stringify(blocks) !== JSON.stringify(savedBlocks),
-    [blocks, savedBlocks],
+    () => blocks !== null && baseline !== null && JSON.stringify(blocks) !== baseline,
+    [blocks, baseline],
   );
 
   const canEdit = may('edit', 'meeting', {
@@ -199,7 +205,9 @@ const MeetingDetail: React.FC = () => {
 
   const onSaveMinutes = async () => {
     try {
+      if (!blocks) return;
       await update.mutateAsync({ id: meeting.id, patch: { notes: blocks } });
+      setBaseline(JSON.stringify(blocks));
       toast(t('meetingDetail.toast.minutesSaved', 'Minutes saved'), meeting.title, 'success');
     } catch (err) {
       onMutationError(err);
@@ -215,11 +223,13 @@ const MeetingDetail: React.FC = () => {
   const onCreateActionItem = async (name: string) => {
     const finalName =
       name.trim() || t('meetingDetail.action.placeholderName', 'Untitled action');
-    await createActionItem.mutateAsync({
+    const created = await createActionItem.mutateAsync({
       meetingId: meeting.id,
       projectId: meeting.project_id,
       name: finalName,
     });
+    // DD-MTG-2: the block stores only the new task's id — the row stays the source of truth.
+    editorRef.current?.insertActionItem(created.id);
     toast(t('meetingDetail.toast.actionCreated', 'Action item created'), finalName, 'success');
     setActionLine(null);
   };
@@ -370,84 +380,34 @@ const MeetingDetail: React.FC = () => {
           )}
         </CardHead>
         <CardPad>
-          {canEdit ? (
-            <div className="flex flex-col gap-2" data-testid="minutes-editor">
-              {tasksExternal && (
-                <GateNotice variant="blocked" className="mb-2" data-testid="minutes-external-gate">
-                  {t(
-                    'meetingDetail.action.externalGate',
-                    'Tasks are managed by the connected task system, so action items cannot be created from these minutes.',
-                  )}
-                </GateNotice>
+          {tasksExternal && canEdit && (
+            <GateNotice variant="blocked" className="mb-2" data-testid="minutes-external-gate">
+              {t(
+                'meetingDetail.action.externalGate',
+                'Tasks are managed by the connected task system, so action items cannot be created from these minutes.',
               )}
-              {blocks.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {t('meetingDetail.minutes.emptyEditor', 'No minutes yet — add the first line.')}
-                </p>
-              )}
-              {blocks.map((b, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <TextField
-                      id={`minute-line-${i}`}
-                      label={t('meetingDetail.minutes.lineLabel', 'Minute line')}
-                      hideLabel
-                      value={b.text}
-                      onChange={(v) =>
-                        setBlocks((prev) => prev.map((p, j) => (j === i ? { ...p, text: v } : p)))
-                      }
-                      placeholder={t('meetingDetail.minutes.linePlaceholder', 'Type a minute…')}
-                      fullWidth
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    data-testid={`minute-action-${i}`}
-                    disabled={tasksExternal || createActionItem.isPending}
-                    title={t(
-                      'meetingDetail.action.buttonTitle',
-                      'Create a task from this line (the meeting keeps only a reference)',
-                    )}
-                    // DD-MTG-8: opens the task-create modal, prefilled and editable — the task
-                    // name is org-visible, so publishing it is the AUTHOR's explicit choice.
-                    onClick={() => setActionLine(b.text)}
-                  >
-                    {t('meetingDetail.action.button', 'Action')}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t('meetingDetail.minutes.removeLine', 'Remove line')}
-                    onClick={() => setBlocks((prev) => prev.filter((_, j) => j !== i))}
-                  >
-                    <Icon name="x" />
-                  </Button>
-                </div>
-              ))}
-              <div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  data-testid="minutes-add-line"
-                  onClick={() => setBlocks((prev) => [...prev, { type: 'p', text: '' }])}
-                >
-                  <Icon name="plus" />
-                  {t('meetingDetail.minutes.addLine', 'Add line')}
-                </Button>
-              </div>
-            </div>
-          ) : savedBlocks.length === 0 ? (
+            </GateNotice>
+          )}
+          {!canEdit && savedBlocks.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t('meetingDetail.minutes.empty', 'No minutes were recorded for this meeting.')}
             </p>
           ) : (
-            <div className="flex flex-col gap-1.5" data-testid="minutes-readonly">
-              {savedBlocks.map((b, i) => (
-                <p key={i} className="text-sm leading-6">
-                  {b.text || ' '}
-                </p>
-              ))}
+            <div data-testid={canEdit ? 'minutes-editor' : 'minutes-readonly'}>
+              <Suspense fallback={<ListState variant="loading" rows={3} />}>
+                <MinutesEditor
+                  key={meeting.id}
+                  ref={editorRef}
+                  initialBlocks={savedBlocks}
+                  editable={canEdit}
+                  tasksExternal={tasksExternal}
+                  onReady={onEditorReady}
+                  onChange={setBlocks}
+                  // DD-MTG-8: /action opens the task-create modal, prefilled and editable — the task
+                  // name is org-visible, so publishing it is the AUTHOR's explicit choice.
+                  onRequestAction={setActionLine}
+                />
+              </Suspense>
             </div>
           )}
         </CardPad>
@@ -465,7 +425,7 @@ const MeetingDetail: React.FC = () => {
             <p className="text-sm text-muted-foreground">
               {t(
                 'meetingDetail.actionItems.empty',
-                'No action items yet. Use Action on a minute line to create one.',
+                'No action items yet. Type /action in the minutes to create one.',
               )}
             </p>
           ) : (

@@ -28,6 +28,8 @@ function serviceClientReturning(row: unknown): DispatchServiceClient {
 function itemCatalogResponse(url: string): Response | null {
   // #856: a VAT-on sales invoice reads the company's default Sales Taxes and Charges template before the create.
   const path = decodeURIComponent(new URL(url).pathname);
+  // #866: an ordinary invoice create compares its currency with the customer's (else the company's) ERPNext billing currency.
+  if (path.startsWith('/api/resource/Customer/') || path.startsWith('/api/resource/Company/')) return Response.json({ data: { default_currency: 'USD' } });
   if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: [{ name: 'Smoke Tax' }] });
   if (path === '/api/resource/Sales Taxes and Charges Template/Smoke Tax') {
     return Response.json({ data: { name: 'Smoke Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - PSC', rate: 11 }] } });
@@ -227,11 +229,13 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
    *  org_id. org-1 is the caller's org in these tests; org-2 is a DIFFERENT tenant, so a cross-org id
    *  is distinguishable from a same-org one by the id ALONE — an org-blind fake (one canned org_id per
    *  table) could not tell them apart and so could not prove the guard. */
-  const TWO_ORG_ROWS: Record<string, { org_id: string }> = {
+  const TWO_ORG_ROWS: Record<string, { org_id: string; currency?: string; default_currency?: string }> = {
     'companies:cust-1': { org_id: 'org-1' },
     'companies:cust-org2': { org_id: 'org-2' },
-    'projects:proj-1': { org_id: 'org-1' },
+    'projects:proj-1': { org_id: 'org-1', currency: 'USD' },
     'projects:proj-org2': { org_id: 'org-2' },
+    'organizations:org-2': { org_id: 'org-2', default_currency: 'USD' },
+    'organizations:org-1': { org_id: 'org-1', default_currency: 'USD' },
     'sales_invoices:si-1': { org_id: 'org-1' },
     'sales_invoices:si-org2': { org_id: 'org-2' },
   };
