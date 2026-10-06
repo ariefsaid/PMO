@@ -1063,7 +1063,11 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   delete record.taxes;
   delete record.currency; // only a claim sets it, from the claim row below
   if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return 'none';
-  if (typeof record.id !== 'string' || !record.id) return 'none';
+  if (typeof record.id !== 'string' || !record.id.trim()) {
+    // A create without a usable id would skip the currency check and the VAT rows below; refuse it before any ERPNext call.
+    if (deps.command.operation === 'create') throw new AppError('A sales invoice needs a valid id', 'commit-rejected');
+    return 'none';
+  }
   const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
     .select('id,kind,project_id,work_order_id,currency,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();

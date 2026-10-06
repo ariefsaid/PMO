@@ -8,13 +8,13 @@ type Row = Record<string, unknown>;
 const ORG = 'org-1';
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
-function serviceClient(project: Row | null): DispatchServiceClient {
+function serviceClient(project: Row | null, orgCurrency = 'IDR', currencyRowGone = false): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }],
     external_refs: [{ org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' }],
     projects: project ? [{ id: 'proj-1', org_id: ORG, currency: 'IDR', customer_contract_ref: null, contract_date: null, ...project }] : [],
-    organizations: [{ id: ORG, default_currency: 'IDR' }],
+    organizations: [{ id: ORG, default_currency: orgCurrency }],
     work_orders: [],
     sales_invoices: [],
     progress_claims: [],
@@ -33,7 +33,7 @@ function serviceClient(project: Row | null): DispatchServiceClient {
             eq(col: string, val: string) { filters[col] = val; return chain; },
             order() { return chain; },
             limit() { return chain; },
-            async maybeSingle() { const row = matches()[0]; return { data: row ? pick(row) : null, error: null }; },
+            async maybeSingle() { const row = currencyRowGone && table === 'projects' && columns === 'currency' ? undefined : matches()[0]; return { data: row ? pick(row) : null, error: null }; },
             then(resolve: (value: { data: Row[]; error: null }) => void) { resolve({ data: matches().map(pick), error: null }); },
           };
           return chain;
@@ -220,5 +220,41 @@ describe('ordinary sales invoice tax rows (#856)', () => {
     });
     expect(erp.fetchImpl).not.toHaveBeenCalled();
     expect(replay.record.currency).toBe('IDR');
+  });
+
+  it('AC-866-4 an ordinary invoice with no project is stated in the org default currency', async () => {
+    const cmd = command({ projectId: undefined });
+    const erp = erpFetch(TEMPLATE, { customerCurrency: 'USD' });
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TAXED, 'USD'), orgId: ORG, command: cmd,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    await adapter.commit(cmd);
+    expect(erp.writes[0].currency).toBe('USD');
+    expect(cmd.record.currency).toBe('USD');
+  });
+
+  it('AC-866-4 an ordinary invoice whose project currency row is not found is refused before any ERPNext write', async () => {
+    const cmd = command();
+    const erp = erpFetch(TEMPLATE);
+    await expect(resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TAXED, 'IDR', true), orgId: ORG, command: cmd,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    })).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('which currency this invoice is in') });
+    expect(erp.writes).toEqual([]);
+    expect(erp.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([[42], ['   '], ['']])('AC-866-5 a sales-invoice create with id %j is refused (commit-rejected) with no ERPNext call', async (id) => {
+    const cmd = command({ id });
+    const erp = erpFetch(TEMPLATE);
+    await expect(resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TAXED), orgId: ORG, command: cmd,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    })).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(erp.fetchImpl).not.toHaveBeenCalled();
   });
 });
