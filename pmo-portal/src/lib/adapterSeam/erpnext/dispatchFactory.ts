@@ -999,6 +999,28 @@ async function resolveOrdinaryInvoiceTaxes(
   record.taxes = requireTaxRows(await resolveSalesTaxRows(client, company, fraction));
 }
 
+/** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */
+async function assertClaimCurrencyMatchesErp(
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, client: ErpClientDeps, claimCurrency: string | undefined, customerId: unknown,
+): Promise<void> {
+  const externalId = typeof customerId === 'string'
+    ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', customerId) : null;
+  const customerName = externalId?.startsWith('Customer:') ? externalId.slice('Customer:'.length) : externalId;
+  const pick = (doc: unknown): string | null => {
+    const value = (doc as { default_currency?: unknown } | null)?.default_currency;
+    return typeof value === 'string' && value ? value : null;
+  };
+  let erpCurrency = customerName ? pick(await getDoc(client, 'Customer', customerName)) : null;
+  const company = binding.config?.company;
+  if (!erpCurrency && typeof company === 'string' && company) erpCurrency = pick(await getDoc(client, 'Company', company));
+  if (!erpCurrency) {
+    throw new AppError('PMO cannot tell which currency ERPNext bills this customer in. Set a default currency on the customer (or the company) in ERPNext, then raise the invoice again.', 'config-rejected');
+  }
+  if (erpCurrency !== claimCurrency) {
+    throw new AppError(`This claim is in ${claimCurrency ?? 'an unknown currency'}, but ERPNext bills this customer in ${erpCurrency}. Align the customer's default currency in ERPNext with the project currency (or raise the claim from a project in ${erpCurrency}), then raise the invoice again.`, 'config-rejected');
+  }
+}
+
 /** #858: the integration user may lack read on Selling Settings; say what to do instead of surfacing the raw permission error. */
 async function negativeRatesAllowedOrAction(client: ErpClientDeps): Promise<boolean> {
   try {
@@ -1018,7 +1040,7 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   if (!buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: record.verb } })) return 'none';
   if (typeof record.id !== 'string' || !record.id) return 'none';
   const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
-    .select('id,kind,project_id,work_order_id,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
+    .select('id,kind,project_id,work_order_id,currency,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
@@ -1082,6 +1104,9 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   delete record.received_date;
   const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
     baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  // #858: the claim is stated in its own currency, but ERPNext bills in the customer's (else the company's). Refuse a mismatch
+  // before a draft exists rather than book the amounts in the wrong currency.
+  await assertClaimCurrencyMatchesErp(deps, binding, client, claim.currency, record.customerId);
   // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
   // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never
   // ran onboarding or had it switched back off.

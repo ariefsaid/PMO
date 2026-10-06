@@ -7,7 +7,7 @@ import { canonicalCommandDigest } from '../../../../../supabase/functions/adapte
 type Row = Record<string, unknown>;
 const ORG = 'org-1';
 const CLAIM: Row = {
-  id: 'claim-1', org_id: ORG, kind: 'progress', project_id: 'proj-1', work_order_id: null,
+  id: 'claim-1', org_id: ORG, kind: 'progress', currency: 'IDR', project_id: 'proj-1', work_order_id: null,
   down_payment_amount: null, dp_recovery_amount: '40000.00', dp_item_code: 'DP-ITEM', withdrawn_at: null,
 };
 // Deliberately out of BoQ order: the resolver must sort by boq_item_id so every resolution is identical.
@@ -76,14 +76,16 @@ function command(record: Row, operation: AdapterCommand['operation'] = 'create')
 
 const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10, description: 'VAT' }] };
 
-function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean } = {}) {
-  const { negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false } = opts;
+function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; customerCurrency?: string | null; companyCurrency?: string } = {}) {
+  const { negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
   const sent: { body: Row } = { body: {} };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = decodeURIComponent(new URL(String(url)).pathname);
     if (path === '/api/resource/Item' && init?.method === 'GET') {
       return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
+    if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
+    if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
     if (path === '/api/resource/Selling Settings/Selling Settings' && settingsDenied) return Response.json({ exc_type: 'PermissionError' }, { status: 403 });
     if (path === '/api/resource/Selling Settings/Selling Settings') return Response.json({ data: { allow_negative_rates_for_items: negativeRates ? 1 : 0 } });
     if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] });
@@ -273,7 +275,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
     const persisted = structuredClone(first.command.record) as Row;
     const { fetchImpl } = erpFetch({ negativeRates: false, template: { ...TAX_TEMPLATE, taxes: [{ ...TAX_TEMPLATE.taxes[0], rate: 99 }] } });
     const replay = command({});
-    replay.record = structuredClone(persisted);
+    replay.record = structuredClone(persisted) as AdapterCommand['record'];
     await resolveErpDispatchAdapter({
       serviceClient: serviceClient(CLAIM, EVIDENCE, {}, { subject_to_vat: false }), orgId: ORG, command: replay, replay: true,
       fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
@@ -287,5 +289,22 @@ describe('billing claim invoice (AC-PB-006)', () => {
     const { attempt, fetchImpl } = refused(command({}), CLAIM, EVIDENCE, { settingsDenied: true });
     await expect(attempt).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('read Selling Settings') });
     expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+  });
+
+  it('AC-858-2 refuses a claim whose currency differs from the customer billing currency, before any ERP write', async () => {
+    const { attempt, fetchImpl } = refused(command({}), { ...CLAIM, currency: 'USD' });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('USD') });
+    await expect(attempt).rejects.toMatchObject({ message: expect.stringContaining('IDR') });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+  });
+
+  it('AC-858-2 falls back to the ERPNext company currency when the customer states none', async () => {
+    const { attempt } = refused(command({}), { ...CLAIM, currency: 'USD' }, EVIDENCE, { customerCurrency: null, companyCurrency: 'USD' });
+    await expect(attempt).resolves.toBeDefined();
+  });
+
+  it('AC-858-2 accepts a claim in the customer billing currency', async () => {
+    const { body } = await push({});
+    expect(body.items).toBeDefined();
   });
 });

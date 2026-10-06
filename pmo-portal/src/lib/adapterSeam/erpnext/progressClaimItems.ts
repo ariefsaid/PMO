@@ -13,6 +13,7 @@ export interface ProgressClaimRecord {
   kind: 'down_payment' | 'progress';
   project_id: string;
   work_order_id: string | null;
+  currency?: string;
   down_payment_amount: number | string | null;
   dp_recovery_amount: number | string;
   dp_item_code: string | null;

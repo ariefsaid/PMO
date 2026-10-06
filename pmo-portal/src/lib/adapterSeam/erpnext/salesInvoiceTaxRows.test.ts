@@ -152,7 +152,7 @@ describe('ordinary sales invoice tax rows (#856)', () => {
     for (const [project, template] of [[TAXED, { ...TEMPLATE, taxes: [{ ...TEMPLATE.taxes[0], rate: 99 }] }], [VAT_OFF, TEMPLATE]] as const) {
       const erp = erpFetch(template);
       const replay = command();
-      replay.record = structuredClone(persisted);
+      replay.record = structuredClone(persisted) as AdapterCommand['record'];
       await resolveErpDispatchAdapter({
         serviceClient: serviceClient(project), orgId: ORG, command: replay, replay: true,
         fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
