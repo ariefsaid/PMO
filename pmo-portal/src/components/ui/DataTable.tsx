@@ -9,6 +9,8 @@ import { trackSearchUsed } from '@/src/lib/analytics';
 /** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
  * search intent, never per keystroke. */
 const SEARCH_USED_DEBOUNCE_MS = 500;
+const ROW_MENU_STICKY_CLASS =
+  'sticky right-0 border-l border-border bg-card shadow-[-4px_0_6px_-4px_hsl(var(--foreground)/0.12)]';
 
 export type ColAlign = 'num' | 'center';
 
@@ -258,7 +260,7 @@ export function DataTable<Row>({
                 );
               })}
               {rowMenu && (
-                <th className="w-10 border-b border-border bg-card" scope="col">
+                <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b')} scope="col">
                   <span className="sr-only">Actions</span>
                 </th>
               )}
@@ -344,7 +346,7 @@ export function DataTable<Row>({
                       );
                     })}
                     {rowMenu && (
-                      <td className="px-2 align-middle">
+                      <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle')}>
                         {(() => {
                           const items = rowMenu(row) ?? [];
                           return items.length > 0 ? <RowMenu items={items} /> : null;

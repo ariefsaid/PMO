@@ -175,6 +175,35 @@ describe('DataTable', () => {
     expect(screen.getByText('Total: 2,180')).toBeInTheDocument();
   });
 
+  it('AC-TBL-STICKY-001 keeps the desktop row-actions header and cells pinned with an opaque separated surface', () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
+      />
+    );
+
+    const header = screen.getByRole('columnheader', { name: 'Actions' });
+    const actionCell = screen.getAllByRole('button', { name: /row actions/i })[0].closest('td')!;
+    const sharedClasses = [
+      'sticky',
+      'right-0',
+      'bg-card',
+      'border-l',
+      'border-border',
+      'shadow-[-4px_0_6px_-4px_hsl(var(--foreground)/0.12)]',
+    ];
+
+    for (const className of sharedClasses) {
+      expect(header.className).toContain(className);
+      expect(actionCell.className).toContain(className);
+    }
+    expect(header.className).toContain('z-[3]');
+    expect(actionCell.className).toContain('z-[1]');
+  });
+
   it('per-row rowMenu returning undefined ("no menu for this row") skips that row\'s trigger, other rows unaffected', () => {
     render(
       <DataTable

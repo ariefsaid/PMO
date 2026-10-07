@@ -419,6 +419,10 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
   UPPERCASE, `muted-foreground`** (NOT §3's Overline: the tighter tracking is deliberate for dense
   numeric columns), bottom `border`. Numeric columns right-align. Row `⋯` menu trigger is **always
   visible** (hover-hidden was reverted: undiscoverable on touch + keyboard).
+- **Row actions:** on the desktop table branch, the generated `rowMenu` column sticks to the right
+  during horizontal scrolling. Its header stacks above its body cells; both use the opaque `card`
+  surface, a left `border` divider, and a subtle left-cast shadow from the `foreground` token. The
+  mobile card branch keeps its existing top-right action placement.
 - **Column budget:** a new column must not push the row `⋯` trigger out of the 1440 view — merge related
   facts into one cell first (a primary value over a `muted` second line, as the e-Faktur number + date
   cell does, #893) before adding a column.
