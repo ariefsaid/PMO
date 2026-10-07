@@ -3,13 +3,13 @@
 -- (i)   org-A PM SELECTs pipeline_stage_config → reads org-A rows only.
 -- (ii)  org-B user SELECTs → 0 rows (cross-org isolated).
 -- (iii) org-A Engineer INSERT → 42501 (coarse write gate blocks Engineer).
--- (iv)  org-A PM INSERT → lives_ok (coarse write gate admits PM).
+-- (iv)  org-A PM INSERT → 42501; org-A Admin INSERT → lives_ok (OD-SP-2 Admin-configured, 0268).
 -- (v)   default-org seed has 5 OD-SP-2 rows; Negotiation win_prob = 0.75 (two is() calls).
 -- (vi)  anon cannot execute transition_project (anon execute revoked).
 -- (FR-PR-008/009/010, OD-SP-2, OD-PR-A)
--- Note: plan(7) — items (v) uses two is() assertions for count + value.
+-- Note: plan(8) — items (iv) and (v) each use two assertions.
 begin;
-select plan(7);
+select plan(8);
 
 -- Fixtures: two dedicated test orgs (NOT the default '...0001' so counts are deterministic).
 insert into organizations (id, name) values
@@ -17,11 +17,13 @@ insert into organizations (id, name) values
   ('00320000-0000-0000-0000-000000000002','PSC RLS Org B');
 
 insert into auth.users (id, email) values
+  ('00320000-0000-0000-0000-0000000000a1','psc-admin-a@example.com'),
   ('00320000-0000-0000-0000-0000000000a2','psc-pm-a@example.com'),
   ('00320000-0000-0000-0000-0000000000a4','psc-eng-a@example.com'),
   ('00320000-0000-0000-0000-0000000000b1','psc-user-b@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
+  ('00320000-0000-0000-0000-0000000000a1','00320000-0000-0000-0000-000000000001','PSC Admin A','psc-admin-a@example.com','Admin'),
   ('00320000-0000-0000-0000-0000000000a2','00320000-0000-0000-0000-000000000001','PSC PM A','psc-pm-a@example.com','Project Manager'),
   ('00320000-0000-0000-0000-0000000000a4','00320000-0000-0000-0000-000000000001','PSC Eng A','psc-eng-a@example.com','Engineer'),
   ('00320000-0000-0000-0000-0000000000b1','00320000-0000-0000-0000-000000000002','PSC User B','psc-user-b@example.com','Project Manager');
@@ -58,13 +60,21 @@ select throws_ok(
   '42501', null,
   'AC-1010: Engineer write blocked by coarse gate');
 
--- ── Test (iv): org-A PM INSERT → lives_ok ────────────────────────────────────
+-- ── Test (iv): org-A PM INSERT → 42501; org-A Admin INSERT → lives_ok ─────────
 set local request.jwt.claims = '{"sub":"00320000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select throws_ok(
+  $$ insert into pipeline_stage_config (org_id, status, win_probability)
+     values ('00320000-0000-0000-0000-000000000001','On Hold',0.900) $$,
+  '42501', null,
+  'AC-1010: a PM write is blocked (stage probabilities are Admin-configured)');
+
+set local request.jwt.claims = '{"sub":"00320000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 select lives_ok(
   $$ insert into pipeline_stage_config (org_id, status, win_probability)
      values ('00320000-0000-0000-0000-000000000001','On Hold',0.900) $$,
-  'AC-1010: authorized PM write succeeds');
+  'AC-1010: authorized Admin write succeeds');
 
 reset role;
 

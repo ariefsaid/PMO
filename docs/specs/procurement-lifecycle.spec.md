@@ -156,7 +156,8 @@ where OD-PROC is silent; flag for confirmation (non-blocking for build start, pi
   (b) that `auth_role()` is permitted for the requested transition per the OD-PROC-1 matrix — raising
   `42501` otherwise.
 - **FR-PROC-005** — *Submit.* When the requested transition is `Draft → Requested`, the system shall
-  permit **any in-org member** (incl. `Engineer`) to perform it.
+  permit only the procurement's **requester** (any role, incl. `Engineer`), and Admin break-glass
+  (OD-PROC-1; enforced in `transition_procurement` since migration 0268).
 - **FR-PROC-006** — *Approve / Reject (SoD-a).* When the requested transition is `Requested → Approved` or
   `Requested → Rejected`, the system shall permit only `Project Manager / Finance / Executive` (and Admin
   break-glass), **and shall reject it when the caller is the procurement's requester**
@@ -317,7 +318,7 @@ finds no AC-8xx). Each AC names its id as the leading token (traceability) and i
 | FR-PROC-002 (permissive/skippable) | AC-801, AC-816 | Unit (E2E end-to-end) |
 | FR-PROC-003 (all changes via RPC) | AC-806 | Unit |
 | FR-PROC-004 (internal authz: org+role) | AC-807, AC-808 | pgTAP |
-| FR-PROC-005 (submit: any member) | AC-816 | E2E (exercised in journey) |
+| FR-PROC-005 (submit: requester; Admin break-glass) | AC-816 | E2E (exercised in journey) |
 | FR-PROC-006 (approve/reject + SoD-a) | AC-808, AC-809, AC-805 | pgTAP (UI gate at Unit) |
 | FR-PROC-007 (rework `Rejected → Draft`) | AC-800/802 (map) | Unit |
 | FR-PROC-008 (sourcing/PO/receipt roles) | AC-808, AC-816 | pgTAP (E2E end-to-end) |
