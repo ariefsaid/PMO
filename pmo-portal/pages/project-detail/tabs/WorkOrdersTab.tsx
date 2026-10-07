@@ -140,7 +140,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     header: t('projectDetail.workOrders.billing.column', 'Billing'),
     cell: (row) => {
       const f = billingById.get(row.id);
-      if (billing.isPending) return <span className="text-muted-foreground">…</span>;
+      if (billing.isPending) {
+        return <ListState variant="loading" rows={2} className="w-28 p-0" testId={`wo-billing-loading-${row.id}`} />;
+      }
       if (billing.isError || !f) {
         return (
           <span data-testid={`wo-billing-${row.id}`} className="text-[12px] text-muted-foreground">
@@ -151,7 +153,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       const state = deriveWorkOrderBillingState(row.status, f);
       if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>—</span>;
       return (
-        <div className="flex flex-col items-start gap-0.5" data-testid={`wo-billing-${row.id}`}>
+        <div className="flex flex-col items-start gap-0.5 whitespace-normal" data-testid={`wo-billing-${row.id}`}>
           <StatusPill variant={BILLING_VARIANT[state]}>{billingLabel(state)}</StatusPill>
           {state !== 'incomplete' && (
             <>
@@ -164,6 +166,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 })}{' '}
                 {excl}
               </span>
+              {/* Drafts and unraised claims use up the work order before they are invoiced: shown, so a work order
+                  that is "full" only because of a draft never reads as invoiced (AC-BWO-003). */}
+              {Math.round(f.pending * 100) > 0 && (
+                <span className="text-[11px] tabular text-muted-foreground">
+                  {t('projectDetail.workOrders.billing.lineDraft', {
+                    defaultValue: 'In draft {{amount}}',
+                    amount: formatCurrencyCents(f.pending, f.currency),
+                    interpolation: { escapeValue: false },
+                  })}{' '}
+                  {excl}
+                </span>
+              )}
               <span className="text-[11px] font-semibold tabular">
                 {state === 'over-invoiced'
                   ? t('projectDetail.workOrders.billing.lineOver', {
@@ -207,8 +221,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       ? t('projectDetail.workOrders.tax.inclusive', 'incl. PPN')
       : t('projectDetail.workOrders.tax.exclusive', 'excl. PPN');
 
-  const valueWithBasis = (row: WorkOrderRow): string =>
-    `${formatCurrency(row.order_value, row.currency)} ${treatmentLabel(row.tax_treatment)}${row.tax_rate != null ? ` ${row.tax_rate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`} · DPP ${row.tax_base_numerator ?? 1}/${row.tax_base_denominator ?? 1}`;
+  const basisNote = (row: WorkOrderRow): string =>
+    `${treatmentLabel(row.tax_treatment)}${row.tax_rate != null ? `\u00a0${row.tax_rate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`} · DPP\u00a0${row.tax_base_numerator ?? 1}/${row.tax_base_denominator ?? 1}`;
+  const valueWithBasis = (row: WorkOrderRow): string => `${formatCurrency(row.order_value, row.currency)} ${basisNote(row)}`;
 
   const fail = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);
@@ -282,6 +297,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             {row.wo_number ??
               t('projectDetail.workOrders.notYetIssued', 'Not issued yet')}
           </span>
+          {/* The scope rides under the WO number (not its own column) so Billing and Invoice stay in view beside
+              the record panel; it wraps to two lines rather than widening the table. */}
+          <span className="line-clamp-2 max-w-56 whitespace-normal">{row.title}</span>
+          {/* Folded status: only while the table is too narrow for the Status column (below), and never on a
+              mobile card, which already lists Status as a field. */}
+          <span className="mt-0.5 max-md:hidden @2xl:hidden">
+            <StatusPill variant={STATUS_VARIANT[row.status]}>{statusLabel(row.status)}</StatusPill>
+          </span>
           {row.client_po_number && (
             <span className="text-[11px] text-muted-foreground">
               {t('projectDetail.workOrders.clientPo', 'Client PO')} {row.client_po_number}
@@ -291,32 +314,31 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       ),
     },
     {
-      key: 'title',
-      header: t('projectDetail.workOrders.column.title', 'Scope'),
-      cell: (row) => <span>{row.title}</span>,
+      key: 'value',
+      header: t('projectDetail.workOrders.column.value', 'Order value'),
+      align: 'num',
+      cell: (row) => (
+        <span className="flex flex-col items-end tabular" data-testid={`wo-value-${row.id}`}>
+          <span>{formatCurrency(row.order_value, row.currency)}</span>{' '}
+          <span className="whitespace-normal text-[11px] text-muted-foreground">{basisNote(row)}</span>
+        </span>
+      ),
     },
+    ...(canViewBilling ? [billingColumn] : []),
+    // Secondary columns hide on the TABLE'S OWN width (container query on the DataTable), not the viewport: beside
+    // the record panel the table is far narrower than the viewport implies (DESIGN.md, record-layout column).
     {
       key: 'status',
       header: t('projectDetail.workOrders.column.status', 'Status'),
+      colClassName: 'hidden @2xl:table-cell',
       cell: (row) => (
         <StatusPill variant={STATUS_VARIANT[row.status]}>{statusLabel(row.status)}</StatusPill>
       ),
     },
     {
-      key: 'value',
-      header: t('projectDetail.workOrders.column.value', 'Order value'),
-      align: 'num',
-      cell: (row) => (
-        <span className="tabular" data-testid={`wo-value-${row.id}`}>
-          {valueWithBasis(row)}
-        </span>
-      ),
-    },
-    ...(canViewBilling ? [billingColumn] : []),
-    {
       key: 'orderDate',
       header: t('projectDetail.workOrders.column.orderDate', 'Order date'),
-      colClassName: 'hidden lg:table-cell',
+      colClassName: 'hidden @4xl:table-cell',
       cell: (row) => <span>{formatDateOnly(row.order_date)}</span>,
     },
     {
@@ -432,10 +454,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               />
             ) : (
               <>
-                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {/* auto-fit sizes the totals off the card's OWN width (DESIGN.md, record-layout column): beside the record
+                    panel four IDR billions do not fit one row, so the fourth wraps instead of colliding. */}
+                <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
                   {([
                     ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
                     ['wo-billing-total-paid', t('projectDetail.workOrders.billing.paid', 'Paid'), totals.paid],
+                    ...(totals.inDraft > 0
+                      ? [['wo-billing-total-draft', t('projectDetail.workOrders.billing.inDraft', 'In draft'), totals.inDraft] as const]
+                      : []),
                     ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
                   ] as const).map(([testId, label, value]) => (
                     <div key={testId} data-testid={testId}>
@@ -471,6 +498,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </CardHead>
         <CardPad>
           <DataTable<WorkOrderRow>
+            className="@container"
             rows={rows}
             columns={columns}
             rowKey={(row) => row.id}
@@ -531,7 +559,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             );
             setInvoiceFor(null);
           }}
-          onError={fail}
         />
       )}
 

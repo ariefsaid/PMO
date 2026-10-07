@@ -2348,7 +2348,8 @@
             "amountInvalid": "Enter an amount with no more than 2 decimal places.",
             "amountOver": "Only {{remaining}} is still to invoice on this work order.",
             "amountPositive": "The amount must be more than zero.",
-            "itemRequired": "Choose the ERP item."
+            "itemRequired": "Choose the ERP item.",
+            "refused": "Nothing was written to ERPNext. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left."
           },
           "item": "ERP item",
           "itemCode": "Item code",
@@ -2372,7 +2373,9 @@
           "created": "Draft invoice created",
           "createdSub": "{{number}} — submit it from Sales Invoices."
         },
-        "unavailable": "Unavailable"
+        "unavailable": "Unavailable",
+        "lineDraft": "In draft {{amount}}",
+        "inDraft": "In draft"
       },
       "clientPo": "Client PO",
       "column": {
@@ -2380,7 +2383,6 @@
         "number": "WO number",
         "orderDate": "Order date",
         "status": "Status",
-        "title": "Scope",
         "value": "Order value"
       },
       "confirm": {

@@ -2337,7 +2337,7 @@
         "invoiced": "Sudah ditagih",
         "lineInvoiced": "Ditagih {{invoiced}} · dibayar {{paid}}",
         "lineOver": "Lebih {{amount}}",
-        "lineRemaining": "Belum ditagih {{amount}}",
+        "lineRemaining": "Sisa untuk ditagih {{amount}}",
         "loadError": "Gagal memuat penagihan Work Order ini",
         "modal": {
           "amount": "Jumlah (belum termasuk PPN)",
@@ -2348,7 +2348,8 @@
             "amountInvalid": "Masukkan jumlah dengan paling banyak 2 angka desimal.",
             "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
             "amountPositive": "Jumlah harus lebih dari nol.",
-            "itemRequired": "Pilih item ERP."
+            "itemRequired": "Pilih item ERP.",
+            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya."
           },
           "item": "Item ERP",
           "itemCode": "Kode item",
@@ -2365,14 +2366,16 @@
           "paid": "Lunas",
           "partlyInvoiced": "Ditagih sebagian"
         },
-        "stillToInvoice": "Belum ditagih",
+        "stillToInvoice": "Sisa untuk ditagih",
         "summaryNote": "Work Order yang diterbitkan dan ditutup, dikurangi yang sudah ditagih atau masih draf.",
         "summaryTitle": "Penagihan per Work Order",
         "toast": {
           "created": "Draf faktur dibuat",
           "createdSub": "{{number}} — kirimkan dari Faktur Penjualan."
         },
-        "unavailable": "Tidak tersedia"
+        "unavailable": "Tidak tersedia",
+        "lineDraft": "Masih draf {{amount}}",
+        "inDraft": "Masih draf"
       },
       "clientPo": "PO klien",
       "column": {
@@ -2380,7 +2383,6 @@
         "number": "Nomor WO",
         "orderDate": "Tanggal order",
         "status": "Status",
-        "title": "Lingkup",
         "value": "Nilai order"
       },
       "confirm": {

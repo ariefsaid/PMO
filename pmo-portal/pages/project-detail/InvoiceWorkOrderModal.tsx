@@ -25,7 +25,6 @@ export interface InvoiceWorkOrderModalProps {
   remaining: number;
   onClose: () => void;
   onCreated: (siNumber: string) => void;
-  onError: (err: unknown) => void;
 }
 
 interface Values {
@@ -34,13 +33,14 @@ interface Values {
   amount: string;
 }
 
-/** The invoice line's description: the work order's own label, within ERPNext's 140 characters. */
+/** The invoice line's description: the work order's own number and title (no filler copy — it lands on the client's
+ *  invoice in ERPNext, whatever the user's language), within ERPNext's 140 characters. */
 function workOrderInvoiceDescription(wo: Pick<WorkOrderRow, 'wo_number' | 'title'>): string {
-  return `${wo.wo_number ?? 'Work order'} — ${wo.title}`.slice(0, 140);
+  return (wo.wo_number ? `${wo.wo_number} — ${wo.title}` : wo.title).slice(0, 140);
 }
 
 const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
-  workOrder, projectId, clientId, remaining, onClose, onCreated, onError,
+  workOrder, projectId, clientId, remaining, onClose, onCreated,
 }) => {
   const { t } = useTranslation();
   const erpItems = useErpItemOptions('sales');
@@ -106,14 +106,27 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
         });
         onCreated(res.si_number);
       } catch (err) {
-        // `suppressCapture`: the tab's onError owns the single save_failed event (ADR-0067).
+        // The dialog is the one place the failure is shown (no second toast); classifying here records the single
+        // save_failed event (ADR-0067).
         const { headline, detail } = classifyMutationError(
           err,
           { BW001: t('projectDetail.workOrders.billing.modal.errorHeadline', 'That would invoice past the work order') },
-          { suppressCapture: true },
+          { module: 'projects', operation: 'create' },
         );
-        setSaveError({ headline, detail });
-        onError(err);
+        // BW001 is the database's refusal before any ERP write. Its message is diagnostics (English, unformatted
+        // figures): say it in the user's language, with the amount this dialog was opened with.
+        const isRefusal = (err as { code?: unknown } | null)?.code === 'BW001';
+        setSaveError({
+          headline,
+          detail: isRefusal
+            ? t('projectDetail.workOrders.billing.modal.errors.refused', {
+                defaultValue:
+                  'Nothing was written to ERPNext. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left.',
+                remaining: remainingText,
+                interpolation: { escapeValue: false },
+              })
+            : detail,
+        });
       }
     });
   };

@@ -79,6 +79,22 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(screen.getByTestId('wo-billing-wo-1')).getByText(pill)).toBeInTheDocument();
   });
 
+  it("AC-BWO-003 a work order that is full only because of a draft not yet submitted shows the draft amount, never a bare 'Fully invoiced'", () => {
+    h.billing.data = [bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 })];
+    renderTab();
+    const cell = screen.getByTestId('wo-billing-wo-1');
+    expect(within(cell).getByText('Fully invoiced')).toBeInTheDocument();
+    expect(cell).toHaveTextContent('In draft $500,000.00 excl. PPN');
+    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('$500,000.00excl. PPN');
+  });
+
+  it('AC-BWO-003 with nothing in draft, no draft line or total is shown', () => {
+    h.billing.data = [bill({ pending: 0, remaining: 170_000 })];
+    renderTab();
+    expect(screen.getByTestId('wo-billing-wo-1')).not.toHaveTextContent('In draft');
+    expect(screen.queryByTestId('wo-billing-total-draft')).toBeNull();
+  });
+
   it('AC-BWO-004 an over-invoiced work order states the excess', () => {
     h.billing.data = [bill({ remaining: -1_000 })];
     renderTab();
@@ -133,6 +149,15 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.getByTestId('wo-billing-total-still')).not.toHaveTextContent('$');
   });
 
+  it('NFR-BWO-005 while billing loads, each row shows the loading skeleton, never a bare ellipsis or a zero', () => {
+    h.billing = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    renderTab();
+    const loading = screen.getByTestId('wo-billing-loading-wo-1');
+    expect(loading).toHaveAttribute('aria-busy', 'true');
+    expect(loading.querySelector('.skel')).not.toBeNull();
+    expect(screen.queryByText('…')).toBeNull();
+  });
+
   it('AC-BWO-004 an Engineer sees no billing', () => {
     renderTab('Engineer');
     expect(screen.queryByTestId('wo-billing-summary')).toBeNull();
@@ -144,5 +169,36 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
     expect(screen.getByText("Couldn't load billing for these work orders")).toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-total-still')).toBeNull();
+  });
+});
+
+describe('WorkOrdersTab — billing stays in view beside the record panel (OD-BILL-1 layout)', () => {
+  const headers = () => screen.getAllByRole('columnheader').map((th) => th.textContent?.trim());
+  const header = (name: string) => screen.getAllByRole('columnheader').find((th) => th.textContent?.trim() === name)!;
+
+  it('AC-BWO-004 Billing sits right after the work order and its value; the scope rides under the WO number', () => {
+    renderTab();
+    expect(headers()).toEqual(['WO number', 'Order value', 'Billing', 'Status', 'Order date', 'Actions']);
+    const firstCell = screen.getAllByRole('row')[1].querySelector('td')!;
+    expect(within(firstCell).getByText('WO-1')).toBeInTheDocument();
+    expect(within(firstCell).getByText('Phase 1 fabrication')).toBeInTheDocument();
+  });
+
+  it('AC-BWO-004 where the Status column is hidden, the status still shows under the WO number', () => {
+    h.list.data = [wo({ status: 'Cancelled' })];
+    renderTab();
+    const firstCell = screen.getAllByRole('row')[1].querySelector('td')!;
+    // Folded copy: shown only while the table is too narrow for the Status column, and never on a mobile card
+    // (the card already lists Status as a field).
+    expect(within(firstCell).getByText('Cancelled').closest('.\\@2xl\\:hidden')).toHaveClass('max-md:hidden');
+  });
+
+  it('AC-BWO-004 secondary columns hide on the table’s own width, never Billing or Actions', () => {
+    renderTab();
+    // The table sizes off its own container (DESIGN.md: a record-layout column is narrower than the viewport implies).
+    expect(screen.getByRole('table').closest('.\\@container')).not.toBeNull();
+    expect(header('Status')).toHaveClass('hidden', '@2xl:table-cell');
+    expect(header('Order date')).toHaveClass('hidden', '@4xl:table-cell');
+    for (const always of ['WO number', 'Order value', 'Billing', 'Actions']) expect(header(always)).not.toHaveClass('hidden');
   });
 });

@@ -46,10 +46,14 @@ describe('summarizeProjectWorkOrderBilling', () => {
       bill({ workOrderId: 'wo-2', status: 'Closed', invoiced: 105_000, pending: 0, paid: 0, remaining: -5_000 }),
       bill({ workOrderId: 'wo-3', status: 'Draft', invoiced: 0, pending: 0, paid: 0, remaining: 900_000 }),
     ];
-    expect(summarizeProjectWorkOrderBilling(rows)).toEqual({ invoiced: 435_000, paid: 100_000, stillToInvoice: 80_000, complete: true });
+    expect(summarizeProjectWorkOrderBilling(rows)).toEqual({ invoiced: 435_000, paid: 100_000, inDraft: 90_000, stillToInvoice: 80_000, complete: true });
   });
   it('AC-UNB-002 one untotallable work order makes the totals incomplete', () => {
     expect(summarizeProjectWorkOrderBilling([bill(), bill({ workOrderId: 'wo-2', figuresComplete: false })]).complete).toBe(false);
+  });
+  it('AC-BWO-003 drafts and unraised claims are totalled apart as in draft, never hidden inside invoiced', () => {
+    expect(summarizeProjectWorkOrderBilling([bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 })]))
+      .toMatchObject({ invoiced: 0, inDraft: 500_000, stillToInvoice: 0 });
   });
   it('sums in cents', () => {
     expect(summarizeProjectWorkOrderBilling([bill({ invoiced: 0.1, paid: 0, remaining: 0.2 }), bill({ workOrderId: 'wo-2', invoiced: 0.2, paid: 0, remaining: 0.1 })]))

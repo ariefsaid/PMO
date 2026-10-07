@@ -230,49 +230,81 @@ describe('prepareDraftInvoice — chip honesty and limits (#787)', () => {
     expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({ ok: false, error: {
       error: 'The client PO reference on WO-20261001-001 is longer than 140 characters, so it cannot go on an invoice. Shorten it on the work order first.' } });
   });
-  it('a source currency that differs from the org\'s billing currency is refused before the chip (the dispatch sends no currency)', async () => {
-    const { client } = fakeSupabase(world({ work_orders: () => [{ ...WO, currency: 'USD' }] }), oneItem);
+  // #866: the dispatch states an ordinary invoice in its PROJECT's currency — the same rule the Invoice dialog follows.
+  const usdProject = (c: { terminal?: string }) => (c.terminal === 'maybeSingle' ? { ...PROJECT, currency: 'USD' } : [{ ...PROJECT, currency: 'USD' }]);
+  it('#866 a work order in its project\'s currency is drafted even when the org\'s default currency differs', async () => {
+    const { client } = fakeSupabase(world({ projects: usdProject, work_orders: () => [{ ...WO, currency: 'USD' }] }), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value).toMatchObject({ projectId: P1, workOrderId: WO.id, items: [{ rate: 1_000_000 }] });
+    expect(out.value.display.amountText).toMatch(/^\$1,000,000\.00$/);
+  });
+  it('#866 a milestone on a project in another currency than the org default is drafted in the project\'s currency', async () => {
+    const { client } = fakeSupabase(world({ projects: usdProject }), oneItem);
+    const out = await prepareDraftInvoice({ milestone: '2', project: P1, amount: 5 }, ctx('Finance', client), newId);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value.display.amountText).toMatch(/^\$5\.00$/);
+  });
+  it('#866 a work order whose currency is not its project\'s is refused before the chip — the invoice could not match it', async () => {
+    const { client, invoke } = fakeSupabase(world({ work_orders: () => [{ ...WO, currency: 'USD' }] }), oneItem);
     expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({ ok: false, error: {
-      error: "WO-20261001-001 is in USD, but this organisation invoices in IDR. Create this one from Sales Invoices instead." } });
-    const ms = fakeSupabase(world({ projects: (c) => (c.terminal === 'maybeSingle' ? { ...PROJECT, currency: 'USD' } : [{ ...PROJECT, currency: 'USD' }]) }), oneItem);
-    expect(await prepareDraftInvoice({ milestone: '2', project: P1, amount: 5 }, ctx('Finance', ms.client), newId))
-      .toMatchObject({ ok: false, error: { error: expect.stringMatching(/in USD, but this organisation invoices in IDR/) } });
+      error: 'WO-20261001-001 is in USD, but Harbor Tower invoices in IDR, so an invoice cannot be raised against it.' } });
+    expect(invoke).not.toHaveBeenCalled();
   });
 });
 describe('prepareDraftInvoice — billing by work order (OD-BILL-1, DD-BWO-9)', () => {
-  const billed = (rows: Array<{ billed: number | null; currency: string }>) =>
-    world({ work_order_billing_lines: () => rows });
+  // M5: the still-to-invoice figure is the work_order_billing view's own `remaining` for that one work order (the
+  // figure the Work orders tab shows), read under the caller's JWT — never re-added from capped billing lines.
+  const left = (row: { remaining: number | string | null; figures_complete: boolean } | null) =>
+    world({ work_order_billing: () => row });
 
   it('AC-BWO-005 a work-order draft names the work order and defaults to what is still to invoice', async () => {
-    const { client, calls } = fakeSupabase(billed([{ billed: 400_000, currency: 'IDR' }]), oneItem);
+    const { client, calls } = fakeSupabase(left({ remaining: '600000.00', figures_complete: true }), oneItem);
     const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId);
     expect(out.ok).toBe(true);
     if (!out.ok) return;
     expect(out.value.workOrderId).toBe(WO.id);
     expect(out.value.items[0].rate).toBe(600_000);
-    expect(opsOf(calls, 'work_order_billing_lines')[0]).toContainEqual(['eq', 'work_order_id', WO.id]);
+    const read = calls.find((c) => c.table === 'work_order_billing')!;
+    expect(read.columns).toBe('remaining, figures_complete');
+    expect(read.ops).toContainEqual(['eq', 'work_order_id', WO.id]);
+    expect(read.terminal).toBe('maybeSingle');
+    expect(calls.some((c) => c.table === 'work_order_billing_lines')).toBe(false);
     expect(validatePreparedDraft(out.value)).toEqual({ ok: true, value: out.value });
   });
 
   it('AC-BWO-005 a stated amount above what is left is refused before the chip', async () => {
-    const { client } = fakeSupabase(billed([{ billed: 400_000, currency: 'IDR' }]), oneItem);
+    const { client } = fakeSupabase(left({ remaining: 600_000, figures_complete: true }), oneItem);
     expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001', amount: 700_000 }, ctx('Finance', client), newId)).toEqual({
       ok: false,
       error: { error: 'Only IDR\u00a0600,000 is still to invoice on WO-20261001-001 — Phase 2 survey. How much should this invoice be, before tax?', needs: 'amount' },
     });
   });
 
-  it('AC-BWO-005 a work order with nothing left is refused before the chip', async () => {
-    const { client } = fakeSupabase(billed([{ billed: 1_000_000, currency: 'IDR' }]), oneItem);
+  it.each([0, -5_000])('AC-BWO-005 a work order with nothing left (%s) is refused before the chip', async (remaining) => {
+    const { client } = fakeSupabase(left({ remaining, figures_complete: true }), oneItem);
     expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId))
       .toEqual({ ok: false, error: { error: 'Nothing is left to invoice on WO-20261001-001 — Phase 2 survey.' } });
   });
 
   it('AC-BWO-005 an invoice that cannot be totalled is refused before the chip', async () => {
-    const { client } = fakeSupabase(billed([{ billed: null, currency: 'IDR' }]), oneItem);
+    const { client } = fakeSupabase(left({ remaining: 600_000, figures_complete: false }), oneItem);
     expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({
       ok: false,
       error: { error: 'An invoice on WO-20261001-001 — Phase 2 survey has no amount or is in another currency, so what is left to invoice cannot be worked out.' },
+    });
+  });
+
+  it.each([
+    ['no billing row is visible', null],
+    ['the figure is missing', { remaining: null, figures_complete: true }],
+    ['the figure is not a number', { remaining: 'abc', figures_complete: true }],
+  ])('AC-BWO-005 %s → refused, never treated as zero', async (_label, row) => {
+    const { client } = fakeSupabase(left(row), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({
+      ok: false, error: { error: "I couldn't read what is still to invoice on WO-20261001-001 — Phase 2 survey. Create this one from the project's Work orders tab." },
     });
   });
 

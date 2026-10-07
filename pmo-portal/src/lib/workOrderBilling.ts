@@ -30,6 +30,8 @@ export function canInvoiceWorkOrder(status: WorkOrderStatus, f: WorkOrderBilling
 export interface ProjectWorkOrderBillingTotals {
   invoiced: number;
   paid: number;
+  /** Drafts and unraised claims (`pending`): they use up the work order but are not invoiced yet (DD-BWO-2). */
+  inDraft: number;
   stillToInvoice: number;
   /** false when any Issued/Closed work order's figures cannot be totalled — render "Unavailable", never a sum. */
   complete: boolean;
@@ -39,6 +41,7 @@ export interface ProjectWorkOrderBillingTotals {
 export function summarizeProjectWorkOrderBilling(rows: ReadonlyArray<WorkOrderBillingRow>): ProjectWorkOrderBillingTotals {
   let invoiced = 0;
   let paid = 0;
+  let draft = 0;
   let still = 0;
   let complete = true;
   for (const r of rows) {
@@ -49,9 +52,10 @@ export function summarizeProjectWorkOrderBilling(rows: ReadonlyArray<WorkOrderBi
     }
     invoiced += cents(r.invoiced);
     paid += cents(r.paid);
+    draft += cents(r.pending);
     still += Math.max(0, cents(r.remaining));
   }
-  return { invoiced: invoiced / 100, paid: paid / 100, stillToInvoice: still / 100, complete };
+  return { invoiced: invoiced / 100, paid: paid / 100, inDraft: draft / 100, stillToInvoice: still / 100, complete };
 }
 
 export type InvoiceAmountProblem = 'invalid' | 'not-positive' | 'over-remaining';

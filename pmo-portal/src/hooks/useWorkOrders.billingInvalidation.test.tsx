@@ -17,5 +17,7 @@ describe('useWorkOrderMutations (OD-BILL-1)', () => {
     const { result } = renderHook(() => useWorkOrderMutations('p1'), { wrapper });
     await act(async () => { await result.current.transition.mutateAsync({ id: 'wo-1', to: 'Closed' }); });
     expect(spy).toHaveBeenCalledWith({ queryKey: ['work-order-billing', 'org-1', 'p1'] });
+    // The dashboards' still-to-invoice card reads the same fact across the org.
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['unbilled-work-orders', 'org-1'] });
   });
 });
