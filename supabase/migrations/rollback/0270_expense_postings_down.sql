@@ -1,4 +1,4 @@
--- rollback/0263_expense_postings_down.sql — reverse of 0263 (ADR-0006). App first: deploy an erpnext-sweep without
+-- rollback/0270_expense_postings_down.sql — reverse of 0270 (ADR-0006). App first: deploy an erpnext-sweep without
 -- pass (7) and an external-set-company without the expense actions, THEN run this in one transaction.
 -- Intents, returns rows and the account map are dropped; claims, advances and returned_amount are untouched.
 -- Outbox rows and external_refs in domain 'expenses' stay as audit (ADR-0058 §Consequences).
@@ -58,6 +58,6 @@ revoke all on function public.record_expense_advance_return(uuid, numeric, text)
 grant execute on function public.record_expense_advance_return(uuid, numeric, text) to authenticated;
 
 drop table if exists public.expense_advance_returns;
--- The 'expenses' ownership rows are inert without 0263; remove them so a re-apply starts un-employed.
+-- The 'expenses' ownership rows are inert without 0270; remove them so a re-apply starts un-employed.
 delete from public.external_domain_ownership where domain = 'expenses';
 commit;

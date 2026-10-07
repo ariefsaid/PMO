@@ -29,7 +29,7 @@ import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
  *       enforces, with `p_actor` => the sheet's own `approved_by`. Until this landed, the push had ONE
  *       originator (the Approvals UI) and a push that died with the browser was stranded forever.
  *   (7) #775 phase B — reconcileOrgExpensePostings, the ONLY originator of expense postings (ADR-0081,
- *       `expensePostingBackstop.ts`): drives the intents 0263 writes in the claim's own transaction —
+ *       `expensePostingBackstop.ts`): drives the intents 0270 writes in the claim's own transaction —
  *       replay an existing outbox row, else re-assert `expense_posting_for_push`, resolve, and post.
  * ⚑ Passes (5), (6) and (7) are the SOLE owners of the `budget`, `timesheets` and `expenses` domains: pass
  *   (1) skips all three, so each domain's gate is re-asserted by exactly one pass and `0131`'s attempt
@@ -1889,7 +1889,7 @@ export function expensePostingBackstopDepsLive(
     };
   };
   return {
-    // Round robin (NFR-EXP-013): never-attempted first, then least recently attempted — index-served (0263 §3).
+    // Round robin (NFR-EXP-013): never-attempted first, then least recently attempted — index-served (0270 §3).
     listPending: async (orgId, limit) => {
       const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
         .select(EXPENSE_INTENT_COLUMNS)
@@ -1937,7 +1937,7 @@ export function expensePostingBackstopDepsLive(
         return;
       }
       // A replay that may issue a NEW ERP write re-asserts the recorded actor's CURRENT role/rank — the gate's actor
-      // half (0263 §5), which the generic replay authorization (active membership only for expenses) does not run.
+      // half (0270 §5), which the generic replay authorization (active membership only for expenses) does not run.
       // A refusal leaves the outbox row untouched; the intent is recorded failed and retried.
       if (replayMayIssueErpWrite(outbox.state)) {
         const { error } = await serviceClient.rpc('expense_posting_actor_check', { p_org_id: org.orgId, p_mirror_id: row.id });

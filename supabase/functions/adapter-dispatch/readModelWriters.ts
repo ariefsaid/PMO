@@ -1183,7 +1183,7 @@ export async function markTimesheetPushOutcome(
 }
 
 /**
- * #775 phase B (ADR-0059 §6, ADR-0081) — the expense side mirror. The intent row exists already (0263 trigger);
+ * #775 phase B (ADR-0059 §6, ADR-0081) — the expense side mirror. The intent row exists already (0270 trigger);
  * a landed posting marks it `pushed` with the ERP name. A landed `approval-cancel` also stamps the approval row
  * cancelled, so the feed's later tombstone of that Journal Entry is recognised as PMO's own (no notice).
  * Keyed on (org_id, posting_identity) — never `id` (the L-1 lesson: the mirror's own uuid is not the PMO key).

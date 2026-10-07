@@ -74,7 +74,7 @@ export { ERPNEXT_TIER };
  * catch downstream — but it must be caught HERE, at the query, not papered over by the caller.
  */
 function pmoRecordLookupColumn(kind: ErpDocKind): string {
-  // #775 phase B — the expense side mirror (0263 §3) is keyed by `posting_identity` (`<subject>:<posting>`),
+  // #775 phase B — the expense side mirror (0270 §3) is keyed by `posting_identity` (`<subject>:<posting>`),
   // which is exactly the outbox / external_refs identity of every posting PMO lands.
   if (KIND_DOMAIN[kind] === 'expenses') return 'posting_identity';
   if (kind === 'timesheet') return 'timesheet_id';

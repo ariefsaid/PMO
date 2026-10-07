@@ -24,7 +24,7 @@ import type { ExpenseResolution } from '../../../pmo-portal/src/lib/adapterSeam/
 /** NFR-EXP-013 — bounded per org per tick (index-served), equal to the timesheet/budget twins. */
 export const EXPENSE_BACKSTOP_TICK_LIMIT = 200;
 
-/** The gate's refusal for an approval whose claim was cancelled before it posted (0263 §5) — terminal. */
+/** The gate's refusal for an approval whose claim was cancelled before it posted (0270 §5) — terminal. */
 export const EXPENSE_CLAIM_CANCELLED_REFUSAL = 'expense-posting-claim-cancelled';
 
 export interface ExpenseIntentRow {

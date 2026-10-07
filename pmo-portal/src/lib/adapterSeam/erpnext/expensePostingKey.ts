@@ -38,7 +38,7 @@ export function expensePostingKey(posting: ExpensePosting, subjectId: string, st
   return `${EXPENSE_POSTING_KEY_PREFIX[posting]}:${subjectId.toLowerCase()}:${epochMs}`;
 }
 
-/** The side mirror's identity for a posting (`expense_posting_erp_mirror.posting_identity`, 0263 §3 CHECK). */
+/** The side mirror's identity for a posting (`expense_posting_erp_mirror.posting_identity`, 0270 §3 CHECK). */
 export function expensePostingIdentity(posting: ExpensePosting, subjectId: string): string {
   return `${subjectId.toLowerCase()}:${posting}`;
 }

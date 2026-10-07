@@ -1,5 +1,5 @@
 /**
- * #775 phase B — client reads of the expense posting side mirror (0263 §3) and the account map (0263 §2). Both
+ * #775 phase B — client reads of the expense posting side mirror (0270 §3) and the account map (0270 §2). Both
  * are SELECT-only for clients; RLS scopes them (the claim's audience / the org). Writes to the map go through
  * `repositories.integrations.saveExpenseAccount` (the validating edge action), never a table write.
  */

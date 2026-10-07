@@ -62,7 +62,7 @@ export function moneyWriteRolesForDomain(domain: string): readonly string[] {
  * resolves to the empty (fail-closed) role set.
  */
 // #775 phase B: `expenses` — the approver (approval rank) or payer (Finance/Admin) is re-checked by
-// expense_posting_for_push (0263 §5) against the recorded actor's CURRENT role before every fresh posting.
+// expense_posting_for_push (0270 §5) against the recorded actor's CURRENT role before every fresh posting.
 const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets', 'expenses']);
 
 /**

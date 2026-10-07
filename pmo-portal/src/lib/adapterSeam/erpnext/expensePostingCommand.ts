@@ -6,7 +6,7 @@ import type { ErpDocKind } from './doctypeRegistry.ts';
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingKey, type ExpensePosting } from './expensePostingKey.ts';
 import type { ExpenseJournalRow } from './bodies/expenseJournal.ts';
 
-/** What `expense_posting_for_push` (0263 §5) returns — DB truth, never a payload. */
+/** What `expense_posting_for_push` (0270 §5) returns — DB truth, never a payload. */
 export interface ExpenseGateTruth {
   mirror_id: string;
   posting: ExpensePosting;

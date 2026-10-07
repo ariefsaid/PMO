@@ -1,8 +1,8 @@
--- 0263_expense_postings.sql — #775 phase B: expense claims and cash advances post to ERPNext
+-- 0270_expense_postings.sql — #775 phase B: expense claims and cash advances post to ERPNext
 -- (ADR-0059 Posture B; ADR-0081 one originator). Spec: docs/specs/expense-claims.spec.md §10.
 -- Plan: docs/plans/2026-10-07-expense-claims-phase-b.md (+ part2..part6).
--- Proven by supabase/tests/0263_expense_advance_returns.test.sql, 0263_expense_postings_enqueue.test.sql,
---   0263_expense_posting_gate.test.sql, 0263_expense_postings_acl.test.sql and the §6 self-assertion.
+-- Proven by supabase/tests/0270_expense_advance_returns.test.sql, 0270_expense_postings_enqueue.test.sql,
+--   0270_expense_posting_gate.test.sql, 0270_expense_postings_acl.test.sql and the §6 self-assertion.
 --
 -- §1 expense_advance_returns + record_expense_advance_return (0247 §9 body + one insert)
 -- §2 expense_account_map (written only by external-set-company, as service role)
@@ -14,7 +14,7 @@
 --
 -- ⛔ transition_expense_claim, spend_approval_route and every phase-A policy are NOT touched (ADR-0059 §3.1).
 -- ⛔ org_id has NO default on the three new tables: every writer states it (the 0074/0213 seed-default class).
--- REVERSE: supabase/migrations/rollback/0263_expense_postings_down.sql (stop the sweep pass first).
+-- REVERSE: supabase/migrations/rollback/0270_expense_postings_down.sql (stop the sweep pass first).
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- §1 — each cash return is its own row (DD-EXP-17): the subject of one advance-return posting.
@@ -33,7 +33,7 @@ create table public.expense_advance_returns (
 create index expense_advance_returns_advance_idx on public.expense_advance_returns (advance_id);
 comment on table public.expense_advance_returns is
   '#775 phase B — one row per cash return on an advance; written only by record_expense_advance_return. '
-  'Returns recorded before 0263 exist only as expense_advance.return audit events.';
+  'Returns recorded before 0270 exist only as expense_advance.return audit events.';
 
 alter table public.expense_advance_returns enable row level security;
 alter table public.expense_advance_returns force  row level security;
@@ -44,7 +44,7 @@ revoke all on public.expense_advance_returns from public, anon, authenticated;
 grant select on public.expense_advance_returns to authenticated;
 grant select, insert, update, delete on public.expense_advance_returns to service_role;
 
--- 0247 §9 VERBATIM except the one marked insert. Reverse: rollback/0263 restores the 0247 text.
+-- 0247 §9 VERBATIM except the one marked insert. Reverse: rollback/0270 restores the 0247 text.
 create or replace function public.record_expense_advance_return(p_id uuid, p_amount numeric, p_reference text default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -79,7 +79,7 @@ begin
       using errcode = 'P0001';
   end if;
   update public.expense_claims set returned_amount = returned_amount + p_amount where id = p_id;
-  -- 0263 (DD-EXP-17): the return as its own row — the subject of its advance-return posting.
+  -- 0270 (DD-EXP-17): the return as its own row — the subject of its advance-return posting.
   insert into public.expense_advance_returns (org_id, advance_id, amount, reference, recorded_by, returned_on)
   values (v_row.org_id, p_id, p_amount, nullif(btrim(p_reference), ''), v_uid,
           (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = v_row.org_id),
@@ -395,7 +395,7 @@ begin
      or has_function_privilege('authenticated', 'public.enqueue_expense_return_posting()', 'EXECUTE')
      or has_function_privilege('anon', 'public.record_expense_advance_return(uuid, numeric, text)', 'EXECUTE')
      or not has_function_privilege('authenticated', 'public.record_expense_advance_return(uuid, numeric, text)', 'EXECUTE') then
-    raise exception '0263: expense posting function ACL is not the intended shape';
+    raise exception '0270: expense posting function ACL is not the intended shape';
   end if;
   foreach v_table in array array['public.expense_advance_returns', 'public.expense_account_map',
                                  'public.expense_posting_erp_mirror'] loop
@@ -406,7 +406,7 @@ begin
        or not has_table_privilege('service_role', v_table, 'SELECT')
        or not has_table_privilege('service_role', v_table, 'INSERT')
        or not has_table_privilege('service_role', v_table, 'UPDATE') then
-      raise exception '0263: % ACL is not the intended shape', v_table;
+      raise exception '0270: % ACL is not the intended shape', v_table;
     end if;
   end loop;
 end $$;

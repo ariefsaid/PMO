@@ -72,7 +72,7 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   // budget figure (OD-BUDGET-1) and no feed/mirror write may ever touch them. A Desk-created ERP Budget
   // is ack-and-skipped, never adopted (FR-BUD-140) — the inverse of P3a's adopt rule.
   budget: 'budget_version_erp_mirror',
-  // #775 phase B — the SIDE mirror (0263). ⛔ NEVER `expense_claims`: PMO is the SoT for the claim; only the side
+  // #775 phase B — the SIDE mirror (0270). ⛔ NEVER `expense_claims`: PMO is the SoT for the claim; only the side
   // mirror is a feed target.
   'expense-journal': 'expense_posting_erp_mirror',
   'expense-payment': 'expense_posting_erp_mirror',

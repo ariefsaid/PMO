@@ -708,7 +708,7 @@ export interface ExpenseReceiptRepository {
   cleanupObject(path: string): Promise<void>;
 }
 
-/** #775 phase B — read-only views of the expense posting side mirror and the account map (RLS-scoped, 0263). */
+/** #775 phase B — read-only views of the expense posting side mirror and the account map (RLS-scoped, 0270). */
 export interface ExpensePostingRepository {
   /** What one claim posted to ERPNext (FR-EXP-117). */
   listForClaim(claimId: string): Promise<ExpensePostingRow[]>;

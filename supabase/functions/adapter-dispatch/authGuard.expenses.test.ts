@@ -1,5 +1,5 @@
 // AC-EXP-125 [Deno] — the sweep re-authorizes expense replays with checkErpnextCommandAuthorization. The ROLE half
-// is delegated to expense_posting_for_push (0263 §5 re-checks the recorded actor's current role); the ACTIVE half
+// is delegated to expense_posting_for_push (0270 §5 re-checks the recorded actor's current role); the ACTIVE half
 // and the kind/domain check still apply here.
 // Verify: cd supabase/functions/adapter-dispatch && deno test authGuard.expenses.test.ts --config deno.json --allow-env --allow-net --allow-read
 import { assertEquals } from '@std/assert';
