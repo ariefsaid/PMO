@@ -76,6 +76,9 @@ export async function signInApprover(authUrl: string, anonKey: string): Promise<
   return data.session.access_token;
 }
 
+/** The bench's billing currency (company 'PMO Smoke Co'); projects and work orders seeded here state it explicitly. */
+export const SAR_CURRENCY = 'IDR';
+
 /** Seed the shared org for SAR e2e: Customer company + Project + binding + revenue flip. */
 export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SARSeed> {
   const companyId = crypto.randomUUID();
@@ -124,6 +127,13 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
     org_id: ORG_ID,
     name: projectName,
     status: 'Ongoing Project', // project_status enum has no 'Active' — 'Ongoing Project' is the live value
+    // Stated, not stamped: the seed org defaults to USD, but the bench company bills in IDR and the
+    // fixture Customer has no default currency, so the #858 pre-check would refuse a USD invoice.
+    currency: SAR_CURRENCY,
+    // The SAR journeys raise untaxed invoices (their oracles compare amount = grand_total = net). 0253 made
+    // projects VAT-liable by default, which needs a bench default tax template and adds tax; state it off.
+    // A journey about tax (AC-PB-003) turns it back on.
+    subject_to_vat: false,
   });
   if (projectErr) throw new Error(`seed projects failed: ${projectErr.message}`);
 

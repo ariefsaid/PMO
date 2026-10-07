@@ -17,6 +17,10 @@ const { budgetReviewState } = vi.hoisted(() => ({
   },
 }));
 
+// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
+  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({
     data: {

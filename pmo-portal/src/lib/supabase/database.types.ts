@@ -599,6 +599,13 @@ export type Database = {
             foreignKeyName: "boq_items_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "boq_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -1764,6 +1771,20 @@ export type Database = {
             referencedRelation: "expense_claims"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "expense_claim_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claim_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       expense_claim_lines: {
@@ -1803,6 +1824,13 @@ export type Database = {
             columns: ["claim_id"]
             isOneToOne: false
             referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claim_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1908,8 +1936,29 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "expense_claims_approved_by_id_fkey"
+            columns: ["approved_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "expense_claims_claimant_id_fkey"
             columns: ["claimant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_paid_by_id_fkey"
+            columns: ["paid_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2438,6 +2487,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payments_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoice_work_billed"
             referencedColumns: ["id"]
           },
           {
@@ -4212,6 +4268,13 @@ export type Database = {
             foreignKeyName: "progress_claims_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "progress_claims_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -5111,6 +5174,13 @@ export type Database = {
             foreignKeyName: "sales_invoice_authors_sales_invoice_id_fkey"
             columns: ["sales_invoice_id"]
             isOneToOne: false
+            referencedRelation: "sales_invoice_work_billed"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoice_authors_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
             referencedRelation: "sales_invoices"
             referencedColumns: ["id"]
           },
@@ -5144,6 +5214,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoice_submit_authorizations_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoice_work_billed"
             referencedColumns: ["id"]
           },
           {
@@ -5254,6 +5331,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
           },
           {
             foreignKeyName: "sales_invoices_work_order_id_fkey"
@@ -5844,43 +5928,82 @@ export type Database = {
           project_id: string | null
           recovery: number | null
           status: string | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_order_billing: {
+        Row: {
+          closed_at: string | null
+          currency: string | null
+          figures_complete: boolean | null
+          invoiced: number | null
+          line_count: number | null
+          order_net: number | null
+          org_id: string | null
+          paid: number | null
+          pending: number | null
+          project_id: string | null
+          remaining: number | null
+          status: Database["public"]["Enums"]["work_order_status"] | null
+          title: string | null
+          unpaid_count: number | null
+          wo_number: string | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_order_billing_lines: {
+        Row: {
+          billed: number | null
+          currency: string | null
+          org_id: string | null
+          paid: boolean | null
+          record_id: string | null
+          submitted: boolean | null
+          work_order_id: string | null
         }
         Relationships: []
       }
     }
     Functions: {
-      expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
-      get_expense_advance_aging: {
-        Args: never
-        Returns: {
-          advance_id: string
-          age_days: number
-          amount: number
-          bucket: string
-          claim_number: string
-          claimant_id: string
-          claimant_name: string
-          currency: string
-          outstanding: number
-          paid_on: string
-          project_id: string
-          project_name: string
-          returned: number
-          settled: number
-        }[]
-      }
-      get_expense_claim_approval_routes: {
-        Args: { p_ids: string[] }
-        Returns: {
-          approvers: Json
-          claim_id: string
-          line_budget: number
-          line_used: number
-          reason: string
-          request_amount: number
-          route: string
-        }[]
-      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -5944,6 +6067,17 @@ export type Database = {
         Returns: undefined
       }
       assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
+      assert_work_order_invoiceable: {
+        Args: {
+          p_billed: number
+          p_currency: string
+          p_org_id: string
+          p_project_id: string
+          p_record_id: string
+          p_work_order_id: string
+        }
+        Returns: undefined
+      }
       attach_claim_evidence: {
         Args: { p_claim_id: string; p_document_id: string }
         Returns: undefined
@@ -5986,6 +6120,10 @@ export type Database = {
           p_treatment: string
         }
         Returns: number
+      }
+      can_read_comment_parent: {
+        Args: { p_id: string; p_type: string }
+        Returns: boolean
       }
       can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
       capture_vendor_invoice: {
@@ -6415,6 +6553,7 @@ export type Database = {
         Returns: boolean
       }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
+      expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
       finalize_external_connect: {
         Args: {
           p_actor_id: string
@@ -6454,6 +6593,37 @@ export type Database = {
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }
+      get_expense_advance_aging: {
+        Args: never
+        Returns: {
+          advance_id: string
+          age_days: number
+          amount: number
+          bucket: string
+          claim_number: string
+          claimant_id: string
+          claimant_name: string
+          currency: string
+          outstanding: number
+          paid_on: string
+          project_id: string
+          project_name: string
+          returned: number
+          settled: number
+        }[]
+      }
+      get_expense_claim_approval_routes: {
+        Args: { p_ids: string[] }
+        Returns: {
+          approvers: Json
+          claim_id: string
+          line_budget: number
+          line_used: number
+          reason: string
+          request_amount: number
+          route: string
+        }[]
+      }
       get_finance_budget_review: { Args: never; Returns: Json }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
@@ -6518,6 +6688,7 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
+      get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       grant_sales_invoice_submit_clearance: {
         Args: { p_actor_id: string; p_clearance_id: string; p_si_id: string }
@@ -6614,6 +6785,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      invoice_command_line_total: { Args: { p_payload: Json }; Returns: number }
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
@@ -6642,21 +6814,25 @@ export type Database = {
           p_limit?: number
         }
         Returns: {
-          action: string | null
-          actor_id: string | null
-          changes: Json | null
+          action: string
+          actor_id: string
+          changes: Json
           created_at: string
-          currency: string | null
-          detail: Json | null
+          currency: string
+          detail: Json
           entity_id: string
           entity_type: string
           event_id: string
-          op: string | null
-          parent_id: string | null
-          parent_type: string | null
-          seq: number | null
+          op: string
+          parent_id: string
+          parent_type: string
+          seq: number
           source: string
         }[]
+      }
+      lock_work_order_billing: {
+        Args: { p_work_order_id: string }
+        Returns: undefined
       }
       log_audit: {
         Args: {
@@ -6937,6 +7113,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: string
       }
+      progress_assessment_line_ok: {
+        Args: { p_boq_item_id: string; p_entry_id: string }
+        Returns: boolean
+      }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
@@ -7196,6 +7376,16 @@ export type Database = {
           reason: string
           route: string
         }[]
+      }
+      stage_vault_secret_for_org: {
+        Args: {
+          p_actor_id?: string
+          p_external_tier: string
+          p_org_id: string
+          p_secret_name: string
+          p_secret_value: string
+        }
+        Returns: string
       }
       submit_sales_invoice: {
         Args: { p_si_id: string }

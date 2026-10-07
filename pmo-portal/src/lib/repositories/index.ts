@@ -207,6 +207,7 @@ import {
   transitionWorkOrder,
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
+import { listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import {
   listBoqItems, createBoqItem, updateBoqItem, deleteBoqItem, recordProgressAssessment,
   listProjectClaims, createProgressClaim, attachClaimEvidence, withdrawProgressClaim, getProjectBilling,
@@ -812,6 +813,8 @@ const workOrder: WorkOrderRepository = {
   setValue: (input) => wrap(() => setWorkOrderValue(input)),
   transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
+  billing: (projectId) => wrap(() => listWorkOrderBilling(projectId)),
+  unbilled: (limit) => wrap(() => getUnbilledWorkOrders(limit)),
 };
 
 /**

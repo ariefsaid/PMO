@@ -34,6 +34,7 @@ import type {
   SetWorkOrderValueInput,
   ProjectDrawdown,
 } from '@/src/lib/db/workOrders';
+import type { WorkOrderBillingRow, UnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import type {
   ExpenseClaimWithRefs, ExpenseClaimLineRow, ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch,
   ExpenseLineInput, ExpenseClaimStatus, ExpenseKind, ExpenseClaimRoute, ExpenseAdvanceAgingRow,
@@ -453,6 +454,8 @@ export interface RevenueRepository {
     customerId: string;
     projectId?: string | null;
     items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
+    /** OD-BILL-1: the work order this invoice bills ("Invoice this work order"). */
+    workOrderId?: string | null;
   }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
   /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
   createPayment(input: {
@@ -580,6 +583,10 @@ export interface WorkOrderRepository {
   transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
   /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
+  /** OD-BILL-1: per-work-order billing for one project (view work_order_billing, RLS-scoped). */
+  billing(projectId: string): Promise<WorkOrderBillingRow[]>;
+  /** OD-BILL-1 / #786: what is still to invoice across the org's issued and closed work orders. */
+  unbilled(limit: number): Promise<UnbilledWorkOrders>;
 }
 
 /** Progress billing (#766): BoQ, assessments (operational), billing claims + evidence, the summary. */

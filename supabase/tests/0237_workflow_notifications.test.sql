@@ -38,7 +38,8 @@ update profiles set manager_id = '02370000-0000-0000-0000-0000000000a2'
 insert into timesheets (id, org_id, user_id, week_start_date, status) values
   ('02370000-0000-0000-0000-000000000021','02370000-0000-0000-0000-000000000001','02370000-0000-0000-0000-0000000000a1','2026-01-05','Draft'),
   ('02370000-0000-0000-0000-000000000022','02370000-0000-0000-0000-000000000001','02370000-0000-0000-0000-0000000000a3','2026-01-05','Draft');
--- P1: requested+submitted by the Engineer. P2: requester is the PM but a DIFFERENT user (Engineer) submits.
+-- P1: requested+submitted by the Engineer. P2: requester is the PM but a DIFFERENT user (the Admin, the only
+-- non-requester who may submit — OD-PROC-1 break-glass, 0268) submits.
 -- P3: requested by the Engineer but the ADMIN (an approver-role user) submits.
 insert into procurements (id, org_id, title, status, requested_by_id) values
   ('02370000-0000-0000-0000-000000000011','02370000-0000-0000-0000-000000000001','WFN Proc 1','Draft','02370000-0000-0000-0000-0000000000a1'),
@@ -56,8 +57,8 @@ select transition_timesheet('02370000-0000-0000-0000-000000000021','Submitted');
 select transition_procurement('02370000-0000-0000-0000-000000000011','Requested');
 set local request.jwt.claims = '{"sub":"02370000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select transition_timesheet('02370000-0000-0000-0000-000000000022','Submitted');
-select transition_procurement('02370000-0000-0000-0000-000000000012','Requested');
 set local request.jwt.claims = '{"sub":"02370000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select transition_procurement('02370000-0000-0000-0000-000000000012','Requested');
 select transition_procurement('02370000-0000-0000-0000-000000000013','Requested');
 reset role;
 
@@ -85,7 +86,8 @@ select is((select count(*)::int from notifications where owner_id in
   'AC-WFN-004 a disabled PM and a banned PM get nothing (active-member gate)');
 select is((select count(*)::int from notifications where owner_id = '02370000-0000-0000-0000-0000000000b1'), 0,
   'AC-WFN-004 a user in another org gets nothing');
-select is(pg_temp.who('02370000-0000-0000-0000-000000000012'), array['a5','a6','a7'],
+-- a6 is absent here as the actor (actor exclusion); P1 proves the Admin arm when the Admin is not the actor.
+select is(pg_temp.who('02370000-0000-0000-0000-000000000012'), array['a5','a7'],
   'AC-WFN-004 the PM who is the REQUESTER is not told to approve their own request (submitted by someone else)');
 select is((select count(*)::int from notifications where owner_id = '02370000-0000-0000-0000-0000000000a4'
             and metadata->'entity'->>'id' = '02370000-0000-0000-0000-000000000012'), 0,
