@@ -4,6 +4,11 @@
 -- and columns. Standalone bills that recorded a withholding keep the amount (withheld_amount is 0269's column); the
 -- recorded PPh TYPE is lost with its column — export it first if any bill carries one.
 
+update public.record_history_config
+   set omit_cols = array(select c from unnest(omit_cols) c
+                          where c not in ('default_vat_rate','default_pph_type','default_pph_rate'))
+ where entity_type = 'company';
+
 drop trigger if exists organizations_audit_vendor_tax_accounts on public.organizations;
 drop function if exists public.audit_org_vendor_tax_accounts();
 alter table public.organizations

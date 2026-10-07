@@ -369,4 +369,11 @@ begin
   end loop;
 end $$;
 
+-- Change-history registry (record_changes_catalog_gate): the vendor tax defaults are OMITTED from row
+-- history — every change already lands in the audit log with from/to via set_vendor_tax_defaults.
+update public.record_history_config
+   set omit_cols = omit_cols || array(select c from unnest(array['default_vat_rate','default_pph_type','default_pph_rate']) c
+                                       where not (c = any (omit_cols)))
+ where entity_type = 'company';
+
 notify pgrst, 'reload schema';
