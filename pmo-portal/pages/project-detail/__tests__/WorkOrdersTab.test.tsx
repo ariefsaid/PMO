@@ -53,6 +53,10 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useWorkOrderBilling: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
+// #913: the Invoice gate reads the revenue mode through a hook. These specs predate it and mount without a
+// QueryClientProvider; the revenue-mode gating is covered in WorkOrdersTab.billing.test.tsx. 'erp' is the mode these
+// specs were written under.
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'erp' as const }));
 
 let realRole: Role = 'Project Manager';
 vi.mock('@/src/auth/impersonation', () => ({
