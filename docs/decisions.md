@@ -1308,6 +1308,12 @@ provisioning and a historical load to it would put the go-live out of reach.
 the local Docker dev bed (`docs/environments.md` §ERPNext v15 dev bed). Provisioning, company setup,
 credentials and the historical load are charted in #474. *(Fact superseded 2026-09-02: `DD-OPS-10` — a v16 test instance now exists; the ruling itself stands.)*
 
+**[OD-ERP-3] ERPNext is not user-facing for RIS (owner, 2026-10-07).** No RIS user — accountant
+included — logs in to ERPNext; every workflow, accounting and audit included, runs in PMO. ERPNext is the
+headless ledger only. Sharpens `OD-SAR-PMO-IS-THE-UI` (which still allowed the Desk for audit): a need an
+ERPNext screen would meet is a **PMO gap**, filed as a PMO issue — never answered with an ERPNext login.
+ERPNext setup and data fixes are operator work (us), not RIS's.
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
