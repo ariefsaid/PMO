@@ -83,7 +83,7 @@ select lives_ok($$ select create_procurement_invoice('08760000-0000-0000-0000-00
   'AC-VWH-009 CONTROL a PMO-native vendor invoice records through the RPC');
 reset role;
 select is((select withheld_amount from procurement_invoices where reference_number='VI-876-NATIVE'),
-  0.00::numeric, 'AC-VWH-009 a PMO-native vendor invoice records zero withholding');
+  0.00::numeric, 'AC-VWH-009 a PMO-native vendor invoice that states no withholding records zero (amended by DD-VWH-10: one may state it)');
 
 -- §E — the mirror guard pins withheld_amount while procurement is externally owned. Run as the TABLE OWNER with an
 -- authenticated JWT claim (the 0196 §E construction): a role-switched UPDATE would 42501 on privileges instead, for

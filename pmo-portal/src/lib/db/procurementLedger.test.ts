@@ -65,7 +65,7 @@ type RfqRow = Pick<Tables<'rfqs'>, 'id' | 'org_id' | 'procurement_id' | 'rfq_num
 type QuotRow = Pick<Tables<'procurement_quotations'>, 'id' | 'org_id' | 'procurement_id' | 'vq_number' | 'vendor_id' | 'total_amount' | 'received_date' | 'is_selected' | 'reference'>;
 type PORow = Pick<Tables<'purchase_orders'>, 'id' | 'org_id' | 'procurement_id' | 'po_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'created_at'>;
 type GRRow = Pick<Tables<'procurement_receipts'>, 'id' | 'org_id' | 'procurement_id' | 'gr_number' | 'status' | 'receipt_date' | 'created_at' | 'po_id' | 'reference_number'>;
-type VIRow = Pick<Tables<'procurement_invoices'>, 'id' | 'org_id' | 'procurement_id' | 'vi_number' | 'status' | 'invoice_date' | 'created_at' | 'po_id' | 'reference_number' | 'amount'>;
+type VIRow = Pick<Tables<'procurement_invoices'>, 'id' | 'org_id' | 'procurement_id' | 'vi_number' | 'status' | 'invoice_date' | 'created_at' | 'po_id' | 'reference_number' | 'amount'> & Partial<Pick<Tables<'procurement_invoices'>, 'efaktur_number' | 'efaktur_date' | 'erp_docstatus' | 'erp_cancelled_at'>>;
 type PayRow = Pick<Tables<'payments'>, 'id' | 'org_id' | 'procurement_id' | 'pay_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'invoice_id' | 'created_at'>;
 
 // ---------------------------------------------------------------------------
@@ -563,6 +563,41 @@ describe('AC-PR-LEDGER-017: VI externalRef + amount from procurement_invoices', 
   });
 });
 
+describe('AC-EFK-005 vendor e-Faktur ledger projection', () => {
+  it('projects e-Faktur values only from vendor invoice rows and leaves other record types empty', () => {
+    const vi: VIRow = {
+      id: 'vi-efaktur', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-001', status: 'Paid',
+      invoice_date: '2026-10-01', created_at: '2026-10-01T00:00:00Z', po_id: null,
+      reference_number: null, amount: 100, efaktur_number: '010.001-26.12345678', efaktur_date: '2026-10-01',
+      erp_docstatus: 1, erp_cancelled_at: null,
+    };
+    const pr: PRRow = {
+      id: 'pr-no-efaktur', org_id: 'org-1', procurement_id: 'proc-1', pr_number: 'PR-1',
+      reference_number: null, status: 'Approved', date: '2026-10-01', amount: 100, created_at: '2026-10-01T00:00:00Z',
+    };
+    const rows = buildLedgerRows(makeDetail({ invoices: [vi], purchase_requests: [pr] }));
+    expect(rows.find((row) => row.type === 'Invoice')).toMatchObject({
+      efakturNumber: '010.001-26.12345678', efakturDate: '2026-10-01', efakturLocked: false,
+    });
+    const prRow = rows.find((row) => row.type === 'PR');
+    expect(prRow).toMatchObject({ efakturNumber: null, efakturDate: null });
+    expect(prRow).not.toHaveProperty('efakturLocked');
+  });
+
+  it('locks e-Faktur editing on a cancelled vendor invoice (docstatus 2 or a cancel stamp)', () => {
+    const base: VIRow = {
+      id: 'vi-docstatus', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-002', status: 'Paid',
+      invoice_date: '2026-10-01', created_at: '2026-10-01T00:00:00Z', po_id: null,
+      reference_number: null, amount: 100, efaktur_number: null, efaktur_date: null,
+      erp_docstatus: 2, erp_cancelled_at: null,
+    };
+    const stamped: VIRow = { ...base, id: 'vi-stamped', vi_number: 'VI-003', erp_docstatus: 1, erp_cancelled_at: '2026-10-02T00:00:00Z' };
+    const rows = buildLedgerRows(makeDetail({ invoices: [base, stamped] }));
+    expect(rows.find((row) => row.recordId === 'vi-docstatus')?.efakturLocked).toBe(true);
+    expect(rows.find((row) => row.recordId === 'vi-stamped')?.efakturLocked).toBe(true);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // AC-PR-LEDGER-020: same-day sort stability (CQ #4 — mixed date/timestamp keys)
 // ---------------------------------------------------------------------------
@@ -697,6 +732,6 @@ describe('AC-VWH-011: a vendor invoice row carries its VAT and tax withheld (#87
     // withheld_amount is NOT NULL (0266): a bill with nothing withheld comes back as 0, never absent.
     const [plain] = buildLedgerRows(makeDetail({ invoices: [{ ...vi, amount: 111000, tax_amount: 11000, withheld_amount: 0 }] }));
     expect(plain).toMatchObject({ amount: 111000, taxAmount: 11000, withheldAmount: 0 });
-    expect(withholdingFigures(plain.amount, plain.taxAmount, plain.withheldAmount)).toBeNull();
+    expect(withholdingFigures(plain.amount, plain.taxAmount, plain.withheldAmount, plain.taxTreatment)).toBeNull();
   });
 });

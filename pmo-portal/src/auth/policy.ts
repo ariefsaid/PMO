@@ -31,6 +31,7 @@ export type Action =
   | 'setValue'
   | 'submit_sales_invoice'
   | 'record_received_date'
+  | 'record_efaktur'
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
@@ -65,10 +66,12 @@ export type Entity =
   | 'meeting'
   | 'userView'
   | 'salesInvoice'
+  | 'procurementInvoice'
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
   | 'orgAccounting'
+  | 'vendorTaxDefault'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'employeeLink'
@@ -127,6 +130,8 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
  * (Admin·Exec·PM·Finance) — do not fold the two together.
  */
 const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
+/** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
+const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -442,6 +447,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // #767: record the date the client received the invoice — any non-cancelled state. Mirrors the
     // `set_sales_invoice_received_date` RPC's Admin+Finance gate (the RPC is the authority).
     record_received_date: allow(REVENUE_WRITE),
+    // DD-EFK-1: e-Faktur facts stay PMO-owned and are editable by the revenue write set only.
+    record_efaktur: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.
@@ -460,6 +467,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       if (authorIds?.includes(ctx.currentUserId)) return false;
       return true;
     },
+  },
+  procurementInvoice: {
+    // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
+    record_efaktur: allow(REVENUE_WRITE),
   },
   incomingPayment: {
     // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);
@@ -489,6 +500,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgAccounting: {
     manage: allow(ADMIN),
   },
+  // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
+  vendorTaxDefault: { manage: allow(TAX_SETUP) },
   orgProjectNumbering: {
     manage: allow(ADMIN),
   },

@@ -1213,6 +1213,50 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: 'AC-EFK-003 mirror creates and refreshes omit PMO-owned e-Faktur values for both invoice rows',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const canonical = {
+      id: 'invoice-efaktur-test', vi_number: 'VI-TEST', si_number: 'SI-TEST',
+      invoice_date: '2026-10-01', reference_number: 'REF-TEST', amount: '100.00',
+      erp_outstanding_amount: '100.00', erp_docstatus: 1, erp_modified: '2026-10-01T00:00:00Z',
+      efaktur_number: '010.001-26.12345678', efaktur_date: '2026-10-01',
+      tax_amount: '0.00', withheld_amount: '0.00',
+    };
+    const procurementWriter = getReadModelWriter('procurement');
+    const revenueWriter = getReadModelWriter('revenue');
+
+    await procurementWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'procurement', operation: 'create', record: { id: canonical.id, procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    await revenueWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'revenue', operation: 'create', record: { id: canonical.id, erp_doc_kind: 'sales-invoice' } },
+    );
+    await procurementWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'procurement', operation: 'transition', record: { id: canonical.id, erp_doc_kind: 'purchase-invoice', verb: 'submit' } },
+    );
+    await revenueWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'revenue', operation: 'transition', record: { id: canonical.id, erp_doc_kind: 'sales-invoice', verb: 'submit' } },
+    );
+
+    const invoiceWrites = calls.filter((call) =>
+      (call.method === 'insert' || call.method === 'update')
+      && (call.table === 'sales_invoices' || call.table === 'procurement_invoices')
+    );
+    assertEquals(invoiceWrites.length, 4, 'two invoice types each have a create and update write');
+    for (const call of invoiceWrites) {
+      const patch = call.args[0] as Record<string, unknown>;
+      assert(!('efaktur_number' in patch), `${call.table} ${call.method} omits efaktur_number`);
+      assert(!('efaktur_date' in patch), `${call.table} ${call.method} omits efaktur_date`);
+    }
+  },
+});
+
 // ============================================================================
 // #876 (0266, DD-VWH-1/7) — the PI mirror states withheld_amount on every create and never nulls it on an update.
 // ============================================================================
@@ -1305,5 +1349,51 @@ Deno.test({
     );
     const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
     assertEquals(row.currency, 'IDR');
+  },
+});
+
+// #876 slice 2 (OQ-VWH-6, recovery) — the PPh type rides the entered-amounts marker on EVERY mirror write the
+// command drives, including an update replay of an entered-amounts create; a template-path bill keeps NULL.
+// ============================================================================
+
+Deno.test({
+  name: 'AC-VWH-024 a PI update whose command carries the entered-amounts marker stamps withheld_pph_type (recovery replay)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-876-6', vi_number: 'ACC-PINV-2026-00883', amount: '1110000.00', tax_amount: '110000.00',
+        withheld_amount: '20000.00', erp_outstanding_amount: '1090000.00', erp_docstatus: 1 },
+      { domain: 'procurement', operation: 'update', idempotencyKey: 'k', record: { id: 'pmo-pi-876-6', erp_doc_kind: 'purchase-invoice',
+        taxesFromAmounts: true, pphType: 'pph23', vatAmount: 110000, withheldAmount: 20000 } },
+    );
+    const patch = calls.find((c) => c.method === 'update' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assertEquals(patch.withheld_pph_type, 'pph23', 'a recovery replay re-states the type the create stored');
+    assertEquals(patch.withheld_amount, '20000.00', 'the type rides with the money header, never alone');
+  },
+});
+
+Deno.test({
+  name: 'AC-VWH-024 the template path keeps withheld_pph_type null: no marker on the command, no type on the row',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-876-7', vi_number: 'ACC-PINV-2026-00884', amount: '1110000.00', tax_amount: '110000.00',
+        withheld_amount: '0.00', erp_outstanding_amount: '1110000.00', erp_docstatus: 1, tax_template: 'Input VAT 11' },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-876-7', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assert(!('withheld_pph_type' in row), 'a template-path bill must NOT state a type — the type is the ERPNext payable account');
+    // And the same for an update replay of a template-path bill that withholds (ERP-side PPh): still no type.
+    const { client: c2, calls: calls2 } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: c2 as never, orgId: 'org-1' },
+      { id: 'pmo-pi-876-8', vi_number: 'ACC-PINV-2026-00885', amount: '1110000.00', tax_amount: '110000.00',
+        withheld_amount: '20000.00', erp_outstanding_amount: '1090000.00', erp_docstatus: 1, tax_template: 'PPN 11 + PPh 23' },
+      { domain: 'procurement', operation: 'update', idempotencyKey: 'k', record: { id: 'pmo-pi-876-8', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const patch = calls2.find((c) => c.method === 'update' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assert(!('withheld_pph_type' in patch), 'a template-path update never states a type, even with tax withheld');
   },
 });

@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementRow, ProcurementWithRefs } from './procurements';
 import { attachApprovalRoutes } from './approvalRoutes';
+import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §1.6)
@@ -32,6 +33,7 @@ export type TaxTreatment = 'inclusive' | 'exclusive';
 interface RpcErrorLike {
   message: string;
   code?: string;
+  details?: string | null;
 }
 
 /**
@@ -43,16 +45,19 @@ interface RpcErrorLike {
  */
 export class ProcurementError extends Error {
   readonly code?: string;
-  constructor(message: string, code?: string) {
+  /** The Postgres DETAIL, when the raiser set a stable machine key there (e.g. `efaktur-cancelled`). */
+  readonly details?: string;
+  constructor(message: string, code?: string, details?: string) {
     super(message);
     this.name = 'ProcurementError';
     this.code = code;
+    if (details) this.details = details;
   }
 }
 
-/** Throws a ProcurementError that preserves both message and code. */
+/** Throws a ProcurementError that preserves message, code and DETAIL. */
 function throwRpc(error: RpcErrorLike): never {
-  throw new ProcurementError(error.message, error.code);
+  throw new ProcurementError(error.message, error.code, error.details ?? undefined);
 }
 
 export type ProcurementItemRow = Tables<'procurement_items'>;
@@ -226,6 +231,21 @@ export async function transitionProcurement(
   if (error) throwRpc(error);
 }
 
+/** DD-EFK-1: set PMO-owned supplier e-Faktur facts directly; no procurement/ERP command is created. */
+export async function setProcurementInvoiceEfaktur(
+  invoiceId: string,
+  efakturNumber: string | null,
+  efakturDate: string | null,
+): Promise<void> {
+  // `as string`: NULL is intended (it clears the fact); generated RPC arg types are always non-null.
+  const { error } = (await supabase.rpc('set_procurement_invoice_efaktur', {
+    p_invoice_id: invoiceId,
+    p_efaktur_number: efakturNumber as string,
+    p_efaktur_date: efakturDate as string,
+  })) as unknown as { data: null; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
+}
+
 /**
  * Creates a procurement quotation via the security-definer RPC (AC-816, FR-PROC-011/016).
  * org_id is NEVER sent; the RPC re-asserts authz internally.
@@ -304,6 +324,10 @@ interface VendorInvoiceTaxInput {
   taxBaseDenominator?: number;
   /** ERPNext "Purchase Taxes and Charges Template" name; absent for a standalone org. */
   taxTemplate?: string | null;
+  /** #876 slice 2 (DD-VWH-10): income tax withheld from the vendor on a standalone bill. Absent / 0 = none. */
+  withheldAmount?: number;
+  /** #876 slice 2 (OQ-VWH-6): the PPh type of that withholding — required by the RPC whenever it is non-zero. */
+  withheldPphType?: PphType;
 }
 
 /** Input for {@link createInvoice}. See {@link VendorInvoiceTaxInput} for why this is an object. */
@@ -320,6 +344,11 @@ export interface CreateInvoiceInput extends VendorInvoiceTaxInput {
   importedAt?: string;
   /** #769: the parent group's number for this invoice (optional, ≤100 chars, trimmed server-side). */
   externalRef?: string | null;
+  /**
+   * #876 slice 2 (DD-VWH-13/14): the VAT / PPh entered on an ERP-bound bill. Consumed ONLY by the repository's
+   * external branch (forwarded to the dispatch, which builds the ERPNext rows); the native RPC has no such parameter.
+   */
+  erpTaxAmounts?: ErpVendorTaxAmounts;
 }
 
 /**
@@ -345,6 +374,10 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Procurem
     ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
     ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
     ...(input.externalRef ? { p_external_ref: input.externalRef } : {}),
+    // #876 slice 2 (DD-VWH-10, OQ-VWH-6): a stated withholding travels with its PPh type; none sends neither.
+    ...(input.withheldAmount
+      ? { p_withheld_amount: input.withheldAmount, ...(input.withheldPphType ? { p_withheld_pph_type: input.withheldPphType } : {}) }
+      : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -390,6 +423,10 @@ export async function captureVendorInvoice(
     ...(input.taxBaseNumerator !== undefined ? { p_tax_base_numerator: input.taxBaseNumerator } : {}),
     ...(input.taxBaseDenominator !== undefined ? { p_tax_base_denominator: input.taxBaseDenominator } : {}),
     ...(input.externalRef ? { p_external_ref: input.externalRef } : {}),
+    // #876 slice 2 (DD-VWH-10, OQ-VWH-6): a stated withholding travels with its PPh type; none sends neither.
+    ...(input.withheldAmount
+      ? { p_withheld_amount: input.withheldAmount, ...(input.withheldPphType ? { p_withheld_pph_type: input.withheldPphType } : {}) }
+      : {}),
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

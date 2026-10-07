@@ -1,5 +1,6 @@
 import type { RecordHistoryRepository } from './recordHistory';
-import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { OrgVendorTaxAccounts, ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
@@ -192,6 +193,8 @@ export interface CompanyRepository {
   update(id: string, input: CompanyInput): Promise<void>;
   /** Update only the PMO-local client-number segment; never dispatches to an external native adapter. */
   setProjectNumberSegment(id: string, segment: string | null): Promise<void>;
+  /** #876 slice 2: set the vendor's default tax treatment (Admin/Finance; `set_vendor_tax_defaults`). */
+  setTaxDefaults(id: string, input: VendorTaxDefaultsInput): Promise<void>;
   /** Soft-archive a company (stamps archived_at). */
   archive(id: string): Promise<void>;
   /** Hard-delete a company; rejects with AppError code 23503 if referenced. */
@@ -380,6 +383,8 @@ export interface ProcurementRepository {
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
   ): Promise<ProcurementInvoiceRow>;
+  /** DD-EFK-1: edit the PMO-owned vendor e-Faktur facts through the guarded setter RPC. */
+  setEfaktur(invoiceId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
   create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
@@ -471,6 +476,8 @@ export interface RevenueRepository {
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
   /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
   setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
+  /** DD-EFK-1: edit the PMO-owned sales e-Faktur facts through the guarded setter RPC. */
+  setEfaktur(siId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
   submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
   /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
@@ -775,6 +782,9 @@ export interface OrgSettingsRepository {
   setProjectNumberPattern(value: string | null): Promise<void>;
   getWithholdingAccount(): Promise<string | null>;
   setWithholdingAccount(account: string | null): Promise<void>;
+  /** #876 slice 2: the ERPNext accounts a vendor bill's entered VAT / PPh post to (Admin writes). */
+  getVendorTaxAccounts(): Promise<OrgVendorTaxAccounts>;
+  setVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void>;
   getDownPaymentItem(): Promise<string | null>;
   setDownPaymentItem(item: string | null): Promise<void>;
   getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;

@@ -188,11 +188,9 @@ bases; standalone bills recording tax withheld; ERP-connected bills sending the 
 built server-side; the net-payable display for a tax-exclusive standalone bill.
 
 **Out (explicit):**
-- Storing the PPh type on a standalone bill (OQ-VWH-6).
 - Pre-filling from the vendor default on the historical-import path, the assistant's vendor-invoice action, or any
   edit/amend (the default is for composing a NEW bill only — the OD-TAX-1 rule).
 - A pre-submit net-payable preview on the bill form (unchanged from §1).
-- The flipped form's existing "Amount (optional)" field, which the dispatch does not send (OBS-VWH-003, OQ-VWH-8).
 - Changing the slice-1 template path, read-back, feed refresh or ledger breakdown beyond AC-VWH-010's basis fix.
 
 ### 7.2 Decisions
@@ -225,8 +223,8 @@ Proposed by the planner (Director to ratify; ADR-0084):
   follows its base until the user edits that field and is never overwritten afterwards ("never over a choice", the
   OD-TAX-1 rule). Suggested amounts round half-up to the cent (OQ-VWH-4). Each pre-filled field shows the rate and the
   base it came from.
-- **DD-VWH-18** — the PPh type is asked only where it is consumed: on an ERP-bound bill (it selects the payable
-  account). A standalone bill records the withheld amount only (OQ-VWH-6).
+- **DD-VWH-18** — the PPh type is stored on every bill that withholds (OQ-VWH-6, Director 2026-10-07): on an ERP-bound
+  bill it selects the payable account, and a standalone bill records it with its withheld amount.
 - **DD-VWH-19** — no server path reads a vendor default; the amounts on the submitted bill are the authority.
 - **DD-VWH-20** — for a standalone bill recorded tax-exclusive, net payable = amount + VAT − withheld (DD-VWH-6's
   "gross = amount" holds for tax-inclusive bills, which every ERP-mirrored bill is).
@@ -254,8 +252,8 @@ Proposed by the planner (Director to ratify; ADR-0084):
 - **FR-VWH-015 (ubiquitous)** — Every pre-filled amount shall be editable, and the bill shall record exactly the
   amounts submitted.
 - **FR-VWH-016 (event)** — When a standalone vendor invoice is recorded with tax withheld (either entry point), the
-  system shall store it on the bill; a withholding with no bill amount, a negative one, or one above the amount shall be
-  refused.
+  system shall store it on the bill with its type; a withholding with no bill amount, a negative one, one above the
+  amount, or a non-zero withholding without its type (`pph23`/`pph4_2`) shall be refused.
 - **FR-VWH-017 (state)** — While procurement is ERP-owned, the vendor-bill form shall ask either the VAT amount plus an
   optional withholding (type and amount), or a named ERPNext purchase tax template — never both — and shall not offer
   "ERPNext default".
@@ -275,12 +273,12 @@ Proposed by the planner (Director to ratify; ADR-0084):
   with the company page's cache key.
 - **NFR-VWH-004** — Every new label and message on the bill forms, the company card and the Administration setting
   ships in English and Bahasa Indonesia.
-- **OBS-VWH-003** — On an ERP-bound bill the form's "Amount (optional)" field is not forwarded by the repository (the
-  ERP computes the total from the items); it predates this slice.
+- **OBS-VWH-003 (RESOLVED, Director 2026-10-07)** — the ERP-bound bill form no longer renders the "Amount (optional)"
+  field: the ERP computes the total from the items and the bill amount is never sent (OQ-VWH-8).
 
 ### 7.4 Acceptance criteria (Given/When/Then)
 
-- **AC-VWH-020** — Given the 0269 schema, then the three company columns exist (`numeric(6,3)`, `text`,
+- **AC-VWH-020** — Given the 0273 schema, then the three company columns exist (`numeric(6,3)`, `text`,
   `numeric(6,3)`); a VAT rate above 100, NaN or negative, an unknown type, a type without a rate, a rate without a
   type, and a PPh rate of 0 or 100 are refused; 0% VAT with PPh 4(2) at 1.75% is accepted.
 - **AC-VWH-021** — Given an active Finance or Admin member, when they save a vendor's defaults, then they are stored and
@@ -291,13 +289,14 @@ Proposed by the planner (Director to ratify; ADR-0084):
 - **AC-VWH-022** — Given an Admin, when they UPDATE a default column directly (even after a save in the same
   transaction) or INSERT a company carrying one, then 42501; other company edits and service-role writes still pass;
   `anon` cannot execute the save function, `authenticated` can, and the guard function is not client-callable.
-- **AC-VWH-023** — Given the 0269 schema, then the three organization settings exist, a blank or 141-character value is
+- **AC-VWH-023** — Given the 0273 schema, then the three organization settings exist, a blank or 141-character value is
   refused, `authenticated` holds exactly their UPDATE column grants and no INSERT, `anon` none; an Admin's change is
   stored and audited (actor, from, to); a Finance user's change reaches no row and is not audited.
 - **AC-VWH-024** — Given a PMO-owned procurement, when Finance records a vendor invoice with tax withheld through
-  `create_procurement_invoice` or `capture_vendor_invoice`, then the withholding is stored; without one it is 0; a
-  withholding with no amount, a negative one, or one above the amount is refused; the create audit records VAT and
-  withheld.
+  `create_procurement_invoice` or `capture_vendor_invoice`, then the withholding is stored with its type
+  (`withheld_pph_type`); without a withholding it is 0; a withholding with no amount, a negative one, one above the
+  amount, or a non-zero withholding whose type is missing or unknown (`pph23`/`pph4_2` only) is refused; the create
+  audit records VAT and withheld.
 - **AC-VWH-025** — Given a vendor default and a base, when amounts are suggested, then VAT on a tax-exclusive amount =
   rate × amount and inside a tax-inclusive amount = amount × rate / (100 + rate), PPh = rate × the net, each half-up to
   the cent; the items total sums quantity × rate per line; entered amounts and the default editor's drafts parse per
@@ -313,17 +312,19 @@ Proposed by the planner (Director to ratify; ADR-0084):
   then exactly the trimmed values (blank → none) are saved; a non-Admin sees them read-only; a failed read offers a
   retry; the setting renders in Bahasa Indonesia.
 - **AC-VWH-030** — Given a standalone org and a vendor with 11% VAT and PPh 23 at 2%, when the user enters an amount of
-  1,000,000 tax-exclusive on either vendor-bill entry point, then the VAT amount is pre-filled 110,000 and the tax
-  withheld 20,000, each labelled with its rate and base, and the save carries both; when the user edits the PPh and then
+  1,000,000 tax-exclusive on either vendor-bill entry point, then PPh 23 is pre-selected, the VAT amount is pre-filled
+  110,000 and the tax withheld 20,000, each labelled with its rate and base, and the save carries both with
+  `withheldPphType`; when the user edits the PPh and then
   changes the amount, the VAT follows and the edited PPh does not; without a vendor default nothing is pre-filled and a
   blank PPh records none; a PPh with no bill amount blocks the save.
 - **AC-VWH-031** — Given an ERP-connected org, an items total of 1,000,000 and the same vendor default, when the bill
   form opens, then "Enter the tax amounts" is selected, VAT 110,000, PPh 23 and 20,000 are pre-filled with the items
   total shown as their base, and the save carries those amounts and no template; choosing a template hides the amounts
   and carries only the template; choosing no withholding carries none; without a default the save waits for a VAT
-  amount; "ERPNext default" is not offered; the labels render in Bahasa Indonesia.
+  amount; the bill amount is not asked; "ERPNext default" is not offered; the labels render in Bahasa Indonesia.
 - **AC-VWH-032** — Given a staged or inline vendor bill, when it is confirmed, then a standalone bill's tax withheld
-  reaches the create RPC as `p_withheld_amount` (omitted when none) and an ERP-bound bill's amounts reach the dispatch
+  reaches the create RPC as `p_withheld_amount` with its type as `p_withheld_pph_type` (both omitted when none) and an
+  ERP-bound bill's amounts reach the dispatch
   as `vatAmount` / `withheldAmount` / `pphType` (never as rows, never the native tax facts); the vendor default editor
   calls `set_vendor_tax_defaults` and the account setting writes only its three columns.
 - **AC-VWH-033** — Given the dispatch factory, when an ERP-bound create carries entered amounts, then the ERPNext body
@@ -342,17 +343,18 @@ Proposed by the planner (Director to ratify; ADR-0084):
   settings name bench accounts, when a bill of one item at 1,000,000 with VAT 110,000 and PPh 23 20,000 entered is
   recorded, then ERPNext holds exactly two `Actual` rows (110,000 added, 20,000 deducted) with no template, net
   1,000,000, grand total and outstanding 1,090,000, the PPh credited to its payable account and the vendor credited
-  1,090,000; PMO mirrors amount 1,110,000, VAT 110,000, withheld 20,000, outstanding 1,090,000, Received, IDR, no
+  1,090,000; PMO mirrors amount 1,110,000, VAT 110,000, withheld 20,000 with `withheld_pph_type` `pph23`, outstanding
+  1,090,000, Received, IDR, no
   template; the seed organization's currency and tax settings are unchanged.
 
 ### 7.5 Traceability (owning layer, ADR-0010)
 
 | AC | Requirement | Layer | Owning test |
 |---|---|---|---|
-| AC-VWH-020 | FR-VWH-010 | pgTAP | `supabase/tests/0269_vendor_tax_defaults.test.sql` |
+| AC-VWH-020 | FR-VWH-010 | pgTAP | `supabase/tests/0273_vendor_tax_defaults.test.sql` |
 | AC-VWH-021 | FR-VWH-011/012 | pgTAP | same |
 | AC-VWH-022 | FR-VWH-012 | pgTAP | same |
-| AC-VWH-023 | FR-VWH-013 | pgTAP | `supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql` |
+| AC-VWH-023 | FR-VWH-013 | pgTAP | `supabase/tests/0273_vendor_tax_accounts_native_withholding.test.sql` |
 | AC-VWH-024 | FR-VWH-016 | pgTAP | same |
 | AC-VWH-025 | FR-VWH-014/015 | unit (Vitest) | `pmo-portal/src/lib/vendorWithholding.test.ts` |
 | AC-VWH-026 | FR-VWH-020 | unit (Vitest + RTL) | `pmo-portal/src/lib/vendorWithholding.test.ts` (figures); `pmo-portal/pages/procurement/ProcurementLedger.test.tsx` (render) |
@@ -377,11 +379,10 @@ goal — no template staged when none is chosen — is kept by AC-VWH-031.
 - **OQ-VWH-5 (owner/operator)** — The exact names of RIS's input-VAT, PPh 23 payable and PPh 4(2) payable accounts in
   ERPNext. *Default:* the operator enters them in Administration → Accounting before go-live from the accountant's
   chart; until then a bill carrying that tax is refused naming the missing setting.
-- **OQ-VWH-6 (Director)** — Store the PPh type on a standalone bill? *Default:* no (DD-VWH-18). Risk: a no-ERP org's
-  monthly PPh return (#898) has no GL to read the type from; bills recorded before a later additive column would lack
-  it. Recommendation: decide before the first no-ERP org withholds.
+- **OQ-VWH-6 (Director) — DECIDED (Director, 2026-10-07):** the PPh type IS stored on every bill that withholds
+  (DD-VWH-18 as amended; migration 0273's `procurement_invoices.withheld_pph_type`), so the no-ERP monthly PPh return
+  (#898) reads the type from the bill.
 - **OQ-VWH-7 (owner/accountant)** — PPN at 12% on a reduced base of 11/12 (2025 rule): which VAT rate does a vendor
   default hold? *Default:* the effective rate (11); the bill's VAT amount stays editable.
-- **OQ-VWH-8 (Director)** — Hide the ERP-bound form's unused "Amount (optional)" field (OBS-VWH-003, the #505
-  asked-and-discarded class) in this slice? *Default:* left as is; recommendation: hide it — a one-line change plus one
-  test-step update in AC-520-9.
+- **OQ-VWH-8 (Director) — DECIDED (Director, 2026-10-07):** the unused "Amount (optional)" field is hidden on the
+  ERP-bound bill form (OBS-VWH-003 resolved; the bill amount is not asked on that path).

@@ -1,4 +1,27 @@
 {
+  "efaktur": {
+    "title": "Record e-Faktur details",
+    "number": "e-Faktur number",
+    "date": "e-Faktur date",
+    "column": "e-Faktur",
+    "record": "Record e-Faktur",
+    "subtitle": "For {{record}}. Record the number and its date together, or leave both empty for a non-VAT document.",
+    "invalidNumber": "Use up to 32 digits, dots, or dashes.",
+    "numberMissing": "Enter the e-Faktur number as well, or clear the date.",
+    "dateMissing": "Enter the e-Faktur date as well, or clear the number.",
+    "futureDate": "The e-Faktur date cannot be in the future.",
+    "invalidDate": "Enter a valid date.",
+    "disabledReason": "Fix the highlighted e-Faktur value to save.",
+    "notSaved": "e-Faktur not saved",
+    "refusedIncomplete": "Record the e-Faktur number and its date together.",
+    "refusedCancelled": "This invoice has been cancelled, so its e-Faktur can no longer be recorded. The list has been refreshed.",
+    "cancel": "Cancel",
+    "discardTitle": "Discard these e-Faktur details?",
+    "discardDescription": "The number and date you entered will not be saved.",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "saved": "e-Faktur details saved"
+  },
   "budget": {
     "category": {
       "specialExpenses": "Special expenses"
@@ -323,6 +346,19 @@
         "projectRequired": "Choose a project.",
         "save": "Add"
       }
+    },
+    "vendorTaxAccounts": {
+      "heading": "Vendor bill tax accounts",
+      "helper": "Enter the exact ERPNext account name. Leave blank if not used.",
+      "inputVat": "Input VAT account",
+      "intro": "The ERPNext accounts PMO posts a vendor bill's VAT and tax withheld to. Required before a bill with these amounts can be sent to ERPNext.",
+      "loadError": "Couldn't load the tax accounts",
+      "notConfigured": "Not configured",
+      "onlyAdmin": "Only an Admin can change these.",
+      "pph23": "PPh 23 payable account",
+      "pph42": "PPh 4(2) payable account",
+      "save": "Save accounts",
+      "saved": "Tax accounts saved"
     }
   },
   "approvals": {
@@ -684,6 +720,24 @@
       "client": "Client",
       "internal": "Internal",
       "vendor": "Vendor"
+    },
+    "vendorTax": {
+      "hint": "Pre-fills new bills from this vendor. The amounts stay editable on each bill.",
+      "none": "None",
+      "notSet": "Not set",
+      "onlyRoles": "Only Admin or Finance can change these.",
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)",
+      "pphRate": "PPh rate (%)",
+      "pphRateError": "Enter a rate above 0 and below 100 with no more than 3 decimal places.",
+      "save": "Save defaults",
+      "saved": "Vendor tax defaults saved",
+      "summaryPph": "{{type}} at {{rate}}%",
+      "summaryVat": "VAT {{rate}}%",
+      "title": "Vendor tax defaults",
+      "vatRate": "VAT rate (%)",
+      "vatRateError": "Enter a rate from 0 to 100 with no more than 3 decimal places, or leave it blank.",
+      "withholding": "Withholding"
     }
   },
   "contactDetail": {
@@ -1639,13 +1693,26 @@
     },
     "erpTaxTemplate": {
       "label": "ERPNext tax template",
-      "default": "ERPNext default",
-      "loadError": "Could not load the ERPNext tax templates. The ERPNext default will apply."
+      "enterAmounts": "Enter the tax amounts",
+      "loadError": "Could not load the ERPNext tax templates. Enter the tax amounts instead."
     },
     "withholding": {
       "netPayable": "Net payable",
       "vat": "VAT",
       "withheld": "Tax withheld (PPh)"
+    },
+    "vendorTax": {
+      "erpRequiredHint": "Enter the VAT amount from the vendor's invoice (0 if none) and, if tax is withheld, its type and amount.",
+      "itemsNet": "Items total, before tax: {{amount}}",
+      "none": "None",
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)",
+      "suggestedFrom": "Vendor default {{rate}}% of {{base}}",
+      "vatAmount": "VAT amount",
+      "withheldAmount": "PPh amount",
+      "withheldError": "Enter the tax withheld as an amount no larger than the invoice amount (enter the amount first).",
+      "withholding": "Tax withheld",
+      "withheldAboveItems": "The tax withheld is larger than the items total before tax. Check the PPh amount."
     }
   },
   "projectDetail": {

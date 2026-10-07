@@ -495,3 +495,13 @@ describe('AC-VWH-012: a vendor invoice with tax withheld shows VAT, tax withheld
     expect(screen.queryByTestId('vi-withholding-breakdown')).toBeNull();
   });
 });
+
+describe('AC-VWH-026: a standalone tax-exclusive bill shows net payable = amount + VAT − withheld (#876 slice 2)', () => {
+  it('AC-VWH-026 the breakdown adds the VAT back for a tax-exclusive amount', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[{
+      ...SAMPLE_ROWS[1], id: 'vi-s2', recordId: 'vi-s2', amount: 1000000, currency: 'IDR',
+      taxTreatment: 'exclusive', taxAmount: 110000, withheldAmount: 20000,
+    }]} />);
+    expect(screen.getAllByTestId('vi-withholding-net')[0].textContent).toBe(formatCurrency(1090000, 'IDR'));
+  });
+});

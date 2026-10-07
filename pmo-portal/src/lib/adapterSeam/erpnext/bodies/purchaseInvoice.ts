@@ -33,6 +33,11 @@ export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     // #520: the user-chosen template, sent WITH its server-resolved rows (ERPNext does not expand a template named over REST).
     ...(Array.isArray(rec.taxes) && rec.taxes.length > 0 && typeof rec.taxTemplate === 'string'
       ? { taxes_and_charges: rec.taxTemplate, taxes: rec.taxes } : {}),
+    // #876 slice 2 (DD-VWH-13): the fixed `Actual` rows the dispatch built from the ENTERED amounts. The empty template
+    // is explicit so ERPNext applies no template (and no default — bench-proven, spike addendum 2) on top; an empty
+    // table is a deliberate "no tax".
+    ...(rec.taxesFromAmounts === true && Array.isArray(rec.taxes) && typeof rec.taxTemplate !== 'string'
+      ? { taxes_and_charges: '', taxes: rec.taxes } : {}),
   };
 }
 
@@ -64,7 +69,8 @@ export function piFromDoc(doc: unknown): PmoRecord {
     // the `taxes` CHILD table the list endpoint cannot return).
     tax_amount: headerComplete ? addMoney(totalTaxes, deducted) : totalTaxes,
     ...(headerComplete ? { withheld_amount: deducted } : {}),
-    tax_template: (d.taxes_and_charges as string | null) ?? null,
+    // DD-VWH-21: an ERPNext bill with no template (an entered-amount bill) mirrors null, never ''.
+    tax_template: typeof d.taxes_and_charges === 'string' && d.taxes_and_charges.trim() ? d.taxes_and_charges : null,
     erp_docstatus: (d.docstatus as number | null) ?? null,
     erp_modified: (d.modified as string | null) ?? null,
     erp_amended_from: (d.amended_from as string | null) ?? null,

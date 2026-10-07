@@ -28,6 +28,7 @@ import {
   createInvoice,
   captureVendorInvoice,
   createQuotation,
+  setProcurementInvoiceEfaktur,
   ProcurementError,
 } from './procurementLifecycle';
 
@@ -389,6 +390,22 @@ describe('createInvoice', () => {
       }),
     ).rejects.toThrow('invoice error');
   });
+
+  it('AC-VWH-032 (DAL): createInvoice forwards a stated withholding and its PPh type (OQ-VWH-6); none and ERP amounts never reach the RPC', async () => {
+    makeRpcBuilder({ data: { id: 'invoice-4' }, error: null });
+    await createInvoice({ procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07', amount: 1000000,
+      taxTreatment: 'exclusive', taxAmount: 110000, withheldAmount: 20000, withheldPphType: 'pph23' });
+    expect(mockRpc.mock.calls[0][1]).toMatchObject({ p_withheld_amount: 20000, p_withheld_pph_type: 'pph23' });
+
+    mockRpc.mockClear();
+    makeRpcBuilder({ data: { id: 'invoice-5' }, error: null });
+    await createInvoice({ procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07', amount: 1000000,
+      taxTreatment: 'exclusive', taxAmount: 110000, erpTaxAmounts: { vatAmount: 1, withheldAmount: 1, pphType: 'pph23' } });
+    const args = mockRpc.mock.calls[0][1] as Record<string, unknown>;
+    expect('p_withheld_amount' in args).toBe(false);
+    expect('p_withheld_pph_type' in args).toBe(false);
+    expect(Object.keys(args).some((key) => /vat|pph|erp/i.test(key))).toBe(false);
+  });
 });
 
 // #505: captureVendorInvoice is the SECOND path that creates a vendor invoice (the atomic
@@ -420,6 +437,29 @@ describe('captureVendorInvoice', () => {
       p_tax_amount: 94.14,
     });
     expect(result).toMatchObject({ id: 'invoice-vi-1' });
+  });
+
+  it('AC-VWH-032 (DAL): captureVendorInvoice forwards a stated withholding and its PPh type', async () => {
+    makeRpcBuilder({ data: { id: 'invoice-vi-2' }, error: null });
+    await captureVendorInvoice({ procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07', amount: 2000000,
+      taxTreatment: 'exclusive', taxAmount: 220000, withheldAmount: 40000, withheldPphType: 'pph4_2' });
+    expect(mockRpc.mock.calls[0][1]).toMatchObject({ p_withheld_amount: 40000, p_withheld_pph_type: 'pph4_2' });
+  });
+});
+
+describe('AC-EFK-005 procurement e-Faktur DAL', () => {
+  it('calls the PMO setter with only the bill id, nullable number, and nullable date', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await setProcurementInvoiceEfaktur('vendor-bill-1', null, '2026-10-01');
+    expect(mockRpc).toHaveBeenCalledWith('set_procurement_invoice_efaktur', {
+      p_invoice_id: 'vendor-bill-1', p_efaktur_number: null, p_efaktur_date: '2026-10-01',
+    });
+  });
+  it('AC-EFK-005 keeps the refusal DETAIL on the thrown error so the dialog can name the refusal', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'cannot record e-Faktur facts on a cancelled vendor bill', code: '23514', details: 'efaktur-cancelled' } });
+    const err = await setProcurementInvoiceEfaktur('vendor-bill-1', '010-01', '2026-10-01').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ProcurementError);
+    expect(err).toMatchObject({ code: '23514', details: 'efaktur-cancelled' });
   });
 });
 

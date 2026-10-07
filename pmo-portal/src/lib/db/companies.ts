@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type CompanyRow = Tables<'companies'>;
@@ -149,4 +150,18 @@ export async function updateCompanyShortName(id: string, shortName: string | nul
     .update({ short_name: shortName?.trim() || null }).eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Company not found or you do not have permission to edit it.');
+}
+
+/**
+ * #876 slice 2 (DD-VWH-11): set a vendor's default tax treatment through `set_vendor_tax_defaults` (0273) — the only
+ * client path past the companies guard trigger. A null value is not sent, so the RPC's own `default null` clears it.
+ */
+export async function setCompanyTaxDefaults(id: string, input: VendorTaxDefaultsInput): Promise<void> {
+  const { error } = await supabase.rpc('set_vendor_tax_defaults', {
+    p_company_id: id,
+    p_vat_rate: input.vatRate ?? undefined,
+    p_pph_type: input.pphType ?? undefined,
+    p_pph_rate: input.pphRate ?? undefined,
+  });
+  if (error) throwWrite(error);
 }

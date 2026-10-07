@@ -197,7 +197,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProjectNumberPattern', 'getTaxDefault', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProjectNumberPattern', 'setTaxDefault', 'setWithholdingAccount'].sort());
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProjectNumberPattern', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccount'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
@@ -211,7 +211,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['archive', 'create', 'delete', 'get', 'list', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'update'].sort(),
+      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
@@ -247,6 +247,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'revokeGrant', 'update'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
+      // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
       [
         'create',
         'createDocument',
@@ -264,6 +265,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'list',
         'listDocuments',
         'selectQuote',
+        'setEfaktur',
         'transition',
         'updateHeader',
         'updateItem',
