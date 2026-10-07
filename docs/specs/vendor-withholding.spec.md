@@ -151,7 +151,7 @@ the procurement ledger display, and the sales-side symmetry guard.
 | AC-VWH-005 | FR-VWH-001/002/004/005/006 | served e2e (bench) | `pmo-portal/e2e/serial/AC-VWH-005-vendor-withholding.spec.ts` |
 | AC-VWH-006 | FR-VWH-001 | unit (Deno) | `supabase/functions/adapter-dispatch/readModelWriters.money.test.ts` |
 | AC-VWH-007 | FR-VWH-004/005 | unit (Deno) | `supabase/functions/_shared/erpnextFeedDeps.test.ts` |
-| AC-VWH-008 | FR-VWH-001 | pgTAP | `supabase/tests/0266_vendor_withholding.test.sql` |
+| AC-VWH-008 | FR-VWH-001 | pgTAP | `supabase/tests/0269_vendor_withholding.test.sql` |
 | AC-VWH-009 | FR-VWH-008 | pgTAP | same |
 | AC-VWH-010 | FR-VWH-007, NFR-VWH-002 | unit (Vitest) | `pmo-portal/src/lib/vendorWithholding.test.ts` |
 | AC-VWH-011 | FR-VWH-007 | unit (Vitest) | `pmo-portal/src/lib/db/procurementLedger.test.ts` |

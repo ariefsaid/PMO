@@ -9,6 +9,13 @@ import type { ErpCtx } from '../doctypeRegistry.ts';
 import { mirrorMoney } from '../moneyShape.ts';
 import { requireItems } from './shared.ts';
 
+/** #876: adds two `mirrorMoney` decimal strings (`-?\d+\.\d{2}`) exactly, in integer cents — never a float. */
+function addMoney(a: string, b: string): string {
+  const sum = BigInt(a.replace('.', '')) + BigInt(b.replace('.', ''));
+  const abs = sum < 0n ? -sum : sum;
+  return `${sum < 0n ? '-' : ''}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`;
+}
+
 export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   const items = requireItems(rec, 'Purchase Invoice');
   const reference = rec.referenceNumber ?? rec.reference_number;
@@ -31,6 +38,15 @@ export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
 
 export function piFromDoc(doc: unknown): PmoRecord {
   const d = doc as Record<string, unknown>;
+  const grandTotal = mirrorMoney(d.grand_total);
+  const totalTaxes = mirrorMoney(d.total_taxes_and_charges);
+  // #876 (DD-VWH-2, ADR-0082): with a withholding (Deduct) row ERPNext's grand_total is the NET payable and
+  // total_taxes_and_charges is VAT − withheld. PMO keeps the GROSS bill in `amount` and VAT alone in `tax_amount`, adding
+  // the header's own `taxes_and_charges_deducted` back — two figures ERPNext states, summed in cents (ADR-0048 holds:
+  // nothing is computed from lines). Deducted 0 ⇒ byte-identical to the pre-#876 mirror. A payload that does not carry
+  // the field leaves withholding UNKNOWN: today's figures and no `withheld_amount` key, so no writer can record a guess.
+  const deducted = mirrorMoney(d.taxes_and_charges_deducted);
+  const headerComplete = deducted !== null && grandTotal !== null && totalTaxes !== null;
   return {
     id: String(d.name),
     vi_number: String(d.name),
@@ -40,15 +56,14 @@ export function piFromDoc(doc: unknown): PmoRecord {
       ? d.bill_date
       : (d.posting_date as string | null) ?? null,
     reference_number: (d.bill_no as string | null) ?? null,
-    amount: mirrorMoney(d.grand_total),
+    amount: headerComplete ? addMoney(grandTotal, deducted) : grandTotal,
     erp_outstanding_amount: mirrorMoney(d.outstanding_amount),
-    // #505 / DD-XING-4: the header tax facts — the input-PPN mirror of siFromDoc's output-PPN half.
-    // `total_taxes_and_charges` is ERP's own total tax and is mirrored VERBATIM (ADR-0048 — PMO
-    // reads money, never recomputes it); `taxes_and_charges` is the Purchase Taxes and Charges
-    // TEMPLATE name. The per-rate breakdown lives on the `taxes` CHILD table, which the list
-    // endpoint cannot return, so `tax_rate` is deliberately NOT derived here — a computed rate would
-    // be a PMO-invented figure that rounds differently from the authored one.
-    tax_amount: mirrorMoney(d.total_taxes_and_charges),
+    // #876: the doc's own currency (as siFromDoc, OD-CR-5) — the mirror states it, never the org default.
+    currency: (d.currency as string | null) ?? null,
+    // #505 / DD-XING-4: the header tax facts. `tax_rate` is deliberately NOT derived (the per-rate breakdown lives on
+    // the `taxes` CHILD table the list endpoint cannot return).
+    tax_amount: headerComplete ? addMoney(totalTaxes, deducted) : totalTaxes,
+    ...(headerComplete ? { withheld_amount: deducted } : {}),
     tax_template: (d.taxes_and_charges as string | null) ?? null,
     erp_docstatus: (d.docstatus as number | null) ?? null,
     erp_modified: (d.modified as string | null) ?? null,
@@ -61,4 +76,4 @@ export function piFromDoc(doc: unknown): PmoRecord {
  * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
  * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
  */
-export const PI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'posting_date', 'bill_no', 'bill_date', 'grand_total', 'outstanding_amount', 'total_taxes_and_charges', 'taxes_and_charges'] as const;
+export const PI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'posting_date', 'bill_no', 'bill_date', 'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges_deducted', 'taxes_and_charges'] as const;
