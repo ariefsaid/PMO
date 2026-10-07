@@ -12,7 +12,7 @@
  * week of hours silently costed to a phantom employee or with no project dimension at all.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import { lookupConfirmedErpEmployee, resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 import type { AdapterCommand } from '../contract.ts';
 
 const BINDING = {
@@ -201,5 +201,25 @@ describe('erpnext/dispatchFactory — resolveTimesheetRefs (AC-TSP-030)', () => 
       apiSecret: 's',
     });
     expect(adapter.tier).toBe('erpnext');
+  });
+});
+
+// #775 phase B — the confirmed-Employee lookup is shared with the expense posting resolver (FR-EXP-106), so its
+// three outcomes are pinned here directly as well as through the timesheet pre-flight above.
+describe('lookupConfirmedErpEmployee (FR-TSP-051, FR-EXP-106)', () => {
+  it('returns the ERP employee name from external_refs for a confirmed link', async () => {
+    const client = fakeClient({ employee: CONFIRMED_EMPLOYEE, refs: { 'emp-row-1': 'Employee:HR-EMP-00001' } });
+    expect(await lookupConfirmedErpEmployee(client, 'org-1', 'user-1')).toEqual({ status: 'ok', employee: 'HR-EMP-00001' });
+  });
+  it('a proposed link, another org or another user is no link', async () => {
+    const refs = { 'emp-row-1': 'Employee:HR-EMP-00001' };
+    expect(await lookupConfirmedErpEmployee(fakeClient({ employee: { ...CONFIRMED_EMPLOYEE, link_state: 'proposed' }, refs }), 'org-1', 'user-1'))
+      .toEqual({ status: 'no-link' });
+    expect(await lookupConfirmedErpEmployee(fakeClient({ employee: CONFIRMED_EMPLOYEE, refs }), 'org-2', 'user-1')).toEqual({ status: 'no-link' });
+    expect(await lookupConfirmedErpEmployee(fakeClient({ employee: CONFIRMED_EMPLOYEE, refs }), 'org-1', 'user-2')).toEqual({ status: 'no-link' });
+  });
+  it('a confirmed link without an external ref is reported with its row id', async () => {
+    expect(await lookupConfirmedErpEmployee(fakeClient({ employee: CONFIRMED_EMPLOYEE }), 'org-1', 'user-1'))
+      .toEqual({ status: 'no-ref', employeeId: 'emp-row-1' });
   });
 });

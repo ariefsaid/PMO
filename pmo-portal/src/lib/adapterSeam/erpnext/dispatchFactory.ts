@@ -285,6 +285,9 @@ function assertSiProjectGate(deps: ErpDispatchFactoryDeps, binding: ExternalOrgB
 const PAYMENT_TYPE_BY_KIND: Readonly<Record<string, 'Pay' | 'Receive'>> = {
   payment: 'Pay',
   'incoming-payment': 'Receive',
+  // #775 phase B — Employee Payment Entries (the expense postings' Pay/Receive twins).
+  'expense-payment': 'Pay',
+  'expense-receipt': 'Receive',
 };
 
 /**
@@ -460,6 +463,34 @@ async function resolveRevenueRefs(
 // P3b (FR-TSP-050..055) — the Posture-B timesheet ref pre-flight
 // ============================================================================
 
+/** The PMO user's CONFIRMED ERP Employee (FR-TSP-051; reused by #775 phase B, FR-EXP-106). `proposed` is never
+ *  authoritative; the org filter is in the query; the ERP name comes from `external_refs`, never a mirror column. */
+export type ConfirmedEmployeeLookup =
+  | { status: 'no-link' }
+  | { status: 'no-ref'; employeeId: string }
+  | { status: 'ok'; employee: string };
+
+export async function lookupConfirmedErpEmployee(
+  serviceClient: DispatchServiceClient,
+  orgId: string,
+  profileId: string,
+): Promise<ConfirmedEmployeeLookup> {
+  const { data, error } = await serviceClient
+    .from('erp_employees')
+    .select('id, employee_number, org_id')
+    .eq('org_id', orgId)
+    .eq('profile_id', profileId)
+    .eq('link_state', 'confirmed')
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const employeeId = (data as { id?: string } | null)?.id;
+  if (!employeeId) return { status: 'no-link' };
+  // The ERP target comes from `external_refs`, never from a mirrored display column.
+  const external = await resolveExternalRef(serviceClient as unknown as ExternalRefsLookupClient, orgId, 'timesheets', employeeId);
+  if (!external) return { status: 'no-ref', employeeId };
+  return { status: 'ok', employee: external.startsWith('Employee:') ? external.slice('Employee:'.length) : external };
+}
+
 /**
  * Resolve `timesheets`-domain refs. EVERY resolution is FAIL-CLOSED and happens HERE — before the
  * adapter is constructed, therefore before the outbox claim and before the ERP POST (FR-TSP-050;
@@ -495,34 +526,17 @@ async function resolveTimesheetRefs(
   //     NEVER a shared default (it would mis-attribute cost). 'proposed' is NOT authoritative: an
   //     ERP-side email edit may PROPOSE a link but must never silently re-point whose cost a week
   //     becomes. The org filter is in the QUERY, so a cross-org row cannot even be read (FR-TSP-054).
-  const { data: employeeRow, error: employeeError } = await deps.serviceClient
-    .from('erp_employees')
-    .select('id, employee_number, org_id')
-    .eq('org_id', deps.orgId)
-    .eq('profile_id', record.user_id ?? '')
-    .eq('link_state', 'confirmed')
-    .maybeSingle();
-  if (employeeError) throw new AppError(employeeError.message, employeeError.code);
-  const employeeId = (employeeRow as { id?: string } | null)?.id;
-  if (!employeeId) {
+  const lookup = await lookupConfirmedErpEmployee(deps.serviceClient, deps.orgId, record.user_id ?? '');
+  if (lookup.status === 'no-link') {
     throw new AppError(
       `no confirmed erp_employees link for user '${record.user_id ?? ''}' — an Admin must confirm it`,
       'employee-unlinked',
     );
   }
-  // The ERP target comes from `external_refs`, never from a mirrored display column.
-  const employeeExternalId = await resolveExternalRef(
-    deps.serviceClient as unknown as ExternalRefsLookupClient,
-    deps.orgId,
-    'timesheets',
-    employeeId,
-  );
-  if (!employeeExternalId) {
-    throw new AppError(`employee '${employeeId}' has no external_refs mapping`, 'employee-unlinked');
+  if (lookup.status === 'no-ref') {
+    throw new AppError(`employee '${lookup.employeeId}' has no external_refs mapping`, 'employee-unlinked');
   }
-  refs.employee = employeeExternalId.startsWith('Employee:')
-    ? employeeExternalId.slice('Employee:'.length)
-    : employeeExternalId;
+  refs.employee = lookup.employee;
 
   // (2) activity type — mandatory at submit whenever `employee` is set (spike §1b), and P3b always
   //     sets it. Fail closed rather than let ERP reject the whole document after the claim.

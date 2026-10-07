@@ -18,6 +18,7 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
 import { ExpenseReceiptsCard } from './expenses/ExpenseReceiptsCard';
+import { ExpensePostingsCard } from './expenses/ExpensePostingsCard';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
@@ -163,6 +164,7 @@ const ExpenseClaimDetail: React.FC = () => {
           isError={linesQuery.isError} currency={claim.currency} editable={canEdit} />
       )}
       <ExpenseReceiptsCard claimId={claim.id} canWrite={canEdit} />
+      <ExpensePostingsCard claimId={claim.id} />
 
       {editOpen && (
         <ExpenseClaimFormModal

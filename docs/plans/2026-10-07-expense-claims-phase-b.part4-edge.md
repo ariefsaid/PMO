@@ -71,7 +71,7 @@ Create `supabase/functions/adapter-dispatch/authGuard.expenses.test.ts`:
 
 ```ts
 // AC-EXP-125 [Deno] — the sweep re-authorizes expense replays with checkErpnextCommandAuthorization. The ROLE half
-// is delegated to expense_posting_for_push (0263 §5 re-checks the recorded actor's current role); the ACTIVE half
+// is delegated to expense_posting_for_push (0270 §5 re-checks the recorded actor's current role); the ACTIVE half
 // and the kind/domain check still apply here.
 import { assertEquals } from '@std/assert';
 import { checkErpnextCommandAuthorization } from './authGuard.ts';
@@ -103,7 +103,7 @@ GREEN: `supabase/functions/adapter-dispatch/authGuard.ts` — `const ROLE_RULE_D
 
 ```ts
 // #775 phase B: `expenses` — the approver (approval rank) or payer (Finance/Admin) is re-checked by
-// expense_posting_for_push (0263 §5) against the recorded actor's CURRENT role before every fresh posting.
+// expense_posting_for_push (0270 §5) against the recorded actor's CURRENT role before every fresh posting.
 const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets', 'expenses']);
 ```
 
@@ -182,7 +182,7 @@ Verify RED: `no read-model writer registered for domain "expenses"`.
 
 ```ts
 /**
- * #775 phase B (ADR-0059 §6, ADR-0081) — the expense side mirror. The intent row exists already (0263 trigger);
+ * #775 phase B (ADR-0059 §6, ADR-0081) — the expense side mirror. The intent row exists already (0270 trigger);
  * a landed posting marks it `pushed` with the ERP name. A landed `approval-cancel` also stamps the approval row
  * cancelled, so the feed's later tombstone of that Journal Entry is recognised as PMO's own (no notice).
  * Keyed on (org_id, posting_identity) — never `id` (the L-1 lesson: the mirror's own uuid is not the PMO key).

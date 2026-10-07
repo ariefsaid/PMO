@@ -33,6 +33,7 @@ import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shar
 import { createInFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { pollDiscriminatorForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
@@ -124,6 +125,13 @@ export interface ErpWebhookHandlerDeps {
    * `surfaceActionRequired`. Never fired for an other-company doc (silent by design).
    */
   onCompanyMissing?: (orgId: string, event: ErpFeedEvent) => Promise<void>;
+  /**
+   * The same escalation for a document that omits a field its kind's poll scope requires (a Payment Entry without
+   * `party_type` — the field decides its domain). Fired only for an org that would have consumed the document (it
+   * owns the decoded domain, or `expenses`, whose Employee entries are told apart by the same field). Optional like
+   * `onCompanyMissing`; the Deno.serve wrapper wires it to `surfaceActionRequired`.
+   */
+  onScopeFieldMissing?: (orgId: string, event: ErpFeedEvent, field: string) => Promise<void>;
 }
 
 /**
@@ -188,6 +196,33 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
   if (!event) return json({ error: 'BAD_REQUEST', message: 'doctype and name are required' }, 400);
   // An unmapped doctype (one P2 does not mirror) — ack and skip (lossy hint, FR-ENA-083).
   if (!event.kind || !event.domain) return json({ ok: true, skipped: 'unmapped-doctype' });
+
+  // #775 phase B (FR-EXP-113, DD-EXP-19) — the SAME poll scope the sweep applies (`pollDiscriminatorForKind`):
+  // a Journal Entry is ours only when its `user_remark` carries a PMO expense key, and a Payment Entry's party
+  // type decides its domain. A native ledger entry (payroll, depreciation) is acked and dropped here, on every
+  // org, before any ownership/company/apply work. A Journal Entry without `user_remark` is dropped; a Payment Entry
+  // without `party_type` is dropped AND surfaced (`requiredField`): the domain cannot be decided without it, and the
+  // sweep, which always requests it, converges.
+  // The admission row reads each field with the decoder's precedence (top-level envelope first, then the doc),
+  // so the kind the decoder routed to and the scope that admits it can never read two different values.
+  const discriminator = pollDiscriminatorForKind(event.kind);
+  if (discriminator) {
+    const scopeRow: Record<string, unknown> = { ...((event.doc ?? {}) as Record<string, unknown>) };
+    for (const field of discriminator.fields) {
+      const top = (parsed as Record<string, unknown> | null)?.[field];
+      if (top !== undefined && top !== null) scopeRow[field] = top;
+    }
+    if (!discriminator.admits(scopeRow)) {
+      // A Payment Entry without party_type is not adopted — and it is a configuration gap worth surfacing (acked,
+      // like the missing-company case below, so Frappe does not retry).
+      const field = discriminator.requiredField;
+      const unstated = field !== undefined && (typeof scopeRow[field] !== 'string' || (scopeRow[field] as string).trim() === '');
+      if (unstated && (matchedOrg.ownedDomains.includes(event.domain) || matchedOrg.ownedDomains.includes('expenses'))) {
+        await deps.onScopeFieldMissing?.(matchedOrg.orgId, event, field);
+      }
+      return json({ ok: true, skipped: 'not-in-poll-scope' });
+    }
+  }
 
   // Luna BLOCK 9: per-DOMAIN ownership gate. The signature identified the org; it did NOT establish
   // that this org employs ERPNext for THIS domain. Without the check, a procurement-only org received
@@ -404,6 +439,12 @@ serveWithErrorReporting('erpnext-webhook', async (req: Request): Promise<Respons
       surfaceActionRequired(serviceClient, orgId, 'erp-doc-missing-company', {
         kind: event.kind,
         externalRecordId: event.externalRecordId,
+      }),
+    onScopeFieldMissing: (orgId, event, field) =>
+      surfaceActionRequired(serviceClient, orgId, 'erp-doc-missing-field', {
+        kind: event.kind,
+        externalRecordId: event.externalRecordId,
+        field,
       }),
   });
 });

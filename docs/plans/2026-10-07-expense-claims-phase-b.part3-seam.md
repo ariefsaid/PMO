@@ -125,7 +125,7 @@ export function expensePostingKey(posting: ExpensePosting, subjectId: string, st
   return `${EXPENSE_POSTING_KEY_PREFIX[posting]}:${subjectId.toLowerCase()}:${epochMs}`;
 }
 
-/** The side mirror's identity for a posting (`expense_posting_erp_mirror.posting_identity`, 0263 §3 CHECK). */
+/** The side mirror's identity for a posting (`expense_posting_erp_mirror.posting_identity`, 0270 §3 CHECK). */
 export function expensePostingIdentity(posting: ExpensePosting, subjectId: string): string {
   return `${subjectId.toLowerCase()}:${posting}`;
 }
@@ -953,7 +953,7 @@ First create `expensePostingCommand.ts` with only the types (S16 adds the builde
  */
 import type { ExpensePosting } from './expensePostingKey.ts';
 
-/** What `expense_posting_for_push` (0263 §5) returns — DB truth, never a payload. */
+/** What `expense_posting_for_push` (0270 §5) returns — DB truth, never a payload. */
 export interface ExpenseGateTruth {
   mirror_id: string;
   posting: ExpensePosting;
