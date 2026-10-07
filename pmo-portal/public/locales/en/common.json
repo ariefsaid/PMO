@@ -1711,7 +1711,8 @@
       "vatAmount": "VAT amount",
       "withheldAmount": "PPh amount",
       "withheldError": "Enter the tax withheld as an amount no larger than the invoice amount (enter the amount first).",
-      "withholding": "Tax withheld"
+      "withholding": "Tax withheld",
+      "withheldAboveItems": "The tax withheld is larger than the items total before tax. Check the PPh amount."
     }
   },
   "projectDetail": {

@@ -6,12 +6,12 @@
 - **Decisions:** OD-VWH-1 (owner); DD-VWH-10..14 (Director, ruled); DD-VWH-15..22 (planner, **Director to ratify
   before Task 3** — spec §7.2)
 - **Lane:** money path → **Director-dispatched**, not the ADW. Builder: opus for Tasks 0–14 (DB, dispatch, served
-  tests), sonnet for Tasks 15–26 (UI). Reviewers: spec + code-quality + security (security depth on 0269's guard
+  tests), sonnet for Tasks 15–26 (UI). Reviewers: spec + code-quality + security (security depth on 0272's guard
   trigger, the definer function, the org column grants and the dispatch's row building).
 - **Base:** `origin/dev` **after** the slice-1 PR (#876 slice 1, branch `feat/876-vendor-withholding`, migration 0266)
   has merged. If it has not, cut the slice-2 branch from `feat/876-vendor-withholding` and rebase onto `dev` once it
   lands. Every file and test below assumes slice 1's code is present.
-- **Migration slot:** `0269` only (+ `supabase/migrations/rollback/0269_vendor_tax_defaults_down.sql`).
+- **Migration slot:** `0272` only (+ `supabase/migrations/rollback/0272_vendor_tax_defaults_down.sql`).
 - **Worktree:** `$WT` = the issue worktree the Director creates. Agents run no git.
 
 ## 1. Design in one screen
@@ -45,10 +45,10 @@ Bill form ─ standalone: amount + treatment → VAT pre-filled, PPh pre-filled 
 
 | File | Change |
 |---|---|
-| `supabase/migrations/0269_vendor_tax_defaults.sql` | NEW |
-| `supabase/migrations/rollback/0269_vendor_tax_defaults_down.sql` | NEW |
-| `supabase/tests/0269_vendor_tax_defaults.test.sql` | NEW — AC-VWH-020/021/022 |
-| `supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql` | NEW — AC-VWH-023/024 |
+| `supabase/migrations/0272_vendor_tax_defaults.sql` | NEW |
+| `supabase/migrations/rollback/0272_vendor_tax_defaults_down.sql` | NEW |
+| `supabase/tests/0272_vendor_tax_defaults.test.sql` | NEW — AC-VWH-020/021/022 |
+| `supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql` | NEW — AC-VWH-023/024 |
 | `supabase/tests/0266_vendor_withholding.test.sql` | AC-VWH-009 description amended |
 | `supabase/tests/0178_anon_executable_definers.test.sql` | allow-list + count |
 | `scripts/isolation-probe-denominator.json` | definer signatures |
@@ -82,8 +82,8 @@ Bill form ─ standalone: amount + treatment → VAT pre-filled, PPh pre-filled 
 
 | AC | Owning test (layer) | Tasks |
 |---|---|---|
-| AC-VWH-020/021/022 | `supabase/tests/0269_vendor_tax_defaults.test.sql` (pgTAP) | 1, 3 |
-| AC-VWH-023/024 | `supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql` (pgTAP) | 2, 3 |
+| AC-VWH-020/021/022 | `supabase/tests/0272_vendor_tax_defaults.test.sql` (pgTAP) | 1, 3 |
+| AC-VWH-023/024 | `supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql` (pgTAP) | 2, 3 |
 | AC-VWH-009 (amended) | `supabase/tests/0266_vendor_withholding.test.sql` (pgTAP) | 5 |
 | AC-VWH-025/026, AC-VWH-010 (amended) | `src/lib/vendorWithholding.test.ts` (Vitest); AC-VWH-026 render in `ProcurementLedger.test.tsx` (RTL) | 6, 7 |
 | AC-VWH-027 | `src/auth/policy.vendorTax.test.ts` (Vitest) | 8 |
@@ -137,10 +137,10 @@ continue.
 
 ## Task 1 — pgTAP red: company vendor tax defaults (AC-VWH-020, AC-VWH-021, AC-VWH-022) (~5 min)
 
-Create `supabase/tests/0269_vendor_tax_defaults.test.sql`:
+Create `supabase/tests/0272_vendor_tax_defaults.test.sql`:
 
 ```sql
--- 0269_vendor_tax_defaults.test.sql — 0269 §1–§3 (#876 slice 2; OD-VWH-1; DD-VWH-11, DD-VWH-16).
+-- 0272_vendor_tax_defaults.test.sql — 0272 §1–§3 (#876 slice 2; OD-VWH-1; DD-VWH-11, DD-VWH-16).
 -- Owns AC-VWH-020 (shape + bounds), AC-VWH-021 (who may set the defaults; audited; outside the companies ERP mirror
 -- guard) and AC-VWH-022 (no other client write path; function grants).
 begin;
@@ -293,15 +293,15 @@ select * from finish();
 rollback;
 ```
 
-**Verify red:** `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_tax_defaults.test.sql'`
+**Verify red:** `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0272_vendor_tax_defaults.test.sql'`
 → fails (`column "default_vat_rate" does not exist`).
 
 ## Task 2 — pgTAP red: org tax accounts + standalone withholding (AC-VWH-023, AC-VWH-024) (~5 min)
 
-Create `supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql`:
+Create `supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql`:
 
 ```sql
--- 0269_vendor_tax_accounts_native_withholding.test.sql — 0269 §4–§6 (#876 slice 2; DD-VWH-10, DD-VWH-12).
+-- 0272_vendor_tax_accounts_native_withholding.test.sql — 0272 §4–§6 (#876 slice 2; DD-VWH-10, DD-VWH-12).
 -- Owns AC-VWH-023 (org vendor-bill tax accounts: shape, Admin-only, audited, grants) and AC-VWH-024 (a standalone
 -- vendor invoice records a stated withholding through both create functions; the create audit records it).
 begin;
@@ -413,16 +413,16 @@ select * from finish();
 rollback;
 ```
 
-**Verify red:** `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql'`
+**Verify red:** `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql'`
 → fails (`column "input_vat_account" does not exist`).
 
-## Task 3 — Migration 0269, green (AC-VWH-020..024) (~5 min)
+## Task 3 — Migration 0272, green (AC-VWH-020..024) (~5 min)
 
 **Precondition:** the Director has ratified DD-VWH-15..22 (spec §7.2). Create
-`supabase/migrations/0269_vendor_tax_defaults.sql`:
+`supabase/migrations/0272_vendor_tax_defaults.sql`:
 
 ```sql
--- 0269_vendor_tax_defaults.sql — #876 slice 2: vendor tax set up in PMO (OD-VWH-1; DD-VWH-10..12; ADR-0084).
+-- 0272_vendor_tax_defaults.sql — #876 slice 2: vendor tax set up in PMO (OD-VWH-1; DD-VWH-10..12; ADR-0084).
 --
 --   §1 companies: the vendor's default tax treatment (DD-VWH-11) — a form PRE-FILL only. No server path reads these
 --      when a bill is recorded (DD-VWH-19): the bill's entered amounts are the authority, so changing a default never
@@ -444,7 +444,7 @@ rollback;
 --   §7 on-database asserts: hosted Supabase's grant defaults differ from local Docker, so the intended function and
 --      column privileges are asserted HERE, on the database being migrated.
 --
--- Rollback: supabase/migrations/rollback/0269_vendor_tax_defaults_down.sql (revert the slice-2 adapter-dispatch first —
+-- Rollback: supabase/migrations/rollback/0272_vendor_tax_defaults_down.sql (revert the slice-2 adapter-dispatch first —
 -- it reads §4's columns and sends §5's parameter).
 
 -- §1 — the vendor's default tax treatment.
@@ -689,30 +689,30 @@ begin
     'public.capture_vendor_invoice(uuid,procurement_invoice_status,date,text,numeric,text,text,numeric,numeric,text,integer,integer,text,numeric)'::regprocedure,
     'public.set_vendor_tax_defaults(uuid,numeric,text,numeric)'::regprocedure] loop
     if has_function_privilege('anon', v_fn, 'execute') then
-      raise exception '0269: % is executable by anon on this database — revoke it before applying', v_fn;
+      raise exception '0272: % is executable by anon on this database — revoke it before applying', v_fn;
     end if;
     if not has_function_privilege('authenticated', v_fn, 'execute') then
-      raise exception '0269: % lost its authenticated EXECUTE grant', v_fn;
+      raise exception '0272: % lost its authenticated EXECUTE grant', v_fn;
     end if;
   end loop;
   foreach v_fn in array array['public.companies_tax_defaults_guard()'::regprocedure,
                               'public.audit_org_vendor_tax_accounts()'::regprocedure] loop
     if has_function_privilege('anon', v_fn, 'execute') or has_function_privilege('authenticated', v_fn, 'execute') then
-      raise exception '0269: trigger function % is executable by a client role on this database', v_fn;
+      raise exception '0272: trigger function % is executable by a client role on this database', v_fn;
     end if;
   end loop;
   if not exists (select 1 from pg_trigger where tgrelid = 'public.companies'::regclass
                    and tgname = 'companies_tax_defaults_guard' and tgenabled <> 'D') then
-    raise exception '0269: companies_tax_defaults_guard is not attached and enabled';
+    raise exception '0272: companies_tax_defaults_guard is not attached and enabled';
   end if;
   foreach v_col in array array['input_vat_account','pph23_payable_account','pph4_2_payable_account'] loop
     if has_column_privilege('anon', 'public.organizations', v_col, 'UPDATE')
        or has_column_privilege('anon', 'public.organizations', v_col, 'INSERT')
        or has_column_privilege('authenticated', 'public.organizations', v_col, 'INSERT') then
-      raise exception '0269: organizations.% would be writable beyond the Admin column grant on this database (see 0192)', v_col;
+      raise exception '0272: organizations.% would be writable beyond the Admin column grant on this database (see 0192)', v_col;
     end if;
     if not has_column_privilege('authenticated', 'public.organizations', v_col, 'UPDATE') then
-      raise exception '0269: organizations.% is missing its authenticated UPDATE column grant', v_col;
+      raise exception '0272: organizations.% is missing its authenticated UPDATE column grant', v_col;
     end if;
   end loop;
 end $$;
@@ -721,15 +721,15 @@ notify pgrst, 'reload schema';
 ```
 
 **Verify green:**
-`cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_tax_defaults.test.sql supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql supabase/tests/0266_vendor_withholding.test.sql supabase/tests/0107_capture_vendor_invoice_atomic.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql'`
+`cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0272_vendor_tax_defaults.test.sql supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql supabase/tests/0266_vendor_withholding.test.sql supabase/tests/0107_capture_vendor_invoice_atomic.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql'`
 → 35/35, 24/24, and the three neighbours unchanged. Then `cd "$WT/pmo-portal" && npm run check:migrations`.
 
 ## Task 4 — Rollback file + rehearsal (~5 min)
 
-Create `supabase/migrations/rollback/0269_vendor_tax_defaults_down.sql`:
+Create `supabase/migrations/rollback/0272_vendor_tax_defaults_down.sql`:
 
 ```sql
--- Rollback for 0269_vendor_tax_defaults.sql (#876 slice 2). Revert the slice-2 adapter-dispatch and FE FIRST (they read
+-- Rollback for 0272_vendor_tax_defaults.sql (#876 slice 2). Revert the slice-2 adapter-dispatch and FE FIRST (they read
 -- §4's columns and send §5's parameter). Restores 0238's two create functions and 0178's create audit, then drops the
 -- org settings, the vendor-defaults function, guard and columns. Standalone bills that recorded a withholding keep it
 -- (withheld_amount is 0266's column).
@@ -858,7 +858,7 @@ notify pgrst, 'reload schema';
 ```bash
 cd "$WT" && scripts/with-db-lock.sh bash -c "supabase db reset && psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -qAt <<'SQL'
 begin;
-\i supabase/migrations/rollback/0269_vendor_tax_defaults_down.sql
+\i supabase/migrations/rollback/0272_vendor_tax_defaults_down.sql
 select count(*) from information_schema.columns where table_schema = 'public' and column_name in
   ('default_vat_rate','default_pph_type','default_pph_rate','input_vat_account','pph23_payable_account','pph4_2_payable_account');
 select count(*) from pg_proc where pronamespace = 'public'::regnamespace
@@ -880,9 +880,9 @@ SQL"
 2. In `supabase/tests/0178_anon_executable_definers.test.sql`:
    - directly before the line `-- ⚑ MERGE HAZARD, learned the hard way here:` add:
      ```sql
-     -- ⚑ AMENDED BY 0269 (#876 slice 2): `set_vendor_tax_defaults` joins the retained set (+1). A SECURITY DEFINER
+     -- ⚑ AMENDED BY 0272 (#876 slice 2): `set_vendor_tax_defaults` joins the retained set (+1). A SECURITY DEFINER
      -- writer called through PostgREST under a member's JWT; its body re-asserts the active membership, the
-     -- Admin/Finance role and the caller's org, paired in supabase/tests/0269_vendor_tax_defaults.test.sql
+     -- Admin/Finance role and the caller's org, paired in supabase/tests/0272_vendor_tax_defaults.test.sql
      -- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
      -- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
      --
@@ -1070,7 +1070,7 @@ export function withholdingFigures(
 
 // ── slice 2: vendor defaults and pre-fill suggestions ─────────────────────────────────────────────────────────────
 
-/** The vendor's default tax treatment (companies.default_*, migration 0269). Rates are percentages. */
+/** The vendor's default tax treatment (companies.default_*, migration 0272). Rates are percentages. */
 export interface VendorTaxDefault {
   vatRate: number | null;
   pphType: PphType | null;
@@ -1198,7 +1198,7 @@ import type { Role } from './AuthContext';
 
 const ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
 
-describe('AC-VWH-027 vendor tax defaults policy (mirrors set_vendor_tax_defaults, migration 0269)', () => {
+describe('AC-VWH-027 vendor tax defaults policy (mirrors set_vendor_tax_defaults, migration 0272)', () => {
   it('AC-VWH-027 vendor tax defaults are managed by Admin and Finance only', () => {
     expect(ROLES.filter((r) => can('manage', 'vendorTaxDefault', { realRole: r }))).toEqual(['Admin', 'Finance']);
   });
@@ -1212,7 +1212,7 @@ In `pmo-portal/src/auth/policy.ts`:
 1. In `export type Entity`, directly after `  | 'orgAccounting'` add `  | 'vendorTaxDefault'`.
 2. Directly after `const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];` add:
    ```ts
-   /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0269). */
+   /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0272). */
    const TAX_SETUP: Role[] = ['Admin', 'Finance'];
    ```
 3. Directly after the `orgAccounting: { manage: allow(ADMIN), },` entry add:
@@ -1348,7 +1348,7 @@ it('AC-VWH-032 (DAL): a name longer than the ERPNext link limit makes no write',
 
 ```ts
 /**
- * #876 slice 2 (DD-VWH-11): set a vendor's default tax treatment through `set_vendor_tax_defaults` (0269) — the only
+ * #876 slice 2 (DD-VWH-11): set a vendor's default tax treatment through `set_vendor_tax_defaults` (0272) — the only
  * client path past the companies guard trigger. A null value is not sent, so the RPC's own `default null` clears it.
  */
 export async function setCompanyTaxDefaults(id: string, input: VendorTaxDefaultsInput): Promise<void> {
@@ -1366,7 +1366,7 @@ export async function setCompanyTaxDefaults(id: string, input: VendorTaxDefaults
 2. Append to `pmo-portal/src/lib/db/orgs.ts`:
 
 ```ts
-/** #876 slice 2 (DD-VWH-12): the ERPNext accounts a vendor bill's entered VAT and PPh post to (organizations, 0269). */
+/** #876 slice 2 (DD-VWH-12): the ERPNext accounts a vendor bill's entered VAT and PPh post to (organizations, 0272). */
 export interface OrgVendorTaxAccounts {
   inputVatAccount: string | null;
   pph23PayableAccount: string | null;
@@ -1385,7 +1385,7 @@ export async function getOrgVendorTaxAccounts(): Promise<OrgVendorTaxAccounts> {
   };
 }
 
-/** Admin-only by RLS (the organizations UPDATE policy) + column grants (0269); a non-Admin write reaches no row. */
+/** Admin-only by RLS (the organizations UPDATE policy) + column grants (0272); a non-Admin write reaches no row. */
 export async function setOrgVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void> {
   const clean = (value: string | null) => value?.trim() || null;
   const patch = {
@@ -1869,7 +1869,7 @@ describe('vendor invoice tax entered as amounts (#876 slice 2)', () => {
 ```ts
 // ── #876 slice 2 (OD-VWH-1, DD-VWH-13/22, ADR-0084): tax AMOUNTS entered in PMO, sent as fixed `Actual` rows ──────
 
-/** The vendor-bill tax accounts an Admin set in Administration → Accounting (organizations, migration 0269). */
+/** The vendor-bill tax accounts an Admin set in Administration → Accounting (organizations, migration 0272). */
 export interface VendorTaxAccounts {
   inputVat: string | null;
   pph23: string | null;
@@ -3268,7 +3268,7 @@ Create `pmo-portal/pages/admin/OrgVendorTaxAccounts.tsx`:
 ```tsx
 /**
  * #876 slice 2 (DD-VWH-12) — the ERPNext accounts a vendor bill's entered VAT and PPh post to. Admin-only (the
- * organizations UPDATE policy + column grants, 0269; `can('manage','orgAccounting')` mirrors it, UX only). The dispatch
+ * organizations UPDATE policy + column grants, 0272; `can('manage','orgAccounting')` mirrors it, UX only). The dispatch
  * checks each in ERPNext on send and refuses naming the setting (ADR-0084 §4).
  */
 import React, { useEffect, useState } from 'react';
@@ -3654,14 +3654,14 @@ Each mutation must turn the named test RED; record (file, mutation, red test) in
 
 | # | Mutate | Expect red | Command |
 |---|---|---|---|
-| M1 | 0269 §2: change both `raise exception 'vendor tax defaults …'` guard branches' conditions to `false` | AC-VWH-022 direct UPDATE + INSERT | `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_tax_defaults.test.sql'` |
-| M2 | 0269 §3: delete `perform set_config('pmo.vendor_tax_defaults_write', '', true);` | AC-VWH-022 "even after set_vendor_tax_defaults ran" | same |
-| M3 | 0269 §3: `('Admin', 'Finance')` → `('Admin', 'Finance', 'Project Manager')` | AC-VWH-021 PM refused | same |
-| M4 | 0269 §3: delete `and org_id = auth_org_id()` | AC-VWH-021 other org not found | same |
-| M5 | 0269 §4: delete `perform public.log_audit('org.vendor_tax_accounts.change' …);` | AC-VWH-023 audited | `… supabase test db supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql` |
-| M6 | 0269 §5: `coalesce(p_withheld_amount, 0)` → `0` | AC-VWH-024 stored | same as M5 |
-| M7 | 0269 §5: delete `p_withheld_amount => p_withheld_amount` in capture | AC-VWH-024 capture | same as M5 |
-| M8 | 0269 §7: add `grant update (input_vat_account) on public.organizations to anon;` before the DO block | `supabase db reset` aborts with `0269: organizations.input_vat_account would be writable` | `scripts/with-db-lock.sh supabase db reset` |
+| M1 | 0272 §2: change both `raise exception 'vendor tax defaults …'` guard branches' conditions to `false` | AC-VWH-022 direct UPDATE + INSERT | `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0272_vendor_tax_defaults.test.sql'` |
+| M2 | 0272 §3: delete `perform set_config('pmo.vendor_tax_defaults_write', '', true);` | AC-VWH-022 "even after set_vendor_tax_defaults ran" | same |
+| M3 | 0272 §3: `('Admin', 'Finance')` → `('Admin', 'Finance', 'Project Manager')` | AC-VWH-021 PM refused | same |
+| M4 | 0272 §3: delete `and org_id = auth_org_id()` | AC-VWH-021 other org not found | same |
+| M5 | 0272 §4: delete `perform public.log_audit('org.vendor_tax_accounts.change' …);` | AC-VWH-023 audited | `… supabase test db supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql` |
+| M6 | 0272 §5: `coalesce(p_withheld_amount, 0)` → `0` | AC-VWH-024 stored | same as M5 |
+| M7 | 0272 §5: delete `p_withheld_amount => p_withheld_amount` in capture | AC-VWH-024 capture | same as M5 |
+| M8 | 0272 §7: add `grant update (input_vat_account) on public.organizations to anon;` before the DO block | `supabase db reset` aborts with `0272: organizations.input_vat_account would be writable` | `scripts/with-db-lock.sh supabase db reset` |
 | M9 | `dispatchFactory.ts`: delete `if (chosen && entered) throw …` | AC-VWH-033 not both + AC-VWH-035 test 1 | `npx vitest run src/lib/adapterSeam/erpnext/purchaseInvoiceTaxAmounts.test.ts`; `deno test --allow-all vendorTaxAmounts.test.ts` |
 | M10 | `dispatchFactory.ts`: delete `delete record.taxesFromAmounts;` | AC-VWH-033 marker dropped (plain case) | Vitest as M9 |
 | M11 | `erpPurchaseTaxRows.ts`: `usableAccount(…, entered.pphType, true)` → `false` | AC-VWH-033 non-liability | Vitest as M9 |
@@ -3713,12 +3713,12 @@ cd "$WT/pmo-portal" && ../scripts/with-test-lock.sh npm run typecheck \
   && ../scripts/with-test-lock.sh npx vitest run --changed origin/dev
 cd "$WT/supabase/functions/adapter-dispatch" && deno test --allow-all vendorTaxAmounts.test.ts receiptWithholdingRecovery.test.ts readModelWriters.money.test.ts
 cd "$WT/supabase/functions/erpnext-sweep" && deno test --allow-all ../_shared/erpnextFeedDeps.test.ts
-cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_tax_defaults.test.sql supabase/tests/0269_vendor_tax_accounts_native_withholding.test.sql supabase/tests/0266_vendor_withholding.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0107_capture_vendor_invoice_atomic.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql supabase/tests/erpnext_money_flip_rls.test.sql' \
+cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0272_vendor_tax_defaults.test.sql supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql supabase/tests/0266_vendor_withholding.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0107_capture_vendor_invoice_atomic.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql supabase/tests/erpnext_money_flip_rls.test.sql' \
   && node scripts/check-isolation-denominator.mjs && node scripts/check-edge-fn-test-binding.mjs
 ```
 Plus Task 25's e2e runs (AC-VWH-036, AC-VWH-005, AC-ENA-053). All green, outputs pasted in the PR body.
 
-Then: the 3-reviewer pass (spec, code-quality, security — security on 0269's guard trigger + flag, the definer
+Then: the 3-reviewer pass (spec, code-quality, security — security on 0272's guard trigger + flag, the definer
 function's gates, the org column grants and §7 asserts, and the dispatch's row building / template-XOR-amounts /
 naming rules) and the rendered Discover pass on rich seed (desktop + 390 px): the company page's Vendor tax defaults
 card (Admin, Finance, PM), Administration → Accounting, and both vendor-bill entry points on a standalone org and on a
@@ -3731,9 +3731,9 @@ flipped org (pre-filled, edited, template chosen, Bahasa). Every Discover findin
 1. **Preconditions (operator):** RIS's input-VAT, PPh 23 payable and PPh 4(2) payable account names from the
    accountant (OQ-VWH-5); none of them mapped into a budget category (DD-VWH-8); Task 0 re-run against the v16 test
    instance if the bench was v15 (DD-PBL-12 precedent).
-2. **DB:** 0269 (the §7 asserts fail loudly if a grant on the target differs from intent).
+2. **DB:** 0272 (the §7 asserts fail loudly if a grant on the target differs from intent).
 3. **Edge functions:** `adapter-dispatch` (rows, refusals), `erpnext-sweep` and `erpnext-webhook` (both import
-   `piFromDoc`, whose empty-template mapping changed). DB first is mandatory: the new dispatch reads 0269's columns.
+   `piFromDoc`, whose empty-template mapping changed). DB first is mandatory: the new dispatch reads 0272's columns.
 4. **FE.** Then, as an Admin in RIS: Administration → Accounting → Vendor bill tax accounts; and Finance sets each
    withholding vendor's defaults on its company page.
 5. **After-push probe:** `scripts/isolation-probe.sh` against the hosted project (the denominator changed) and the

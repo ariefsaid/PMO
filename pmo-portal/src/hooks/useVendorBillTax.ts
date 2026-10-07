@@ -33,12 +33,24 @@ function useWithholdingDraft(vendor: VendorTaxDefault | null, enabled: boolean, 
     suggestion ? suggestWithheld(suggestion.base, suggestion.rate) : null,
     withheldRaw, setWithheldRaw, enabled && pphTypeRaw !== '');
   return {
-    pphType: { raw: pphTypeRaw, onChange: (next: string) => { typeChosen.current = true; setPphTypeRaw(next); } },
+    pphType: {
+      raw: pphTypeRaw,
+      onChange: (next: string) => {
+        typeChosen.current = true;
+        // A suggested amount belongs to the type it was suggested FOR (the vendor's own): switching the type while
+        // the amount is still untouched must not carry the old figure over — the user would otherwise submit a
+        // withholding they never chose. An edited amount is the user's own and stays.
+        if (next !== pphTypeRaw && !withheld.isTouched()) setWithheldRaw('');
+        setPphTypeRaw(next);
+      },
+    },
     withheld: {
       raw: withheldRaw,
       onChange: (next: string) => { withheld.markTouched(); setWithheldRaw(next); },
       suggestion,
     },
+    /** True once the user has edited the amount: a suggestion may no longer be applied or cleared over it. */
+    withheldTouched: withheld.isTouched(),
   };
 }
 export type WithholdingDraft = ReturnType<typeof useWithholdingDraft>;
@@ -67,13 +79,20 @@ export function useNativeVendorTax(args: {
   const currentVat = args.vatRaw.trim() ? parseMoneyInputAtScale(args.vatRaw, 2) : null;
   const net = amount !== null && treatment && currentVat !== null ? netOf(amount, treatment, currentVat) : null;
   const withholding = useWithholdingDraft(vendor, enabled, net);
+  const value = parseNativeWithholding(withholding.pphType.raw, withholding.withheld.raw, amount);
   return {
     markVatTouched: vat.markTouched,
     vatSuggestion: vatSuggested !== null && vatRate !== null && amount !== null && treatment && !args.vatIsCalculated
       ? { rate: vatRate, base: netOf(amount, treatment, vatSuggested) } : null,
     withholding,
     /** The recorded withholding, or null while the drafts are not submittable. */
-    value: parseNativeWithholding(withholding.pphType.raw, withholding.withheld.raw, amount),
+    value,
+    /**
+     * The withheld draft is incomplete AND the user has engaged (the field was touched, or a bill amount is in):
+     * the pristine, pre-seeded state is an offer, not an error.
+     */
+    withheldInvalid: withholding.pphType.raw !== '' && value === null
+      && (withholding.withheldTouched || amount !== null),
   };
 }
 export type NativeVendorTax = ReturnType<typeof useNativeVendorTax>;
@@ -90,6 +109,7 @@ export function useErpVendorTax(args: { vendor: VendorTaxDefault | null; enabled
   const vat = useSuggestedMoney(
     vatSuggestion ? suggestVat(vatSuggestion.base, 'exclusive', vatSuggestion.rate) : null, vatRaw, setVatRaw, enabled);
   const withholding = useWithholdingDraft(vendor, enabled, itemsNet);
+  const amounts = parseErpTaxAmounts(vatRaw, withholding.pphType.raw, withholding.withheld.raw);
   return {
     itemsNet,
     vat: {
@@ -98,7 +118,10 @@ export function useErpVendorTax(args: { vendor: VendorTaxDefault | null; enabled
       suggestion: vatSuggestion,
     },
     withholding,
-    amounts: parseErpTaxAmounts(vatRaw, withholding.pphType.raw, withholding.withheld.raw),
+    amounts,
+    /** The server's bound (DD-VWH-22) mirrored client-side: the entered withheld may not exceed the items total. */
+    withheldAboveItems: amounts !== null && itemsNet !== null
+      && Math.round(amounts.withheldAmount * 100) > Math.round(itemsNet * 100),
   };
 }
 export type ErpVendorTax = ReturnType<typeof useErpVendorTax>;

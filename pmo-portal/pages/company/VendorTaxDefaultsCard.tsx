@@ -26,6 +26,9 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
   const [vatRaw, setVatRaw] = useState(rateDraft(company.default_vat_rate));
   const [pphType, setPphType] = useState(company.default_pph_type ?? '');
   const [pphRaw, setPphRaw] = useState(rateDraft(company.default_pph_rate));
+  // The PPh-rate error waits for the rate field (an untouched, empty rate is an offer, not a mistake);
+  // the disabled Save is the gate until then.
+  const [pphTouched, setPphTouched] = useState(false);
   const [error, setError] = useState<string>();
   const draft = parseVendorTaxDefaultsDraft(vatRaw, pphType, pphRaw);
   // The app's singleton client (App.tsx provides the same one), as `useVendorTaxDefault` reads it: saving here
@@ -96,10 +99,10 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
                 <TextField
                   label={t('companyDetail.vendorTax.pphRate', 'PPh rate (%)')}
                   value={pphRaw}
-                  onChange={setPphRaw}
+                  onChange={(next) => { setPphTouched(true); setPphRaw(next); }}
                   inputMode="decimal"
                   disabled={mutation.isPending}
-                  error={!draft.ok && draft.field === 'pph'
+                  error={pphTouched && !draft.ok && draft.field === 'pph'
                     ? t('companyDetail.vendorTax.pphRateError', 'Enter a rate above 0 and below 100 with no more than 3 decimal places.')
                     : undefined}
                 />

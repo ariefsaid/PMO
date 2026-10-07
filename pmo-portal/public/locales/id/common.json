@@ -1711,7 +1711,8 @@
       "vatAmount": "Jumlah PPN",
       "withheldAmount": "Jumlah PPh",
       "withheldError": "Masukkan pajak dipotong sebagai jumlah yang tidak melebihi jumlah faktur (isi jumlah faktur terlebih dahulu).",
-      "withholding": "Pajak dipotong"
+      "withholding": "Pajak dipotong",
+      "withheldAboveItems": "Pajak dipotong lebih besar dari total item sebelum pajak. Periksa jumlah PPh."
     }
   },
   "projectDetail": {

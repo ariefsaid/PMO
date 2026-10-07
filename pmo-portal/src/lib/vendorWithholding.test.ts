@@ -45,6 +45,8 @@ describe('vendor tax defaults and suggestions (#876 slice 2, DD-VWH-17)', () => 
     expect(suggestWithheld(1000000, 2)).toBe(20000);
     expect(suggestWithheld(999999.99, 2)).toBe(20000);
     expect(suggestWithheld(333333.33, 1.75)).toBe(5833.33);
+    // The exact half-cent rounds UP (0.25 × 2% = 0.005): never banker's rounding, never truncation.
+    expect(suggestWithheld(0.25, 2)).toBe(0.01);
   });
 
   it('AC-VWH-025 the net is the amount when tax-exclusive and amount − VAT when tax-inclusive', () => {
@@ -55,6 +57,20 @@ describe('vendor tax defaults and suggestions (#876 slice 2, DD-VWH-17)', () => 
   it('AC-VWH-025 the items total before tax sums quantity × rate per line in cents; no lines is unknown', () => {
     expect(itemsNetTotal([{ quantity: 3, rate: 333333.33 }, { quantity: 1, rate: 0.01 }])).toBe(1000000);
     expect(itemsNetTotal([])).toBeNull();
+  });
+
+  it('AC-VWH-033 ONE formula serves both line spellings: the FE case rows (quantity) and the command items (qty)', () => {
+    expect(itemsNetTotal([{ qty: 2, rate: 100 }])).toBe(200);
+    expect(itemsNetTotal([{ quantity: 2, rate: 100 }])).toBe(200);
+    expect(itemsNetTotal([{ quantity: 1, rate: 333333.33 }, { qty: 3, rate: 222222.22 }])).toBe(999999.99);
+  });
+
+  it('AC-VWH-033 an unpriced line or a missing quantity leaves the total unknown — never counted as 0', () => {
+    expect(itemsNetTotal([{ qty: 2, rate: null }])).toBeNull();
+    expect(itemsNetTotal([{ qty: 2 }])).toBeNull();
+    expect(itemsNetTotal([{ quantity: null, rate: 100 }])).toBeNull();
+    expect(itemsNetTotal([{ quantity: 'two', rate: 100 }])).toBeNull();
+    expect(itemsNetTotal([{ quantity: 1, rate: 100 }, { quantity: 2 }])).toBeNull();
   });
 
   it('AC-VWH-025 a company row is a default only when it states a VAT rate or a complete withholding', () => {

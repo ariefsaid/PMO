@@ -178,6 +178,28 @@ describe('vendor invoice tax entered as amounts (#876 slice 2)', () => {
     expect(erp.writes).toEqual([]);
   });
 
+  it.each([
+    ['a NULL rate', { vatAmount: 0, withheldAmount: 4, pphType: 'pph23', items: [{ item_code: 'SYNTHETIC-ITEM', qty: 2, rate: null }] }],
+    ['a line with no rate', { vatAmount: 0, withheldAmount: 4, pphType: 'pph23', items: [{ item_code: 'SYNTHETIC-ITEM', qty: 2 }] }],
+  ] as Array<[string, Row]>)('AC-VWH-033 %s is refused up front (config-rejected): an unpriced line is never counted as 0', async (_label, record) => {
+    const erp = erpFetch();
+    await expect(resolve(command(record), erp))
+      .rejects.toMatchObject({ code: 'config-rejected', message: 'This case has unpriced lines: give every line a rate, then record the invoice again.' });
+    expect(erp.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a line without a quantity', { vatAmount: 0, withheldAmount: 4, pphType: 'pph23', items: [{ item_code: 'SYNTHETIC-ITEM', rate: 100 }] }],
+    ['a non-numeric quantity', { vatAmount: 0, withheldAmount: 4, pphType: 'pph23', items: [{ item_code: 'SYNTHETIC-ITEM', qty: 'two', rate: 100 }] }],
+  ] as Array<[string, Row]>)('AC-VWH-033 %s is refused (commit-rejected): an unknown items total never skips the withheld bound', async (_label, record) => {
+    const erp = erpFetch();
+    await expect(resolve(command(record), erp)).rejects.toMatchObject({
+      code: 'commit-rejected',
+      message: "The vendor invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.",
+    });
+    expect(erp.fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('AC-VWH-033 a replayed create keeps its persisted rows: no ERPNext read, same digest after the settings changed', async () => {
     const first = await push({ vatAmount: 22, withheldAmount: 4, pphType: 'pph23' });
     const replay = command();

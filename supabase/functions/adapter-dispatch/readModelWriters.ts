@@ -401,6 +401,16 @@ async function recordOutboundLineage(
  *  carries no PO link at all — unlike GR, there is no ERP-side or command-side PO reference to resolve
  *  from at write time; `po_id` stays whatever a later write sets, matching the column's own
  *  nullable/settlement-predecessor design, FR-PR-004b/004d). */
+/** #876 slice 2 (OQ-VWH-6): the PPh type an entered-amounts command carries, or null. Only an entered-amount
+ *  command — whose type the dispatch validated and persisted in the command record (`taxesFromAmounts`,
+ *  resolvePurchaseInvoiceTaxes) — can state it; a template-path bill keeps NULL (the type is the ERPNext payable
+ *  account). Never stated when nothing was withheld. Serves the create AND a recovery replay of one. */
+function enteredPphType(record: Record<string, unknown>, withheld: string | null | undefined): string | null {
+  const entered = record as { taxesFromAmounts?: unknown; pphType?: unknown };
+  return entered.taxesFromAmounts === true && (entered.pphType === 'pph23' || entered.pphType === 'pph4_2')
+    && Number(withheld ?? 0) !== 0 ? entered.pphType as string : null;
+}
+
 async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
   const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
   const docstatus = canonical.erp_docstatus as number | null | undefined;
@@ -458,12 +468,8 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
       throw new AppError('the purchase invoice read-back carried no withholding total; its money cannot be mirrored', 'BAD_REQUEST');
     }
     // #876 slice 2 (OQ-VWH-6): the PPh type is stored on every bill that withholds. ERPNext's header does not carry it,
-    // so only an entered-amount create — whose type the dispatch validated and persisted in the command
-    // (resolvePurchaseInvoiceTaxes, `taxesFromAmounts`) — can state it; a template-path bill keeps NULL (the type is
-    // the ERPNext payable account). Never stated when nothing was withheld.
-    const entered = command.record as { taxesFromAmounts?: unknown; pphType?: unknown };
-    const pphType = entered.taxesFromAmounts === true && (entered.pphType === 'pph23' || entered.pphType === 'pph4_2')
-      && Number(piWithheld) !== 0 ? entered.pphType : null;
+    // so only an entered-amount create can state it (see enteredPphType).
+    const pphType = enteredPphType(command.record as Record<string, unknown>, piWithheld);
     const { error } = await ctx.serviceClient.from('procurement_invoices').insert({
       id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId,
       ...patch,
@@ -477,6 +483,11 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     if (error) throw new AppError(error.message, error.code);
     return;
   }
+  // #876 slice 2 (OQ-VWH-6): a recovery replay of an entered-amounts create can arrive as an update against the
+  // same command record — the type rides the marker exactly as on the create, and never without the money header
+  // (the all-or-nothing rule above).
+  const replayPphType = piWithheld !== null ? enteredPphType(command.record as Record<string, unknown>, piWithheld) : null;
+  if (replayPphType !== null) patch.withheld_pph_type = replayPphType;
   const { error } = await (
     ctx.serviceClient.from('procurement_invoices').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
       error: { message: string; code?: string } | null;

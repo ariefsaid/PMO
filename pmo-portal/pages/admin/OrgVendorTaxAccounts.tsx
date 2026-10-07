@@ -87,12 +87,14 @@ export default function OrgVendorTaxAccounts() {
             </Button>
           </form>
         ) : (
-          <dl className="space-y-1 text-[13px]">
-            <div><dt className="inline text-muted-foreground">{t('admin.vendorTaxAccounts.inputVat', 'Input VAT account')}: </dt><dd className="inline">{current?.inputVatAccount ?? notConfigured}</dd></div>
-            <div><dt className="inline text-muted-foreground">{t('admin.vendorTaxAccounts.pph23', 'PPh 23 payable account')}: </dt><dd className="inline">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
-            <div><dt className="inline text-muted-foreground">{t('admin.vendorTaxAccounts.pph42', 'PPh 4(2) payable account')}: </dt><dd className="inline">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
-            <p className="text-muted-foreground">{t('admin.vendorTaxAccounts.onlyAdmin', 'Only an Admin can change these.')}</p>
-          </dl>
+          <>
+            <dl className="space-y-1 text-[13px]">
+              <div><dt className="inline text-muted-foreground">{t('admin.vendorTaxAccounts.inputVat', 'Input VAT account')}: </dt><dd className="inline">{current?.inputVatAccount ?? notConfigured}</dd></div>
+              <div><dt className="inline text-muted-foreground">{t('admin.vendorTaxAccounts.pph23', 'PPh 23 payable account')}: </dt><dd className="inline">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
+              <div><dt className="inline text-muted-foreground">{t('admin.vendorTaxAccounts.pph42', 'PPh 4(2) payable account')}: </dt><dd className="inline">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
+            </dl>
+            <p className="mt-2 text-[13px] text-muted-foreground">{t('admin.vendorTaxAccounts.onlyAdmin', 'Only an Admin can change these.')}</p>
+          </>
         )}
       </div>
     </section>

@@ -106,12 +106,7 @@ export function netOf(amount: number, treatment: TaxBasis, vat: number): number 
   return treatment === 'exclusive' ? amount : fromCents(toCents(amount) - toCents(vat));
 }
 
-/** The case's items total before tax — what an ERP-bound bill sends as its lines (Σ quantity × rate, per line in cents). */
-export function itemsNetTotal(items: ReadonlyArray<{ quantity?: number | null; rate?: number | null }>): number | null {
-  if (items.length === 0) return null;
-  const total = items.reduce((sum, item) => sum + Math.round(Number(item.quantity ?? 0) * Number(item.rate ?? 0) * 100), 0);
-  return Number.isFinite(total) ? total / 100 : null;
-}
+export { itemsNetTotal } from './itemsNet';
 
 /** The withholding drafts both bill kinds share: no type = none; a type needs its amount (≥ 0, at most two decimals). */
 function parseWithholding(pphTypeRaw: string, withheldRaw: string): VendorWithholding | null {

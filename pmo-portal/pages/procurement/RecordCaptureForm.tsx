@@ -406,7 +406,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const taxIncomplete = isVendorInvoice && (
     parsedTax === null
     || (pmoAuthorsTax && nativeTax.value === null)
-    || (entersErpAmounts && erpTax.amounts === null));
+    // The server refuses a withheld above the items total (DD-VWH-22); the form says so before the send.
+    || (entersErpAmounts && (erpTax.amounts === null || erpTax.withheldAboveItems)));
 
   // OD-TAX-1 (#548): pre-select the org's `default_tax_treatment` — this form composes a NEW
   // invoice row, which is the only thing that setting is for. Enabled ONLY where PMO authors the

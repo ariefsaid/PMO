@@ -70,6 +70,17 @@ describe('VendorTaxDefaultsCard (#876 slice 2, OD-VWH-1)', () => {
     expect(screen.queryByRole('button', { name: 'Save defaults' })).toBeNull();
   });
 
+  it('AC-VWH-028 a PPh-rate error waits for the rate field: pristine shows none, an invalid rate shows it', async () => {
+    renderCard();
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Withholding'), 'pph23');
+    // The rate field is pristine and empty — no eager error (the disabled Save is the gate).
+    expect(screen.queryByText('Enter a rate above 0 and below 100 with no more than 3 decimal places.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save defaults' })).toBeDisabled();
+    await user.type(screen.getByLabelText('PPh rate (%)'), '0');
+    expect(screen.getByText('Enter a rate above 0 and below 100 with no more than 3 decimal places.')).toBeInTheDocument();
+  });
+
   it('AC-VWH-028 the card renders in Bahasa Indonesia', async () => {
     await financeTestI18n.changeLanguage('id');
     renderCard();

@@ -89,42 +89,51 @@ const total = (rows: GlRow[], side: 'debit' | 'credit') => rows.reduce((sum, r) 
 
 interface Tenant { orgId: string; userId: string; email: string; companyId: string; procurementId: string; piRecordId: string }
 
-/** A genuinely separate organization in IDR with its own Finance member, vendor, procurement, binding and flip. */
+/** A genuinely separate organization in IDR with its own Finance member, vendor, procurement, binding and flip.
+ *  A setup failure cleans up after itself: the partial org is removed before the throw, so a red run never
+ *  leaves throwaway rows in the shared bench database. */
 async function createTenant(admin: SupabaseClient, suffix: string): Promise<Tenant> {
-  const orgId = crypto.randomUUID();
-  const companyId = crypto.randomUUID();
-  const email = `vwh036-${suffix}@acme.test`;
-  const { error: orgErr } = await admin.from('organizations').insert({
-    id: orgId, name: `VWH-036 Org ${suffix}`, default_currency: SAR_CURRENCY,
-    input_vat_account: VAT_ACCOUNT, pph23_payable_account: PPH_ACCOUNT,
-  });
-  if (orgErr) throw new Error(`seed organization failed: ${orgErr.message}`);
-  const { data: created, error: userErr } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
-  if (userErr || !created.user) throw new Error(`create member failed: ${userErr?.message}`);
-  const userId = created.user.id;
-  const { error: profileErr } = await admin.from('profiles')
-    .upsert({ id: userId, org_id: orgId, email, full_name: 'VWH-036 Finance', role: 'Finance', status: 'active' }, { onConflict: 'id' });
-  if (profileErr) throw new Error(`seed profile failed: ${profileErr.message}`);
-  const { error: companyErr } = await admin.from('companies').insert({ id: companyId, org_id: orgId, name: `Spike Supplier ${suffix}`, type: 'Vendor' });
-  if (companyErr) throw new Error(`seed vendor failed: ${companyErr.message}`);
-  const { error: refErr } = await admin.from('external_refs').insert({
-    org_id: orgId, domain: 'companies', pmo_record_id: companyId, external_tier: 'erpnext', external_record_id: 'Supplier:Spike Supplier',
-  });
-  if (refErr) throw new Error(`seed supplier ref failed: ${refErr.message}`);
-  const { data: proc, error: procErr } = await admin.from('procurements')
-    .insert({ org_id: orgId, title: `AC-VWH-036 case ${suffix}`, vendor_id: companyId, status: 'Ordered', currency: SAR_CURRENCY })
-    .select('id').single();
-  if (procErr || !proc) throw new Error(`seed procurement failed: ${procErr?.message}`);
-  const { error: bindingErr } = await admin.from('external_org_bindings').insert({
-    org_id: orgId, external_tier: 'erpnext', site_url: SITE_URL, secret_ref: 'local-bench',
-    webhook_secret_ref: 'DEMO_ERP_WEBHOOK_SECRET', version_major: 15,
-    config: { company: COMPANY, default_cash_account: 'Cash - PSC', default_payable_account: 'Creditors - PSC' },
-    activated_at: new Date().toISOString(),
-  });
-  if (bindingErr) throw new Error(`seed binding failed: ${bindingErr.message}`);
-  const { error: flipErr } = await admin.from('external_domain_ownership').insert({ org_id: orgId, external_tier: 'erpnext', domain: 'procurement' });
-  if (flipErr) throw new Error(`seed ownership failed: ${flipErr.message}`);
-  return { orgId, userId, email, companyId, procurementId: (proc as { id: string }).id, piRecordId: crypto.randomUUID() };
+  const t: Tenant = {
+    orgId: crypto.randomUUID(), userId: '', email: `vwh036-${suffix}@acme.test`,
+    companyId: crypto.randomUUID(), procurementId: '', piRecordId: crypto.randomUUID(),
+  };
+  try {
+    const { error: orgErr } = await admin.from('organizations').insert({
+      id: t.orgId, name: `VWH-036 Org ${suffix}`, default_currency: SAR_CURRENCY,
+      input_vat_account: VAT_ACCOUNT, pph23_payable_account: PPH_ACCOUNT,
+    });
+    if (orgErr) throw new Error(`seed organization failed: ${orgErr.message}`);
+    const { data: created, error: userErr } = await admin.auth.admin.createUser({ email: t.email, password: PASSWORD, email_confirm: true });
+    if (userErr || !created.user) throw new Error(`create member failed: ${userErr?.message}`);
+    t.userId = created.user.id;
+    const { error: profileErr } = await admin.from('profiles')
+      .upsert({ id: t.userId, org_id: t.orgId, email: t.email, full_name: 'VWH-036 Finance', role: 'Finance', status: 'active' }, { onConflict: 'id' });
+    if (profileErr) throw new Error(`seed profile failed: ${profileErr.message}`);
+    const { error: companyErr } = await admin.from('companies').insert({ id: t.companyId, org_id: t.orgId, name: `Spike Supplier ${suffix}`, type: 'Vendor' });
+    if (companyErr) throw new Error(`seed vendor failed: ${companyErr.message}`);
+    const { error: refErr } = await admin.from('external_refs').insert({
+      org_id: t.orgId, domain: 'companies', pmo_record_id: t.companyId, external_tier: 'erpnext', external_record_id: 'Supplier:Spike Supplier',
+    });
+    if (refErr) throw new Error(`seed supplier ref failed: ${refErr.message}`);
+    const { data: proc, error: procErr } = await admin.from('procurements')
+      .insert({ org_id: t.orgId, title: `AC-VWH-036 case ${suffix}`, vendor_id: t.companyId, status: 'Ordered', currency: SAR_CURRENCY })
+      .select('id').single();
+    if (procErr || !proc) throw new Error(`seed procurement failed: ${procErr?.message}`);
+    t.procurementId = (proc as { id: string }).id;
+    const { error: bindingErr } = await admin.from('external_org_bindings').insert({
+      org_id: t.orgId, external_tier: 'erpnext', site_url: SITE_URL, secret_ref: 'local-bench',
+      webhook_secret_ref: 'DEMO_ERP_WEBHOOK_SECRET', version_major: 15,
+      config: { company: COMPANY, default_cash_account: 'Cash - PSC', default_payable_account: 'Creditors - PSC' },
+      activated_at: new Date().toISOString(),
+    });
+    if (bindingErr) throw new Error(`seed binding failed: ${bindingErr.message}`);
+    const { error: flipErr } = await admin.from('external_domain_ownership').insert({ org_id: t.orgId, external_tier: 'erpnext', domain: 'procurement' });
+    if (flipErr) throw new Error(`seed ownership failed: ${flipErr.message}`);
+    return t;
+  } catch (err) {
+    await removeTenant(admin, t);
+    throw err;
+  }
 }
 
 /** Best effort, as AC-TSP-031: append-only history (audit events) may keep the organization row referenced locally. */

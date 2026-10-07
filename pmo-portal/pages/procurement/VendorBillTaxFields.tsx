@@ -107,7 +107,7 @@ export const NativeWithholdingField: React.FC<{ formId: string; tax: NativeVendo
         formId={formId}
         draft={tax.withholding}
         amountTestId={VI_VENDOR_TAX_TEST_IDS.nativeWithheld}
-        error={tax.value === null
+        error={tax.withheldInvalid
           ? t('procurementDetail.vendorTax.withheldError', 'Enter the tax withheld as an amount no larger than the invoice amount (enter the amount first).')
           : undefined}
       />
@@ -134,7 +134,14 @@ export const ErpTaxAmountFields: React.FC<{ formId: string; tax: ErpVendorTax }>
           testId={VI_VENDOR_TAX_TEST_IDS.erpVat}
           suggestion={tax.vat.suggestion}
         />
-        <WithholdingFields formId={formId} draft={tax.withholding} amountTestId={VI_VENDOR_TAX_TEST_IDS.erpWithheld} />
+        <WithholdingFields
+          formId={formId}
+          draft={tax.withholding}
+          amountTestId={VI_VENDOR_TAX_TEST_IDS.erpWithheld}
+          error={tax.withheldAboveItems
+            ? t('procurementDetail.vendorTax.withheldAboveItems', 'The tax withheld is larger than the items total before tax. Check the PPh amount.')
+            : undefined}
+        />
       </div>
       {tax.amounts === null && (
         <p data-testid={VI_VENDOR_TAX_TEST_IDS.erpRequiredHint} className="text-[12px] text-muted-foreground">

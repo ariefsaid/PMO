@@ -23,6 +23,7 @@ import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
 import { resolveSalesTaxRows, type ErpTaxRow } from './erpSalesTaxRows.ts';
 import { buildEnteredPurchaseTaxRows, ENTERED_TAX_AND_TEMPLATE, parseEnteredPurchaseTax, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
+import { itemsNetTotal, lineRate, type ItemsNetLine } from '../../itemsNet.ts';
 import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
@@ -1057,15 +1058,23 @@ async function resolvePurchaseInvoiceTaxes(
   }
   if (!entered) return;
   delete record.taxTemplate;
+  // The items the PI will carry: the command's own, else the case's (adapter.ts substitutes `resolvedItems`).
+  const lines = (Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems ?? []) as ItemsNetLine[];
+  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22): an unpriced line must not count as 0 — it
+  // would understate the base the withheld bound checks against — and an unknown total (a line without a
+  // quantity) must not SKIP the bound — ERPNext would accept the bill and every replay would then refuse it.
+  if (lines.some((line) => lineRate(line) === null)) {
+    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
+  }
+  const itemsTotal = itemsNetTotal(lines);
+  if (lines.length > 0 && itemsTotal === null) {
+    throw new AdapterError('commit-rejected', "The vendor invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
+  }
   const { data, error } = await deps.serviceClient.from('organizations')
     .select('input_vat_account,pph23_payable_account,pph4_2_payable_account').eq('id', deps.orgId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   const settings = (data ?? {}) as Record<string, unknown>;
   const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-  // The items the PI will carry: the command's own, else the case's (adapter.ts substitutes `resolvedItems`).
-  const lines = (Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems ?? []) as Array<{ qty?: unknown; rate?: unknown }>;
-  const total = lines.reduce((sum, line) => sum + Math.round(Number(line.qty) * Number(line.rate ?? 0) * 100), 0) / 100;
-  const itemsTotal = lines.length > 0 && Number.isFinite(total) ? total : null;
   record.taxes = await buildEnteredPurchaseTaxRows(client, company, entered, {
     inputVat: text(settings.input_vat_account), pph23: text(settings.pph23_payable_account), pph4_2: text(settings.pph4_2_payable_account),
   }, itemsTotal);

@@ -83,15 +83,18 @@ select lives_ok($$ select create_procurement_invoice('08760000-0000-0000-0000-00
 select throws_ok($$ select create_procurement_invoice('08760000-0000-0000-0000-0000000003d1'::uuid,
                       'Received'::procurement_invoice_status, '2026-10-07'::date, 'VI-S2-NOAMT', null::numeric,
                       p_tax_treatment => 'exclusive', p_tax_amount => 0, p_withheld_amount => 5, p_withheld_pph_type => 'pph23') $$,
-  '23514', null, 'AC-VWH-024 a withholding on a bill with no amount is refused');
+  '23514', 'new row for relation "procurement_invoices" violates check constraint "procurement_invoices_withheld_amount_bounds"',
+  'AC-VWH-024 a withholding on a bill with no amount is refused (and by THAT bound, not any CHECK)');
 select throws_ok($$ select create_procurement_invoice('08760000-0000-0000-0000-0000000003d1'::uuid,
                       'Received'::procurement_invoice_status, '2026-10-07'::date, 'VI-S2-NEG', 1000::numeric,
                       p_tax_treatment => 'exclusive', p_tax_amount => 0, p_withheld_amount => -1, p_withheld_pph_type => 'pph23') $$,
-  '23514', null, 'AC-VWH-024 a negative withholding on a positive bill is refused');
+  '23514', 'new row for relation "procurement_invoices" violates check constraint "procurement_invoices_withheld_amount_bounds"',
+  'AC-VWH-024 a negative withholding on a positive bill is refused (and by THAT bound, not any CHECK)');
 select throws_ok($$ select create_procurement_invoice('08760000-0000-0000-0000-0000000003d1'::uuid,
                       'Received'::procurement_invoice_status, '2026-10-07'::date, 'VI-S2-BIG', 1000::numeric,
                       p_tax_treatment => 'exclusive', p_tax_amount => 0, p_withheld_amount => 1000.01, p_withheld_pph_type => 'pph23') $$,
-  '23514', null, 'AC-VWH-024 a withholding above the bill amount is refused');
+  '23514', 'new row for relation "procurement_invoices" violates check constraint "procurement_invoices_withheld_amount_bounds"',
+  'AC-VWH-024 a withholding above the bill amount is refused (and by THAT bound, not any CHECK)');
 select lives_ok($$ select capture_vendor_invoice('08760000-0000-0000-0000-0000000003d2'::uuid,
                      'Received'::procurement_invoice_status, '2026-10-07'::date, 'VI-S2-CAP', 2000000::numeric, null,
                      p_tax_treatment => 'exclusive', p_tax_amount => 220000, p_withheld_amount => 40000,

@@ -130,6 +130,50 @@ describe('standalone bill (PMO authors the tax) — AC-VWH-030', () => {
     await userEvent.type(screen.getByTestId('vi-withheld-input'), '5000');
     expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
   });
+
+  it('AC-VWH-030 switching the type away from the default clears the suggested amount; an edited amount is kept', async () => {
+    const onStage = renderVI({ vendorId: 'vendor-1' });
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    const withheld = await screen.findByTestId('vi-withheld-input');
+    await waitFor(() => expect(withheld).toHaveValue(formatMoneyInputValue(20000)));
+    // Not edited: the 20,000 belonged to PPh 23 — switching types must not carry it over.
+    await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph4_2');
+    expect(withheld).toHaveValue('');
+    await userEvent.type(withheld, '10000');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(onStage).toHaveBeenCalledWith(expect.objectContaining({ withheldAmount: 10000, withheldPphType: 'pph4_2' }));
+  });
+
+  it('AC-VWH-030 an edited withheld amount survives a type switch', async () => {
+    renderVI({ vendorId: 'vendor-1' });
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    const withheld = await screen.findByTestId('vi-withheld-input');
+    await waitFor(() => expect(withheld).toHaveValue(formatMoneyInputValue(20000)));
+    await userEvent.clear(withheld);
+    await userEvent.type(withheld, '19999');
+    await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph4_2');
+    expect(withheld).toHaveValue(formatMoneyInputValue(19999));
+  });
+
+  it('AC-VWH-030 the withheld error waits for engagement: a pristine form shows none', async () => {
+    renderVI({ vendorId: 'vendor-1' });
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    // The vendor's PPh 23 is seeded and its amount field is offered, but nothing has been entered — no error.
+    expect(screen.getByTestId('vi-withheld-input')).toBeInTheDocument();
+    expect(screen.queryByText(/Enter the tax withheld as an amount no larger than the invoice amount/)).toBeNull();
+  });
+
+  it('AC-VWH-030 an incomplete engaged state does show the withheld error', async () => {
+    repo.getCompany.mockResolvedValueOnce(NO_DEFAULT);
+    renderVI({ vendorId: 'vendor-1' });
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
+    expect(await screen.findByText(/Enter the tax withheld as an amount no larger than the invoice amount/)).toBeInTheDocument();
+  });
 });
 
 describe('ERP-connected bill (amounts sent as fixed rows) — AC-VWH-031', () => {
@@ -186,6 +230,23 @@ describe('ERP-connected bill (amounts sent as fixed rows) — AC-VWH-031', () =>
     expect(onStage).toHaveBeenCalledWith(expect.objectContaining({
       erpTaxAmounts: { vatAmount: 0, withheldAmount: 0, pphType: null },
     }));
+  });
+
+  it('AC-VWH-031 the entered withheld may not exceed the items total (the server refuses it too)', async () => {
+    const onStage = renderVI({ vendorId: 'vendor-1', itemsNet: 1000000 });
+    const withheld = await screen.findByTestId('vi-erp-withheld-input');
+    await waitFor(() => expect(withheld).toHaveValue(formatMoneyInputValue(20000)));
+    await userEvent.clear(withheld);
+    await userEvent.type(withheld, '1000000.01');
+    expect(screen.getByText(/The tax withheld is larger than the items total before tax/)).toBeInTheDocument();
+    expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
+    expect(onStage).not.toHaveBeenCalled();
+    await userEvent.clear(withheld);
+    await userEvent.type(withheld, '1000000');
+    expect(screen.queryByText(/The tax withheld is larger than the items total before tax/)).toBeNull();
+    expect(screen.getByTestId('btn-save-vi')).toBeEnabled();
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(onStage).toHaveBeenCalledWith(expect.objectContaining({ erpTaxAmounts: { vatAmount: 110000, withheldAmount: 1000000, pphType: 'pph23' } }));
   });
 
   it('AC-VWH-031 the amounts and their bases render in Bahasa Indonesia', async () => {
