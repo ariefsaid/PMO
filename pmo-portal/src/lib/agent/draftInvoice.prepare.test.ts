@@ -9,7 +9,7 @@ import {
 } from '../../../../supabase/functions/agent-chat/draftInvoice';
 import { asLoose } from '../../../../supabase/functions/agent-chat/looseClient';
 import { fakeSupabase, opsOf, type Invoker } from './testing/fakeSupabase';
-import { C1, ctx, newId, oneItem, P1, PROJECT, WO, world } from './testing/draftInvoiceFixtures';
+import { C1, ctx, newId, oneItem, P1, PREPARED, PROJECT, WO, world } from './testing/draftInvoiceFixtures';
 
 describe('prepareDraftInvoice — gate (#787)', () => {
   it.each(['Project Manager', 'Executive', 'Engineer'])('AC-AIN-007 %s is refused before any lookup', async (role) => {
@@ -237,5 +237,46 @@ describe('prepareDraftInvoice — chip honesty and limits (#787)', () => {
     const ms = fakeSupabase(world({ projects: (c) => (c.terminal === 'maybeSingle' ? { ...PROJECT, currency: 'USD' } : [{ ...PROJECT, currency: 'USD' }]) }), oneItem);
     expect(await prepareDraftInvoice({ milestone: '2', project: P1, amount: 5 }, ctx('Finance', ms.client), newId))
       .toMatchObject({ ok: false, error: { error: expect.stringMatching(/in USD, but this organisation invoices in IDR/) } });
+  });
+});
+describe('prepareDraftInvoice — billing by work order (OD-BILL-1, DD-BWO-9)', () => {
+  const billed = (rows: Array<{ billed: number | null; currency: string }>) =>
+    world({ work_order_billing_lines: () => rows });
+
+  it('AC-BWO-005 a work-order draft names the work order and defaults to what is still to invoice', async () => {
+    const { client, calls } = fakeSupabase(billed([{ billed: 400_000, currency: 'IDR' }]), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value.workOrderId).toBe(WO.id);
+    expect(out.value.items[0].rate).toBe(600_000);
+    expect(opsOf(calls, 'work_order_billing_lines')[0]).toContainEqual(['eq', 'work_order_id', WO.id]);
+    expect(validatePreparedDraft(out.value)).toEqual({ ok: true, value: out.value });
+  });
+
+  it('AC-BWO-005 a stated amount above what is left is refused before the chip', async () => {
+    const { client } = fakeSupabase(billed([{ billed: 400_000, currency: 'IDR' }]), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001', amount: 700_000 }, ctx('Finance', client), newId)).toEqual({
+      ok: false,
+      error: { error: 'Only IDR\u00a0600,000 is still to invoice on WO-20261001-001 — Phase 2 survey. How much should this invoice be, before tax?', needs: 'amount' },
+    });
+  });
+
+  it('AC-BWO-005 a work order with nothing left is refused before the chip', async () => {
+    const { client } = fakeSupabase(billed([{ billed: 1_000_000, currency: 'IDR' }]), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId))
+      .toEqual({ ok: false, error: { error: 'Nothing is left to invoice on WO-20261001-001 — Phase 2 survey.' } });
+  });
+
+  it('AC-BWO-005 an invoice that cannot be totalled is refused before the chip', async () => {
+    const { client } = fakeSupabase(billed([{ billed: null, currency: 'IDR' }]), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId)).toEqual({
+      ok: false,
+      error: { error: 'An invoice on WO-20261001-001 — Phase 2 survey has no amount or is in another currency, so what is left to invoice cannot be worked out.' },
+    });
+  });
+
+  it('AC-BWO-005 a replayed draft with a malformed work-order id is refused', () => {
+    expect(validatePreparedDraft({ ...PREPARED, workOrderId: 'not-a-uuid' })).toEqual({ ok: false, error: 'workOrderId must be a uuid' });
   });
 });

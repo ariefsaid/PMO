@@ -7,13 +7,15 @@ import {
   CardPad,
   ConfirmDialog,
   DataTable,
+  ListState,
   StatusPill,
+  TaxBasisLabel,
   useToast,
   type Column,
   type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDateOnly, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDateOnly, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -25,6 +27,15 @@ import { useProjectWorkOrders, useWorkOrderMutations } from '@/src/hooks/useWork
 import ProjectDrawdown from '../ProjectDrawdown';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
+import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
+import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import {
+  canInvoiceWorkOrder,
+  deriveWorkOrderBillingState,
+  summarizeProjectWorkOrderBilling,
+  type WorkOrderBillingState,
+} from '@/src/lib/workOrderBilling';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -47,6 +58,18 @@ export interface WorkOrdersTabProps {
   projectId: string;
   /** The project's currency. Work orders are pinned to it by a trigger, so they never disagree. */
   currency: string;
+  /** The project's client — the invoice customer (OD-BILL-1). No client, no "Invoice" button. */
+  clientId?: string | null;
+}
+
+/** OD-BILL-1: the billing pill per derived state ('not-billable' renders a dash, no pill). */
+const BILLING_VARIANT: Record<Exclude<WorkOrderBillingState, 'not-billable'>, StatusVariant> = {
+  'not-invoiced': 'draft',
+  'partly-invoiced': 'progress',
+  'fully-invoiced': 'progress',
+  paid: 'won',
+  'over-invoiced': 'overdue',
+  incomplete: 'warn',
 }
 
 const STATUS_VARIANT: Record<WorkOrderStatus, StatusVariant> = {
@@ -62,7 +85,7 @@ interface PendingTransition {
   to: WorkOrderStatus;
 }
 
-const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) => {
+const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { toast } = useToast();
@@ -79,6 +102,88 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
 
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
+
+  // ── OD-BILL-1: billing by work order. Read = the revenue read set; Invoice = the invoice-create authority, only
+  //    where an invoice can be raised today (revenue on ERPNext) and only with a client to invoice. UX only — the
+  //    database refuses past-the-value invoices before any ERP write (0262).
+  const canViewBilling = may('view', 'salesInvoice');
+  const canInvoice = may('create', 'salesInvoice') && routeDomainWrite('revenue') === 'external' && Boolean(clientId);
+  const billing = useWorkOrderBilling(projectId, canViewBilling);
+  const billingById = useMemo(
+    () => new Map((billing.data ?? []).map((b) => [b.workOrderId, b] as const)),
+    [billing.data],
+  );
+  const totals = summarizeProjectWorkOrderBilling(billing.data ?? []);
+  const [invoiceFor, setInvoiceFor] = useState<{ row: WorkOrderRow; remaining: number } | null>(null);
+  // Every billing figure is normalised excl. tax (DD-BWO-3), so each carries the shared basis label (OD-TAX-1).
+  const excl = <TaxBasisLabel treatment="exclusive" showDetails={false} testId="wo-billing-basis" />;
+
+  const billingLabel = (state: Exclude<WorkOrderBillingState, 'not-billable'>): string => {
+    switch (state) {
+      case 'not-invoiced':
+        return t('projectDetail.workOrders.billing.status.notInvoiced', 'Not invoiced');
+      case 'partly-invoiced':
+        return t('projectDetail.workOrders.billing.status.partlyInvoiced', 'Partly invoiced');
+      case 'fully-invoiced':
+        return t('projectDetail.workOrders.billing.status.fullyInvoiced', 'Fully invoiced');
+      case 'paid':
+        return t('projectDetail.workOrders.billing.status.paid', 'Paid');
+      case 'over-invoiced':
+        return t('projectDetail.workOrders.billing.status.overInvoiced', 'Over-invoiced');
+      default:
+        return t('projectDetail.workOrders.billing.status.incomplete', "Can't total");
+    }
+  };
+
+  const billingColumn: Column<WorkOrderRow> = {
+    key: 'billing',
+    header: t('projectDetail.workOrders.billing.column', 'Billing'),
+    cell: (row) => {
+      const f = billingById.get(row.id);
+      if (billing.isPending) return <span className="text-muted-foreground">…</span>;
+      if (billing.isError || !f) {
+        return (
+          <span data-testid={`wo-billing-${row.id}`} className="text-[12px] text-muted-foreground">
+            {t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
+          </span>
+        );
+      }
+      const state = deriveWorkOrderBillingState(row.status, f);
+      if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>—</span>;
+      return (
+        <div className="flex flex-col items-start gap-0.5" data-testid={`wo-billing-${row.id}`}>
+          <StatusPill variant={BILLING_VARIANT[state]}>{billingLabel(state)}</StatusPill>
+          {state !== 'incomplete' && (
+            <>
+              <span className="text-[11px] tabular text-muted-foreground">
+                {t('projectDetail.workOrders.billing.lineInvoiced', {
+                  defaultValue: 'Invoiced {{invoiced}} · paid {{paid}}',
+                  invoiced: formatCurrencyCents(f.invoiced, f.currency),
+                  paid: formatCurrencyCents(f.paid, f.currency),
+                  interpolation: { escapeValue: false },
+                })}{' '}
+                {excl}
+              </span>
+              <span className="text-[11px] font-semibold tabular">
+                {state === 'over-invoiced'
+                  ? t('projectDetail.workOrders.billing.lineOver', {
+                      defaultValue: 'Over by {{amount}}',
+                      amount: formatCurrencyCents(-f.remaining, f.currency),
+                      interpolation: { escapeValue: false },
+                    })
+                  : t('projectDetail.workOrders.billing.lineRemaining', {
+                      defaultValue: 'Still to invoice {{amount}}',
+                      amount: formatCurrencyCents(Math.max(f.remaining, 0), f.currency),
+                      interpolation: { escapeValue: false },
+                    })}{' '}
+                {excl}
+              </span>
+            </>
+          )}
+        </div>
+      );
+    },
+  };
 
   const statusLabel = (status: WorkOrderStatus): string => {
     switch (status) {
@@ -207,6 +312,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
         </span>
       ),
     },
+    ...(canViewBilling ? [billingColumn] : []),
     {
       key: 'orderDate',
       header: t('projectDetail.workOrders.column.orderDate', 'Order date'),
@@ -248,6 +354,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
                 {t('projectDetail.workOrders.action.close', 'Close')}
               </Button>
             )}
+            {canInvoice && (() => {
+              const f = billingById.get(row.id);
+              return f && canInvoiceWorkOrder(row.status, f) ? (
+                <Button variant="primary" size="sm" onClick={() => setInvoiceFor({ row, remaining: f.remaining })}>
+                  {t('projectDetail.workOrders.billing.invoiceAction', 'Invoice')}
+                </Button>
+              ) : null;
+            })()}
             {(isDraft || isIssued) && canTransition && (
               <Button
                 variant="ghost"
@@ -304,6 +418,48 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
     <div className="space-y-6">
       <ProjectDrawdown projectId={projectId} />
 
+      {canViewBilling && (
+        <Card variant="bare" data-testid="wo-billing-summary">
+          <CardHead>{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</CardHead>
+          <CardPad>
+            {billing.isPending ? (
+              <ListState variant="loading" rows={1} testId="wo-billing-loading" />
+            ) : billing.isError || !billing.data ? (
+              <ListState
+                variant="error"
+                title={t('projectDetail.workOrders.billing.loadError', "Couldn't load billing for these work orders")}
+                onRetry={() => billing.refetch()}
+              />
+            ) : (
+              <>
+                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {([
+                    ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
+                    ['wo-billing-total-paid', t('projectDetail.workOrders.billing.paid', 'Paid'), totals.paid],
+                    ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
+                  ] as const).map(([testId, label, value]) => (
+                    <div key={testId} data-testid={testId}>
+                      <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
+                      <dd className="mt-0.5 text-[15px] font-bold tabular">
+                        {totals.complete
+                          ? formatCurrencyCents(value, currency)
+                          : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
+                      </dd>
+                      {totals.complete && <dd>{excl}</dd>}
+                    </div>
+                  ))}
+                </dl>
+                <p className="mt-2 text-[12px] text-muted-foreground">
+                  {totals.complete
+                    ? t('projectDetail.workOrders.billing.summaryNote', 'Issued and closed work orders, less what has been invoiced or drafted against them.')
+                    : t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
+                </p>
+              </>
+            )}
+          </CardPad>
+        </Card>
+      )}
+
       <Card variant="bare">
         <CardHead className="justify-between">
           <span>{t('projectDetail.workOrders.title', 'Work orders')}</span>
@@ -352,6 +508,29 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency }) =>
           currencySymbolPrefix={prefix}
           onClose={() => setValueFor(null)}
           onSave={runSetValue}
+          onError={fail}
+        />
+      )}
+
+      {invoiceFor && clientId && (
+        <InvoiceWorkOrderModal
+          workOrder={invoiceFor.row}
+          projectId={projectId}
+          clientId={clientId}
+          remaining={invoiceFor.remaining}
+          onClose={() => setInvoiceFor(null)}
+          onCreated={(siNumber) => {
+            toast(
+              t('projectDetail.workOrders.billing.toast.created', 'Draft invoice created'),
+              t('projectDetail.workOrders.billing.toast.createdSub', {
+                defaultValue: '{{number}} — submit it from Sales Invoices.',
+                number: siNumber,
+                interpolation: { escapeValue: false },
+              }),
+              'success',
+            );
+            setInvoiceFor(null);
+          }}
           onError={fail}
         />
       )}

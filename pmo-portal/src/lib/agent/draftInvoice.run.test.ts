@@ -18,6 +18,12 @@ describe('runDraftInvoice (#787)', () => {
     expect(JSON.stringify(invoke.mock.calls[0][1])).not.toMatch(/submit|transition|verb/);
     expect(out).toMatchObject({ ok: true, status: 'Draft', siNumber: 'ACC-SINV-2026-00099', link: '/sales-invoices?q=ACC-SINV-2026-00099' });
   });
+  it('AC-BWO-005 the approved draft dispatches the work order with the create', async () => {
+    const invoke = vi.fn<Invoker>(async () => ({ data: { canonical: { id: PREPARED.commandId, si_number: 'ACC-SINV-2026-00100' } }, error: null }));
+    await runDraftInvoice({ ...PREPARED, workOrderId: '33333333-3333-4333-8333-333333333333' }, ctx(invoke));
+    expect((invoke.mock.calls[0][1] as { body: { record: Record<string, unknown> } }).body.record.workOrderId)
+      .toBe('33333333-3333-4333-8333-333333333333');
+  });
   it('AC-AIN-016 a dispatch rejection surfaces its message, never ok', async () => {
     const invoke: Invoker = async () => ({ data: null, error: { context: new Response(JSON.stringify({ error: 'commit-rejected', message: 'project is not mapped in ERPNext' }), { status: 422 }) } });
     expect(await runDraftInvoice(PREPARED, ctx(invoke))).toEqual({ error: 'project is not mapped in ERPNext', code: 'commit-rejected' });

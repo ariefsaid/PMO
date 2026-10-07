@@ -66,6 +66,8 @@ export interface DraftInvoicePrepared {
   idempotencyKey: string;
   customerId: string;
   projectId: string;
+  /** OD-BILL-1 (DD-BWO-9): the work order this draft bills; absent for a milestone draft. */
+  workOrderId?: string;
   items: [DraftInvoiceLine];
   reference_number: string | null;
   display: { customerName: string; projectName: string; sourceLabel: string; amountText: string; itemLabel?: string };
@@ -82,6 +84,9 @@ export function validatePreparedDraft(
   if (p.kind !== 'prepared-draft-invoice') return bad('not a prepared draft invoice');
   for (const k of ['commandId', 'idempotencyKey', 'customerId', 'projectId']) {
     if (typeof p[k] !== 'string' || !UUID_RE.test(p[k] as string)) return bad(`${k} must be a uuid`);
+  }
+  if (p.workOrderId !== undefined && (typeof p.workOrderId !== 'string' || !UUID_RE.test(p.workOrderId))) {
+    return bad('workOrderId must be a uuid');
   }
   const items = Array.isArray(p.items) ? p.items : [];
   if (items.length !== 1) return bad('exactly one line is required');
@@ -104,6 +109,7 @@ export function validatePreparedDraft(
       idempotencyKey: p.idempotencyKey as string,
       customerId: p.customerId as string,
       projectId: p.projectId as string,
+      ...(typeof p.workOrderId === 'string' ? { workOrderId: p.workOrderId } : {}),
       items: [{ item_code: (line.item_code as string).trim(), qty: 1, rate: line.rate as number, description: line.description as string }],
       reference_number: ref as string | null,
       display: {
@@ -211,6 +217,36 @@ export async function resolveWorkOrder(sb: LooseClient, term: string, project: P
     return refuse(`${woLabel(wo)} is ${wo.status}; only an Issued or Closed work order can be invoiced.`);
   }
   return { ok: true, value: wo };
+}
+
+const BILLING_LINE_LIMIT = 500;
+
+/**
+ * DD-BWO-9 (OD-BILL-1): what is still to invoice on a work order, before tax — its value (from its own recorded tax
+ * facts) minus every record that bills it, read from the SAME view the Work orders tab and the database fence use
+ * (`work_order_billing_lines`, RLS-scoped under the caller's JWT). In-flight ERP commands are not visible here; the
+ * database fence counts them and remains the authority.
+ */
+export async function workOrderStillToInvoice(sb: LooseClient, wo: WorkOrderRow): Promise<Resolved<number>> {
+  const net = normalizeTaxAmount(Number(wo.order_value), Number(wo.tax_amount), wo.tax_treatment, 'exclusive');
+  if (net === null) {
+    return refuse(`I can't work out ${woLabel(wo)}'s value before tax. How much should this invoice be, before tax?`, 'amount');
+  }
+  const rows = await readRows<{ billed: number | string | null; currency: string }>(
+    sb.from('work_order_billing_lines').select('billed, currency').eq('work_order_id', wo.id).limit(BILLING_LINE_LIMIT),
+  );
+  if (rows.length >= BILLING_LINE_LIMIT) {
+    return refuse(`${woLabel(wo)} has too many invoices to total here. Create this one from the project's Work orders tab.`);
+  }
+  let billedCents = 0;
+  for (const r of rows) {
+    const value = r.billed === null ? Number.NaN : Number(r.billed);
+    if (!Number.isFinite(value) || r.currency !== wo.currency) {
+      return refuse(`An invoice on ${woLabel(wo)} has no amount or is in another currency, so what is left to invoice cannot be worked out.`);
+    }
+    billedCents += Math.round(value * 100);
+  }
+  return { ok: true, value: (Math.round(net * 100) - billedCents) / 100 };
 }
 
 export interface MilestoneRow { id: string; name: string; project_id: string; sort_order: number }
@@ -332,26 +368,36 @@ export async function prepareDraftInvoice(
     return refuse(`${customer?.name ?? 'This client'} is not linked to ERPNext yet, so an invoice cannot be raised for them.`);
   }
 
-  // DD-AIN-4: a stated amount wins; else a work order's value BEFORE tax from its own recorded tax facts.
-  let rate: number | null = req.amount ?? null;
-  if (rate === null && source.kind === 'workOrder') {
-    const wo = source.wo;
-    rate = normalizeTaxAmount(Number(wo.order_value), Number(wo.tax_amount), wo.tax_treatment, 'exclusive');
+  // DD-BWO-9 (OD-BILL-1, amends DD-AIN-4): a work-order draft bills what is STILL TO INVOICE on that work order,
+  // before tax, and links it — the figure the Work orders tab shows and the database fence enforces.
+  let woRemaining: number | null = null;
+  if (source.kind === 'workOrder') {
+    const left = await workOrderStillToInvoice(sb, source.wo);
+    if (!left.ok) return left;
+    if (Math.round(left.value * 100) <= 0) return refuse(`Nothing is left to invoice on ${woLabel(source.wo)}.`);
+    woRemaining = left.value;
   }
+  // A stated amount wins; else the work order's still-to-invoice.
+  const rate: number | null = req.amount ?? woRemaining;
   if (rate === null) {
     return source.kind === 'milestone'
       ? refuse("Milestones don't carry an amount yet. How much should this invoice be, before tax?", 'amount')
       : refuse(`I can't work out ${woLabel(source.wo)}'s value before tax. How much should this invoice be, before tax?`, 'amount');
   }
   if (!isMoney(rate)) return refuse('The amount to invoice must be more than zero.', 'amount');
+  if (source.kind === 'workOrder' && woRemaining !== null && Math.round(rate * 100) > Math.round(woRemaining * 100)) {
+    const left = formatMoney(woRemaining, source.wo.currency, resolveNumberLocale(org));
+    return refuse(`Only ${left} is still to invoice on ${woLabel(source.wo)}. How much should this invoice be, before tax?`, 'amount');
+  }
 
   const poRef = source.kind === 'workOrder' ? source.wo.client_po_number ?? null : null;
   if (source.kind === 'workOrder' && poRef !== null && poRef.length > 140) {
     return refuse(`The client PO reference on ${source.wo.wo_number ?? source.wo.title} is longer than 140 characters, so it cannot go on an invoice. Shorten it on the work order first.`);
   }
 
-  // The dispatched invoice carries NO currency (ERPNext applies the customer's / company's), so a source in any
-  // other currency than the org's would be billed in the wrong one: refuse before the chip.
+  // Since #866 the dispatch states an ordinary invoice in its PROJECT's currency (and refuses one that differs from the
+  // customer's ERPNext billing currency before any write). This narrower check — the org's default currency — predates
+  // that and is kept as an assistant-only guard: the assistant raises drafts only in the org's own currency.
   const sourceCurrency = source.kind === 'workOrder' ? source.wo.currency : project.currency;
   if (org?.default_currency && sourceCurrency !== org.default_currency) {
     const label = source.kind === 'workOrder' ? source.wo.wo_number ?? source.wo.title : `${project.name} — ${source.ms.name}`;
@@ -370,6 +416,7 @@ export async function prepareDraftInvoice(
     idempotencyKey: newId(),
     customerId: clientId,
     projectId: project.id,
+    ...(source.kind === 'workOrder' ? { workOrderId: source.wo.id } : {}),
     items: [{ item_code: item.value.code, qty: 1, rate, description }],
     reference_number: poRef,
     display: {
@@ -416,6 +463,7 @@ export async function runDraftInvoice(input: unknown, ctx: DeputyContext): Promi
         projectId: p.projectId,
         items: p.items,
         ...(p.reference_number ? { reference_number: p.reference_number } : {}),
+        ...(p.workOrderId ? { workOrderId: p.workOrderId } : {}),
       }),
       id: p.commandId,
     },
