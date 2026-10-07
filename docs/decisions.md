@@ -1322,6 +1322,11 @@ with period lock and foreign-currency revaluation (#900). Map: "Month-end and ye
 is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
 work, not a PMO gap.
 
+**[DD-PDF-1..11] The client invoice PDF is the ERP's own print, proxied on demand (#912, Director 2026-10-07).**
+Recorded in full in `docs/specs/invoice-pdf.spec.md` and ADR-0083: Admin/Finance only; submitted invoices only (PMO
+row AND the ERP's live status); document name from the machine-written link table, doctype fixed in code; the ERP's
+default print format; nothing stored in PMO; fixed error messages, never ERP text; no migration.
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
