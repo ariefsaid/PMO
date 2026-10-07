@@ -2,7 +2,7 @@
 
 > Spec: `docs/specs/vendor-payment-from-pmo.spec.md` (FR-VPAY-###, AC-VPAY-###, DD-VPAY-1..10).
 > Branch `feat/910-vendor-payment` off `origin/dev`. **Lane: Director-dispatched (money path).**
-> Migration: **YES — `0274_payments_recorded_by.sql`** (nullable payer stamp; renumber at merge via
+> Migration: **YES — `0276_payments_recorded_by.sql`** (nullable payer stamp; renumber at merge via
 > `scripts/renumber-migration.sh` if 0272/0273 land first). Every DB-driving command below runs
 > under `scripts/with-db-lock.sh`; the heavy vitest runs under `scripts/with-test-lock.sh`.
 
@@ -114,16 +114,16 @@ but submits `status: null` (never `Pending`). GREEN: in `RecordCaptureForm.tsx` 
 `status: null` otherwise; leave every other kind untouched.
 Verify: `cd pmo-portal && npx vitest run pages/procurement/__tests__/RecordCaptureForm.payment.test.tsx pages/procurement/RecordCaptureForm.groupRef.test.tsx pages/procurement/RecordCaptureForm.taxTemplate.test.tsx`
 
-### Task 6 — Migration `0274_payments_recorded_by.sql` + pgTAP — AC-VPAY-007
-`supabase/migrations/0274_payments_recorded_by.sql`:
+### Task 6 — Migration `0276_payments_recorded_by.sql` + pgTAP — AC-VPAY-007
+`supabase/migrations/0276_payments_recorded_by.sql`:
 `alter table public.payments add column if not exists recorded_by_id uuid references public.profiles(id);`
 (reversible: `drop column if exists`; no grant/RLS change — `payments` has no client write grant,
 `0100:6-10`; recheck `0058`/`0178` invariants stay the only writers). pgTAP
-`supabase/tests/0274_payments_recorded_by.test.sql`: column exists, nullable, FK to `profiles`;
+`supabase/tests/0276_payments_recorded_by.test.sql`: column exists, nullable, FK to `profiles`;
 service-role insert states it, null-caller insert leaves it null; `authenticated`/`anon` INSERT or
 UPDATE on `payments` is refused (column-grant oracle style, the 0266/AC-VWH-009 idiom).
 Verify (ONE lock hold — this branch adds a migration):
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0274_payments_recorded_by.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0276_payments_recorded_by.test.sql'`
 
 ### Task 7 — Mirror writer stamps the payer (`readModelWriters.ts`) — AC-VPAY-008
 RED: in `supabase/functions/adapter-dispatch/readModelWriters.money.test.ts`'s payment section:
@@ -171,7 +171,7 @@ CI is the full-suite gate (PR → `dev` = `verify` + `pgtap`); do not repeat the
 | AC-VPAY-004 | FR-VPAY-003/004/006 | unit (Vitest) | `src/lib/adapterSeam/erpnext/dispatchFactory.test.ts` | 2 |
 | AC-VPAY-005 | FR-VPAY-001 | unit (Vitest) | `src/lib/repositories/procurement.external.test.ts` | 4 |
 | AC-VPAY-006 | FR-VPAY-010 | unit (Vitest/RTL) | `pages/procurement/__tests__/RecordCaptureForm.payment.test.tsx` | 5 |
-| AC-VPAY-007 | FR-VPAY-009 (schema) | pgTAP | `supabase/tests/0274_payments_recorded_by.test.sql` | 6 |
+| AC-VPAY-007 | FR-VPAY-009 (schema) | pgTAP | `supabase/tests/0276_payments_recorded_by.test.sql` | 6 |
 | AC-VPAY-008 | FR-VPAY-009 (writer) | unit (Deno) | `supabase/functions/adapter-dispatch/readModelWriters.money.test.ts` | 7 |
 
 Coverage ≥ 80% lines on changed code; every security-critical rule (SoD gate, amount gate, account

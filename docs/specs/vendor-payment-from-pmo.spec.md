@@ -213,7 +213,7 @@ shape — which is exactly the bypass this issue closes).
 | AC-VPAY-004 | FR-VPAY-003/004/006 | unit (Vitest) | `pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.test.ts` |
 | AC-VPAY-005 | FR-VPAY-001 | unit (Vitest) | `pmo-portal/src/lib/repositories/procurement.external.test.ts` |
 | AC-VPAY-006 | FR-VPAY-010 | unit (Vitest/RTL) | `pmo-portal/pages/procurement/__tests__/RecordCaptureForm.payment.test.tsx` |
-| AC-VPAY-007 | FR-VPAY-009 (schema) | integration (pgTAP) | `supabase/tests/0274_payments_recorded_by.test.sql` |
+| AC-VPAY-007 | FR-VPAY-009 (schema) | integration (pgTAP) | `supabase/tests/0276_payments_recorded_by.test.sql` |
 | AC-VPAY-008 | FR-VPAY-009 (writer) | unit (Deno, edge) | `supabase/functions/adapter-dispatch/readModelWriters.money.test.ts` |
 
 AC-VPAY-001 is the one curated cross-stack journey (the form → dispatch → ERPNext → sweep → ledger
