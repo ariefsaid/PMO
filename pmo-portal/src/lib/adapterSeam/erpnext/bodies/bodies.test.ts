@@ -176,6 +176,15 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     expect(body.received_amount).toBe(1090000);
   });
 
+  it('AC-VPAY-002 a payload received_amount is IGNORED — received_amount always equals paid_amount (FR-VPAY-007)', () => {
+    // FR-VPAY-007 pins received_amount = paid_amount (same figure; the binding company currency
+    // governs). The command carries no currency pair, so a caller-supplied "received" figure could
+    // only be a silent FX claim — the payload's copy is discarded and the builder echoes paid_amount.
+    const body = peToBody(rec({ paid_amount: 1090000, received_amount: 77, date: '2026-10-08' }), CTX) as Record<string, unknown>;
+    expect(body.paid_amount).toBe(1090000);
+    expect(body.received_amount).toBe(1090000);
+  });
+
   it('AC-VPAY-002 server-resolved allocation wins: refs.pi builds references[] when the payload carried none', () => {
     // DD-VPAY-2: the dispatch resolves the bill's ERP name; the body builder prefers it over an empty default.
     const ctx: ErpCtx = { ...CTX, refs: { ...CTX.refs, pi: 'ACC-PINV-2026-00910' } };

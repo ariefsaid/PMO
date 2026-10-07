@@ -143,9 +143,9 @@ shape — which is exactly the bypass this issue closes).
   PMO owns: the bill (required), the amount (defaulting to the bill's outstanding), the date and
   the optional PMO-side reference; it shall not offer a status select (DD-VPAY-8) and shall not ask
   for facts the dispatch drops (the `groupRefIsPmoAuthored` ruling).
-- **NFR-VPAY-001** — The server-side gates (FR-VPAY-004/005/006) add at most three DB reads (case,
-  bill, external-ref) and zero ERP reads; they run before the outbox insert, so a refused payment
-  leaves no outbox row.
+- **NFR-VPAY-001** — The server-side gates (FR-VPAY-004/005/006) add at most four DB reads (case,
+  bill, external-ref, the org's `default_currency` for the §1 currency gate) and zero ERP reads;
+  they run before the outbox insert, so a refused payment leaves no outbox row.
 - **NFR-VPAY-002** — All money comparisons are in integer cents; `paid_amount` keeps the
   numeric(14,2) column discipline (`payments_amount_nonneg`, 0058).
 - **NFR-VPAY-003** — A held Payment Entry recovery (ADR-0058 C-1: mutable anchor ⇒ held, never
@@ -163,6 +163,10 @@ shape — which is exactly the bypass this issue closes).
   `Vendor Invoiced → Paid` branch (`0006:222-225`); the served dispatch gate for a procurement
   payment is role-only (`authGuard.ts:36`), so on a flipped org a direct dispatch (or the approver
   via the form) could mint a Payment Entry the SoD rule exists to prevent.
+- **OBS-VPAY-003** — Multi-currency / FX vendor payment is a known gap (spec §1 scopes it out): a
+  bill whose mirrored `procurement_invoices.currency` differs from the org's `default_currency` is
+  refused `commit-rejected` ("pay it in ERPNext"), but under OD-ERP-3 nobody uses ERPNext screens
+  either — until a dedicated FX slice lands, a foreign-currency bill is simply unpayable.
 
 ## 4. Acceptance criteria (Given/When/Then)
 

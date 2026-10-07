@@ -26,13 +26,15 @@ const ACTIVATED_BINDING = {
 /** `<table>:<id>` -> the row's REAL org_id. org-1 is the caller; org-2 is a DIFFERENT tenant.
  *  #910: the vi-1 bill row carries the case anchor + mirrored outstanding the payment gate reads,
  *  and the mock below resolves its procurement external_ref — a payment create now (DD-VPAY-3/7)
- *  refuses without a real-shaped bill behind it. */
+ *  refuses without a real-shaped bill behind it. The §1 currency gate (OBS-VPAY-003) additionally
+ *  reads the org's `default_currency` and the bill's mirrored `currency` — both same-currency here. */
 const TWO_ORG_ROWS: Record<string, { org_id: string } & Record<string, unknown>> = {
+  'organizations:org-1': { org_id: 'org-1', default_currency: 'IDR' },
   'procurements:proc-1': { org_id: 'org-1' },
   'procurements:proc-org2': { org_id: 'org-2' },
   'companies:vendor-1': { org_id: 'org-1' },
   'companies:vendor-org2': { org_id: 'org-2' },
-  'procurement_invoices:vi-1': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00001' },
+  'procurement_invoices:vi-1': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00001', currency: 'IDR' },
   'procurement_invoices:vi-org2': { org_id: 'org-2' },
 };
 

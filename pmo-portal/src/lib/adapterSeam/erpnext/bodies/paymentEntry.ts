@@ -51,7 +51,10 @@ export function peToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     party_type: 'Supplier',
     party: ctx.refs.supplier,
     paid_amount: amount,
-    received_amount: rec.received_amount ?? amount,
+    // FR-VPAY-007: received_amount IS paid_amount (same figure; the binding company currency
+    // governs). The payload's `received_amount` — if a caller sends one — is IGNORED: the command
+    // carries no currency pair, so a differing "received" figure could only be a silent FX claim.
+    received_amount: amount,
     paid_from: paidFrom,
     paid_to: paidTo,
     posting_date: date,

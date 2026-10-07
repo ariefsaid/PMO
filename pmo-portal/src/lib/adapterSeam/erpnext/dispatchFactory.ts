@@ -478,6 +478,11 @@ async function resolveRevenueRefs(
  *  - The amount gate (DD-VPAY-7) reads `procurement_invoices.erp_outstanding_amount` — the same
  *    mirrored oracle the ledger shows. A `null` outstanding refuses (never "uncapped"), and so does
  *    `paid_amount` above it or ≤ 0.
+ *  - The currency gate (spec §1 / OBS-VPAY-003): `paid_amount` is company-currency money while
+ *    `erp_outstanding_amount` is the BILL's currency — cross-currency the amount gate above is
+ *    unsound, so the bill must be in the binding company's currency (the org's `default_currency`,
+ *    0187). An unmirrored bill currency (`XXX`/null) or an unreadable org currency refuses fail-
+ *    closed; only a PROVEN match passes. One extra service-role read (organizations), payments only.
  *
  *  Cost (NFR-VPAY-001): at most three service-role DB reads (bill row, external-ref lookup, the
  *  case-supplier read `resolveProcurementOrderRefs` already shares) and ZERO ERP reads. Runs inside
@@ -503,16 +508,39 @@ async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs:
 
   // The bill row — org-scoped, fail closed on a missing row (a stale invoiceId is never a silent skip).
   const { data: bill, error } = await deps.serviceClient.from('procurement_invoices')
-    .select('procurement_id,erp_outstanding_amount,vi_number')
+    .select('procurement_id,erp_outstanding_amount,vi_number,currency')
     .eq('org_id', deps.orgId).eq('id', invoiceId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   if (!bill) {
     throw new AppError(`vendor payment: bill '${invoiceId}' was not found in this org`, 'commit-rejected');
   }
-  const billRow = bill as { procurement_id: string | null; erp_outstanding_amount: number | string | null; vi_number: string | null };
+  const billRow = bill as { procurement_id: string | null; erp_outstanding_amount: number | string | null; vi_number: string | null; currency: string | null };
   const billName = billRow.vi_number ?? invoiceId;
   if (billRow.procurement_id !== procurementId) {
     throw new AppError(`vendor payment: bill ${billName} belongs to a different procurement case`, 'commit-rejected');
+  }
+  // Spec §1 (multi-currency is OUT; OBS-VPAY-003): paid_amount is company-currency money and
+  // erp_outstanding_amount is the bill's currency — cross-currency the amount gate below compares
+  // figures that are not in the same unit. The bill must be in the binding company's currency: the
+  // org's default_currency (0187_money_currency_seam — "the org's single v1 currency", set at
+  // onboarding / ERPNext Connect). Fail closed: an unreadable org row or a non-ISO value refuses,
+  // an unmirrored bill currency (null, or 0187's 'XXX' "no currency" placeholder) refuses — only a
+  // PROVEN match reaches the amount gate.
+  const { data: orgRow, error: orgError } = await deps.serviceClient.from('organizations')
+    .select('default_currency').eq('id', deps.orgId).maybeSingle();
+  if (orgError || !orgRow) {
+    throw new AppError('vendor payment: the org currency could not be read — cannot verify the bill is in the company currency', 'commit-rejected');
+  }
+  const orgCurrency = (orgRow as { default_currency?: unknown }).default_currency;
+  if (typeof orgCurrency !== 'string' || !/^[A-Z]{3}$/.test(orgCurrency)) {
+    throw new AppError('vendor payment: the org currency is not set — set it before paying a bill', 'commit-rejected');
+  }
+  const billCurrency = billRow.currency;
+  if (!billCurrency || billCurrency === 'XXX') {
+    throw new AppError(`vendor payment: bill ${billName} has no mirrored currency yet — record the bill's ERP push first`, 'commit-rejected');
+  }
+  if (billCurrency !== orgCurrency) {
+    throw new AppError(`This bill is in ${billCurrency}; paying a foreign-currency bill from PMO is not supported yet — pay it in ERPNext.`, 'commit-rejected');
   }
   if (billRow.erp_outstanding_amount === null || billRow.erp_outstanding_amount === undefined) {
     throw new AppError(`vendor payment: bill ${billName} has no mirrored ERP outstanding yet — record the bill's ERP push first`, 'commit-rejected');

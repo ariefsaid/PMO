@@ -1071,17 +1071,20 @@ describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
 
   /** The link/row table behind the org-scoped reads: `<table>:<id>` -> the row's REAL org_id, so a
    *  cross-org id is distinguishable from a same-org one by the id ALONE (the Luna B2 fixture rule).
-   *  `procurement_invoices` carries its case anchor (`procurement_id`) + the mirrored ERP outstanding
-   *  the amount gate reads. `procurements` carries the vendor the supplier resolution reads. */
+   *  `procurement_invoices` carries its case anchor (`procurement_id`), the mirrored ERP outstanding
+   *  the amount gate reads and the mirrored `currency` the §1 currency gate reads. `procurements`
+   *  carries the vendor the supplier resolution reads; `organizations` carries the org's
+   *  `default_currency` — the binding company currency the bill's currency must match (0187). */
   const PAYMENT_ROWS: Record<string, Record<string, unknown>> = {
+    'organizations:org-1': { default_currency: 'IDR' },
     'procurements:proc-1': { org_id: 'org-1', vendor_id: 'vend-1' },
     'procurements:proc-other': { org_id: 'org-1', vendor_id: 'vend-1' },
     'procurements:proc-org2': { org_id: 'org-2', vendor_id: 'vend-2' },
-    'procurement_invoices:inv-1': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00910' },
-    'procurement_invoices:inv-other-case': { org_id: 'org-1', procurement_id: 'proc-other', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00911' },
-    'procurement_invoices:inv-null-outstanding': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: null, vi_number: 'ACC-PINV-2026-00912' },
-    'procurement_invoices:inv-unmapped': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 100, vi_number: 'ACC-PINV-2026-00913' },
-    'procurement_invoices:inv-org2': { org_id: 'org-2', procurement_id: 'proc-org2', erp_outstanding_amount: 500, vi_number: 'ACC-PINV-2026-09999' },
+    'procurement_invoices:inv-1': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00910', currency: 'IDR' },
+    'procurement_invoices:inv-other-case': { org_id: 'org-1', procurement_id: 'proc-other', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00911', currency: 'IDR' },
+    'procurement_invoices:inv-null-outstanding': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: null, vi_number: 'ACC-PINV-2026-00912', currency: 'IDR' },
+    'procurement_invoices:inv-unmapped': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 100, vi_number: 'ACC-PINV-2026-00913', currency: 'IDR' },
+    'procurement_invoices:inv-org2': { org_id: 'org-2', procurement_id: 'proc-org2', erp_outstanding_amount: 500, vi_number: 'ACC-PINV-2026-09999', currency: 'USD' },
   };
 
   const PAYMENT_REFS: Record<string, unknown> = {
@@ -1241,6 +1244,41 @@ describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
     const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
     await expect(resolveAdapter(paymentCommand({ invoiceId: 'inv-null-outstanding' }), HAPPY_TABLES, fetchImpl))
       .rejects.toSatisfy((err: AppError) => err.code === 'commit-rejected' && /ACC-PINV-2026-00912/.test(err.message));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('spec §1 / OBS-VPAY-003 — a bill in a FOREIGN currency refuses with the plain not-supported wording (zero ERP reads)', async () => {
+    // paid_amount is company-currency money; erp_outstanding_amount is the BILL's currency. Cross-
+    // currency the DD-VPAY-7 amount gate is unsound, so the bill must be in the org's currency.
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(resolveAdapter(paymentCommand({ invoiceId: 'inv-fx' }), {
+      ...HAPPY_TABLES,
+      'procurement_invoices:inv-fx': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00914', currency: 'USD' },
+      'external_refs:procurement:inv-fx': { external_record_id: 'ACC-PINV-2026-00914' },
+    }, fetchImpl)).rejects.toSatisfy((err: AppError) =>
+      err.code === 'commit-rejected' &&
+      err.message === 'This bill is in USD; paying a foreign-currency bill from PMO is not supported yet — pay it in ERPNext.');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('spec §1 / OBS-VPAY-003 — a bill whose mirrored currency is UNKNOWN (null / the XXX placeholder) refuses fail-closed', async () => {
+    // An unmirrored currency cannot be PROVEN same-currency — the fail-closed posture, never "absent ⇒ allowed".
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    for (const currency of [null, 'XXX']) {
+      await expect(resolveAdapter(paymentCommand({ invoiceId: 'inv-nofx' }), {
+        ...HAPPY_TABLES,
+        'procurement_invoices:inv-nofx': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00915', currency },
+        'external_refs:procurement:inv-nofx': { external_record_id: 'ACC-PINV-2026-00915' },
+      }, fetchImpl)).rejects.toSatisfy((err: AppError) =>
+        err.code === 'commit-rejected' && /ACC-PINV-2026-00915/.test(err.message));
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('spec §1 / OBS-VPAY-003 — an org whose default_currency is unreadable refuses (the comparison oracle is gone)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(resolveAdapter(paymentCommand(), { ...HAPPY_TABLES, 'organizations:org-1': null }, fetchImpl))
+      .rejects.toMatchObject({ code: 'commit-rejected' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
