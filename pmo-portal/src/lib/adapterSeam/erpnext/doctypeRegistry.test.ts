@@ -67,14 +67,21 @@ describe('erpnext/doctypeRegistry', () => {
       // No anchor (masters are never recovery-probed the way a money doc is) and not submittable
       // (Employee is not a submittable doctype, spike §8b).
       employee: { doctype: 'Employee', submittable: false, readOnly: true, anchorField: null },
+      // #775 phase B — expense postings (spike 2026-10-07). Journal Entry anchors on `user_remark`, IMMUTABLE
+      // post-submit (reissue-capable); the Employee Payment Entries are the PE twins (mutable `reference_no`, C-1).
+      'expense-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
+      'expense-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
+      'expense-receipt': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
     });
   });
 
-  it('FR-ENA-013 no Frappe doctype name appears twice (each ERP doc kind is unambiguous), except Payment Entry which maps to two PMO kinds (payment/incoming-payment) disambiguated by payment_type', () => {
-    const doctypes = Object.values(DOCTYPE_REGISTRY).map((entry) => entry.doctype);
-    // One expected duplicate: payment + incoming-payment both map to 'Payment Entry'
-    const uniqueDoctypes = new Set(doctypes);
-    expect(uniqueDoctypes.size).toBe(doctypes.length - 1);
+  it('FR-ENA-013 no Frappe doctype name appears twice (each ERP doc kind is unambiguous), except Payment Entry which maps to four PMO kinds disambiguated by payment_type and party_type (#775 phase B)', () => {
+    const kindsByDoctype = new Map<string, string[]>();
+    for (const [kind, entry] of Object.entries(DOCTYPE_REGISTRY)) {
+      kindsByDoctype.set(entry.doctype, [...(kindsByDoctype.get(entry.doctype) ?? []), kind]);
+    }
+    const shared = [...kindsByDoctype].filter(([, kinds]) => kinds.length > 1);
+    expect(shared).toEqual([['Payment Entry', ['payment', 'incoming-payment', 'expense-payment', 'expense-receipt']]]);
   });
 
   it('every anchored kind (anchorField != null) is submittable (the money-doc recovery surface)', () => {

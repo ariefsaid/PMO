@@ -30,6 +30,9 @@ export const ERPNEXT_TIMESHEETS_DOMAIN: PmoDomain = 'timesheets';
  *  ACTIVE version so the GL reports against it and its native overspend controls enforce it. Listed here
  *  so the shipped router/dispatch machinery routes it generically. */
 export const ERPNEXT_BUDGET_DOMAIN: PmoDomain = 'budget';
+/** #775 phase B (ADR-0059 Posture B, ADR-0081): expense claims post their accounting consequence. Driven ONLY by
+ *  the erpnext-sweep pass — adapter-dispatch deliberately has no route for this domain. */
+export const ERPNEXT_EXPENSES_DOMAIN: PmoDomain = 'expenses';
 
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;

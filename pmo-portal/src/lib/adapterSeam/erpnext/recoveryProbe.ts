@@ -100,6 +100,10 @@ export interface ErpPaymentCompositeInput {
    *  of exactly this amount AND allocate exactly `allocatedAmount` (the gross) to a cited invoice. */
   withheldAmount?: string | number;
   allocatedAmount?: string | number;
+  /** #775 phase B — an Employee Payment Entry's cited Journal Entries (the approval it settles). Empty ⇒ the
+   *  posting cites none (an advance payment/return), so only a candidate with NO references can be ours. Read
+   *  ONLY when `partyType === 'Employee'`; every Supplier/Customer probe is byte-for-byte unchanged. */
+  journalNames?: string[];
 }
 
 /** The withholding conjuncts a persisted Receive composite payload carries (see `withheldAmount`); none
@@ -175,6 +179,14 @@ export async function probeErpByPaymentComposite(
   for (const name of names) {
     const doc = await getDoc(deps.client, deps.doctype, name);
     const references = (doc as { references?: Array<{ reference_name?: unknown }> }).references ?? [];
+    if (input.partyType === 'Employee') {
+      const journals = input.journalNames ?? [];
+      const cites = journals.length === 0
+        ? references.length === 0
+        : references.some((r) => journals.includes(String(r.reference_name)));
+      if (cites) matches.push({ name, doc });
+      continue;
+    }
     // Match against piNames (PE-pay) OR siNames (PE-receive) — the input carries the correct array
     // based on paymentType, so a PE-receive probe never cross-matches a PE-pay doc.
     const cited = references.filter((r) => piNames.includes(String(r.reference_name)) || siNames.includes(String(r.reference_name)));

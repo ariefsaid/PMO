@@ -72,6 +72,8 @@ import { SQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpn
 import { SUPPLIER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplier.ts';
 import { CONTACT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/contact.ts';
 import { CUSTOMER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
+import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expenseJournal.ts';
+import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
@@ -191,6 +193,10 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   budget: BUDGET_FROM_DOC_FIELDS,
   timesheet: TS_FROM_DOC_FIELDS,
   employee: EMPLOYEE_FROM_DOC_FIELDS,
+  // #775 phase B — expense postings (lifecycle-only inbound, FR-EXP-113).
+  'expense-journal': EXPENSE_JOURNAL_FROM_DOC_FIELDS,
+  'expense-payment': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
+  'expense-receipt': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
 };
 
 /** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`

@@ -27,6 +27,8 @@ import { tsToBody, tsFromDoc } from './bodies/timesheet.ts';
 import { employeeToBody, employeeFromDoc } from './bodies/employee.ts';
 import { contactToBody, contactCanonicalFromDoc } from './bodies/contact.ts';
 import { budgetToBody, budgetFromDoc } from './bodies/budget.ts';
+import { expenseJournalToBody, expenseJournalFromDoc } from './bodies/expenseJournal.ts';
+import { expensePaymentToBody, expensePaymentFromDoc } from './bodies/expensePayment.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   contact: { toBody: contactToBody, fromDoc: contactCanonicalFromDoc },
@@ -51,4 +53,8 @@ export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   // P3c — the budget push (ADR-0055 §6 + ADR-0059 Posture B). `fromDoc` is LIFECYCLE-ONLY: an ERP-side
   // budget_amount has no route back into PMO, which is the SoT for the figure (FR-BUD-140/152).
   budget: { toBody: budgetToBody, fromDoc: budgetFromDoc },
+  // #775 phase B — expense postings (spike 2026-10-07). One body per doctype; the posting rides on the record.
+  'expense-journal': { toBody: expenseJournalToBody, fromDoc: expenseJournalFromDoc },
+  'expense-payment': { toBody: expensePaymentToBody, fromDoc: expensePaymentFromDoc },
+  'expense-receipt': { toBody: expensePaymentToBody, fromDoc: expensePaymentFromDoc },
 };

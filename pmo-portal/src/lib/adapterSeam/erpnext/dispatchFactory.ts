@@ -285,6 +285,9 @@ function assertSiProjectGate(deps: ErpDispatchFactoryDeps, binding: ExternalOrgB
 const PAYMENT_TYPE_BY_KIND: Readonly<Record<string, 'Pay' | 'Receive'>> = {
   payment: 'Pay',
   'incoming-payment': 'Receive',
+  // #775 phase B — Employee Payment Entries (the expense postings' Pay/Receive twins).
+  'expense-payment': 'Pay',
+  'expense-receipt': 'Receive',
 };
 
 /**
