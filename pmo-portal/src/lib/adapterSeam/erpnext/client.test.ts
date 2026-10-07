@@ -18,6 +18,7 @@ import {
   listDocNamesByAnchor,
   ERP_REQUEST_TIMEOUT_MS,
   ERP_QUARANTINE_WINDOW_MS,
+  ERP_RESPONSE_MAX_BYTES,
   ERP_PROBE_TIMEOUT_MS,
   ERP_RETRY_AFTER_CAP_MS,
   withProbeBudget,
@@ -78,6 +79,46 @@ function hangingFetch(): (url: string, init?: RequestInit) => Promise<Response> 
       if (signal.aborted) reject(signal.reason ?? new Error('aborted'));
       signal.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')));
     });
+}
+
+/** #918: a fetch whose Response's HEADERS arrive at once but whose body NEVER completes — the stream
+ *  errors when the CLIENT's signal fires, exactly how a real fetch wires a deadline into the body
+ *  read. Models a bench that answers and then stalls mid-body. */
+function stalledBodyFetch(): (url: string, init?: RequestInit) => Promise<Response> {
+  return (_url, init) => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"data":{"name":'));
+        init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason ?? new Error('aborted')));
+      },
+    });
+    return Promise.resolve(new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  };
+}
+
+/** #918: a fetch streaming `chunks` × 1 MiB of 'A' (never valid JSON) with NO Content-Length — only a
+ *  read cap can stop it. Counts every stream pull so a test can assert the client STOPPED reading
+ *  instead of buffering the whole response. */
+function oversizedBodyFetch(chunks: number, pulls: { count: number }): (url: string, init?: RequestInit) => Promise<Response> {
+  return () => {
+    let sent = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls.count += 1;
+        if (sent >= chunks) return controller.close();
+        sent += 1;
+        controller.enqueue(new Uint8Array(1024 * 1024).fill(0x41));
+      },
+    });
+    return Promise.resolve(new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  };
+}
+
+/** A JSON document padded to EXACTLY `size` bytes (pure ASCII, so chars == bytes). */
+function jsonOfExactlySize(size: number): string {
+  const head = '{"data":{"name":"X","pad":"';
+  const tail = '"}}';
+  return head + 'A'.repeat(size - head.length - tail.length) + tail;
 }
 
 /** Types the mock's inferred call signature as `(url, init)` (matching `typeof fetch`) so
@@ -519,6 +560,114 @@ describe('erpnext/client', () => {
       const deps = fetchDeps(async () => opaque);
       await expect(getDoc(deps, 'Supplier', 'X')).rejects.toMatchObject({ code: 'external-unreachable', retryable: false });
       expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── #918 — the deadline and the size cap cover the WHOLE response, not just the headers ────────
+  // Modeled on invoicePdf.ts (#912): the request timer stays armed until the body is fully read, and
+  // the body is read as a stream with a byte cap. One change in the shared client covers every
+  // external-* edge function, the sweep, adapter-dispatch, dispatchFactory and ledgerFetch.
+  describe('response-body bounds (#918 — the request deadline covers reading the body; bodies are read with a size cap)', () => {
+    it('aborts at the deadline when the server sends headers and then stalls the body (the deadline covers the body read)', async () => {
+      const deps = { ...withProbeBudget(fetchDeps(stalledBodyFetch())), timeoutMs: 50 };
+      await expect(getDoc(deps, 'Supplier', 'X')).rejects.toMatchObject({
+        name: 'ErpError',
+        code: 'external-unreachable',
+        retryable: true,
+      });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1); // the probe budget: the single attempt IS the budget
+    }, 3000);
+
+    it('a stalled body read on an IDEMPOTENT GET is retried within the normal budget, like a hung fetch', async () => {
+      let calls = 0;
+      const deps: ErpClientDeps = {
+        ...fetchDeps(async (url, init) => {
+          calls += 1;
+          return calls === 1 ? stalledBodyFetch()(url, init) : jsonResponse(200, { name: 'Spike Supplier' });
+        }),
+        timeoutMs: 50,
+      };
+      const result = await getDoc(deps, 'Supplier', 'Spike Supplier');
+      expect(result).toEqual({ name: 'Spike Supplier' });
+      expect(calls).toBe(2);
+    }, 3000);
+
+    it('a stalled body on a non-idempotent POST is classified without any re-POST (FR-ENA-042)', async () => {
+      const deps = { ...fetchDeps(stalledBodyFetch()), timeoutMs: 50 };
+      await expect(createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' })).rejects.toMatchObject({
+        name: 'ErpError',
+        code: 'external-unreachable',
+      });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1); // exactly one attempt, deadline or not
+    }, 3000);
+
+    it('refuses a body over the cap WHILE STREAMING — it stops reading instead of buffering the whole response', async () => {
+      const pulls = { count: 0 };
+      // 12 × 1 MiB on the wire, 7 past the 5 MiB cap: with the cap the client cancels after the chunk
+      // that crosses it (~6 pulls); without it the client would read all 12 and swallow the garbage
+      // as a null body. (12 MiB, not 1 GiB: a cap-less RED must fail by assertion, not by hanging.)
+      const deps = { ...fetchDeps(oversizedBodyFetch(12, pulls)), maxRetries: 0 };
+      const err = await getDoc(deps, 'Supplier', 'X').catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ErpError);
+      expect(err).toMatchObject({ code: 'external-unreachable', retryable: false, status: 200 });
+      expect(pulls.count).toBeLessThanOrEqual(7);
+    });
+
+    it('refuses a declared Content-Length over the cap before reading a single byte of the stream', async () => {
+      let pulls = 0;
+      const deps = fetchDeps(async () => {
+        let streamController!: ReadableStreamDefaultController<Uint8Array>;
+        // highWaterMark 0: the stream itself never eagerly pulls — every pull is a real client read.
+        const body = new ReadableStream<Uint8Array>(
+          {
+            start(c) {
+              streamController = c;
+            },
+            pull() {
+              pulls += 1;
+              streamController.enqueue(new Uint8Array(1024));
+              if (pulls >= 3) streamController.close(); // finite: a cap-less read must fail by assertion, not hang
+            },
+          },
+          { highWaterMark: 0 },
+        );
+        return new Response(body, {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Content-Length': String(ERP_RESPONSE_MAX_BYTES + 1) },
+        });
+      });
+      const err = await getDoc(deps, 'Supplier', 'X').catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ErpError);
+      expect(err).toMatchObject({ code: 'external-unreachable', retryable: false });
+      expect(pulls).toBe(0);
+    });
+
+    it('accepts a streamed body of EXACTLY the cap — the ceiling is inclusive', async () => {
+      const deps = fetchDeps(async () =>
+        new Response(jsonOfExactlySize(ERP_RESPONSE_MAX_BYTES), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+      );
+      await expect(getDoc(deps, 'Supplier', 'X')).resolves.toMatchObject({ name: 'X' });
+    });
+
+    it('a normal JSON response is unchanged by the capped stream read', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, { data: { name: 'ACC-X', docstatus: 0 } }));
+      await expect(getDoc(deps, 'Supplier', 'ACC-X')).resolves.toEqual({ name: 'ACC-X', docstatus: 0 });
+    });
+
+    it('a per-call cap narrows the bound for a caller with a smaller budget — and the default still applies without it', async () => {
+      // Onboarding's party pull (`limit_page_length=0`) is the one unbounded-by-pagination endpoint,
+      // so the cap is a per-call option: a caller may narrow OR widen it around the 5 MiB default.
+      const bigish = JSON.stringify({ data: { name: 'X', pad: 'A'.repeat(64) } });
+      const narrowed = fetchDeps(async () => new Response(bigish, { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      await expect(erpnextRequest(narrowed, { method: 'GET', path: '/api/resource/Supplier/SUP-1', maxResponseBytes: 10 })).rejects.toMatchObject({
+        name: 'ErpError',
+        code: 'external-unreachable',
+        retryable: false,
+      });
+      // the SAME body under the DEFAULT cap sails through — the option, not the body, refused it.
+      // (erpnextRequest returns the RAW Frappe envelope; only getDoc unwraps `.data`.)
+      const widened = fetchDeps(async () => new Response(bigish, { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      await expect(erpnextRequest(widened, { method: 'GET', path: '/api/resource/Supplier/SUP-1' })).resolves.toEqual(JSON.parse(bigish));
     });
   });
 });
