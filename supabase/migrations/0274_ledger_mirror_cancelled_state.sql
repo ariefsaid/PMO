@@ -1,4 +1,4 @@
--- 0267_ledger_mirror_cancelled_state.sql — #901: a cancel in ERPNext must reach the ledger mirrors.
+-- 0274_ledger_mirror_cancelled_state.sql — #901: a cancel in ERPNext must reach the ledger mirrors.
 --
 -- On cancel ERPNext keeps the original ledger rows (docstatus 1) and flips their state, bumping
 -- `modified`: GL Entry → `is_cancelled = 1`; Payment Ledger Entry → `delinked = 1` (also set by an
@@ -24,7 +24,7 @@
 --
 -- Grants: a new column on an existing table inherits its table-level grants (service-role write,
 -- org-member SELECT under RLS — 0101); no function, table, or policy is added.
--- Reversal: supabase/migrations/rollback/0267_ledger_mirror_cancelled_state_down.sql.
+-- Reversal: supabase/migrations/rollback/0274_ledger_mirror_cancelled_state_down.sql.
 
 alter table public.erp_payment_ledger_mirror
   add column delinked boolean not null default false;

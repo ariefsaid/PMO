@@ -1,4 +1,4 @@
--- 0267_ledger_mirror_cancelled_state.test.sql — #901 [pgTAP]: the Payment Ledger mirror carries ERPNext's
+-- 0274_ledger_mirror_cancelled_state.test.sql — #901 [pgTAP]: the Payment Ledger mirror carries ERPNext's
 -- `delinked` flag (the GL mirror's `is_cancelled` already exists, 0101), defaulting to false, and no user
 -- JWT can write either flag (machine-written ERP truth, ADR-0048 — only the service-role feed sets them).
 begin;

@@ -43,7 +43,7 @@ function makeServiceClient(pleRows: Record<string, unknown>[]): {
   mirrorReads: { orderBy: string[]; cursors: unknown[]; returned: number }[];
 } {
   // `erp_payment_ledger_mirror.id` is a NOT NULL uuid PK (0101 §2) — the paged scan's stable order.
-  // `delinked` is `not null default false` (0267) — model the column default a real insert gets.
+  // `delinked` is `not null default false` (0274) — model the column default a real insert gets.
   const seeded: FakeRow[] = pleRows.map((r, i) => ({ id: `ple-${String(i).padStart(8, '0')}`, delinked: false, ...r }));
   const fake = new FakePostgrest({
     erp_payment_ledger_mirror: seeded,
