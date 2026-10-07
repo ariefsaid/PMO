@@ -43,6 +43,7 @@ describe('PMO-owned e-Faktur mutations', () => {
     expect(mocks.salesSetEfaktur).toHaveBeenCalledWith('si-1', { efakturNumber: '010.001', efakturDate: null });
     expect(invalidate.mock.calls.map(([arg]) => arg?.queryKey)).toEqual([
       ['salesInvoices'], ['salesInvoice'], ['incomingPayments'], ['incomingPayment'], ['revenueByProject'],
+      ['work-order-billing'], ['unbilled-work-orders'],
     ]);
   });
 

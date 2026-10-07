@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { normalizeEfakturValues, validateEfakturValues } from '@/src/lib/efaktur';
+import { localToday, normalizeEfakturValues, validateEfakturValues } from '@/src/lib/efaktur';
 import { EntityFormModal, TextField, type SubmitError } from '@/src/components/ui';
 
 export interface EfakturSaveValues {
@@ -9,8 +9,11 @@ export interface EfakturSaveValues {
   efakturDate: string | null;
 }
 
+/**
+ * Mount it only while editing (`{target && <EfakturModal … />}`): the mount IS the edit session, so
+ * the drafts seed from the props once and need no reset effect.
+ */
 export interface EfakturModalProps {
-  open: boolean;
   number: string | null;
   date: string | null;
   loading: boolean;
@@ -20,24 +23,19 @@ export interface EfakturModalProps {
 
 /** Shared, accessible PMO-owned e-Faktur editor for sales invoices and vendor bills. */
 export const EfakturModal: React.FC<EfakturModalProps> = ({
-  open, number, date, loading, onClose, onSave,
+  number, date, loading, onClose, onSave,
 }) => {
   const { t } = useTranslation();
   const [numberDraft, setNumberDraft] = useState(number ?? '');
   const [dateDraft, setDateDraft] = useState(date ?? '');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  useEffect(() => {
-    setNumberDraft(number ?? '');
-    setDateDraft(date ?? '');
-    setSaveError(null);
-  }, [number, date, open]);
+  const today = useMemo(() => localToday(), []);
 
   const normalized = useMemo(
     () => normalizeEfakturValues({ number: numberDraft, date: dateDraft }),
     [numberDraft, dateDraft],
   );
-  const errors = useMemo(() => validateEfakturValues(normalized), [normalized]);
+  const errors = useMemo(() => validateEfakturValues(normalized, today), [normalized, today]);
   const numberError = errors.number
     ? t('efaktur.invalidNumber', 'Use up to 32 digits, dots, or dashes.')
     : undefined;
@@ -58,10 +56,10 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
 
   return (
     <EntityFormModal
-      open={open}
+      open
       title={t('efaktur.title', 'Record e-Faktur details')}
       subtitle={t('efaktur.help', 'Leave both fields empty for a non-VAT document.')}
-      submitLabel={t('efaktur.save', 'Save')}
+      submitLabel={t('financeCopy.save', 'Save')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={loading}
@@ -74,7 +72,7 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
           label={t('efaktur.number', 'e-Faktur number')}
           value={numberDraft}
           onChange={setNumberDraft}
-          maxLength={64}
+          maxLength={32}
           autoComplete="off"
           error={numberError}
         />
@@ -83,6 +81,7 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
           type="date"
           value={dateDraft}
           onChange={setDateDraft}
+          max={today}
           error={dateError}
         />
       </div>

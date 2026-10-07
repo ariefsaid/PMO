@@ -67,8 +67,11 @@ export interface LedgerRow {
   /** DD-EFK-1: supplier e-Faktur values exist only on vendor-invoice rows. */
   efakturNumber?: string | null;
   efakturDate?: string | null;
-  /** The mirrored invoice tombstone/cancel marker gates the e-Faktur edit affordance. */
-  isCancelled?: boolean;
+  /**
+   * Vendor-invoice rows only: true when the mirrored bill is cancelled (docstatus 2 or a cancel stamp),
+   * which locks the e-Faktur edit affordance. Absent on every other record type.
+   */
+  efakturLocked?: boolean;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -155,7 +158,7 @@ interface MakeRowExtra {
   taxTreatment?: string | null;
   efakturNumber?: string | null;
   efakturDate?: string | null;
-  isCancelled?: boolean;
+  efakturLocked?: boolean;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -176,7 +179,7 @@ function makeRow(
   extra: MakeRowExtra = {},
 ): LedgerRow {
   const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
-    efakturNumber, efakturDate, isCancelled } = extra;
+    efakturNumber, efakturDate, efakturLocked } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
   return {
@@ -198,7 +201,7 @@ function makeRow(
     taxTreatment: taxTreatment ?? null,
     efakturNumber: type === 'Invoice' ? (efakturNumber ?? null) : null,
     efakturDate: type === 'Invoice' ? (efakturDate ?? null) : null,
-    isCancelled: isCancelled ?? false,
+    ...(type === 'Invoice' ? { efakturLocked: efakturLocked ?? false } : {}),
     taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
   };
 }
@@ -337,7 +340,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
           taxBaseUnknown: vi.erp_docstatus != null,
           efakturNumber: vi.efaktur_number,
           efakturDate: vi.efaktur_date,
-          isCancelled: vi.erp_docstatus === 2 || vi.erp_cancelled_at != null,
+          efakturLocked: vi.erp_docstatus === 2 || vi.erp_cancelled_at != null,
         },
       ),
     );

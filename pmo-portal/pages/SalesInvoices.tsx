@@ -466,7 +466,6 @@ const SalesInvoices: React.FC = () => {
 
       {efakturTarget && (
         <EfakturModal
-          open
           number={efakturTarget.efaktur_number}
           date={efakturTarget.efaktur_date}
           loading={setEfaktur.isPending}

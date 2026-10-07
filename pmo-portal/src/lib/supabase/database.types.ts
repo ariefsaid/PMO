@@ -6012,15 +6012,7 @@ export type Database = {
           submitted: boolean | null
           work_order_id: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "sales_invoices_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {
@@ -6081,6 +6073,15 @@ export type Database = {
           timesheet_id: string
           user_id: string
         }[]
+      }
+      assert_invoice_command_within_work_order: {
+        Args: {
+          p_operation: string
+          p_org_id: string
+          p_payload: Json
+          p_pmo_record_id: string
+        }
+        Returns: undefined
       }
       assert_is_active_member: {
         Args: { p_actor?: string }

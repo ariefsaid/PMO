@@ -4,7 +4,6 @@
     "number": "Nomor e-Faktur",
     "date": "Tanggal e-Faktur",
     "edit": "Ubah e-Faktur",
-    "save": "Simpan",
     "help": "Biarkan kedua kolom kosong untuk dokumen non-PPN.",
     "invalidNumber": "Gunakan maksimal 32 angka, titik, atau tanda hubung.",
     "futureDate": "Tanggal e-Faktur tidak boleh di masa depan.",

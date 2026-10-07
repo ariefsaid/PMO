@@ -366,7 +366,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         columns={columns}
         rowKey={(row) => row.id}
         rowMenu={canRecordEfaktur && onSetEfaktur ? (row): RowMenuItem[] | undefined => {
-          if (row.type !== 'Invoice' || row.isCancelled) return undefined;
+          if (row.type !== 'Invoice' || row.efakturLocked) return undefined;
           return [{ label: t('efaktur.edit', 'Edit e-Faktur'), onClick: () => setEfakturTarget(row) }];
         } : undefined}
         state={tableState}
@@ -377,7 +377,6 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 
       {efakturTarget && onSetEfaktur && (
         <EfakturModal
-          open
           number={efakturTarget.efakturNumber ?? null}
           date={efakturTarget.efakturDate ?? null}
           loading={efakturSaving}

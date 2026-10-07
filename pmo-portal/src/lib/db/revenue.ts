@@ -280,6 +280,7 @@ export async function setSalesInvoiceEfaktur(
   efakturNumber: string | null,
   efakturDate: string | null,
 ): Promise<void> {
+  // `as string`: NULL is intended (it clears the fact); generated RPC arg types are always non-null.
   const { error } = await supabase.rpc('set_sales_invoice_efaktur', {
     p_si_id: siId,
     p_efaktur_number: efakturNumber as string,

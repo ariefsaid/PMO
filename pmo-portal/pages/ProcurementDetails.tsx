@@ -1028,7 +1028,7 @@ const ProcurementDetails: React.FC = () => {
               uploadedById={currentUserId}
               canWrite={canManageFiles}
               canRecordEfaktur={canRecordEfaktur}
-              efakturSaving={mutations.setEfaktur?.isPending ?? false}
+              efakturSaving={mutations.setEfaktur.isPending}
               onSetEfaktur={async (invoiceId, values) => {
                 await mutations.setEfaktur.mutateAsync({ invoiceId, ...values });
                 toast(

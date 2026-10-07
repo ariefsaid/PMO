@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
+
+const spies = vi.hoisted(() => ({
+  setEfaktur: vi.fn().mockResolvedValue(undefined),
+  toast: vi.fn(),
+}));
+
+// #893 AC-EFK-005 — the procurement page wires the Documents-tab e-Faktur edit to its mutation + toast.
+// Harness copied from ProcurementDetails.tabshell.test.tsx.
 
 // ---------------------------------------------------------------------------
 // Mutable hook state (mirrors ProcurementDetails.test.tsx's harness)
@@ -53,7 +61,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: vi.fn(), isPending: false, error: null },
     createInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
-    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
+    setEfaktur: { mutateAsync: spies.setEfaktur, isPending: false },
   }),
 }));
 const docsState = { data: [], isPending: false, isError: false, refetch: vi.fn() };
@@ -87,7 +95,7 @@ vi.mock('react-router', async (orig) => {
 });
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useToast: () => ({ toast: vi.fn() }) };
+  return { ...actual, useToast: () => ({ toast: spies.toast }) };
 });
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
@@ -128,7 +136,15 @@ const orderedProcurement = {
     { id: 'q-1', procurement_id: 'proc-001', vendor_id: 'v-1', total_amount: 48000, currency: 'USD', vq_number: 'VQ-2601100001', is_selected: true, reference: 'VQ-2601100001', received_date: '2026-01-10', org_id: 'org-1', created_at: '2026-01-10T00:00:00Z' },
   ],
   receipts: [],
-  invoices: [],
+  invoices: [
+    {
+      id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-001', vi_number: 'VI-2601100001', status: 'Received',
+      invoice_date: '2026-06-05', created_at: '2026-06-05T00:00:00Z', po_id: null, reference_number: null,
+      amount: 48000, currency: 'USD', tax_treatment: 'exclusive', tax_rate: null, tax_base_numerator: 1,
+      tax_base_denominator: 1, erp_docstatus: null, erp_cancelled_at: null, external_ref: null,
+      efaktur_number: null, efaktur_date: null,
+    },
+  ],
   purchase_requests: [],
   rfqs: [],
   purchase_orders: [],
@@ -149,99 +165,28 @@ const renderAt = (path: string) =>
     </MemoryRouter>,
   );
 
-describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
+describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
   beforeEach(() => {
-    detailState.data = { ...orderedProcurement };
-    detailState.isPending = false;
-    detailState.isError = false;
-    detailState.error = null;
+    detailState.data = orderedProcurement;
     mockEffectiveRole = 'Finance';
-    navigate.mockClear();
+    spies.setEfaktur.mockClear();
+    spies.toast.mockClear();
   });
 
-  it('renders the Procurement tablist with Overview · Line items · Documents · Vendor quotes', () => {
-    renderAt('/procurement/proc-001');
-    const tablist = screen.getByRole('tablist', { name: /Procurement sections/i });
-    expect(within(tablist).getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Line items/ })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Documents/ })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Vendor quotes/ })).toBeInTheDocument();
-  });
-
-  it('defaults to the Overview tab when no :tab param is present', () => {
-    renderAt('/procurement/proc-001');
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    // The Overview bento renders its progression timeline.
-    expect(screen.getByTestId('procurement-progression')).toBeInTheDocument();
-  });
-
-  it('an unknown :tab param falls back to Overview', () => {
-    renderAt('/procurement/proc-001/bogus');
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('deep-links to the Documents tab via /procurement/:id/documents', () => {
+  it('AC-EFK-005 Finance records a vendor e-Faktur from the ledger and sees a success toast', async () => {
+    const user = userEvent.setup();
     renderAt('/procurement/proc-001/documents');
-    expect(screen.getByRole('tab', { name: /Documents/ })).toHaveAttribute('aria-selected', 'true');
-    // The Overview-only progression slot is NOT rendered on the Documents panel.
-    expect(screen.queryByTestId('procurement-progression')).toBeNull();
-  });
+    const row = screen.getByText('VI-2601100001').closest('tr');
+    if (!row) throw new Error('no ledger row for the vendor invoice');
+    await user.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Edit e-Faktur' }));
+    await user.type(screen.getByLabelText('e-Faktur number'), '010.001-26.12345678');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
-  it('deep-links to the Line items tab and shows the line-items section', () => {
-    renderAt('/procurement/proc-001/items');
-    expect(screen.getByRole('tab', { name: /Line items/ })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
-  });
-
-  // list-working-set-return (#682): tab switches now forward the current router `location.state`
-  // so a captured list-return context survives a tab change (Director ruling 2026-09-29 amended
-  // — same class as the other `{ replace: true }` tab-switch assertions).
-  it('clicking a tab navigates (replace) to its deep-link, forwarding location.state', async () => {
-    renderAt('/procurement/proc-001');
-    await userEvent.click(screen.getByRole('tab', { name: /Vendor quotes/ }));
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', { replace: true, state: null });
-  });
-
-  it('ArrowRight moves selection to the next tab (roving keyboard nav), forwarding location.state', async () => {
-    renderAt('/procurement/proc-001');
-    const overview = screen.getByRole('tab', { name: 'Overview' });
-    overview.focus();
-    await userEvent.keyboard('{ArrowRight}');
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', { replace: true, state: null });
-  });
-
-  it('the active panel is a role=tabpanel labelled by the active tab (a11y wiring)', () => {
-    renderAt('/procurement/proc-001');
-    const panel = screen.getByRole('tabpanel');
-    expect(panel).toHaveAttribute('id', 'procurement-detail-tabpanel-overview');
-    expect(panel).toHaveAttribute('aria-labelledby', 'procurement-detail-tab-overview');
-  });
-
-  it('the RecordActionZone is rendered OUTSIDE the tabs (present on every tab)', () => {
-    renderAt('/procurement/proc-001/documents');
-    expect(screen.getByTestId('record-action-zone')).toBeInTheDocument();
-  });
-
-  it('the tab count badges reflect items / documents / quotes counts', () => {
-    renderAt('/procurement/proc-001');
-    // 1 item, 1 quotation, 0 documents-collection rows.
-    expect(screen.getByRole('tab', { name: /Line items\s*1/ })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Vendor quotes\s*1/ })).toBeInTheDocument();
-  });
-
-  it('CanWrite gating still applies: an Engineer non-requester is NOT offered Confirm Receipt', () => {
-    mockEffectiveRole = 'Engineer';
-    detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
-    renderAt('/procurement/proc-001');
-    // Ordered→Received authority excludes a non-requester Engineer.
-    expect(screen.queryByRole('button', { name: /confirm receipt/i })).toBeNull();
-  });
-
-  it('the action zone advance verb shows for an authorized viewer (Confirm Receipt at Ordered for PM)', () => {
-    mockEffectiveRole = 'Project Manager';
-    detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
-    renderAt('/procurement/proc-001/documents');
-    // Verb is in the action zone regardless of active tab.
-    expect(screen.getByRole('button', { name: /confirm receipt/i })).toBeInTheDocument();
+    await waitFor(() => expect(spies.setEfaktur).toHaveBeenCalledWith({
+      invoiceId: 'vi-1', efakturNumber: '010.001-26.12345678', efakturDate: null,
+    }));
+    await waitFor(() => expect(spies.toast).toHaveBeenCalledWith('e-Faktur details saved', 'VI-2601100001', 'success'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });

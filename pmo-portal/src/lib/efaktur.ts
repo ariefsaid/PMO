@@ -33,7 +33,8 @@ export function validateEfakturValues(
   return errors;
 }
 
-function localToday(): string {
+/** The browser's local calendar date as YYYY-MM-DD (the server re-checks on the org's calendar). */
+export function localToday(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');

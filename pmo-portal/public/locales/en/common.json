@@ -4,7 +4,6 @@
     "number": "e-Faktur number",
     "date": "e-Faktur date",
     "edit": "Edit e-Faktur",
-    "save": "Save",
     "help": "Leave both fields empty for a non-VAT document.",
     "invalidNumber": "Use up to 32 digits, dots, or dashes.",
     "futureDate": "The e-Faktur date cannot be in the future.",

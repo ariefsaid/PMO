@@ -7,7 +7,6 @@ describe('EfakturModal', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <EfakturModal
-        open
         number=""
         date={null}
         loading={false}
@@ -29,7 +28,6 @@ describe('EfakturModal', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <EfakturModal
-        open
         number={null}
         date={null}
         loading={false}
@@ -45,5 +43,23 @@ describe('EfakturModal', () => {
     fireEvent.change(date, { target: { value: future } });
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('AC-EFK-004 bounds the controls: number at 32 characters, date picker at the local today', () => {
+    render(
+      <EfakturModal
+        number="010-01"
+        date="2026-10-01"
+        loading={false}
+        onClose={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    expect(screen.getByLabelText('e-Faktur number')).toHaveAttribute('maxLength', '32');
+    expect(screen.getByLabelText('e-Faktur number')).toHaveValue('010-01');
+    expect(screen.getByLabelText('e-Faktur date')).toHaveAttribute('max', today);
+    expect(screen.getByLabelText('e-Faktur date')).toHaveValue('2026-10-01');
   });
 });

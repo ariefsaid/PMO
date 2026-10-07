@@ -1,10 +1,13 @@
 -- 0265_efaktur_number.test.sql — PMO-owned e-Faktur facts (DD-EFK-1).
 begin;
-select plan(33);
+select plan(39);
+-- Deterministic dates: the fixture orgs keep their day in UTC and so does this session, so
+-- current_date below IS the org-local today. The timezone block further down moves both apart.
+set local timezone = 'UTC';
 
-insert into organizations (id, name) values
-  ('11120000-0000-0000-0000-000000002651','eFaktur Org'),
-  ('11120000-0000-0000-0000-000000002652','Other eFaktur Org');
+insert into organizations (id, name, default_timezone) values
+  ('11120000-0000-0000-0000-000000002651','eFaktur Org','UTC'),
+  ('11120000-0000-0000-0000-000000002652','Other eFaktur Org','UTC');
 insert into auth.users (id, email) values
   ('11120000-0000-0000-0000-0000000026a1','efaktur-finance@example.invalid'),
   ('11120000-0000-0000-0000-0000000026a2','efaktur-admin@example.invalid'),
@@ -101,6 +104,42 @@ set local request.jwt.claims = '{"sub":"11120000-0000-0000-0000-0000000026d1","r
 select throws_ok($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-16',current_date) $$,
   '42501', null, 'AC-EFK-002 disabled Finance is refused');
 
+-- "Not in the future" is judged on the ORG's calendar (the 0247 pattern), never the session's.
+-- Each half puts the session 26 hours away from the org, so a current_date check fails it on any clock.
+reset role;
+update organizations set default_timezone = 'Pacific/Kiritimati' where id = '11120000-0000-0000-0000-000000002651';
+set local timezone = 'Etc/GMT+12';  -- UTC-12: the org (UTC+14) is always on a later date than current_date
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11120000-0000-0000-0000-0000000026a1","role":"authenticated"}';
+select is((select (set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e1','010-20',
+    (now() at time zone 'Pacific/Kiritimati')::date)).efaktur_date),
+  (now() at time zone 'Pacific/Kiritimati')::date,
+  'AC-EFK-001 the org-local today is accepted while it is after the session date');
+select is((select (set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-21',
+    (now() at time zone 'Pacific/Kiritimati')::date)).efaktur_date),
+  (now() at time zone 'Pacific/Kiritimati')::date,
+  'AC-EFK-002 the org-local today is accepted while it is after the session date');
+select throws_ok($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e1','010-22',
+    (now() at time zone 'Pacific/Kiritimati')::date + 1) $$,
+  '23514', null, 'AC-EFK-001 the org-local tomorrow is refused');
+select throws_ok($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-23',
+    (now() at time zone 'Pacific/Kiritimati')::date + 1) $$,
+  '23514', null, 'AC-EFK-002 the org-local tomorrow is refused');
+reset role;
+update organizations set default_timezone = 'Etc/GMT+12' where id = '11120000-0000-0000-0000-000000002651';
+set local timezone = 'Pacific/Kiritimati';  -- the org (UTC-12) is always on an earlier date than current_date
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11120000-0000-0000-0000-0000000026a1","role":"authenticated"}';
+select throws_ok($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e1','010-24',
+    (now() at time zone 'Etc/GMT+12')::date + 1) $$,
+  '23514', null, 'AC-EFK-001 the org-local tomorrow is refused while the session date has already reached it');
+select throws_ok($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-25',
+    (now() at time zone 'Etc/GMT+12')::date + 1) $$,
+  '23514', null, 'AC-EFK-002 the org-local tomorrow is refused while the session date has already reached it');
+reset role;
+update organizations set default_timezone = 'UTC' where id = '11120000-0000-0000-0000-000000002651';
+set local timezone = 'UTC';
+
 reset role;
 select ok(not has_function_privilege('anon','public.set_sales_invoice_efaktur(uuid,text,date)','EXECUTE'),
   'AC-EFK-001 anonymous role cannot execute the sales setter');
@@ -111,7 +150,8 @@ select ok(has_function_privilege('authenticated','public.set_sales_invoice_efakt
 select ok(has_function_privilege('authenticated','public.set_procurement_invoice_efaktur(uuid,text,date)','EXECUTE'),
   'AC-EFK-002 authenticated members can invoke the procurement setter');
 
--- Mirror-shaped service_role updates alter ERP-owned fields but intentionally omit e-Faktur columns.
+-- Smoke check, not an AC owner: the mirror-preservation AC is owned by the Deno tests that drive the
+-- SHIPPED mirror writers (readModelWriters.money.test.ts, erpnextFeedDeps.revenue.test.ts). Here a mirror-shaped service_role update that omits the e-Faktur columns leaves them intact.
 update sales_invoices set efaktur_number='010-14', efaktur_date=current_date where id='11120000-0000-0000-0000-0000000026e2';
 update procurement_invoices set efaktur_number='010-15', efaktur_date=current_date where id='11120000-0000-0000-0000-0000000026e5';
 set local role service_role;
@@ -119,8 +159,8 @@ update sales_invoices set status='Paid', erp_outstanding_amount=0, erp_docstatus
 update procurement_invoices set status='Paid', erp_outstanding_amount=0, erp_docstatus=1 where id='11120000-0000-0000-0000-0000000026e5';
 reset role;
 select is((select efaktur_number from sales_invoices where id='11120000-0000-0000-0000-0000000026e2'),
-  '010-14', 'AC-EFK-003 sales-invoice mirror refresh preserves PMO e-Faktur facts');
+  '010-14', 'smoke: a mirror-shaped sales-invoice update preserves PMO e-Faktur facts');
 select is((select efaktur_number from procurement_invoices where id='11120000-0000-0000-0000-0000000026e5'),
-  '010-15', 'AC-EFK-003 vendor-bill mirror refresh preserves PMO e-Faktur facts');
+  '010-15', 'smoke: a mirror-shaped vendor-bill update preserves PMO e-Faktur facts');
 select * from finish();
 rollback;

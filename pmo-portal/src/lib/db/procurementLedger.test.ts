@@ -576,11 +576,24 @@ describe('AC-EFK-005 vendor e-Faktur ledger projection', () => {
     };
     const rows = buildLedgerRows(makeDetail({ invoices: [vi], purchase_requests: [pr] }));
     expect(rows.find((row) => row.type === 'Invoice')).toMatchObject({
-      efakturNumber: '010.001-26.12345678', efakturDate: '2026-10-01', isCancelled: false,
+      efakturNumber: '010.001-26.12345678', efakturDate: '2026-10-01', efakturLocked: false,
     });
-    expect(rows.find((row) => row.type === 'PR')).toMatchObject({
-      efakturNumber: null, efakturDate: null, isCancelled: false,
-    });
+    const prRow = rows.find((row) => row.type === 'PR');
+    expect(prRow).toMatchObject({ efakturNumber: null, efakturDate: null });
+    expect(prRow).not.toHaveProperty('efakturLocked');
+  });
+
+  it('locks e-Faktur editing on a cancelled vendor invoice (docstatus 2 or a cancel stamp)', () => {
+    const base: VIRow = {
+      id: 'vi-docstatus', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-002', status: 'Paid',
+      invoice_date: '2026-10-01', created_at: '2026-10-01T00:00:00Z', po_id: null,
+      reference_number: null, amount: 100, efaktur_number: null, efaktur_date: null,
+      erp_docstatus: 2, erp_cancelled_at: null,
+    };
+    const stamped: VIRow = { ...base, id: 'vi-stamped', vi_number: 'VI-003', erp_docstatus: 1, erp_cancelled_at: '2026-10-02T00:00:00Z' };
+    const rows = buildLedgerRows(makeDetail({ invoices: [base, stamped] }));
+    expect(rows.find((row) => row.recordId === 'vi-docstatus')?.efakturLocked).toBe(true);
+    expect(rows.find((row) => row.recordId === 'vi-stamped')?.efakturLocked).toBe(true);
   });
 });
 

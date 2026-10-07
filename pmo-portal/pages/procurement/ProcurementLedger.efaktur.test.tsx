@@ -1,11 +1,12 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { ProcurementLedger } from './ProcurementLedger';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
+import { formatDateOnly } from '@/src/lib/format';
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'user-finance', org_id: 'org-1', role: 'Finance' } }),
@@ -32,12 +33,22 @@ const invoiceRow: LedgerRow = {
   id: 'Invoice-vi-1', date: '2026-10-01', type: 'Invoice', systemNumber: 'VI-1', externalRef: null,
   amount: 100, status: 'Paid', statusVariant: 'won', fileHref: null, fileTitle: null, fileCount: 0,
   financial: true, recordId: 'vi-1', currency: 'IDR', taxTreatment: 'inclusive',
-  efakturNumber: '010.001-26.12345678', efakturDate: '2026-10-01', isCancelled: false,
+  efakturNumber: '010.001-26.12345678', efakturDate: '2026-09-28', efakturLocked: false,
 };
 const paymentRow: LedgerRow = {
   ...invoiceRow, id: 'Payment-pay-1', type: 'Payment', systemNumber: 'PAY-1', recordId: 'pay-1',
   efakturNumber: null, efakturDate: null,
 };
+
+/** The text of `rowLabel`'s cell under the column headed `header`. */
+function cellText(rowLabel: string, header: string): string {
+  const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
+  const col = headers.indexOf(header);
+  expect(col).toBeGreaterThanOrEqual(0);
+  const row = screen.getByText(rowLabel).closest('tr');
+  if (!row) throw new Error(`no table row for ${rowLabel}`);
+  return within(row).getAllByRole('cell')[col].textContent?.trim() ?? '';
+}
 
 function renderLedger(props: Partial<React.ComponentProps<typeof ProcurementLedger>> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -54,11 +65,11 @@ function renderLedger(props: Partial<React.ComponentProps<typeof ProcurementLedg
 describe('ProcurementLedger e-Faktur details', () => {
   it('AC-EFK-005 displays e-Faktur facts on vendor invoices and dashes on other record types', () => {
     renderLedger();
-    const text = screen.getByRole('table').textContent ?? '';
-    expect(text).toContain('010.001-26.12345678');
-    expect(text).toContain('e-Faktur number');
-    expect(text).toContain('e-Faktur date');
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(cellText('VI-1', 'e-Faktur number')).toBe('010.001-26.12345678');
+    // the e-Faktur date is its own fact, not the invoice date (2026-10-01)
+    expect(cellText('VI-1', 'e-Faktur date')).toBe(formatDateOnly('2026-09-28'));
+    expect(cellText('PAY-1', 'e-Faktur number')).toBe('—');
+    expect(cellText('PAY-1', 'e-Faktur date')).toBe('—');
   });
 
   it('AC-EFK-005 offers the Admin/Finance edit action only for non-cancelled invoices and saves selected id', async () => {
@@ -70,13 +81,13 @@ describe('ProcurementLedger e-Faktur details', () => {
     fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: ' 010.001-26.12345678 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onSetEfaktur).toHaveBeenCalledWith('vi-1', {
-      efakturNumber: '010.001-26.12345678', efakturDate: '2026-10-01',
+      efakturNumber: '010.001-26.12345678', efakturDate: '2026-09-28',
     }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('AC-EFK-005 hides edit for cancelled vendor invoices and non-Finance/Admin users', () => {
-    const cancelled = renderLedger({ canRecordEfaktur: true, rows: [{ ...invoiceRow, isCancelled: true }] });
+    const cancelled = renderLedger({ canRecordEfaktur: true, rows: [{ ...invoiceRow, efakturLocked: true }] });
     expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
     cancelled.unmount();
     renderLedger({ canRecordEfaktur: false });

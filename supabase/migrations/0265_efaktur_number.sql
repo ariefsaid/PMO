@@ -2,8 +2,8 @@
 -- mirror writers must leave them untouched. Client writes go only through the two role/org-guarded RPCs.
 -- Reversal: supabase/migrations/rollback/0265_efaktur_number_down.sql.
 --
--- "Date not in the future" is checked in the RPCs, not as a table CHECK: a CHECK on current_date would
--- be a time-dependent schema constraint.
+-- "Date not in the future" is checked in the RPCs against the org-local today, not as a table CHECK:
+-- a CHECK on the date would be a time-dependent schema constraint.
 alter table public.sales_invoices
   add column efaktur_number text,
   add column efaktur_date date,
@@ -65,7 +65,10 @@ begin
   if v_number is not null and (char_length(v_number) > 32 or v_number !~ '^[0-9.-]+$') then
     raise exception 'invalid e-Faktur number' using errcode = '23514';
   end if;
-  if p_efaktur_date is not null and p_efaktur_date > current_date then
+  -- "Future" on the ORG's calendar (the 0247 pattern), not the session's: current_date would refuse
+  -- an Asia/Jakarta morning's own date until 07:00 local.
+  if p_efaktur_date is not null and p_efaktur_date > (now() at time zone coalesce(
+       (select o.default_timezone from public.organizations o where o.id = v_row.org_id), 'UTC'))::date then
     raise exception 'e-Faktur date cannot be in the future' using errcode = '23514';
   end if;
   update public.sales_invoices
@@ -106,7 +109,10 @@ begin
   if v_number is not null and (char_length(v_number) > 32 or v_number !~ '^[0-9.-]+$') then
     raise exception 'invalid e-Faktur number' using errcode = '23514';
   end if;
-  if p_efaktur_date is not null and p_efaktur_date > current_date then
+  -- "Future" on the ORG's calendar (the 0247 pattern), not the session's: current_date would refuse
+  -- an Asia/Jakarta morning's own date until 07:00 local.
+  if p_efaktur_date is not null and p_efaktur_date > (now() at time zone coalesce(
+       (select o.default_timezone from public.organizations o where o.id = v_row.org_id), 'UTC'))::date then
     raise exception 'e-Faktur date cannot be in the future' using errcode = '23514';
   end if;
   update public.procurement_invoices

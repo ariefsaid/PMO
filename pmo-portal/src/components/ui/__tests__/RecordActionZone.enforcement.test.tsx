@@ -42,6 +42,7 @@ const { procDetailState, procMutations } = vi.hoisted(() => ({
     createReceipt: { mutateAsync: vi.fn(), isPending: false },
     createInvoice: { mutateAsync: vi.fn(), isPending: false },
     captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false },
+    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
 
