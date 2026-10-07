@@ -176,8 +176,12 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
 
     await openMenu(user, 'ACC-SINV-2026-00001');
     const busy = screen.getByRole('menuitem', { name: 'Preparing PDF…' });
-    expect(busy).toBeDisabled();
-    // A disabled menuitem fires no click — the menu stays open underneath.
+    // WAI-ARIA menu pattern: announced disabled but still focusable, so the open menu's
+    // first item always takes keyboard focus (a HTML-disabled button would strand it).
+    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    expect(busy).not.toBeDisabled();
+    // Enter/click on the aria-disabled item is swallowed by the activate guard —
+    // exactly one request, the one already in flight.
     await user.click(busy);
     expect(revenue.downloadInvoicePdf).toHaveBeenCalledTimes(1);
 

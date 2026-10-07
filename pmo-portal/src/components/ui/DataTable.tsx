@@ -42,7 +42,11 @@ export interface RowMenuItem {
   label: string;
   onClick: () => void;
   danger?: boolean;
-  /** Dimmed, unfocusable and unclickable — e.g. a per-row action already in flight (AC-PDF-011). */
+  /** Dimmed, announced disabled and unclickable — e.g. a per-row action already in flight (AC-PDF-011).
+   *  WAI-ARIA menu pattern: rendered as `aria-disabled="true"`, NOT the HTML `disabled` attribute —
+   *  a disabled button is unfocusable, so a disabled FIRST item would strand open-focus on the
+   *  trigger (arrows/Escape dead). Staying focusable gives the roving focus a landing spot; the
+   *  activate guard below makes Enter/click a no-op. */
   disabled?: boolean;
 }
 
@@ -593,7 +597,9 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
   };
 
   const activate = (item: RowMenuItem) => {
-    if (item.disabled) return; // a disabled button fires no click; this guard is belt-and-braces
+    // Load-bearing since the aria-disabled switch: an aria-disabled <button> still fires
+    // click (there is no HTML `disabled` to swallow it) — this guard is the no-op.
+    if (item.disabled) return;
     item.onClick();
     close();
   };
@@ -646,7 +652,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
                   <button
                     role="menuitem"
                     type="button"
-                    disabled={item.disabled}
+                    aria-disabled={item.disabled || undefined}
                     tabIndex={i === active ? 0 : -1}
                     data-menuitem-index={i}
                     onMouseEnter={() => setActive(i)}
