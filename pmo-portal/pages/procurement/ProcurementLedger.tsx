@@ -2,7 +2,7 @@
  * ProcurementLedger — the Documents tab case ledger (Slice 2).
  *
  * One chronological DataTable for all 7 procurement record types:
- *   Date · Type · System # · External ref · Group ref · Amount · Status · File
+ *   Date · Type · System # · External ref · Group ref · e-Faktur · Amount · Status · File
  *
  * Three filter chips (All / Financial / Has file) — `<button aria-pressed>` per
  * DESIGN.md §6 filter-chips spec. Mobile reflow via the existing DataTable md→card
@@ -30,7 +30,9 @@ import {
   StatusPill,
   TaxBasisLabel,
 } from '@/src/components/ui';
-import type { Column } from '@/src/components/ui';
+import type { Column, RowMenuItem } from '@/src/components/ui';
+import { EfakturModal, type EfakturSaveValues } from '@/src/components/EfakturModal';
+import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
@@ -79,6 +81,10 @@ const FILTER_CHIPS: FilterChipDef[] = [
 const GroupRefHeader: React.FC = () => {
   const { t } = useTranslation();
   return <>{t('procurementDetail.groupRef.label', 'Group ref')}</>;
+};
+const EfakturHeader: React.FC = () => {
+  const { t } = useTranslation();
+  return <>{t('efaktur.column', 'e-Faktur')}</>;
 };
 
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
@@ -129,6 +135,16 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
       ) : (
         <span className="text-[12px] text-muted-foreground">—</span>
       ),
+  },
+  {
+    // One cell for the pair (number over a muted date): two columns pushed the row ⋯ off the 1440 view.
+    // Only a vendor invoice carries an e-Faktur — every other record type renders nothing here (no dash,
+    // and no empty label on its mobile card).
+    key: 'efaktur',
+    header: <EfakturHeader />,
+    cell: (row) => row.type === 'Invoice'
+      ? <EfakturCell number={row.efakturNumber ?? null} date={row.efakturDate ?? null} />
+      : null,
   },
   {
     key: 'amount',
@@ -196,6 +212,12 @@ export interface ProcurementLedgerProps {
   uploadedById: string | null;
   /** Whether write affordances are shown. Derived from real JWT role. */
   canWrite: boolean;
+  /** Admin/Finance may edit PMO-owned e-Faktur facts on non-cancelled vendor invoices. */
+  canRecordEfaktur?: boolean;
+  /** PMO-only setter; the parent hook owns the query invalidation. */
+  onSetEfaktur?: (invoiceId: string, values: EfakturSaveValues) => Promise<void>;
+  /** Whether the setter is currently pending. */
+  efakturSaving?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
 }
@@ -210,9 +232,14 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   procurementId,
   uploadedById,
   canWrite,
+  canRecordEfaktur = false,
+  onSetEfaktur,
+  efakturSaving = false,
   invoices = [],
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
+  const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
+  const { t } = useTranslation();
 
   // Mutations for the capture row (invalidate the detail query on success)
   const mutations = useProcurementRecordMutations(procurementId);
@@ -346,11 +373,29 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
+        rowMenu={canRecordEfaktur && onSetEfaktur ? (row): RowMenuItem[] | undefined => {
+          if (row.type !== 'Invoice' || row.efakturLocked) return undefined;
+          return [{ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) }];
+        } : undefined}
         state={tableState}
         emptyTitle={emptyTitle}
         emptySub={emptySub}
         className="rounded-t-none"
       />
+
+      {efakturTarget && onSetEfaktur && (
+        <EfakturModal
+          recordLabel={efakturTarget.systemNumber ?? efakturTarget.recordId}
+          number={efakturTarget.efakturNumber ?? null}
+          date={efakturTarget.efakturDate ?? null}
+          loading={efakturSaving}
+          onClose={() => setEfakturTarget(null)}
+          onSave={async (values) => {
+            await onSetEfaktur(efakturTarget.recordId, values);
+            setEfakturTarget(null);
+          }}
+        />
+      )}
 
       {/* Capture affordance + note */}
       <CardPad>

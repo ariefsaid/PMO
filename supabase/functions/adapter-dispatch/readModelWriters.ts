@@ -404,6 +404,7 @@ async function recordOutboundLineage(
 async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
   const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
   const docstatus = canonical.erp_docstatus as number | null | undefined;
+  // DD-EFK-1: efaktur_number/efaktur_date are PMO-owned; intentionally absent from mirror writes.
   const patch: Record<string, unknown> = {
     vi_number: canonical.vi_number ?? null,
     invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
@@ -658,6 +659,7 @@ async function appendSalesInvoiceAuthor(ctx: ReadModelWriterCtx, salesInvoiceId:
 async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
   const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
   const docstatus = canonical.erp_docstatus as number | null | undefined;
+  // DD-EFK-1: efaktur_number/efaktur_date are PMO-owned; intentionally absent from mirror writes.
   const patch: Record<string, unknown> = {
     si_number: canonical.si_number ?? null,
     // customer_id/project_id are PMO-side links set ONLY on create (from command.record, below) —

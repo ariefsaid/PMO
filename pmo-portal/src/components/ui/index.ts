@@ -98,6 +98,7 @@ export { Combobox, type ComboboxProps, type ComboboxOption } from './Combobox';
 export {
   EntityFormModal,
   type EntityFormModalProps,
+  type DiscardCopy,
   type ErrorSummaryItem,
   type SubmitError,
 } from './EntityFormModal';

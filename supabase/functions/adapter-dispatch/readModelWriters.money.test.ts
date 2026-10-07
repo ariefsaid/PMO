@@ -1213,6 +1213,50 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: 'AC-EFK-003 mirror creates and refreshes omit PMO-owned e-Faktur values for both invoice rows',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const canonical = {
+      id: 'invoice-efaktur-test', vi_number: 'VI-TEST', si_number: 'SI-TEST',
+      invoice_date: '2026-10-01', reference_number: 'REF-TEST', amount: '100.00',
+      erp_outstanding_amount: '100.00', erp_docstatus: 1, erp_modified: '2026-10-01T00:00:00Z',
+      efaktur_number: '010.001-26.12345678', efaktur_date: '2026-10-01',
+      tax_amount: '0.00', withheld_amount: '0.00',
+    };
+    const procurementWriter = getReadModelWriter('procurement');
+    const revenueWriter = getReadModelWriter('revenue');
+
+    await procurementWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'procurement', operation: 'create', record: { id: canonical.id, procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    await revenueWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'revenue', operation: 'create', record: { id: canonical.id, erp_doc_kind: 'sales-invoice' } },
+    );
+    await procurementWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'procurement', operation: 'transition', record: { id: canonical.id, erp_doc_kind: 'purchase-invoice', verb: 'submit' } },
+    );
+    await revenueWriter.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'revenue', operation: 'transition', record: { id: canonical.id, erp_doc_kind: 'sales-invoice', verb: 'submit' } },
+    );
+
+    const invoiceWrites = calls.filter((call) =>
+      (call.method === 'insert' || call.method === 'update')
+      && (call.table === 'sales_invoices' || call.table === 'procurement_invoices')
+    );
+    assertEquals(invoiceWrites.length, 4, 'two invoice types each have a create and update write');
+    for (const call of invoiceWrites) {
+      const patch = call.args[0] as Record<string, unknown>;
+      assert(!('efaktur_number' in patch), `${call.table} ${call.method} omits efaktur_number`);
+      assert(!('efaktur_date' in patch), `${call.table} ${call.method} omits efaktur_date`);
+    }
+  },
+});
+
 // ============================================================================
 // #876 (0266, DD-VWH-1/7) — the PI mirror states withheld_amount on every create and never nulls it on an update.
 // ============================================================================

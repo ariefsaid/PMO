@@ -14,10 +14,13 @@
  */
 export class AppError extends Error {
   readonly code?: string;
-  constructor(message: string, code?: string) {
+  /** The Postgres DETAIL, when the raiser set a stable machine key there (e.g. `efaktur-incomplete`). */
+  readonly details?: string;
+  constructor(message: string, code?: string, details?: string) {
     super(message);
     this.name = 'AppError';
     this.code = code;
+    if (details) this.details = details;
   }
 }
 
@@ -48,6 +51,12 @@ function readCode(err: unknown): string | undefined {
   return typeof candidate === 'string' ? candidate : undefined;
 }
 
+/** Reads a structurally-present string Postgres `details` (the raiser's DETAIL) — same contract as `readCode`. */
+function readDetails(err: unknown): string | undefined {
+  const candidate = (err as { details?: unknown } | null | undefined)?.details;
+  return typeof candidate === 'string' ? candidate : undefined;
+}
+
 /**
  * Normalizes any thrown value into an `AppError`, preserving a string `.code` when
  * present and the verbatim message when the value is an `Error` or a PostgREST-shaped
@@ -57,14 +66,14 @@ function readCode(err: unknown): string | undefined {
  */
 export function toAppError(err: unknown): AppError {
   if (err instanceof AppError) return err;
-  if (err instanceof Error) return new AppError(err.message, readCode(err));
+  if (err instanceof Error) return new AppError(err.message, readCode(err), readDetails(err));
   // PostgREST / Supabase client errors are plain objects { message: string, code?: string }
   // (not Error instances). Preserve message + code from that shape.
   if (err !== null && typeof err === 'object') {
     const obj = err as { message?: unknown; code?: unknown };
     const message = typeof obj.message === 'string' ? obj.message : 'An unexpected error occurred';
     const code = typeof obj.code === 'string' ? obj.code : undefined;
-    return new AppError(message, code);
+    return new AppError(message, code, readDetails(err));
   }
   return new AppError('An unexpected error occurred');
 }

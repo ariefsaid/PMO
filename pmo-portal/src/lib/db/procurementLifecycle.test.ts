@@ -28,6 +28,7 @@ import {
   createInvoice,
   captureVendorInvoice,
   createQuotation,
+  setProcurementInvoiceEfaktur,
   ProcurementError,
 } from './procurementLifecycle';
 
@@ -420,6 +421,22 @@ describe('captureVendorInvoice', () => {
       p_tax_amount: 94.14,
     });
     expect(result).toMatchObject({ id: 'invoice-vi-1' });
+  });
+});
+
+describe('AC-EFK-005 procurement e-Faktur DAL', () => {
+  it('calls the PMO setter with only the bill id, nullable number, and nullable date', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await setProcurementInvoiceEfaktur('vendor-bill-1', null, '2026-10-01');
+    expect(mockRpc).toHaveBeenCalledWith('set_procurement_invoice_efaktur', {
+      p_invoice_id: 'vendor-bill-1', p_efaktur_number: null, p_efaktur_date: '2026-10-01',
+    });
+  });
+  it('AC-EFK-005 keeps the refusal DETAIL on the thrown error so the dialog can name the refusal', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'cannot record e-Faktur facts on a cancelled vendor bill', code: '23514', details: 'efaktur-cancelled' } });
+    const err = await setProcurementInvoiceEfaktur('vendor-bill-1', '010-01', '2026-10-01').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ProcurementError);
+    expect(err).toMatchObject({ code: '23514', details: 'efaktur-cancelled' });
   });
 });
 

@@ -26,6 +26,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', async (importOriginal) => {
     createQuotation: vi.fn(),
     createReceipt: vi.fn(),
     createInvoice: vi.fn(),
+    setProcurementInvoiceEfaktur: vi.fn(),
   };
 });
 vi.mock('@/src/lib/db/companies', () => ({
@@ -52,6 +53,7 @@ import {
   createQuotation,
   createReceipt,
   createInvoice,
+  setProcurementInvoiceEfaktur,
   ProcurementError,
 } from '@/src/lib/db/procurementLifecycle';
 import { createCompany, updateCompany } from '@/src/lib/db/companies';
@@ -67,6 +69,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   clearOwnershipCache();
   dispatchSpy = vi.spyOn(dispatchClient as never, 'dispatchDomainCommand' as never);
+});
+
+describe('AC-EFK-005 DD-EFK-1 vendor setter remains PMO-direct for externally owned procurement', () => {
+  it('calls the guarded PMO DAL setter and never dispatches e-Faktur facts', async () => {
+    vi.mocked(setProcurementInvoiceEfaktur).mockResolvedValue(undefined);
+    const result = await repositories.procurement.setEfaktur('vi-efaktur', {
+      efakturNumber: null, efakturDate: '2026-10-01',
+    });
+    expect(result).toBeUndefined();
+    expect(setProcurementInvoiceEfaktur).toHaveBeenCalledWith('vi-efaktur', null, '2026-10-01');
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('AC-ENA-001 cold ownership map — procurement writes stay on the direct DAL', () => {

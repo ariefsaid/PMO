@@ -424,33 +424,39 @@ export function DataTable<Row>({
                   )}
                 </div>
 
-                {/* Remaining columns as a definition list */}
+                {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
+                    (null/undefined/false — e.g. a fact that only one record type carries) is left out of
+                    the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
-                    {restCols.map((col) => (
-                      <React.Fragment key={col.key}>
-                        <dt
-                          className={cn(
-                            'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
-                            stripHiddenClasses(col.colClassName)
-                          )}
-                        >
-                          {col.header}
-                        </dt>
-                        <dd
-                          className={cn(
-                            // [&_.truncate]:block — see the title note above: inline truncate
-                            // cells (e.g. a contact email) don't clip and bleed at 360px.
-                            'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
-                            col.align === 'num' && 'tabular text-right',
-                            col.align === 'center' && 'text-center',
-                            stripHiddenClasses(col.colClassName)
-                          )}
-                        >
-                          {col.cell(row)}
-                        </dd>
-                      </React.Fragment>
-                    ))}
+                    {restCols.map((col) => {
+                      const content = col.cell(row);
+                      if (content == null || content === false) return null;
+                      return (
+                        <React.Fragment key={col.key}>
+                          <dt
+                            className={cn(
+                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
+                              stripHiddenClasses(col.colClassName)
+                            )}
+                          >
+                            {col.header}
+                          </dt>
+                          <dd
+                            className={cn(
+                              // [&_.truncate]:block — see the title note above: inline truncate
+                              // cells (e.g. a contact email) don't clip and bleed at 360px.
+                              'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
+                              col.align === 'num' && 'tabular text-right',
+                              col.align === 'center' && 'text-center',
+                              stripHiddenClasses(col.colClassName)
+                            )}
+                          >
+                            {content}
+                          </dd>
+                        </React.Fragment>
+                      );
+                    })}
                   </dl>
                 )}
               </li>

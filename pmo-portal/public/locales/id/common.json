@@ -1,4 +1,27 @@
 {
+  "efaktur": {
+    "title": "Catat detail e-Faktur",
+    "number": "Nomor e-Faktur",
+    "date": "Tanggal e-Faktur",
+    "column": "e-Faktur",
+    "record": "Catat e-Faktur",
+    "subtitle": "Untuk {{record}}. Catat nomor beserta tanggalnya, atau biarkan keduanya kosong untuk dokumen non-PPN.",
+    "invalidNumber": "Gunakan maksimal 32 angka, titik, atau tanda hubung.",
+    "numberMissing": "Isi juga nomor e-Faktur, atau kosongkan tanggalnya.",
+    "dateMissing": "Isi juga tanggal e-Faktur, atau kosongkan nomornya.",
+    "futureDate": "Tanggal e-Faktur tidak boleh di masa depan.",
+    "invalidDate": "Masukkan tanggal yang valid.",
+    "disabledReason": "Perbaiki nilai e-Faktur yang ditandai untuk menyimpan.",
+    "notSaved": "e-Faktur tidak disimpan",
+    "refusedIncomplete": "Catat nomor e-Faktur beserta tanggalnya.",
+    "refusedCancelled": "Faktur ini sudah dibatalkan, sehingga e-Fakturnya tidak dapat dicatat lagi. Daftar telah diperbarui.",
+    "cancel": "Batal",
+    "discardTitle": "Buang detail e-Faktur ini?",
+    "discardDescription": "Nomor dan tanggal yang Anda isi tidak akan disimpan.",
+    "discard": "Buang",
+    "keepEditing": "Lanjut mengedit",
+    "saved": "Detail e-Faktur disimpan"
+  },
   "budget": {
     "category": {
       "specialExpenses": "Biaya khusus"

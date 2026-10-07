@@ -335,6 +335,12 @@ describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)',
     expect(allowedRoles('record_received_date', 'salesInvoice')).toEqual(['Admin', 'Finance']);
   });
 
+  it('AC-EFK-004/005: e-Faktur recording is Admin/Finance-only for sales invoices and vendor bills', () => {
+    expect(allowedRoles('record_efaktur', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('record_efaktur', 'procurementInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('record_efaktur', 'salesInvoice', { realRole: null })).toBe(false);
+  });
+
   it('P3a: no `edit` affordance exists for either revenue entity (no update path is implemented)', () => {
     expect(allowedRoles('edit', 'salesInvoice')).toEqual([]);
     expect(allowedRoles('edit', 'incomingPayment')).toEqual([]);
