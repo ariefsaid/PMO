@@ -9,7 +9,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { seedSAR, cleanupSAR, SAR_CURRENCY, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -74,7 +74,7 @@ test.describe('AC-BWO-003: a work order is invoiced up to its value and no furth
       expect((await admin.from('work_orders').insert({
         id: workOrderId, org_id: ORG_ID, project_id: seeded.projectId, title: `Route survey ${suffix}`, client_po_number: po,
         status: 'Issued', wo_number: `WO-${suffix}`, issued_at: new Date().toISOString(),
-        order_value: 300_000, tax_treatment: 'exclusive', tax_amount: 0,
+        order_value: 300_000, tax_treatment: 'exclusive', tax_amount: 0, currency: SAR_CURRENCY,
       })).error).toBeNull();
 
       // 1. Finance invoices 200,000 of the 300,000 PO: one ERP draft that carries the client's PO.
