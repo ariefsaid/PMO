@@ -62,7 +62,8 @@ function fakeDb() {
 
 const listRow = (name: string, modified: string) => ({
   name, modified, docstatus: 1, amended_from: null, company: OURS, payment_type: 'Receive',
-  party: 'ACME', posting_date: '2026-10-01', reference_no: `REF-${name}`, paid_amount: 980, received_amount: 980,
+  // ERPNext states party_type on every Pay/Receive entry (and the poll requests it); a row without it is not adopted.
+  party_type: 'Customer', party: 'ACME', posting_date: '2026-10-01', reference_no: `REF-${name}`, paid_amount: 980, received_amount: 980,
 });
 const marked = (amount: number, slip: string) => ({ amount, description: `Withholding slip: ${slip}` });
 const AMBIGUOUS = { ...listRow('ACC-PAY-0001', '2026-10-01 09:00:00'),

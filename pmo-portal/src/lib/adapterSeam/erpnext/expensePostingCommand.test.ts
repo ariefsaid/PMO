@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildExpensePostingCommand, type ExpenseGateTruth, type ExpenseResolvedRefs } from './expensePostingCommand';
+import { buildExpensePostingCommand, parseExpenseGateTruth, type ExpenseGateTruth, type ExpenseResolvedRefs } from './expensePostingCommand';
 import { createErpAdapter } from './adapter';
 import { DOCTYPE_BODIES } from './doctypeBodies';
 
@@ -91,5 +91,28 @@ describe('expense approval cancel through the adapter (AC-EXP-127)', () => {
     expect(calls[0].url).toContain('/api/resource/Journal%20Entry/ACC-JV-2026-00002');
     expect(calls[0].body).toEqual({ docstatus: 2 });
     expect(result.canonical).toMatchObject({ erp_docstatus: 2 });
+  });
+});
+
+describe('parseExpenseGateTruth (AC-EXP-117)', () => {
+  it('AC-EXP-117 accepts the gate\'s jsonb shape unchanged', () => {
+    const truth = t({});
+    expect(parseExpenseGateTruth(JSON.parse(JSON.stringify(truth)))).toEqual(truth);
+    const nulls = t({ claim_number: null, project_id: null, lines: [] });
+    expect(parseExpenseGateTruth(nulls)).toEqual(nulls);
+  });
+
+  it.each([
+    ['not an object', null],
+    ['an unknown posting', { ...t({}), posting: 'refund' }],
+    ['a missing actor', { ...t({}), actor_id: undefined }],
+    ['a numeric amount', { ...t({}), amount: 175 }],
+    ['an amount with three decimals', { ...t({}), amount: '1.000' }],
+    ['a malformed line', { ...t({}), lines: [{ expense_type: 'Meals' }] }],
+    ['lines that are not a list', { ...t({}), lines: {} }],
+    ['a non-boolean approval flag', { ...t({}), approval_posting_exists: 'yes' }],
+    ['a malformed posting date', { ...t({}), posting_date: '07/10/2026' }],
+  ])('AC-EXP-117 refuses %s — nothing is built from an unchecked shape', (_label, data) => {
+    expect(() => parseExpenseGateTruth(data)).toThrow(/expense-gate-truth-malformed/);
   });
 });

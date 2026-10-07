@@ -2080,6 +2080,7 @@ export type Database = {
           erp_modified: string | null
           erp_name: string | null
           id: string
+          last_attempt_at: string | null
           org_id: string
           posting: string
           posting_identity: string
@@ -2099,6 +2100,7 @@ export type Database = {
           erp_modified?: string | null
           erp_name?: string | null
           id?: string
+          last_attempt_at?: string | null
           org_id: string
           posting: string
           posting_identity: string
@@ -2118,6 +2120,7 @@ export type Database = {
           erp_modified?: string | null
           erp_name?: string | null
           id?: string
+          last_attempt_at?: string | null
           org_id?: string
           posting?: string
           posting_identity?: string
@@ -6751,6 +6754,10 @@ export type Database = {
       }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
       expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
+      expense_posting_actor_check: {
+        Args: { p_mirror_id: string; p_org_id: string }
+        Returns: undefined
+      }
       expense_posting_for_push: {
         Args: { p_mirror_id: string; p_org_id: string }
         Returns: Json

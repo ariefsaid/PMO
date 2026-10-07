@@ -3,7 +3,7 @@
  */
 import { AdapterError } from '../contract.ts';
 import type { ErpDocKind } from './doctypeRegistry.ts';
-import { expenseOutboxIdentity, expensePostingKey, type ExpensePosting } from './expensePostingKey.ts';
+import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingKey, type ExpensePosting } from './expensePostingKey.ts';
 import type { ExpenseJournalRow } from './bodies/expenseJournal.ts';
 
 /** What `expense_posting_for_push` (0263 §5) returns — DB truth, never a payload. */
@@ -23,6 +23,43 @@ export interface ExpenseGateTruth {
   posting_date: string;
   approval_posting_exists: boolean;
   actor_id: string;
+}
+
+const GATE_MONEY = /^\d{1,12}\.\d{2}$/;
+const GATE_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Check the gate's jsonb against `ExpenseGateTruth` before anything is built from it: a money body must never come from
+ * an unchecked cast. Throws `expense-gate-truth-malformed` (the sweep contains it per intent and records it failed).
+ */
+export function parseExpenseGateTruth(data: unknown): ExpenseGateTruth {
+  const bad = (field: string): never => {
+    throw new AdapterError('commit-rejected', `expense-gate-truth-malformed: ${field}`);
+  };
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) bad('not an object');
+  const d = data as Record<string, unknown>;
+  const text = (field: string): string => (typeof d[field] === 'string' && d[field] !== '' ? (d[field] as string) : bad(field));
+  const textOrNull = (field: string): string | null => (d[field] === null ? null : text(field));
+  const posting = text('posting');
+  if (!Object.prototype.hasOwnProperty.call(EXPENSE_POSTING_KEY_PREFIX, posting)) bad('posting');
+  const amount = text('amount');
+  if (!GATE_MONEY.test(amount)) bad('amount');
+  const postingDate = text('posting_date');
+  if (!GATE_DATE.test(postingDate)) bad('posting_date');
+  if (!Array.isArray(d.lines)) bad('lines');
+  const lines = (d.lines as unknown[]).map((line) => {
+    const l = (typeof line === 'object' && line !== null ? line : {}) as Record<string, unknown>;
+    if (typeof l.expense_type !== 'string' || typeof l.amount !== 'string' || !GATE_MONEY.test(l.amount)) bad('lines');
+    return { expense_type: l.expense_type as string, amount: l.amount as string };
+  });
+  if (typeof d.approval_posting_exists !== 'boolean') bad('approval_posting_exists');
+  return {
+    mirror_id: text('mirror_id'), posting: posting as ExpensePosting, posting_identity: text('posting_identity'),
+    subject_id: text('subject_id'), claim_id: text('claim_id'), claim_number: textOrNull('claim_number'),
+    claimant_id: text('claimant_id'), project_id: textOrNull('project_id'), currency: text('currency'), amount, lines,
+    state_stamp: text('state_stamp'), posting_date: postingDate, approval_posting_exists: d.approval_posting_exists as boolean,
+    actor_id: text('actor_id'),
+  };
 }
 
 /** Everything a posting body needs, resolved before the outbox row exists. `null` = not needed by this posting. */

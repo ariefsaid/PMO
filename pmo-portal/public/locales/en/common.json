@@ -39,7 +39,8 @@
       "toast": {
         "saved": "Expense account saved"
       },
-      "unmapped": "Not mapped — expense posting stops"
+      "unmapped": "Not mapped — expense posting stops",
+      "unmappedIdle": "Not mapped"
     },
     "access": {
       "checking": "Checking your Administration access…",
@@ -993,7 +994,22 @@
         "pending": "Queued",
         "pushed": "Posted"
       },
-      "title": "Ledger postings"
+      "title": "Ledger postings",
+      "reason": {
+        "accountInvalid": "A mapped account is not valid in ERPNext.",
+        "accountUnmapped": "An expense account is not mapped yet (Administration › Accounting).",
+        "actor": "The person who approved or paid this can no longer post it.",
+        "approvalCancelled": "The approval journal was cancelled in ERPNext.",
+        "cashAccount": "The ERPNext connection has no cash or bank account.",
+        "changed": "The claim changed after this posting was queued.",
+        "claimCancelled": "The claim was cancelled before this was posted.",
+        "config": "The ERPNext connection settings do not allow this posting.",
+        "employeeUnlinked": "The claimant is not linked to an ERPNext employee yet.",
+        "operator": "PMO cannot tell what ERPNext recorded. An operator must check it.",
+        "other": "The posting could not be completed. Admins were notified with the details.",
+        "projectUnmapped": "The claim’s project is not linked to an ERPNext project.",
+        "unreachable": "ERPNext could not be reached. It is retried automatically."
+      }
     },
     "actions": {
       "approve": "Approve",

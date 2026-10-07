@@ -93,3 +93,43 @@ Deno.test('AC-EXP-126 a Customer receipt still reaches the revenue apply unchang
   await post({ ...employeeReceipt, doc: { ...employeeReceipt.doc, party_type: 'Customer', party: 'CUST-1' } }, d);
   assertEquals(applied, ['incoming-payment:ACC-PAY-2026-00077']);
 });
+
+// A Payment Entry without party_type is not adopted (its party type decides its domain): acked, skipped, and the
+// org's Admin/Finance are told the webhook configuration omits the field — the same escalation as a missing company.
+const unstatedParty = (paymentType: 'Pay' | 'Receive') => {
+  const { party_type: _omitted, ...doc } = { ...employeeReceipt.doc, payment_type: paymentType, party: 'P-1' };
+  return { ...employeeReceipt, doc };
+};
+
+for (const [owned, paymentType, kind] of [
+  [['revenue', 'companies'], 'Receive', 'incoming-payment'],
+  [['procurement', 'companies'], 'Pay', 'payment'],
+] as const) {
+  Deno.test(`AC-EXP-126 a ${paymentType} Payment Entry without party_type is skipped and surfaced — org owning ${owned.join('+')}`, async () => {
+    const { d, applied } = deps([...owned]);
+    const alerts: Array<[string, string | undefined, string]> = [];
+    d.onScopeFieldMissing = async (orgId, event, field) => { alerts.push([orgId, event.kind, field]); };
+    const res = await post(unstatedParty(paymentType), d);
+    assertEquals(res.status, 200, JSON.stringify(res.body));
+    assertEquals(res.body.skipped, 'not-in-poll-scope');
+    assertEquals(applied, []);
+    assertEquals(alerts, [[ORG_ID, kind, 'party_type']]);
+  });
+}
+
+Deno.test('AC-EXP-126 a Payment Entry without party_type for a domain the org does not own is skipped silently', async () => {
+  const { d, applied } = deps(['procurement', 'companies']);
+  const alerts: string[] = [];
+  d.onScopeFieldMissing = async (_orgId, _event, field) => { alerts.push(field); };
+  const res = await post(unstatedParty('Receive'), d);
+  assertEquals(res.status, 200, JSON.stringify(res.body));
+  assertEquals([applied, alerts], [[], []]);
+});
+
+Deno.test('AC-EXP-126 an Employee Payment Entry on a revenue-only org is skipped without an alert (party type stated)', async () => {
+  const { d } = deps(['revenue', 'companies']);
+  const alerts: string[] = [];
+  d.onScopeFieldMissing = async (_orgId, _event, field) => { alerts.push(field); };
+  await post(employeeReceipt, d);
+  assertEquals(alerts, []);
+});

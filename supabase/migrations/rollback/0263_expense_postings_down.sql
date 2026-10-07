@@ -8,7 +8,10 @@ drop trigger if exists expense_claims_enqueue_postings_trg on public.expense_cla
 drop function if exists public.enqueue_expense_return_posting();
 drop function if exists public.enqueue_expense_claim_postings();
 drop function if exists public.enqueue_expense_posting(uuid, uuid, uuid, text, timestamptz, uuid);
+drop policy if exists external_command_outbox_expenses_read_scope on public.external_command_outbox;
+drop policy if exists erp_gl_entry_mirror_employee_read_scope on public.erp_gl_entry_mirror;
 drop function if exists public.expense_posting_for_push(uuid, uuid);
+drop function if exists public.expense_posting_actor_check(uuid, uuid);
 drop function if exists public.org_employs_expense_postings(uuid);
 drop table if exists public.expense_posting_erp_mirror;
 drop table if exists public.expense_account_map;

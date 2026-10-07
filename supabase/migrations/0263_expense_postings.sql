@@ -8,7 +8,8 @@
 -- §2 expense_account_map (written only by external-set-company, as service role)
 -- §3 expense_posting_erp_mirror (posting intent + Posture-B side mirror)
 -- §4 org_employs_expense_postings, enqueue_expense_posting and the two enqueue triggers
--- §5 expense_posting_for_push (the sweep's database gate, service_role only)
+-- §5 expense_posting_actor_check + expense_posting_for_push (the sweep's database gate, service_role only)
+-- §5b read scope of expense rows in the shared outbox and GL mirror (approval rank only)
 -- §6 closing self-assertion (the ACL shape, whatever the database's default privileges)
 --
 -- ⛔ transition_expense_claim, spend_approval_route and every phase-A policy are NOT touched (ADR-0059 §3.1).
@@ -134,6 +135,7 @@ create table public.expense_posting_erp_mirror (
   push_error       text,
   erp_name         text,
   pushed_at        timestamptz,
+  last_attempt_at  timestamptz,
   erp_docstatus    smallint,
   erp_modified     text,
   erp_amended_from text,
@@ -146,12 +148,16 @@ create table public.expense_posting_erp_mirror (
   constraint expense_posting_erp_mirror_identity check (posting_identity = coalesce(return_id, claim_id)::text || ':' || posting),
   constraint expense_posting_erp_mirror_identity_unique unique (org_id, posting_identity)
 );
--- The sweep's work queue (NFR-EXP-013): pending/failed, oldest first, never a cancelled one.
+-- The sweep's work queue (NFR-EXP-013): pending/failed, never a cancelled one, least recently attempted first — a
+-- round robin, so intents that keep failing cannot starve new ones behind the per-tick bound.
 create index expense_posting_erp_mirror_queue_idx
-  on public.expense_posting_erp_mirror (org_id, push_state, created_at) where erp_cancelled_at is null;
+  on public.expense_posting_erp_mirror (org_id, push_state, last_attempt_at nulls first, created_at)
+  where erp_cancelled_at is null;
 create index expense_posting_erp_mirror_claim_idx on public.expense_posting_erp_mirror (claim_id);
 comment on table public.expense_posting_erp_mirror is
   '#775 phase B — ERPNext posting intents for expense claims/advances (ADR-0081) and their ERP-side state.';
+comment on column public.expense_posting_erp_mirror.last_attempt_at is
+  'When the sweep last took this intent up (the work queue''s round-robin order); null = never attempted.';
 
 alter table public.expense_posting_erp_mirror enable row level security;
 alter table public.expense_posting_erp_mirror force  row level security;
@@ -240,29 +246,20 @@ create trigger expense_advance_returns_enqueue_posting_trg
 -- only originator (ADR-0081). Re-reads status, stamp and amounts, and re-asserts the RECORDED actor's CURRENT
 -- standing — an offboarded or demoted person's authority does not keep posting (spec Q9).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
-create or replace function public.expense_posting_for_push(p_org_id uuid, p_mirror_id uuid)
-returns jsonb
+-- The actor half on its own: the gate runs it before a fresh posting, and the sweep runs it before replaying an
+-- existing outbox command that may post anew (a replay re-reads nothing about the claim — its body is frozen).
+create or replace function public.expense_posting_actor_check(p_org_id uuid, p_mirror_id uuid)
+returns void
   language plpgsql stable security invoker set search_path = public, pg_temp as $$
 declare
-  m        public.expense_posting_erp_mirror%rowtype;
-  c        public.expense_claims%rowtype;
-  r        public.expense_advance_returns%rowtype;
-  v_role   user_role;
-  v_org    uuid;
-  v_ok     boolean;
-  v_amount numeric;
-  v_lines  jsonb := '[]'::jsonb;
-  v_tz     text;
+  m      public.expense_posting_erp_mirror%rowtype;
+  v_role user_role;
+  v_org  uuid;
 begin
   select * into m from public.expense_posting_erp_mirror where id = p_mirror_id and org_id = p_org_id;
   if not found then
     raise exception 'expense posting not found' using errcode = 'P0002';
   end if;
-  select * into c from public.expense_claims where id = m.claim_id and org_id = p_org_id;
-  if not found then
-    raise exception 'expense claim not found' using errcode = 'P0002';
-  end if;
-
   if m.actor_id is null then
     raise exception 'expense-posting-no-recorded-actor' using errcode = '42501';
   end if;
@@ -278,9 +275,41 @@ begin
           or (m.posting <> 'approval' and v_role = 'Finance')) then
     raise exception 'expense-posting-actor-not-authorized' using errcode = '42501';
   end if;
+end; $$;
+revoke all on function public.expense_posting_actor_check(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.expense_posting_actor_check(uuid, uuid) to service_role;
+
+create or replace function public.expense_posting_for_push(p_org_id uuid, p_mirror_id uuid)
+returns jsonb
+  language plpgsql stable security invoker set search_path = public, pg_temp as $$
+declare
+  m        public.expense_posting_erp_mirror%rowtype;
+  c        public.expense_claims%rowtype;
+  r        public.expense_advance_returns%rowtype;
+  v_ok     boolean;
+  v_amount numeric;
+  v_lines  jsonb := '[]'::jsonb;
+  v_tz     text;
+begin
+  select * into m from public.expense_posting_erp_mirror where id = p_mirror_id and org_id = p_org_id;
+  if not found then
+    raise exception 'expense posting not found' using errcode = 'P0002';
+  end if;
+  select * into c from public.expense_claims where id = m.claim_id and org_id = p_org_id;
+  if not found then
+    raise exception 'expense claim not found' using errcode = 'P0002';
+  end if;
+
+  perform public.expense_posting_actor_check(p_org_id, p_mirror_id);
+
+  -- An approval whose claim was cancelled before it posted is never posted fresh (a command already in the outbox
+  -- is replayed without this gate and still lands; its cancel follows). With no command, the cancel is a no-op.
+  if m.posting = 'approval' and c.status = 'Cancelled' then
+    raise exception 'expense-posting-claim-cancelled' using errcode = 'P0001';
+  end if;
 
   v_ok := case m.posting
-    when 'approval'        then c.kind = 'claim' and c.status in ('Approved','Paid','Cancelled') and c.approved_at = m.state_stamp
+    when 'approval'        then c.kind = 'claim' and c.status in ('Approved','Paid') and c.approved_at = m.state_stamp
     when 'claim-payment'   then c.kind = 'claim' and c.status = 'Paid' and c.paid_at = m.state_stamp
                                 and c.amount - c.advance_applied > 0
     when 'settlement'      then c.kind = 'claim' and c.status = 'Paid' and c.paid_at = m.state_stamp and c.advance_applied > 0
@@ -328,6 +357,21 @@ revoke all on function public.expense_posting_for_push(uuid, uuid) from public, 
 grant execute on function public.expense_posting_for_push(uuid, uuid) to service_role;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
+-- §5b — read scope (NFR-EXP-010). The posting path writes into two SHARED tables whose existing policies admit
+-- every active org member: the outbox (an expense command's payload names the employee, accounts and amount) and
+-- the GL mirror (an Employee party's entries). Those rows are read only by approval rank — Finance, Admin,
+-- Executive, Project Manager — the claim's own audience apart from the claimant. RESTRICTIVE, so it only narrows:
+-- every other domain and party type keeps its read. `to authenticated`: anon already reads nothing here, and the
+-- rank helper is not anon-executable. The sweep and the writers run as service_role (RLS bypassed).
+-- ════════════════════════════════════════════════════════════════════════════════════════════════════
+create policy external_command_outbox_expenses_read_scope on public.external_command_outbox
+  as restrictive for select to authenticated
+  using (domain is distinct from 'expenses' or public.holds_spend_approval_authority(public.auth_role()));
+create policy erp_gl_entry_mirror_employee_read_scope on public.erp_gl_entry_mirror
+  as restrictive for select to authenticated
+  using (party_type is distinct from 'Employee' or public.holds_spend_approval_authority(public.auth_role()));
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- §6 — closing self-assertion (the 0211/0260 style). Hosted Supabase grants EXECUTE on new functions and ALL on
 -- new tables to anon/authenticated by default; local Docker does not. Raise here so a deploy that does not land
 -- this exact shape fails in the migration, on whichever database it runs.
@@ -335,7 +379,10 @@ grant execute on function public.expense_posting_for_push(uuid, uuid) to service
 do $$
 declare v_table text;
 begin
-  if has_function_privilege('anon', 'public.expense_posting_for_push(uuid, uuid)', 'EXECUTE')
+  if has_function_privilege('anon', 'public.expense_posting_actor_check(uuid, uuid)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.expense_posting_actor_check(uuid, uuid)', 'EXECUTE')
+     or not has_function_privilege('service_role', 'public.expense_posting_actor_check(uuid, uuid)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.expense_posting_for_push(uuid, uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.expense_posting_for_push(uuid, uuid)', 'EXECUTE')
      or not has_function_privilege('service_role', 'public.expense_posting_for_push(uuid, uuid)', 'EXECUTE')
      or has_function_privilege('anon', 'public.org_employs_expense_postings(uuid)', 'EXECUTE')

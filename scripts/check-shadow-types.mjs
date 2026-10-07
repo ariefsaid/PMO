@@ -45,6 +45,11 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..',
  * @type {Array<{file: string, name: string, reason: string}>}
  */
 const ALLOW = [
+  // ── ERP document BODY rows: the shape PMO sends to ERPNext, not a read of a PMO table; a name or
+  //    column overlap with a mirror table is coincidental.
+  { file: 'src/lib/adapterSeam/erpnext/bodies/expenseJournal.ts', name: 'ExpenseJournalRow',
+    reason: 'An ERPNext Journal Entry account row (the request body), not a row of erp_gl_entry_mirror.' },
+
   // ── Deliberate narrowings at a WRITE boundary. The DAL requires a value the column permits to be
   //    NULL, which is a product rule, not drift. They still shadow, so they are listed rather than
   //    invisible.

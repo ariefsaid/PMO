@@ -435,7 +435,7 @@ async function listErpProjects(body: ErpSetupBody, ctx: ErpSetupContext) {
 }
 
 /** #775 phase B (FR-EXP-112, DD-EXP-16) — the ONLY writer of expense_account_map. Reads the account and the company
- *  currency from ERPNext and applies the shared rule; a refusal writes nothing. */
+ *  (currency, supplier payable account) from ERPNext and applies the shared rule; a refusal writes nothing. */
 async function saveExpenseAccount(body: ErpSetupBody, ctx: ErpSetupContext) {
   if (!isExpenseAccountKey(body.accountKey)) {
     throw new AppError("Choose an expense account key", "BAD_REQUEST");
@@ -457,8 +457,10 @@ async function saveExpenseAccount(body: ErpSetupBody, ctx: ErpSetupContext) {
     {
       company: ctx.company,
       companyCurrency: typeof company.default_currency === "string" ? company.default_currency : null,
-      defaultPayableAccount: typeof ctx.config.default_payable_account === "string"
-        ? ctx.config.default_payable_account
+      // The LIVE company's supplier payable account — the binding's stored copy can be stale (an accountant can
+      // re-point it in ERPNext), and the sweep re-checks against the same live value before every posting.
+      defaultPayableAccount: typeof company.default_payable_account === "string" && company.default_payable_account
+        ? company.default_payable_account
         : null,
     },
   );

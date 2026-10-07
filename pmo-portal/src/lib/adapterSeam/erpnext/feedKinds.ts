@@ -181,16 +181,35 @@ export interface KindPollDiscriminator {
   filters: Array<[string, string, string]>;
   fields: string[];
   admits(row: Record<string, unknown>): boolean;
+  /** A field every genuine row of this kind states: a row without it means the source omitted it (a webhook
+   *  configuration gap), which the ingress surfaces instead of dropping silently. */
+  requiredField?: string;
+}
+
+/** A Payment Entry states its party type; a row without one is not adopted by any Payment Entry kind. */
+function statedPartyType(row: Record<string, unknown>): string | null {
+  return typeof row.party_type === 'string' && row.party_type.trim() !== '' ? row.party_type : null;
 }
 
 /**
  * Payment Entry carries Supplier, Customer AND Employee parties. Before #775 phase B the procurement/revenue polls
  * read Employee entries too — a revenue-owned org would adopt an employee's cash return as a customer receipt.
+ * A Payment Entry without party_type is not adopted: the field decides the domain, so a row that omits it (a
+ * webhook whose configuration leaves it out) cannot be placed. The sweep always requests it; ERPNext requires it
+ * on every Pay/Receive entry.
  * The Journal Entry poll admits only PMO keys: native journals (payroll, depreciation) are never even listed.
  */
 export function pollDiscriminatorForKind(kind: ErpDocKind): KindPollDiscriminator | null {
   if (kind === 'payment' || kind === 'incoming-payment') {
-    return { filters: [['party_type', '!=', 'Employee']], fields: ['party_type'], admits: (row) => row.party_type !== 'Employee' };
+    return {
+      filters: [['party_type', '!=', 'Employee']],
+      fields: ['party_type'],
+      requiredField: 'party_type',
+      admits: (row) => {
+        const partyType = statedPartyType(row);
+        return partyType !== null && partyType !== 'Employee';
+      },
+    };
   }
   if (kind === 'expense-payment' || kind === 'expense-receipt') {
     return { filters: [['party_type', '=', 'Employee']], fields: ['party_type'], admits: (row) => row.party_type === 'Employee' };

@@ -13,6 +13,7 @@
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
+import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -298,6 +299,7 @@ import type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
+  ExpensePostingRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
@@ -1143,6 +1145,11 @@ const integrationsImpl: IntegrationsRepository = {
   },
 };
 
+const expensePostings: ExpensePostingRepository = {
+  listForClaim: (claimId) => wrap(() => listExpensePostings(claimId)),
+  listAccountMap: () => wrap(() => listExpenseAccountMap()),
+};
+
 const reports: ReportsRepository = {
   managementPack: (range) => wrap(() => getManagementPackFacts(range)),
   recordProgress: (input) => wrap(() => recordProjectProgress(input)),
@@ -1168,6 +1175,7 @@ export const repositories: Repositories = {
   procurementFiles,
   expenseClaim,
   expenseReceipts,
+  expensePostings,
   contact,
   meeting,
   userView,
@@ -1201,6 +1209,7 @@ export type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
+  ExpensePostingRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,

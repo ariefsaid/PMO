@@ -66,6 +66,16 @@ describe('expense kinds (AC-EXP-114)', () => {
     expect(je.admits({ user_remark: 'expense reclass' })).toBe(false);
     expect(pollDiscriminatorForKind('sales-invoice')).toBeNull();
   });
+
+  it('AC-EXP-114 a Payment Entry without party_type is not adopted by procurement or revenue', () => {
+    for (const kind of ['payment', 'incoming-payment'] as const) {
+      const d = pollDiscriminatorForKind(kind)!;
+      expect(d.admits({})).toBe(false);
+      expect(d.admits({ party_type: null })).toBe(false);
+      expect(d.admits({ party_type: '' })).toBe(false);
+      expect(d.admits({ party_type: 'Customer' })).toBe(true);
+    }
+  });
 });
 
 describe('expense kinds inbound (AC-EXP-114)', () => {

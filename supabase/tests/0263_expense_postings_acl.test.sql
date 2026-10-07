@@ -80,8 +80,11 @@ select ok(not has_function_privilege('anon', 'public.expense_posting_for_push(uu
       and has_function_privilege('service_role', 'public.expense_posting_for_push(uuid, uuid)', 'EXECUTE')
       and not has_function_privilege('anon', 'public.org_employs_expense_postings(uuid)', 'EXECUTE')
       and not has_function_privilege('authenticated', 'public.org_employs_expense_postings(uuid)', 'EXECUTE')
-      and has_function_privilege('service_role', 'public.org_employs_expense_postings(uuid)', 'EXECUTE'),
-  'AC-EXP-104: the gate and the employment check are service_role only');
+      and has_function_privilege('service_role', 'public.org_employs_expense_postings(uuid)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.expense_posting_actor_check(uuid, uuid)', 'EXECUTE')
+      and not has_function_privilege('authenticated', 'public.expense_posting_actor_check(uuid, uuid)', 'EXECUTE')
+      and has_function_privilege('service_role', 'public.expense_posting_actor_check(uuid, uuid)', 'EXECUTE'),
+  'AC-EXP-104: the gate, its actor check and the employment check are service_role only');
 select ok(not has_function_privilege('anon', 'public.enqueue_expense_posting(uuid, uuid, uuid, text, timestamptz, uuid)', 'EXECUTE')
       and not has_function_privilege('authenticated', 'public.enqueue_expense_posting(uuid, uuid, uuid, text, timestamptz, uuid)', 'EXECUTE')
       and not has_function_privilege('anon', 'public.enqueue_expense_claim_postings()', 'EXECUTE')

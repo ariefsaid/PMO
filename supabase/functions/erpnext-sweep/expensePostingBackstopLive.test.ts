@@ -39,7 +39,7 @@ function fakeClient(opts: {
     const call: Call = { table, op, payload, ops: [] };
     calls.push(call);
     const chain: Record<string, unknown> = {};
-    for (const m of ['select', 'eq', 'in', 'is', 'order', 'limit', 'contains']) {
+    for (const m of ['select', 'eq', 'in', 'is', 'order', 'limit', 'contains', 'like']) {
       chain[m] = (...args: unknown[]) => {
         call.ops.push([m, ...args]);
         return chain;
@@ -79,18 +79,83 @@ const intent = (over: Partial<IntentRow> = {}): IntentRow => ({
   state_stamp: STAMP, push_state: 'pending', push_error: null, ...over,
 });
 
-const deps = (client: unknown, eligible: string[] = []) =>
-  expensePostingBackstopDepsLive(client as never, ORG_BINDING, new Set(eligible));
+type OutboxRow = Parameters<typeof expensePostingBackstopDepsLive>[2][number];
+const outboxRow = (id: string, state: string, over: Partial<OutboxRow> = {}): OutboxRow => ({
+  id, domain: 'expenses', pmoRecordId: `${CLAIM}:approval`, idempotencyKey: `expj:${CLAIM}:1791367200123`, state,
+  externalRecordId: null, canonical: null, claimGeneration: 1, payloadDigest: null, ...over,
+} as OutboxRow);
+const deps = (client: unknown, eligible: Array<string | OutboxRow> = []) =>
+  expensePostingBackstopDepsLive(client as never, ORG_BINDING,
+    eligible.map((e) => (typeof e === 'string' ? outboxRow(e, 'pending') : e)));
+const GATE_TRUTH = {
+  mirror_id: 'mirror-1', posting: 'approval', posting_identity: `${CLAIM}:approval`, subject_id: CLAIM, claim_id: CLAIM,
+  claim_number: 'EXP-1', claimant_id: 'u-claimant', project_id: null, currency: 'IDR', amount: '100.00', lines: [],
+  state_stamp: STAMP, posting_date: '2026-10-07', approval_posting_exists: true, actor_id: 'u-pm',
+};
 
-Deno.test('AC-EXP-121 the work queue is this org\'s pending/failed, not ERP-cancelled intents, oldest first, bounded', async () => {
+Deno.test('AC-EXP-121 the work queue is this org\'s pending/failed, not ERP-cancelled intents, least recently attempted first, bounded', async () => {
   const f = fakeClient({ respond: () => ({ data: [intent()], error: null }) });
   const rows = await deps(f.client).listPending(ORG, 200);
   assertEquals(rows.length, 1);
   assertEquals(f.calls[0].table, 'expense_posting_erp_mirror');
   assertEquals(f.calls[0].ops.slice(1), [
     ['eq', 'org_id', ORG], ['in', 'push_state', ['pending', 'failed']], ['is', 'erp_cancelled_at', null],
-    ['order', 'created_at', { ascending: true }], ['limit', 200],
+    ['order', 'last_attempt_at', { ascending: true, nullsFirst: true }], ['order', 'created_at', { ascending: true }], ['limit', 200],
   ]);
+});
+
+Deno.test('AC-EXP-121 the listed intents are stamped attempted in one org-scoped write', async () => {
+  const f = fakeClient();
+  await deps(f.client).markAttempted(ORG, ['mirror-1', 'mirror-2']);
+  assertEquals(f.calls.length, 1);
+  assertEquals([f.calls[0].table, f.calls[0].op, typeof (f.calls[0].payload as Record<string, unknown>).last_attempt_at], ['expense_posting_erp_mirror', 'update', 'string']);
+  assertEquals(f.calls[0].ops, [['eq', 'org_id', ORG], ['in', 'id', ['mirror-1', 'mirror-2']]]);
+});
+
+Deno.test('AC-EXP-121 a committed expenses command whose intent is already pushed is listed as stranded; nothing else is', async () => {
+  const f = fakeClient({ respond: () => ({ data: [intent({ push_state: 'pushed' })], error: null }) });
+  const committed = outboxRow('ob-1', 'committed');
+  const stranded = await deps(f.client, [committed, outboxRow('ob-2', 'pending', { pmoRecordId: 'other:claim-payment', idempotencyKey: 'expp:other:1' }),
+    outboxRow('ob-3', 'committed', { domain: 'procurement' })]).listStranded(ORG);
+  assertEquals(stranded.map((s) => [s.row.id, s.outbox.id]), [['mirror-1', 'ob-1']]);
+  assertEquals(f.calls[0].ops.slice(1), [['eq', 'org_id', ORG], ['eq', 'push_state', 'pushed'], ['in', 'posting_identity', [`${CLAIM}:approval`]]]);
+  // A cancel command left committed is keyed by its own prefix, so it maps to the approval-cancel intent.
+  const g = fakeClient({ respond: () => ({ data: [], error: null }) });
+  await deps(g.client, [outboxRow('ob-4', 'committed', { idempotencyKey: `expx:${CLAIM}:1` })]).listStranded(ORG);
+  assertEquals(g.calls[0].ops.at(-1), ['in', 'posting_identity', [`${CLAIM}:approval-cancel`]]);
+  // No committed expenses command ⇒ no read at all.
+  const h = fakeClient();
+  assertEquals(await deps(h.client, [outboxRow('ob-5', 'pending')]).listStranded(ORG), []);
+  assertEquals(h.calls.length, 0);
+});
+
+Deno.test('AC-EXP-121 a replay that could post anew re-checks the recorded actor\'s role; a demoted, still active payer is refused before the outbox is touched', async () => {
+  const f = fakeClient({
+    rpc: (fn) => (fn === 'expense_posting_actor_check'
+      ? { data: null, error: { code: '42501', message: 'expense-posting-actor-not-authorized' } }
+      : { data: null, error: null }),
+    respond: (c) => (c.table === 'profiles' ? { data: [{ id: 'admin-1' }], error: null } : { data: c.op === 'select' ? [] : null, error: null }),
+  });
+  await deps(f.client, ['ob-1']).replay(intent({ posting: 'claim-payment', posting_identity: `${CLAIM}:claim-payment` }), { id: 'ob-1', state: 'failed' } as never);
+  assertEquals(f.rpcs[0], ['expense_posting_actor_check', { p_org_id: ORG, p_mirror_id: 'mirror-1' }]);
+  assertEquals(f.calls.some((c) => c.table === 'external_command_outbox'), false);
+  const update = f.calls.find((c) => c.table === 'expense_posting_erp_mirror' && c.op === 'update');
+  assertEquals(update?.payload, { push_state: 'failed', push_error: 'expense-posting-actor-not-authorized' });
+});
+
+Deno.test('AC-EXP-121 finishing a committed command (no new ERP write) does not re-check the actor', async () => {
+  const f = fakeClient({ respond: () => ({ data: null, error: null }) });
+  let thrown = '';
+  try {
+    await deps(f.client, [outboxRow('ob-1', 'committed')]).replay(intent({ push_state: 'pushed' }), outboxRow('ob-1', 'committed') as never);
+  } catch (err) {
+    thrown = (err as Error).message;
+  }
+  assertEquals(f.rpcs.some(([fn]) => fn === 'expense_posting_actor_check'), false);
+  assertEquals(f.calls[0]?.table, 'external_command_outbox');
+  // The intent is already pushed: a failed finish is reported to the pass, not recorded on it or notified.
+  assertEquals(thrown.includes('not readable for reconcile'), true, thrown);
+  assertEquals(f.calls.some((c) => c.table === 'notifications' || (c.table === 'expense_posting_erp_mirror' && c.op === 'update')), false);
 });
 
 Deno.test('AC-EXP-121 an outbox row is found by the posting\'s outbox identity and re-derived key', async () => {
@@ -150,8 +215,16 @@ Deno.test('AC-EXP-121 the gate: a refusal class is a recorded refusal, anything 
     thrown = (err as Error).message;
   }
   assertEquals(thrown, 'connection lost');
-  const ok = fakeClient({ rpc: () => ({ data: { mirror_id: 'mirror-1' }, error: null }) });
-  assertEquals(await deps(ok.client).assertGate(intent()), { ok: true, truth: { mirror_id: 'mirror-1' } });
+  const ok = fakeClient({ rpc: () => ({ data: GATE_TRUTH, error: null }) });
+  assertEquals(await deps(ok.client).assertGate(intent()), { ok: true, truth: GATE_TRUTH });
+  const malformed = fakeClient({ rpc: () => ({ data: { mirror_id: 'mirror-1' }, error: null }) });
+  let refused = '';
+  try {
+    await deps(malformed.client).assertGate(intent());
+  } catch (err) {
+    refused = (err as Error).message;
+  }
+  assertEquals(refused.startsWith('expense-gate-truth-malformed'), true, refused);
 });
 
 Deno.test('AC-EXP-121 a fresh posting whose recorded actor is no longer active is recorded failed before any outbox write', async () => {

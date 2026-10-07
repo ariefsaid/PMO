@@ -852,8 +852,10 @@ const ACCOUNT = (name: string, over: Record<string, unknown> = {}) =>
       account_currency: "IDR", ...over,
     },
   });
-const companyRoute = erp("erp.example.test", "/api/resource/Company/Example%20Company",
-  () => jsonResponse({ data: { name: "Example Company", default_currency: "IDR" } }));
+const companyRouteWith = (defaultPayable: string | null) =>
+  erp("erp.example.test", "/api/resource/Company/Example%20Company",
+    () => jsonResponse({ data: { name: "Example Company", default_currency: "IDR", default_payable_account: defaultPayable } }));
+const companyRoute = companyRouteWith("Creditors - EX");
 const mapWrite = (method: string) => ({
   label: `expense_account_map ${method}`, method, pathname: "/rest/v1/expense_account_map",
   response: () => (method === "POST" ? jsonResponse(null, { status: 201 }) : new Response(null, { status: 204 })),
@@ -873,6 +875,29 @@ Deno.test("AC-EXP-120 an Admin cannot map the supplier payable account (Creditor
   assertEquals(result.text.includes("supplier payable"), true, result.text);
   assertEquals(restCall(result.calls, "expense_account_map").length, 0);
   assertEquals(rpcCall(result.calls, "log_audit").length, 0);
+});
+
+// The supplier payable account is what ERPNext's Company names NOW — the binding's stored copy can be stale.
+Deno.test("AC-EXP-120 the Creditors refusal reads the live ERPNext company, not the stored binding config", async () => {
+  const save = (account: string, company: ReturnType<typeof companyRouteWith>) =>
+    withFetchMock([
+      ...base(), company, mapWrite("POST"),
+      erp("erp.example.test", `/api/resource/Account/${encodeURIComponent(account)}`, () => ACCOUNT(account)),
+    ], async ({ calls }) => {
+      const res = await handleSetCompanyRequest(await request({
+        tier: "erpnext", setupAction: "save-expense-account", accountKey: "employee_payable", erpAccount: account,
+      }));
+      return { status: res.status, text: await res.text(), calls };
+    });
+  // The stored config still says "Creditors - EX"; ERPNext's company now names another account.
+  const repointed = await save("Supplier Payables - EX", companyRouteWith("Supplier Payables - EX"));
+  assertEquals(repointed.status, 422, repointed.text);
+  assertEquals(repointed.text.includes("supplier payable"), true, repointed.text);
+  assertEquals(restCall(repointed.calls, "expense_account_map").length, 0);
+  // A company that names no default payable account cannot confirm any employee payable account (fail closed).
+  const unnamed = await save("Employee Payable - EX", companyRouteWith(null));
+  assertEquals(unnamed.status, 422, unnamed.text);
+  assertEquals(restCall(unnamed.calls, "expense_account_map").length, 0);
 });
 
 Deno.test("AC-EXP-120 an Admin cannot map an untyped advance account", async () => {

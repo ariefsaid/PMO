@@ -1,11 +1,12 @@
 // AC-EXP-122 [Deno] — the sweep's per-kind poll filters (FR-EXP-113). Payment Entry carries Supplier, Customer AND
 // Employee parties; Journal Entry is shared with every native ledger entry. Also pins each kind's watermark key:
 // `expense-payment` and `expense-receipt` share one domain AND one doctype, so a `<domain>::<doctype>` cursor
-// alone would let one kind's poll advance past the other's unread changes.
+// alone would let one kind's poll advance past the other's unread changes. Pins EVERY kind's key, not just these.
 // Verify: cd supabase/functions/erpnext-sweep && deno test expensePollDiscriminators.test.ts --config deno.json --allow-env --allow-net --allow-read
 
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { pollFiltersForKind, sweepFieldsForKind, sweepWatermarkDomain } = await import('./index.ts');
+import { DOCTYPE_REGISTRY } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 
 function assertEquals(actual: unknown, expected: unknown, msg = ''): void {
   const a = JSON.stringify(actual);
@@ -66,11 +67,34 @@ Deno.test('AC-EXP-122 each poll requests the fields its filters read', () => {
   assertEquals(['user_remark', 'company', 'docstatus', 'modified'].every((f) => je.includes(f)), true, JSON.stringify(je));
 });
 
-Deno.test('AC-EXP-122 the two expense Payment Entry kinds keep separate watermarks; every other kind keeps its key', () => {
-  assertEquals(sweepWatermarkDomain('expense-payment'), 'expenses::Payment Entry::expense-payment');
-  assertEquals(sweepWatermarkDomain('expense-receipt'), 'expenses::Payment Entry::expense-receipt');
-  assertEquals(sweepWatermarkDomain('expense-journal'), 'expenses::Journal Entry');
-  assertEquals(sweepWatermarkDomain('payment'), 'procurement::Payment Entry');
-  assertEquals(sweepWatermarkDomain('incoming-payment'), 'revenue::Payment Entry');
-  assertEquals(sweepWatermarkDomain('timesheet'), 'timesheets::Timesheet');
+// Every shipped cursor key, pinned: a stored watermark is looked up by this exact string, so a key that moves resets
+// that poll to the beginning (a full re-read) — and a new kind landing on a shared (domain, doctype) would silently
+// re-key its neighbour. Adding a kind means adding its line here, deliberately.
+const SHIPPED_WATERMARK_KEYS: Record<string, string> = {
+  'purchase-request': 'procurement::Material Request',
+  rfq: 'procurement::Request for Quotation',
+  quotation: 'procurement::Supplier Quotation',
+  'purchase-order': 'procurement::Purchase Order',
+  'goods-receipt': 'procurement::Purchase Receipt',
+  'purchase-invoice': 'procurement::Purchase Invoice',
+  payment: 'procurement::Payment Entry',
+  supplier: 'companies::Supplier',
+  contact: 'companies::Contact',
+  customer: 'companies::Customer',
+  'sales-invoice': 'revenue::Sales Invoice',
+  'incoming-payment': 'revenue::Payment Entry',
+  timesheet: 'timesheets::Timesheet',
+  employee: 'timesheets::Employee',
+  budget: 'budget::Budget',
+  'expense-journal': 'expenses::Journal Entry',
+  'expense-payment': 'expenses::Payment Entry::expense-payment',
+  'expense-receipt': 'expenses::Payment Entry::expense-receipt',
+};
+
+Deno.test('AC-EXP-122 every kind keeps its shipped watermark key; the two expense Payment Entry kinds keep separate ones', () => {
+  const actual = Object.fromEntries(
+    (Object.keys(DOCTYPE_REGISTRY) as Array<keyof typeof DOCTYPE_REGISTRY>).map((kind) => [kind, sweepWatermarkDomain(kind)]),
+  );
+  assertEquals(Object.keys(actual).sort(), Object.keys(SHIPPED_WATERMARK_KEYS).sort(), 'a kind was added or removed: pin its key');
+  for (const [kind, key] of Object.entries(SHIPPED_WATERMARK_KEYS)) assertEquals(actual[kind], key, kind);
 });

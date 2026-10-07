@@ -101,10 +101,10 @@ import {
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
-import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
+import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 // BLOCK 1 / B5: the pull-adopt barrier now lives in `_shared/` so the WEBHOOK adopt path raises the
@@ -153,9 +153,9 @@ function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined
 }
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // #775 phase B (ADR-0081) — the expense posting pass (7), the only originator of expense postings.
-import { buildExpensePostingCommand, type ExpenseGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
+import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
 import { resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
-import { expenseOutboxIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
+import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
 import { reconcileOrgExpensePostings, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
@@ -370,8 +370,11 @@ export function buildOutboxProbe(args: {
       createdAfter: String(payload.created_after ?? ''),
       paymentType,
       ...withholdingMatchFromPayload(payload),
-      // #775 phase B — an Employee Payment Entry's cited approval Journal Entry (frozen with the command).
+      // #775 phase B — an Employee Payment Entry's cited approval Journal Entry and its two accounts (frozen with
+      // the command; conjoined only for an Employee party).
       journalNames: Array.isArray(payload.je_names) ? (payload.je_names as string[]) : undefined,
+      paidFrom: typeof payload.paid_from === 'string' ? payload.paid_from : undefined,
+      paidTo: typeof payload.paid_to === 'string' ? payload.paid_to : undefined,
     });
   };
 }
@@ -1761,14 +1764,10 @@ async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, or
 // (7) #775 phase B — the expense posting pass, the ONLY originator of expense postings (ADR-0081).
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** The composite probe's claim-window floor, ERP `creation` format (`YYYY-MM-DD HH:MM:SS`), 1 minute back. */
-function expenseProbeWindowStart(nowMs: number = Date.now()): string {
-  return new Date(nowMs - 60_000).toISOString().replace('T', ' ').slice(0, 19);
-}
-
 /** The live reads `resolveExpensePosting` needs (FR-EXP-106). ERP reads use the probe budget (one attempt, tight
- *  deadline) — this runs before the outbox claim, so a slow ERP fails the attempt instead of hanging the tick. */
-function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): ExpenseResolveDeps {
+ *  deadline) — this runs before the outbox claim, so a slow ERP fails the attempt instead of hanging the tick.
+ *  Exported for its unit test (`expenseResolveDepsLive.test.ts`). */
+export function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): ExpenseResolveDeps {
   const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
   let erpClient: ErpClientDeps | null = null;
   const client = async (): Promise<ErpClientDeps> => {
@@ -1792,7 +1791,6 @@ function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, 
       cashAccount: text(org.config.default_cash_account) ?? text(org.config.default_bank_account),
       costCenter: text(org.config.cost_center),
       projectMap: (org.config.project_map as Record<string, string> | undefined) ?? {},
-      defaultPayableAccount: text(org.config.default_payable_account),
     }),
     readConfirmedEmployee: async (profileId) => {
       const lookup = await lookupConfirmedErpEmployee(serviceClient as never, org.orgId, profileId);
@@ -1811,6 +1809,15 @@ function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, 
       if (error) throw new AppError(error.message, error.code);
       return (data as { push_state: string; erp_name: string | null; erp_cancelled_at: string | null } | null) ?? null;
     },
+    // Any outbox command for the approval itself (its key prefix; the cancel shares the approval's identity).
+    readApprovalOutboxExists: async (claimId) => {
+      const { data, error } = await serviceClient.from('external_command_outbox').select('id')
+        .eq('org_id', org.orgId).eq('domain', ERPNEXT_EXPENSES_DOMAIN)
+        .eq('pmo_record_id', expenseOutboxIdentity('approval', claimId))
+        .like('idempotency_key', `${EXPENSE_POSTING_KEY_PREFIX.approval}:%`).limit(1);
+      if (error) throw new AppError(error.message, error.code);
+      return Array.isArray(data) && data.length > 0;
+    },
     readErpAccounts: async (names) => {
       const facts: ErpAccountFacts[] = [];
       for (const name of names) {
@@ -1819,7 +1826,11 @@ function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, 
       }
       return facts;
     },
-    readErpCompanyCurrency: async (company) => text((await getOrNull('Company', company))?.default_currency),
+    // One Company read gives both facts; the supplier payable account is ERPNext's LIVE value, never the binding's copy.
+    readErpCompany: async (company) => {
+      const doc = await getOrNull('Company', company);
+      return doc ? { currency: text(doc.default_currency), defaultPayableAccount: text(doc.default_payable_account) } : null;
+    },
     readErpJournalDocstatus: async (name) => {
       const doc = await getOrNull(DOCTYPE_REGISTRY['expense-journal'].doctype, name);
       return typeof doc?.docstatus === 'number' ? doc.docstatus : null;
@@ -1834,14 +1845,24 @@ function expenseOutboxHoldReason(state: string): string {
   return 'expense-posting-attempts-exhausted';
 }
 
-/** The live deps of pass (7). `eligibleOutboxIds` is 0131's eligibility set, read once per pass. Exported so the
+/** The posting a deterministic expense key names (`<prefix>:<subject>:<stamp>`), or null for any other key. */
+function expensePostingOfKey(idempotencyKey: string): ExpensePosting | null {
+  const prefix = idempotencyKey.split(':', 1)[0];
+  const hit = (Object.entries(EXPENSE_POSTING_KEY_PREFIX) as Array<[ExpensePosting, string]>).find(([, p]) => p === prefix);
+  return hit ? hit[0] : null;
+}
+
+const EXPENSE_INTENT_COLUMNS = 'id, posting, posting_identity, claim_id, return_id, state_stamp, push_state, push_error';
+
+/** The live deps of pass (7). `eligibleOutbox` is 0131's expenses candidate set, read once per pass. Exported so the
  *  replay/hold routing is unit-proven against a fake client (`expensePostingBackstopLive.test.ts`). */
 export function expensePostingBackstopDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
-  eligibleOutboxIds: ReadonlySet<string>,
+  eligibleOutbox: readonly OutboxRow[],
   cache?: ErpAuthPairCache,
 ): ExpenseBackstopDeps {
+  const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
   // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
   // The notice is deduplicated by surfaceActionRequired against an unread one for the same posting and reason.
   const recordOutcome = async (row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void> => {
@@ -1866,13 +1887,39 @@ export function expensePostingBackstopDepsLive(
     };
   };
   return {
+    // Round robin (NFR-EXP-013): never-attempted first, then least recently attempted — index-served (0263 §3).
     listPending: async (orgId, limit) => {
       const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
-        .select('id, posting, posting_identity, claim_id, return_id, state_stamp, push_state, push_error')
+        .select(EXPENSE_INTENT_COLUMNS)
         .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-        .order('created_at', { ascending: true }).limit(limit);
+        .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).limit(limit);
       if (error) throw new AppError(error.message, error.code);
       return (data as ExpenseIntentRow[] | null) ?? [];
+    },
+    markAttempted: async (orgId, intentIds) => {
+      const { error } = await serviceClient.from('expense_posting_erp_mirror')
+        .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in('id', intentIds);
+      if (error) throw new AppError(error.message, error.code);
+    },
+    // A command left `committed` (finalize-only: the ERP document exists) whose intent the read-model writer already
+    // marked `pushed`. Finishing it issues no ERP write; leaving it blocks the record's next command (0134).
+    listStranded: async (orgId) => {
+      const committed = eligibleOutbox.filter((row) => row.state === 'committed' && row.domain === ERPNEXT_EXPENSES_DOMAIN);
+      const byIdentity = new Map<string, OutboxRow>();
+      for (const outbox of committed) {
+        const posting = expensePostingOfKey(outbox.idempotencyKey);
+        const subject = outbox.pmoRecordId.split(':', 1)[0];
+        if (posting && subject) byIdentity.set(expensePostingIdentity(posting, subject), outbox);
+      }
+      if (byIdentity.size === 0) return [];
+      const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
+        .select(EXPENSE_INTENT_COLUMNS)
+        .eq('org_id', orgId).eq('push_state', 'pushed').in('posting_identity', [...byIdentity.keys()]);
+      if (error) throw new AppError(error.message, error.code);
+      return ((data as ExpenseIntentRow[] | null) ?? []).flatMap((row) => {
+        const outbox = byIdentity.get(row.posting_identity);
+        return outbox ? [{ row, outbox }] : [];
+      });
     },
     findOutbox: (row) => {
       const posting = row.posting as ExpensePosting;
@@ -1887,9 +1934,24 @@ export function expensePostingBackstopDepsLive(
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
         return;
       }
+      // A replay that may issue a NEW ERP write re-asserts the recorded actor's CURRENT role/rank — the gate's actor
+      // half (0263 §5), which the generic replay authorization (active membership only for expenses) does not run.
+      // A refusal leaves the outbox row untouched; the intent is recorded failed and retried.
+      if (replayMayIssueErpWrite(outbox.state)) {
+        const { error } = await serviceClient.rpc('expense_posting_actor_check', { p_org_id: org.orgId, p_mirror_id: row.id });
+        if (error) {
+          if (error.code === '42501' || error.code === 'P0002') {
+            await recordOutcome(row, { state: 'failed', reason: error.message });
+            return;
+          }
+          throw new AppError(error.message, error.code);
+        }
+      }
       try {
         await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
       } catch (err) {
+        // A stranded finish (the intent is already pushed) has nothing to record: the pass reports it and retries.
+        if (row.push_state === 'pushed') throw err;
         await recordOutcome(row, classify(err));
       }
     },
@@ -1899,12 +1961,12 @@ export function expensePostingBackstopDepsLive(
         if (error.code === 'P0001' || error.code === 'P0002' || error.code === '42501') return { ok: false, reason: error.message };
         throw new AppError(error.message, error.code);
       }
-      return { ok: true, truth: data as ExpenseGateTruth };
+      return { ok: true, truth: parseExpenseGateTruth(data) };
     },
     resolve: (truth) => resolveExpensePosting(truth, expenseResolveDepsLive(serviceClient, org, cache)),
     recordOutcome,
     driveFresh: async (row, truth, refs) => {
-      const built = buildExpensePostingCommand(truth, refs, expenseProbeWindowStart());
+      const built = buildExpensePostingCommand(truth, refs, erpDatetime(Date.now() - 60_000));
       const auth = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, truth.actor_id, {
         domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
         record: { id: built.outboxIdentity, erp_doc_kind: built.record.erp_doc_kind },
@@ -1935,18 +1997,16 @@ async function reconcileOrgExpensePostingsLive(
 ): Promise<{ driven: number; error?: string }> {
   if (!org.ownedDomains.includes(ERPNEXT_EXPENSES_DOMAIN)) return { driven: 0 };
   try {
-    const eligibleOutboxIds = new Set(
-      (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN).map((c) => c.id),
-    );
+    const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
     const result = await reconcileOrgExpensePostings(
-      expensePostingBackstopDepsLive(serviceClient, org, eligibleOutboxIds, cache),
+      expensePostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache),
       { orgId: org.orgId },
     );
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} expense intent ${e.intentId}: ${e.error}`);
     }
     return {
-      driven: result.driven + result.replayed,
+      driven: result.driven + result.replayed + result.finished,
       error: result.errors.length ? `${result.errors.length} expense intent(s) failed` : undefined,
     };
   } catch (err) {

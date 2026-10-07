@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { probeErpByPaymentComposite } from './recoveryProbe';
+import { erpDatetime, probeErpByPaymentComposite } from './recoveryProbe';
 import type { ErpClientDeps } from './client';
 
 function client(docs: Record<string, Record<string, unknown>>, compositeNames: string[]): ErpClientDeps {
@@ -42,4 +42,29 @@ describe('Employee composite probe (AC-EXP-116)', () => {
     const c = client({ 'PE-7': { name: 'PE-7', references: [] } }, ['PE-7']);
     expect(await probeErpByPaymentComposite(deps(c), 'k', input({ partyType: 'Supplier', journalNames: undefined }))).toBeNull();
   });
+
+  it('AC-EXP-116 an Employee probe also filters on the frozen paid_from / paid_to accounts', async () => {
+    const c = client({ 'PE-8': { name: 'PE-8', references: [] } }, ['PE-8']);
+    await probeErpByPaymentComposite(deps(c), 'expa:x', input({ journalNames: [], paidFrom: 'Cash - PSC', paidTo: 'Employee Advances - PSC' }));
+    const composite = (c.fetchImpl as unknown as { mock: { calls: string[][] } }).mock.calls
+      .map(([url]) => decodeURIComponent(url)).find((url) => url.includes('"paid_amount"'))!;
+    expect(composite).toContain('["paid_from","=","Cash - PSC"]');
+    expect(composite).toContain('["paid_to","=","Employee Advances - PSC"]');
+  });
+
+  it('AC-EXP-116 a Supplier probe never gains the account filters (byte-for-byte unchanged)', async () => {
+    const c = client({}, []);
+    await probeErpByPaymentComposite(deps(c), 'k', input({ partyType: 'Supplier', journalNames: undefined, paidFrom: 'Cash - PSC', paidTo: 'Creditors - PSC' }));
+    const composite = (c.fetchImpl as unknown as { mock: { calls: string[][] } }).mock.calls
+      .map(([url]) => decodeURIComponent(url)).find((url) => url.includes('"paid_amount"'))!;
+    expect(composite).not.toContain('paid_from');
+    expect(composite).not.toContain('paid_to');
+  });
 });
+
+describe('erpDatetime', () => {
+  it('formats epoch ms as an ERP creation filter value (UTC, seconds)', () => {
+    expect(erpDatetime(Date.parse('2026-10-07T09:59:00.987Z'))).toBe('2026-10-07 09:59:00');
+  });
+});
+

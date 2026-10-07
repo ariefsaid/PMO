@@ -13,10 +13,19 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
-const { listMock, saveMock, clearMock } = vi.hoisted(() => ({ listMock: vi.fn(), saveMock: vi.fn(), clearMock: vi.fn() }));
-vi.mock('@/src/lib/repositories/expensePostings', () => ({ listExpenseAccountMap: listMock }));
+const { listMock, saveMock, clearMock, release } = vi.hoisted(() => ({
+  listMock: vi.fn(), saveMock: vi.fn(), clearMock: vi.fn(), release: { employable: true },
+}));
+// ADR-0017: the map is read through the repository seam, like its writes.
 vi.mock('@/src/lib/repositories', () => ({
-  repositories: { integrations: { saveExpenseAccount: saveMock, clearExpenseAccount: clearMock } },
+  repositories: {
+    expensePostings: { listAccountMap: listMock },
+    integrations: { saveExpenseAccount: saveMock, clearExpenseAccount: clearMock },
+  },
+}));
+// The `expenses` release guard (#901): read live so each test can open or close it.
+vi.mock('@/src/lib/adapterSeam/erpnext/expenseEnablement', () => ({
+  get EXPENSES_EMPLOYABLE() { return release.employable; },
 }));
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole: realRole }) }));
@@ -37,6 +46,7 @@ const renderPage = (role: Role = 'Admin') => {
 };
 
 beforeEach(() => {
+  release.employable = true;
   listMock.mockReset().mockResolvedValue([{ accountKey: 'employee_payable', erpAccount: 'Employee Payable - PSC', updatedAt: 't' }]);
   saveMock.mockReset().mockResolvedValue({ ok: true });
   clearMock.mockReset().mockResolvedValue({ ok: true });
@@ -51,6 +61,14 @@ describe('ExpenseAccountMap (AC-EXP-130)', () => {
     expect(within(rows[0]).getByText('Employee payable')).toBeInTheDocument();
     expect(within(rows[1]).getByText('Not mapped — expense posting stops')).toBeInTheDocument();
     expect(screen.getAllByText('Not mapped — expense posting stops')).toHaveLength(6);
+  });
+
+  it('AC-EXP-130 while expenses cannot be employed yet, an unmapped key is stated plainly, not as a stopped posting', async () => {
+    release.employable = false;
+    renderPage();
+    expect(await screen.findByText('Employee Payable - PSC')).toBeInTheDocument();
+    expect(screen.queryByText('Not mapped — expense posting stops')).toBeNull();
+    expect(screen.getAllByText('Not mapped')).toHaveLength(6);
   });
 
   it('AC-EXP-130 an Admin saves a key with the trimmed account', async () => {

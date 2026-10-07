@@ -3,7 +3,8 @@
  * (DD-EXP-15), fail closed. Pure orchestration over injected reads so it is Vitest- and Deno-importable; the sweep
  * wires the live reads (erpnext-sweep/index.ts `expenseResolveDepsLive`).
  * Outcomes: `ready` (drive it), `wait` (a dependency has not posted yet — leave the intent untouched), `refuse`
- * (record failed with the named code), `already-done` (a cancel ERPNext already shows — record pushed).
+ * (record failed with the named code), `already-done` (a cancel ERPNext already shows, or a cancel of an approval
+ * that never posted and never will — record pushed).
  */
 import { expenseAccountProblem, type ErpAccountFacts, type ExpenseAccountKey } from './expenseAccountRules.ts';
 import type { ExpenseGateTruth, ExpenseResolvedRefs } from './expensePostingCommand.ts';
@@ -14,7 +15,13 @@ export interface ExpenseBindingFacts {
   cashAccount: string | null;
   costCenter: string | null;
   projectMap: Record<string, string>;
-  /** The company's supplier payable account (`Creditors`), from the binding config. */
+}
+
+/** What the sweep reads from the ERPNext Company document before every posting (one read). */
+export interface ErpCompanyFacts {
+  currency: string | null;
+  /** The company's supplier payable account (`default_payable_account`, usually `Creditors`) — read LIVE, so an
+   *  account an accountant re-points in ERPNext after the binding was set up is still refused as employee payable. */
   defaultPayableAccount: string | null;
 }
 
@@ -30,9 +37,12 @@ export interface ExpenseResolveDeps {
   readConfirmedEmployee(profileId: string): Promise<string | null>;
   readAccountMap(): Promise<Partial<Record<ExpenseAccountKey, string>>>;
   readApprovalPosting(claimId: string): Promise<ExpenseApprovalPostingFacts | null>;
+  /** Whether the claim's approval ever reached the outbox (any state): only then can it still post. */
+  readApprovalOutboxExists(claimId: string): Promise<boolean>;
   /** One fact row per account that exists; a missing account is simply absent. */
   readErpAccounts(names: string[]): Promise<ErpAccountFacts[]>;
-  readErpCompanyCurrency(company: string): Promise<string | null>;
+  /** The ERPNext Company document's facts, or null when the company does not exist. */
+  readErpCompany(company: string): Promise<ErpCompanyFacts | null>;
   readErpJournalDocstatus(name: string): Promise<number | null>;
 }
 
@@ -40,7 +50,7 @@ export type ExpenseResolution =
   | { outcome: 'ready'; refs: ExpenseResolvedRefs }
   | { outcome: 'wait'; reason: string }
   | { outcome: 'refuse'; code: string; message: string }
-  | { outcome: 'already-done'; erpName: string };
+  | { outcome: 'already-done'; erpName: string | null };
 
 const refuse = (code: string, message: string): ExpenseResolution => ({ outcome: 'refuse', code, message });
 const NOT_POSTED: ExpenseResolution = { outcome: 'wait', reason: 'expense-approval-journal-not-posted' };
@@ -68,7 +78,11 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
 
   if (truth.posting === 'approval-cancel') {
     const approval = await deps.readApprovalPosting(truth.claim_id);
-    if (!approval || approval.push_state !== 'pushed' || !approval.erp_name) return NOT_POSTED;
+    if (!approval || approval.push_state !== 'pushed' || !approval.erp_name) {
+      // The claim is Cancelled (the gate asserted it), so an approval with no outbox command is refused fresh and
+      // never posts: there is nothing to cancel. One that reached the outbox may still land — wait for it.
+      return (await deps.readApprovalOutboxExists(truth.claim_id)) ? NOT_POSTED : { outcome: 'already-done', erpName: null };
+    }
     if ((await deps.readErpJournalDocstatus(approval.erp_name)) === 2) return { outcome: 'already-done', erpName: approval.erp_name };
     return { outcome: 'ready', refs: {
       company: binding.company, employee: null, payableAccount: null, advanceAccount: null, expenseAccounts: {},
@@ -105,7 +119,8 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
     approvalJournal = approval.erp_name;
   }
 
-  const companyCurrency = await deps.readErpCompanyCurrency(binding.company);
+  const company = await deps.readErpCompany(binding.company);
+  const companyCurrency = company?.currency ?? null;
   if (!companyCurrency) return refuse('config-rejected', 'ERPNext states no default currency for the company');
   if (companyCurrency !== truth.currency) {
     return refuse('config-rejected', `the claim is in ${truth.currency} but the ERPNext company keeps its books in ${companyCurrency}`);
@@ -113,7 +128,7 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
   const facts = await deps.readErpAccounts(Array.from(new Set(keys.map((key) => map[key] as string))));
   for (const key of keys) {
     const problem = expenseAccountProblem(key, facts.find((f) => f.name === map[key]) ?? null, {
-      company: binding.company, companyCurrency, defaultPayableAccount: binding.defaultPayableAccount,
+      company: binding.company, companyCurrency, defaultPayableAccount: company?.defaultPayableAccount ?? null,
     });
     if (problem) return refuse('expense-account-invalid', problem);
   }

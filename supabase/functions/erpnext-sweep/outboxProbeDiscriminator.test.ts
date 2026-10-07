@@ -185,3 +185,21 @@ Deno.test('Luna BLOCK 4: an anchor-LESS kind still probes nothing (null anchor â
   assert((await probe('procurement', KEY)) === null, 'an anchor-less kind must never probe');
   assert(bench.paths.length === 0, `an anchor-less kind issued ERP calls: ${bench.paths.join(', ')}`);
 });
+
+// #775 phase B (AC-EXP-116) â€” an expense Payment Entry's recovery also conjoins the frozen paid_from / paid_to.
+Deno.test('AC-EXP-116 an expense-payment recovery probes with the frozen paid_from and paid_to accounts', async () => {
+  const doc = { name: 'PE-EXP-001', reference_no: 'other', payment_type: 'Pay', party_type: 'Employee', party: 'HR-EMP-1',
+    paid_amount: '100.00', paid_from: 'Cash - EX', paid_to: 'Employee Advances - EX', references: [] };
+  const bench = fakeBench(doc);
+  const probe = buildOutboxProbe({
+    kind: 'expense-payment', anchorField: 'reference_no', anchorMutable: true,
+    payload: { erp_doc_kind: 'expense-payment', party_type: 'Employee', party: 'HR-EMP-1', paid_amount: '100.00',
+      paid_from: 'Cash - EX', paid_to: 'Employee Advances - EX', je_names: [], created_after: '' },
+    probeDeps: { client: bench.client, doctype: 'Payment Entry', anchorField: 'reference_no',
+      fromDoc: (d: unknown) => ({ id: 'x', ...(d as Record<string, unknown>) }) as PmoRecord, pmoRecordId: 'adv-1:advance-payment' },
+  });
+  await probe('expenses', 'expa:key');
+  const composite = bench.paths.find((p) => p.includes('"paid_amount"'))!;
+  assert(composite.includes('["paid_from","=","Cash - EX"]') && composite.includes('["paid_to","=","Employee Advances - EX"]'),
+    `the composite probe did not conjoin the frozen accounts: ${composite}`);
+});

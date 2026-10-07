@@ -40,6 +40,7 @@ import type {
   ExpenseLineInput, ExpenseClaimStatus, ExpenseKind, ExpenseClaimRoute, ExpenseAdvanceAgingRow,
 } from '@/src/lib/db/expenseClaims';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
+import type { ExpenseAccountMapRow, ExpensePostingRow } from './expensePostings';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -707,6 +708,14 @@ export interface ExpenseReceiptRepository {
   cleanupObject(path: string): Promise<void>;
 }
 
+/** #775 phase B — read-only views of the expense posting side mirror and the account map (RLS-scoped, 0263). */
+export interface ExpensePostingRepository {
+  /** What one claim posted to ERPNext (FR-EXP-117). */
+  listForClaim(claimId: string): Promise<ExpensePostingRow[]>;
+  /** The org's expense account map (FR-EXP-116). Writes go through `integrations.saveExpenseAccount`. */
+  listAccountMap(): Promise<ExpenseAccountMapRow[]>;
+}
+
 /** #765 — the monthly management pack (ADR-0076). */
 export interface ReportsRepository {
   /** Facts for the pack from ONE SECURITY INVOKER RPC; RLS scopes the org. */
@@ -735,6 +744,7 @@ export interface Repositories {
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   expenseReceipts: ExpenseReceiptRepository;
+  expensePostings: ExpensePostingRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;

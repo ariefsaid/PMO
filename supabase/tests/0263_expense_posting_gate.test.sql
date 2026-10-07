@@ -2,7 +2,7 @@
 -- standing before every attempt (FR-EXP-104, FR-EXP-109). AC-EXP-105. Migration under test: 0263 §5.
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(20);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('02630000-0000-0000-0000-00000000020a','EXP-B Gate Org','IDR','Asia/Jakarta'),
@@ -11,12 +11,15 @@ insert into auth.users (id, email) values
   ('02630000-0000-0000-0000-0000000002a1','expb-g-e1@example.com'),
   ('02630000-0000-0000-0000-0000000002a3','expb-g-pm@example.com'),
   ('02630000-0000-0000-0000-0000000002a4','expb-g-f1@example.com'),
-  ('02630000-0000-0000-0000-0000000002a5','expb-g-pmx@example.com');
+  ('02630000-0000-0000-0000-0000000002a5','expb-g-pmx@example.com'),
+  ('02630000-0000-0000-0000-0000000002a6','expb-g-fx@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('02630000-0000-0000-0000-0000000002a1','02630000-0000-0000-0000-00000000020a','G Eng','expb-g-e1@example.com','Engineer','active'),
   ('02630000-0000-0000-0000-0000000002a3','02630000-0000-0000-0000-00000000020a','G PM','expb-g-pm@example.com','Project Manager','active'),
   ('02630000-0000-0000-0000-0000000002a4','02630000-0000-0000-0000-00000000020a','G Fin','expb-g-f1@example.com','Finance','active'),
-  ('02630000-0000-0000-0000-0000000002a5','02630000-0000-0000-0000-00000000020a','G PM Gone','expb-g-pmx@example.com','Project Manager','disabled');
+  ('02630000-0000-0000-0000-0000000002a5','02630000-0000-0000-0000-00000000020a','G PM Gone','expb-g-pmx@example.com','Project Manager','disabled'),
+  -- paid a claim as Finance, since demoted to Engineer and still active
+  ('02630000-0000-0000-0000-0000000002a6','02630000-0000-0000-0000-00000000020a','G Fin Demoted','expb-g-fx@example.com','Engineer','active');
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at) values
   ('02630000-0000-0000-0000-000000000501','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Trip',0,'Approved','EXP-2610080001','02630000-0000-0000-0000-0000000002a3','2026-10-07 18:30:00+00'),
   ('02630000-0000-0000-0000-000000000502','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Trip 2',0,'Approved','EXP-2610080002','02630000-0000-0000-0000-0000000002a5','2026-10-07 10:00:00+00');
@@ -33,6 +36,29 @@ insert into expense_posting_erp_mirror (id, org_id, claim_id, posting, posting_i
   ('02630000-0000-0000-0000-000000000602','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000502','approval','02630000-0000-0000-0000-000000000502:approval','2026-10-07 10:00:00+00','02630000-0000-0000-0000-0000000002a5'),
   ('02630000-0000-0000-0000-000000000603','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000503','claim-payment','02630000-0000-0000-0000-000000000503:claim-payment','2026-10-07 02:00:00+00','02630000-0000-0000-0000-0000000002a4'),
   ('02630000-0000-0000-0000-000000000604','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000504','claim-payment','02630000-0000-0000-0000-000000000504:claim-payment','2026-10-07 03:00:00+00','02630000-0000-0000-0000-0000000002a1');
+-- A paid advance; a claim settled partly against it; a cash return on it (Q1: each posting's own amount).
+insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at,
+                            paid_by_id, paid_at, paid_on) values
+  ('02630000-0000-0000-0000-000000000507','02630000-0000-0000-0000-00000000020a','advance','02630000-0000-0000-0000-0000000002a1','Float',500,'Paid','ADV-2610080007','02630000-0000-0000-0000-0000000002a3','2026-10-01 02:00:00+00','02630000-0000-0000-0000-0000000002a4','2026-10-01 03:00:00+00','2026-10-01');
+insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at,
+                            paid_by_id, paid_at, paid_on, advance_id, advance_applied) values
+  ('02630000-0000-0000-0000-000000000505','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Settled',300,'Paid','EXP-2610080005','02630000-0000-0000-0000-0000000002a3','2026-10-06 02:00:00+00','02630000-0000-0000-0000-0000000002a4','2026-10-07 04:00:00+00','2026-10-07','02630000-0000-0000-0000-000000000507',120);
+insert into expense_advance_returns (id, org_id, advance_id, amount, recorded_by, recorded_at, returned_on) values
+  ('02630000-0000-0000-0000-000000000711','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000507',70,'02630000-0000-0000-0000-0000000002a4','2026-10-07 05:00:00+00','2026-10-07');
+-- S3: approved, then cancelled before its approval posted. S4: paid by the since-demoted payer.
+insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at,
+                            cancelled_at) values
+  ('02630000-0000-0000-0000-000000000508','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Cancelled',0,'Cancelled','EXP-2610080008','02630000-0000-0000-0000-0000000002a3','2026-10-05 02:00:00+00','2026-10-06 00:00:00+00');
+insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at,
+                            paid_by_id, paid_at, paid_on) values
+  ('02630000-0000-0000-0000-000000000506','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Paid 3',200,'Paid','EXP-2610080006','02630000-0000-0000-0000-0000000002a3','2026-10-06 02:00:00+00','02630000-0000-0000-0000-0000000002a6','2026-10-07 06:00:00+00','2026-10-07');
+insert into expense_posting_erp_mirror (id, org_id, claim_id, return_id, posting, posting_identity, state_stamp, actor_id) values
+  ('02630000-0000-0000-0000-000000000605','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000505',null,'claim-payment','02630000-0000-0000-0000-000000000505:claim-payment','2026-10-07 04:00:00+00','02630000-0000-0000-0000-0000000002a4'),
+  ('02630000-0000-0000-0000-000000000607','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000505',null,'settlement','02630000-0000-0000-0000-000000000505:settlement','2026-10-07 04:00:00+00','02630000-0000-0000-0000-0000000002a4'),
+  ('02630000-0000-0000-0000-000000000608','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000507','02630000-0000-0000-0000-000000000711','advance-return','02630000-0000-0000-0000-000000000711:advance-return','2026-10-07 05:00:00+00','02630000-0000-0000-0000-0000000002a4'),
+  ('02630000-0000-0000-0000-000000000609','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000508',null,'approval','02630000-0000-0000-0000-000000000508:approval','2026-10-05 02:00:00+00','02630000-0000-0000-0000-0000000002a3'),
+  ('02630000-0000-0000-0000-000000000610','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000506',null,'claim-payment','02630000-0000-0000-0000-000000000506:claim-payment','2026-10-07 06:00:00+00','02630000-0000-0000-0000-0000000002a6'),
+  ('02630000-0000-0000-0000-000000000611','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000503',null,'approval','02630000-0000-0000-0000-000000000503:approval','2026-10-06 02:00:00+00','02630000-0000-0000-0000-0000000002a3');
 
 set local role service_role;
 select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000601') ->> 'amount',
@@ -46,6 +72,25 @@ select is((expense_posting_for_push('02630000-0000-0000-0000-00000000020a','0263
   true, 'AC-EXP-105: the gate reports whether the claim has an approval intent');
 select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000603') ->> 'amount',
   '200.00', 'AC-EXP-105: a claim payment is the cash part (amount - advance_applied)');
+select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000605') ->> 'amount',
+  '180.00', 'AC-EXP-105: a claim settled partly from an advance pays only the cash part (300 - 120 applied)');
+select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000607') ->> 'amount',
+  '120.00', 'AC-EXP-105: the settlement is the advance applied');
+select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000608') ->> 'amount',
+  '70.00', 'AC-EXP-105: an advance return posts the returned amount, not the advance');
+select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000611') ->> 'amount',
+  '200.00', 'AC-EXP-105: an approval still posts once its claim is Paid');
+select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000609') $$,
+  'P0001', 'expense-posting-claim-cancelled', 'AC-EXP-105: an approval whose claim was cancelled before it posted is not posted fresh');
+-- S4: the actor half alone (the sweep runs it before replaying an existing outbox row).
+select lives_ok($$ select expense_posting_actor_check('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000603') $$,
+  'AC-EXP-105: an active Finance payer passes the actor check');
+select lives_ok($$ select expense_posting_actor_check('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000609') $$,
+  'AC-EXP-105: the actor check does not re-read the claim status (a replay of a cancelled claim''s approval is unaffected)');
+select throws_ok($$ select expense_posting_actor_check('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000610') $$,
+  '42501', 'expense-posting-actor-not-authorized', 'AC-EXP-105: a payer demoted to Engineer, still active, fails the actor check');
+select throws_ok($$ select expense_posting_actor_check('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000602') $$,
+  '42501', 'expense-posting-actor-inactive', 'AC-EXP-105: a disabled approver fails the actor check');
 select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000602') $$,
   '42501', 'expense-posting-actor-inactive', 'AC-EXP-105: a disabled approver posts nothing');
 select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000604') $$,
@@ -63,6 +108,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000002a1","role":"authenticated"}';
 select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000603') $$,
   '42501', 'permission denied for function expense_posting_for_push', 'AC-EXP-105: no client can call the gate');
+select throws_ok($$ select expense_posting_actor_check('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000603') $$,
+  '42501', 'permission denied for function expense_posting_actor_check', 'AC-EXP-105: no client can call the actor check');
 
 select * from finish();
 rollback;

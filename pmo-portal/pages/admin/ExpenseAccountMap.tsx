@@ -17,8 +17,9 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
-import { listExpenseAccountMap, type ExpenseAccountMapRow } from '@/src/lib/repositories/expensePostings';
+import type { ExpenseAccountMapRow } from '@/src/lib/repositories/expensePostings';
 import { EXPENSE_ACCOUNT_KEYS, type ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
+import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
 
 /**
  * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 7 keys an expense posting needs.
@@ -39,7 +40,7 @@ const ExpenseAccountMap: React.FC = () => {
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const { data, isPending, isError, refetch } = useQuery<ExpenseAccountMapRow[]>({
     queryKey: QUERY_KEY,
-    queryFn: listExpenseAccountMap,
+    queryFn: () => repositories.expensePostings.listAccountMap(),
   });
   const byKey = useMemo(() => new Map((data ?? []).map((r) => [r.accountKey, r.erpAccount])), [data]);
   const label = (key: ExpenseAccountKey): string => ({
@@ -129,7 +130,11 @@ const ExpenseAccountMap: React.FC = () => {
               <span className="flex min-w-0 flex-wrap items-center gap-2">
                 {account
                   ? <span className="break-words">{account}</span>
-                  : <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped — expense posting stops')}</StatusPill>}
+                  // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
+                  // unmapped key stops nothing: say so plainly instead of warning.
+                  : EXPENSES_EMPLOYABLE
+                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped — expense posting stops')}</StatusPill>
+                    : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
                 {canManage && (
                   <>
                     <Button variant="ghost" size="sm" onClick={() => { setSaveError(null); setEditing(key); }}>

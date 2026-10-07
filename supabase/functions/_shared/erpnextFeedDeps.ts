@@ -887,6 +887,8 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `ERPNext Contact ${String(detail.erpName ?? '').replace(/^Contact:/, '')} was NOT synced to PMO (${detail.reason ?? 'refused'}) — resolve its company links or duplicate in ERPNext; later contact changes are unaffected.`;
     case 'budget-push-failed':
       return `PMO could not push the activated budget to ERPNext (${detail.reason ?? 'unknown error'}) — ERPNext is still enforcing the previous budget (or none) for this project.`;
+    case 'erp-doc-missing-field':
+      return `ERPNext sent ${detail.externalRecordId ?? 'a document'} without its ${detail.field ?? 'required'} field, so PMO did not record it — add the field to the ERPNext webhook configuration.`;
     case 'expense-posting-desk-cancelled':
       return `An expense posting PMO made in ERPNext was cancelled directly in ERPNext — the claim in PMO is unchanged; review the ledger.`;
     case 'expense-posting-failed':
