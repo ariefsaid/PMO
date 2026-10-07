@@ -67,6 +67,10 @@ export function useWorkOrderMutations(projectId: string) {
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['work-orders', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['project-drawdown', orgId, projectId] });
+    // OD-BILL-1: a status move changes whether a work order can be invoiced.
+    void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
+    // …and the org-wide still-to-invoice card on the dashboards, which reads the same fact.
+    void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
   };
 
   const create = useMutation({

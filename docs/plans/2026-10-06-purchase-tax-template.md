@@ -44,5 +44,8 @@ from ERPNext and the choice travels in the dispatch command (outbox payload).
 - AC-520-8 the repository forwards `taxTemplate` on the external dispatch only when chosen.
 - AC-520-9 the flipped-org VI form offers the templates and stages the chosen one.
 - AC-520-10 each template row is sent with every field ERPNext computes it from (`included_in_print_rate`, `cost_center` when set), so the invoice totals as the template would.
-- AC-520-11 a template with a Deduct row or a negative rate (withholding) → `config-rejected`, action-required message, no ERP write.
+- ~~AC-520-11 a template with a Deduct row or a negative rate (withholding) → `config-rejected`, action-required message, no ERP write.~~
+  **Retired 2026-10-07 (#876, DD-VWH-4):** well-formed withholding templates are now sent; only malformed ones are
+  refused. Replaced by AC-VWH-001..003 (`docs/specs/vendor-withholding.spec.md`, plan
+  `docs/plans/2026-10-07-vendor-withholding.md`).
 - AC-520-12 the picker list pages through every enabled template of the company (no silent cut at the ERPNext page limit).

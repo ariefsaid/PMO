@@ -37,6 +37,10 @@ const budgetReview = [
   { id: 'b6', name: 'Rank6', client_name: 'C6', budget: 1_000_000, spent: 1_050_000, variance: 50_000 },
 ];
 
+// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
+  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: budgetReview, isPending: false, isError: false, refetch: vi.fn() }),
@@ -152,5 +156,12 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
     expect(screen.getByText('No AP aging snapshot yet')).toBeInTheDocument();
     expect(screen.getByText('No AR aging snapshot yet')).toBeInTheDocument();
+  });
+});
+
+describe('still to invoice (OD-BILL-1 / #786)', () => {
+  it('AC-UNB-005 the finance dashboard carries the still-to-invoice card', () => {
+    renderPane();
+    expect(screen.getByTestId('still-to-invoice-loading')).toBeInTheDocument();
   });
 });

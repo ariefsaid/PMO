@@ -92,6 +92,12 @@ export const ALLOWED_SKIPS = [
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
     verified: '2026-10-06',
   },
+  {
+    file: 'serial/AC-BWO-003-invoice-work-order-erp.spec.ts',
+    reason: 'Work-order billing proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle includes the ERP Sales Invoice list for the PO); the bench is not provisioned in CI.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
+    verified: '2026-10-07',
+  },
 
   // ── Feature-flag quarantine: the incidents module is OFF. Code/DAL/RLS are preserved.
   {

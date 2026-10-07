@@ -30,6 +30,8 @@ export function world(o: Over = {}) {
       case 'org_features': return { data: { enabled: true }, error: null };
       case 'external_domain_ownership': return { data: [{ external_tier: 'erpnext' }], error: null };
       case 'work_orders': return { data: [WO], error: null };
+      // The work_order_billing view's row for WO: nothing billed yet, so all of its 1,000,000 net is still to invoice.
+      case 'work_order_billing': return { data: { remaining: 1_000_000, figures_complete: true }, error: null };
       case 'project_milestones': return { data: [{ id: 'm-1', name: 'Design', project_id: P1, sort_order: 1 }, { id: 'm-2', name: 'Foundation', project_id: P1, sort_order: 2 }], error: null };
       case 'projects': return { data: c.terminal === 'maybeSingle' ? PROJECT : [PROJECT], error: null };
       case 'companies': return { data: { name: 'PT Client' }, error: null };

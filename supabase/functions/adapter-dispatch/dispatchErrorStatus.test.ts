@@ -52,3 +52,19 @@ Deno.test('AC-BUD-033 `budget-draft-rival-on-grain` is a 422 business rejection 
   assert(dispatchErrorStatus('budget-draft-rival-on-grain', 500) === 422, 'the dispatch exit must answer 422, not its 500 fallback');
   assert(isBusinessRejectionCode('budget-draft-rival-on-grain'), 'it is a classified business rejection');
 });
+
+// OD-BILL-1 (0262, DD-BWO-4): the work-order over-invoice fence raises SQLSTATE BW001 from the outbox insert, before
+// any ERP write. The request was well-formed; the rule refused it — 422, never the 500 fallback.
+Deno.test('AC-BWO-003 the work-order over-invoice refusal (BW001) is a 422 business rejection at both exits', () => {
+  assert(dispatchErrorStatus('BW001', 500) === 422, 'the dispatch exit must answer 422, not its 500 fallback');
+  assert(dispatchErrorStatus('BW001', 400) === 422, 'the adapter-select exit must answer 422, not its 400 fallback');
+  assert(isBusinessRejectionCode('BW001'), 'BW001 is a classified business rejection');
+});
+
+// FR-PB-013 (0250 / 0262 §6b): a withdrawn claim's invoice is refused with SQLSTATE 55000 — on the outbox insert, and when
+// a failed attempt is revived by the claim. The request was well-formed; the rule refused it — 422, never the fallback.
+Deno.test('AC-BWO-002 the withdrawn-claim refusal (55000) is a 422 business rejection at both exits', () => {
+  assert(dispatchErrorStatus('55000', 500) === 422, 'the dispatch exit must answer 422, not its 500 fallback');
+  assert(dispatchErrorStatus('55000', 400) === 422, 'the adapter-select exit must answer 422, not its 400 fallback');
+  assert(isBusinessRejectionCode('55000'), '55000 is a classified business rejection');
+});
