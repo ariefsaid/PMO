@@ -27,6 +27,8 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }),
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'external') }));
+// The page waits for revenue ownership (#784 useRevenueMode); this org's ERP owns revenue (ERP-path invoices).
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }], isError: false }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: async () => [] }) }));
 vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn() }));
 
