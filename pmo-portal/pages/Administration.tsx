@@ -20,6 +20,7 @@ import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
+import ExpenseAccountMap from './admin/ExpenseAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
 export type AdministrationSection =
@@ -204,6 +205,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgWithholdingAccount />
             <OrgDownPaymentItem />
             <BudgetAccountMap />
+            <ExpenseAccountMap />
           </div>
         </div>
       );

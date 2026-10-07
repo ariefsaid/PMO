@@ -6,8 +6,8 @@
 > ADR-0058. **Ground truth:** [`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`](../spikes/2026-10-07-erpnext-employee-expense-postings.md).
 > **Executor:** money path — **Director-dispatched** (CLAUDE.md executor routing). Part 5 (UI) may go to an SSSF ADW
 > with `--builder fe_builder --reviewer fe_reviewer` once parts 2–4 are on `dev`.
-> **Migration slot:** `0263` **only** (`supabase/migrations/0263_expense_postings.sql` +
-> `supabase/migrations/rollback/0263_expense_postings_down.sql`). If `0263` is taken when you start, stop and ask the
+> **Migration slot:** `0270` **only** (`supabase/migrations/0270_expense_postings.sql` +
+> `supabase/migrations/rollback/0270_expense_postings_down.sql`). If `0270` is taken when you start, stop and ask the
 > Director — do not renumber on your own.
 > **Dependency:** part 6 (the `expenses` employ switch) lands only after **#901** is on `dev` (spec §10.7).
 
@@ -16,7 +16,7 @@
 | Part | File | Tasks | Gate before the next part |
 |---|---|---|---|
 | 1 | this file | design, traceability, conventions, Task 0 | Task 0 green |
-| 2 | [`…phase-b.part2-db.md`](2026-10-07-expense-claims-phase-b.part2-db.md) | D1–D12 — migration 0263, pgTAP, mutations, rollback, catalog gates, denominator, types | the four 0263 pgTAP files + the catalog gates green |
+| 2 | [`…phase-b.part2-db.md`](2026-10-07-expense-claims-phase-b.part2-db.md) | D1–D12 — migration 0270, pgTAP, mutations, rollback, catalog gates, denominator, types | the four 0270 pgTAP files + the catalog gates green |
 | 3 | [`…phase-b.part3-seam.md`](2026-10-07-expense-claims-phase-b.part3-seam.md) | S1–S19 — key, kinds, bodies, account rule, resolver, command (incl. cancel), probe | `npx vitest run src/lib/adapterSeam` green |
 | 4 | [`…phase-b.part4-edge.md`](2026-10-07-expense-claims-phase-b.part4-edge.md) | E1–E17 — dispatch refusal, auth guard, writer, feed, webhook, poll, sweep pass, Admin action | `scripts/deno-test-edge-fns.sh` green |
 | 5 | [`…phase-b.part5-ui.md`](2026-10-07-expense-claims-phase-b.part5-ui.md) | F1–F8 — account map page, postings card, strings | local final gate + rendered Discover |
@@ -69,13 +69,13 @@ Admin: external-set-company save-expense-account / clear-expense-account → val
 7. **Cancel only approvals, after they post; switch on after #901 (DD-EXP-18, DD-EXP-22).** Paid is terminal, so the
    spike's cancel-order hazard (a payment silently unlinked from a cancelled approval) cannot arise from PMO.
 
-### 1.3 Data model (migration 0263)
+### 1.3 Data model (migration 0270)
 
 | Object | Shape | Writers | Readers |
 |---|---|---|---|
 | `expense_advance_returns` | id, org_id (no default), advance_id → expense_claims, amount numeric(14,2) `>0 and <Infinity`, reference, recorded_by, recorded_at, returned_on | `record_expense_advance_return` only | claimant / approval rank (via parent RLS) |
 | `expense_account_map` | id, org_id (no default), account_key ∈ 7 keys, erp_account (1–140), updated_by, updated_at; unique (org_id, account_key) | service role via `external-set-company` only | active members of the org |
-| `expense_posting_erp_mirror` | id, org_id (no default), claim_id, return_id?, posting ∈ 6, posting_identity = `<subject>:<posting>` (CHECK), state_stamp, actor_id, push_state, push_error, erp_name, pushed_at, erp_docstatus, erp_modified, erp_amended_from, erp_cancelled_at, created_at; unique (org_id, posting_identity); queue index (org_id, push_state, created_at) where not cancelled | the 0263 triggers (insert), the sweep (service role) | claimant / approval rank (via parent RLS) |
+| `expense_posting_erp_mirror` | id, org_id (no default), claim_id, return_id?, posting ∈ 6, posting_identity = `<subject>:<posting>` (CHECK), state_stamp, actor_id, push_state, push_error, erp_name, pushed_at, erp_docstatus, erp_modified, erp_amended_from, erp_cancelled_at, created_at; unique (org_id, posting_identity); queue index (org_id, push_state, created_at) where not cancelled | the 0270 triggers (insert), the sweep (service role) | claimant / approval rank (via parent RLS) |
 | `org_employs_expense_postings(uuid)` | sql, invoker, service_role only | — | trigger, service_role |
 | `enqueue_expense_posting(...)` | sql, invoker, EXECUTE revoked from every client role and service_role | — | trigger functions |
 | `enqueue_expense_claim_postings()`, `enqueue_expense_return_posting()` | trigger, DEFINER, EXECUTE revoked | — | — |
@@ -129,8 +129,8 @@ and detail, so a stuck intent does not notify every tick.
 
 | Path | Change | Part |
 |---|---|---|
-| `supabase/migrations/0263_expense_postings.sql`, `supabase/migrations/rollback/0263_expense_postings_down.sql` | new | 2 |
-| `supabase/tests/0263_expense_{advance_returns,postings_enqueue,postings_acl,posting_gate}.test.sql` | new pgTAP | 2 |
+| `supabase/migrations/0270_expense_postings.sql`, `supabase/migrations/rollback/0270_expense_postings_down.sql` | new | 2 |
+| `supabase/tests/0270_expense_{advance_returns,postings_enqueue,postings_acl,posting_gate}.test.sql` | new pgTAP | 2 |
 | `scripts/isolation-probe-denominator.json` | +3 tables | 2 |
 | `pmo-portal/src/lib/supabase/database.types.ts` | regenerated | 2 |
 | `pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts` | export the epoch parser | 3 |
@@ -154,12 +154,12 @@ and detail, so a stuck intent does not notify every tick.
 
 | AC | Owning layer | Canonical proof | Tasks |
 |---|---|---|---|
-| AC-EXP-100 | pgTAP | `supabase/tests/0263_expense_postings_enqueue.test.sql` | D2, D4, D5, D10 |
-| AC-EXP-101 | pgTAP | `supabase/tests/0263_expense_postings_enqueue.test.sql` | D2, D5, D10 |
-| AC-EXP-102 | pgTAP | `supabase/tests/0263_expense_advance_returns.test.sql` | D1, D3, D5 |
-| AC-EXP-103 | pgTAP | `supabase/tests/0263_expense_postings_enqueue.test.sql` | D2, D5 |
-| AC-EXP-104 | pgTAP | `supabase/tests/0263_expense_postings_acl.test.sql` | D8, D9 |
-| AC-EXP-105 | pgTAP | `supabase/tests/0263_expense_posting_gate.test.sql` | D6, D7, D10 |
+| AC-EXP-100 | pgTAP | `supabase/tests/0270_expense_postings_enqueue.test.sql` | D2, D4, D5, D10 |
+| AC-EXP-101 | pgTAP | `supabase/tests/0270_expense_postings_enqueue.test.sql` | D2, D5, D10 |
+| AC-EXP-102 | pgTAP | `supabase/tests/0270_expense_advance_returns.test.sql` | D1, D3, D5 |
+| AC-EXP-103 | pgTAP | `supabase/tests/0270_expense_postings_enqueue.test.sql` | D2, D5 |
+| AC-EXP-104 | pgTAP | `supabase/tests/0270_expense_postings_acl.test.sql` | D8, D9 |
+| AC-EXP-105 | pgTAP | `supabase/tests/0270_expense_posting_gate.test.sql` | D6, D7, D10 |
 | AC-EXP-110 | Vitest | `src/lib/adapterSeam/erpnext/expensePostingKey.test.ts` | S1, S2, S3 |
 | AC-EXP-111 | Vitest | `src/lib/adapterSeam/erpnext/bodies/expenseJournal.test.ts` | S6, S7 |
 | AC-EXP-112 | Vitest | `src/lib/adapterSeam/erpnext/adapter.expenseJournalAmend.test.ts` | S10 |
@@ -210,11 +210,11 @@ M12 (E15), M13 (E9), M14 (E6).
 ```bash
 cd "$(git rev-parse --show-toplevel)"
 ls supabase/migrations/0247_expense_claims.sql                       # phase A is on this base
-ls supabase/migrations/0263_* 2>/dev/null && echo "0263 TAKEN — stop" || echo "0263 free"
+ls supabase/migrations/0270_* 2>/dev/null && echo "0270 TAKEN — stop" || echo "0270 free"
 gh issue view 901 --json state -q .state                            # record it; part 6 needs CLOSED + the fix on dev
 ```
 
-Expect: the 0247 file exists; `0263 free`. If `0263` is taken or 0247 is missing, stop and report to the Director.
+Expect: the 0247 file exists; `0270 free`. If `0270` is taken or 0247 is missing, stop and report to the Director.
 Record #901's state in the PR description; parts 2–5 proceed regardless.
 
 Next: [part 2 — database](2026-10-07-expense-claims-phase-b.part2-db.md).

@@ -27,7 +27,10 @@ export type ErpDocKind =
   | 'incoming-payment'
   | 'timesheet'
   | 'employee'
-  | 'budget';
+  | 'budget'
+  | 'expense-journal'
+  | 'expense-payment'
+  | 'expense-receipt';
 
 /** Per-command context injected into `toBody` (resolved refs + the org's binding config defaults). */
 export interface ErpCtx {
@@ -162,6 +165,15 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // `upsertOnGrain` routes a create onto once the dispatch factory resolves the grain's existing live
   // Budget into `ctx.refs.self` (FR-BUD-121 / AC-BUD-031).
   budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, upsertOnGrain: true },
+  // #775 phase B — expense postings (ADR-0059 Posture B, ADR-0081; spike 2026-10-07).
+  // Journal Entry anchors on `user_remark`: it survives validate + submit + re-fetch verbatim, is REST-filterable,
+  // and a post-submit PUT is refused (UpdateAfterSubmitError) ⇒ immutable ⇒ a probe miss is conclusive absence.
+  // `user_remark` is `no_copy`, so an amend must re-stamp it — `adapter.ts` amendFrom does (AC-EXP-112).
+  'expense-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
+  // Employee Payment Entries (Pay: claim cash part + advance payout; Receive: advance return). Same anchor and
+  // C-1 policy as every Payment Entry kind: reference_no is mutable ⇒ composite probe, held on inconclusive.
+  'expense-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
+  'expense-receipt': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
 };
 
 /**

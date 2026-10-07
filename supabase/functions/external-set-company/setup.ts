@@ -4,9 +4,16 @@ import { fetchAllRowsByKeyset } from "../../../pmo-portal/src/lib/pagedRead.ts";
 import {
   createDoc,
   type ErpClientDeps,
+  ErpError,
   getDoc,
   listDocsByFilters,
 } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts";
+import {
+  type ErpAccountFacts,
+  expenseAccountProblem,
+  isExpenseAccountKey,
+} from "../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts";
+import { EXPENSES_EMPLOYABLE } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseEnablement.ts";
 import {
   ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   assertErpReadPermissions,
@@ -21,6 +28,9 @@ export interface ErpSetupBody {
   erpProject?: string;
   query?: string;
   domain?: string;
+  /** #775 phase B — `save-expense-account` / `clear-expense-account` (FR-EXP-112). */
+  accountKey?: string;
+  erpAccount?: string;
 }
 export interface ErpSetupContext {
   serviceClient: SupabaseClient;
@@ -59,6 +69,12 @@ export async function applyErpSetup(
   }
   if (body.setupAction === "link-project") {
     return await linkErpProject(body, ctx);
+  }
+  if (body.setupAction === "save-expense-account") {
+    return await saveExpenseAccount(body, ctx);
+  }
+  if (body.setupAction === "clear-expense-account") {
+    return await clearExpenseAccount(body, ctx);
   }
   if (body.setupAction === "readiness") return await readErpSetup(ctx);
   if (body.setupAction !== "save-defaults") {
@@ -119,9 +135,17 @@ export async function applyErpSetup(
 }
 
 async function employErpDomain(body: ErpSetupBody, ctx: ErpSetupContext) {
+  // #775 phase B (FR-EXP-118, DD-EXP-22) — `expenses` opens only with #901 (`EXPENSES_EMPLOYABLE`). Until then it
+  // is refused before any probe or write, so no org can start posting approvals PMO could not cleanly cancel.
+  if (body.domain === "expenses" && !EXPENSES_EMPLOYABLE) {
+    throw new AppError(
+      "Expense postings are not available yet: they need the ledger mirror update that ships with the next release",
+      "config-rejected",
+    );
+  }
   if (
     typeof body.domain !== "string" ||
-    !["companies", "procurement", "revenue", "timesheets"].includes(body.domain)
+    !["companies", "procurement", "revenue", "timesheets", "expenses"].includes(body.domain)
   ) throw new AppError("Choose a supported ERP domain", "BAD_REQUEST");
   const doctypes = [
     ...new Set(sweepKindsForOrg([body.domain]).map((row) => row.doctype)),
@@ -408,4 +432,72 @@ async function listErpProjects(body: ErpSetupBody, ctx: ErpSetupContext) {
   return {
     projects: [...new Map(rows.map((row) => [row.name, row])).values()],
   };
+}
+
+/** #775 phase B (FR-EXP-112, DD-EXP-16) — the ONLY writer of expense_account_map. Reads the account and the company
+ *  (currency, supplier payable account) from ERPNext and applies the shared rule; a refusal writes nothing. */
+async function saveExpenseAccount(body: ErpSetupBody, ctx: ErpSetupContext) {
+  if (!isExpenseAccountKey(body.accountKey)) {
+    throw new AppError("Choose an expense account key", "BAD_REQUEST");
+  }
+  const name = typeof body.erpAccount === "string" ? body.erpAccount.trim() : "";
+  if (!name || name.length > 140) {
+    throw new AppError("An ERP account is required", "BAD_REQUEST");
+  }
+  let account: Record<string, unknown> | null = null;
+  try {
+    account = await getDoc(ctx.client, "Account", name) as Record<string, unknown>;
+  } catch (err) {
+    if (!(err instanceof ErpError && err.status === 404)) throw err;
+  }
+  const company = await getDoc(ctx.client, "Company", ctx.company) as Record<string, unknown>;
+  const problem = expenseAccountProblem(
+    body.accountKey,
+    account ? ({ ...account, name } as ErpAccountFacts) : null,
+    {
+      company: ctx.company,
+      companyCurrency: typeof company.default_currency === "string" ? company.default_currency : null,
+      // The LIVE company's supplier payable account — the binding's stored copy can be stale (an accountant can
+      // re-point it in ERPNext), and the sweep re-checks against the same live value before every posting.
+      defaultPayableAccount: typeof company.default_payable_account === "string" && company.default_payable_account
+        ? company.default_payable_account
+        : null,
+    },
+  );
+  if (problem) throw new AppError(problem, "config-rejected");
+  const { error } = await ctx.serviceClient.from("expense_account_map").upsert(
+    {
+      org_id: ctx.orgId,
+      account_key: body.accountKey,
+      erp_account: name,
+      updated_by: ctx.actorId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "org_id,account_key" },
+  );
+  if (error) throw new AppError(error.message, error.code);
+  await auditExpenseAccount(ctx, { key: body.accountKey, account: name });
+  return { ok: true };
+}
+
+async function clearExpenseAccount(body: ErpSetupBody, ctx: ErpSetupContext) {
+  if (!isExpenseAccountKey(body.accountKey)) {
+    throw new AppError("Choose an expense account key", "BAD_REQUEST");
+  }
+  const { error } = await ctx.serviceClient.from("expense_account_map").delete()
+    .eq("org_id", ctx.orgId).eq("account_key", body.accountKey);
+  if (error) throw new AppError(error.message, error.code);
+  await auditExpenseAccount(ctx, { key: body.accountKey, account: null });
+  return { ok: true };
+}
+
+async function auditExpenseAccount(ctx: ErpSetupContext, detail: Record<string, unknown>) {
+  const { error } = await ctx.serviceClient.rpc("log_audit", {
+    p_action: "integration.expense_account_map",
+    p_org_id: ctx.orgId,
+    p_actor_id: ctx.actorId,
+    p_entity_id: null,
+    p_detail: detail,
+  });
+  if (error) throw new AppError(error.message, error.code);
 }

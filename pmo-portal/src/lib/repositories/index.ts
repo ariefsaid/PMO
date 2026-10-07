@@ -13,6 +13,7 @@
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
+import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -300,6 +301,7 @@ import type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
+  ExpensePostingRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
@@ -974,6 +976,8 @@ const integrationsImpl: IntegrationsRepository = {
   listErpProjects: async (query) => (await erpSetupRequest<{ projects: ErpProjectOption[] }>('list-projects', { query })).projects,
   linkErpProject: (projectId, erpProject) => erpSetupRequest<ErpProjectLink>('link-project', { projectId, erpProject }),
   employErpDomain: (domain) => erpSetupRequest<{ ok: true }>('employ-domain', { domain }),
+  saveExpenseAccount: (input) => erpSetupRequest<{ ok: true }>('save-expense-account', input),
+  clearExpenseAccount: (accountKey) => erpSetupRequest<{ ok: true }>('clear-expense-account', { accountKey }),
   onboardErpParties: () => erpSetupRequest<{ ok: true }>('onboard-parties'),
   getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
     return wrap(async () => {
@@ -1147,6 +1151,11 @@ const integrationsImpl: IntegrationsRepository = {
   },
 };
 
+const expensePostings: ExpensePostingRepository = {
+  listForClaim: (claimId) => wrap(() => listExpensePostings(claimId)),
+  listAccountMap: () => wrap(() => listExpenseAccountMap()),
+};
+
 const reports: ReportsRepository = {
   managementPack: (range) => wrap(() => getManagementPackFacts(range)),
   recordProgress: (input) => wrap(() => recordProjectProgress(input)),
@@ -1172,6 +1181,7 @@ export const repositories: Repositories = {
   procurementFiles,
   expenseClaim,
   expenseReceipts,
+  expensePostings,
   contact,
   meeting,
   userView,
@@ -1205,6 +1215,7 @@ export type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
+  ExpensePostingRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,

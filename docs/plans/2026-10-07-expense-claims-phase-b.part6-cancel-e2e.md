@@ -375,7 +375,7 @@ Before an Admin employs `expenses` on a real client's ERPNext, the operator runs
 ### C7 — Part 6 gate and PR
 
 `npm run typecheck`; touched ESLint; `../scripts/with-test-lock.sh npx vitest run --changed origin/dev`;
-`bash scripts/deno-test-edge-fns.sh`; the five 0263 pgTAP files + 0178 under one lock hold; the AC-EXP-140 journey.
+`bash scripts/deno-test-edge-fns.sh`; the five 0270 pgTAP files + 0178 under one lock hold; the AC-EXP-140 journey.
 PR to `dev` (release-engineer) with: M1–M14 results, the C0 evidence, the AC traceability table (part 1 §1.7), and the
 owner questions Q7–Q10 (spec §9) restated.
 
