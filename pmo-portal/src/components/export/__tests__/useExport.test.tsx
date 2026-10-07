@@ -9,7 +9,7 @@
  * exportXlsx resolves (not rejects) and busy resets after an error.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, render } from '@testing-library/react';
+import { renderHook, act, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import type { Column } from '@/src/components/ui';
 import { ToastProvider } from '@/src/components/ui';
@@ -57,7 +57,8 @@ describe('useExport', () => {
     // A download anchor was clicked and the object URL was released.
     expect(clickSpy).toHaveBeenCalledOnce();
     expect(URL.createObjectURL).toHaveBeenCalledOnce();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    // The object URL is released on the next task (src/lib/download.ts), after the click.
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock'));
     // busy resets after completion.
     expect(result.current.busy).toBe(false);
 

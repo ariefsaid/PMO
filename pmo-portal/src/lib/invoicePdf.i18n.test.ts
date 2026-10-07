@@ -15,7 +15,8 @@ describe('invoice PDF strings', () => {
     const indonesian = invoicePdf(id);
     expect(Object.keys(english).sort()).toEqual([
       'documentMissing', 'download', 'failed', 'forbidden', 'notConnected',
-      'notErpInvoice', 'notFound', 'notPermitted', 'notSubmitted', 'unreachable',
+      'notErpInvoice', 'notFound', 'notPermitted', 'notSubmitted', 'preparing',
+      'sessionExpired', 'unreachable',
     ]);
     expect(Object.keys(indonesian).sort()).toEqual(Object.keys(english).sort());
     for (const [key, value] of [...Object.entries(english), ...Object.entries(indonesian)]) {
@@ -27,7 +28,7 @@ describe('invoice PDF strings', () => {
     const english = invoicePdf(en);
     const used = SOURCES.flatMap((file) => [...readFileSync(join(process.cwd(), file), 'utf8')
       .matchAll(/'financeCopy\.invoicePdf\.([A-Za-z]+)'/g)].map((m) => m[1]));
-    expect(new Set(used).size).toBe(10);
+    expect(new Set(used).size).toBe(12);
     expect(used.filter((key) => !(key in english))).toEqual([]);
   });
 });

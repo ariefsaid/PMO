@@ -1,6 +1,8 @@
 /**
- * #912 (AC-PDF-012): the file name for an invoice PDF. Used for the edge function's
- * Content-Disposition header AND the browser's saved name, so both say the same thing.
+ * #912 (AC-PDF-012): the file name for an invoice PDF — one sanitiser for both names. The browser
+ * saves under the PMO invoice number; the edge function's Content-Disposition carries the ERP
+ * document name. They normally match, but can differ briefly after an amendment (the ERP name
+ * moves on before the PMO mirror catches up).
  * Only `A–Z a–z 0–9 . _ -` survive; leading/trailing dots and hyphens are trimmed (no hidden
  * files, no `..`); at most 100 characters before `.pdf`.
  */

@@ -3247,7 +3247,9 @@
       "notConnected": "Koneksi ERP tidak aktif. Minta administrator memeriksa Integrasi.",
       "notFound": "Faktur ini tidak lagi tersedia. Muat ulang daftar.",
       "forbidden": "Anda tidak memiliki akses untuk mengunduh faktur ini.",
-      "unreachable": "ERP tidak merespons. Coba lagi sebentar lagi."
+      "unreachable": "ERP tidak merespons. Coba lagi sebentar lagi.",
+      "preparing": "Menyiapkan PDF…",
+      "sessionExpired": "Sesi Anda telah berakhir — masuk lagi."
     },
     "receivedDate": "Diterima",
     "recordReceivedDate": "Catat tanggal diterima",

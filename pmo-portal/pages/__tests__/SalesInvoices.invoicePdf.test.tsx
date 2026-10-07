@@ -68,6 +68,16 @@ async function rowFor(siNumber: string): Promise<HTMLElement> {
   return row;
 }
 
+/** The live toast carrying `text`, and its variant (the stripe class ToastView sets per kind). */
+async function toastWith(text: RegExp | string): Promise<{ el: HTMLElement; kind: 'info' | 'success' | 'warning' | undefined }> {
+  const el = (await screen.findByText(text)).closest<HTMLElement>('[role="status"]');
+  if (!el) throw new Error(`no toast for ${String(text)}`);
+  const kind = (['info', 'success', 'warning'] as const).find((k) =>
+    el.className.includes({ info: 'border-l-primary', success: 'border-l-success', warning: 'border-l-warning' }[k]),
+  );
+  return { el, kind };
+}
+
 async function openMenu(user: ReturnType<typeof userEvent.setup>, siNumber: string) {
   await user.click(within(await rowFor(siNumber)).getByRole('button', { name: 'Row actions' }));
 }
@@ -107,6 +117,23 @@ describe('SalesInvoices — Download PDF is offered only where it can succeed', 
     expect(screen.queryAllByRole('button', { name: 'Row actions' })).toHaveLength(0);
     expect(screen.queryByRole('menuitem', { name: 'Download PDF' })).not.toBeInTheDocument();
   });
+
+  it('AC-PDF-003 a Project Manager sees the list but is not offered it, even on a submitted ERP invoice', async () => {
+    const user = userEvent.setup();
+    renderPage('Project Manager');
+    for (const si of ['ACC-SINV-2026-00001', 'ACC-SINV-2026-00002', 'ACC-SINV-2026-00003', 'SI-LOCAL-1']) {
+      expect(await offersDownload(user, si), si).toBe(false);
+    }
+    expect(screen.queryByRole('menuitem', { name: 'Download PDF' })).not.toBeInTheDocument();
+  });
+
+  it('AC-PDF-003 an Engineer is not offered it — the invoice list itself is closed to them', async () => {
+    renderPage('Engineer');
+    expect(await screen.findByText("You don't have access to Sales Invoices")).toBeInTheDocument();
+    expect(screen.queryByText('ACC-SINV-2026-00001')).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Download PDF' })).not.toBeInTheDocument();
+    expect(revenue.downloadInvoicePdf).not.toHaveBeenCalled();
+  });
 });
 
 describe('SalesInvoices — Download PDF saves the ERP document', () => {
@@ -128,6 +155,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     renderPage('Finance');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
+    expect((await toastWith('Preparing PDF…')).kind).toBe('info');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
     expect(revenue.downloadInvoicePdf).toHaveBeenCalledTimes(1);
@@ -143,13 +171,27 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     renderPage('Finance');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect(await screen.findByText(/give the integration user Print access/)).toBeInTheDocument();
-    expect(screen.getAllByText("Couldn't download the PDF").length).toBeGreaterThan(0);
+    const refused = await toastWith(/give the integration user Print access/);
+    expect(refused.kind).toBe('warning');
+    expect(within(refused.el).getByText("Couldn't download the PDF")).toBeInTheDocument();
 
     revenue.downloadInvoicePdf.mockRejectedValueOnce(new Error('boom'));
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect(await screen.findByText(/The ERP did not answer/)).toBeInTheDocument();
+    expect((await toastWith(/The ERP did not answer/)).kind).toBe('warning');
+    expect(triggerBlobDownload).not.toHaveBeenCalled();
+  });
+
+  it('AC-PDF-011 an expired session tells the user to sign in again', async () => {
+    revenue.downloadInvoicePdf.mockRejectedValueOnce(
+      Object.assign(new Error('Sign in again to download this invoice.'), { code: 'UNAUTHORIZED' }),
+    );
+    const user = userEvent.setup();
+    renderPage('Finance');
+    await openMenu(user, 'ACC-SINV-2026-00001');
+    await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
+    expect((await toastWith('Your session expired — sign in again.')).kind).toBe('warning');
+    expect(screen.queryByText(/The ERP did not answer/)).not.toBeInTheDocument();
     expect(triggerBlobDownload).not.toHaveBeenCalled();
   });
 });

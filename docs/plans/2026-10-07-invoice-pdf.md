@@ -1118,7 +1118,7 @@ Vitest suite: `cd pmo-portal && ../scripts/with-test-lock.sh npx vitest run src/
 | M2 | `index.ts` | `invoice.org_id !== orgId` → `false` | Deno AC-PDF-006 |
 | M3 | `index.ts` | delete the two-line `if (invoice.erp_docstatus !== 1 \|\| …) return refuse('NOT_SUBMITTED');` | Deno AC-PDF-002 |
 | M4 | `index.ts` | in `fetchSubmittedSalesInvoicePdf(…, erpName)`, replace `erpName` with `'ACC-SINV-OTHER'` | Deno AC-PDF-001 |
-| M5 | `invoicePdf.ts` | `!== 1) throw new InvoicePdfError('not-submitted')` → `!== 99) throw new InvoicePdfError('not-submitted')` | Vitest AC-PDF-013 (draft/cancelled) and Deno AC-PDF-007 |
+| M5 | `invoicePdf.ts` | `!== 1) throw new InvoicePdfError('not-submitted')` → `=== 99) throw new InvoicePdfError('not-submitted')` (the guard never fires) | Vitest AC-PDF-013 (draft/cancelled) and Deno AC-PDF-007 |
 | M6 | `invoicePdf.ts` | `redirect: 'manual'` → `redirect: 'follow'` | Vitest AC-PDF-013 (request shape) and Deno AC-PDF-001 |
 
 **Verify:** record the six red/green pairs (test name + result) in the PR description; every mutation is

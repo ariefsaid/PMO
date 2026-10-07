@@ -19,6 +19,24 @@ const pdf = (body: BodyInit | null = PDF, headers: Record<string, string> = {}) 
   new Response(body, { status: 200, headers: { 'Content-Type': 'application/pdf', ...headers } });
 const submitted = () => json({ data: [{ name: NAME, docstatus: 1 }] });
 
+/** A real-looking PDF of `size` bytes, STREAMED in 1 MiB chunks with no Content-Length — only the read cap can stop it. */
+function streamedPdf(size: number): Response {
+  const bytes = new Uint8Array(size).fill(0x20);
+  bytes.set(PDF);
+  const chunk = 1024 * 1024;
+  let offset = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= size) return controller.close();
+      controller.enqueue(bytes.subarray(offset, offset + chunk));
+      offset += chunk;
+    },
+  });
+  const res = pdf(body);
+  expect(res.headers.get('content-length')).toBeNull();
+  return res;
+}
+
 function erp(
   statusResponse: () => Response | Promise<Response>,
   pdfResponse: (init?: RequestInit) => Response | Promise<Response> = () => pdf(),
@@ -108,7 +126,7 @@ describe('fetchSubmittedSalesInvoicePdf', () => {
       [() => new Response('<html>Login</html>', { status: 200, headers: { 'Content-Type': 'text/html' } }), 'unreachable'],
       [() => pdf('not a pdf at all'), 'unreachable'],
       [() => pdf(PDF, { 'Content-Length': String(INVOICE_PDF_MAX_BYTES + 1) }), 'unreachable'],
-      [() => pdf(new Uint8Array(INVOICE_PDF_MAX_BYTES + 1).fill(0x25)), 'unreachable'],
+      [() => streamedPdf(INVOICE_PDF_MAX_BYTES + 1), 'unreachable'],
       [() => Promise.reject(new TypeError('connection refused')), 'unreachable'],
     ];
     for (const [respond, kind] of cases) {
@@ -116,6 +134,13 @@ describe('fetchSubmittedSalesInvoicePdf', () => {
       expect(await kindOf(fetchSubmittedSalesInvoicePdf(client, NAME))).toBe(kind);
       expect(fetchImpl).toHaveBeenCalledTimes(2);
     }
+  });
+
+  it('AC-PDF-013 accepts a streamed PDF of exactly the size limit', async () => {
+    const { client } = erp(submitted, () => streamedPdf(INVOICE_PDF_MAX_BYTES));
+    const bytes = await fetchSubmittedSalesInvoicePdf(client, NAME);
+    expect(bytes.byteLength).toBe(INVOICE_PDF_MAX_BYTES);
+    expect(bytes.subarray(0, PDF.byteLength)).toEqual(PDF);
   });
 
   it('AC-PDF-013 gives up on a hung PDF render at the deadline', async () => {

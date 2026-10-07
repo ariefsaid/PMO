@@ -1,6 +1,7 @@
 /** #912 — external-invoice-pdf, tested through the SHIPPED handler with globalThis.fetch mocked. */
 import { describe, it, afterAll } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
+import { stub } from '@std/testing/mock';
 import { handleInvoicePdfRequest, setTestJwks } from './index.ts';
 import {
   createAuthedRequest,
@@ -84,6 +85,8 @@ const erpPdf = (
 ): MockRoute => ({ label: 'erp-pdf', host: ERP_HOST, pathname: PDF_PATH, response: respond });
 const upToErp = () => [profile(), actor(), invoice(), link(), binding(), vault()];
 const erpCalls = (calls: FetchCall[]) => calls.filter((c) => c.url.host === ERP_HOST);
+/** Every call that left for anywhere other than the Supabase API (an ERP, or a private host). */
+const outboundCalls = (calls: FetchCall[]) => calls.filter((c) => c.url.host !== new URL(env.SUPABASE_URL).host);
 const tableCalls = (calls: FetchCall[], table: string) => calls.filter((c) => c.url.pathname === `/rest/v1/${table}`);
 
 async function request(body: unknown = { salesInvoiceId: SI }) {
@@ -197,6 +200,18 @@ describe('external-invoice-pdf — which invoice', () => {
     }
   });
 
+  it('AC-PDF-002 refuses a PMO Draft or Cancelled row even when its docstatus and the ERP both say submitted', async () => {
+    for (const status of ['Draft', 'Cancelled']) {
+      const routes = [profile(), actor(), invoice({ ...SUBMITTED_ROW, status }), link(), binding(), vault(), erpStatus(1), erpPdf()];
+      await withFetchMock(routes, async ({ calls }) => {
+        const res = await handleInvoicePdfRequest(await request());
+        assertEquals(res.status, 409, status);
+        assertEquals((await res.json()).error, 'NOT_SUBMITTED');
+        assertEquals(outboundCalls(calls).length, 0);
+      });
+    }
+  });
+
   it('AC-PDF-006 answers NOT_FOUND for an invoice RLS hides or another org owns, without contacting the ERP', async () => {
     for (const row of [null, { ...SUBMITTED_ROW, org_id: 'org-other' }]) {
       await withFetchMock([profile(), actor(), invoice(row)], async ({ calls }) => {
@@ -223,17 +238,44 @@ describe('external-invoice-pdf — which invoice', () => {
       [[profile(), actor(), invoice({ ...SUBMITTED_ROW, erp_docstatus: null })], 409, 'NOT_ERP_INVOICE'],
       [[profile(), actor(), invoice(), link(null)], 409, 'NOT_ERP_INVOICE'],
       [[profile(), actor(), invoice(), link({ external_record_id: 'x', external_tier: 'clickup' })], 409, 'NOT_ERP_INVOICE'],
-      [[profile(), actor(), invoice(), link(), binding({ status: 'disconnected' })], 422, 'ERP_NOT_CONNECTED'],
-      [[profile(), actor(), invoice(), link(), binding({ activated_at: null })], 422, 'ERP_NOT_CONNECTED'],
-      [[profile(), actor(), invoice(), link(), binding({ site_url: `http://${ERP_HOST}` })], 422, 'ERP_NOT_CONNECTED'],
     ];
+    // Each unusable connection resolves its credential and has an ERP to answer, so ONLY the guard can refuse it.
+    const usable = () => [vault(), erpStatus(1), erpPdf(), { ...erpPdf(), host: '10.0.0.1' }, { ...erpStatus(1), host: '10.0.0.1' }];
+    for (const overrides of [
+      { status: 'disconnected' },
+      { activated_at: null },
+      { site_url: `http://${ERP_HOST}` },
+      { site_url: 'https://10.0.0.1' },
+    ]) {
+      cases.push([[profile(), actor(), invoice(), link(), binding(overrides), ...usable()], 422, 'ERP_NOT_CONNECTED']);
+    }
     for (const [routes, status, code] of cases) {
       await withFetchMock(routes, async ({ calls }) => {
         const res = await handleInvoicePdfRequest(await request());
         assertEquals(res.status, status, code);
         assertEquals((await res.json()).error, code);
-        assertEquals(erpCalls(calls).length, 0);
+        assertEquals(outboundCalls(calls).length, 0, code);
+        assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/rpc/read_vault_secret').length, 0, code);
       });
+    }
+  });
+
+  it('AC-PDF-010 a credential that cannot be resolved answers ERP_NOT_CONNECTED without contacting the ERP', async () => {
+    const storeDown = supabaseRpc('read_vault_secret', () =>
+      jsonResponse({ code: 'XX000', message: 'store unavailable' }, { status: 500 }),
+    );
+    const routes = [profile(), actor(), invoice(), link(), binding(), storeDown, erpStatus(1), erpPdf()];
+    const quiet = stub(console, 'error');
+    try {
+      await withFetchMock(routes, async ({ calls }) => {
+        const res = await handleInvoicePdfRequest(await request());
+        assertEquals(res.status, 422);
+        assertEquals(await res.json(), { error: 'ERP_NOT_CONNECTED', message: 'The ERP connection is not active.' });
+        assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/rpc/read_vault_secret').length, 1);
+        assertEquals(outboundCalls(calls).length, 0);
+      });
+    } finally {
+      quiet.restore();
     }
   });
 });
@@ -295,6 +337,31 @@ describe('external-invoice-pdf — when the ERP fails', () => {
         assertEquals(res.status, 502, code);
         assertEquals(await res.json(), { error: code, message });
       });
+    }
+  });
+
+  it('NFR-PDF-OBS-001 logs a refused or missing ERP document by code and PMO invoice id only', async () => {
+    const cases: Array<[MockRoute[], string]> = [
+      [[erpStatus(1), erpPdf(() => jsonResponse({ exc_type: 'PermissionError', exception: 'secret-laden ERP text' }, { status: 403 }))], 'ERP_NOT_PERMITTED'],
+      [[erpStatus(null)], 'ERP_DOCUMENT_MISSING'],
+    ];
+    for (const [erpRoutes, code] of cases) {
+      const errors = stub(console, 'error');
+      try {
+        await withFetchMock([...upToErp(), ...erpRoutes], async () => {
+          const res = await handleInvoicePdfRequest(await request());
+          assertEquals((await res.json()).error, code);
+        });
+        const lines = errors.calls.filter((c) => String(c.args[0]).startsWith('[external-invoice-pdf]'));
+        assertEquals(
+          lines.map((c) => c.args),
+          [[`[external-invoice-pdf] ${code}`, { fn: 'external-invoice-pdf', errorCode: code, contextId: SI }]],
+        );
+        const logged = JSON.stringify(errors.calls.map((c) => c.args));
+        assertEquals(/secret-laden|test-secret|test-key|ACC-SINV/.test(logged), false, logged);
+      } finally {
+        errors.restore();
+      }
     }
   });
 

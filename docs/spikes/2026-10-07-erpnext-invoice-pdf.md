@@ -40,5 +40,6 @@ from being reported as `ERP_NOT_PERMITTED`.
 
 ## v16 test instance
 
-Pending — the Director repeats the request set against the v16 test instance (owner-held coordinates)
-and appends the result here.
+Not a code dependency. Confirming the same request set on v16 is a pre-deploy operator step on the
+hosted ERP (owner-held coordinates), recorded here when it is run. The shipped code needs no change for
+it: the endpoint, its parameters and the response classes are the ones proven above on v15.

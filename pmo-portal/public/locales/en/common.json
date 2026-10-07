@@ -3247,7 +3247,9 @@
       "notConnected": "The ERP connection is not active. Ask your administrator to check Integrations.",
       "notFound": "This invoice is no longer available. Refresh the list.",
       "forbidden": "You do not have access to download this invoice.",
-      "unreachable": "The ERP did not answer. Try again in a moment."
+      "unreachable": "The ERP did not answer. Try again in a moment.",
+      "preparing": "Preparing PDF…",
+      "sessionExpired": "Your session expired — sign in again."
     },
     "receivedDate": "Received",
     "recordReceivedDate": "Record received date",

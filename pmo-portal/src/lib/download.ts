@@ -7,5 +7,6 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // Revoke on the next task: some browsers start the download asynchronously after click().
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
