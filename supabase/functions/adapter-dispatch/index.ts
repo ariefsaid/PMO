@@ -74,6 +74,7 @@ import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
 import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
@@ -976,6 +977,31 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
           headers,
         });
       }
+    }
+  }
+
+  // ── #910 (FR-VPAY-005, DD-VPAY-5) — the vendor-payment money gate: SoD-b (approver ≠ payer) + the
+  // case state, enforced on the DISPATCH path. On a flipped org the dispatched Payment Entry IS the
+  // money release, so `transition_procurement`'s `Vendor Invoiced → Paid` SoD-b branch (0006) never
+  // runs and authGuard's role check alone cannot stop the case's own approver from paying it (either
+  // through the form or a direct dispatch). A procurement `payment` create therefore re-reads the
+  // CASE from the DB — 403 with 0006's exact wording when the verified caller (`userId`, the JWT
+  // sub, never a payload field) is the approver, 422 when the case is not at `Vendor Invoiced`, and
+  // fail-closed on a missing/unreadable row. Runs BEFORE the outbox insert, so a refused payment
+  // leaves no outbox row and touches no ERP. Positioned after the binding/target guards so a command
+  // that is about to be rejected for those reasons never pays for this read.
+  if (isProcurementPaymentCreate(command)) {
+    const paymentGate = await enforcePaymentGate(
+      serviceClient as never,
+      orgId,
+      userId,
+      String((command.record as { procurementId?: unknown }).procurementId ?? ''),
+    );
+    if (!paymentGate.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: paymentGate.message }), {
+        status: paymentGate.status,
+        headers,
+      });
     }
   }
 

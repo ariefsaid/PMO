@@ -8,7 +8,8 @@
 > (`docs/specs/vendor-withholding.spec.md` §3), which recorded the gap and left it out of #876.
 > **Withholding:** the amount paid is net of withholding per DD-VWH-2/DD-VWH-3
 > (`docs/specs/vendor-withholding.spec.md` §2) — ERPNext's `outstanding_amount` already is the net
-> payable. **Plan:** `docs/plans/2026-10-08-vendor-payment-from-pmo.md`. **Migration slot:** 0274.
+> payable. **Plan:** `docs/plans/2026-10-08-vendor-payment-from-pmo.md`. **Migration slot:** 0276
+> (placeholder — renumber at merge; see the note below).
 
 ## 0. Job story
 
@@ -17,6 +18,9 @@ case, I want to record the payment right there in the procurement ledger — aga
 what we actually owe (net of any PPh withheld) — so that the Payment Entry lands in ERPNext, the
 bill closes as Paid without anyone opening ERPNext, and the payment shows in the case's ledger with
 the money rules (approver ≠ payer) still holding.
+
+> ⚑ Migration placeholder: the build's migration is `0276_payments_recorded_by.sql` (0274/0275 were
+> taken while this was in flight); renumber at merge via `scripts/renumber-migration.sh`.
 
 ## 1. Scope
 
@@ -222,6 +226,21 @@ AC-ENA-053 and AC-VWH-005; this journey's delta is that the payment enters throu
 gate/body/resolution are the shipped code, not a hand-built payload.
 
 ## 6. Open questions (owner only — everything else is decided above)
+
+> ⚑ **BUILD #910 DEFAULTS (2026-10-08, pending owner confirmation).** The build recorded these
+> defaults for each open question so it could ship; each is reversible in a follow-up without schema
+> change. They are recorded HERE (not in §2) because the owner has not yet countersigned them:
+> - **OQ-VPAY-1 (advances):** REFUSED — no paying before a bill exists on the flipped path (per
+>   DD-VPAY-3). A future advance story needs its own amount source + repayment/allocation spec.
+> - **OQ-VPAY-2 (partial payments):** ALLOWED — the server caps at the bill's outstanding (DD-VPAY-7)
+>   and the form defaults to the full outstanding (DD-VPAY-10); paying less is a real instalment.
+> - **OQ-VPAY-3 (who may pay):** the dispatch role set is UNCHANGED (Admin·Exec·PM·Finance,
+>   `authGuard.ts`) + approver ≠ payer enforced SERVER-side on the dispatch path (FR-VPAY-005 — the
+>   #910 paymentGate). Not narrowed to Finance-only for go-live.
+> - **OQ-VPAY-4 (client payment memo):** ACCEPTED AS-IS for go-live — PMO's "External ref" stays
+>   PMO-side and never reaches ERPNext (the PE's `reference_no` carries the idempotency key by
+>   ADR-0058 §3; the mirrored ref column shows the key). A ruled home for a client-visible memo is a
+>   separate decision (custom field remains refused, NFR-ENA-SEC-001).
 
 - **OQ-VPAY-1 — supplier advances.** Does the client need to pay a vendor *before* any bill exists
   (on-account advance) from PMO? This slice refuses it (DD-VPAY-3). If yes, it needs its own

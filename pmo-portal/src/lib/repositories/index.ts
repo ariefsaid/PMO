@@ -616,11 +616,18 @@ const procurement: ProcurementRepository = {
             ? createPurchaseOrder(procurementId, referenceNumber, status, date, amount, undefined, undefined, undefined, externalRef)
             : createPurchaseOrder(procurementId, referenceNumber, status, date, amount),
         ),
+  // DD-VPAY-1 (#910, AC-VPAY-005): the seam is where the camelCase form input becomes the ERP wire
+  // record — the same place the revenue twin does it. The external wire record carries EXACTLY
+  // `{ procurementId, invoiceId, paid_amount, date, erp_doc_kind: 'payment' }` (+ the BLOCK-2 intent
+  // as the command identity): `amount` → `paid_amount` (the body builder reads paid_amount), and
+  // `referenceNumber`/`status` are dropped — the PE's docstatus is the only status truth (DD-VPAY-8)
+  // and PMO's "External ref" never reaches ERPNext (OQ-VPAY-4, the reference_no anchor carries the
+  // idempotency key). The native route below stays byte-for-byte.
   createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
-          { procurementId, invoiceId, referenceNumber, status, date, amount, erp_doc_kind: 'payment' },
+          { procurementId, invoiceId, paid_amount: amount, date, erp_doc_kind: 'payment' },
           intent,
         ).then((res) => res.canonical as unknown as PaymentRow)
       : wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),

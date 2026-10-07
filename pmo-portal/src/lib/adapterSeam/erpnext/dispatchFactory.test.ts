@@ -1048,3 +1048,226 @@ describe('Luna B1 — withPaymentTypeDiscriminator (the fallback anchor-probe gu
     expect(deps).toBe(BASE);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// #910 task 2 — resolvePaymentRefs (FR-VPAY-002/003/004/006, AC-VPAY-004). The `payment` kind joins
+// the refs pass: the case's vendor resolves via the SAME `resolveCaseSupplierName` read the PO/GR/PI
+// path uses, and the bill's ERP Purchase Invoice name resolves from `external_refs` (procurement
+// domain). references[] are built SERVER-side from the resolved bill — caller-supplied rows are
+// discarded (the Luna BLOCK 5 precedent for incoming-payment). Every refusal below happens BEFORE
+// any ERP write/outbox insert, with ZERO ERP reads (the gates are PMO-side DB reads only).
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
+  const ACTIVATED_ROW_PROCUREMENT = {
+    site_url: 'https://erp.example.com',
+    version_major: 15,
+    activated_at: '2026-07-11T00:00:00.000Z',
+    config: {
+      company: 'PMO Smoke Co',
+      default_cash_account: 'Cash - PSC',
+      default_payable_account: 'Creditors - PSC',
+    },
+  };
+
+  /** The link/row table behind the org-scoped reads: `<table>:<id>` -> the row's REAL org_id, so a
+   *  cross-org id is distinguishable from a same-org one by the id ALONE (the Luna B2 fixture rule).
+   *  `procurement_invoices` carries its case anchor (`procurement_id`) + the mirrored ERP outstanding
+   *  the amount gate reads. `procurements` carries the vendor the supplier resolution reads. */
+  const PAYMENT_ROWS: Record<string, Record<string, unknown>> = {
+    'procurements:proc-1': { org_id: 'org-1', vendor_id: 'vend-1' },
+    'procurements:proc-other': { org_id: 'org-1', vendor_id: 'vend-1' },
+    'procurements:proc-org2': { org_id: 'org-2', vendor_id: 'vend-2' },
+    'procurement_invoices:inv-1': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00910' },
+    'procurement_invoices:inv-other-case': { org_id: 'org-1', procurement_id: 'proc-other', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00911' },
+    'procurement_invoices:inv-null-outstanding': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: null, vi_number: 'ACC-PINV-2026-00912' },
+    'procurement_invoices:inv-unmapped': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 100, vi_number: 'ACC-PINV-2026-00913' },
+    'procurement_invoices:inv-org2': { org_id: 'org-2', procurement_id: 'proc-org2', erp_outstanding_amount: 500, vi_number: 'ACC-PINV-2026-09999' },
+  };
+
+  const PAYMENT_REFS: Record<string, unknown> = {
+    'external_refs:companies:vend-1': { external_record_id: 'Supplier:Spike Supplier' },
+    'external_refs:procurement:inv-1': { external_record_id: 'ACC-PINV-2026-00910' },
+  };
+
+  function paymentServiceClient(tables: Record<string, unknown>): DispatchServiceClient {
+    return {
+      from: (table: string) => ({
+        select: () => {
+          let filters: Record<string, string> = {};
+          const chain = {
+            eq: (col: string, val: string) => {
+              filters = { ...filters, [col]: val };
+              return chain;
+            },
+            order: () => chain,
+            limit: () => chain,
+            maybeSingle: async () => {
+              if (table === 'external_org_bindings') return { data: tables['external_org_bindings'] ?? null, error: null };
+              if (table === 'external_refs') {
+                const key = `external_refs:${filters.domain}:${filters.pmo_record_id}`;
+                return { data: tables[key] ?? null, error: null };
+              }
+              return { data: tables[`${table}:${filters.id}`] ?? null, error: null };
+            },
+          };
+          return chain;
+        },
+      }),
+    } as unknown as DispatchServiceClient;
+  }
+
+  function paymentCommand(overrides: Record<string, unknown> = {}): {
+    domain: string;
+    operation: string;
+    record: PmoRecord;
+    idempotencyKey: string;
+  } {
+    return {
+      domain: 'procurement',
+      operation: 'create',
+      record: {
+        id: 'pmo-pay-1',
+        erp_doc_kind: 'payment',
+        procurementId: 'proc-1',
+        invoiceId: 'inv-1',
+        paid_amount: 1090000,
+        date: '2026-10-08',
+        ...overrides,
+      },
+      idempotencyKey: crypto.randomUUID(),
+    };
+  }
+
+  async function resolveAdapter(command: ReturnType<typeof paymentCommand>, tables: Record<string, unknown>, fetchImpl: typeof fetch) {
+    return resolveErpDispatchAdapter({
+      serviceClient: paymentServiceClient(tables),
+      orgId: 'org-1',
+      command: command as never,
+      fetchImpl,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        payment: {
+          toBody: (rec: PmoRecord, ctx: { refs: Record<string, string | null> }) => ({ party: ctx.refs.supplier, paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      } as never,
+    });
+  }
+
+  const HAPPY_TABLES = { external_org_bindings: ACTIVATED_ROW_PROCUREMENT, ...PAYMENT_ROWS, ...PAYMENT_REFS };
+
+  it('happy path: refs.supplier = the case vendor (the SAME resolveCaseSupplierName read) + refs.pi = the bill\'s ERP name, with ZERO ERP reads during resolution', async () => {
+    let capturedToBodyCtx: unknown;
+    const command = paymentCommand();
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'ACC-PAY-2026-00910' }), { status: 200 });
+      return new Response(JSON.stringify({ name: 'ACC-PAY-2026-00910', docstatus: 0 }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: paymentServiceClient(HAPPY_TABLES),
+      orgId: 'org-1',
+      command: command as never,
+      fetchImpl,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        payment: {
+          toBody: (rec: PmoRecord, ctx: { refs: Record<string, string | null> }) => {
+            capturedToBodyCtx = ctx;
+            return { party: ctx.refs.supplier, paid_amount: rec.paid_amount, references: rec.references ?? [] };
+          },
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      } as never,
+    });
+    // Resolution itself reads NOTHING from ERP (NFR-VPAY-001: at most three DB reads, zero ERP reads).
+    expect(fetchImpl).not.toHaveBeenCalled();
+    await adapter.commit(command as never).catch(() => {});
+    const ctx = capturedToBodyCtx as { refs: { supplier?: string; pi?: string } } | undefined;
+    expect(ctx?.refs.supplier).toBe('Spike Supplier'); // bare ERP name (the `Supplier:` prefix stripped)
+    expect(ctx?.refs.pi).toBe('ACC-PINV-2026-00910');
+  });
+
+  it('DD-VPAY-2 — caller-supplied references are DISCARDED; the record carries the server-resolved bill allocation', async () => {
+    const command = paymentCommand({
+      references: [{ reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-OTHER-BILL', allocated_amount: 1 }],
+    });
+    const adapter = await resolveAdapter(command, HAPPY_TABLES, vi.fn() as unknown as typeof fetch);
+    await adapter.commit(command as never).catch(() => {});
+    expect((command.record as { references?: unknown[] }).references).toEqual([
+      { reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-2026-00910', allocated_amount: 1090000 },
+    ]);
+  });
+
+  it('FR-VPAY-004a — no invoiceId refuses commit-rejected before any ERP write', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveAdapter(paymentCommand({ invoiceId: null }), HAPPY_TABLES, fetchImpl),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('FR-VPAY-004b — a bill with NO procurement external_refs mapping refuses (commit-rejected, zero ERP reads)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveAdapter(paymentCommand({ invoiceId: 'inv-unmapped' }), HAPPY_TABLES, fetchImpl),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('FR-VPAY-004c — a bill on ANOTHER case (procurement_id ≠ record.procurementId) refuses naming the bill', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(resolveAdapter(paymentCommand({ invoiceId: 'inv-other-case' }), HAPPY_TABLES, fetchImpl))
+      .rejects.toSatisfy((err: AppError) => err.code === 'commit-rejected' && /ACC-PINV-2026-00911/.test(err.message));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('FR-VPAY-006a — paid_amount above the bill\'s outstanding refuses naming the bill', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(resolveAdapter(paymentCommand({ paid_amount: 1090001 }), HAPPY_TABLES, fetchImpl))
+      .rejects.toSatisfy((err: AppError) => err.code === 'commit-rejected' && /ACC-PINV-2026-00910/.test(err.message));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('FR-VPAY-006b — paid_amount ≤ 0 refuses', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(resolveAdapter(paymentCommand({ paid_amount: 0 }), HAPPY_TABLES, fetchImpl)).rejects.toMatchObject({ code: 'commit-rejected' });
+    await expect(resolveAdapter(paymentCommand({ paid_amount: -1 }), HAPPY_TABLES, fetchImpl)).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('FR-VPAY-006c — a bill whose erp_outstanding_amount is null refuses (never uncapped)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(resolveAdapter(paymentCommand({ invoiceId: 'inv-null-outstanding' }), HAPPY_TABLES, fetchImpl))
+      .rejects.toSatisfy((err: AppError) => err.code === 'commit-rejected' && /ACC-PINV-2026-00912/.test(err.message));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('FR-VPAY-002 — a bill owned by ANOTHER org is refused before any ERP write (the pre-flight keeps holding)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveAdapter(paymentCommand({ invoiceId: 'inv-org2', procurementId: 'proc-org2' }), HAPPY_TABLES, fetchImpl),
+    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('non-payment kinds do NOT pay for payment ref resolution (byte-for-byte neighbours)', async () => {
+    // The PO create on the same org resolves its own refs exactly as before — the payment gate never runs.
+    const command = {
+      domain: 'procurement',
+      operation: 'create',
+      record: { id: 'pmo-po-1', erp_doc_kind: 'purchase-order', procurementId: 'proc-1', items: [{ item_code: 'X', qty: 1, rate: 1, schedule_date: '2026-10-08' }] },
+      idempotencyKey: crypto.randomUUID(),
+    } as never;
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: paymentServiceClient(HAPPY_TABLES),
+      orgId: 'org-1',
+      command,
+      fetchImpl: vi.fn(async () => new Response(JSON.stringify({ name: 'PUR-ORD-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+});
