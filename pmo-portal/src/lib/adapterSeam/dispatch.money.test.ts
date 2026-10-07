@@ -1697,3 +1697,47 @@ describe('AC-BWO-002 a sales-invoice command names its record by the canonical u
     expect(commit).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('#784 every revenue command names its record by the canonical uuid text', () => {
+  const canonical = '0b6a1f8e-3c2d-4e5f-8a9b-0c1d2e3f4a5b';
+  const rcCommand = (id: string, operation: AdapterCommand['operation'] = 'create'): AdapterCommand => ({
+    domain: 'revenue', operation, record: { id, erp_doc_kind: 'incoming-payment' }, idempotencyKey: 'key-rc',
+  });
+
+  it.each([
+    ['not a uuid', 'rc-1'],
+    ['upper case', canonical.toUpperCase()],
+    ['surrounding space', ` ${canonical}`],
+  ])('refuses a receipt command with a %s record id before any outbox read or ERP call', async (_label, id) => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn();
+    const readOutboxSpy = vi.spyOn(fake.deps, 'readOutbox');
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: rcCommand(id),
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'commit-rejected', message: 'revenue-record-id-not-canonical' });
+    expect(readOutboxSpy).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('refuses it on every receipt operation, not only a create', async () => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn();
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: rcCommand('rc-9', 'transition'),
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'commit-rejected', message: 'revenue-record-id-not-canonical' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('dispatches a canonical receipt record id', async () => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PE-0001', canonical: { id: canonical } }));
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: rcCommand(canonical),
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    });
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(result.externalRecordId).toBe('PE-0001');
+  });
+});

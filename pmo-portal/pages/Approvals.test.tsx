@@ -67,6 +67,10 @@ const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean }
 };
 const confirmMutation: MutationState = { mutate: vi.fn(), isPending: false };
 
+vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
+// #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
+const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => queryState,
@@ -163,6 +167,9 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  invoiceState.rows = [];
+  invoiceState.isPending = false;
+  invoiceState.isError = false;
   queryState.data = undefined;
   queryState.isPending = false;
   queryState.isError = false;
@@ -208,6 +215,33 @@ describe('Approvals page states', () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText(/all caught up/i)).toBeInTheDocument();
+  });
+
+  it('AC-NAR-002 (C-1) a customer invoice awaiting the viewer keeps the page out of "all caught up" and counts in the All tab', () => {
+    authState.role = 'Admin';
+    queryState.data = [];
+    procState.data = [];
+    invoiceState.rows = [{ id: 'si-1' }, { id: 'si-2' }];
+    renderPage('all');
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+    const scope = screen.getByLabelText('Approvals scope');
+    expect(within(scope).getByText('All').closest('[role="tab"], button')).toHaveTextContent('2');
+  });
+
+  it('AC-NAR-002 (C-1) while the invoices awaiting the viewer are still loading, the page does not claim "all caught up"', () => {
+    queryState.data = [];
+    procState.data = [];
+    invoiceState.isPending = true;
+    renderPage();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+
+  it('AC-NAR-002 (C-1) the page copy names customer invoices among what waits on the viewer', () => {
+    queryState.data = [];
+    procState.data = [];
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
+    expect(screen.getByTestId('approvals-caught-up')).toHaveTextContent(/customer invoices/i);
   });
 
   it('AC-904: timesheet error + Retry re-runs the query (NFR-TS-UI-001)', () => {

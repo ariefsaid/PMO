@@ -104,7 +104,8 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
           items: [{ item_code: v.itemCode.trim(), qty: 1, rate, ...(description ? { description } : {}) }],
           intent,
         });
-        onCreated(res.si_number);
+        // This dialog is ERP-path only (#785 tab gate), where the ERP names the invoice; a PMO Draft has no number yet.
+        onCreated(res.si_number ?? '');
       } catch (err) {
         // The dialog is the one place the failure is shown (no second toast); classifying here records the single
         // save_failed event (ADR-0067).

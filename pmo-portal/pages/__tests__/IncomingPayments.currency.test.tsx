@@ -19,6 +19,7 @@ const { paymentsState, invoicesState } = vi.hoisted(() => ({
   invoicesState: { data: [] as Array<Record<string, unknown>>, isPending: false, isError: false, refetch: vi.fn() },
 }));
 
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useIncomingPayments: () => paymentsState,
   useSalesInvoices: () => invoicesState,

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Button } from './Button';
 import { Icon } from './icons';
@@ -59,13 +60,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   title,
   description,
   confirmLabel,
-  cancelLabel = 'Cancel',
+  cancelLabel: cancelLabelProp,
   tone = 'default',
   loading = false,
   confirmDisabled = false,
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation();
+  const cancelLabel = cancelLabelProp ?? t('entityForm.cancel', 'Cancel');
   const isDestructive = tone === 'destructive';
   const titleId = useId();
   const descId = useId();

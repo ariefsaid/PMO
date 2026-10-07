@@ -11,6 +11,7 @@ vi.mock('./analytics', () => analytics);
 
 import { classifyMutationError, trackBatchSaveFailed } from './classifyMutationError';
 import type { ClassifyContext } from './classifyMutationError';
+import { NATIVE_REVENUE_REFUSALS } from './db/revenueNative';
 
 beforeEach(() => {
   analytics.trackSaveFailed.mockClear();
@@ -51,6 +52,14 @@ describe('classifyMutationError friction capture', () => {
     expect(call.join('|')).not.toMatch(/Petronas/);
   });
 
+  it('#784: the PMO-native revenue refusal codes are reviewed application codes and report as themselves', () => {
+    for (const code of ['native-revenue-read-only', 'native-invoice-needs-project', 'native-receipt-needs-invoice']) {
+      analytics.trackSaveFailed.mockClear();
+      classifyMutationError({ code, message: 'x' });
+      expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe(code);
+    }
+  });
+
   it('SECURITY: a genuine Postgres SQLSTATE we have not special-cased (5 alphanumeric chars) still ' +
     'passes through — the bound is a real allowlist/shape check, not "always other"', () => {
     classifyMutationError({ code: '22001', message: 'string data right truncation' });
@@ -64,6 +73,14 @@ describe('classifyMutationError friction capture', () => {
     analytics.trackSaveFailed.mockClear();
     classifyMutationError({ code: '503 Service Unavailable for tenant Acme Corp', message: 'x' });
     expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe('other');
+  });
+
+  it('#784 the PMO-native revenue refusal codes are reviewed reason codes and pass through', () => {
+    for (const code of NATIVE_REVENUE_REFUSALS) {
+      analytics.trackSaveFailed.mockClear();
+      classifyMutationError({ code, message: 'refused' });
+      expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe(code);
+    }
   });
 
   it('SECURITY (review round 2 #3): `module` is bounded to a known slug — a free-text value ' +

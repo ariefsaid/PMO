@@ -142,6 +142,15 @@ const KNOWN_REASON_CODES = new Set([
   'native-budget-not-adopted', 'native-timesheet-not-adopted', 'not-found',
   'procurement-inbound-adopt-no-case-link', 'project-unmapped', 'revenue-not-enabled',
   'snapshot-replaced-mid-read',
+  // #784 (reviewed 2026-10-07): the PMO-native revenue repository refusals.
+  'native-invoice-needs-project', 'native-receipt-needs-invoice', 'native-revenue-read-only',
+  // #784 (reviewed 2026-10-07): migration 0275's refusal details, mapped to the code by `src/lib/db/revenueNative.ts`.
+  'erp-owns-revenue', 'not-pmo-native', 'pmo-native',
+  'payment-date-missing', 'payment-date-future', 'payment-date-before-invoice', 'receipt-amount-invalid',
+  'withheld-amount-invalid', 'receipt-split-mismatch', 'withholding-slip-missing', 'receipt-on-pmo-invoice',
+  'invoice-lines-count', 'invoice-line-invalid', 'invoice-total-invalid', 'vat-rate-missing',
+  'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
+  'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
 ]);
 
 /** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */

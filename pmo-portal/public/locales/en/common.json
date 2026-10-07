@@ -362,6 +362,17 @@
     }
   },
   "approvals": {
+    "salesInvoices": {
+      "label": "Customer invoices awaiting you",
+      "heading": "Customer invoices awaiting you ({{count}})",
+      "errorTitle": "Couldn't load invoices awaiting you",
+      "errorSub": "Purchase requests and timesheets below are unaffected.",
+      "raisedBy": "Raised by",
+      "net": "Net (before tax)",
+      "tax": "Tax",
+      "gross": "Total due",
+      "showDetails": "Show invoice details for {{customer}}"
+    },
     "bulk": {
       "approveN": "Approve {{count}}",
       "clear": "Clear",
@@ -403,7 +414,7 @@
       "title": "Confirm what ERPNext holds"
     },
     "caughtUp": {
-      "sub": "Nothing is waiting on your approval right now. New purchase requests and submitted timesheets will appear here.",
+      "sub": "Nothing is waiting on your approval right now. New purchase requests, timesheets, expense claims and customer invoices will appear here.",
       "title": "You’re all caught up"
     },
     "employeeLinks": {
@@ -473,7 +484,7 @@
       "timesheets": "Timesheets"
     },
     "scopeToggleLabel": "Approvals scope",
-    "subtitle": "Needs my approval — everything waiting on your decision, across procurement and timesheets.",
+    "subtitle": "Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.",
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
@@ -3382,6 +3393,30 @@
     "title": "Allow {{client}} to access your PMO account?"
   },
   "financeCopy": {
+    "nativeSalesInvoicesDescription": "Client invoices raised, approved and settled in PMO.",
+    "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",
+    "nativeProjectRequired": "Project is required: it decides the invoice's VAT.",
+    "nativeSelectProject": "Select project…",
+    "approve": "Approve",
+    "approveInvoiceNamed": "Approve the invoice for {{customer}}?",
+    "approveInvoiceBody": "Approving issues the invoice: it gets its number, becomes Unpaid and can receive payments. Its author cannot approve it.",
+    "approveInvoice": "Approve invoice",
+    "invoiceApproved": "Invoice approved",
+    "nativeCancelInvoiceBody": "This cancels the invoice in PMO and it stops counting as billed. An invoice with receipts can be cancelled only after its receipts are cancelled.",
+    "statusPartlyPaid": "Partly paid",
+    "recordedBeforeErp": "Recorded in PMO before the ERP was connected",
+    "overpaidBy": "Overpaid by {{amount}}",
+    "carriedIntoErpOpening": "Carried into the ERP opening balance: {{amount}} on {{date}}",
+    "nativeIncomingPaymentsDescription": "Customer receipts recorded in PMO against approved invoices.",
+    "salesInvoiceLabel": "Sales Invoice",
+    "salesInvoiceRequired": "Choose the invoice this receipt settles.",
+    "paymentDateLabel": "Payment date",
+    "paymentDateNotFuture": "The payment date cannot be in the future.",
+    "nativeReceiptAmountHelper": "Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.",
+    "receiptDateMissing": "Enter the payment date.",
+    "receiptRefused": "Check the receipt amounts.",
+    "nativeCancelReceiptBody": "This cancels the receipt in PMO and puts its amount back on the invoice's balance.",
+    "receiptCancelled": "Receipt cancelled",
     "invoicePdf": {
       "download": "Download PDF",
       "downloaded": "PDF downloaded — {{name}}",
@@ -3646,7 +3681,47 @@
     "selectOrSearchItem": "Select or search item…",
     "searchItemCodeOrName": "Search item code or name…",
     "describeWorkOrGoods": "Describe the work or goods…",
-    "currency": "Currency"
+    "currency": "Currency",
+    "statusReceived": "Received",
+    "draftInvoiceLabel": "Draft · {{customer}}",
+    "preErpBadge": "Pre-ERP",
+    "totalDueAmount": "Total due {{amount}}",
+    "paidToDateAmount": "Paid {{amount}}",
+    "invoiceLineCodeOrDescription": "Line {{line}}: Enter an item code or a description.",
+    "vatRateMissing": "This project has no VAT rate recorded",
+    "vatRateMissingInline": "This project has no VAT rate recorded, so it cannot be invoiced yet.",
+    "recordVatRateOnProject": "Record the VAT rate on the project",
+    "paymentDateBeforeInvoice": "The payment date cannot be before the invoice date.",
+    "notPmoNative": "This invoice belongs to the ERP",
+    "erpOwnsRevenue": "The connected ERP now raises and settles invoices",
+    "newInvoiceTitle": "New invoice",
+    "editInvoiceTitle": "Edit invoice",
+    "newInvoiceSubtitle": "Create a new sales invoice for a client",
+    "editInvoiceSubtitle": "Update this sales invoice",
+    "saveInvoice": "Save invoice",
+    "createInvoice": "Create invoice",
+    "removeLine": "Remove line {{line}}",
+    "editPaymentTitle": "Edit payment",
+    "editPaymentSubtitle": "Update this incoming payment",
+    "receivePaymentSubtitle": "Record a new incoming payment from a client",
+    "savePayment": "Save payment",
+    "recordPayment": "Record payment",
+    "amountOutstanding": "{{amount}} outstanding",
+    "pmoNative": "This invoice was raised in PMO — approve it from Approvals",
+    "withheldAmountRefused": "Check the withheld tax amount.",
+    "receiptSplitMismatch": "Cash received plus withheld tax must equal the amount paid.",
+    "withholdingSlipMissing": "Enter the withholding-slip number.",
+    "receiptOnPmoInvoice": "Receipts for an invoice raised in PMO are recorded in PMO",
+    "invoiceLinesCount": "An invoice needs 1 to 100 lines.",
+    "invoiceLineInvalid": "Check the invoice lines.",
+    "invoiceTotalInvalid": "The invoice total must be above zero.",
+    "invoiceNotReceivable": "This invoice cannot receive a payment",
+    "invoiceHasReceipts": "Cancel this invoice's receipts first",
+    "receiptAlreadyCancelled": "This receipt is already cancelled",
+    "invoiceIllegalTransition": "That change isn't allowed from the invoice's current status.",
+    "sodSelfApproval": "You raised this invoice — a different person must approve it",
+    "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
+    "nativeDraftsOpen": "Invoices raised in PMO are still in draft"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
@@ -3940,5 +4015,19 @@
       "procurement": "No procurement changes",
       "tasks": "No task changes"
     }
+  },
+  "entityForm": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "saveFailed": "Save failed",
+    "formErrors": "Form errors",
+    "nothingSaved": "Nothing was saved — your entries are still here.",
+    "completeRequired": "Complete all required fields (marked with an asterisk) to save.",
+    "discardTitle": "Discard your changes?",
+    "discardBody": "This form has unsaved changes. Discarding will lose them.",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "fixFields_one": "Fix {{count}} field before saving",
+    "fixFields_other": "Fix {{count}} fields before saving"
   }
 }

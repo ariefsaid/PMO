@@ -89,7 +89,10 @@ function routes(unexpected: FetchCall[], landed: Record<string, unknown> = lande
     })),
     supabaseSelect('organizations', () => objectResponse({ tax_prepaid_account: 'Tax Prepaid - DEMO' })),
     supabaseSelect('companies', () => objectResponse({ id: CUSTOMER_ID, org_id: ORG_ID })),
-    supabaseSelect('sales_invoices', () => objectResponse({ id: SI_ID, org_id: ORG_ID, customer_id: CUSTOMER_ID })),
+    // Only the cited invoice exists (the receipt's own id is new — #784's create guard reads it).
+    supabaseSelect('sales_invoices', (call) => eqParam(call, 'id') === SI_ID
+      ? objectResponse({ id: SI_ID, org_id: ORG_ID, customer_id: CUSTOMER_ID, pmo_native: false })
+      : nullObjectResponse()),
     supabaseSelect('external_refs', (call) => {
       const pmo = eqParam(call, 'pmo_record_id');
       if (pmo === CUSTOMER_ID) return objectResponse({ external_record_id: `Customer:${ERP_CUSTOMER}` });
