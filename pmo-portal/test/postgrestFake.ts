@@ -33,8 +33,8 @@ export type FakeRow = Record<string, unknown>;
 interface Filter {
   column: string;
   value: unknown;
-  /** `eq` (default) or `gt` — the keyset cursor's comparison. */
-  op?: 'eq' | 'gt';
+  /** `eq` (default), or `gt`/`lt` — the keyset-cursor / conditional-update comparisons. */
+  op?: 'eq' | 'gt' | 'lt';
 }
 
 /** One recorded request, so a test can assert HOW the read was issued (paged? ordered?). */
@@ -82,6 +82,7 @@ export class FakePostgrest {
   readonly tablesTouched: string[] = [];
   readonly reads: RecordedRead[] = [];
   readonly inserted: Record<string, FakeRow[][]> = {};
+  readonly updated: Record<string, FakeRow[]> = {};
   readonly deletedScopes: Record<string, Filter[][]> = {};
   readonly upserted: Record<string, FakeRow[][]> = {};
   readonly rpcCalls: RecordedRpc[] = [];
@@ -140,7 +141,7 @@ export class FakePostgrest {
         (this.data[table] ??= []).push(...rows.map((r) => ({ ...r })));
         return Promise.resolve({ error: null as PgError });
       },
-      upsert: (rows: FakeRow | FakeRow[], opts?: { onConflict?: string }) => {
+      upsert: (rows: FakeRow | FakeRow[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }) => {
         const list = Array.isArray(rows) ? rows : [rows];
         (this.upserted[table] ??= []).push(list.map((r) => ({ ...r })));
         const unique = this.upsertKeys[table];
@@ -149,6 +150,19 @@ export class FakePostgrest {
           keys.every((k) => a[k] !== undefined && a[k] !== null && a[k] === b[k]);
         if (opts?.onConflict && target.join(',') !== 'id' && (!unique || target.join(',') !== unique.join(','))) {
           return Promise.resolve({ error: { message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification', code: '42P10' } as PgError });
+        }
+        if (opts?.ignoreDuplicates) {
+          // `Prefer: resolution=ignore-duplicates` — INSERT … ON CONFLICT DO NOTHING: an existing row
+          // is left UNTOUCHED (its stored value wins over the payload), only absent rows are added.
+          const next = [...(this.data[table] ?? [])];
+          for (const row of list) {
+            const hit = next.findIndex((r) => sameKey(target, row, r));
+            if (hit >= 0) continue;
+            if (unique && next.some((r) => sameKey(unique, row, r))) continue;
+            next.push({ ...row });
+          }
+          this.data[table] = next;
+          return Promise.resolve({ error: null as PgError });
         }
         // One statement: work on a copy and commit only if no row violates a non-target unique key.
         const next = [...(this.data[table] ?? [])];
@@ -163,8 +177,41 @@ export class FakePostgrest {
         this.data[table] = next;
         return Promise.resolve({ error: null as PgError });
       },
+      update: (values: FakeRow, opts?: { count?: 'exact' }) => this.makeUpdateBuilder(table, values, opts),
       delete: () => this.makeDeleteBuilder(table),
     };
+  }
+
+  /** A CONDITIONAL update: `PATCH …?org_id=eq.…&watermark_cursor=lt.<new>` — only rows matching the
+   *  filters change; `count: 'exact'` reports how many MATCHED, so a caller can tell "updated"
+   *  (count > 0) from "matched nothing — the row is absent, or the filter already excludes it" (0). */
+  private makeUpdateBuilder(table: string, values: FakeRow, opts?: { count?: 'exact' }) {
+    const filters: Filter[] = [];
+    const run = (): { count: number | null; error: PgError } => {
+      (this.updated[table] ??= []).push({ ...values });
+      const rows = this.data[table] ?? [];
+      let matched = 0;
+      this.data[table] = rows.map((row) => {
+        if (!matches(row, filters)) return row;
+        matched += 1;
+        return { ...row, ...values };
+      });
+      return { count: opts?.count === 'exact' ? matched : null, error: null };
+    };
+    const builder = {
+      eq(column: string, value: unknown) {
+        filters.push({ column, value });
+        return builder;
+      },
+      lt(column: string, value: unknown) {
+        filters.push({ column, value, op: 'lt' });
+        return builder;
+      },
+      then<T>(onOk: (v: { count: number | null; error: PgError }) => T) {
+        return Promise.resolve(run()).then(onOk);
+      },
+    };
+    return builder;
   }
 
   private makeDeleteBuilder(table: string) {
@@ -270,6 +317,7 @@ function matches(row: FakeRow, filters: Filter[]): boolean {
     // a column it DOES carry must satisfy the filter, so org isolation is really modelled.
     if (v === undefined) return true;
     if (f.op === 'gt') return String(v) > String(f.value);
+    if (f.op === 'lt') return String(v) < String(f.value);
     return v === f.value;
   });
 }
