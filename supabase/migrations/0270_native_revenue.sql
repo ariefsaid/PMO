@@ -1,6 +1,6 @@
--- 0264_native_revenue.sql — #784 (OD-REEL-1): customer invoices and receipts for an org whose revenue no ERP owns.
+-- 0270_native_revenue.sql — #784 (OD-REEL-1): customer invoices and receipts for an org whose revenue no ERP owns.
 -- Spec: docs/specs/no-erp-revenue.spec.md (FR-NAR-*, AC-NAR-001..007). ADR: ADR-0055 addendum 2026-10-07.
--- Plan: docs/plans/2026-10-07-no-erp-revenue.md. Rollback: supabase/migrations/rollback/0264_native_revenue_down.sql.
+-- Plan: docs/plans/2026-10-07-no-erp-revenue.md. Rollback: supabase/migrations/rollback/0270_native_revenue_down.sql.
 --
 -- Shape (DD-NAR-1..15): no new table. A PMO invoice / receipt is a row of sales_invoices / incoming_payments with
 -- pmo_native = true, written ONLY by four SECURITY DEFINER RPCs:
@@ -464,7 +464,7 @@ comment on function public.cancel_native_receipt(uuid) is
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §6 — the mirror guards pin the new columns (DD-WO-4: a column added later is user-writable while the ERP owns the
 -- domain unless its guard enumerates it). Bodies are the live definitions VERBATIM — sales_invoices from 0193,
--- incoming_payments from 0232 — with the lines marked `0264` added. SECURITY INVOKER as before; no trigger re-created
+-- incoming_payments from 0232 — with the lines marked `0270` added. SECURITY INVOKER as before; no trigger re-created
 -- (a trigger binds by OID and create-or-replace keeps it).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
@@ -491,14 +491,14 @@ begin
      or new.tax_rate is distinct from old.tax_rate               -- 0188 (#478)
      or new.tax_template is distinct from old.tax_template       -- 0188 (#478)
      or new.work_order_id is distinct from old.work_order_id     -- 0193 (#498): which scope grant this bills
-     or new.pmo_native is distinct from old.pmo_native           -- 0264 (#784)
-     or new.pmo_number is distinct from old.pmo_number           -- 0264 (#784)
-     or new.native_lines is distinct from old.native_lines       -- 0264 (#784)
-     or new.approved_by_id is distinct from old.approved_by_id   -- 0264 (#784)
-     or new.approved_at is distinct from old.approved_at         -- 0264 (#784)
-     or new.overpaid_amount is distinct from old.overpaid_amount -- 0264 (#784, DD-NAR-17)
-     or new.erp_opening_amount is distinct from old.erp_opening_amount -- 0264 (#784, DD-NAR-16)
-     or new.erp_opening_at is distinct from old.erp_opening_at   -- 0264 (#784, DD-NAR-16)
+     or new.pmo_native is distinct from old.pmo_native           -- 0270 (#784)
+     or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)
+     or new.native_lines is distinct from old.native_lines       -- 0270 (#784)
+     or new.approved_by_id is distinct from old.approved_by_id   -- 0270 (#784)
+     or new.approved_at is distinct from old.approved_at         -- 0270 (#784)
+     or new.overpaid_amount is distinct from old.overpaid_amount -- 0270 (#784, DD-NAR-17)
+     or new.erp_opening_amount is distinct from old.erp_opening_amount -- 0270 (#784, DD-NAR-16)
+     or new.erp_opening_at is distinct from old.erp_opening_at   -- 0270 (#784, DD-NAR-16)
      or new.id is distinct from old.id or new.org_id is distinct from old.org_id
      or new.created_at is distinct from old.created_at
   then
@@ -528,9 +528,9 @@ begin
      or new.withheld_amount is distinct from old.withheld_amount
      or new.withholding_slip_number is distinct from old.withholding_slip_number
      or new.currency is distinct from old.currency               -- 0187 (#478)
-     or new.pmo_native is distinct from old.pmo_native           -- 0264 (#784)
-     or new.pmo_number is distinct from old.pmo_number           -- 0264 (#784)
-     or new.cancelled_at is distinct from old.cancelled_at       -- 0264 (#784)
+     or new.pmo_native is distinct from old.pmo_native           -- 0270 (#784)
+     or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)
+     or new.cancelled_at is distinct from old.cancelled_at       -- 0270 (#784)
      or new.id is distinct from old.id or new.org_id is distinct from old.org_id
      or new.created_at is distinct from old.created_at
   then
@@ -637,14 +637,14 @@ begin
       or not has_function_privilege('authenticated', sig, 'execute')
       or not (select p.prosecdef from pg_proc p where p.oid = sig::regprocedure);
   if v_bad is not null then
-    raise exception '0264 §9: PMO revenue writer grants or SECURITY DEFINER drifted: %', v_bad;
+    raise exception '0270 §9: PMO revenue writer grants or SECURITY DEFINER drifted: %', v_bad;
   end if;
 
   select string_agg(sig, ', ') into v_bad
     from (values ('public.native_invoice_settled(uuid)'), ('public.assert_revenue_employable()')) f(sig)
    where has_function_privilege('anon', sig, 'execute') or has_function_privilege('authenticated', sig, 'execute');
   if v_bad is not null then
-    raise exception '0264 §9: client roles can execute internal functions: %', v_bad;
+    raise exception '0270 §9: client roles can execute internal functions: %', v_bad;
   end if;
 
   -- Every column §1 adds: neither client-insertable nor client-updatable (DD-NAR-2, -16, -17).
@@ -659,7 +659,7 @@ begin
       or has_column_privilege('anon', 'public.' || c.t, c.col, 'INSERT')
       or has_column_privilege('anon', 'public.' || c.t, c.col, 'UPDATE');
   if v_bad is not null then
-    raise exception '0264 §9: a PMO revenue column is client-writable: %', v_bad;
+    raise exception '0270 §9: a PMO revenue column is client-writable: %', v_bad;
   end if;
 
   -- §8: exactly six write policies on the two tables, each admitting Admin and Finance and no other role.
@@ -670,6 +670,6 @@ begin
                  where schemaname = 'public' and tablename in ('sales_invoices','incoming_payments')
                    and cmd in ('INSERT','UPDATE','DELETE')
                    and (coalesce(qual, '') || coalesce(with_check, '')) ~ '(Executive|Project Manager|Engineer)') then
-    raise exception '0264 §9: revenue write policies are not exactly the Admin/Finance set';
+    raise exception '0270 §9: revenue write policies are not exactly the Admin/Finance set';
   end if;
 end $$;

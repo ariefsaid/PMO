@@ -2,7 +2,7 @@
 
 > Spec: `docs/specs/no-erp-revenue.spec.md` (FR-NAR-001..013, NFR-NAR-001..006, AC-NAR-001..007, DD-NAR-1..15).
 > ADR: `docs/adr/0055-external-system-adapters-sot-enhancement.md` § Addendum 2026-10-07.
-> Lane: **money path + SoD → Director-dispatched, not the factory.** Migration slot: **0264** only.
+> Lane: **money path + SoD → Director-dispatched, not the factory.** Migration slot: **0270** only.
 > Worktree: `/Users/ariefsaid/Coding/PMO/.claude/worktrees/784` (branch `feat/784-no-erp-invoicing`). Every command
 > below runs from that root unless it starts with `(cd pmo-portal && …)`.
 
@@ -61,14 +61,14 @@ reads one invoice's receipts (existing `incoming_payments_org_si_idx`); lists st
 
 | File | Change |
 |---|---|
-| `supabase/migrations/0264_native_revenue.sql` | new (§1–§9, built across Tasks 2/4/7/10/13/15) |
-| `supabase/migrations/rollback/0264_native_revenue_down.sql` | new (Task 16) |
-| `supabase/tests/0264_native_revenue_create.test.sql` | new (Task 1) |
-| `supabase/tests/0264_native_revenue_approve.test.sql` | new (Task 3) |
-| `supabase/tests/0264_native_revenue_receipts.test.sql` | new (Task 6) |
-| `supabase/tests/0264_native_revenue_crossing.test.sql` | new (Task 9) |
-| `supabase/tests/0264_revenue_write_roles.test.sql` | new (Task 12) |
-| `supabase/tests/0264_native_revenue_acl.test.sql` | new (Task 15) |
+| `supabase/migrations/0270_native_revenue.sql` | new (§1–§9, built across Tasks 2/4/7/10/13/15) |
+| `supabase/migrations/rollback/0270_native_revenue_down.sql` | new (Task 16) |
+| `supabase/tests/0270_native_revenue_create.test.sql` | new (Task 1) |
+| `supabase/tests/0270_native_revenue_approve.test.sql` | new (Task 3) |
+| `supabase/tests/0270_native_revenue_receipts.test.sql` | new (Task 6) |
+| `supabase/tests/0270_native_revenue_crossing.test.sql` | new (Task 9) |
+| `supabase/tests/0270_revenue_write_roles.test.sql` | new (Task 12) |
+| `supabase/tests/0270_native_revenue_acl.test.sql` | new (Task 15) |
 | `supabase/tests/0178_anon_executable_definers.test.sql` | +4 names, count 59 → 63 (Task 15) |
 | `pmo-portal/src/lib/supabase/database.types.ts`, `scripts/isolation-probe-denominator.json` | regenerated (Task 17) |
 | `pmo-portal/src/lib/revenue/nativeInvoice.ts` (+ test) | new (Task 19) |
@@ -89,14 +89,14 @@ reads one invoice's receipts (existing `incoming_payments_org_si_idx`); lists st
 
 | AC | Owning test | Task |
 |---|---|---|
-| AC-NAR-001 | `supabase/tests/0264_native_revenue_create.test.sql` | 1–2 |
-| AC-NAR-002 | `supabase/tests/0264_native_revenue_approve.test.sql` | 3–5 |
+| AC-NAR-001 | `supabase/tests/0270_native_revenue_create.test.sql` | 1–2 |
+| AC-NAR-002 | `supabase/tests/0270_native_revenue_approve.test.sql` | 3–5 |
 | AC-NAR-003 | `pmo-portal/e2e/AC-NAR-003-no-erp-billing.spec.ts` | 33 (DB contract: Tasks 6–8) |
-| AC-NAR-004 | `supabase/tests/0264_native_revenue_crossing.test.sql` | 9–11 (FE never-dispatch: Task 23) |
-| AC-NAR-005 | `supabase/tests/0264_native_revenue_approve.test.sql` | 3–4 |
-| AC-NAR-006 | `supabase/tests/0264_native_revenue_receipts.test.sql` | 6–7 |
-| AC-NAR-007 | `supabase/tests/0264_revenue_write_roles.test.sql` | 12–14 |
-| NFR-NAR-001 | `supabase/tests/0264_native_revenue_acl.test.sql` | 15 |
+| AC-NAR-004 | `supabase/tests/0270_native_revenue_crossing.test.sql` | 9–11 (FE never-dispatch: Task 23) |
+| AC-NAR-005 | `supabase/tests/0270_native_revenue_approve.test.sql` | 3–4 |
+| AC-NAR-006 | `supabase/tests/0270_native_revenue_receipts.test.sql` | 6–7 |
+| AC-NAR-007 | `supabase/tests/0270_revenue_write_roles.test.sql` | 12–14 |
+| NFR-NAR-001 | `supabase/tests/0270_native_revenue_acl.test.sql` | 15 |
 
 Gate commands used below:
 - **DB:** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'` (reset and test in ONE lock hold).
@@ -108,60 +108,60 @@ Gate commands used below:
 
 ```bash
 test -f supabase/migrations/0262_billing_by_work_order.sql && echo "0262 present" || echo "STOP: rebase onto dev after #785 merges"
-ls supabase/migrations/0264_* 2>/dev/null && echo "STOP: slot 0264 taken" || echo "0264 free"
+ls supabase/migrations/0270_* 2>/dev/null && echo "STOP: slot 0270 taken" || echo "0270 free"
 grep -n "workOrderId?: string | null" pmo-portal/src/lib/repositories/types.ts || echo "STOP: #785 FE not on this base"
 grep -c "^  ('" supabase/tests/0178_anon_executable_definers.test.sql
 ```
-**Verify:** the first three lines print `0262 present`, `0264 free` and a `types.ts` match; the last prints the current
+**Verify:** the first three lines print `0262 present`, `0270 free` and a `types.ts` match; the last prints the current
 allow-list length (59 unless #775 phase B landed — then use that number + 4 in Task 15). On any `STOP`, do not start.
 
 ---
 
 ## Task 1 — RED: pgTAP for raising an invoice (AC-NAR-001) (5 min)
 
-**File:** `supabase/tests/0264_native_revenue_create.test.sql`
+**File:** `supabase/tests/0270_native_revenue_create.test.sql`
 
 ```sql
--- 0264_native_revenue_create.test.sql — #784 AC-NAR-001: with no ERP owning revenue, a Finance user raises a customer
+-- 0270_native_revenue_create.test.sql — #784 AC-NAR-001: with no ERP owning revenue, a Finance user raises a customer
 -- invoice; it saves as Draft with its tax treatment, tax and currency, its author recorded, and lists for the org only.
--- Migration under test: 0264_native_revenue.sql §1–§3 (and 0262's work-order fence, DD-BWO-4).
+-- Migration under test: 0270_native_revenue.sql §1–§3 (and 0262's work-order fence, DD-BWO-4).
 begin;
 create extension if not exists pgtap;
 select plan(23);
 
 insert into organizations (id, name) values
-  ('02640000-0000-0000-0000-000000000001', 'NAR Org'),
-  ('02640000-0000-0000-0000-000000000002', 'NAR Other Org');
+  ('02700000-0000-0000-0000-000000000001', 'NAR Org'),
+  ('02700000-0000-0000-0000-000000000002', 'NAR Other Org');
 insert into auth.users (id, email) values
-  ('02640000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
-  ('02640000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
-  ('02640000-0000-0000-0000-0000000000a3', 'nar-admin@example.com'),
-  ('02640000-0000-0000-0000-0000000000a4', 'nar-pm@example.com'),
-  ('02640000-0000-0000-0000-0000000000a5', 'nar-off@example.com'),
-  ('02640000-0000-0000-0000-0000000000b1', 'nar-xorg@example.com');
+  ('02700000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
+  ('02700000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
+  ('02700000-0000-0000-0000-0000000000a3', 'nar-admin@example.com'),
+  ('02700000-0000-0000-0000-0000000000a4', 'nar-pm@example.com'),
+  ('02700000-0000-0000-0000-0000000000a5', 'nar-off@example.com'),
+  ('02700000-0000-0000-0000-0000000000b1', 'nar-xorg@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02640000-0000-0000-0000-0000000000a1', '02640000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a2', '02640000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a3', '02640000-0000-0000-0000-000000000001', 'NAR Admin', 'nar-admin@example.com', 'Admin', 'active'),
-  ('02640000-0000-0000-0000-0000000000a4', '02640000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active'),
-  ('02640000-0000-0000-0000-0000000000a5', '02640000-0000-0000-0000-000000000001', 'NAR Off', 'nar-off@example.com', 'Finance', 'disabled'),
-  ('02640000-0000-0000-0000-0000000000b1', '02640000-0000-0000-0000-000000000002', 'NAR XOrg', 'nar-xorg@example.com', 'Finance', 'active');
+  ('02700000-0000-0000-0000-0000000000a1', '02700000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a2', '02700000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a3', '02700000-0000-0000-0000-000000000001', 'NAR Admin', 'nar-admin@example.com', 'Admin', 'active'),
+  ('02700000-0000-0000-0000-0000000000a4', '02700000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active'),
+  ('02700000-0000-0000-0000-0000000000a5', '02700000-0000-0000-0000-000000000001', 'NAR Off', 'nar-off@example.com', 'Finance', 'disabled'),
+  ('02700000-0000-0000-0000-0000000000b1', '02700000-0000-0000-0000-000000000002', 'NAR XOrg', 'nar-xorg@example.com', 'Finance', 'active');
 insert into companies (id, org_id, name, type) values
-  ('02640000-0000-0000-0000-0000000000c1', '02640000-0000-0000-0000-000000000001', 'NAR Client', 'Client'),
-  ('02640000-0000-0000-0000-0000000000c9', '02640000-0000-0000-0000-000000000002', 'NAR X Client', 'Client');
+  ('02700000-0000-0000-0000-0000000000c1', '02700000-0000-0000-0000-000000000001', 'NAR Client', 'Client'),
+  ('02700000-0000-0000-0000-0000000000c9', '02700000-0000-0000-0000-000000000002', 'NAR X Client', 'Client');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, customer_contract_ref, client_id) values
-  ('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02640000-0000-0000-0000-0000000000c1'),
-  ('02640000-0000-0000-0000-0000000000d2', '02640000-0000-0000-0000-000000000001', 'NAR no-VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, false, null, '02640000-0000-0000-0000-0000000000c1'),
-  ('02640000-0000-0000-0000-0000000000d3', '02640000-0000-0000-0000-000000000001', 'NAR VAT no-rate project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, true, null, '02640000-0000-0000-0000-0000000000c1'),
-  ('02640000-0000-0000-0000-0000000000d9', '02640000-0000-0000-0000-000000000002', 'NAR X project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, true, null, '02640000-0000-0000-0000-0000000000c9');
+  ('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02700000-0000-0000-0000-0000000000c1'),
+  ('02700000-0000-0000-0000-0000000000d2', '02700000-0000-0000-0000-000000000001', 'NAR no-VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, false, null, '02700000-0000-0000-0000-0000000000c1'),
+  ('02700000-0000-0000-0000-0000000000d3', '02700000-0000-0000-0000-000000000001', 'NAR VAT no-rate project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, true, null, '02700000-0000-0000-0000-0000000000c1'),
+  ('02700000-0000-0000-0000-0000000000d9', '02700000-0000-0000-0000-000000000002', 'NAR X project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, true, null, '02700000-0000-0000-0000-0000000000c9');
 insert into work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount, currency, client_po_number) values
-  ('02640000-0000-0000-0000-0000000000e1', '02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', 'NAR WO', 'Issued', 'WO-NAR-1', 2000000, 'exclusive', 0, 'IDR', 'PO-NAR-777');
+  ('02700000-0000-0000-0000-0000000000e1', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', 'NAR WO', 'Issued', 'WO-NAR-1', 2000000, 'exclusive', 0, 'IDR', 'PO-NAR-777');
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
-select lives_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
+select lives_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","description":"Site survey","qty":2,"rate":500000}]'::jsonb) $$,
   'AC-NAR-001 a Finance user raises an invoice for a project and a client');                                        -- 1
 select is(
@@ -172,81 +172,81 @@ select is(
 select is(
   (select row(si_number, pmo_number, invoice_date, erp_outstanding_amount, reference_number, author_user_id)::text
      from public.sales_invoices where native_lines @> '[{"description":"Site survey"}]'),
-  row(null::text, null::text, null::date, null::numeric(14,2), 'CTR-NAR-1', '02640000-0000-0000-0000-0000000000a1'::uuid)::text,
+  row(null::text, null::text, null::date, null::numeric(14,2), 'CTR-NAR-1', '02700000-0000-0000-0000-0000000000a1'::uuid)::text,
   'AC-NAR-001 a Draft has no number, date or balance yet; its reference is the project''s contract reference; the author is the caller'); -- 3
 select is(
   (select array_agg(a.user_id)::text from public.sales_invoice_authors a
      join public.sales_invoices si on si.id = a.sales_invoice_id
     where si.native_lines @> '[{"description":"Site survey"}]'),
-  '{02640000-0000-0000-0000-0000000000a1}',
+  '{02700000-0000-0000-0000-0000000000a1}',
   'AC-NAR-001 the author set — the approval SoD oracle (0132) — records the creator');                              -- 4
 select is(
   (select native_lines from public.sales_invoices where native_lines @> '[{"description":"Site survey"}]'),
   '[{"item_code":"SVC","description":"Site survey","qty":2,"rate":500000,"amount":1000000.00}]'::jsonb,
   'AC-NAR-001 the lines are kept as raised, each with its amount');                                                  -- 5
-select lives_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d2', '02640000-0000-0000-0000-0000000000c1',
+select lives_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d2', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","description":"No VAT work","qty":1,"rate":250000}]'::jsonb) $$,
   'AC-NAR-001 an invoice on a project not subject to VAT is accepted');                                             -- 6
 select is(
   (select row(tax_rate, tax_amount)::text from public.sales_invoices where native_lines @> '[{"description":"No VAT work"}]'),
   row(0.000::numeric(6,3), 0.00::numeric(14,2))::text,
   'AC-NAR-001 a project not subject to VAT carries no tax (OD-TAX-4)');                                             -- 7
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d3', '02640000-0000-0000-0000-0000000000c1',
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d3', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   'P0001', 'this project is subject to VAT but has no VAT rate: record it with the contract value before invoicing',
   'AC-NAR-001 a VAT project with no recorded rate is refused, never invoiced untaxed (DD-TAX-4a)');                 -- 8
-select lives_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
-  '[{"item_code":"SVC","description":"WO billing","qty":1,"rate":1000000}]'::jsonb, '02640000-0000-0000-0000-0000000000e1') $$,
+select lives_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
+  '[{"item_code":"SVC","description":"WO billing","qty":1,"rate":1000000}]'::jsonb, '02700000-0000-0000-0000-0000000000e1') $$,
   'AC-NAR-001 an invoice may name an issued work order on its project');                                           -- 9
 select is(
   (select row(work_order_id, reference_number, currency)::text from public.sales_invoices where native_lines @> '[{"description":"WO billing"}]'),
-  row('02640000-0000-0000-0000-0000000000e1'::uuid, 'PO-NAR-777', 'IDR')::text,
+  row('02700000-0000-0000-0000-0000000000e1'::uuid, 'PO-NAR-777', 'IDR')::text,
   'AC-NAR-001 a work-order invoice takes the client PO and the currency from the work order (DD-BWO-8)');            -- 10
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
-  '[{"item_code":"SVC","description":"Over WO","qty":1,"rate":1000000.01}]'::jsonb, '02640000-0000-0000-0000-0000000000e1') $$,
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
+  '[{"item_code":"SVC","description":"Over WO","qty":1,"rate":1000000.01}]'::jsonb, '02700000-0000-0000-0000-0000000000e1') $$,
   'BW001', 'this invoice would bill 1000000.01 against work order WO-NAR-1 (worth 2000000.00 excl. tax, with 1000000.00 already invoiced or in draft): only 1000000.00 is still to invoice',
   'AC-NAR-001 a PMO invoice cannot bill past its work order (0262, DD-BWO-4)');                                     -- 11
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d9', '02640000-0000-0000-0000-0000000000c1',
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d9', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   'P0002', 'project not found', 'AC-NAR-001 another org''s project is refused');                                     -- 12
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c9',
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c9',
   '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   'P0002', 'customer not found', 'AC-NAR-001 another org''s customer is refused');                                   -- 13
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[]'::jsonb) $$,
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[]'::jsonb) $$,
   '23514', 'an invoice needs between 1 and 100 lines', 'AC-NAR-001 an invoice with no lines is refused');           -- 14
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","qty":1.0001,"rate":100}]'::jsonb) $$,
   '23514', 'each line needs an item code or a description (up to 140 characters each), a quantity above zero with at most 3 decimals, and a rate of zero or more with at most 2 decimals',
   'AC-NAR-001 a quantity with more than 3 decimals is refused');                                                    -- 15
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","qty":1,"rate":"100"}]'::jsonb) $$,
   '23514', 'each line needs an item code or a description (up to 140 characters each), a quantity above zero with at most 3 decimals, and a rate of zero or more with at most 2 decimals',
   'AC-NAR-001 a rate that is not a JSON number is refused, never coerced');                                          -- 16
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
   '[{"qty":1,"rate":100}]'::jsonb) $$,
   '23514', 'each line needs an item code or a description (up to 140 characters each), a quantity above zero with at most 3 decimals, and a rate of zero or more with at most 2 decimals',
   'AC-NAR-001 a line with neither item code nor description is refused');                                          -- 17
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","qty":1,"rate":0}]'::jsonb) $$,
   '23514', 'the invoice total must be above zero', 'AC-NAR-001 a zero-total invoice is refused');                     -- 18
 select throws_ok($$ insert into public.sales_invoices (project_id, customer_id, amount, tax_treatment, tax_amount, pmo_native)
-  values ('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 100, 'exclusive', 0, true) $$,
+  values ('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 100, 'exclusive', 0, true) $$,
   '42501', null, 'AC-NAR-001 no client marks a row as a PMO invoice except through the RPC (pmo_native is not granted)'); -- 19
 
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   '42501', 'only Finance or an Admin can raise a customer invoice', 'AC-NAR-001 a Project Manager cannot raise an invoice'); -- 20
 select is((select count(*)::int from public.sales_invoices where native_lines @> '[{"description":"Site survey"}]'), 1,
   'AC-NAR-001 the Draft lists for the org — any active member reads it');                                          -- 21
 
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a5","role":"authenticated"}';
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1',
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
   '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
   'AC-NAR-001 an offboarded Finance member cannot raise an invoice');                                                -- 22
 
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select is((select count(*)::int from public.sales_invoices where native_lines @> '[{"description":"Site survey"}]'), 0,
   'AC-NAR-001 another org cannot see the invoice');                                                                  -- 23
 
@@ -254,19 +254,19 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_create.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql'`
 → fails with `function public.create_native_sales_invoice(...) does not exist`.
 
 ---
 
 ## Task 2 — GREEN: migration header, §1 schema, §2 helper, §3 create RPC (5 min)
 
-**File (new):** `supabase/migrations/0264_native_revenue.sql`
+**File (new):** `supabase/migrations/0270_native_revenue.sql`
 
 ```sql
--- 0264_native_revenue.sql — #784 (OD-REEL-1): customer invoices and receipts for an org whose revenue no ERP owns.
+-- 0270_native_revenue.sql — #784 (OD-REEL-1): customer invoices and receipts for an org whose revenue no ERP owns.
 -- Spec: docs/specs/no-erp-revenue.spec.md (FR-NAR-*, AC-NAR-001..007). ADR: ADR-0055 addendum 2026-10-07.
--- Plan: docs/plans/2026-10-07-no-erp-revenue.md. Rollback: supabase/migrations/rollback/0264_native_revenue_down.sql.
+-- Plan: docs/plans/2026-10-07-no-erp-revenue.md. Rollback: supabase/migrations/rollback/0270_native_revenue_down.sql.
 --
 -- Shape (DD-NAR-1..15): no new table. A PMO invoice / receipt is a row of sales_invoices / incoming_payments with
 -- pmo_native = true, written ONLY by four SECURITY DEFINER RPCs:
@@ -466,81 +466,81 @@ comment on function public.create_native_sales_invoice(uuid, uuid, jsonb, uuid) 
   '#784 FR-NAR-001..004: raises a PMO customer invoice as a Draft while no ERP owns revenue. Admin/Finance only; tax from the project; the caller is recorded as author.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_create.test.sql'` → `ok 1..23`, `All tests successful`.
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql'` → `ok 1..23`, `All tests successful`.
 
 ---
 
 ## Task 3 — RED: pgTAP for approving and cancelling (AC-NAR-002, AC-NAR-005) (5 min)
 
-**File:** `supabase/tests/0264_native_revenue_approve.test.sql`
+**File:** `supabase/tests/0270_native_revenue_approve.test.sql`
 
 ```sql
--- 0264_native_revenue_approve.test.sql — #784 AC-NAR-002 (a second person approves; the author never can) and
--- AC-NAR-005 (a Draft, or an Unpaid invoice with no receipt, can be cancelled). Migration under test: 0264 §3–§4.
+-- 0270_native_revenue_approve.test.sql — #784 AC-NAR-002 (a second person approves; the author never can) and
+-- AC-NAR-005 (a Draft, or an Unpaid invoice with no receipt, can be cancelled). Migration under test: 0270 §3–§4.
 begin;
 create extension if not exists pgtap;
 select plan(19);
 
 insert into organizations (id, name) values
-  ('02640000-0000-0000-0000-000000000001', 'NAR Org'),
-  ('02640000-0000-0000-0000-000000000002', 'NAR Other Org');
+  ('02700000-0000-0000-0000-000000000001', 'NAR Org'),
+  ('02700000-0000-0000-0000-000000000002', 'NAR Other Org');
 insert into auth.users (id, email) values
-  ('02640000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
-  ('02640000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
-  ('02640000-0000-0000-0000-0000000000a3', 'nar-admin@example.com'),
-  ('02640000-0000-0000-0000-0000000000a4', 'nar-pm@example.com'),
-  ('02640000-0000-0000-0000-0000000000a5', 'nar-off@example.com'),
-  ('02640000-0000-0000-0000-0000000000b1', 'nar-xorg@example.com');
+  ('02700000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
+  ('02700000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
+  ('02700000-0000-0000-0000-0000000000a3', 'nar-admin@example.com'),
+  ('02700000-0000-0000-0000-0000000000a4', 'nar-pm@example.com'),
+  ('02700000-0000-0000-0000-0000000000a5', 'nar-off@example.com'),
+  ('02700000-0000-0000-0000-0000000000b1', 'nar-xorg@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02640000-0000-0000-0000-0000000000a1', '02640000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a2', '02640000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a3', '02640000-0000-0000-0000-000000000001', 'NAR Admin', 'nar-admin@example.com', 'Admin', 'active'),
-  ('02640000-0000-0000-0000-0000000000a4', '02640000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active'),
-  ('02640000-0000-0000-0000-0000000000a5', '02640000-0000-0000-0000-000000000001', 'NAR Off', 'nar-off@example.com', 'Finance', 'disabled'),
-  ('02640000-0000-0000-0000-0000000000b1', '02640000-0000-0000-0000-000000000002', 'NAR XOrg', 'nar-xorg@example.com', 'Finance', 'active');
+  ('02700000-0000-0000-0000-0000000000a1', '02700000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a2', '02700000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a3', '02700000-0000-0000-0000-000000000001', 'NAR Admin', 'nar-admin@example.com', 'Admin', 'active'),
+  ('02700000-0000-0000-0000-0000000000a4', '02700000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active'),
+  ('02700000-0000-0000-0000-0000000000a5', '02700000-0000-0000-0000-000000000001', 'NAR Off', 'nar-off@example.com', 'Finance', 'disabled'),
+  ('02700000-0000-0000-0000-0000000000b1', '02700000-0000-0000-0000-000000000002', 'NAR XOrg', 'nar-xorg@example.com', 'Finance', 'active');
 insert into companies (id, org_id, name, type) values
-  ('02640000-0000-0000-0000-0000000000c1', '02640000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
+  ('02700000-0000-0000-0000-0000000000c1', '02700000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, customer_contract_ref, client_id) values
-  ('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02640000-0000-0000-0000-0000000000c1');
+  ('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02700000-0000-0000-0000-0000000000c1');
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 do $$ begin
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Approve me","qty":2,"rate":500000}]'::jsonb);
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Null target","qty":1,"rate":100}]'::jsonb);
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Demotion","qty":1,"rate":100}]'::jsonb);
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Cancel draft","qty":1,"rate":100}]'::jsonb);
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Cancel unpaid","qty":1,"rate":100}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Approve me","qty":2,"rate":500000}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Null target","qty":1,"rate":100}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Demotion","qty":1,"rate":100}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Cancel draft","qty":1,"rate":100}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Cancel unpaid","qty":1,"rate":100}]'::jsonb);
 end $$;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 do $$ begin
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Admin own","qty":1,"rate":100}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Admin own","qty":1,"rate":100}]'::jsonb);
 end $$;
 
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Approve me"}]'), 'Unpaid') $$,
   '42501', 'approver must differ from author (SoD)', 'AC-NAR-002 the author cannot approve their own invoice');         -- 1
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Admin own"}]'), 'Unpaid') $$,
   '42501', 'approver must differ from author (SoD)', 'AC-NAR-002 an Admin cannot approve an invoice they raised either'); -- 2
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Approve me"}]'), 'Unpaid') $$,
   '42501', 'only Finance or an Admin can approve or cancel a customer invoice', 'AC-NAR-002 a Project Manager cannot approve'); -- 3
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a5","role":"authenticated"}';
-select throws_ok($$ select public.transition_native_sales_invoice('02640000-0000-0000-0000-000000000000'::uuid, 'Unpaid') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok($$ select public.transition_native_sales_invoice('02700000-0000-0000-0000-000000000000'::uuid, 'Unpaid') $$,
   '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
   'AC-NAR-002 an offboarded Finance member cannot approve');                                                         -- 4
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000b1","role":"authenticated"}';
-select throws_ok($$ select public.transition_native_sales_invoice((select si.id from public.sales_invoices si where si.org_id = '02640000-0000-0000-0000-000000000001' limit 1), 'Unpaid') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$ select public.transition_native_sales_invoice((select si.id from public.sales_invoices si where si.org_id = '02700000-0000-0000-0000-000000000001' limit 1), 'Unpaid') $$,
   'P0002', 'sales invoice not found', 'AC-NAR-002 another org''s member cannot reach the invoice (it is invisible, so the id resolves to nothing)'); -- 5
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Approve me"}]'), 'Unpaid') $$,
   'AC-NAR-002 a different Finance user approves it');                                                               -- 6
 select is(
   (select row(status, pmo_number ~ '^INV-[0-9]{10}$', invoice_date is not null, approved_by_id, erp_outstanding_amount)::text
      from public.sales_invoices where native_lines @> '[{"description":"Approve me"}]'),
-  row('Unpaid', true, true, '02640000-0000-0000-0000-0000000000a2'::uuid, 1110000.00::numeric(14,2))::text,
+  row('Unpaid', true, true, '02700000-0000-0000-0000-0000000000a2'::uuid, 1110000.00::numeric(14,2))::text,
   'AC-NAR-002 approved, it is Unpaid, numbered, dated, approved by the second person, and owes its gross');           -- 7
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Approve me"}]'), 'Unpaid') $$,
   'P0001', 'illegal transition Unpaid -> Unpaid', 'AC-NAR-002 an approved invoice is not approved twice');          -- 8
@@ -549,28 +549,28 @@ select throws_ok($$ select public.transition_native_sales_invoice((select id fro
 
 reset role;
 set local request.jwt.claims = '{}';
-update public.profiles set role = 'Project Manager' where id = '02640000-0000-0000-0000-0000000000a2';
+update public.profiles set role = 'Project Manager' where id = '02700000-0000-0000-0000-0000000000a2';
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Demotion"}]'), 'Unpaid') $$,
   '42501', 'only Finance or an Admin can approve or cancel a customer invoice',
   'AC-NAR-002 an approver demoted since is refused — the role is read at approval time, not trusted from before'); -- 10
 reset role;
 set local request.jwt.claims = '{}';
-update public.profiles set role = 'Finance' where id = '02640000-0000-0000-0000-0000000000a2';
+update public.profiles set role = 'Finance' where id = '02700000-0000-0000-0000-0000000000a2';
 insert into public.sales_invoices (id, org_id, project_id, customer_id, amount, tax_treatment, tax_amount, currency, status, pmo_native, native_lines)
-  values ('02640000-0000-0000-0000-0000000000f1', '02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1',
-          '02640000-0000-0000-0000-0000000000c1', 100, 'exclusive', 0, 'IDR', 'Draft', true,
+  values ('02700000-0000-0000-0000-0000000000f1', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1',
+          '02700000-0000-0000-0000-0000000000c1', 100, 'exclusive', 0, 'IDR', 'Draft', true,
           '[{"item_code":"SVC","description":null,"qty":1,"rate":100,"amount":100.00}]');
 insert into public.sales_invoices (id, org_id, project_id, customer_id, amount, tax_treatment, tax_amount, currency, status)
-  values ('02640000-0000-0000-0000-0000000000f2', '02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1',
-          '02640000-0000-0000-0000-0000000000c1', 100, 'exclusive', 0, 'IDR', 'Draft');
+  values ('02700000-0000-0000-0000-0000000000f2', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1',
+          '02700000-0000-0000-0000-0000000000c1', 100, 'exclusive', 0, 'IDR', 'Draft');
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select throws_ok($$ select public.transition_native_sales_invoice('02640000-0000-0000-0000-0000000000f1', 'Unpaid') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$ select public.transition_native_sales_invoice('02700000-0000-0000-0000-0000000000f1', 'Unpaid') $$,
   '42501', 'sales invoice has no recorded author — SoD cannot be verified',
   'AC-NAR-002 a PMO invoice with no recorded author is never approvable (fail closed)');                            -- 11
-select throws_ok($$ select public.transition_native_sales_invoice('02640000-0000-0000-0000-0000000000f2', 'Unpaid') $$,
+select throws_ok($$ select public.transition_native_sales_invoice('02700000-0000-0000-0000-0000000000f2', 'Unpaid') $$,
   'P0001', 'this invoice belongs to the ERP: approve or cancel it there',
   'AC-NAR-002 an invoice that is not a PMO invoice is never approved by the PMO path');                             -- 12
 select lives_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Cancel draft"}]'), 'Cancelled') $$,
@@ -587,7 +587,7 @@ select throws_ok($$ select public.transition_native_sales_invoice((select id fro
   'P0001', 'illegal transition Cancelled -> Cancelled', 'AC-NAR-005 a cancelled invoice stays cancelled');          -- 18
 reset role;
 select is((select count(*)::int from public.audit_events
-            where action = 'sales_invoice.transition' and actor_id = '02640000-0000-0000-0000-0000000000a2'
+            where action = 'sales_invoice.transition' and actor_id = '02700000-0000-0000-0000-0000000000a2'
               and entity_id = (select id from public.sales_invoices where native_lines @> '[{"description":"Approve me"}]')),
   1, 'AC-NAR-002 the approval is on the audit trail with its approver');                                            -- 19
 
@@ -595,14 +595,14 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_approve.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_approve.test.sql'`
 → fails: `function public.transition_native_sales_invoice(uuid, unknown) does not exist`.
 
 ---
 
 ## Task 4 — GREEN: §4 transition RPC (approve / cancel) (5 min)
 
-**Append to** `supabase/migrations/0264_native_revenue.sql`:
+**Append to** `supabase/migrations/0270_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -690,15 +690,15 @@ comment on function public.transition_native_sales_invoice(uuid, text) is
   '#784 FR-NAR-005/009: approve (Draft → Unpaid; approver not in the author set; current Admin/Finance) or cancel (Draft, or Unpaid with no live receipt) a PMO invoice.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_create.test.sql supabase/tests/0264_native_revenue_approve.test.sql'` → both files `All tests successful` (23 + 19).
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql supabase/tests/0270_native_revenue_approve.test.sql'` → both files `All tests successful` (23 + 19).
 
 ---
 
 ## Task 5 — Mutation checks on the approval SoD (5 min)
 
-Each mutation is made in `supabase/migrations/0264_native_revenue.sql`, run, then **reverted by hand to the exact
+Each mutation is made in `supabase/migrations/0270_native_revenue.sql`, run, then **reverted by hand to the exact
 original line**, then the file is re-run green. Command for every step:
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_approve.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_approve.test.sql'`
 
 | # | Change (in §4) | Must go RED (by description) |
 |---|---|---|
@@ -713,46 +713,46 @@ Record the three outputs in the PR body.
 
 ## Task 6 — RED: pgTAP for receipts (AC-NAR-003 contract, AC-NAR-006) (5 min)
 
-**File:** `supabase/tests/0264_native_revenue_receipts.test.sql`
+**File:** `supabase/tests/0270_native_revenue_receipts.test.sql`
 
 ```sql
--- 0264_native_revenue_receipts.test.sql — #784 AC-NAR-003 (part and full receipts; the balance is the gross less live
+-- 0270_native_revenue_receipts.test.sql — #784 AC-NAR-003 (part and full receipts; the balance is the gross less live
 -- PMO receipts; Paid exactly at zero) and AC-NAR-006 (a receipt can be cancelled; the balance comes back).
--- Migration under test: 0264 §5.
+-- Migration under test: 0270 §5.
 begin;
 create extension if not exists pgtap;
 select plan(19);
 
 insert into organizations (id, name) values
-  ('02640000-0000-0000-0000-000000000001', 'NAR Org');
+  ('02700000-0000-0000-0000-000000000001', 'NAR Org');
 insert into auth.users (id, email) values
-  ('02640000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
-  ('02640000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
-  ('02640000-0000-0000-0000-0000000000a4', 'nar-pm@example.com');
+  ('02700000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
+  ('02700000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
+  ('02700000-0000-0000-0000-0000000000a4', 'nar-pm@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02640000-0000-0000-0000-0000000000a1', '02640000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a2', '02640000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a4', '02640000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active');
+  ('02700000-0000-0000-0000-0000000000a1', '02700000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a2', '02700000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a4', '02700000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active');
 insert into companies (id, org_id, name, type) values
-  ('02640000-0000-0000-0000-0000000000c1', '02640000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
+  ('02700000-0000-0000-0000-0000000000c1', '02700000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, customer_contract_ref, client_id) values
-  ('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02640000-0000-0000-0000-0000000000c1');
+  ('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02700000-0000-0000-0000-0000000000c1');
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 do $$ begin
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Receipt invoice","qty":2,"rate":500000}]'::jsonb);
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Second invoice","qty":1,"rate":1000}]'::jsonb);
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Draft only","qty":1,"rate":100}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Receipt invoice","qty":2,"rate":500000}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Second invoice","qty":1,"rate":1000}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Draft only","qty":1,"rate":100}]'::jsonb);
 end $$;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 do $$ begin
   perform public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'), 'Unpaid');
   perform public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Second invoice"}]'), 'Unpaid');
 end $$;
 
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Draft only"}]'), 100) $$,
   'P0001', 'a receipt can be recorded only against an approved invoice that is not fully paid',
   'AC-NAR-003 a Draft takes no receipt');                                                                            -- 1
@@ -766,7 +766,7 @@ select is(
      from public.incoming_payments
     where sales_invoice_id = (select id from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]')
       and amount = 500000),
-  row(true, true, 'Paid', '02640000-0000-0000-0000-0000000000c1'::uuid, 'IDR', 500000.00::numeric(14,2), 0.00::numeric(14,2))::text,
+  row(true, true, 'Paid', '02700000-0000-0000-0000-0000000000c1'::uuid, 'IDR', 500000.00::numeric(14,2), 0.00::numeric(14,2))::text,
   'AC-NAR-003 the receipt is a numbered PMO receipt for the invoice''s customer, in its currency, all cash');         -- 4
 select throws_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'), 610000.01) $$,
   'P0001', 'this receipt of 610000.01 is more than the 610000.00 still outstanding on this invoice',
@@ -775,7 +775,7 @@ select throws_ok($$ select public.transition_native_sales_invoice((select id fro
   'P0001', 'cancel the receipts recorded against this invoice first',
   'AC-NAR-005 an invoice with a live receipt cannot be cancelled');                                                 -- 6
 select lives_ok($$ insert into public.incoming_payments (customer_id, sales_invoice_id, date, amount)
-  values ('02640000-0000-0000-0000-0000000000c1', (select id from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'), '2026-10-07', 999) $$,
+  values ('02700000-0000-0000-0000-0000000000c1', (select id from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'), '2026-10-07', 999) $$,
   'AC-NAR-003 setup: a client-inserted receipt row (the 0178 column-limited insert) lands');                         -- 7
 select is((select erp_outstanding_amount from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'),
   610000.00::numeric(14,2), 'AC-NAR-003 …and moves no PMO invoice''s balance: only PMO receipts settle a PMO invoice'); -- 8
@@ -797,7 +797,7 @@ select is((select row(status, erp_outstanding_amount)::text from public.sales_in
 select throws_ok($$ select public.cancel_native_receipt((select id from public.incoming_payments where withholding_slip_number = 'BP-NAR-1')) $$,
   'P0001', 'this receipt is already cancelled', 'AC-NAR-006 a receipt is cancelled once');                          -- 15
 
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Second invoice"}]'), 100) $$,
   '42501', 'only Finance or an Admin can record a customer receipt', 'AC-NAR-003 a Project Manager cannot record a receipt'); -- 16
 select throws_ok($$ select public.cancel_native_receipt((select id from public.incoming_payments where pmo_native and amount = 500000)) $$,
@@ -806,16 +806,16 @@ select throws_ok($$ select public.cancel_native_receipt((select id from public.i
 reset role;
 set local request.jwt.claims = '{}';
 insert into public.sales_invoices (id, org_id, project_id, customer_id, amount, tax_treatment, tax_amount, currency, status, erp_outstanding_amount)
-  values ('02640000-0000-0000-0000-0000000000f3', '02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1',
-          '02640000-0000-0000-0000-0000000000c1', 100, 'inclusive', 0, 'IDR', 'Unpaid', 100);
+  values ('02700000-0000-0000-0000-0000000000f3', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1',
+          '02700000-0000-0000-0000-0000000000c1', 100, 'inclusive', 0, 'IDR', 'Unpaid', 100);
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select throws_ok($$ select public.record_native_receipt('02640000-0000-0000-0000-0000000000f3', 10) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ select public.record_native_receipt('02700000-0000-0000-0000-0000000000f3', 10) $$,
   'P0001', 'receipts for an ERP invoice are recorded in the ERP', 'AC-NAR-003 an ERP invoice takes no PMO receipt'); -- 18
 reset role;
 select is(
   (select count(*)::int from public.sales_invoices si
-    where si.org_id = '02640000-0000-0000-0000-000000000001' and si.pmo_native and si.status in ('Unpaid','Paid')
+    where si.org_id = '02700000-0000-0000-0000-000000000001' and si.pmo_native and si.status in ('Unpaid','Paid')
       and (si.erp_outstanding_amount is distinct from si.amount + si.tax_amount - public.native_invoice_settled(si.id)
            or (si.status = 'Paid') is distinct from (si.erp_outstanding_amount = 0))),
   0, 'AC-NAR-003 every PMO invoice''s stored balance is its gross less its live receipts, and it is Paid exactly at zero'); -- 19
@@ -824,14 +824,14 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_receipts.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_receipts.test.sql'`
 → fails: `function public.record_native_receipt(uuid, integer) does not exist`.
 
 ---
 
 ## Task 7 — GREEN: §5 receipt RPCs (5 min)
 
-**Append to** `supabase/migrations/0264_native_revenue.sql`:
+**Append to** `supabase/migrations/0270_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -973,13 +973,13 @@ comment on function public.cancel_native_receipt(uuid) is
   '#784 FR-NAR-009: cancels a PMO receipt and recomputes its invoice''s balance and status.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_create.test.sql supabase/tests/0264_native_revenue_approve.test.sql supabase/tests/0264_native_revenue_receipts.test.sql'` → all three `All tests successful`.
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql supabase/tests/0270_native_revenue_approve.test.sql supabase/tests/0270_native_revenue_receipts.test.sql'` → all three `All tests successful`.
 
 ---
 
 ## Task 8 — Mutation checks on the receipt rules (3 min)
 
-Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_receipts.test.sql'`
+Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_receipts.test.sql'`
 
 | # | Change (in §5, `record_native_receipt`) | Must go RED |
 |---|---|---|
@@ -992,39 +992,39 @@ Revert each by hand; re-run green. **Verify:** the listed assertions fail under 
 
 ## Task 9 — RED: pgTAP for connecting an ERP later (AC-NAR-004) (5 min)
 
-**File:** `supabase/tests/0264_native_revenue_crossing.test.sql`
+**File:** `supabase/tests/0270_native_revenue_crossing.test.sql`
 
 ```sql
--- 0264_native_revenue_crossing.test.sql — #784 AC-NAR-004 (DD-NAR-11, OD-XING-1 default): once an ERP owns revenue,
+-- 0270_native_revenue_crossing.test.sql — #784 AC-NAR-004 (DD-NAR-11, OD-XING-1 default): once an ERP owns revenue,
 -- PMO invoices and receipts from before stay readable, every PMO write is refused (RPC + mirror guards), and the ERP
--- cannot take revenue over while a PMO draft is open. Migration under test: 0264 §6–§7.
+-- cannot take revenue over while a PMO draft is open. Migration under test: 0270 §6–§7.
 begin;
 create extension if not exists pgtap;
 select plan(14);
 
 insert into organizations (id, name) values
-  ('02640000-0000-0000-0000-000000000001', 'NAR Org');
+  ('02700000-0000-0000-0000-000000000001', 'NAR Org');
 insert into auth.users (id, email) values
-  ('02640000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
-  ('02640000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
-  ('02640000-0000-0000-0000-0000000000a4', 'nar-pm@example.com');
+  ('02700000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
+  ('02700000-0000-0000-0000-0000000000a2', 'nar-fin2@example.com'),
+  ('02700000-0000-0000-0000-0000000000a4', 'nar-pm@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02640000-0000-0000-0000-0000000000a1', '02640000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a2', '02640000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a4', '02640000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active');
+  ('02700000-0000-0000-0000-0000000000a1', '02700000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a2', '02700000-0000-0000-0000-000000000001', 'NAR Fin Two', 'nar-fin2@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a4', '02700000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active');
 insert into companies (id, org_id, name, type) values
-  ('02640000-0000-0000-0000-0000000000c1', '02640000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
+  ('02700000-0000-0000-0000-0000000000c1', '02700000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, customer_contract_ref, client_id) values
-  ('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02640000-0000-0000-0000-0000000000c1');
+  ('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02700000-0000-0000-0000-0000000000c1');
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 do $$ begin
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Pre-connect unpaid","qty":1,"rate":1000}]'::jsonb);
-  perform public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Pre-connect draft","qty":1,"rate":100}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Pre-connect unpaid","qty":1,"rate":1000}]'::jsonb);
+  perform public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Pre-connect draft","qty":1,"rate":100}]'::jsonb);
 end $$;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 do $$ begin
   perform public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), 'Unpaid');
   perform public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), 100);
@@ -1033,25 +1033,25 @@ end $$;
 reset role;
 set local request.jwt.claims = '{}';
 select throws_ok($$ insert into public.external_domain_ownership (org_id, external_tier, domain)
-  values ('02640000-0000-0000-0000-000000000001', 'erpnext', 'revenue') $$,
+  values ('02700000-0000-0000-0000-000000000001', 'erpnext', 'revenue') $$,
   'P0001', 'approve or cancel the 1 draft invoice(s) raised in PMO before the ERP takes over customer invoicing',
   'AC-NAR-004 the ERP cannot take over customer invoicing while a PMO draft is open');                              -- 1
 select lives_ok($$ insert into public.external_domain_ownership (org_id, external_tier, domain)
-  values ('02640000-0000-0000-0000-000000000001', 'erpnext', 'procurement') $$,
+  values ('02700000-0000-0000-0000-000000000001', 'erpnext', 'procurement') $$,
   'AC-NAR-004 the guard binds the revenue domain only');                                                            -- 2
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect draft"}]'), 'Cancelled') $$,
   'AC-NAR-004 setup: Finance cancels the open PMO draft');                                                          -- 3
 reset role;
 set local request.jwt.claims = '{}';
 select lives_ok($$ insert into public.external_domain_ownership (org_id, external_tier, domain)
-  values ('02640000-0000-0000-0000-000000000001', 'erpnext', 'revenue') $$,
+  values ('02700000-0000-0000-0000-000000000001', 'erpnext', 'revenue') $$,
   'AC-NAR-004 with no PMO draft open, the ERP takes over customer invoicing');                                      -- 4
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   '42501', 'customer invoices for this organisation are raised in the connected ERP, not in PMO',
   'AC-NAR-004 no new PMO invoice once the ERP owns revenue');                                                       -- 5
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), 'Cancelled') $$,
@@ -1064,14 +1064,14 @@ select throws_ok($$ select public.cancel_native_receipt((select id from public.i
   '42501', 'customer invoices for this organisation are raised in the connected ERP, not in PMO',
   'AC-NAR-004 a pre-connect PMO receipt cannot be cancelled in PMO');                                                -- 8
 
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select is((select count(*)::int from public.sales_invoices where pmo_native), 2,
   'AC-NAR-004 the PMO invoices from before connect stay listed and readable');                                      -- 9
 select is((select count(*)::int from public.incoming_payments where pmo_native), 1,
   'AC-NAR-004 the PMO receipt from before connect stays listed and readable');                                      -- 10
 
 reset role;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$ update public.sales_invoices set pmo_number = 'INV-FORGED' where native_lines @> '[{"description":"Pre-connect unpaid"}]' $$,
   '42501', 'sales_invoices native fields are read-only while revenue is externally-owned',
   'AC-NAR-004 the mirror guard pins the PMO number while the ERP owns revenue (DD-WO-4 paired edit)');              -- 11
@@ -1083,9 +1083,9 @@ select throws_ok($$ update public.incoming_payments set cancelled_at = now() whe
   'AC-NAR-004 …and a PMO receipt''s cancellation stamp');                                                            -- 13
 
 set local request.jwt.claims = '{}';
-delete from public.external_domain_ownership where org_id = '02640000-0000-0000-0000-000000000001' and domain = 'revenue';
+delete from public.external_domain_ownership where org_id = '02700000-0000-0000-0000-000000000001' and domain = 'revenue';
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), 10) $$,
   'AC-NAR-004 releasing the ERP re-opens PMO invoicing on the same rows — the crossing is reversible');             -- 14
 
@@ -1093,20 +1093,20 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_crossing.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_crossing.test.sql'`
 → assertion 1 fails (the revenue row inserts), and 11–13 fail (the guards do not yet pin the new columns).
 
 ---
 
 ## Task 10 — GREEN: §6 mirror guards (paired edit) and §7 employ guard (5 min)
 
-**Append to** `supabase/migrations/0264_native_revenue.sql`:
+**Append to** `supabase/migrations/0270_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §6 — the mirror guards pin the new columns (DD-WO-4: a column added later is user-writable while the ERP owns the
 -- domain unless its guard enumerates it). Bodies are the live definitions VERBATIM — sales_invoices from 0193,
--- incoming_payments from 0232 — with the lines marked `0264` added. SECURITY INVOKER as before; no trigger re-created
+-- incoming_payments from 0232 — with the lines marked `0270` added. SECURITY INVOKER as before; no trigger re-created
 -- (a trigger binds by OID and create-or-replace keeps it).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
@@ -1133,11 +1133,11 @@ begin
      or new.tax_rate is distinct from old.tax_rate               -- 0188 (#478)
      or new.tax_template is distinct from old.tax_template       -- 0188 (#478)
      or new.work_order_id is distinct from old.work_order_id     -- 0193 (#498): which scope grant this bills
-     or new.pmo_native is distinct from old.pmo_native           -- 0264 (#784)
-     or new.pmo_number is distinct from old.pmo_number           -- 0264 (#784)
-     or new.native_lines is distinct from old.native_lines       -- 0264 (#784)
-     or new.approved_by_id is distinct from old.approved_by_id   -- 0264 (#784)
-     or new.approved_at is distinct from old.approved_at         -- 0264 (#784)
+     or new.pmo_native is distinct from old.pmo_native           -- 0270 (#784)
+     or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)
+     or new.native_lines is distinct from old.native_lines       -- 0270 (#784)
+     or new.approved_by_id is distinct from old.approved_by_id   -- 0270 (#784)
+     or new.approved_at is distinct from old.approved_at         -- 0270 (#784)
      or new.id is distinct from old.id or new.org_id is distinct from old.org_id
      or new.created_at is distinct from old.created_at
   then
@@ -1167,9 +1167,9 @@ begin
      or new.withheld_amount is distinct from old.withheld_amount
      or new.withholding_slip_number is distinct from old.withholding_slip_number
      or new.currency is distinct from old.currency               -- 0187 (#478)
-     or new.pmo_native is distinct from old.pmo_native           -- 0264 (#784)
-     or new.pmo_number is distinct from old.pmo_number           -- 0264 (#784)
-     or new.cancelled_at is distinct from old.cancelled_at       -- 0264 (#784)
+     or new.pmo_native is distinct from old.pmo_native           -- 0270 (#784)
+     or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)
+     or new.cancelled_at is distinct from old.cancelled_at       -- 0270 (#784)
      or new.id is distinct from old.id or new.org_id is distinct from old.org_id
      or new.created_at is distinct from old.created_at
   then
@@ -1204,19 +1204,19 @@ create trigger external_domain_ownership_revenue_employable
   for each row execute function public.assert_revenue_employable();
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_crossing.test.sql supabase/tests/0264_native_revenue_receipts.test.sql'` → both `All tests successful` (14 + 19).
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_crossing.test.sql supabase/tests/0270_native_revenue_receipts.test.sql'` → both `All tests successful` (14 + 19).
 
 ---
 
 ## Task 11 — Mutation checks on the crossing rules (3 min)
 
-Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_crossing.test.sql'`
+Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_crossing.test.sql'`
 
 | # | Change | Must go RED |
 |---|---|---|
 | M6 | §3: `if public.domain_externally_owned(v_org, 'revenue') then` → `if false and public.domain_externally_owned(v_org, 'revenue') then` | 5 "no new PMO invoice once the ERP owns revenue" |
 | M7 | §7: `if v_drafts > 0 then` → `if false and v_drafts > 0 then` | 1 "the ERP cannot take over … while a PMO draft is open" |
-| M8 | §6 (sales_invoices guard): delete the line `or new.pmo_number is distinct from old.pmo_number           -- 0264 (#784)` | 11 "the mirror guard pins the PMO number…" |
+| M8 | §6 (sales_invoices guard): delete the line `or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)` | 11 "the mirror guard pins the PMO number…" |
 
 Revert each by hand; re-run green. **Verify:** listed assertions fail under the mutation, pass after revert.
 
@@ -1224,10 +1224,10 @@ Revert each by hand; re-run green. **Verify:** listed assertions fail under the 
 
 ## Task 12 — RED: pgTAP for "revenue writes are Admin and Finance only" (AC-NAR-007) (5 min)
 
-**File:** `supabase/tests/0264_revenue_write_roles.test.sql`
+**File:** `supabase/tests/0270_revenue_write_roles.test.sql`
 
 ```sql
--- 0264_revenue_write_roles.test.sql — #784 AC-NAR-007 (owner ruling, DD-NAR-15): writes to sales_invoices and
+-- 0270_revenue_write_roles.test.sql — #784 AC-NAR-007 (owner ruling, DD-NAR-15): writes to sales_invoices and
 -- incoming_payments are Admin and Finance only, by every path a member has — direct insert, update and delete (the
 -- table policies), and the PMO revenue RPCs. The service-role ERP mirror writer is unaffected.
 -- Update and delete are proven through the POLICY layer: the test grants the column/table privilege inside its own
@@ -1236,56 +1236,56 @@ begin;
 create extension if not exists pgtap;
 select plan(25);
 
-insert into organizations (id, name) values ('02640000-0000-0000-0000-000000000001', 'NAR Org');
+insert into organizations (id, name) values ('02700000-0000-0000-0000-000000000001', 'NAR Org');
 insert into auth.users (id, email) values
-  ('02640000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
-  ('02640000-0000-0000-0000-0000000000a3', 'nar-admin@example.com'),
-  ('02640000-0000-0000-0000-0000000000a4', 'nar-pm@example.com'),
-  ('02640000-0000-0000-0000-0000000000a6', 'nar-exec@example.com'),
-  ('02640000-0000-0000-0000-0000000000a7', 'nar-eng@example.com');
+  ('02700000-0000-0000-0000-0000000000a1', 'nar-fin1@example.com'),
+  ('02700000-0000-0000-0000-0000000000a3', 'nar-admin@example.com'),
+  ('02700000-0000-0000-0000-0000000000a4', 'nar-pm@example.com'),
+  ('02700000-0000-0000-0000-0000000000a6', 'nar-exec@example.com'),
+  ('02700000-0000-0000-0000-0000000000a7', 'nar-eng@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02640000-0000-0000-0000-0000000000a1', '02640000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
-  ('02640000-0000-0000-0000-0000000000a3', '02640000-0000-0000-0000-000000000001', 'NAR Admin', 'nar-admin@example.com', 'Admin', 'active'),
-  ('02640000-0000-0000-0000-0000000000a4', '02640000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active'),
-  ('02640000-0000-0000-0000-0000000000a6', '02640000-0000-0000-0000-000000000001', 'NAR Exec', 'nar-exec@example.com', 'Executive', 'active'),
-  ('02640000-0000-0000-0000-0000000000a7', '02640000-0000-0000-0000-000000000001', 'NAR Eng', 'nar-eng@example.com', 'Engineer', 'active');
+  ('02700000-0000-0000-0000-0000000000a1', '02700000-0000-0000-0000-000000000001', 'NAR Fin One', 'nar-fin1@example.com', 'Finance', 'active'),
+  ('02700000-0000-0000-0000-0000000000a3', '02700000-0000-0000-0000-000000000001', 'NAR Admin', 'nar-admin@example.com', 'Admin', 'active'),
+  ('02700000-0000-0000-0000-0000000000a4', '02700000-0000-0000-0000-000000000001', 'NAR PM', 'nar-pm@example.com', 'Project Manager', 'active'),
+  ('02700000-0000-0000-0000-0000000000a6', '02700000-0000-0000-0000-000000000001', 'NAR Exec', 'nar-exec@example.com', 'Executive', 'active'),
+  ('02700000-0000-0000-0000-0000000000a7', '02700000-0000-0000-0000-000000000001', 'NAR Eng', 'nar-eng@example.com', 'Engineer', 'active');
 insert into companies (id, org_id, name, type) values
-  ('02640000-0000-0000-0000-0000000000c1', '02640000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
+  ('02700000-0000-0000-0000-0000000000c1', '02700000-0000-0000-0000-000000000001', 'NAR Client', 'Client');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, customer_contract_ref, client_id) values
-  ('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02640000-0000-0000-0000-0000000000c1');
+  ('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-000000000001', 'NAR VAT project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, 12, 11, 12, true, 'CTR-NAR-1', '02700000-0000-0000-0000-0000000000c1');
 insert into public.sales_invoices (id, org_id, project_id, customer_id, reference_number, amount, tax_treatment, tax_amount, currency, status) values
-  ('02640000-0000-0000-0000-0000000000f5', '02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 'SEED', 100, 'exclusive', 0, 'IDR', 'Draft'),
-  ('02640000-0000-0000-0000-0000000000f7', '02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 'DELETE-ME', 100, 'exclusive', 0, 'IDR', 'Draft');
+  ('02700000-0000-0000-0000-0000000000f5', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 'SEED', 100, 'exclusive', 0, 'IDR', 'Draft'),
+  ('02700000-0000-0000-0000-0000000000f7', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 'DELETE-ME', 100, 'exclusive', 0, 'IDR', 'Draft');
 insert into public.incoming_payments (id, org_id, customer_id, reference_number, date, amount) values
-  ('02640000-0000-0000-0000-0000000000f6', '02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000c1', 'SEED', '2026-10-07', 10);
+  ('02700000-0000-0000-0000-0000000000f6', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'SEED', '2026-10-07', 10);
 
 -- ── INSERT (the narrow column-limited body) ────────────────────────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-select lives_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select lives_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
   'AC-NAR-007 an Admin may insert a sales invoice');                                                                 -- 1
-select lives_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
+select lives_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
   'AC-NAR-007 an Admin may insert a customer receipt');                                                              -- 2
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
   'AC-NAR-007 a Finance member may insert a sales invoice');                                                         -- 3
-select lives_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
+select lives_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
   'AC-NAR-007 a Finance member may insert a customer receipt');                                                      -- 4
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a6","role":"authenticated"}';
-select throws_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select throws_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
   '42501', 'new row violates row-level security policy for table "sales_invoices"', 'AC-NAR-007 an Executive cannot insert a sales invoice'); -- 5
-select throws_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
+select throws_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
   '42501', 'new row violates row-level security policy for table "incoming_payments"', 'AC-NAR-007 an Executive cannot insert a customer receipt'); -- 6
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select throws_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select throws_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
   '42501', 'new row violates row-level security policy for table "sales_invoices"', 'AC-NAR-007 a Project Manager cannot insert a sales invoice'); -- 7
-select throws_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
+select throws_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
   '42501', 'new row violates row-level security policy for table "incoming_payments"', 'AC-NAR-007 a Project Manager cannot insert a customer receipt'); -- 8
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a7","role":"authenticated"}';
-select throws_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a7","role":"authenticated"}';
+select throws_ok($$ insert into public.sales_invoices (org_id, project_id, customer_id, amount, tax_treatment, tax_amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 10, 'exclusive', 0) $$,
   '42501', 'new row violates row-level security policy for table "sales_invoices"', 'AC-NAR-007 an Engineer cannot insert a sales invoice'); -- 9
-select throws_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
+select throws_ok($$ insert into public.incoming_payments (org_id, customer_id, date, amount) values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', '2026-10-07', 10) $$,
   '42501', 'new row violates row-level security policy for table "incoming_payments"', 'AC-NAR-007 an Engineer cannot insert a customer receipt'); -- 10
 
 -- ── UPDATE (policy layer, privilege granted inside this transaction only) ─────────────────────────
@@ -1293,37 +1293,37 @@ reset role;
 grant update (reference_number) on public.sales_invoices to authenticated;
 grant update (reference_number) on public.incoming_payments to authenticated;
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a6","role":"authenticated"}';
-update public.sales_invoices set reference_number = 'BY-EXEC' where id = '02640000-0000-0000-0000-0000000000f5';
-update public.incoming_payments set reference_number = 'BY-EXEC' where id = '02640000-0000-0000-0000-0000000000f6';
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-update public.sales_invoices set reference_number = 'BY-PM' where id = '02640000-0000-0000-0000-0000000000f5';
-update public.incoming_payments set reference_number = 'BY-PM' where id = '02640000-0000-0000-0000-0000000000f6';
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a7","role":"authenticated"}';
-update public.sales_invoices set reference_number = 'BY-ENG' where id = '02640000-0000-0000-0000-0000000000f5';
-update public.incoming_payments set reference_number = 'BY-ENG' where id = '02640000-0000-0000-0000-0000000000f6';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+update public.sales_invoices set reference_number = 'BY-EXEC' where id = '02700000-0000-0000-0000-0000000000f5';
+update public.incoming_payments set reference_number = 'BY-EXEC' where id = '02700000-0000-0000-0000-0000000000f6';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+update public.sales_invoices set reference_number = 'BY-PM' where id = '02700000-0000-0000-0000-0000000000f5';
+update public.incoming_payments set reference_number = 'BY-PM' where id = '02700000-0000-0000-0000-0000000000f6';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a7","role":"authenticated"}';
+update public.sales_invoices set reference_number = 'BY-ENG' where id = '02700000-0000-0000-0000-0000000000f5';
+update public.incoming_payments set reference_number = 'BY-ENG' where id = '02700000-0000-0000-0000-0000000000f6';
 reset role;
-select is((select reference_number from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f5'), 'SEED',
+select is((select reference_number from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f5'), 'SEED',
   'AC-NAR-007 Executive, Project Manager and Engineer updates leave a sales invoice untouched');                    -- 11
-select is((select reference_number from public.incoming_payments where id = '02640000-0000-0000-0000-0000000000f6'), 'SEED',
+select is((select reference_number from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f6'), 'SEED',
   'AC-NAR-007 Executive, Project Manager and Engineer updates leave a customer receipt untouched');                 -- 12
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-update public.sales_invoices set reference_number = 'BY-FIN' where id = '02640000-0000-0000-0000-0000000000f5';
-update public.incoming_payments set reference_number = 'BY-FIN' where id = '02640000-0000-0000-0000-0000000000f6';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+update public.sales_invoices set reference_number = 'BY-FIN' where id = '02700000-0000-0000-0000-0000000000f5';
+update public.incoming_payments set reference_number = 'BY-FIN' where id = '02700000-0000-0000-0000-0000000000f6';
 reset role;
-select is((select reference_number from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f5'), 'BY-FIN',
+select is((select reference_number from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f5'), 'BY-FIN',
   'AC-NAR-007 a Finance member''s update of a sales invoice is admitted by the policy');                           -- 13
-select is((select reference_number from public.incoming_payments where id = '02640000-0000-0000-0000-0000000000f6'), 'BY-FIN',
+select is((select reference_number from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f6'), 'BY-FIN',
   'AC-NAR-007 a Finance member''s update of a customer receipt is admitted by the policy');                        -- 14
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-update public.sales_invoices set reference_number = 'BY-ADMIN' where id = '02640000-0000-0000-0000-0000000000f5';
-update public.incoming_payments set reference_number = 'BY-ADMIN' where id = '02640000-0000-0000-0000-0000000000f6';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+update public.sales_invoices set reference_number = 'BY-ADMIN' where id = '02700000-0000-0000-0000-0000000000f5';
+update public.incoming_payments set reference_number = 'BY-ADMIN' where id = '02700000-0000-0000-0000-0000000000f6';
 reset role;
-select is((select reference_number from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f5'), 'BY-ADMIN',
+select is((select reference_number from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f5'), 'BY-ADMIN',
   'AC-NAR-007 an Admin''s update of a sales invoice is admitted by the policy');                                   -- 15
-select is((select reference_number from public.incoming_payments where id = '02640000-0000-0000-0000-0000000000f6'), 'BY-ADMIN',
+select is((select reference_number from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f6'), 'BY-ADMIN',
   'AC-NAR-007 an Admin''s update of a customer receipt is admitted by the policy');                                -- 16
 revoke update (reference_number) on public.sales_invoices from authenticated;
 revoke update (reference_number) on public.incoming_payments from authenticated;
@@ -1331,40 +1331,40 @@ revoke update (reference_number) on public.incoming_payments from authenticated;
 -- ── DELETE (policy layer, privilege granted inside this transaction only) ─────────────────────────
 grant delete on public.sales_invoices to authenticated;
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-delete from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f7';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+delete from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f7';
 reset role;
-select is((select count(*)::int from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f7'), 1,
+select is((select count(*)::int from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f7'), 1,
   'AC-NAR-007 a Project Manager''s delete of a sales invoice removes nothing');                                    -- 17
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a6","role":"authenticated"}';
-delete from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f7';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+delete from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f7';
 reset role;
-select is((select count(*)::int from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f7'), 1,
+select is((select count(*)::int from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f7'), 1,
   'AC-NAR-007 an Executive''s delete of a sales invoice removes nothing');                                         -- 18
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-delete from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f7';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+delete from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f7';
 reset role;
-select is((select count(*)::int from public.sales_invoices where id = '02640000-0000-0000-0000-0000000000f7'), 0,
+select is((select count(*)::int from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f7'), 0,
   'AC-NAR-007 a Finance member''s delete is admitted by the policy');                                              -- 19
 revoke delete on public.sales_invoices from authenticated;
 
 -- ── the PMO revenue RPCs carry the same rule in their bodies ──────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a6","role":"authenticated"}';
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   '42501', 'only Finance or an Admin can raise a customer invoice', 'AC-NAR-007 an Executive cannot raise a PMO invoice'); -- 20
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a7","role":"authenticated"}';
-select throws_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a7","role":"authenticated"}';
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   '42501', 'only Finance or an Admin can raise a customer invoice', 'AC-NAR-007 an Engineer cannot raise a PMO invoice'); -- 21
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok($$ select public.create_native_sales_invoice('02640000-0000-0000-0000-0000000000d1', '02640000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Role check","qty":1,"rate":100}]'::jsonb) $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[{"item_code":"SVC","description":"Role check","qty":1,"rate":100}]'::jsonb) $$,
   'AC-NAR-007 a Finance member raises a PMO invoice');                                                               -- 22
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Role check"}]'), 'Cancelled') $$,
   '42501', 'only Finance or an Admin can approve or cancel a customer invoice', 'AC-NAR-007 an Executive cannot cancel a PMO invoice'); -- 23
-set local request.jwt.claims = '{"sub":"02640000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Role check"}]'), 'Cancelled') $$,
   'AC-NAR-007 an Admin cancels a PMO invoice');                                                                      -- 24
 
@@ -1372,21 +1372,21 @@ select lives_ok($$ select public.transition_native_sales_invoice((select id from
 reset role;
 set local role service_role;
 select lives_ok($$ insert into public.sales_invoices (org_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount, status, erp_docstatus, tax_treatment, tax_amount)
-  values ('02640000-0000-0000-0000-000000000001', '02640000-0000-0000-0000-0000000000c1', 'SI-MIRROR-NAR', '2026-10-07', 250, 250, 'Unpaid', 1, 'inclusive', 0) $$,
+  values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'SI-MIRROR-NAR', '2026-10-07', 250, 250, 'Unpaid', 1, 'inclusive', 0) $$,
   'AC-NAR-007 CONTROL the service-role ERP mirror writer still lands a full mirror row');                           -- 25
 
 select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_revenue_write_roles.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_revenue_write_roles.test.sql'`
 → assertions 5–8, 11–12 and 17–18 fail (the policies still admit Executive and Project Manager).
 
 ---
 
 ## Task 13 — GREEN: §8 revenue write policies, Admin and Finance only (3 min)
 
-**Append to** `supabase/migrations/0264_native_revenue.sql`:
+**Append to** `supabase/migrations/0270_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1437,14 +1437,14 @@ comment on policy incoming_payments_delete on public.incoming_payments is
   'Revenue writes are Admin and Finance only (owner ruling, #784). Deletes are made by the service-role mirror writer and audited; this policy states the same rule.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_revenue_write_roles.test.sql'` → `ok 1..25`.
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_revenue_write_roles.test.sql'` → `ok 1..25`.
 
 ---
 
 ## Task 14 — Mutation check on the policies + sweep of existing tests for the ruled role set (5 min)
 
 1. **M9:** in §8, `sales_invoices_insert` line `and auth_role() in ('Admin','Finance')` → `and auth_role() in ('Admin','Executive','Project Manager','Finance')`.
-   Run `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_revenue_write_roles.test.sql'`
+   Run `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_revenue_write_roles.test.sql'`
    → assertions 5 and 7 must fail. Revert by hand, re-run → green.
 2. **Sweep.** List every existing pgTAP file that writes either table under a member JWT:
    ```bash
@@ -1468,10 +1468,10 @@ comment on policy incoming_payments_delete on public.incoming_payments is
 
 ## Task 15 — ACL proof, §9 in-migration assertions, 0178 allow-list (5 min)
 
-**a) File:** `supabase/tests/0264_native_revenue_acl.test.sql`
+**a) File:** `supabase/tests/0270_native_revenue_acl.test.sql`
 
 ```sql
--- 0264_native_revenue_acl.test.sql — #784 NFR-NAR-001: the four PMO revenue writers are client-callable SECURITY
+-- 0270_native_revenue_acl.test.sql — #784 NFR-NAR-001: the four PMO revenue writers are client-callable SECURITY
 -- DEFINER functions with a pinned search_path, never anon; the helper and the employ guard are not client-executable;
 -- no new column is client-writable.
 begin;
@@ -1517,7 +1517,7 @@ select * from finish();
 rollback;
 ```
 
-**b) Append to** `supabase/migrations/0264_native_revenue.sql`:
+**b) Append to** `supabase/migrations/0270_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1535,14 +1535,14 @@ begin
       or not has_function_privilege('authenticated', sig, 'execute')
       or not (select p.prosecdef from pg_proc p where p.oid = sig::regprocedure);
   if v_bad is not null then
-    raise exception '0264 §9: PMO revenue writer grants or SECURITY DEFINER drifted: %', v_bad;
+    raise exception '0270 §9: PMO revenue writer grants or SECURITY DEFINER drifted: %', v_bad;
   end if;
 
   select string_agg(sig, ', ') into v_bad
     from (values ('public.native_invoice_settled(uuid)'), ('public.assert_revenue_employable()')) f(sig)
    where has_function_privilege('anon', sig, 'execute') or has_function_privilege('authenticated', sig, 'execute');
   if v_bad is not null then
-    raise exception '0264 §9: client roles can execute internal functions: %', v_bad;
+    raise exception '0270 §9: client roles can execute internal functions: %', v_bad;
   end if;
 
   if has_column_privilege('authenticated', 'public.sales_invoices', 'pmo_native', 'INSERT')
@@ -1551,7 +1551,7 @@ begin
      or has_column_privilege('authenticated', 'public.sales_invoices', 'approved_by_id', 'INSERT')
      or has_column_privilege('authenticated', 'public.incoming_payments', 'pmo_native', 'INSERT')
      or has_column_privilege('authenticated', 'public.incoming_payments', 'cancelled_at', 'INSERT') then
-    raise exception '0264 §9: a PMO revenue marker or stamp is client-insertable';
+    raise exception '0270 §9: a PMO revenue marker or stamp is client-insertable';
   end if;
 
   -- §8: exactly six write policies on the two tables, each admitting Admin and Finance and no other role.
@@ -1562,7 +1562,7 @@ begin
                  where schemaname = 'public' and tablename in ('sales_invoices','incoming_payments')
                    and cmd in ('INSERT','UPDATE','DELETE')
                    and (coalesce(qual, '') || coalesce(with_check, '')) ~ '(Executive|Project Manager|Engineer)') then
-    raise exception '0264 §9: revenue write policies are not exactly the Admin/Finance set';
+    raise exception '0270 §9: revenue write policies are not exactly the Admin/Finance set';
   end if;
 end $$;
 ```
@@ -1571,11 +1571,11 @@ end $$;
 - After the `-- ⚑ AMENDED BY 0250 (#766): …` paragraph (ending `…deliberately NOT listed.`), insert:
   ```sql
   --
-  -- ⚑ AMENDED BY 0264 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
+  -- ⚑ AMENDED BY 0270 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
   -- and `cancel_native_receipt` join the retained set, taking the count to 63 (59 + 4, re-derived by hand from the list).
   -- Each is a SECURITY DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + org +
-  -- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0264_native_revenue_*.test.sql and
-  -- 0264_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
+  -- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0270_native_revenue_*.test.sql and
+  -- 0270_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
   ```
 - In the `insert into client_callable_rpc_names` list add, in alphabetical position: `('cancel_native_receipt'),` after
   `('attest_timesheet_no_erp_document'),`; `('create_native_sales_invoice'),` after `('confirm_erp_employee_link'),`;
@@ -1587,18 +1587,18 @@ end $$;
 **Verify:**
 ```bash
 grep -c "^  ('" supabase/tests/0178_anon_executable_definers.test.sql   # → 63 (or base + 4)
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0264_native_revenue_acl.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0173_rpc_active_member_gate.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_acl.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0173_rpc_active_member_gate.test.sql'
 ```
-→ `db reset` applies 0264 without a §9 exception; all three files pass.
+→ `db reset` applies 0270 without a §9 exception; all three files pass.
 
 ---
 
 ## Task 16 — Rollback file and a reversibility check (5 min)
 
-**File:** `supabase/migrations/rollback/0264_native_revenue_down.sql`
+**File:** `supabase/migrations/rollback/0270_native_revenue_down.sql`
 
 ```sql
--- Rollback for 0264_native_revenue.sql (#784). Precondition (data, not schema): no PMO invoice or receipt exists —
+-- Rollback for 0270_native_revenue.sql (#784). Precondition (data, not schema): no PMO invoice or receipt exists —
 --   select count(*) from public.sales_invoices where pmo_native;    -- must be 0
 --   select count(*) from public.incoming_payments where pmo_native; -- must be 0
 -- Dropping the columns with PMO rows present would leave them indistinguishable from mirror rows.
@@ -1737,11 +1737,11 @@ alter table public.sales_invoices
 **Verify (round trip, one lock hold):**
 ```bash
 scripts/with-db-lock.sh bash -c 'supabase db reset \
-  && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0264_native_revenue_down.sql \
+  && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0270_native_revenue_down.sql \
   && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -At -c "select count(*) from information_schema.columns where table_name in ('"'"'sales_invoices'"'"','"'"'incoming_payments'"'"') and column_name in ('"'"'pmo_native'"'"','"'"'pmo_number'"'"','"'"'native_lines'"'"','"'"'cancelled_at'"'"')" \
   && supabase db reset'
 ```
-→ the rollback runs without error, the count prints `0`, and the final reset re-applies 0264 cleanly.
+→ the rollback runs without error, the count prints `0`, and the final reset re-applies 0270 cleanly.
 
 ---
 
@@ -1766,9 +1766,9 @@ and the four RPCs under `Functions`.
 
 ```bash
 scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db \
-  supabase/tests/0264_native_revenue_create.test.sql supabase/tests/0264_native_revenue_approve.test.sql \
-  supabase/tests/0264_native_revenue_receipts.test.sql supabase/tests/0264_native_revenue_crossing.test.sql \
-  supabase/tests/0264_revenue_write_roles.test.sql supabase/tests/0264_native_revenue_acl.test.sql \
+  supabase/tests/0270_native_revenue_create.test.sql supabase/tests/0270_native_revenue_approve.test.sql \
+  supabase/tests/0270_native_revenue_receipts.test.sql supabase/tests/0270_native_revenue_crossing.test.sql \
+  supabase/tests/0270_revenue_write_roles.test.sql supabase/tests/0270_native_revenue_acl.test.sql \
   supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0173_rpc_active_member_gate.test.sql \
   supabase/tests/0169_create_path_sod_residuals.test.sql supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql \
   supabase/tests/0171_sod_class_completeness.test.sql supabase/tests/0193_work_orders.test.sql \
@@ -1833,7 +1833,7 @@ Run `(cd pmo-portal && ../scripts/with-test-lock.sh npx vitest run src/lib/reven
 ```ts
 /**
  * #784 — the pure display rules the PMO-native revenue surfaces share (docs/specs/no-erp-revenue.spec.md).
- * Display only: migration 0264's RPCs are the authority for every figure these read.
+ * Display only: migration 0270's RPCs are the authority for every figure these read.
  */
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
@@ -1952,7 +1952,7 @@ import type { Json } from '@/src/lib/supabase/database.types';
 
 /**
  * #784 (ADR-0055 addendum 2026-10-07): the PMO-native revenue writes — used while no ERP owns revenue for the org.
- * Every write is a SECURITY DEFINER RPC (migration 0264) that enforces role (Admin/Finance), approval SoD, ownership and
+ * Every write is a SECURITY DEFINER RPC (migration 0270) that enforces role (Admin/Finance), approval SoD, ownership and
  * balance rules; this module only names them.
  */
 export interface NativeInvoiceLineInput {
@@ -2067,7 +2067,7 @@ Run `(cd pmo-portal && ../scripts/with-test-lock.sh npx vitest run src/lib/db/re
 **Step 2 — edits in** `pmo-portal/src/lib/db/revenue.ts`:
 - In `interface SalesInvoiceRow`, after `received_date: string | null;` add:
   ```ts
-  /** #784 (DD-NAR-2): true for an invoice raised in PMO while no ERP owned revenue; written only by migration 0264's RPCs. */
+  /** #784 (DD-NAR-2): true for an invoice raised in PMO while no ERP owned revenue; written only by migration 0270's RPCs. */
   pmo_native?: boolean;
   /** #784 (DD-NAR-9): PMO's own invoice number, minted on approval; null for a Draft and for ERP invoices. */
   pmo_number?: string | null;
@@ -2178,7 +2178,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * #784 — the repository's PMO-native revenue path. While no ERP owns revenue (cold or 'pmo' route), every revenue
- * write goes to migration 0264's RPCs and NEVER dispatches to the ERP (the goal AC-SAR-001 always asserted). Once an
+ * write goes to migration 0270's RPCs and NEVER dispatches to the ERP (the goal AC-SAR-001 always asserted). Once an
  * ERP owns revenue, a row raised in PMO before connect is history: it is never pushed (AC-NAR-004).
  */
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: vi.fn() }));
@@ -3405,7 +3405,7 @@ security — this is money + SoD + RLS) and the rendered Discover pass on `/sale
 
 ## Appendix A — if #785 (0262) is not on `dev` when #784 must build
 
-Do not merge 0264 before 0262: the hosted push would then need an out-of-order `--include-all`. If the Director still
+Do not merge 0270 before 0262: the hosted push would then need an out-of-order `--include-all`. If the Director still
 orders #784 first, these exact deltas apply (and are reverted when #785 lands):
 1. §3: replace `    perform public.lock_work_order_billing(p_work_order_id);` with
    `    perform pg_advisory_xact_lock(hashtextextended('work_order_billing:' || p_work_order_id::text, 0));`

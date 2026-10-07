@@ -1,4 +1,4 @@
--- 0264_native_revenue_acl.test.sql — #784 NFR-NAR-001: the four PMO revenue writers are client-callable SECURITY
+-- 0270_native_revenue_acl.test.sql — #784 NFR-NAR-001: the four PMO revenue writers are client-callable SECURITY
 -- DEFINER functions with a pinned search_path, never anon; the helper and the employ guard are not client-executable;
 -- no new column is client-writable (including DD-NAR-16's opening stamp and DD-NAR-17's overpaid figure).
 begin;

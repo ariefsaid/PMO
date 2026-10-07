@@ -1,4 +1,4 @@
--- Rollback for 0264_native_revenue.sql (#784). Precondition (data, not schema): no PMO invoice or receipt exists —
+-- Rollback for 0270_native_revenue.sql (#784). Precondition (data, not schema): no PMO invoice or receipt exists —
 --   select count(*) from public.sales_invoices where pmo_native;    -- must be 0
 --   select count(*) from public.incoming_payments where pmo_native; -- must be 0
 -- Dropping the columns with PMO rows present would leave them indistinguishable from mirror rows (and would drop the

@@ -50,11 +50,11 @@
 -- proven by supabase/tests/0250_progress_billing_{claims,evidence,withdraw}.test.sql. `record_progress_assessment`
 -- and `get_project_billing` are SECURITY INVOKER and deliberately NOT listed.
 --
--- ⚑ AMENDED BY 0264 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
+-- ⚑ AMENDED BY 0270 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
 -- and `cancel_native_receipt` join the retained set, taking the count to 63 (59 + 4, re-derived by hand from the list).
 -- Each is a SECURITY DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + org +
--- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0264_native_revenue_*.test.sql and
--- 0264_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
+-- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0270_native_revenue_*.test.sql and
+-- 0270_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
 --
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
