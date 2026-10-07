@@ -75,7 +75,7 @@ import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
-import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
+import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -715,6 +715,19 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
   const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN || command.domain === ERPNEXT_BUDGET_DOMAIN || command.domain === ERPNEXT_TIMESHEETS_DOMAIN;
 
+  // ── #784 — a revenue command names its record by the canonical uuid every PMO revenue table keys it on;
+  // the whole money path compares that id as TEXT (the outbox fence, the one-in-flight index, external_refs,
+  // the native receipt RPCs' ownership checks). Every erp_doc_kind — sales-invoice, incoming-payment, … —
+  // answers the shape HERE, before any guard read, before adapter selection, before any outbox/ref write.
+  // `checkRevenueErpPathTarget` re-asserts it (unit-provable) and `dispatchMoneyWrite` re-asserts it on the
+  // pure path, the same boundary-plus-re-assertion layering the idempotency-key rule below uses.
+  if (command.domain === ERPNEXT_REVENUE_DOMAIN && !isCanonicalUuid(String(command.record.id))) {
+    return new Response(
+      JSON.stringify({ error: 'commit-rejected', message: 'revenue record.id must be a canonical UUID' }),
+      { status: 422, headers },
+    );
+  }
+
   // ── Luna BLOCK 4 — server-side authorization gate for erpnext-tier commands (money audit).
   // After resolving the caller's org/userId and parsing the command, but BEFORE any adapter/
   // outbox/ERP write. The deputy `callerClient` (caller's JWT) is used so domain_externally_owned
@@ -958,6 +971,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   //      that record's external identity to a fresh ERP document before the mirror insert fails on
   //      the duplicate PK. This command's own retry (same idempotency key) stays allowed.
   if (isErpDomain) {
+    // #784 — a PMO-native invoice or receipt is never acted on through the ERP path (any operation).
+    const erpPath = await checkRevenueErpPathTarget(serviceClient as never, command);
+    if (!erpPath.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: erpPath.message }), {
+        status: erpPath.status,
+        headers,
+      });
+    }
     const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
     if (!binding.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {

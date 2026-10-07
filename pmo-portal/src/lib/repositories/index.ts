@@ -283,6 +283,14 @@ import {
   setSalesInvoiceReceivedDate,
   setSalesInvoiceEfaktur,
 } from '@/src/lib/db/revenue';
+import {
+  nativeReadOnly,
+  createNativeInvoice,
+  createNativePayment,
+  approveNativeInvoice,
+  cancelNativeInvoice,
+  cancelNativePayment,
+} from './revenueNative';
 import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
   CommandIntent,
@@ -641,7 +649,7 @@ const revenue: RevenueRepository = {
     routeDomainWrite('revenue') === 'external'
       ? dispatchCreate('revenue', salesInvoiceCreateFields(input), intent)
           .then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : createNativeInvoice(input),
   createPayment: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? dispatchCreate(
@@ -662,30 +670,32 @@ const revenue: RevenueRepository = {
           },
           intent,
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : createNativePayment(input),
   setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
   // DD-EFK-1: PMO-owned e-Faktur update never routes to ERPNext or creates an outbox command.
   setEfaktur: (siId, values) => wrap(() => setSalesInvoiceEfaktur(siId, values.efakturNumber, values.efakturDate)),
   submitInvoice: (siId, intent) =>
-    wrap(async () => {
-      if (routeDomainWrite('revenue') === 'external') {
-        await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
-        const si = await getSalesInvoice(siId);
-        if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
-        await dispatchDomainCommand(
-          'revenue',
-          'transition',
-          { id: siId, erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: si.si_number },
-          keyFor(intent),
-        );
-      } else {
-        throw new AppError('revenue is not enabled for this org', 'revenue-not-enabled');
-      }
-    }),
+    routeDomainWrite('revenue') === 'external'
+      ? wrap(async () => {
+          // #784 AC-NAR-004: a PMO invoice is history once the ERP owns revenue — refused before the SoD check runs.
+          const si = await getSalesInvoice(siId);
+          if (si?.pmo_native) throw nativeReadOnly();
+          await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
+          if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
+          await dispatchDomainCommand(
+            'revenue',
+            'transition',
+            { id: siId, erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: si.si_number },
+            keyFor(intent),
+          );
+        })
+      // #784 (FR-NAR-005): approve in PMO.
+      : approveNativeInvoice(siId),
   cancelInvoice: (siId, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {
           const si = await getSalesInvoice(siId);
+          if (si?.pmo_native) throw nativeReadOnly();
           if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
           await dispatchDomainCommand(
             'revenue',
@@ -694,7 +704,7 @@ const revenue: RevenueRepository = {
             keyFor(intent),
           );
         })
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : cancelNativeInvoice(siId),
   downloadInvoicePdf: (siId) =>
     wrap(async () => {
       const { data, error } = await invokeWithTimeout(
@@ -709,6 +719,7 @@ const revenue: RevenueRepository = {
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {
           const ip = await getIncomingPayment(ipId);
+          if (ip?.pmo_native) throw nativeReadOnly();
           if (!ip || !ip.ip_number) throw new AppError('incoming payment not found or missing ip_number', 'not-found');
           await dispatchDomainCommand(
             'revenue',
@@ -717,7 +728,7 @@ const revenue: RevenueRepository = {
             keyFor(intent),
           );
         })
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : cancelNativePayment(ipId),
 };
 
 /**

@@ -59,6 +59,12 @@
 -- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
 -- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
 --
+-- ⚑ AMENDED BY 0275 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
+-- and `cancel_native_receipt` join the retained set, taking the count to 66 after the dev merge (dev's 62 + 4, re-derived by hand from the list).
+-- Each is a SECURITY DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + org +
+-- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0275_native_revenue_*.test.sql and
+-- 0275_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -91,10 +97,12 @@ insert into client_callable_rpc_names (proname) values
   ('approved_timesheet_for_push'),
   ('attach_claim_evidence'),
   ('attest_timesheet_no_erp_document'),
+  ('cancel_native_receipt'),
   ('capture_vendor_invoice'),
   ('claim_sales_invoice_author'),
   ('clone_budget_version'),
   ('confirm_erp_employee_link'),
+  ('create_native_sales_invoice'),
   ('create_payment'),
   ('create_procurement_invoice'),
   ('create_procurement_quotation'),
@@ -129,6 +137,7 @@ insert into client_callable_rpc_names (proname) values
   ('org_credit_balance'),
   ('org_usage_summary'),
   ('record_expense_advance_return'),
+  ('record_native_receipt'),
   ('release_credits'),
   ('release_outbox_hold'),
   ('reserve_credits'),
@@ -143,6 +152,7 @@ insert into client_callable_rpc_names (proname) values
   ('submit_sales_invoice'),
   ('transition_document_status'),
   ('transition_expense_claim'),
+  ('transition_native_sales_invoice'),
   ('transition_procurement'),
   ('transition_project'),
   ('transition_timesheet'),
@@ -169,8 +179,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  62,
-  'AC-ACL-002 all 62 retained client-callable RPC names still have a public function');
+  66,
+  'AC-ACL-002 all 66 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -179,8 +189,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  62,
-  'AC-ACL-003 all 62 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  66,
+  'AC-ACL-003 all 66 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

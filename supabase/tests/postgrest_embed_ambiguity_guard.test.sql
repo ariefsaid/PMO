@@ -79,7 +79,11 @@ select set_eq(
             -- src/lib/db/opportunity.ts SELECT name !projects_client_id_fkey and
             -- !projects_end_client_id_fkey). An unqualified `client:companies(name)` here would be
             -- a PGRST201 runtime error on every projects/opportunity read — see AC-EMBED-003.
-            ('projects -> companies') $$,
+            ('projects -> companies'),
+            -- 0275 (#784): sales_invoices carries author_user_id (0124) and approved_by_id, both ->
+            -- auth.users. auth.users is not in a PostgREST-exposed schema, so no client embed of it
+            -- can exist and none can become ambiguous; listed so the pair is a known one.
+            ('sales_invoices -> users') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

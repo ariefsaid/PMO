@@ -87,6 +87,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
 }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 
 vi.mock('@/src/lib/analytics', () => ({
   trackFilterApplied: vi.fn(),

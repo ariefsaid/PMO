@@ -3,10 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 /**
  * AC-SAR-001 — the byte-for-byte regression net (Slice 2, EARLY per the plan's binding ordering).
  *
- * With an empty/cold ownership map (the state of every non-flipped org — every client that does NOT
- * employ ERPNext for revenue, FR-SAR-004), every revenue write on `repositories.revenue.*`
- * must be rejected at the repository layer with `revenue-not-enabled` (OQ-SAR-6: no PMO-native path
- * today) and **never** dispatch — `dispatchSpy` uncalled.
+ * #784 (OD-REEL-1) replaced OQ-SAR-6's deferral: with an empty/cold ownership map every revenue write now
+ * takes the PMO-native path — and still **never** dispatches. That contract (and its never-dispatch goal)
+ * lives in revenue.native.test.ts.
  *
  * A flipped-org revenue command (setDomainOwnership `revenue`→`erpnext`) routes to
  * `dispatchDomainCommand` with `erp_doc_kind` + a minted `idempotencyKey`.
@@ -35,7 +34,6 @@ import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
 import * as revenueDb from '@/src/lib/db/revenue';
 import { clearOwnershipCache, setDomainOwnership, routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
-import { AppError } from '@/src/lib/appError';
 
 // The single spy target for every "must never dispatch externally" assertion below.
 // On a cold ownership map every write in this file must leave this spy uncalled (AC-SAR-001).
@@ -50,79 +48,16 @@ beforeEach(() => {
   vi.mocked(routeDomainWrite).mockReturnValue('pmo');
 });
 
+// DD-EFK-1 (#893): the e-Faktur setter stays PMO-direct on every route — including externally owned revenue.
+// (#784's cold-map native routing supersedes this file's former AC-SAR-001 `revenue-not-enabled` assertions:
+// those encoded the pre-#784 rejection, and the surviving oracle — revenue writes never dispatch on the cold
+// map — is kept by `revenue.native.test.ts`'s first describe block.)
 describe('AC-EFK-004 DD-EFK-1 sales setter remains PMO-direct for externally owned revenue', () => {
   it('calls the guarded PMO DAL setter and never dispatches e-Faktur facts', async () => {
     vi.mocked(routeDomainWrite).mockReturnValue('external');
     vi.mocked(revenueDb.setSalesInvoiceEfaktur).mockResolvedValue(undefined);
     await repositories.revenue.setEfaktur('si-efaktur', { efakturNumber: '010.001', efakturDate: null });
     expect(revenueDb.setSalesInvoiceEfaktur).toHaveBeenCalledWith('si-efaktur', '010.001', null);
-    expect(dispatchSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe('AC-SAR-001 cold ownership map — revenue writes are rejected with revenue-not-enabled', () => {
-  it('AC-SAR-001 createInvoice is rejected with revenue-not-enabled and never dispatches', async () => {
-    await expect(
-      repositories.revenue.createInvoice({
-        customerId: 'cust-1',
-        projectId: 'proj-1',
-        items: [{ item_code: 'ITEM-001', qty: 1, rate: 100 }],
-      }),
-    ).rejects.toBeInstanceOf(AppError);
-
-    await expect(
-      repositories.revenue.createInvoice({
-        customerId: 'cust-1',
-        projectId: 'proj-1',
-        items: [{ item_code: 'ITEM-001', qty: 1, rate: 100 }],
-      }),
-    ).rejects.toMatchObject({ code: 'revenue-not-enabled' });
-
-    expect(dispatchSpy).not.toHaveBeenCalled();
-  });
-
-  it('AC-SAR-001 createPayment is rejected with revenue-not-enabled and never dispatches', async () => {
-    await expect(
-      repositories.revenue.createPayment({
-        customerId: 'cust-1',
-        salesInvoiceId: 'si-1',
-        paidAmount: 100,
-        receivedAmount: 100,
-        date: '2026-07-14',
-      }),
-    ).rejects.toBeInstanceOf(AppError);
-
-    await expect(
-      repositories.revenue.createPayment({
-        customerId: 'cust-1',
-        salesInvoiceId: 'si-1',
-        paidAmount: 100,
-        receivedAmount: 100,
-        date: '2026-07-14',
-      }),
-    ).rejects.toMatchObject({ code: 'revenue-not-enabled' });
-
-    expect(dispatchSpy).not.toHaveBeenCalled();
-  });
-
-  it('AC-SAR-001 submitInvoice is rejected with revenue-not-enabled and never dispatches', async () => {
-    await expect(repositories.revenue.submitInvoice('si-1')).rejects.toMatchObject({
-      code: 'revenue-not-enabled',
-    });
-    expect(dispatchSpy).not.toHaveBeenCalled();
-  });
-
-  it('AC-SAR-001 cancelInvoice is rejected with revenue-not-enabled and never dispatches', async () => {
-    await expect(repositories.revenue.cancelInvoice('si-1')).rejects.toMatchObject({
-      code: 'revenue-not-enabled',
-    });
-    expect(dispatchSpy).not.toHaveBeenCalled();
-  });
-
-  it('AC-SAR-001 cancelPayment is rejected with revenue-not-enabled and never dispatches', async () => {
-    await expect(repositories.revenue.cancelPayment('ip-1')).rejects.toMatchObject({
-      code: 'revenue-not-enabled',
-    });
     expect(dispatchSpy).not.toHaveBeenCalled();
   });
 });

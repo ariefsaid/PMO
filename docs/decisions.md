@@ -1322,6 +1322,15 @@ with period lock and foreign-currency revaluation (#900). Map: "Month-end and ye
 is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
 work, not a PMO gap.
 
+**[DD-NAR-1..17] PMO-native customer invoicing when no ERP owns revenue (#784, Director 2026-10-07).** Recorded in
+full in `docs/specs/no-erp-revenue.spec.md` §3: PMO owns revenue when no ERP row says otherwise; same tables with a
+`pmo_native` marker written only by four RPCs; no new status (Partly paid is display); Paid stamped from a recomputed
+balance; approver ≠ author, role + membership read at approval time; Admin/Finance only (DD-NAR-15, owner ruling);
+project required, tax from the project; corrections by cancelling; at connect the `OD-XING-1` flip applies (PMO rows
+frozen, never pushed); at connect each open PMO invoice is stamped with the amount carried into the ERP opening entry
+(DD-NAR-16); a receipt may be short or over — over marks Paid and records `overpaid_amount` (DD-NAR-17). Owner
+rulings: OD-NAR-1. ADR-0055 addendum 2026-10-07 makes §5A defer to `OD-XING-1`.
+
 **[DD-EFK-1] e-Faktur number and date are PMO-owned facts (Director, 2026-10-07).** Store these values only
 on the PMO sales-invoice and vendor-bill rows; never push them to ERPNext. ERPNext is headless for client users
 (OD-ERP-3), the reference is not a ledger fact and is usually assigned after invoice issuance, and changing a
@@ -1341,6 +1350,7 @@ RPCs (SQLSTATE 23514, DETAIL `efaktur-incomplete`), and by a table CHECK on `sal
 Recorded in full in `docs/specs/invoice-pdf.spec.md` and ADR-0083: Admin/Finance only; submitted invoices only (PMO
 row AND the ERP's live status); document name from the machine-written link table, doctype fixed in code; the ERP's
 default print format; nothing stored in PMO; fixed error messages, never ERP text; no migration.
+
 
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
@@ -3109,6 +3119,8 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2
 
 **OD-NAR-1 (owner, 2026-10-07, #784) — no-ERP invoicing rulings.**
 (1) When a no-ERP org later connects an ERP, its open PMO invoices freeze read-only and the accountant loads the open balance into the ERP as one opening entry — **and PMO keeps a per-invoice tally of which invoices are recorded in the ERP and which are not** (e.g. carried in the opening balance vs pushed individually), so the two can always be reconciled. (2) No second person confirms a receipt: Finance/accounting records it as paid, capturing the **payment date** and, optionally, the **amount received when it differs from the amount invoiced** (short or over payment). (3) No senior-approver routing for large invoices — Admin/Finance approve any amount. (4) A VAT project with no recorded rate refuses the invoice until Finance records the rate. (5) "Invoice this work order" for no-ERP orgs is a follow-up after #784.
+
+**OD-NAR-2 (owner, 2026-10-07, #784) — invoicing menus on by default without an ERP.** In an org where no ERP owns revenue, Sales Invoices and Incoming Payments are visible in the navigation by default (no operator switch needed); billing is the point of PMO-native invoicing. Supersedes DD-NAR-14 for navigation. ERP-connected orgs are unchanged.
 
 **DD-EXP-12..22 + ADR-0081 ratified (Director, 2026-10-07, #775 phase B)** — as written in `docs/specs/expense-claims.spec.md` §10 and `docs/adr/0081-expense-postings-single-originator.md`: one originator (the PMO transition writes a posting intent; only the ERPNext sweep turns it into an ERP document; no client dispatch route), enabling the `expenses` domain is also the cut-off (nothing before it posts), JE anchored on `user_remark` (re-stamped on amend), Employee Payment Entries anchored on `reference_no` with paid_from/paid_to always sent and the approval JE referenced, an Admin account map refusing `Creditors` and untyped advance accounts, cancel only an approval JE after it posted. Also accepted: procurement/revenue Payment Entry polls stop reading party-type Employee entries (otherwise an employee's cash return could be adopted as a customer receipt); postings land within one sweep interval. The Admin enable switch lands only after #901. Plan: `docs/plans/2026-10-07-expense-claims-phase-b*.md`.
 
