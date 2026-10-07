@@ -3080,3 +3080,7 @@ under a withholding bill, nothing else changes (DD-VWH-6) · the column default 
 mirror always states the value (DD-VWH-7) · no cost, actual, commitment or budget figure is reduced by withholding;
 never map a PPh payable account into a budget category (DD-VWH-8) · sales symmetry: client withholding stays on the
 receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2026-10-07-vendor-withholding.md`.
+
+**OD-VWH-1 (owner, 2026-10-07, #876)** — vendor tax is set up **in PMO**: each vendor company carries a default tax treatment (VAT rate; withholding type PPh 23 / PPh 4(2) and rate; or none). A vendor bill starts from that default and its tax amounts are **editable**, so the bill can capture exactly what the vendor's own invoice shows (including invoices made outside PMO and the ERP). For an ERP-connected org PMO sends those amounts to ERPNext as fixed tax rows, so no ERPNext tax template is required (templates stay optional). PMO never recomputes ERP-calculated figures, so PMO and the ERP cannot disagree by rounding.
+
+**OD-INV-PDF-1 (owner, 2026-10-07)** — producing the client-facing invoice PDF from PMO is a **go-live** item: for ERP-connected orgs PMO fetches the ERP's own print-format PDF of the submitted invoice (so it matches the books); a PMO-generated PDF for no-ERP orgs follows.
