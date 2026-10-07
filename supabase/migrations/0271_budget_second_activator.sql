@@ -1,4 +1,4 @@
--- 0273_budget_second_activator.sql — OD-BUDGET-6 (#922): a budget version is activated by someone other
+-- 0271_budget_second_activator.sql — OD-BUDGET-6 (#922): a budget version is activated by someone other
 -- than the person who drafted it (activation also pushes the budget to the ERP).
 --
 --   §1 budget_versions.created_by — the drafter, stamped server-side on insert. A client caller's value is
@@ -11,7 +11,7 @@
 --      SET NULL delete would erase the drafter — silently losing attribution AND widening activation to
 --      the no-drafter Admin/Finance-only rule. Deleting a profile that drafted a version is therefore
 --      refused (23503); offboarding, not deletion, is how a drafter leaves.
---   §2 activate_budget_version: 0139's body VERBATIM plus the drafter read and two refusals (marked 0273).
+--   §2 activate_budget_version: 0139's body VERBATIM plus the drafter read and two refusals (marked 0271).
 --      The drafter is refused whatever their role — Admin included, as with OD-PROC-8. A version with no
 --      recorded drafter (older or seeded) is activated by Admin or Finance only. Both run after the org /
 --      role / project checks, so a caller outside the org still reads only "not authorized".
@@ -21,7 +21,7 @@
 -- so the hosted-grant allow-lists (0178) and the isolation-probe denominator are unchanged. The drafter
 -- trigger function is SECURITY INVOKER; on UPDATE it refuses a client change to created_by (behind the grant).
 -- Pre-existing versions keep NULL (no backfill: nothing recorded who drafted them).
--- Reversal: supabase/migrations/rollback/0273_budget_second_activator_down.sql.
+-- Reversal: supabase/migrations/rollback/0271_budget_second_activator_down.sql.
 -- pgTAP: supabase/tests/budget_second_activator.test.sql.
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -72,9 +72,9 @@ create trigger budget_versions_drafter
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 create or replace function activate_budget_version(version_id uuid)
   returns void language plpgsql security definer set search_path = public as $$
-declare v_project uuid; v_org uuid; v_status budget_status; v_drafter uuid;  -- 0273: v_drafter
+declare v_project uuid; v_org uuid; v_status budget_status; v_drafter uuid;  -- 0271: v_drafter
 begin
-  select project_id, org_id, status, created_by into v_project, v_org, v_status, v_drafter  -- 0273: created_by
+  select project_id, org_id, status, created_by into v_project, v_org, v_status, v_drafter  -- 0271: created_by
     from budget_versions where id = version_id;
   if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id()
@@ -85,12 +85,12 @@ begin
   -- definer-context archive-by-project_id can never cross orgs even if a grafted version slipped past RLS.
   if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
   then raise exception 'not authorized' using errcode = '42501'; end if;
-  -- 0273 (OD-BUDGET-6): the drafter cannot activate their own version — no role is exempt.
+  -- 0271 (OD-BUDGET-6): the drafter cannot activate their own version — no role is exempt.
   if v_drafter is not null and v_drafter = auth.uid() then
     raise exception 'separation of duties: the person who drafted a budget version cannot activate it'
       using errcode = '42501';
   end if;
-  -- 0273 (OD-BUDGET-6): with no recorded drafter, only Admin or Finance may activate.
+  -- 0271 (OD-BUDGET-6): with no recorded drafter, only Admin or Finance may activate.
   if v_drafter is null and auth_role() not in ('Admin','Finance') then
     raise exception 'a budget version with no recorded drafter can be activated by Admin or Finance only'
       using errcode = '42501';

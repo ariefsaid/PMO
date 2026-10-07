@@ -337,7 +337,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   /**
    * Budget version activation (`transition`) — OD-BUDGET-6, mirroring `activate_budget_version`
-   * (migration 0273): a Draft only; the drafter (`created_by`, server-stamped, never client-set) may
+   * (migration 0271): a Draft only; the drafter (`created_by`, server-stamped, never client-set) may
    * not activate their own version whatever their role, Admin included; a version with no recorded
    * drafter is Admin or Finance only. The RPC is the authority.
    */

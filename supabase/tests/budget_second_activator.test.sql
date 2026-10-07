@@ -3,7 +3,7 @@
 -- version with no recorded drafter (older or seeded) can be activated by Admin or Finance only.
 -- The drafter's profile itself cannot be deleted out from under the version (created_by is
 -- ON DELETE RESTRICT): attribution is never silently lost and activation never widens.
--- Migration under test: 0273_budget_second_activator.sql.
+-- Migration under test: 0271_budget_second_activator.sql.
 begin;
 create extension if not exists pgtap;
 select plan(27);

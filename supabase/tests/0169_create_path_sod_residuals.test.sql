@@ -510,7 +510,7 @@ select lives_ok(
                1,'RES Draft Budget','Draft') $$,
   'AC-RES-042 CONTROL createBudgetVersion''s exact insert shape still succeeds');
 
--- OD-BUDGET-6 (0273): the drafter cannot activate their own version, so a second person (the Colleague) does.
+-- OD-BUDGET-6 (0271): the drafter cannot activate their own version, so a second person (the Colleague) does.
 set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok(

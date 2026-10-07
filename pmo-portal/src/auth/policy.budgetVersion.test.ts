@@ -6,7 +6,7 @@ const ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engi
 
 const draft = (created_by: string | null) => ({ status: 'Draft', created_by });
 
-describe('OD-BUDGET-6 budget version activation policy (mirrors migration 0273)', () => {
+describe('OD-BUDGET-6 budget version activation policy (mirrors migration 0271)', () => {
   it('OD-BUDGET-6: a second person with a budget write role may activate another person\'s Draft', () => {
     const ctx = { currentUserId: 'u-me', record: draft('u-drafter') };
     expect(ROLES.filter((r) => can('transition', 'budgetVersion', { realRole: r, ...ctx })))

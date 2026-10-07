@@ -1,4 +1,4 @@
--- Reverses 0273_budget_second_activator.sql: restores the 0139 activate_budget_version body, drops the
+-- Reverses 0271_budget_second_activator.sql: restores the 0139 activate_budget_version body, drops the
 -- drafter stamp, the created_by column and its change-history classification.
 
 create or replace function activate_budget_version(version_id uuid)
