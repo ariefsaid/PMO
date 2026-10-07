@@ -10,6 +10,25 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.16.0](https://github.com/ariefsaid/PMO/compare/v0.15.0...v0.16.0) (2026-10-07)
+
+
+### Features
+
+* **billing:** bill by work order — invoiced / paid / still to invoice per client PO ([#785](https://github.com/ariefsaid/PMO/issues/785), [#786](https://github.com/ariefsaid/PMO/issues/786)) ([#892](https://github.com/ariefsaid/PMO/issues/892)) ([07a9da2](https://github.com/ariefsaid/PMO/commit/07a9da2fb4588a010ccce633a95e3c0ee505d85a))
+* **expenses:** expense claims and cash advances post to ERPNext — journal and payment entries ([#775](https://github.com/ariefsaid/PMO/issues/775) phase B) ([#924](https://github.com/ariefsaid/PMO/issues/924)) ([ff37f07](https://github.com/ariefsaid/PMO/commit/ff37f07bc42648702bda47483b5f6737d298c5ef))
+* **procurement:** vendor tax defaults with entered VAT/PPh amounts ([#876](https://github.com/ariefsaid/PMO/issues/876), slice 2) ([#929](https://github.com/ariefsaid/PMO/issues/929)) ([f32d35b](https://github.com/ariefsaid/PMO/commit/f32d35bc4061767aaea321d87419ad4e3075e32c))
+* **procurement:** vendor withholding (PPh) on ERP-owned bills ([#876](https://github.com/ariefsaid/PMO/issues/876), slice 1) ([#917](https://github.com/ariefsaid/PMO/issues/917)) ([0089275](https://github.com/ariefsaid/PMO/commit/00892751f7b0e477fc892c4a5d2cf7ae86f456c8))
+* **revenue:** download the ERP's invoice PDF from PMO ([#912](https://github.com/ariefsaid/PMO/issues/912)) ([#930](https://github.com/ariefsaid/PMO/issues/930)) ([80b7cb4](https://github.com/ariefsaid/PMO/commit/80b7cb42e53def6b94c8890797163a941f802780))
+* **revenue:** e-Faktur number and date on invoices and vendor bills ([#893](https://github.com/ariefsaid/PMO/issues/893)) ([#928](https://github.com/ariefsaid/PMO/issues/928)) ([ce2ea93](https://github.com/ariefsaid/PMO/commit/ce2ea93ccb7fe4d972aa7d9df47c04b8184b2626))
+
+
+### Bug Fixes
+
+* **budget:** a budget version is activated by someone other than its drafter ([#922](https://github.com/ariefsaid/PMO/issues/922)) ([#927](https://github.com/ariefsaid/PMO/issues/927)) ([1f871da](https://github.com/ariefsaid/PMO/commit/1f871da417b1c6c260eb5a4cfb9f536f47184686))
+* **erpnext:** ledger mirror keeps syncing and reflects cancellations ([#901](https://github.com/ariefsaid/PMO/issues/901)) ([#931](https://github.com/ariefsaid/PMO/issues/931)) ([cd41ff6](https://github.com/ariefsaid/PMO/commit/cd41ff6705fa2612bc62d25b1d7d38a014ab4f92))
+* **security:** tighten four role gates to match existing rulings ([#909](https://github.com/ariefsaid/PMO/issues/909)) ([#914](https://github.com/ariefsaid/PMO/issues/914)) ([efc8e8a](https://github.com/ariefsaid/PMO/commit/efc8e8a70e07ec7878783a6f1cad1a1c7a937444))
+
 ## [0.15.0](https://github.com/ariefsaid/PMO/compare/v0.14.0...v0.15.0) (2026-10-06)
 
 
