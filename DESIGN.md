@@ -419,6 +419,16 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
   UPPERCASE, `muted-foreground`** (NOT §3's Overline: the tighter tracking is deliberate for dense
   numeric columns), bottom `border`. Numeric columns right-align. Row `⋯` menu trigger is **always
   visible** (hover-hidden was reverted: undiscoverable on touch + keyboard).
+- **Row actions:** on the desktop table branch, the generated `rowMenu` column sticks to the right
+  during horizontal scrolling. Its header stacks above its body cells; both use the opaque `card`
+  surface with a 1px inset-hairline divider (`--border`) and a left-cast gradient from the
+  `foreground` token (dark at the column edge fading out over 12px). Chromium pins, honored by the
+  implementation (AC-TBL-STICKY-001): a collapsed cell border does not travel with a sticky cell
+  (hence the inset hairline); an outset box-shadow on a sticky cell is never painted (hence the
+  positioned gradient strip); and the cell sticks 1px past the scrollport edge (`-right-px`) so the
+  scroller's own clip closes the seam pixel its background would otherwise miss at `right-0` —
+  scrolled text must never show right of the ⋯ column. The mobile card branch keeps its existing
+  top-right action placement.
 - **Column budget:** a new column must not push the row `⋯` trigger out of the 1440 view — merge related
   facts into one cell first (a primary value over a `muted` second line, as the e-Faktur number + date
   cell does, #893) before adding a column.
