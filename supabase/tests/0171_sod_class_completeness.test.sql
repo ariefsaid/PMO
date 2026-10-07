@@ -347,7 +347,7 @@ select is(
 --   0075 re-granted, verbatim, what 0010 had revoked.
 set local role authenticated;
 set local request.jwt.claims =
-  '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+  '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 insert into public.incoming_payments (id, org_id, customer_id, sales_invoice_id, reference_number, date, amount)
   values ('01710000-0000-0000-0000-0000000000db','01710000-0000-0000-0000-000000000001',
           '01710000-0000-0000-0000-0000000000c1','01710000-0000-0000-0000-0000000000d1','SCC-BODY','2026-03-05',1);

@@ -2423,6 +2423,7 @@ export type Database = {
       incoming_payments: {
         Row: {
           amount: number | null
+          cancelled_at: string | null
           created_at: string
           currency: string
           customer_id: string | null
@@ -2434,6 +2435,8 @@ export type Database = {
           id: string
           ip_number: string | null
           org_id: string
+          pmo_native: boolean
+          pmo_number: string | null
           received_amount: number | null
           reference_number: string | null
           sales_invoice_id: string | null
@@ -2443,6 +2446,7 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          cancelled_at?: string | null
           created_at?: string
           currency?: string
           customer_id?: string | null
@@ -2454,6 +2458,8 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          pmo_native?: boolean
+          pmo_number?: string | null
           received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
@@ -2463,6 +2469,7 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          cancelled_at?: string | null
           created_at?: string
           currency?: string
           customer_id?: string | null
@@ -2474,6 +2481,8 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          pmo_native?: boolean
+          pmo_number?: string | null
           received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
@@ -5235,6 +5244,8 @@ export type Database = {
       sales_invoices: {
         Row: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -5244,10 +5255,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -5263,6 +5280,8 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          approved_at?: string | null
+          approved_by_id?: string | null
           author_user_id?: string | null
           created_at?: string
           currency?: string
@@ -5272,10 +5291,16 @@ export type Database = {
           erp_docstatus?: number | null
           erp_due_date?: string | null
           erp_modified?: string | null
+          erp_opening_amount?: number | null
+          erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
           id?: string
           invoice_date?: string | null
+          native_lines?: Json | null
           org_id?: string
+          overpaid_amount?: number | null
+          pmo_native?: boolean
+          pmo_number?: string | null
           project_id?: string | null
           received_date?: string | null
           reference_number?: string | null
@@ -5291,6 +5316,8 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          approved_at?: string | null
+          approved_by_id?: string | null
           author_user_id?: string | null
           created_at?: string
           currency?: string
@@ -5300,10 +5327,16 @@ export type Database = {
           erp_docstatus?: number | null
           erp_due_date?: string | null
           erp_modified?: string | null
+          erp_opening_amount?: number | null
+          erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
           id?: string
           invoice_date?: string | null
+          native_lines?: Json | null
           org_id?: string
+          overpaid_amount?: number | null
+          pmo_native?: boolean
+          pmo_number?: string | null
           project_id?: string | null
           received_date?: string | null
           reference_number?: string | null
@@ -6062,6 +6095,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      assert_invoice_command_within_work_order: {
+        Args: {
+          p_operation: string
+          p_org_id: string
+          p_payload: Json
+          p_pmo_record_id: string
+        }
+        Returns: undefined
+      }
       assert_is_active_member: {
         Args: { p_actor?: string }
         Returns: undefined
@@ -6126,6 +6168,10 @@ export type Database = {
         Returns: boolean
       }
       can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
+      cancel_native_receipt: {
+        Args: { p_receipt_id: string }
+        Returns: undefined
+      }
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
@@ -6232,6 +6278,15 @@ export type Database = {
       confirm_outbox: {
         Args: { p_generation: number; p_id: string }
         Returns: number
+      }
+      create_native_sales_invoice: {
+        Args: {
+          p_customer_id: string
+          p_lines: Json
+          p_project_id: string
+          p_work_order_id?: string
+        }
+        Returns: string
       }
       create_payment: {
         Args: {
@@ -6694,6 +6749,8 @@ export type Database = {
         Args: { p_actor_id: string; p_clearance_id: string; p_si_id: string }
         Returns: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -6703,10 +6760,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -6924,6 +6987,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      native_invoice_settled: { Args: { p_si_id: string }; Returns: number }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
         Returns: string
@@ -7171,6 +7235,17 @@ export type Database = {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: boolean
       }
+      record_native_receipt: {
+        Args: {
+          p_amount?: number
+          p_date?: string
+          p_received_amount?: number
+          p_sales_invoice_id: string
+          p_withheld_amount?: number
+          p_withholding_slip_number?: string
+        }
+        Returns: string
+      }
       record_outbox_ref: {
         Args: {
           p_domain: string
@@ -7312,6 +7387,8 @@ export type Database = {
         Args: { p_received_date: string; p_si_id: string }
         Returns: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -7321,10 +7398,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -7391,6 +7474,8 @@ export type Database = {
         Args: { p_si_id: string }
         Returns: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -7400,10 +7485,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -7448,6 +7539,10 @@ export type Database = {
           p_payment_reference?: string
           p_to: Database["public"]["Enums"]["expense_claim_status"]
         }
+        Returns: undefined
+      }
+      transition_native_sales_invoice: {
+        Args: { p_id: string; p_to: string }
         Returns: undefined
       }
       transition_procurement: {

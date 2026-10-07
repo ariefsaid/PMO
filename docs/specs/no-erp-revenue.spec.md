@@ -87,6 +87,15 @@ dunning, currency conversion · notifications to approvers.
   org; INSERT also while no ERP owns revenue). Every RPC that writes these tables enforces the same role set in its own
   body. The ERP mirror writers (service role) and SECURITY DEFINER RPCs are unaffected by policies and keep working.
 
+- **DD-NAR-16 — Connect tally per invoice (owner OD-NAR-1).** When an ERP is employed for revenue, each PMO invoice
+  still Unpaid with a balance is stamped `erp_opening_amount` (its outstanding at that moment) and `erp_opening_at`;
+  Paid or Cancelled invoices stay unstamped (never in the ERP). Only the employ path sets them. Finance reconciles their
+  sum against the single opening entry posted in the ERP.
+- **DD-NAR-17 — Receipt amount may differ (owner OD-NAR-1; replaces the over-receipt refusal).** A receipt carries the
+  payment date (required, not future) and the amount received (defaults to the balance). Less leaves the balance
+  outstanding; more marks the invoice Paid with `erp_outstanding_amount` = 0 and the excess shown as `overpaid_amount`.
+  Cancelling a receipt recomputes both. No second person on receipts.
+
 ## 4. Functional requirements (EARS)
 
 - **FR-NAR-001** Where no ERP owns revenue for the caller's org, when an active Admin or Finance member raises an
