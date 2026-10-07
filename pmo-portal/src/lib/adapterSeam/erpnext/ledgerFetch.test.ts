@@ -4,8 +4,9 @@
  * (doctype names, list-endpoint filter/field shapes) stays HERE in erpnext/**. Every ERP call is an
  * injected `fetchImpl` — no real bench required (NFR-ENA-CONTRACT-001).
  *
- * RED until ledgerFetch.ts exists. Asserts: paging accumulates all rows; the filters
- * (is_cancelled=0 / docstatus!=2 / modified>=since / company=<co>) + the field list are sent;
+ * Asserts: paging accumulates all rows; ONLY the scope filters (modified>=since / company=<co>) + the
+ * field list are sent — never a cancellation filter (#901: a row that leaves the fetched set on cancel
+ * can never be re-read, so its mirror copy stays live); the cancellation state crosses as a flag;
  * money fields are decimal-strings (R4); and nothing is persisted here (pure fetch — the feed's
  * job is 8.x, so the fetcher takes ONLY the client + opts and returns rows).
  */
@@ -53,7 +54,7 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     ).rejects.toHaveProperty('code', 'config-rejected');
   });
 
-  it('AC-ENA-060/162 sends the GL Entry filters (is_cancelled=0, docstatus!=2, modified>=since, company) + the field list on page 0', async () => {
+  it('AC-ENA-060/162 #901 sends ONLY the scope filters (company, modified>=since) — never a cancellation filter — + the field list on page 0', async () => {
     const urls: string[] = [];
     const fetchImpl = async (url: string) => {
       urls.push(url);
@@ -63,20 +64,43 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     const rows = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co', since: '2026-07-01 00:00:00' });
     expect(urls).toHaveLength(1);
     expect(urls[0]).toContain('/api/resource/GL%20Entry'); // doctype confined here (raw, encoded path)
-    const decoded = decodeURIComponent(urls[0]);
-    expect(decoded).toContain('"is_cancelled","=",0');
-    expect(decoded).toContain('"docstatus","!=",2]'); // docstatus!=2 (exclude cancelled)
-    expect(decoded).toContain('"modified",">=","2026-07-01 00:00:00"');
-    expect(decoded).toContain('"company","=","PMO Smoke Co"');
-    // the field list requests the money + provenance fields the mirror consumes
-    expect(decoded).toContain('"name"');
-    expect(decoded).toContain('"account"');
-    expect(decoded).toContain('"cost_center"');
-    expect(decoded).toContain('"debit"');
-    expect(decoded).toContain('"credit"');
-    expect(decoded).toContain('"posting_date"');
-    expect(decoded).toContain('"modified"');
+    const params = new URL(urls[0]).searchParams;
+    // #901: a cancel flips the ORIGINAL rows to is_cancelled=1 (bumping `modified`). A fetch that filters
+    // on cancellation never re-reads them, so the mirror keeps them live and actuals overstate.
+    expect(JSON.parse(params.get('filters') ?? '')).toEqual([
+      ['company', '=', 'PMO Smoke Co'],
+      ['modified', '>=', '2026-07-01 00:00:00'],
+    ]);
+    const fields = JSON.parse(params.get('fields') ?? '') as string[];
+    // the field list requests the money + provenance + cancellation-state fields the mirror consumes
+    expect(fields).toEqual(expect.arrayContaining(['name', 'account', 'cost_center', 'debit', 'credit', 'posting_date', 'is_cancelled', 'docstatus', 'modified']));
     expect(rows).toHaveLength(1);
+    expect(rows[0].is_cancelled).toBe(false);
+  });
+
+  it('#901 a cancelled original AND its reversal come back flagged is_cancelled (never dropped at fetch)', async () => {
+    const fetchImpl = async () => jsonResponse({ data: [
+      { name: 'GLE-ORIG', account: 'Cost of Goods Sold - PSC', debit: '125000', credit: '0', modified: '2026-10-07 10:05:00', is_cancelled: 1, docstatus: 1 },
+      { name: 'GLE-REV', account: 'Cost of Goods Sold - PSC', debit: '0', credit: '125000', modified: '2026-10-07 10:05:00', is_cancelled: 1, docstatus: 1 },
+      { name: 'GLE-LIVE', account: 'Cost of Goods Sold - PSC', debit: '7', credit: '0', modified: '2026-10-07 10:06:00', is_cancelled: 0, docstatus: 1 },
+    ] });
+    const rows = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co', since: '2026-10-07 10:00:00' });
+    expect(rows.map((r) => [r.name, r.is_cancelled])).toEqual([['GLE-ORIG', true], ['GLE-REV', true], ['GLE-LIVE', false]]);
+  });
+
+  it('#901 a GL row in docstatus 2 crosses as cancelled (the old fetch excluded it; it must never read as live)', async () => {
+    const fetchImpl = async () => jsonResponse({ data: [
+      { name: 'GLE-D2', account: 'A', debit: '1', credit: '0', modified: '2026-10-07', is_cancelled: 0, docstatus: 2 },
+    ] });
+    const rows = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co' });
+    expect(rows[0]).toMatchObject({ name: 'GLE-D2', is_cancelled: true, docstatus: 2 });
+  });
+
+  it('a full backfill (no since) sends only the company filter', async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => { urls.push(url); return jsonResponse({ data: [] }); };
+    await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co' });
+    expect(JSON.parse(new URL(urls[0]).searchParams.get('filters') ?? '')).toEqual([['company', '=', 'PMO Smoke Co']]);
   });
 
   it('paging accumulates ALL rows across pages (a full page 0 → a page-1 request with limit_start=pageSize → a short page stops the loop)', async () => {
@@ -120,20 +144,34 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
 });
 
 describe('erpnext/ledgerFetch — fetchPaymentLedgerEntries', () => {
-  it('AC-ENA-162 fetches Payment Ledger Entry with docstatus!=2 + company + modified>=since filters and returns decimal-string amounts', async () => {
+  it('AC-ENA-162 #901 fetches Payment Ledger Entry with ONLY company + modified>=since (no cancellation filter) and returns decimal-string amounts', async () => {
     const urls: string[] = [];
     const fetchImpl = async (url: string) => {
       urls.push(url);
-      return jsonResponse({ data: [{ name: 'PLE-1', account: 'Creditors - PSC', amount: '-75000.0', modified: '2026-07-12 11:36:00', docstatus: 1 }] });
+      return jsonResponse({ data: [{ name: 'PLE-1', account: 'Creditors - PSC', amount: '-75000.0', modified: '2026-07-12 11:36:00', docstatus: 1, delinked: 0 }] });
     };
     const rows = await fetchPaymentLedgerEntries(client(fetchImpl), { company: 'PMO Smoke Co', since: '2026-07-01 00:00:00' });
     expect(urls).toHaveLength(1);
     expect(urls[0]).toContain('/api/resource/Payment%20Ledger%20Entry'); // doctype confined here
-    const decoded = decodeURIComponent(urls[0]);
-    expect(decoded).toContain('"docstatus","!=",2]');
-    expect(decoded).toContain('"modified",">=","2026-07-01 00:00:00"');
-    expect(decoded).toContain('"company","=","PMO Smoke Co"');
+    const params = new URL(urls[0]).searchParams;
+    expect(JSON.parse(params.get('filters') ?? '')).toEqual([
+      ['company', '=', 'PMO Smoke Co'],
+      ['modified', '>=', '2026-07-01 00:00:00'],
+    ]);
+    expect(JSON.parse(params.get('fields') ?? '')).toEqual(expect.arrayContaining(['delinked', 'docstatus', 'modified', 'amount']));
     expect(rows[0].amount).toBe('-75000.0'); // decimal-string preserved (the aging fallback's signed amount)
+    expect(rows[0].delinked).toBe(false);
+  });
+
+  it('#901 a delinked PLE (cancel / unreconcile — docstatus stays 1) crosses as delinked; docstatus 2 also reads delinked', async () => {
+    const fetchImpl = async () => jsonResponse({ data: [
+      { name: 'PLE-ORIG', account: 'Creditors - PSC', amount: '125000', modified: '2026-10-07 10:05:00', docstatus: 1, delinked: 1 },
+      { name: 'PLE-REV', account: 'Creditors - PSC', amount: '-125000', modified: '2026-10-07 10:05:00', docstatus: 1, delinked: 1 },
+      { name: 'PLE-D2', account: 'Creditors - PSC', amount: '9', modified: '2026-10-07 10:05:00', docstatus: 2, delinked: 0 },
+      { name: 'PLE-LIVE', account: 'Creditors - PSC', amount: '5', modified: '2026-10-07 10:06:00', docstatus: 1, delinked: 0 },
+    ] });
+    const rows = await fetchPaymentLedgerEntries(client(fetchImpl), { company: 'PMO Smoke Co' });
+    expect(rows.map((r) => [r.name, r.delinked])).toEqual([['PLE-ORIG', true], ['PLE-REV', true], ['PLE-D2', true], ['PLE-LIVE', false]]);
   });
 
   it('paging accumulates Payment Ledger Entry rows across pages', async () => {

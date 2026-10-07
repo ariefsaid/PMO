@@ -12,8 +12,14 @@
  *
  * Pure + Deno-importable (relative imports only); the service-client seam is structural (matches
  * supabase-js at runtime, cast `as never` at the boundary — the actualsSnapshot.ts idiom). The ERP
- * client is injected (ErpClientDeps). The cancellation filter lives in `ledgerFetch.ts` (7.2) — this
- * feed forwards whatever ledgerFetch returns (single responsibility: never a second cancellation filter).
+ * client is injected (ErpClientDeps).
+ *
+ * #901 — cancellation is a FLAG, never a filter. ledgerFetch returns cancelled rows (`is_cancelled` /
+ * `delinked`); this feed writes the flag onto the mirror copy IN PLACE, keyed on the mirror's unique
+ * `(org_id, erp_name)`, and the readers (actuals, the aging fallback) exclude flagged rows. The upsert
+ * MUST name that key: without `onConflict` PostgREST targets the uuid PK the rows never carry, so every
+ * re-delivered name (the `>=` cursor re-delivers the boundary row on every tick; a cancel re-delivers the
+ * originals) is a 23505 that fails the whole batch before the watermark advances — freezing the mirror.
  */
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
@@ -22,6 +28,8 @@ import type { ErpClientDeps } from './client.ts';
 
 /** Both mirrors' uuid PRIMARY KEY (0101 §1–§2) — the KEYSET cursor + stable order the scan needs. */
 const MIRROR_SCAN_ORDER = 'id';
+/** Both mirrors' natural key — `unique (org_id, erp_name)` (0101 §1–§2): the upsert's conflict target. */
+const MIRROR_UNIQUE_KEY = 'org_id,erp_name';
 
 /** Per-source watermark `domain` keys on `external_sync_watermarks` (namespaced under `ledger::`). */
 export const LEDGER_GL_WM_DOMAIN = 'ledger::GL Entry';
@@ -148,7 +156,7 @@ async function upsertMirrorRows(
     return String(r.erp_modified) >= stored; // >= : re-delivery of the same modified re-applies (idempotent)
   });
   if (fresh.length === 0) return 0;
-  const { error } = await sc.from(table).upsert(fresh.map((r) => ({ ...r, org_id: orgId })));
+  const { error } = await sc.from(table).upsert(fresh.map((r) => ({ ...r, org_id: orgId })), { onConflict: MIRROR_UNIQUE_KEY });
   if (error) throw new AppError(error.message, error.code);
   return fresh.length;
 }
@@ -190,6 +198,7 @@ function pleRowToMirror(r: PaymentLedgerEntryRow): Record<string, unknown> {
     amount: r.amount,
     posting_date: r.posting_date,
     due_date: r.due_date,
+    delinked: r.delinked,
     erp_docstatus: r.docstatus,
     erp_modified: r.modified,
   };

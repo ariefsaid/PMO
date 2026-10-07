@@ -54,9 +54,12 @@ export interface FakePostgrestOptions {
   /** Tables whose reads must fail, mapped to the PostgREST-shaped error to return. */
   readErrors?: Record<string, { message: string; code?: string }>;
   /**
-   * Per-table UNIQUE constraint columns, so `upsert` REPLACES a conflicting row instead of appending
-   * one (e.g. `erp_gl_entry_mirror` is `unique (org_id, erp_name)`, 0101 §1). A table with no entry
-   * here appends, matching an unconstrained insert.
+   * Per-table UNIQUE constraint columns (e.g. `erp_gl_entry_mirror` is `unique (org_id, erp_name)`,
+   * 0101 §1). Modelled the way PostgREST resolves an upsert: the conflict target is the call's
+   * `onConflict` columns, or the PRIMARY KEY (`id`) when none is given — so a row that collides on a
+   * declared unique key the target does not name fails the whole statement with 23505, exactly as the
+   * real `INSERT … ON CONFLICT (id)` does (#901: the old fake merged on these keys regardless, and hid a
+   * feed that 409s on every re-delivered row). A table with no entry here appends on no target match.
    */
   upsertKeys?: Record<string, string[]>;
   /** RPC names whose call must fail, mapped to the PostgREST-shaped error to return. */
@@ -137,18 +140,27 @@ export class FakePostgrest {
         (this.data[table] ??= []).push(...rows.map((r) => ({ ...r })));
         return Promise.resolve({ error: null as PgError });
       },
-      upsert: (rows: FakeRow | FakeRow[]) => {
+      upsert: (rows: FakeRow | FakeRow[], opts?: { onConflict?: string }) => {
         const list = Array.isArray(rows) ? rows : [rows];
         (this.upserted[table] ??= []).push(list.map((r) => ({ ...r })));
-        const keys = this.upsertKeys[table];
-        const store = (this.data[table] ??= []);
-        for (const row of list) {
-          const existing = keys
-            ? store.findIndex((r) => keys.every((k) => r[k] === row[k]))
-            : -1;
-          if (existing >= 0) store[existing] = { ...store[existing], ...row };
-          else store.push({ ...row });
+        const unique = this.upsertKeys[table];
+        const target = opts?.onConflict ? opts.onConflict.split(',').map((c) => c.trim()) : ['id'];
+        const sameKey = (keys: string[], a: FakeRow, b: FakeRow) =>
+          keys.every((k) => a[k] !== undefined && a[k] !== null && a[k] === b[k]);
+        if (opts?.onConflict && target.join(',') !== 'id' && (!unique || target.join(',') !== unique.join(','))) {
+          return Promise.resolve({ error: { message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification', code: '42P10' } as PgError });
         }
+        // One statement: work on a copy and commit only if no row violates a non-target unique key.
+        const next = [...(this.data[table] ?? [])];
+        for (const row of list) {
+          const hit = next.findIndex((r) => sameKey(target, row, r));
+          if (hit >= 0) { next[hit] = { ...next[hit], ...row }; continue; }
+          if (unique && next.some((r) => sameKey(unique, row, r))) {
+            return Promise.resolve({ error: { message: `duplicate key value violates unique constraint on (${unique.join(', ')})`, code: '23505' } as PgError });
+          }
+          next.push({ ...row });
+        }
+        this.data[table] = next;
         return Promise.resolve({ error: null as PgError });
       },
       delete: () => this.makeDeleteBuilder(table),

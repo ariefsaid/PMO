@@ -102,6 +102,19 @@ describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
     expect(rows).toHaveLength(3); // 3 distinct groups
   });
 
+  it('#901 a cancelled GL original and its reversal never count — actuals fall back to the live rows', async () => {
+    const client = makeClient([
+      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cost of Goods Sold - PSC', fiscal_year: '2026', debit: 7000, credit: 0, is_cancelled: false },
+      // ERPNext on cancel: the original flips to is_cancelled=1 and a reversal (also is_cancelled=1) is added.
+      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cost of Goods Sold - PSC', fiscal_year: '2026', debit: 125000, credit: 0, is_cancelled: true },
+      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cost of Goods Sold - PSC', fiscal_year: '2026', debit: 0, credit: 125000, is_cancelled: true },
+    ]);
+    await refreshActuals(client as unknown as never, 'org-1', {});
+    expect(client.inserted[0]).toEqual([
+      expect.objectContaining({ account: 'Cost of Goods Sold - PSC', debit: 7000, credit: 0, net: 7000 }),
+    ]);
+  });
+
   it('stamps source_report="GL Entry" + a single as_of + a single snapshot_id on every row', async () => {
     const client = makeClient([
       { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cash - PSC', fiscal_year: '2026', debit: 100, credit: 0, is_cancelled: false },

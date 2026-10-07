@@ -7,8 +7,9 @@
  *   • a re-feed of an OLDER `modified` is a no-op (the per-row `erp_modified >=` source-mod guard — a
  *     stale re-fed row never overwrites a fresher mirror row, FR-CUA-049 pattern);
  *   • the per-source watermark advances monotonically to max `modified` (never rewinds);
- *   • a cancelled row (`is_cancelled`/`docstatus=2`) never reaches the feed — ledgerFetch filters at
- *     fetch (7.2), so the feed forwards only live rows.
+ *   • #901: a cancelled row is FED with its flag (ledgerFetch no longer filters it out) and a
+ *     re-delivered row UPDATES its mirror copy in place (upsert on `(org_id, erp_name)`) — the
+ *     readers, not the fetch, exclude cancelled/delinked rows.
  *
  * Pure + mocked service client + mocked ERP fetch; the service-client seam is structural (matches
  * supabase-js at runtime, cast `as never` at the boundary, the actualsSnapshot.ts idiom).
@@ -71,6 +72,18 @@ type FakeHandle = {
 };
 const h = (sc: Parameters<typeof feedLedgerMirrors>[0]): FakeHandle => sc as unknown as FakeHandle;
 
+function glRow(name: string, over: Partial<ledgerFetch.GlEntryRow> = {}): ledgerFetch.GlEntryRow {
+  return { name, account: 'Cost of Goods Sold - PSC', cost_center: 'Main - PSC', fiscal_year: '2026', project: 'PROJ-0001',
+    party_type: null, party: null, voucher_type: 'Purchase Invoice', voucher_no: 'ACC-PINV-2026-00042', posting_date: '2026-10-07',
+    debit: '0.00', credit: '0.00', is_cancelled: false, docstatus: 1, modified: '2026-10-07 10:00:00.000000', ...over };
+}
+
+function pleRow(name: string, over: Partial<ledgerFetch.PaymentLedgerEntryRow> = {}): ledgerFetch.PaymentLedgerEntryRow {
+  return { name, account: 'Creditors - PSC', party_type: 'Supplier', party: 'Spike Supplier', against_voucher_type: 'Purchase Invoice',
+    against_voucher_no: 'ACC-PINV-2026-00042', amount: '125000.00', posting_date: '2026-10-07', due_date: '2026-10-07',
+    docstatus: 1, delinked: false, modified: '2026-10-07 10:00:00.000000', ...over };
+}
+
 describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)', () => {
   it('a fixed fetched GL/PLE set lands as mirror rows (decimal-strings intact) + advances both watermarks', async () => {
     const sc = fakeServiceClient();
@@ -82,7 +95,7 @@ describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)'
     const pleSpy = vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue([
       { name: 'PLE-1', account: 'Creditors - PSC', party_type: 'Supplier', party: 'Spike Supplier',
         against_voucher_type: 'Purchase Invoice', against_voucher_no: 'ACC-PINV-2026-00018', amount: '-50000.00',
-        posting_date: '2026-07-12', due_date: '2026-08-12', docstatus: 1, modified: '2026-07-12 12:05:00.000000' },
+        posting_date: '2026-07-12', due_date: '2026-08-12', docstatus: 1, delinked: false, modified: '2026-07-12 12:05:00.000000' },
     ]);
     const res = await feedLedgerMirrors(sc, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' }, orgId: 'org-1', company: 'PMO Smoke Co' });
     expect(res.glFed).toBe(1);
@@ -134,19 +147,17 @@ describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)'
     expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-07-12 13:00:00.000000');
   });
 
-  it('forwards ledgerFetch\'s already-filtered rows — a cancelled row never reaches the feed (7.2 filters is_cancelled/docstatus=2 at fetch)', async () => {
+  it('#901 forwards cancelled rows WITH their flag — the feed never drops a row for its cancellation state', async () => {
     const sc = fakeServiceClient();
-    // ledgerFetch returns ONLY live rows (it filters cancelled at the source). The feed forwards them
-    // verbatim — no second cancellation filter here (single responsibility: 7.2 owns the filter).
     vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue([
-      { name: 'GLE-LIVE', account: 'A', cost_center: null, fiscal_year: null, project: null, party_type: null, party: null,
-        voucher_type: null, voucher_no: null, posting_date: null, debit: '1.00', credit: '0.00', is_cancelled: false,
-        docstatus: 1, modified: '2026-07-12 12:00:00.000000' },
+      glRow('GLE-LIVE', { debit: '1.00', modified: '2026-07-12 12:00:00.000000' }),
+      glRow('GLE-REV', { credit: '1.00', is_cancelled: true, modified: '2026-07-12 12:00:00.000000' }),
     ]);
     vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue([]);
     const res = await feedLedgerMirrors(sc, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' }, orgId: 'org-1', company: 'PMO Smoke Co' });
-    expect(res.glFed).toBe(1);
-    expect(Array.from(h(sc).gl.values())).toHaveLength(1);
+    expect(res.glFed).toBe(2);
+    expect(h(sc).gl.get('GLE-LIVE')).toMatchObject({ is_cancelled: false });
+    expect(h(sc).gl.get('GLE-REV')).toMatchObject({ is_cancelled: true });
   });
 
   it('no new rows ⇒ watermark stays put (no rewind, no spurious advance)', async () => {
@@ -242,5 +253,71 @@ describe('erpnext/ledgerMirrorFeed — MEDIUM-1: the staleness guard sees the WH
     await expect(
       feedLedgerMirrors(fake as unknown as Parameters<typeof feedLedgerMirrors>[0], { client, orgId: 'org-1', company: 'PMO Smoke Co' }),
     ).rejects.toThrow('connection reset');
+  });
+});
+
+/**
+ * #901 — a cancel in ERPNext must reach the mirror. ERPNext flips the ORIGINAL GL rows to
+ * `is_cancelled=1` (and the original PLE rows to `delinked=1`), bumping `modified`, and adds reversal
+ * rows. The feed must re-read those originals (ledgerFetch no longer filters them out) and UPDATE the
+ * mirror copies in place — keyed on the mirror's real unique key `(org_id, erp_name)`, not the uuid PK
+ * the rows never carry (a PK-targeted upsert of an already-mirrored name is a 23505 on PostgREST).
+ */
+describe('erpnext/ledgerMirrorFeed — #901 a cancel reaches the mirror', () => {
+  const client = { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+
+  it('flips is_cancelled on the already-mirrored GL original and lands the reversal, with no feed error', async () => {
+    const sc = fakeServiceClient(
+      [{ org_id: 'org-1', erp_name: 'GLE-ORIG', account: 'Cost of Goods Sold - PSC', debit: '125000.00', credit: '0.00', is_cancelled: false, erp_modified: '2026-10-07 10:00:00.000000' }],
+      [],
+    );
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-07 10:00:00.000000');
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue([
+      glRow('GLE-ORIG', { debit: '125000.00', is_cancelled: true, modified: '2026-10-07 10:05:00.000000' }),
+      glRow('GLE-REV', { credit: '125000.00', is_cancelled: true, modified: '2026-10-07 10:05:00.000000' }),
+    ]);
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue([]);
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
+
+    expect(res.glFed).toBe(2);
+    expect(h(sc).fake.rowsOf('erp_gl_entry_mirror')).toHaveLength(2); // updated in place, never duplicated
+    expect(h(sc).gl.get('GLE-ORIG')).toMatchObject({ is_cancelled: true, debit: '125000.00', erp_modified: '2026-10-07 10:05:00.000000' });
+    expect(h(sc).gl.get('GLE-REV')).toMatchObject({ is_cancelled: true, credit: '125000.00' });
+    expect(res.glCursor).toBe('2026-10-07 10:05:00.000000');
+  });
+
+  it('flips delinked on the already-mirrored PLE original and lands the delinked reversal', async () => {
+    const sc = fakeServiceClient(
+      [],
+      [{ org_id: 'org-1', erp_name: 'PLE-ORIG', account: 'Creditors - PSC', amount: '125000.00', delinked: false, erp_modified: '2026-10-07 10:00:00.000000' }],
+    );
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue([]);
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue([
+      pleRow('PLE-ORIG', { delinked: true, modified: '2026-10-07 10:05:00.000000' }),
+      pleRow('PLE-REV', { amount: '-125000.00', delinked: true, modified: '2026-10-07 10:05:00.000000' }),
+    ]);
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
+
+    expect(res.pleFed).toBe(2);
+    expect(h(sc).fake.rowsOf('erp_payment_ledger_mirror')).toHaveLength(2);
+    expect(h(sc).ple.get('PLE-ORIG')).toMatchObject({ delinked: true, amount: '125000.00' });
+    expect(h(sc).ple.get('PLE-REV')).toMatchObject({ delinked: true, amount: '-125000.00' });
+  });
+
+  it('the boundary row the >= cursor re-delivers every tick does not fail the feed (idempotent re-apply)', async () => {
+    const sc = fakeServiceClient(
+      [{ org_id: 'org-1', erp_name: 'GLE-LAST', account: 'Cost of Goods Sold - PSC', is_cancelled: false, erp_modified: '2026-10-07 10:00:00.000000' }],
+      [{ org_id: 'org-1', erp_name: 'PLE-LAST', account: 'Creditors - PSC', delinked: false, erp_modified: '2026-10-07 10:00:00.000000' }],
+    );
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue([glRow('GLE-LAST'), glRow('GLE-NEW', { modified: '2026-10-07 10:01:00.000000' })]);
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue([pleRow('PLE-LAST')]);
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
+
+    expect(res).toMatchObject({ glFed: 2, pleFed: 1, glCursor: '2026-10-07 10:01:00.000000' });
+    expect(h(sc).fake.rowsOf('erp_gl_entry_mirror')).toHaveLength(2);
+    expect(h(sc).fake.rowsOf('erp_payment_ledger_mirror')).toHaveLength(1);
   });
 });

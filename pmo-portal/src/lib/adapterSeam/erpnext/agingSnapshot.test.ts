@@ -43,7 +43,8 @@ function makeServiceClient(pleRows: Record<string, unknown>[]): {
   mirrorReads: { orderBy: string[]; cursors: unknown[]; returned: number }[];
 } {
   // `erp_payment_ledger_mirror.id` is a NOT NULL uuid PK (0101 §2) — the paged scan's stable order.
-  const seeded: FakeRow[] = pleRows.map((r, i) => ({ id: `ple-${String(i).padStart(8, '0')}`, ...r }));
+  // `delinked` is `not null default false` (0267) — model the column default a real insert gets.
+  const seeded: FakeRow[] = pleRows.map((r, i) => ({ id: `ple-${String(i).padStart(8, '0')}`, delinked: false, ...r }));
   const fake = new FakePostgrest({
     erp_payment_ledger_mirror: seeded,
     erp_ap_aging_snapshot: [],
@@ -185,6 +186,24 @@ describe('erpnext/agingSnapshot — refreshAging FALLBACK (mirrored-ledger bucke
     expect(byParty['Supplier B']).toMatchObject({ current: 0, b_0_30: 0, b_31_60: 0, b_61_90: 80000, b_90_plus: 0, total_outstanding: 80000 });
     // source_report marks the fallback origin
     expect(byParty['Supplier A'].source_report).toBe('Accounts Payable (mirrored-ledger fallback)');
+  });
+
+  it('#901 the fallback ignores DELINKED ledger rows (a cancelled / unreconciled invoice is not owed) — ERPNext\'s own delinked=0 rule', async () => {
+    const today = '2026-07-12';
+    const fetchImpl = async () => new Response(JSON.stringify({ exc_type: 'DoesNotExistError', _server_messages: '[]' }), { status: 404 });
+    const svc = makeServiceClient([
+      { party: 'Supplier A', party_type: 'Supplier', account: 'Creditors - PSC', amount: 40000, due_date: '2026-06-20', posting_date: '2026-06-01' },
+      // a cancelled PI: the original is delinked, and ERPNext adds a delinked reversal. Counting only the
+      // original would overstate the payable by 125000; counting both happens to net to zero, but is not
+      // ERPNext's rule (an unreconcile delinks with no mirror-image row) — the reader must drop both.
+      { party: 'Supplier A', party_type: 'Supplier', account: 'Creditors - PSC', amount: 125000, due_date: '2026-05-10', posting_date: '2026-05-01', delinked: true },
+      { party: 'Supplier C', party_type: 'Supplier', account: 'Creditors - PSC', amount: 70000, due_date: '2026-05-10', posting_date: '2026-05-01', delinked: true },
+    ]);
+    await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', { ...AP_SCOPE, today });
+
+    const byParty = Object.fromEntries(svc.inserted[0]!.map((r) => [r.party, r]));
+    expect(byParty['Supplier A']).toMatchObject({ total_outstanding: 40000, b_0_30: 40000, b_61_90: 0 });
+    expect(byParty['Supplier C']).toBeUndefined();
   });
 
   /**
