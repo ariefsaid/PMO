@@ -1,4 +1,4 @@
--- 0272_vendor_tax_defaults.test.sql — 0272 §1–§3 (#876 slice 2; OD-VWH-1; DD-VWH-11, DD-VWH-16).
+-- 0273_vendor_tax_defaults.test.sql — 0273 §1–§3 (#876 slice 2; OD-VWH-1; DD-VWH-11, DD-VWH-16).
 -- Owns AC-VWH-020 (shape + bounds), AC-VWH-021 (who may set the defaults; audited; outside the companies ERP mirror
 -- guard) and AC-VWH-022 (no other client write path; function grants).
 begin;

@@ -117,7 +117,7 @@ export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: strin
 
 // ── #876 slice 2 (OD-VWH-1, DD-VWH-13/22, ADR-0084): tax AMOUNTS entered in PMO, sent as fixed `Actual` rows ──────
 
-/** The vendor-bill tax accounts an Admin set in Administration → Accounting (organizations, migration 0272). */
+/** The vendor-bill tax accounts an Admin set in Administration → Accounting (organizations, migration 0273). */
 export interface VendorTaxAccounts {
   inputVat: string | null;
   pph23: string | null;

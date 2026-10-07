@@ -1,4 +1,4 @@
--- 0272_vendor_tax_accounts_native_withholding.test.sql — 0272 §4–§6 (#876 slice 2; DD-VWH-10, DD-VWH-12).
+-- 0273_vendor_tax_accounts_native_withholding.test.sql — 0273 §4–§6 (#876 slice 2; DD-VWH-10, DD-VWH-12).
 -- Owns AC-VWH-023 (org vendor-bill tax accounts: shape, Admin-only, audited, grants) and AC-VWH-024 (a standalone
 -- vendor invoice records a stated withholding AND its PPh type through both create functions — OQ-VWH-6, Director
 -- 2026-10-07: the type is stored on every bill that withholds; the create audit records them).

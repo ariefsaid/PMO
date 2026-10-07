@@ -153,7 +153,7 @@ export async function updateCompanyShortName(id: string, shortName: string | nul
 }
 
 /**
- * #876 slice 2 (DD-VWH-11): set a vendor's default tax treatment through `set_vendor_tax_defaults` (0272) — the only
+ * #876 slice 2 (DD-VWH-11): set a vendor's default tax treatment through `set_vendor_tax_defaults` (0273) — the only
  * client path past the companies guard trigger. A null value is not sent, so the RPC's own `default null` clears it.
  */
 export async function setCompanyTaxDefaults(id: string, input: VendorTaxDefaultsInput): Promise<void> {

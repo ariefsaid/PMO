@@ -1,4 +1,4 @@
--- Rollback for 0272_vendor_tax_defaults.sql (#876 slice 2). Revert the slice-2 adapter-dispatch and FE FIRST (they read
+-- Rollback for 0273_vendor_tax_defaults.sql (#876 slice 2). Revert the slice-2 adapter-dispatch and FE FIRST (they read
 -- §4's columns and send §5's parameters). Restores 0238's two create functions, 0178's create audit and 0269's
 -- procurement mirror guard, then drops the org settings, the bill's PPh type column, the vendor-defaults function, guard
 -- and columns. Standalone bills that recorded a withholding keep the amount (withheld_amount is 0269's column); the

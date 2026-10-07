@@ -229,7 +229,7 @@ export async function setOrgDownPaymentItem(item: string | null): Promise<void> 
   assertWriteLanded(data, 'Only an Admin can change the down payment item.');
 }
 
-/** #876 slice 2 (DD-VWH-12): the ERPNext accounts a vendor bill's entered VAT and PPh post to (organizations, 0272). */
+/** #876 slice 2 (DD-VWH-12): the ERPNext accounts a vendor bill's entered VAT and PPh post to (organizations, 0273). */
 export interface OrgVendorTaxAccounts {
   inputVatAccount: string | null;
   pph23PayableAccount: string | null;
@@ -248,7 +248,7 @@ export async function getOrgVendorTaxAccounts(): Promise<OrgVendorTaxAccounts> {
   };
 }
 
-/** Admin-only by RLS (the organizations UPDATE policy) + column grants (0272); a non-Admin write reaches no row. */
+/** Admin-only by RLS (the organizations UPDATE policy) + column grants (0273); a non-Admin write reaches no row. */
 export async function setOrgVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void> {
   const clean = (value: string | null) => value?.trim() || null;
   const patch = {

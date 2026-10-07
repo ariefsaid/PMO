@@ -130,7 +130,7 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
  * (Admin·Exec·PM·Finance) — do not fold the two together.
  */
 const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
-/** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0272). */
+/** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
 const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);

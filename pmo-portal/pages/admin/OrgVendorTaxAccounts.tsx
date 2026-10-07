@@ -1,6 +1,6 @@
 /**
  * #876 slice 2 (DD-VWH-12) — the ERPNext accounts a vendor bill's entered VAT and PPh post to. Admin-only (the
- * organizations UPDATE policy + column grants, 0272; `can('manage','orgAccounting')` mirrors it, UX only). The dispatch
+ * organizations UPDATE policy + column grants, 0273; `can('manage','orgAccounting')` mirrors it, UX only). The dispatch
  * checks each in ERPNext on send and refuses naming the setting (ADR-0084 §4).
  */
 import React, { useEffect, useState } from 'react';

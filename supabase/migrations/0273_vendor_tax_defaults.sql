@@ -1,4 +1,4 @@
--- 0272_vendor_tax_defaults.sql — #876 slice 2: vendor tax set up in PMO (OD-VWH-1; DD-VWH-10..12; ADR-0084).
+-- 0273_vendor_tax_defaults.sql — #876 slice 2: vendor tax set up in PMO (OD-VWH-1; DD-VWH-10..12; ADR-0084).
 --
 --   §1 companies: the vendor's default tax treatment (DD-VWH-11) — a form PRE-FILL only. No server path reads these
 --      when a bill is recorded (DD-VWH-19): the bill's entered amounts are the authority, so changing a default never
@@ -29,7 +29,7 @@
 --   §7 on-database asserts: hosted Supabase's grant defaults differ from local Docker, so the intended function and
 --      column privileges are asserted HERE, on the database being migrated.
 --
--- Rollback: supabase/migrations/rollback/0272_vendor_tax_defaults_down.sql (revert the slice-2 adapter-dispatch first —
+-- Rollback: supabase/migrations/rollback/0273_vendor_tax_defaults_down.sql (revert the slice-2 adapter-dispatch first —
 -- it reads §4's columns and sends §5's parameter).
 
 -- §1 — the vendor's default tax treatment.
@@ -195,7 +195,7 @@ begin
      or new.tax_rate              is distinct from old.tax_rate      -- 0196 (#505)
      or new.tax_template          is distinct from old.tax_template  -- 0196 (#505)
      or new.withheld_amount       is distinct from old.withheld_amount -- 0269 (#876)
-     or new.withheld_pph_type     is distinct from old.withheld_pph_type -- 0272 (#876 slice 2)
+     or new.withheld_pph_type     is distinct from old.withheld_pph_type -- 0273 (#876 slice 2)
      or new.id                    is distinct from old.id
      or new.procurement_id        is distinct from old.procurement_id
      or new.org_id                is distinct from old.org_id
@@ -335,36 +335,36 @@ begin
     'public.capture_vendor_invoice(uuid,procurement_invoice_status,date,text,numeric,text,text,numeric,numeric,text,integer,integer,text,numeric,text)'::regprocedure,
     'public.set_vendor_tax_defaults(uuid,numeric,text,numeric)'::regprocedure] loop
     if has_function_privilege('anon', v_fn, 'execute') then
-      raise exception '0272: % is executable by anon on this database — revoke it before applying', v_fn;
+      raise exception '0273: % is executable by anon on this database — revoke it before applying', v_fn;
     end if;
     if not has_function_privilege('authenticated', v_fn, 'execute') then
-      raise exception '0272: % lost its authenticated EXECUTE grant', v_fn;
+      raise exception '0273: % lost its authenticated EXECUTE grant', v_fn;
     end if;
   end loop;
   foreach v_fn in array array['public.companies_tax_defaults_guard()'::regprocedure,
                               'public.audit_org_vendor_tax_accounts()'::regprocedure] loop
     if has_function_privilege('anon', v_fn, 'execute') or has_function_privilege('authenticated', v_fn, 'execute') then
-      raise exception '0272: trigger function % is executable by a client role on this database', v_fn;
+      raise exception '0273: trigger function % is executable by a client role on this database', v_fn;
     end if;
   end loop;
   if not exists (select 1 from pg_trigger where tgrelid = 'public.companies'::regclass
                    and tgname = 'companies_tax_defaults_guard' and tgenabled <> 'D') then
-    raise exception '0272: companies_tax_defaults_guard is not attached and enabled';
+    raise exception '0273: companies_tax_defaults_guard is not attached and enabled';
   end if;
   if has_column_privilege('authenticated', 'public.procurement_invoices', 'withheld_pph_type', 'INSERT')
      or has_column_privilege('authenticated', 'public.procurement_invoices', 'withheld_pph_type', 'UPDATE')
      or has_column_privilege('anon', 'public.procurement_invoices', 'withheld_pph_type', 'INSERT')
      or has_column_privilege('anon', 'public.procurement_invoices', 'withheld_pph_type', 'UPDATE') then
-    raise exception '0272: procurement_invoices.withheld_pph_type would be client-writable on this database (see 0174/0175)';
+    raise exception '0273: procurement_invoices.withheld_pph_type would be client-writable on this database (see 0174/0175)';
   end if;
   foreach v_col in array array['input_vat_account','pph23_payable_account','pph4_2_payable_account'] loop
     if has_column_privilege('anon', 'public.organizations', v_col, 'UPDATE')
        or has_column_privilege('anon', 'public.organizations', v_col, 'INSERT')
        or has_column_privilege('authenticated', 'public.organizations', v_col, 'INSERT') then
-      raise exception '0272: organizations.% would be writable beyond the Admin column grant on this database (see 0192)', v_col;
+      raise exception '0273: organizations.% would be writable beyond the Admin column grant on this database (see 0192)', v_col;
     end if;
     if not has_column_privilege('authenticated', 'public.organizations', v_col, 'UPDATE') then
-      raise exception '0272: organizations.% is missing its authenticated UPDATE column grant', v_col;
+      raise exception '0273: organizations.% is missing its authenticated UPDATE column grant', v_col;
     end if;
   end loop;
 end $$;

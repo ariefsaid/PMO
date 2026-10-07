@@ -278,7 +278,7 @@ Proposed by the planner (Director to ratify; ADR-0084):
 
 ### 7.4 Acceptance criteria (Given/When/Then)
 
-- **AC-VWH-020** — Given the 0272 schema, then the three company columns exist (`numeric(6,3)`, `text`,
+- **AC-VWH-020** — Given the 0273 schema, then the three company columns exist (`numeric(6,3)`, `text`,
   `numeric(6,3)`); a VAT rate above 100, NaN or negative, an unknown type, a type without a rate, a rate without a
   type, and a PPh rate of 0 or 100 are refused; 0% VAT with PPh 4(2) at 1.75% is accepted.
 - **AC-VWH-021** — Given an active Finance or Admin member, when they save a vendor's defaults, then they are stored and
@@ -289,7 +289,7 @@ Proposed by the planner (Director to ratify; ADR-0084):
 - **AC-VWH-022** — Given an Admin, when they UPDATE a default column directly (even after a save in the same
   transaction) or INSERT a company carrying one, then 42501; other company edits and service-role writes still pass;
   `anon` cannot execute the save function, `authenticated` can, and the guard function is not client-callable.
-- **AC-VWH-023** — Given the 0272 schema, then the three organization settings exist, a blank or 141-character value is
+- **AC-VWH-023** — Given the 0273 schema, then the three organization settings exist, a blank or 141-character value is
   refused, `authenticated` holds exactly their UPDATE column grants and no INSERT, `anon` none; an Admin's change is
   stored and audited (actor, from, to); a Finance user's change reaches no row and is not audited.
 - **AC-VWH-024** — Given a PMO-owned procurement, when Finance records a vendor invoice with tax withheld through
@@ -351,10 +351,10 @@ Proposed by the planner (Director to ratify; ADR-0084):
 
 | AC | Requirement | Layer | Owning test |
 |---|---|---|---|
-| AC-VWH-020 | FR-VWH-010 | pgTAP | `supabase/tests/0272_vendor_tax_defaults.test.sql` |
+| AC-VWH-020 | FR-VWH-010 | pgTAP | `supabase/tests/0273_vendor_tax_defaults.test.sql` |
 | AC-VWH-021 | FR-VWH-011/012 | pgTAP | same |
 | AC-VWH-022 | FR-VWH-012 | pgTAP | same |
-| AC-VWH-023 | FR-VWH-013 | pgTAP | `supabase/tests/0272_vendor_tax_accounts_native_withholding.test.sql` |
+| AC-VWH-023 | FR-VWH-013 | pgTAP | `supabase/tests/0273_vendor_tax_accounts_native_withholding.test.sql` |
 | AC-VWH-024 | FR-VWH-016 | pgTAP | same |
 | AC-VWH-025 | FR-VWH-014/015 | unit (Vitest) | `pmo-portal/src/lib/vendorWithholding.test.ts` |
 | AC-VWH-026 | FR-VWH-020 | unit (Vitest + RTL) | `pmo-portal/src/lib/vendorWithholding.test.ts` (figures); `pmo-portal/pages/procurement/ProcurementLedger.test.tsx` (render) |
@@ -380,7 +380,7 @@ goal — no template staged when none is chosen — is kept by AC-VWH-031.
   ERPNext. *Default:* the operator enters them in Administration → Accounting before go-live from the accountant's
   chart; until then a bill carrying that tax is refused naming the missing setting.
 - **OQ-VWH-6 (Director) — DECIDED (Director, 2026-10-07):** the PPh type IS stored on every bill that withholds
-  (DD-VWH-18 as amended; migration 0272's `procurement_invoices.withheld_pph_type`), so the no-ERP monthly PPh return
+  (DD-VWH-18 as amended; migration 0273's `procurement_invoices.withheld_pph_type`), so the no-ERP monthly PPh return
   (#898) reads the type from the bill.
 - **OQ-VWH-7 (owner/accountant)** — PPN at 12% on a reduced base of 11/12 (2025 rule): which VAT rate does a vendor
   default hold? *Default:* the effective rate (11); the bill's VAT amount stays editable.

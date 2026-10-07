@@ -40,7 +40,7 @@ export function withholdingFigures(
 
 // ── slice 2: vendor defaults and pre-fill suggestions ─────────────────────────────────────────────────────────────
 
-/** The vendor's default tax treatment (companies.default_*, migration 0272). Rates are percentages. */
+/** The vendor's default tax treatment (companies.default_*, migration 0273). Rates are percentages. */
 export interface VendorTaxDefault {
   vatRate: number | null;
   pphType: PphType | null;

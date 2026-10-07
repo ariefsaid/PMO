@@ -53,7 +53,7 @@ Three forces:
 
 ## Consequences
 
-- Migration 0272 (reversible): three company columns + guard trigger + one definer function; three organization
+- Migration 0273 (reversible): three company columns + guard trigger + one definer function; three organization
   columns + audit trigger; `create_procurement_invoice` / `capture_vendor_invoice` re-created with one trailing
   parameter (signature change → the isolation-probe denominator and the client-RPC allow-list are re-derived); the
   procurement-invoice create audit records VAT and withheld.
@@ -62,7 +62,7 @@ Three forces:
 - A bill with zero VAT and no withholding sends an explicit empty tax table (spike-verified that ERPNext then applies
   no default template).
 - The PPh type is stored on every bill that withholds (DD-VWH-18, OQ-VWH-6 decided): on an ERP-bound bill it selects
-  the payable account, and a standalone bill records it with its withheld amount (0272's `withheld_pph_type`), so the
+  the payable account, and a standalone bill records it with its withheld amount (0273's `withheld_pph_type`), so the
   no-ERP tax register (#898) can read the type from the bill.
 - Server bound: tax withheld above the items total is refused before any ERP write — otherwise the mirror's
   `withheld ≤ amount` bound would refuse every replay (the DD-VI-3a failure class) (DD-VWH-22).

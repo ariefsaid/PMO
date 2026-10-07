@@ -53,9 +53,9 @@
 -- authenticated RPC set (+2, count 61). Both re-assert current Admin/Finance role, active membership, and org;
 -- their row checks and mirror preservation are proved by supabase/tests/0272_efaktur_number.test.sql.
 --
--- ⚑ AMENDED BY 0272 (#876 slice 2): `set_vendor_tax_defaults` joins the retained set (+1). A SECURITY DEFINER
+-- ⚑ AMENDED BY 0273 (#876 slice 2): `set_vendor_tax_defaults` joins the retained set (+1). A SECURITY DEFINER
 -- writer called through PostgREST under a member's JWT; its body re-asserts the active membership, the
--- Admin/Finance role and the caller's org, paired in supabase/tests/0272_vendor_tax_defaults.test.sql
+-- Admin/Finance role and the caller's org, paired in supabase/tests/0273_vendor_tax_defaults.test.sql
 -- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
 -- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
 --
