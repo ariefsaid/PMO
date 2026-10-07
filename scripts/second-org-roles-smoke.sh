@@ -102,7 +102,7 @@ WO_VALUE_BY_ADMIN=1  # SoD: whoever set the value cannot issue — the Admin con
 rpc get_project_drawdown "{\"p_project_id\":\"$PROJ\"}" "drawdown"
 post budget_versions "{\"project_id\":\"$PROJ\",\"version\":1,\"name\":\"$tag budget\"}" "budget version"; BV=$LAST_ID
 post budget_line_items "{\"budget_version_id\":\"$BV\",\"category\":\"Labor\",\"description\":\"$tag line\",\"budgeted_amount\":5000000}" "budget line"; BL=$LAST_ID
-rpc activate_budget_version "{\"version_id\":\"$BV\"}" "budget activate"
+# OD-BUDGET-6: the PM drafted the version, so a second person (Finance, below) activates it.
 rpc get_project_budget "{\"p_project_id\":\"$PROJ\"}" "project budget read"
 post project_milestones "{\"project_id\":\"$PROJ\",\"name\":\"$tag ms\",\"target_date\":\"2026-12-31\",\"weight\":1}" milestone; MS=$LAST_ID
 post procurements "{\"title\":\"$tag procurement\",\"project_id\":\"$PROJ\",\"vendor_id\":\"$VENDOR\",\"requested_by_id\":\"$PM\",\"total_value\":1500000,\"currency\":\"IDR\"}" procurement; PROC=$LAST_ID
@@ -149,6 +149,7 @@ rpc transition_timesheet "{\"p_timesheet_id\":\"$TS\",\"p_to\":\"Approved\",\"p_
 }
 # ── Finance ─────────────────────────────────────────────────────────────────────────────────────
 signin Finance "$FIN_EMAIL" "$FIN_PW" && {
+rpc activate_budget_version "{\"version_id\":\"$BV\"}" "budget activate (second person, OD-BUDGET-6)"
 rpc transition_procurement "{\"p_id\":\"$PROC\",\"p_to\":\"Approved\",\"p_notes\":null}" "procurement Approved"
 rpc create_procurement_quotation "{\"p_procurement_id\":\"$PROC\",\"p_vendor_id\":\"$VENDOR\",\"p_total_amount\":1400000,\"p_received_date\":\"2026-09-11\",\"p_import_key\":null,\"p_import_batch_id\":null,\"p_imported_at\":null}" "quotation"; QUOTE=$(jq -r 'if type=="object" then .id else . end' "$body" 2>/dev/null)
 post sales_invoices "{\"project_id\":\"$PROJ\",\"customer_id\":\"$CLIENT\",\"amount\":25000000,\"currency\":\"IDR\",\"tax_treatment\":\"exclusive\",\"tax_amount\":0,\"invoice_date\":\"2026-09-11\",\"work_order_id\":\"$WO\"}" "sales invoice"; SI=$LAST_ID

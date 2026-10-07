@@ -2,8 +2,10 @@
 import { test, expect } from '@playwright/test';
 import { login } from '../helpers';
 
-// AC-732 — curated journey: PM creates a Draft, adds line-items {600000,400000}, activates,
-// project shows formatCurrency(1000000).
+// AC-732 — curated journey: PM creates a Draft, adds line-items {600000,400000}, a second person
+// (Finance) activates it, project shows formatCurrency(1000000).
+// OD-BUDGET-6 (#922): the drafter cannot activate their own version — the PM sees why instead of an
+// Activate button, and a second eligible user activates. The goal oracle is unchanged.
 // Uses P001 (40000000-0000-0000-0000-000000000001) which has an existing Active version.
 // Creating a fresh Draft + activating it archives the prior Active and derives $1,000,000.
 //
@@ -14,7 +16,7 @@ import { login } from '../helpers';
 //     (aria-label="Version"). After creating the new version, wait for the option to
 //     appear in the select, then select it to see its card.
 //   • "Activate" also stages a ConfirmDialog (confirmLabel="Activate version").
-test('AC-732 PM creates a Draft, adds line-items {600000,400000}, activates, project shows formatCurrency(1000000)', async ({ page }) => {
+test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second person activates, project shows formatCurrency(1000000)', async ({ page }) => {
   // This journey owns the PMO activation + derived-value contract, not the live ERPNext boundary.
   // Keep the push consequence deterministic so a served, absent, or recently torn-down edge runtime
   // cannot turn the confirm dialog into an environment-dependent timeout.
@@ -114,8 +116,22 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, activates, pro
   // Wait for second line-item to appear
   await expect(draftCard.getByRole('cell', { name: '$400,000' })).toBeVisible({ timeout: 10_000 });
 
-  // --- Step 5: Activate the Draft version (confirm-gated) ---
-  await draftCard.getByRole('button', { name: 'Activate' }).click();
+  // --- Step 5: the drafter cannot activate their own version (OD-BUDGET-6) ---
+  await expect(draftCard.getByRole('button', { name: 'Activate' })).toHaveCount(0);
+  await expect(draftCard.getByTestId('activate-blocked-reason')).toHaveText(
+    'You drafted this version, so someone else must activate it.',
+  );
+
+  // --- Step 6: a second person (Finance) opens the same Draft and activates it (confirm-gated) ---
+  await login(page, 'finance@acme.test');
+  await page.goto('/projects/40000000-0000-0000-0000-000000000001/budget');
+  await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByLabel('Version', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await page.getByLabel('Version', { exact: true }).selectOption(draftOptionValue!);
+  const financeCard = page.getByTestId('version-card');
+  await expect(financeCard.getByTestId('version-status-draft')).toBeVisible({ timeout: 10_000 });
+  await expect(financeCard).toContainText('E2E Test Budget');
+  await financeCard.getByRole('button', { name: 'Activate' }).click();
 
   // Confirm inside the dialog (confirmLabel="Activate version" per confirmCopy.activate)
   const activateDialog = page.getByRole('dialog');
@@ -127,12 +143,12 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, activates, pro
   // Wait for the dialog to close
   await expect(activateDialog).not.toBeVisible({ timeout: 10_000 });
 
-  // --- Step 6: Assert the now-active card shows Active status ---
+  // --- Step 7: Assert the now-active card shows Active status ---
   // After activation the selector auto-selects the newly active version.
   // The visible card (single-card view) now shows Active status.
   const activatedCard = page.getByTestId('version-card').filter({ hasText: 'E2E Test Budget' });
   await expect(activatedCard.getByTestId('version-status-active')).toBeVisible({ timeout: 10_000 });
 
-  // --- Step 7: Assert derived budget shows $1,000,000 ---
+  // --- Step 8: Assert derived budget shows $1,000,000 ---
   await expect(page.getByTestId('derived-budget')).toHaveText('$1,000,000', { timeout: 10_000 });
 });

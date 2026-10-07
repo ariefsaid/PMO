@@ -3363,6 +3363,8 @@
     "total": "Total",
     "addBudgetLineItem": "+ Add line item",
     "activate": "Activate",
+    "activateDrafterBlocked": "You drafted this version, so someone else must activate it.",
+    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
     "deleteDraft": "Delete draft",
     "archive": "Archive",
     "cloneToRevise": "Clone to revise",

@@ -50,10 +50,11 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
+const roleState = { realRole: 'Project Manager' };
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
-    effectiveRole: 'Project Manager',
-    realRole: 'Project Manager',
+    effectiveRole: roleState.realRole,
+    realRole: roleState.realRole,
     canImpersonate: false,
     viewAs: vi.fn(),
   }),
@@ -90,6 +91,8 @@ const draftVersion = {
   org_id: 'org-1',
   currency: 'USD',
   created_at: '2026-01-01T00:00:00Z',
+  // OD-BUDGET-6: drafted by someone other than the signed-in user (u1), so u1 may activate it.
+  created_by: 'u2' as string | null,
   line_items: [
     {
       id: 'li-1',
@@ -137,6 +140,7 @@ function resetState() {
   versionsState.data = undefined;
   versionsState.isPending = false;
   versionsState.isError = false;
+  roleState.realRole = 'Project Manager';
 }
 
 beforeEach(async () => {
@@ -323,6 +327,47 @@ describe('ProjectBudget Draft version actions', () => {
     // …and it does NOT tell the operator to retry a push that was never attempted.
     expect(screen.getByRole('status')).not.toHaveTextContent(/retry/i);
     resetState();
+  });
+
+  it('OD-BUDGET-6: the drafter sees why they cannot activate instead of an Activate button', () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1' }];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
+      'You drafted this version, so someone else must activate it.',
+    );
+    // The drafter keeps every other Draft affordance.
+    expect(screen.getByRole('button', { name: /Delete draft/i })).toBeInTheDocument();
+  });
+
+  it('OD-BUDGET-6: a PM sees that a version with no recorded drafter needs Admin or Finance', () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: null }];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
+      'No drafter is recorded for this version, so only Admin or Finance can activate it.',
+    );
+  });
+
+  it('OD-BUDGET-6: Finance may activate a version with no recorded drafter', () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: null }];
+    renderPage();
+    expect(screen.getByRole('button', { name: /^Activate$/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('activate-blocked-reason')).not.toBeInTheDocument();
+  });
+
+  it('OD-BUDGET-6: the drafter reason renders from the shipped Indonesian catalogue', async () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1' }];
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
+      'Anda menyusun versi ini, jadi orang lain yang harus mengaktifkannya.',
+    );
   });
 
   it('B5: Delete draft opens a DESTRUCTIVE modal; deleteDraft fires only on Confirm', async () => {
