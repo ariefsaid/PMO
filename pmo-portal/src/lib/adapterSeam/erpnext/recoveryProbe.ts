@@ -100,6 +100,20 @@ export interface ErpPaymentCompositeInput {
    *  of exactly this amount AND allocate exactly `allocatedAmount` (the gross) to a cited invoice. */
   withheldAmount?: string | number;
   allocatedAmount?: string | number;
+  /** #775 phase B — an Employee Payment Entry's cited Journal Entries (the approval it settles). Empty ⇒ the
+   *  posting cites none (an advance payment/return), so only a candidate with NO references can be ours. Read
+   *  ONLY when `partyType === 'Employee'`; every Supplier/Customer probe is byte-for-byte unchanged. */
+  journalNames?: string[];
+  /** #775 phase B — the Employee Payment Entry's frozen accounts (sent on every expense payment body). Conjoined
+   *  ONLY when `partyType === 'Employee'`, so two same-amount payments to one employee from different accounts are
+   *  told apart; every Supplier/Customer probe is unchanged. */
+  paidFrom?: string;
+  paidTo?: string;
+}
+
+/** ERP `creation` filter format (`YYYY-MM-DD HH:MM:SS`, UTC) — the composite probe's claim-window floor. */
+export function erpDatetime(ms: number): string {
+  return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
 }
 
 /** The withholding conjuncts a persisted Receive composite payload carries (see `withheldAmount`); none
@@ -170,11 +184,23 @@ export async function probeErpByPaymentComposite(
     ['payment_type', '=', paymentType], // FR-SAR-083: discriminates Pay vs Receive
     ['docstatus', '<', 2], // exclude cancelled — a cancelled PE is not a live duplicate
   ];
+  if (input.partyType === 'Employee') {
+    if (input.paidFrom) filters.push(['paid_from', '=', input.paidFrom]);
+    if (input.paidTo) filters.push(['paid_to', '=', input.paidTo]);
+  }
   const names = await listDocNamesByFilters(deps.client, deps.doctype, filters, 20);
   const matches: Array<{ name: string; doc: unknown }> = [];
   for (const name of names) {
     const doc = await getDoc(deps.client, deps.doctype, name);
     const references = (doc as { references?: Array<{ reference_name?: unknown }> }).references ?? [];
+    if (input.partyType === 'Employee') {
+      const journals = input.journalNames ?? [];
+      const cites = journals.length === 0
+        ? references.length === 0
+        : references.some((r) => journals.includes(String(r.reference_name)));
+      if (cites) matches.push({ name, doc });
+      continue;
+    }
     // Match against piNames (PE-pay) OR siNames (PE-receive) — the input carries the correct array
     // based on paymentType, so a PE-receive probe never cross-matches a PE-pay doc.
     const cited = references.filter((r) => piNames.includes(String(r.reference_name)) || siNames.includes(String(r.reference_name)));

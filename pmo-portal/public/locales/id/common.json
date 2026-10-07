@@ -5,6 +5,43 @@
     }
   },
   "admin": {
+    "expenseMap": {
+      "change": "Ubah {{key}}",
+      "clear": "Hapus {{key}}",
+      "confirmClear": {
+        "confirm": "Hapus",
+        "description": "Posting yang memerlukan akun ini akan berhenti sampai akun dipetakan lagi.",
+        "title": "Hapus {{key}}?"
+      },
+      "description": "Akun ERPNext tempat klaim biaya dan uang muka yang disetujui diposting. Posting yang memerlukan akun yang belum dipetakan akan berhenti dan dilaporkan.",
+      "error": {
+        "title": "Tidak dapat memuat peta akun biaya"
+      },
+      "form": {
+        "account": "Akun ERP",
+        "legend": "Akun",
+        "placeholder": "mis. Employee Payable - ABC",
+        "required": "Akun ERP wajib diisi.",
+        "save": "Simpan akun",
+        "subtitle": "ERPNext memeriksa akun sebelum disimpan"
+      },
+      "key": {
+        "accommodation": "Akomodasi",
+        "employeeAdvance": "Uang muka karyawan",
+        "employeePayable": "Utang karyawan",
+        "localTransport": "Transportasi lokal",
+        "meals": "Makan",
+        "other": "Lainnya",
+        "travel": "Perjalanan"
+      },
+      "map": "Petakan {{key}}",
+      "title": "Peta akun biaya",
+      "toast": {
+        "saved": "Akun biaya disimpan"
+      },
+      "unmapped": "Belum dipetakan — posting biaya berhenti",
+      "unmappedIdle": "Belum dipetakan"
+    },
     "access": {
       "checking": "Memeriksa akses Administrasi Anda…",
       "checkEntry": "Periksa akses Administrasi",
@@ -939,6 +976,41 @@
     }
   },
   "expenses": {
+    "postings": {
+      "errorSub": "Klaim itu sendiri tidak terpengaruh. Coba lagi.",
+      "errorTitle": "Tidak dapat memuat posting buku besar",
+      "kind": {
+        "advancePayment": "Pembayaran uang muka",
+        "advanceReturn": "Pengembalian tunai",
+        "approval": "Jurnal persetujuan",
+        "approvalCancel": "Persetujuan dibatalkan",
+        "claimPayment": "Pembayaran tunai",
+        "settlement": "Penyelesaian uang muka"
+      },
+      "state": {
+        "cancelledInErp": "Dibatalkan di ERPNext",
+        "failed": "Gagal",
+        "held": "Perlu operator",
+        "pending": "Dalam antrean",
+        "pushed": "Terposting"
+      },
+      "title": "Posting buku besar",
+      "reason": {
+        "accountInvalid": "Akun yang dipetakan tidak valid di ERPNext.",
+        "accountUnmapped": "Ada akun biaya yang belum dipetakan (Administrasi › Akuntansi).",
+        "actor": "Orang yang menyetujui atau membayar ini tidak lagi dapat mempostingnya.",
+        "approvalCancelled": "Jurnal persetujuan dibatalkan di ERPNext.",
+        "cashAccount": "Koneksi ERPNext tidak memiliki akun kas atau bank.",
+        "changed": "Klaim berubah setelah posting ini masuk antrean.",
+        "claimCancelled": "Klaim dibatalkan sebelum ini diposting.",
+        "config": "Pengaturan koneksi ERPNext tidak mengizinkan posting ini.",
+        "employeeUnlinked": "Pengaju klaim belum ditautkan ke karyawan ERPNext.",
+        "operator": "PMO tidak dapat memastikan apa yang tercatat di ERPNext. Operator harus memeriksanya.",
+        "other": "Posting tidak dapat diselesaikan. Admin telah diberi tahu beserta detailnya.",
+        "projectUnmapped": "Proyek klaim belum ditautkan ke proyek ERPNext.",
+        "unreachable": "ERPNext tidak dapat dihubungi. Akan dicoba lagi secara otomatis."
+      }
+    },
     "actions": {
       "approve": "Setujui",
       "cancel": "Batalkan",
@@ -1569,6 +1641,11 @@
       "label": "Templat pajak ERPNext",
       "default": "Bawaan ERPNext",
       "loadError": "Templat pajak ERPNext tidak dapat dimuat. Bawaan ERPNext akan digunakan."
+    },
+    "withholding": {
+      "netPayable": "Neto yang harus dibayar",
+      "vat": "PPN",
+      "withheld": "Pajak dipotong (PPh)"
     }
   },
   "projectDetail": {
@@ -3174,7 +3251,8 @@
         "companies": "Perusahaan",
         "procurement": "Pengadaan",
         "revenue": "Pendapatan",
-        "timesheets": "Lembar waktu"
+        "timesheets": "Lembar waktu",
+        "expenses": "Biaya"
       }
     }
   },
@@ -3279,6 +3357,8 @@
     "total": "Total",
     "addBudgetLineItem": "+ Tambah item anggaran",
     "activate": "Aktifkan",
+    "activateDrafterBlocked": "Anda menyusun versi ini, jadi orang lain yang harus mengaktifkannya.",
+    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
     "deleteDraft": "Hapus draf",
     "archive": "Arsipkan",
     "cloneToRevise": "Salin untuk revisi",

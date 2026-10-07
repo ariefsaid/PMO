@@ -853,6 +853,7 @@ export type Database = {
         Row: {
           activated_at: string | null
           created_at: string
+          created_by: string | null
           currency: string
           id: string
           import_batch_id: string | null
@@ -893,6 +894,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "budget_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "budget_versions_org_id_fkey"
             columns: ["org_id"]
@@ -1732,6 +1740,103 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_account_map: {
+        Row: {
+          account_key: string
+          erp_account: string
+          id: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_key: string
+          erp_account: string
+          id?: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_key?: string
+          erp_account?: string
+          id?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_account_map_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_account_map_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_advance_returns: {
+        Row: {
+          advance_id: string
+          amount: number
+          id: string
+          org_id: string
+          recorded_at: string
+          recorded_by: string
+          reference: string | null
+          returned_on: string
+        }
+        Insert: {
+          advance_id: string
+          amount: number
+          id?: string
+          org_id: string
+          recorded_at?: string
+          recorded_by: string
+          reference?: string | null
+          returned_on: string
+        }
+        Update: {
+          advance_id?: string
+          amount?: number
+          id?: string
+          org_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          reference?: string | null
+          returned_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_advance_returns_advance_id_fkey"
+            columns: ["advance_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_advance_returns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_advance_returns_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_claim_files: {
         Row: {
           archived_at: string | null
@@ -1968,6 +2073,98 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_posting_erp_mirror: {
+        Row: {
+          actor_id: string | null
+          claim_id: string
+          created_at: string
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_name: string | null
+          id: string
+          last_attempt_at: string | null
+          org_id: string
+          posting: string
+          posting_identity: string
+          push_error: string | null
+          push_state: string
+          pushed_at: string | null
+          return_id: string | null
+          state_stamp: string
+        }
+        Insert: {
+          actor_id?: string | null
+          claim_id: string
+          created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_name?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          org_id: string
+          posting: string
+          posting_identity: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          return_id?: string | null
+          state_stamp: string
+        }
+        Update: {
+          actor_id?: string | null
+          claim_id?: string
+          created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_name?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          org_id?: string
+          posting?: string
+          posting_identity?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          return_id?: string | null
+          state_stamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_posting_erp_mirror_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_posting_erp_mirror_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_posting_erp_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_posting_erp_mirror_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "expense_advance_returns"
             referencedColumns: ["id"]
           },
         ]
@@ -3334,6 +3531,7 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          withheld_amount: number
         }
         Insert: {
           amount?: number | null
@@ -3362,6 +3560,7 @@ export type Database = {
           tax_template?: string | null
           tax_treatment: string
           vi_number?: string | null
+          withheld_amount?: number
         }
         Update: {
           amount?: number | null
@@ -3390,6 +3589,7 @@ export type Database = {
           tax_template?: string | null
           tax_treatment?: string
           vi_number?: string | null
+          withheld_amount?: number
         }
         Relationships: [
           {
@@ -6169,6 +6369,7 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          withheld_amount: number
         }
         SetofOptions: {
           from: "*"
@@ -6317,6 +6518,7 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          withheld_amount: number
         }
         SetofOptions: {
           from: "*"
@@ -6552,8 +6754,27 @@ export type Database = {
         Args: { p_domain: string; p_org_id: string; p_tier: string }
         Returns: boolean
       }
+      enqueue_expense_posting: {
+        Args: {
+          p_actor: string
+          p_claim_id: string
+          p_org_id: string
+          p_posting: string
+          p_return_id: string
+          p_stamp: string
+        }
+        Returns: undefined
+      }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
       expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
+      expense_posting_actor_check: {
+        Args: { p_mirror_id: string; p_org_id: string }
+        Returns: undefined
+      }
+      expense_posting_for_push: {
+        Args: { p_mirror_id: string; p_org_id: string }
+        Returns: Json
+      }
       finalize_external_connect: {
         Args: {
           p_actor_id: string
@@ -7039,6 +7260,10 @@ export type Database = {
       org_current_month: {
         Args: { p_at: string; p_timezone: string }
         Returns: string
+      }
+      org_employs_expense_postings: {
+        Args: { p_org_id: string }
+        Returns: boolean
       }
       org_feature_enabled: {
         Args: { p_key: string; p_org_id: string }

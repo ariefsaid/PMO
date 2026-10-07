@@ -8,6 +8,7 @@
 // Verify: cd supabase/functions/erpnext-sweep && deno test ../_shared/erpnextFeedDeps.test.ts
 
 import { createErpFeedDeps } from './erpnextFeedDeps.ts';
+import { piFromDoc } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseInvoice.ts';
 import { peReceiveFromDoc } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { terminalApplyReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -1022,4 +1023,65 @@ Deno.test('AC-WHT-003 an update with unconfirmable withholding clears the tax fa
   assert(notice.length === 1 && notice[0].title === 'Action required', `one notice per recipient: ${JSON.stringify(notice)}`);
   assert(JSON.stringify(notice[0].metadata) === JSON.stringify({ action_required: 'receipt-withholding-unconfirmed',
     erpName: 'PE-REVIEW', reason: 'multiple-withholding-deductions' }), `the notice names the receipt: ${JSON.stringify(notice[0].metadata)}`);
+});
+
+Deno.test('AC-VWH-007 a mirrored bill change carrying its money header refreshes gross, VAT, withheld, outstanding and the derived status (paid detection)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'purchase-invoice');
+  await deps.updateMirror('pmo-pi-1', piFromDoc({
+    name: 'ACC-PINV-2026-00876', docstatus: 1, modified: '2026-10-07 11:00:00.000000',
+    grand_total: 1090000, total_taxes_and_charges: 90000, taxes_and_charges_deducted: 20000, outstanding_amount: 0,
+  }), Date.parse('2026-10-07T11:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update');
+  assert(!!update, 'expected a procurement_invoices update');
+  const p = update!.patch!;
+  assert(p.amount === '1110000.00' && p.tax_amount === '110000.00' && p.withheld_amount === '20000.00', `money refreshed: ${JSON.stringify(p)}`);
+  assert(p.erp_outstanding_amount === '0.00' && p.status === 'Paid', 'the net paid in ERPNext ⇒ Paid in PMO');
+  assert(p.tax_treatment === 'inclusive', 'the marker rides with the gross amount');
+});
+
+Deno.test('AC-VWH-007 a bill change carrying its money header also refreshes the tax template it was taxed under; an absent template is never written', async () => {
+  const doc = {
+    name: 'ACC-PINV-2026-00876', docstatus: 1, modified: '2026-10-07 11:00:00.000000',
+    grand_total: 1090000, total_taxes_and_charges: 90000, taxes_and_charges_deducted: 20000, outstanding_amount: 0,
+  };
+  const withTemplate = fakeServiceClient({});
+  await createErpFeedDeps(withTemplate.client, 'org-1', 'purchase-invoice')
+    .updateMirror('pmo-pi-1', piFromDoc({ ...doc, taxes_and_charges: 'PPN 11 + PPh 23 - RIS' }), Date.parse('2026-10-07T11:00:00.000Z'));
+  const p = withTemplate.calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update')!.patch!;
+  assert(p.tax_template === 'PPN 11 + PPh 23 - RIS', `template refreshed: ${JSON.stringify(p)}`);
+  const without = fakeServiceClient({});
+  await createErpFeedDeps(without.client, 'org-1', 'purchase-invoice')
+    .updateMirror('pmo-pi-1', piFromDoc(doc), Date.parse('2026-10-07T11:00:00.000Z'));
+  const q = without.calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update')!.patch!;
+  assert(!('tax_template' in q), `an absent template must be omitted, never nulled: ${JSON.stringify(q)}`);
+});
+
+Deno.test('AC-VWH-007 a bill change WITHOUT the whole money header leaves money and status untouched (a header missing the deducted total, or a lifecycle-only webhook)', async () => {
+  const partials = [
+    // The dangerous one: the NET grand total with no deducted figure — writing it would record the net as the gross.
+    { name: 'ACC-PINV-2026-00876', docstatus: 1, modified: '2026-10-07 11:00:00.000000',
+      grand_total: 1090000, total_taxes_and_charges: 90000, outstanding_amount: 0, taxes_and_charges: 'PPN 11 + PPh 23 - RIS' },
+    { name: 'ACC-PINV-2026-00876', docstatus: 1, modified: '2026-10-07 11:00:00.000000', outstanding_amount: 0 },
+  ];
+  for (const doc of partials) {
+    const { client, calls } = fakeServiceClient({});
+    const deps = createErpFeedDeps(client, 'org-1', 'purchase-invoice');
+    await deps.updateMirror('pmo-pi-1', piFromDoc(doc), Date.parse('2026-10-07T11:00:00.000Z'));
+    const p = calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update')!.patch!;
+    for (const key of ['amount', 'tax_amount', 'withheld_amount', 'erp_outstanding_amount', 'status', 'tax_treatment', 'tax_template']) {
+      assert(!(key in p), `a partial payload must not write ${key}: ${JSON.stringify(p)}`);
+    }
+  }
+});
+
+Deno.test('AC-VWH-007 the money refresh is scoped to purchase-invoice — a payment change writes no invoice money fields', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'payment');
+  await deps.updateMirror('pmo-pay-1', {
+    id: 'ACC-PAY-2026-00001', amount: '1090000.00', tax_amount: '0.00', withheld_amount: '0.00',
+    erp_outstanding_amount: '0.00', erp_docstatus: 1,
+  }, Date.parse('2026-10-07T11:00:00.000Z'));
+  const p = calls.find((c) => c.op === 'update')!.patch!;
+  assert(!('withheld_amount' in p) && !('erp_outstanding_amount' in p) && !('status' in p), `payment patch: ${JSON.stringify(p)}`);
 });

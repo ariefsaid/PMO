@@ -7,6 +7,7 @@
  * "record it, tell a human, move on":
  *   • `native-budget-not-adopted`    (FR-BUD-140) — a Budget created directly in the ERPNext Desk;
  *   • `native-timesheet-not-adopted` (FR-TSP-082) — likewise a Timesheet; PMO owns entry AND approval;
+ *   • `native-expense-posting-not-adopted` (FR-EXP-113) — a Journal/Employee Payment Entry PMO did not post;
  *   • `procurement-inbound-adopt-no-case-link` (FR-ENA-083) — an inbound adopt that needs the PMO
  *     procurement-case link only the dispatch path can make (the documented "lossy hint": log + ack).
  * Each is an EXPECTED event on any live bench. `runSweep` had no per-change catch, so the first such
@@ -34,6 +35,7 @@
 const TERMINAL_APPLY_REASONS = [
   'native-budget-not-adopted',
   'native-timesheet-not-adopted',
+  'native-expense-posting-not-adopted',
   'procurement-inbound-adopt-no-case-link',
   'contact-not-adopted',
 ] as const;

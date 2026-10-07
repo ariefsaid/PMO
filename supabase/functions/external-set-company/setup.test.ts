@@ -7,11 +7,13 @@ import {
   erp,
   installEdgeEnv,
   jsonResponse,
+  restCall,
   rpcCall,
   supabaseRpc,
   supabaseSelect,
   withFetchMock,
 } from "../_shared/testing/edgeTestKit.ts";
+import { EXPENSES_EMPLOYABLE } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseEnablement.ts";
 const env = installEdgeEnv();
 const authority = await createJwtAuthority(env.SUPABASE_URL);
 setTestJwks(createTestJwksResolver(authority));
@@ -840,4 +842,181 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
     const body = await response.json();
     assertEquals(body.budgetMappedCategories, ["Labor", "Equipment"]);
   });
+});
+
+// ── #775 phase B — the expense account map is written only through these validating actions (DD-EXP-16). ──
+const ACCOUNT = (name: string, over: Record<string, unknown> = {}) =>
+  jsonResponse({
+    data: {
+      name, company: "Example Company", root_type: "Liability", account_type: "Payable", is_group: 0, disabled: 0,
+      account_currency: "IDR", ...over,
+    },
+  });
+const companyRouteWith = (defaultPayable: string | null) =>
+  erp("erp.example.test", "/api/resource/Company/Example%20Company",
+    () => jsonResponse({ data: { name: "Example Company", default_currency: "IDR", default_payable_account: defaultPayable } }));
+const companyRoute = companyRouteWith("Creditors - EX");
+const mapWrite = (method: string) => ({
+  label: `expense_account_map ${method}`, method, pathname: "/rest/v1/expense_account_map",
+  response: () => (method === "POST" ? jsonResponse(null, { status: 201 }) : new Response(null, { status: 204 })),
+});
+
+Deno.test("AC-EXP-120 an Admin cannot map the supplier payable account (Creditors) as employee payable", async () => {
+  const result = await withFetchMock([
+    ...base(), companyRoute, mapWrite("POST"),
+    erp("erp.example.test", "/api/resource/Account/Creditors%20-%20EX", () => ACCOUNT("Creditors - EX")),
+  ], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({
+      tier: "erpnext", setupAction: "save-expense-account", accountKey: "employee_payable", erpAccount: "Creditors - EX",
+    }));
+    return { status: res.status, text: await res.text(), calls };
+  });
+  assertEquals(result.status, 422);
+  assertEquals(result.text.includes("supplier payable"), true, result.text);
+  assertEquals(restCall(result.calls, "expense_account_map").length, 0);
+  assertEquals(rpcCall(result.calls, "log_audit").length, 0);
+});
+
+// The supplier payable account is what ERPNext's Company names NOW — the binding's stored copy can be stale.
+Deno.test("AC-EXP-120 the Creditors refusal reads the live ERPNext company, not the stored binding config", async () => {
+  const save = (account: string, company: ReturnType<typeof companyRouteWith>) =>
+    withFetchMock([
+      ...base(), company, mapWrite("POST"),
+      erp("erp.example.test", `/api/resource/Account/${encodeURIComponent(account)}`, () => ACCOUNT(account)),
+    ], async ({ calls }) => {
+      const res = await handleSetCompanyRequest(await request({
+        tier: "erpnext", setupAction: "save-expense-account", accountKey: "employee_payable", erpAccount: account,
+      }));
+      return { status: res.status, text: await res.text(), calls };
+    });
+  // The stored config still says "Creditors - EX"; ERPNext's company now names another account.
+  const repointed = await save("Supplier Payables - EX", companyRouteWith("Supplier Payables - EX"));
+  assertEquals(repointed.status, 422, repointed.text);
+  assertEquals(repointed.text.includes("supplier payable"), true, repointed.text);
+  assertEquals(restCall(repointed.calls, "expense_account_map").length, 0);
+  // A company that names no default payable account cannot confirm any employee payable account (fail closed).
+  const unnamed = await save("Employee Payable - EX", companyRouteWith(null));
+  assertEquals(unnamed.status, 422, unnamed.text);
+  assertEquals(restCall(unnamed.calls, "expense_account_map").length, 0);
+});
+
+Deno.test("AC-EXP-120 an Admin cannot map an untyped advance account", async () => {
+  const result = await withFetchMock([
+    ...base(), companyRoute, mapWrite("POST"),
+    erp("erp.example.test", "/api/resource/Account/Advances%20-%20EX", () => ACCOUNT("Advances - EX", { root_type: "Asset", account_type: "" })),
+  ], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({
+      tier: "erpnext", setupAction: "save-expense-account", accountKey: "employee_advance", erpAccount: "Advances - EX",
+    }));
+    return { status: res.status, text: await res.text(), calls };
+  });
+  assertEquals(result.status, 422, result.text);
+  assertEquals(restCall(result.calls, "expense_account_map").length, 0);
+});
+
+Deno.test("AC-EXP-120 an account ERPNext does not have is refused, not saved", async () => {
+  const result = await withFetchMock([
+    ...base(), companyRoute, mapWrite("POST"),
+    erp("erp.example.test", "/api/resource/Account/Ghost%20-%20EX", () => jsonResponse({ exc_type: "DoesNotExistError" }, { status: 404 })),
+  ], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({
+      tier: "erpnext", setupAction: "save-expense-account", accountKey: "Travel", erpAccount: "Ghost - EX",
+    }));
+    return { status: res.status, text: await res.text(), calls };
+  });
+  assertEquals(result.status, 422, result.text);
+  assertEquals(result.text.includes("does not exist"), true, result.text);
+  assertEquals(restCall(result.calls, "expense_account_map").length, 0);
+});
+
+Deno.test("AC-EXP-120 a valid account is upserted (trimmed) with the actor and audited", async () => {
+  const result = await withFetchMock([
+    ...base(), companyRoute, mapWrite("POST"),
+    erp("erp.example.test", "/api/resource/Account/Employee%20Payable%20-%20EX", () => ACCOUNT("Employee Payable - EX")),
+  ], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({
+      tier: "erpnext", setupAction: "save-expense-account", accountKey: "employee_payable", erpAccount: " Employee Payable - EX ",
+    }));
+    return { status: res.status, text: await res.text(), calls };
+  });
+  assertEquals(result.status, 200, result.text);
+  const write = restCall(result.calls, "expense_account_map", "POST")[0];
+  const row = write.bodyJson as Record<string, unknown>;
+  assertEquals([row.org_id, row.account_key, row.erp_account, row.updated_by], ["org-1", "employee_payable", "Employee Payable - EX", "admin-1"]);
+  assertEquals(write.url.searchParams.get("on_conflict"), "org_id,account_key");
+  const audit = rpcCall(result.calls, "log_audit");
+  assertEquals(audit.length, 1);
+  assertEquals((audit[0].bodyJson as Record<string, unknown>).p_action, "integration.expense_account_map");
+});
+
+Deno.test("AC-EXP-120 clear-expense-account deletes the key in this org and audits it", async () => {
+  const result = await withFetchMock([...base(), mapWrite("DELETE")], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "clear-expense-account", accountKey: "Meals" }));
+    return { status: res.status, calls };
+  });
+  assertEquals(result.status, 200);
+  const del = restCall(result.calls, "expense_account_map", "DELETE")[0];
+  assertEquals(del.url.searchParams.get("account_key"), "eq.Meals");
+  assertEquals(del.url.searchParams.get("org_id"), "eq.org-1");
+  assertEquals(rpcCall(result.calls, "log_audit").length, 1);
+});
+
+Deno.test("AC-EXP-120 a Project Manager is refused; an unknown key or a blank account is a bad request", async () => {
+  const pm = await withFetchMock([...base("Project Manager")], async () =>
+    (await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "save-expense-account", accountKey: "Meals", erpAccount: "Meals - EX" }))).status);
+  assertEquals(pm, 403);
+  const bogus = await withFetchMock([...base()], async () =>
+    (await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "save-expense-account", accountKey: "Bogus", erpAccount: "X" }))).status);
+  assertEquals(bogus, 400);
+  const blank = await withFetchMock([...base()], async () =>
+    (await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "save-expense-account", accountKey: "Meals", erpAccount: "   " }))).status);
+  assertEquals(blank, 400);
+  const clearBogus = await withFetchMock([...base()], async () =>
+    (await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "clear-expense-account", accountKey: "Bogus" }))).status);
+  assertEquals(clearBogus, 400);
+});
+
+// ── #775 phase B — the `expenses` employ switch (FR-EXP-118, DD-EXP-22). It opens only with #901 (the release guard
+// `EXPENSES_EMPLOYABLE`, bound to the shipped GL fetch by expenseEnablement.test.ts); until then it refuses cleanly.
+Deno.test("AC-EXP-128 employ-domain expenses: refused before #901 with nothing probed or written; once open, probes then records", async () => {
+  const result = await withFetchMock([
+    ...base(),
+    {
+      label: "erp read probes", host: "erp.example.test", method: "GET", pathname: /^\/api\/resource\//,
+      response: () => jsonResponse({ data: [] }),
+    },
+    supabaseRpc("admin_change_domain_ownership", () => jsonResponse(null)),
+  ], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "employ-domain", domain: "expenses" }));
+    return { status: res.status, text: await res.text(), calls };
+  });
+  const probed = result.calls.filter((c) => c.url.host === "erp.example.test").map((c) => decodeURIComponent(c.url.pathname));
+  if (!EXPENSES_EMPLOYABLE) {
+    assertEquals(result.status, 422, result.text);
+    assertEquals(result.text.includes("not available yet"), true, result.text);
+    assertEquals(probed, []);
+    assertEquals(rpcCall(result.calls, "admin_change_domain_ownership").length, 0);
+    return;
+  }
+  assertEquals(result.status, 200, result.text);
+  assertEquals((rpcCall(result.calls, "admin_change_domain_ownership")[0].bodyJson as Record<string, unknown>).p_domain, "expenses");
+  for (const doctype of ["Journal Entry", "Payment Entry", "Employee"]) {
+    assertEquals(probed.some((p) => p.includes(`/api/resource/${doctype}`)), true, `${doctype} was not probed`);
+  }
+});
+
+Deno.test("AC-EXP-128 the other domains are unchanged by the expenses guard", async () => {
+  const result = await withFetchMock([
+    ...base(),
+    {
+      label: "erp read probes", host: "erp.example.test", method: "GET", pathname: /^\/api\/resource\//,
+      response: () => jsonResponse({ data: [] }),
+    },
+    supabaseRpc("admin_change_domain_ownership", () => jsonResponse(null)),
+  ], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "employ-domain", domain: "timesheets" }));
+    return { status: res.status, calls };
+  });
+  assertEquals(result.status, 200);
+  assertEquals((rpcCall(result.calls, "admin_change_domain_ownership")[0].bodyJson as Record<string, unknown>).p_domain, "timesheets");
 });

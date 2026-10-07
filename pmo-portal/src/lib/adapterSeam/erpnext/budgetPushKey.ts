@@ -68,6 +68,11 @@ function activationEpochMs(activatedAt: string): number {
   return Date.parse(`${date}T${time}${normalizedZone}`);
 }
 
+/** The transport-independent epoch of a Postgres `timestamptz` in any rendering (PostgREST `…T10:00:00+00:00`,
+ *  SQL `… 10:00:00+00`, an offset zone). Shared with `expensePostingKey.ts` so every deterministic key normalizes
+ *  one instant the same way (#775 phase B). */
+export const timestamptzEpochMs = activationEpochMs;
+
 /**
  * Derive the budget push's PER-YEAR idempotency key from DB truth (FR-BFY-031).
  *

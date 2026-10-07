@@ -433,10 +433,29 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (piTaxAmount !== null) patch.tax_amount = piTaxAmount;
   const piTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
   if (piTaxTemplate !== null) patch.tax_template = piTaxTemplate;
+  // #876: the bill's own currency (piFromDoc reads it off the ERP doc). Omitted when absent — NOT NULL, and the
+  // stamp trigger's org-default fill is the PMO-native fallback, never a fact about this bill.
+  const piCurrency = (canonical.currency as string | null | undefined) ?? null;
+  if (piCurrency !== null) patch.currency = piCurrency;
+  // #876 (0266, DD-VWH-1/7): the money header is all-or-nothing, the rule erpnextFeedDeps.ts' purchaseInvoiceFieldPatch
+  // applies. piFromDoc emits `withheld_amount` only when the ERP header was complete; without it `amount` may be the NET
+  // payable, so recording it as the gross (or pairing it with a stale withholding) is refused: a create throws, an update
+  // writes none of amount / tax_amount / tax_treatment / withheld_amount.
+  const piWithheld = (canonical.withheld_amount as string | null | undefined) ?? null;
+  if (piWithheld !== null) {
+    patch.withheld_amount = piWithheld;
+  } else {
+    delete patch.amount;
+    delete patch.tax_amount;
+    delete patch.tax_treatment;
+  }
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
     await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
+    if (piWithheld === null) {
+      throw new AppError('the purchase invoice read-back carried no withholding total; its money cannot be mirrored', 'BAD_REQUEST');
+    }
     const { error } = await ctx.serviceClient.from('procurement_invoices').insert({
       id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId,
       ...patch,
@@ -1163,6 +1182,41 @@ export async function markTimesheetPushOutcome(
   if (error) throw new AppError(`timesheet_erp_mirror outcome write failed: ${error.message}`, 'DISPATCH_FAILED');
 }
 
+/**
+ * #775 phase B (ADR-0059 §6, ADR-0081) — the expense side mirror. The intent row exists already (0270 trigger);
+ * a landed posting marks it `pushed` with the ERP name. A landed `approval-cancel` also stamps the approval row
+ * cancelled, so the feed's later tombstone of that Journal Entry is recognised as PMO's own (no notice).
+ * Keyed on (org_id, posting_identity) — never `id` (the L-1 lesson: the mirror's own uuid is not the PMO key).
+ */
+const expensesWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const rec = command.record as { posting?: unknown; posting_identity?: unknown };
+    const identity = typeof rec.posting_identity === 'string' ? rec.posting_identity : '';
+    if (!identity) throw new AppError('expense posting command carries no posting identity', 'commit-rejected');
+    // The adapter sets `canonical.id` to the PMO record id (the subject uuid); the ERP document name travels in
+    // `erp_name` (bodies/expenseJournal.ts, bodies/expensePayment.ts). Without it there is nothing a dependent posting
+    // could cite — refuse rather than record a name ERPNext does not have.
+    const erpName = typeof canonical.erp_name === 'string' && canonical.erp_name ? canonical.erp_name : '';
+    if (!erpName) throw new AppError(`expense posting ${identity}: the ERP result carries no ERP document name`, 'commit-rejected');
+    const erpModified = (canonical.erp_modified as string | null | undefined) ?? null;
+    const now = new Date().toISOString();
+    const write = async (postingIdentity: string, patch: Record<string, unknown>): Promise<void> => {
+      const { error } = await (ctx.serviceClient.from('expense_posting_erp_mirror').update(patch)
+        .eq('org_id', ctx.orgId).eq('posting_identity', postingIdentity) as unknown as Promise<{
+        error: { message: string; code?: string } | null;
+      }>);
+      if (error) throw new AppError(`expense_posting_erp_mirror write failed: ${error.message}`, 'DISPATCH_FAILED');
+    };
+    await write(identity, {
+      push_state: 'pushed', push_error: null, erp_name: erpName, pushed_at: now,
+      erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null, erp_modified: erpModified,
+    });
+    if (rec.posting === 'approval-cancel') {
+      await write(identity.replace(/:approval-cancel$/, ':approval'), { erp_docstatus: 2, erp_cancelled_at: now, erp_modified: erpModified });
+    }
+  },
+};
+
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
@@ -1172,6 +1226,8 @@ export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   budget: budgetWriter,
   // P3b — the Posture-B side mirror (ADR-0059). Additive: no other domain's entry is touched.
   timesheets: timesheetsWriter,
+  // #775 phase B — the expense posting side mirror (ADR-0081). Additive.
+  expenses: expensesWriter,
 };
 
 /** The single lookup point — an unknown domain throws (no silent skip). */
