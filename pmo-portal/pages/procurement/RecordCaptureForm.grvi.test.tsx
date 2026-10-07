@@ -254,7 +254,9 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
       expect(screen.queryByTestId('vi-tax-treatment-select')).not.toBeInTheDocument();
       expect(screen.queryByTestId('vi-tax-amount-input')).not.toBeInTheDocument();
       expect(screen.queryByTestId('vi-tax-required-hint')).not.toBeInTheDocument();
-      // and save is NOT blocked by the fields that are not there
+      // and save is NOT blocked by the fields that are not there. #876 slice 2 (DD-VWH-14, a deliberate UX change): a
+      // flipped org now enters the VAT AMOUNT the dispatch sends (0 allowed) — the one gate, owned by AC-VWH-031.
+      await userEvent.type(screen.getByTestId('vi-erp-vat-input'), '0');
       expect(screen.getByTestId('btn-save-vi')).toBeEnabled();
     } finally {
       spy.mockRestore();

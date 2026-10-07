@@ -54,6 +54,7 @@ import {
   updateCompany,
   updateCompanyShortName,
   setCompanyProjectNumberSegment,
+  setCompanyTaxDefaults,
   archiveCompany,
   deleteCompany,
   type CompanyRow,
@@ -265,6 +266,8 @@ import {
   getOrgDownPaymentItem,
   setOrgDownPaymentItem,
   setOrgWithholdingAccount,
+  getOrgVendorTaxAccounts,
+  setOrgVendorTaxAccounts,
   getOrgProjectClassificationOptions,
   setOrgProjectClassificationOptions,
 } from '@/src/lib/db/orgs';
@@ -427,6 +430,7 @@ const company: CompanyRepository = {
     await dispatchDomainCommand('companies', 'update', { id, ...input, erp_doc_kind: kind }, keyFor());
   },
   setProjectNumberSegment: (id, segment) => wrap(() => setCompanyProjectNumberSegment(id, segment)),
+  setTaxDefaults: (id, input) => wrap(() => setCompanyTaxDefaults(id, input)),
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
 };
@@ -556,6 +560,12 @@ const procurement: ProcurementRepository = {
             // ERP company, resolves its rows server-side and sends them (`resolvePurchaseTaxRows`).
             // No choice → nothing sent, and ERPNext applies its own default.
             ...(input.taxTemplate?.trim() ? { taxTemplate: input.taxTemplate.trim() } : {}),
+            // #876 slice 2 (DD-VWH-13/14) — or the VAT / PPh AMOUNTS the user entered. The dispatch turns them into fixed
+            // ERPNext rows on the org's tax accounts and refuses a command carrying both a template and amounts. The
+            // native tax facts above (and a standalone `withheldAmount` / `withheldPphType`) stay unforwarded.
+            ...(input.erpTaxAmounts
+              ? { vatAmount: input.erpTaxAmounts.vatAmount, withheldAmount: input.erpTaxAmounts.withheldAmount, pphType: input.erpTaxAmounts.pphType }
+              : {}),
             erp_doc_kind: 'purchase-invoice',
           },
           intent,
@@ -931,6 +941,8 @@ const orgFeature: OrgFeatureRepository = {
 const orgSettings: OrgSettingsRepository = {
   getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
   setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
+  getVendorTaxAccounts: () => wrap(() => getOrgVendorTaxAccounts()),
+  setVendorTaxAccounts: (input) => wrap(() => setOrgVendorTaxAccounts(input)),
   getDownPaymentItem: () => wrap(() => getOrgDownPaymentItem()),
   setDownPaymentItem: (item) => wrap(() => setOrgDownPaymentItem(item)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),

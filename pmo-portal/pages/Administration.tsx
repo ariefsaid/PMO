@@ -17,6 +17,7 @@ import { IntegrationsView } from '@/src/components/integrations/IntegrationsView
 import OrgTaxDefault from './admin/OrgTaxDefault';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
+import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
@@ -203,6 +204,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgTaxDefault />
             <SpendApprovers />
             <OrgWithholdingAccount />
+            <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
             <BudgetAccountMap />
             <ExpenseAccountMap />

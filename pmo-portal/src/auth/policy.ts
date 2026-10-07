@@ -71,6 +71,7 @@ export type Entity =
   | 'externalBinding'
   | 'integration'
   | 'orgAccounting'
+  | 'vendorTaxDefault'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'employeeLink'
@@ -129,6 +130,8 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
  * (Admin·Exec·PM·Finance) — do not fold the two together.
  */
 const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
+/** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0272). */
+const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -497,6 +500,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgAccounting: {
     manage: allow(ADMIN),
   },
+  // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
+  vendorTaxDefault: { manage: allow(TAX_SETUP) },
   orgProjectNumbering: {
     manage: allow(ADMIN),
   },

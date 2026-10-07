@@ -163,7 +163,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
           <TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} />
         </span>
       );
-      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount) : null;
+      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
       return figures ? (
         <div className="inline-flex flex-col items-end gap-0.5">
           {total}

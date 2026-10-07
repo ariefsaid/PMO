@@ -228,3 +228,41 @@ export async function setOrgDownPaymentItem(item: string | null): Promise<void> 
   if (error) throw new AppError(error.message, error.code);
   assertWriteLanded(data, 'Only an Admin can change the down payment item.');
 }
+
+/** #876 slice 2 (DD-VWH-12): the ERPNext accounts a vendor bill's entered VAT and PPh post to (organizations, 0272). */
+export interface OrgVendorTaxAccounts {
+  inputVatAccount: string | null;
+  pph23PayableAccount: string | null;
+  pph42PayableAccount: string | null;
+}
+
+export async function getOrgVendorTaxAccounts(): Promise<OrgVendorTaxAccounts> {
+  const { data, error } = await supabase.from('organizations')
+    .select('input_vat_account,pph23_payable_account,pph4_2_payable_account').limit(1);
+  if (error) throw new Error(error.message);
+  const row = data?.[0];
+  return {
+    inputVatAccount: row?.input_vat_account ?? null,
+    pph23PayableAccount: row?.pph23_payable_account ?? null,
+    pph42PayableAccount: row?.pph4_2_payable_account ?? null,
+  };
+}
+
+/** Admin-only by RLS (the organizations UPDATE policy) + column grants (0272); a non-Admin write reaches no row. */
+export async function setOrgVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void> {
+  const clean = (value: string | null) => value?.trim() || null;
+  const patch = {
+    input_vat_account: clean(input.inputVatAccount),
+    pph23_payable_account: clean(input.pph23PayableAccount),
+    pph4_2_payable_account: clean(input.pph42PayableAccount),
+  };
+  if (Object.values(patch).some((value) => value !== null && value.length > 140)) {
+    throw new Error('A tax account name must be at most 140 characters.');
+  }
+  const { data, error } = await supabase.from('organizations').select('id');
+  if (error) throw new Error(error.message);
+  if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax accounts.');
+  const { data: updated, error: updateError } = await supabase.from('organizations').update(patch).eq('id', data[0].id).select('id');
+  if (updateError) throw new Error(updateError.message);
+  assertWriteLanded(updated, 'Only an Admin can change the tax accounts.');
+}

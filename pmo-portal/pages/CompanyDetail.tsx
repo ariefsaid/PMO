@@ -28,6 +28,7 @@ import {
   ContactNameLink,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
+import { VendorTaxDefaultsCard } from './company/VendorTaxDefaultsCard';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import {
@@ -257,6 +258,8 @@ const CompanyDetail: React.FC = () => {
           </dl>
         </CardPad>
       </Card>
+      {/* #876 slice 2 (OD-VWH-1): the vendor's default tax treatment pre-fills its bills. */}
+      {company.type === 'Vendor' && <VendorTaxDefaultsCard company={company} />}
 
       {/* AC-IFW-COMPANY-01 + AC-G3C-CD-3: related projects (always) and procurement
           (always fetch; visible for Vendors or any type when vendor PRs exist). */}

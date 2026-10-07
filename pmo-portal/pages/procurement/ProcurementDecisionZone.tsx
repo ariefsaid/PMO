@@ -54,6 +54,10 @@ import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
+import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
+import { useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
+import { NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
+import { itemsNetTotal } from '@/src/lib/vendorWithholding';
 
 /**
  * What the inline VI capture hands up to the page (#505). Derived from the DAL's
@@ -254,6 +258,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               when the user clicks it, co-locating invoice capture with the transition action. */}
           {showVICapture ? (
             <VIInlineCapture
+              vendorId={p.vendor_id}
               busy={mutations.transition.isPending || mutations.createInvoice.isPending}
               onSubmit={(capture) => void submitVICapture(capture)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
@@ -349,6 +354,8 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {showCreateVI && (
                 <RecordCaptureForm
                   kind="vendor_invoice"
+                  vendorId={p.vendor_id}
+                  itemsNet={itemsNetTotal(p.items)}
                   busy={mutations.createInvoice.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {
@@ -399,9 +406,11 @@ interface VIInlineCaptureProps {
   busy: boolean;
   onSubmit: (capture: VendorInvoiceCapture) => void;
   onCancel: () => void;
+  /** #876 slice 2: the vendor whose default tax treatment pre-fills the bill. */
+  vendorId?: string | null;
 }
 
-const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel }) => {
+const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null }) => {
   const { t } = useTranslation();
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const showGroupRef = groupRefIsPmoAuthored();
@@ -423,7 +432,6 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
     setAmtStr(next);
     setAmtError(undefined);
   });
-  const taxAmtMask = useMoneyInputMask(taxAmtStr, setTaxAmtStr);
 
   // The ONE predicate: null ⇒ the tax facts are incomplete ⇒ submit is disabled AND the handler
   // refuses. Disabled-button state and submit guard can therefore never disagree.
@@ -438,8 +446,20 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   const orgTaxDefault = useOrgTaxDefault();
   useTaxTreatmentPreselect(orgTaxDefault, taxTreatmentStr, setTaxTreatmentStr, pmoAuthorsTax);
 
+  // #876 slice 2 (OD-VWH-1): same pre-fill as RecordCaptureForm — one hook, one field component, two entry points.
+  const vendorTax = useVendorTaxDefault(vendorId);
+  const nativeTax = useNativeVendorTax({
+    vendor: vendorTax, enabled: pmoAuthorsTax, amountRaw: amtStr, treatmentRaw: taxTreatmentStr,
+    vatRaw: taxAmtStr, setVatRaw: setTaxAmtStr, vatIsCalculated: taxFields.hasRate,
+  });
+  const taxAmtMask = useMoneyInputMask(taxAmtStr, (next) => {
+    nativeTax.markVatTouched();
+    setTaxAmtStr(next);
+  });
+  const withheldInvalid = pmoAuthorsTax && nativeTax.value === null;
+
   const handleSubmit = () => {
-    if (!tax) return;
+    if (!tax || withheldInvalid) return;
     // #684 (AC-PLC-009): the same parse validates and persists; excess scale never reaches the RPC.
     const amount = parseRecordAmount(amtStr);
     if (!amount.ok) {
@@ -457,6 +477,8 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       taxTreatment: tax.taxTreatment,
       taxAmount: tax.taxAmount,
       ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
+      ...(pmoAuthorsTax && nativeTax.value?.pphType
+        ? { withheldAmount: nativeTax.value.withheldAmount, withheldPphType: nativeTax.value.pphType } : {}),
     });
   };
 
@@ -562,16 +584,19 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             onChange={taxAmtMask.onChange}
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
+            aria-describedby={nativeTax.vatSuggestion ? 'vi-inline-tax-amount-basis' : undefined}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
+        <TaxSuggestedFrom id="vi-inline-tax-amount-basis" suggestion={nativeTax.vatSuggestion} />
+        <NativeWithholdingField formId="vi-inline" tax={nativeTax} />
         </>
         )}
         <Button
           variant="success"
           size="sm"
           loading={busy}
-          disabled={!invoiceDate || !tax}
+          disabled={!invoiceDate || !tax || withheldInvalid}
           data-testid="btn-submit-vi-capture"
           onClick={handleSubmit}
         >

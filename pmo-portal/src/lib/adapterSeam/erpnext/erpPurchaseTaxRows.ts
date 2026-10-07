@@ -67,7 +67,7 @@ export async function listPurchaseTaxTemplates(deps: ErpClientDeps, company: str
 }
 
 export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: string, templateName: string): Promise<ErpPurchaseTaxRow[]> {
-  const notUsable = `The purchase tax template "${templateName}" is not an enabled Purchase Taxes and Charges Template for this company in ERPNext. Pick another template (or ERPNext default), then record the invoice again.`;
+  const notUsable = `The purchase tax template "${templateName}" is not an enabled Purchase Taxes and Charges Template for this company in ERPNext. Pick another template (or enter the tax amounts), then record the invoice again.`;
   const found = await listDocsByFilters(deps, TEMPLATE, [['name', '=', templateName], ['company', '=', company], ['disabled', '=', 0]], ['name'], 2);
   if (found.length !== 1) throw new AppError(notUsable, 'config-rejected');
   const template = (await getDoc(deps, TEMPLATE, templateName)) as { company?: unknown; disabled?: unknown; taxes?: Array<Record<string, unknown>> } | null;
@@ -111,6 +111,111 @@ export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: strin
   if (withheldRate >= 100) throw malformedWithholding(templateName, 'its withholding rates add up to 100% or more');
   if (rows.length === 0) {
     throw new AppError(`The purchase tax template "${templateName}" has no tax rows in ERPNext. Add its rows in ERPNext (or pick another template), then record the invoice again.`, 'config-rejected');
+  }
+  return rows;
+}
+
+// ── #876 slice 2 (OD-VWH-1, DD-VWH-13/22, ADR-0084): tax AMOUNTS entered in PMO, sent as fixed `Actual` rows ──────
+
+/** The vendor-bill tax accounts an Admin set in Administration → Accounting (organizations, migration 0272). */
+export interface VendorTaxAccounts {
+  inputVat: string | null;
+  pph23: string | null;
+  pph4_2: string | null;
+}
+
+/** The tax entered on the bill. `pphType` is null exactly when nothing is withheld. */
+export interface EnteredPurchaseTax {
+  vatAmount: number;
+  withheldAmount: number;
+  pphType: 'pph23' | 'pph4_2' | null;
+}
+
+export interface ErpActualTaxRow {
+  charge_type: 'Actual';
+  account_head: string;
+  description: string;
+  tax_amount: number;
+  category: 'Total';
+  add_deduct_tax: 'Add' | 'Deduct';
+  included_in_print_rate: 0;
+}
+
+export const ENTERED_TAX_AND_TEMPLATE = 'Choose an ERPNext tax template or enter the tax amounts — not both.';
+const MONEY = /^\d{1,12}(\.\d{1,2})?$/;
+const PPH_LABEL = { pph23: 'PPh 23', pph4_2: 'PPh 4(2)' } as const;
+const SETTING_LABEL = { inputVat: 'Input VAT account', pph23: 'PPh 23 payable account', pph4_2: 'PPh 4(2) payable account' } as const;
+
+/**
+ * The command's entered amounts, shape-checked with NO reads, so a malformed one is refused before any ERP call.
+ * Null when the command carries none of `vatAmount` / `withheldAmount` / `pphType` (template or ERPNext-default path).
+ */
+export function parseEnteredPurchaseTax(record: Record<string, unknown>): EnteredPurchaseTax | null {
+  if (!('vatAmount' in record) && !('withheldAmount' in record) && !('pphType' in record)) return null;
+  const money = (value: unknown, label: string): number => {
+    if (typeof value !== 'number' || !MONEY.test(String(value))) {
+      throw new AdapterError('commit-rejected', `The vendor invoice's ${label} must be zero or a positive amount with at most two decimals.`);
+    }
+    return value;
+  };
+  const vatAmount = money(record.vatAmount ?? 0, 'VAT amount');
+  const withheldAmount = money(record.withheldAmount ?? 0, 'tax withheld');
+  const type = record.pphType ?? null;
+  if (type !== null && type !== 'pph23' && type !== 'pph4_2') {
+    throw new AdapterError('commit-rejected', 'The withholding type must be PPh 23 or PPh 4(2).');
+  }
+  if (withheldAmount > 0 && type === null) {
+    throw new AdapterError('commit-rejected', 'Say whether the tax withheld is PPh 23 or PPh 4(2).');
+  }
+  return { vatAmount, withheldAmount, pphType: withheldAmount > 0 ? type : null };
+}
+
+/**
+ * The setting's account, when it is a non-group account of the binding's company (a PPh account: a Liability). The
+ * refusal names the SETTING, never the account or the company (ADR-0072).
+ */
+async function usableAccount(
+  deps: ErpClientDeps, company: string, name: string | null, setting: keyof typeof SETTING_LABEL, liability: boolean,
+): Promise<string> {
+  const label = SETTING_LABEL[setting];
+  const account = name?.trim() ?? '';
+  if (!account) {
+    throw new AppError(`Set the ${label} in Administration → Accounting before recording this tax on a vendor invoice.`, 'config-rejected');
+  }
+  const doc = (await readAccount(deps, account)) as { company?: unknown; is_group?: unknown; root_type?: unknown } | null;
+  if (!doc || doc.company !== company || Number(doc.is_group) !== 0 || (liability && doc.root_type !== 'Liability')) {
+    throw new AppError(
+      `The ${label} in Administration → Accounting is not a usable ${liability ? 'tax-payable (liability) ' : ''}account of this organization's ERPNext company. Correct it, then record the invoice again.`,
+      'config-rejected',
+    );
+  }
+  return account;
+}
+
+/**
+ * The fixed rows for the entered amounts: VAT `Add` on the input-VAT account, PPh `Deduct` on the type's payable
+ * account; a zero amount sends no row. Withholding above the items total is refused FIRST, before any read — ERPNext
+ * would accept it and the mirror's `withheld ≤ amount` bound would then refuse every replay (DD-VWH-22).
+ */
+export async function buildEnteredPurchaseTaxRows(
+  deps: ErpClientDeps, company: string, entered: EnteredPurchaseTax, accounts: VendorTaxAccounts, itemsTotal: number | null,
+): Promise<ErpActualTaxRow[]> {
+  if (itemsTotal !== null && Math.round(entered.withheldAmount * 100) > Math.round(itemsTotal * 100)) {
+    throw new AdapterError('commit-rejected', "The tax withheld is larger than the invoice's items total before tax. Check the PPh amount on the vendor's invoice.");
+  }
+  const rows: ErpActualTaxRow[] = [];
+  if (entered.vatAmount > 0) {
+    rows.push({
+      charge_type: 'Actual', account_head: await usableAccount(deps, company, accounts.inputVat, 'inputVat', false),
+      description: 'VAT', tax_amount: entered.vatAmount, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0,
+    });
+  }
+  if (entered.withheldAmount > 0 && entered.pphType) {
+    rows.push({
+      charge_type: 'Actual', account_head: await usableAccount(deps, company, accounts[entered.pphType], entered.pphType, true),
+      description: PPH_LABEL[entered.pphType], tax_amount: entered.withheldAmount, category: 'Total', add_deduct_tax: 'Deduct',
+      included_in_print_rate: 0,
+    });
   }
   return rows;
 }

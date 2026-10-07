@@ -57,6 +57,10 @@ export const parseVendorInvoiceTax = parseTaxFacts;
  * Asking for a fact and discarding it is worse than not asking, so the forms do not render the
  * controls here. Letting the user CHOOSE the ERPNext tax template on this path is a real feature and
  * is tracked separately (#520) — it is not this omission.
+ *
+ * #876 slice 2 (DD-VWH-14): on a flipped org the bill form now asks the VAT and PPh AMOUNTS (or a template) — the
+ * dispatch sends them as fixed ERPNext rows. The native treatment / rate controls stay hidden there; this predicate
+ * still decides that.
  */
 export function taxIsPmoAuthored(): boolean {
   return routeDomainWrite('procurement') !== 'external';

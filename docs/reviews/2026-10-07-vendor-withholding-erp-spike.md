@@ -43,3 +43,21 @@ Findings: an `Actual` row lands its stated amount exactly (added / deducted equa
 existing mirror (DD-VWH-2) reads them back unchanged. This bench has rounded totals ON: with fractional figures the
 outstanding is the rounded net payable (case B: outstanding 1,090,000 vs grand_total 1,089,999.99) — the OQ-VWH-1
 default (a sub-rupiah difference is accepted) is exercised by case B.
+
+## Addendum 2 — empty template with a default present (slice 2, Task 0)
+
+Same bench and accounts. A purchase tax template `Spike Default VAT - PSC` (one `On Net Total` 11% VAT row) was made
+the company's **default**, then two bills were created with `taxes_and_charges: ''` and submitted, then the default was
+disabled again. Question: does ERPNext apply a default template over an explicit empty template + table (DD-VWH-13's
+zero-tax case)?
+
+| Step | Expected | Observed |
+|---|---|---|
+| D1 default template | `Spike Default VAT - PSC` | `Spike Default VAT - PSC` (is_default 1, disabled 0) |
+| D2 no-tax bill, `taxes: []` | total_taxes_and_charges 0, grand_total 1000000, rows 0 | taxes_and_charges `''`, net 1000000, total_taxes_and_charges 0, grand_total 1000000, rows 0 |
+| D3 entered amounts (VAT 110000 Add, PPh 23 20000 Deduct) | added 110000, deducted 20000, grand_total 1090000, outstanding 1090000, exactly the two Actual rows | taxes_and_charges `''`, added 110000, deducted 20000, grand_total 1090000, outstanding 1090000, rows = exactly the two `Actual` rows |
+| D4 restore | `Spike Default VAT - PSC` (disabled) | `Spike Default VAT - PSC` (is_default 0, disabled 1) |
+
+Finding: ERPNext does NOT apply the default template when the body states an empty template and an explicit tax table
+(empty or not). DD-VWH-13's body (`taxes_and_charges: ''` + server-built rows, an empty table for "no tax") holds.
+Documents left on the bench: `ACC-PINV-2026-00246` (D2), `ACC-PINV-2026-00247` (D3).

@@ -457,9 +457,17 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     if (piWithheld === null) {
       throw new AppError('the purchase invoice read-back carried no withholding total; its money cannot be mirrored', 'BAD_REQUEST');
     }
+    // #876 slice 2 (OQ-VWH-6): the PPh type is stored on every bill that withholds. ERPNext's header does not carry it,
+    // so only an entered-amount create — whose type the dispatch validated and persisted in the command
+    // (resolvePurchaseInvoiceTaxes, `taxesFromAmounts`) — can state it; a template-path bill keeps NULL (the type is
+    // the ERPNext payable account). Never stated when nothing was withheld.
+    const entered = command.record as { taxesFromAmounts?: unknown; pphType?: unknown };
+    const pphType = entered.taxesFromAmounts === true && (entered.pphType === 'pph23' || entered.pphType === 'pph4_2')
+      && Number(piWithheld) !== 0 ? entered.pphType : null;
     const { error } = await ctx.serviceClient.from('procurement_invoices').insert({
       id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId,
       ...patch,
+      ...(pphType ? { withheld_pph_type: pphType } : {}),
       // NOT NULL with no DB default (0196), so the create branch must always state it. ERPNext
       // returns `total_taxes_and_charges` on every Purchase Invoice (0 when the doc carries no
       // taxes), and PI_FROM_DOC_FIELDS requests it — '0.00' is the untaxed-document case, never
