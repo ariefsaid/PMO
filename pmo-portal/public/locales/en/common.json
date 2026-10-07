@@ -1,4 +1,27 @@
 {
+  "efaktur": {
+    "title": "Record e-Faktur details",
+    "number": "e-Faktur number",
+    "date": "e-Faktur date",
+    "column": "e-Faktur",
+    "record": "Record e-Faktur",
+    "subtitle": "For {{record}}. Record the number and its date together, or leave both empty for a non-VAT document.",
+    "invalidNumber": "Use up to 32 digits, dots, or dashes.",
+    "numberMissing": "Enter the e-Faktur number as well, or clear the date.",
+    "dateMissing": "Enter the e-Faktur date as well, or clear the number.",
+    "futureDate": "The e-Faktur date cannot be in the future.",
+    "invalidDate": "Enter a valid date.",
+    "disabledReason": "Fix the highlighted e-Faktur value to save.",
+    "notSaved": "e-Faktur not saved",
+    "refusedIncomplete": "Record the e-Faktur number and its date together.",
+    "refusedCancelled": "This invoice has been cancelled, so its e-Faktur can no longer be recorded. The list has been refreshed.",
+    "cancel": "Cancel",
+    "discardTitle": "Discard these e-Faktur details?",
+    "discardDescription": "The number and date you entered will not be saved.",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "saved": "e-Faktur details saved"
+  },
   "budget": {
     "category": {
       "specialExpenses": "Special expenses"

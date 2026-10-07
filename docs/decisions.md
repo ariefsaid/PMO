@@ -1322,6 +1322,21 @@ with period lock and foreign-currency revaluation (#900). Map: "Month-end and ye
 is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
 work, not a PMO gap.
 
+**[DD-EFK-1] e-Faktur number and date are PMO-owned facts (Director, 2026-10-07).** Store these values only
+on the PMO sales-invoice and vendor-bill rows; never push them to ERPNext. ERPNext is headless for client users
+(OD-ERP-3), the reference is not a ledger fact and is usually assigned after invoice issuance, and changing a
+submitted ERP document would require `commitAmend`'s cancel-and-amend path — re-issuing an invoice just to attach
+a reference is wrong. The tax registers in #898 read the values from PMO. This excludes ERP custom fields, ERP
+mappings, onboarding changes, and outbox commands for e-Faktur; the ERP mirror writers (outbound read-model and
+inbound feed) never overwrite or null the two columns. Admin/Finance set them through one setter RPC per table,
+at any status except cancelled.
+
+**[DD-EFK-2] e-Faktur number and date: both or neither (Director, 2026-10-07).** A number without its date
+falls out of the monthly VAT register (#898 groups by the e-Faktur date), and a date without its number names no
+tax invoice. So a save carrying only one of the two is refused — inline in the e-Faktur dialog, by both setter
+RPCs (SQLSTATE 23514, DETAIL `efaktur-incomplete`), and by a table CHECK on `sales_invoices` and
+`procurement_invoices` so no other writer can split the pair. Clearing both stays valid (a non-VAT document).
+
 **[DD-PDF-1..11] The client invoice PDF is the ERP's own print, proxied on demand (#912, Director 2026-10-07).**
 Recorded in full in `docs/specs/invoice-pdf.spec.md` and ADR-0083: Admin/Finance only; submitted invoices only (PMO
 row AND the ERP's live status); document name from the machine-written link table, doctype fixed in code; the ERP's

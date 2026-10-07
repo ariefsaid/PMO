@@ -98,6 +98,20 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getCardBranch()).not.toBeInTheDocument();
   });
 
+  it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
+    mockViewport(false);
+    const sparse: Column<Row>[] = [
+      ...columns,
+      { key: 'note', header: 'Note', cell: (r) => (r.id === 'R-1' ? 'kept' : null) },
+    ];
+    render(<DataTable rows={rows} columns={sparse} rowKey={(r) => r.id} />);
+    const [first, second] = Array.from(getCardBranch()!.querySelectorAll(':scope > li'));
+    expect(Array.from(first.querySelectorAll('dt')).map((dt) => dt.textContent)).toContain('Note');
+    expect(first.textContent).toContain('kept');
+    expect(Array.from(second.querySelectorAll('dt')).map((dt) => dt.textContent)).not.toContain('Note');
+    expect(second.querySelectorAll('dt')).toHaveLength(second.querySelectorAll('dd').length);
+  });
+
   // ── AT reachability (no aria-hidden, single copy) ───────────────────────────
 
   it('AC-IXD-MOBILE-W4-A11Y: the card branch is in the a11y tree with NO aria-hidden (mobile AT must read cards)', () => {

@@ -64,6 +64,14 @@ export interface LedgerRow {
    */
   taxTreatment: string | null;
   taxBaseUnknown?: boolean;
+  /** DD-EFK-1: supplier e-Faktur values exist only on vendor-invoice rows. */
+  efakturNumber?: string | null;
+  efakturDate?: string | null;
+  /**
+   * Vendor-invoice rows only: true when the mirrored bill is cancelled (docstatus 2 or a cancel stamp),
+   * which locks the e-Faktur edit affordance. Absent on every other record type.
+   */
+  efakturLocked?: boolean;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -153,6 +161,9 @@ function filePresence(files: EmbeddedFileRow[] | undefined): {
 interface MakeRowExtra {
   groupRef?: string | null;
   taxTreatment?: string | null;
+  efakturNumber?: string | null;
+  efakturDate?: string | null;
+  efakturLocked?: boolean;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -174,7 +185,8 @@ function makeRow(
   files?: EmbeddedFileRow[],
   extra: MakeRowExtra = {},
 ): LedgerRow {
-  const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount } = extra;
+  const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount,
+    efakturNumber, efakturDate, efakturLocked } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
   return {
@@ -194,6 +206,9 @@ function makeRow(
     recordId,
     currency,
     taxTreatment: taxTreatment ?? null,
+    efakturNumber: type === 'Invoice' ? (efakturNumber ?? null) : null,
+    efakturDate: type === 'Invoice' ? (efakturDate ?? null) : null,
+    ...(type === 'Invoice' ? { efakturLocked: efakturLocked ?? false } : {}),
     taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
     ...(withheldAmount !== undefined ? { taxAmount: taxAmount ?? null, withheldAmount } : {}),
   };
@@ -333,6 +348,9 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
           taxBaseUnknown: vi.erp_docstatus != null,
           taxAmount: vi.tax_amount,
           withheldAmount: vi.withheld_amount,
+          efakturNumber: vi.efaktur_number,
+          efakturDate: vi.efaktur_date,
+          efakturLocked: vi.erp_docstatus === 2 || vi.erp_cancelled_at != null,
         },
       ),
     );

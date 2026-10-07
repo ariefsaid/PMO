@@ -247,6 +247,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'revokeGrant', 'update'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
+      // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
       [
         'create',
         'createDocument',
@@ -264,6 +265,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'list',
         'listDocuments',
         'selectQuote',
+        'setEfaktur',
         'transition',
         'updateHeader',
         'updateItem',

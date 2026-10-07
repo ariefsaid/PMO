@@ -184,6 +184,17 @@ describe('AC-L10N-052 an export carries each row\'s own ISO currency next to its
     expect(byNumber('SI-IDR').getCell(col('Amount')).value).toBe(2000000);
   });
 
+  it('AC-EFK-004: the merged on-screen e-Faktur cell still exports as two columns (number, date)', async () => {
+    hoisted.invoices = [{ ...invoice, efaktur_number: '010.001-26.12345678', efaktur_date: '2026-09-28' }];
+    renderPage(<SalesInvoices />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
+    const { ws, col } = await exportedSheet();
+    expect(col('e-Faktur')).toBe(0); // the on-screen merged header never reaches the sheet
+    expect(ws.getRow(2).getCell(col('e-Faktur number')).value).toBe('010.001-26.12345678');
+    // the export seam writes an ISO date string as a real date cell
+    expect((ws.getRow(2).getCell(col('e-Faktur date')).value as Date).toISOString().slice(0, 10)).toBe('2026-09-28');
+  });
+
   it('AC-L10N-052: the on-screen table gets no extra Currency column (export-only)', () => {
     renderPage(<SalesInvoices />);
     expect(screen.queryByRole('columnheader', { name: 'Currency' })).not.toBeInTheDocument();

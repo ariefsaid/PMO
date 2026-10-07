@@ -868,6 +868,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           created_at?: string
+          created_by?: string | null
           currency?: string
           id?: string
           import_batch_id?: string | null
@@ -882,6 +883,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           created_at?: string
+          created_by?: string | null
           currency?: string
           id?: string
           import_batch_id?: string | null
@@ -3508,6 +3510,8 @@ export type Database = {
           amount: number | null
           created_at: string
           currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -3537,6 +3541,8 @@ export type Database = {
           amount?: number | null
           created_at?: string
           currency?: string
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -3566,6 +3572,8 @@ export type Database = {
           amount?: number | null
           created_at?: string
           currency?: string
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -5439,6 +5447,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -5467,6 +5477,8 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -5495,6 +5507,8 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -6262,6 +6276,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      assert_invoice_command_within_work_order: {
+        Args: {
+          p_operation: string
+          p_org_id: string
+          p_payload: Json
+          p_pmo_record_id: string
+        }
+        Returns: undefined
+      }
       assert_is_active_member: {
         Args: { p_actor?: string }
         Returns: undefined
@@ -6346,6 +6369,8 @@ export type Database = {
           amount: number | null
           created_at: string
           currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -6495,6 +6520,8 @@ export type Database = {
           amount: number | null
           created_at: string
           currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -6919,6 +6946,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -7519,6 +7548,50 @@ export type Database = {
         }
         Returns: string
       }
+      set_procurement_invoice_efaktur: {
+        Args: {
+          p_efaktur_date: string
+          p_efaktur_number: string
+          p_invoice_id: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          external_ref: string | null
+          id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
+          invoice_date: string | null
+          org_id: string
+          po_id: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          vi_number: string | null
+          withheld_amount: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_project_contract_value: {
         Args: {
           p_id: string
@@ -7533,6 +7606,49 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_sales_invoice_efaktur: {
+        Args: {
+          p_efaktur_date: string
+          p_efaktur_number: string
+          p_si_id: string
+        }
+        Returns: {
+          amount: number | null
+          author_user_id: string | null
+          created_at: string
+          currency: string
+          customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_due_date: string | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          id: string
+          invoice_date: string | null
+          org_id: string
+          project_id: string | null
+          received_date: string | null
+          reference_number: string | null
+          si_number: string | null
+          status: string
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_sales_invoice_received_date: {
         Args: { p_received_date: string; p_si_id: string }
         Returns: {
@@ -7541,6 +7657,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -7620,6 +7738,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null

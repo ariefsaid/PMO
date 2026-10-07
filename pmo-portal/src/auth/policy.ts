@@ -32,6 +32,7 @@ export type Action =
   | 'submit_sales_invoice'
   | 'record_received_date'
   | 'download_pdf'
+  | 'record_efaktur'
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
@@ -66,6 +67,7 @@ export type Entity =
   | 'meeting'
   | 'userView'
   | 'salesInvoice'
+  | 'procurementInvoice'
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
@@ -450,6 +452,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       has(REVENUE_WRITE, role)
       && ctx.record?.erp_docstatus === 1
       && ['Submitted', 'Unpaid', 'Paid'].includes(String(ctx.record?.status ?? '')),
+    // DD-EFK-1: e-Faktur facts stay PMO-owned and are editable by the revenue write set only.
+    record_efaktur: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.
@@ -468,6 +472,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       if (authorIds?.includes(ctx.currentUserId)) return false;
       return true;
     },
+  },
+  procurementInvoice: {
+    // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
+    record_efaktur: allow(REVENUE_WRITE),
   },
   incomingPayment: {
     // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);

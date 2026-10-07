@@ -32,6 +32,7 @@ export type TaxTreatment = 'inclusive' | 'exclusive';
 interface RpcErrorLike {
   message: string;
   code?: string;
+  details?: string | null;
 }
 
 /**
@@ -43,16 +44,19 @@ interface RpcErrorLike {
  */
 export class ProcurementError extends Error {
   readonly code?: string;
-  constructor(message: string, code?: string) {
+  /** The Postgres DETAIL, when the raiser set a stable machine key there (e.g. `efaktur-cancelled`). */
+  readonly details?: string;
+  constructor(message: string, code?: string, details?: string) {
     super(message);
     this.name = 'ProcurementError';
     this.code = code;
+    if (details) this.details = details;
   }
 }
 
-/** Throws a ProcurementError that preserves both message and code. */
+/** Throws a ProcurementError that preserves message, code and DETAIL. */
 function throwRpc(error: RpcErrorLike): never {
-  throw new ProcurementError(error.message, error.code);
+  throw new ProcurementError(error.message, error.code, error.details ?? undefined);
 }
 
 export type ProcurementItemRow = Tables<'procurement_items'>;
@@ -222,6 +226,21 @@ export async function transitionProcurement(
     p_id: id,
     p_to: to,
     p_notes: notes,
+  })) as unknown as { data: null; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
+}
+
+/** DD-EFK-1: set PMO-owned supplier e-Faktur facts directly; no procurement/ERP command is created. */
+export async function setProcurementInvoiceEfaktur(
+  invoiceId: string,
+  efakturNumber: string | null,
+  efakturDate: string | null,
+): Promise<void> {
+  // `as string`: NULL is intended (it clears the fact); generated RPC arg types are always non-null.
+  const { error } = (await supabase.rpc('set_procurement_invoice_efaktur', {
+    p_invoice_id: invoiceId,
+    p_efaktur_number: efakturNumber as string,
+    p_efaktur_date: efakturDate as string,
   })) as unknown as { data: null; error: RpcErrorLike | null };
   if (error) throwRpc(error);
 }

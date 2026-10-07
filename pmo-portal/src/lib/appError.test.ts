@@ -32,6 +32,14 @@ describe('toAppError (normalizes any thrown value, preserving code)', () => {
     expect(e.code).toBe('42501');
   });
 
+  it('AC-EFK-005 preserves a string Postgres DETAIL (a stable refusal key) from an Error or a plain object', () => {
+    expect(toAppError(Object.assign(new Error('refused'), { code: '23514', details: 'efaktur-cancelled' })).details)
+      .toBe('efaktur-cancelled');
+    expect(toAppError({ message: 'refused', code: '23514', details: 'efaktur-incomplete' }).details)
+      .toBe('efaktur-incomplete');
+    expect(toAppError({ message: 'refused', code: '23514', details: null }).details).toBeUndefined();
+  });
+
   it('maps a plain Error (no code) to an AppError with undefined code', () => {
     const e = toAppError(new Error('network down'));
     expect(e).toBeInstanceOf(AppError);
