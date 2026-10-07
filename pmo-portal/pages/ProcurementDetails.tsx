@@ -141,9 +141,8 @@ type PendingConfirm =
 
 /**
  * Returns the list of (from→to) transitions that should be shown to this role.
- * Cosmetic only — the RPC enforces for real (AC-805, FR-PROC-006). PRESERVED:
- * the matrix below is byte-identical to the prior implementation, only the
- * button-variant vocabulary maps onto the design-system Button variants.
+ * Cosmetic only — the RPC enforces for real (AC-805, FR-PROC-006); it mirrors
+ * transition_procurement's matrix (submit: the requester, or a real Admin).
  */
 function allowedActions(
   status: ProcurementStatus,
