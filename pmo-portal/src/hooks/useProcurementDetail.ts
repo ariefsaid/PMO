@@ -169,5 +169,16 @@ export function useProcurementMutations(id: string) {
     onSuccess: invalidateDetail,
   });
 
-  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, pendingPush };
+  // DD-EFK-1: vendor e-Faktur facts are PMO-owned, never dispatched or marked pending-push.
+  const setEfaktur = useMutation<
+    void,
+    ProcurementError,
+    { invoiceId: string; efakturNumber: string | null; efakturDate: string | null }
+  >({
+    mutationFn: ({ invoiceId, efakturNumber, efakturDate }) =>
+      repositories.procurement.setEfaktur(invoiceId, { efakturNumber, efakturDate }),
+    onSuccess: invalidateDetail,
+  });
+
+  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, pendingPush };
 }

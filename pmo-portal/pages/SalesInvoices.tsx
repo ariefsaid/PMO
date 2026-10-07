@@ -23,6 +23,7 @@ import {
   type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
+import { EfakturModal } from '@/src/components/EfakturModal';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -119,14 +120,15 @@ const SalesInvoices: React.FC = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
-  const { create, setReceivedDate, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
+  const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
   const canEdit = may('edit', 'salesInvoice');
   const canCancel = may('transition', 'salesInvoice');
   const canRecordReceipt = may('record_received_date', 'salesInvoice');
-  const canRowWrite = canEdit || canCancel || canRecordReceipt;
+  const canRecordEfaktur = may('record_efaktur', 'salesInvoice');
+  const canRowWrite = canEdit || canCancel || canRecordReceipt || canRecordEfaktur;
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -140,6 +142,7 @@ const SalesInvoices: React.FC = () => {
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
   const [submitTarget, setSubmitTarget] = useState<SalesInvoiceRow | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<SalesInvoiceRow | null>(null);
+  const [efakturTarget, setEfakturTarget] = useState<SalesInvoiceRow | null>(null);
 
   // BLOCK 2 (ADR-0058): the confirm dialogs are ALWAYS mounted, so their command identity cannot be
   // a plain ref — it must be per (record, verb) or a retry on invoice B would carry invoice A's key.
@@ -259,6 +262,18 @@ const SalesInvoices: React.FC = () => {
       exportValue: (inv) => inv.received_date ?? '',
     },
     {
+      key: 'efaktur_number',
+      header: t('efaktur.number', 'e-Faktur number'),
+      cell: (inv) => inv.efaktur_number ?? '—',
+      exportValue: (inv) => inv.efaktur_number ?? '',
+    },
+    {
+      key: 'efaktur_date',
+      header: t('efaktur.date', 'e-Faktur date'),
+      cell: (inv) => inv.efaktur_date ? formatDateOnly(inv.efaktur_date) : '—',
+      exportValue: (inv) => inv.efaktur_date ?? '',
+    },
+    {
       key: 'due_date',
       header: t('financeCopy.dueDate', "Due Date"),
       cell: (inv) => {
@@ -279,6 +294,8 @@ const SalesInvoices: React.FC = () => {
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).
     if (canRecordReceipt && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
+    if (canRecordEfaktur && inv.status !== 'Cancelled')
+      items.push({ label: t('efaktur.edit', 'Edit e-Faktur'), onClick: () => setEfakturTarget(inv) });
     if (canCancel && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(inv), danger: true });
     // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record
@@ -443,6 +460,21 @@ const SalesInvoices: React.FC = () => {
           onError={(err) => {
             const { headline, detail } = classifyMutationError(err);
             toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+
+      {efakturTarget && (
+        <EfakturModal
+          open
+          number={efakturTarget.efaktur_number}
+          date={efakturTarget.efaktur_date}
+          loading={setEfaktur.isPending}
+          onClose={() => setEfakturTarget(null)}
+          onSave={async ({ efakturNumber, efakturDate }) => {
+            await setEfaktur.mutateAsync({ siId: efakturTarget.id, efakturNumber, efakturDate });
+            toast(t('efaktur.saved', 'e-Faktur details saved'), efakturTarget.si_number ?? efakturTarget.id, 'success');
+            setEfakturTarget(null);
           }}
         />
       )}

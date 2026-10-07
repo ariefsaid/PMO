@@ -139,6 +139,7 @@ import {
   createQuotation,
   createReceipt,
   createInvoice,
+  setProcurementInvoiceEfaktur,
   type ProcurementReceiptRow,
   type ProcurementInvoiceRow,
 } from '@/src/lib/db/procurementLifecycle';
@@ -275,6 +276,7 @@ import {
   getRevenueByProject,
   submitSalesInvoiceSod,
   setSalesInvoiceReceivedDate,
+  setSalesInvoiceEfaktur,
 } from '@/src/lib/db/revenue';
 import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
@@ -556,6 +558,8 @@ const procurement: ProcurementRepository = {
           intent,
         ).then((res) => res.canonical as unknown as ProcurementInvoiceRow)
       : wrap(() => createInvoice(input)),
+  // DD-EFK-1: e-Faktur facts are PMO-owned, so this setter always stays direct even for external ERP domains.
+  setEfaktur: (invoiceId, values) => wrap(() => setProcurementInvoiceEfaktur(invoiceId, values.efakturNumber, values.efakturDate)),
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
@@ -644,6 +648,8 @@ const revenue: RevenueRepository = {
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
   setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
+  // DD-EFK-1: PMO-owned e-Faktur update never routes to ERPNext or creates an outbox command.
+  setEfaktur: (siId, values) => wrap(() => setSalesInvoiceEfaktur(siId, values.efakturNumber, values.efakturDate)),
   submitInvoice: (siId, intent) =>
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {

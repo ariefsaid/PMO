@@ -444,3 +444,27 @@ Deno.test('BLOCK 13: a failed notification write never loses the adopted invoice
     console.error = original;
   }
 });
+
+// ── #893 / DD-EFK-1 — e-Faktur number + date are PMO-owned; the inbound feed never writes them ─────
+
+Deno.test('AC-EFK-003 inbound feed refresh, cancel and amend never write PMO-owned e-Faktur columns (sales invoice + vendor bill)', async () => {
+  for (const [kind, table] of [['sales-invoice', 'sales_invoices'], ['purchase-invoice', 'procurement_invoices']] as const) {
+    const { client, calls } = fakeServiceClient();
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+    // Even a canonical that (wrongly) carried the keys must not reach the mirror patch.
+    await deps.updateMirror('pmo-inv-1', {
+      id: 'pmo-inv-1', amount: '100.00', erp_outstanding_amount: '0', erp_docstatus: 1,
+      efaktur_number: null, efaktur_date: null,
+    }, 1000);
+    await deps.tombstoneMirror('pmo-inv-1', '2026-10-01T00:00:00.000Z');
+    await deps.stampAmended('pmo-inv-1', 'ERP-DOC-1', '2026-10-01T00:00:00.000Z');
+
+    const writes = calls.filter((c) => c.table === table && c.op === 'update');
+    assert(writes.length === 3, `expected refresh + tombstone + amend writes on ${table}, got ${writes.length}`);
+    for (const w of writes) {
+      const patch = w.payload as Record<string, unknown>;
+      assert(!('efaktur_number' in patch), `${table} feed patch must omit efaktur_number`);
+      assert(!('efaktur_date' in patch), `${table} feed patch must omit efaktur_date`);
+    }
+  }
+});

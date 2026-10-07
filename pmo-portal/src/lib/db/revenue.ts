@@ -53,6 +53,10 @@ export interface SalesInvoiceRow {
   erp_due_date: string | null;
   /** #767: the date the client received the invoice; due = this + the customer's terms when set. */
   received_date: string | null;
+  /** DD-EFK-1: PMO-owned tax-invoice reference (never mirrored to ERP). */
+  efaktur_number: string | null;
+  /** DD-EFK-1: PMO-owned tax-invoice date (never mirrored to ERP). */
+  efaktur_date: string | null;
 }
 
 export interface IncomingPaymentRow {
@@ -131,6 +135,8 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
     author_user_ids: authors.map((a) => a.user_id),
     erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
     received_date: (row.received_date as string | null | undefined) ?? null,
+    efaktur_number: (row.efaktur_number as string | null | undefined) ?? null,
+    efaktur_date: (row.efaktur_date as string | null | undefined) ?? null,
   } as unknown as SalesInvoiceRow;
 }
 
@@ -264,6 +270,20 @@ export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: st
   const { error } = await supabase.rpc('set_sales_invoice_received_date', {
     p_si_id: siId,
     p_received_date: receivedDate as string,
+  });
+  if (error) throwWrite(error);
+}
+
+/** DD-EFK-1: set PMO-owned e-Faktur facts directly; never dispatches an ERP command. */
+export async function setSalesInvoiceEfaktur(
+  siId: string,
+  efakturNumber: string | null,
+  efakturDate: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('set_sales_invoice_efaktur', {
+    p_si_id: siId,
+    p_efaktur_number: efakturNumber as string,
+    p_efaktur_date: efakturDate as string,
   });
   if (error) throwWrite(error);
 }

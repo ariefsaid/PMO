@@ -30,7 +30,8 @@ import {
   StatusPill,
   TaxBasisLabel,
 } from '@/src/components/ui';
-import type { Column } from '@/src/components/ui';
+import type { Column, RowMenuItem } from '@/src/components/ui';
+import { EfakturModal, type EfakturSaveValues } from '@/src/components/EfakturModal';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import type { RecordKind } from './RecordCaptureForm';
@@ -77,6 +78,14 @@ const FILTER_CHIPS: FilterChipDef[] = [
 const GroupRefHeader: React.FC = () => {
   const { t } = useTranslation();
   return <>{t('procurementDetail.groupRef.label', 'Group ref')}</>;
+};
+const EfakturNumberHeader: React.FC = () => {
+  const { t } = useTranslation();
+  return <>{t('efaktur.number', 'e-Faktur number')}</>;
+};
+const EfakturDateHeader: React.FC = () => {
+  const { t } = useTranslation();
+  return <>{t('efaktur.date', 'e-Faktur date')}</>;
 };
 
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
@@ -127,6 +136,16 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
       ) : (
         <span className="text-[12px] text-muted-foreground">—</span>
       ),
+  },
+  {
+    key: 'efakturNumber',
+    header: <EfakturNumberHeader />,
+    cell: (row) => row.efakturNumber ?? <span className="text-[12px] text-muted-foreground">—</span>,
+  },
+  {
+    key: 'efakturDate',
+    header: <EfakturDateHeader />,
+    cell: (row) => row.efakturDate ? formatBusinessDate(row.efakturDate) : <span className="text-[12px] text-muted-foreground">—</span>,
   },
   {
     key: 'amount',
@@ -185,6 +204,12 @@ export interface ProcurementLedgerProps {
   uploadedById: string | null;
   /** Whether write affordances are shown. Derived from real JWT role. */
   canWrite: boolean;
+  /** Admin/Finance may edit PMO-owned e-Faktur facts on non-cancelled vendor invoices. */
+  canRecordEfaktur?: boolean;
+  /** PMO-only setter; the parent hook owns the query invalidation. */
+  onSetEfaktur?: (invoiceId: string, values: EfakturSaveValues) => Promise<void>;
+  /** Whether the setter is currently pending. */
+  efakturSaving?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
 }
@@ -199,9 +224,14 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   procurementId,
   uploadedById,
   canWrite,
+  canRecordEfaktur = false,
+  onSetEfaktur,
+  efakturSaving = false,
   invoices = [],
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
+  const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
+  const { t } = useTranslation();
 
   // Mutations for the capture row (invalidate the detail query on success)
   const mutations = useProcurementRecordMutations(procurementId);
@@ -335,11 +365,29 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
+        rowMenu={canRecordEfaktur && onSetEfaktur ? (row): RowMenuItem[] | undefined => {
+          if (row.type !== 'Invoice' || row.isCancelled) return undefined;
+          return [{ label: t('efaktur.edit', 'Edit e-Faktur'), onClick: () => setEfakturTarget(row) }];
+        } : undefined}
         state={tableState}
         emptyTitle={emptyTitle}
         emptySub={emptySub}
         className="rounded-t-none"
       />
+
+      {efakturTarget && onSetEfaktur && (
+        <EfakturModal
+          open
+          number={efakturTarget.efakturNumber ?? null}
+          date={efakturTarget.efakturDate ?? null}
+          loading={efakturSaving}
+          onClose={() => setEfakturTarget(null)}
+          onSave={async (values) => {
+            await onSetEfaktur(efakturTarget.recordId, values);
+            setEfakturTarget(null);
+          }}
+        />
+      )}
 
       {/* Capture affordance + note */}
       <CardPad>

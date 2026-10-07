@@ -1322,6 +1322,15 @@ with period lock and foreign-currency revaluation (#900). Map: "Month-end and ye
 is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
 work, not a PMO gap.
 
+**[DD-EFK-1] e-Faktur number and date are PMO-owned facts (Director, 2026-10-07).** Store these values only
+on the PMO sales-invoice and vendor-bill rows; never push them to ERPNext. ERPNext is headless for client users
+(OD-ERP-3), the reference is not a ledger fact and is usually assigned after invoice issuance, and changing a
+submitted ERP document would require `commitAmend`'s cancel-and-amend path — re-issuing an invoice just to attach
+a reference is wrong. The tax registers in #898 read the values from PMO. This excludes ERP custom fields, ERP
+mappings, onboarding changes, and outbox commands for e-Faktur; the ERP mirror writers (outbound read-model and
+inbound feed) never overwrite or null the two columns. Admin/Finance set them through one setter RPC per table,
+at any status except cancelled.
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the

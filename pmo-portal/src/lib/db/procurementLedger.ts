@@ -64,6 +64,11 @@ export interface LedgerRow {
    */
   taxTreatment: string | null;
   taxBaseUnknown?: boolean;
+  /** DD-EFK-1: supplier e-Faktur values exist only on vendor-invoice rows. */
+  efakturNumber?: string | null;
+  efakturDate?: string | null;
+  /** The mirrored invoice tombstone/cancel marker gates the e-Faktur edit affordance. */
+  isCancelled?: boolean;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -148,6 +153,9 @@ function filePresence(files: EmbeddedFileRow[] | undefined): {
 interface MakeRowExtra {
   groupRef?: string | null;
   taxTreatment?: string | null;
+  efakturNumber?: string | null;
+  efakturDate?: string | null;
+  isCancelled?: boolean;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -167,7 +175,8 @@ function makeRow(
   files?: EmbeddedFileRow[],
   extra: MakeRowExtra = {},
 ): LedgerRow {
-  const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown } = extra;
+  const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
+    efakturNumber, efakturDate, isCancelled } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
   return {
@@ -187,6 +196,9 @@ function makeRow(
     recordId,
     currency,
     taxTreatment: taxTreatment ?? null,
+    efakturNumber: type === 'Invoice' ? (efakturNumber ?? null) : null,
+    efakturDate: type === 'Invoice' ? (efakturDate ?? null) : null,
+    isCancelled: isCancelled ?? false,
     taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
   };
 }
@@ -323,6 +335,9 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
           taxBaseNumerator: vi.tax_base_numerator,
           taxBaseDenominator: vi.tax_base_denominator,
           taxBaseUnknown: vi.erp_docstatus != null,
+          efakturNumber: vi.efaktur_number,
+          efakturDate: vi.efaktur_date,
+          isCancelled: vi.erp_docstatus === 2 || vi.erp_cancelled_at != null,
         },
       ),
     );

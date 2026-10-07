@@ -1764,6 +1764,20 @@ export type Database = {
             referencedRelation: "expense_claims"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "expense_claim_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claim_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       expense_claim_lines: {
@@ -1803,6 +1817,13 @@ export type Database = {
             columns: ["claim_id"]
             isOneToOne: false
             referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claim_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1908,8 +1929,29 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "expense_claims_approved_by_id_fkey"
+            columns: ["approved_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "expense_claims_claimant_id_fkey"
             columns: ["claimant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_paid_by_id_fkey"
+            columns: ["paid_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2438,6 +2480,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payments_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoice_work_billed"
             referencedColumns: ["id"]
           },
           {
@@ -3255,6 +3304,8 @@ export type Database = {
           amount: number | null
           created_at: string
           currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -3283,6 +3334,8 @@ export type Database = {
           amount?: number | null
           created_at?: string
           currency?: string
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -3311,6 +3364,8 @@ export type Database = {
           amount?: number | null
           created_at?: string
           currency?: string
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -5111,6 +5166,13 @@ export type Database = {
             foreignKeyName: "sales_invoice_authors_sales_invoice_id_fkey"
             columns: ["sales_invoice_id"]
             isOneToOne: false
+            referencedRelation: "sales_invoice_work_billed"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoice_authors_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
             referencedRelation: "sales_invoices"
             referencedColumns: ["id"]
           },
@@ -5150,6 +5212,13 @@ export type Database = {
             foreignKeyName: "sales_invoice_submit_authorizations_sales_invoice_id_fkey"
             columns: ["sales_invoice_id"]
             isOneToOne: false
+            referencedRelation: "sales_invoice_work_billed"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoice_submit_authorizations_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
             referencedRelation: "sales_invoices"
             referencedColumns: ["id"]
           },
@@ -5162,6 +5231,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -5190,6 +5261,8 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -5218,6 +5291,8 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          efaktur_date?: string | null
+          efaktur_number?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -5845,42 +5920,18 @@ export type Database = {
           recovery: number | null
           status: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sales_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
-      expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
-      get_expense_advance_aging: {
-        Args: never
-        Returns: {
-          advance_id: string
-          age_days: number
-          amount: number
-          bucket: string
-          claim_number: string
-          claimant_id: string
-          claimant_name: string
-          currency: string
-          outstanding: number
-          paid_on: string
-          project_id: string
-          project_name: string
-          returned: number
-          settled: number
-        }[]
-      }
-      get_expense_claim_approval_routes: {
-        Args: { p_ids: string[] }
-        Returns: {
-          approvers: Json
-          claim_id: string
-          line_budget: number
-          line_used: number
-          reason: string
-          request_amount: number
-          route: string
-        }[]
-      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -5987,6 +6038,10 @@ export type Database = {
         }
         Returns: number
       }
+      can_read_comment_parent: {
+        Args: { p_id: string; p_type: string }
+        Returns: boolean
+      }
       can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
       capture_vendor_invoice: {
         Args: {
@@ -6008,6 +6063,8 @@ export type Database = {
           amount: number | null
           created_at: string
           currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -6156,6 +6213,8 @@ export type Database = {
           amount: number | null
           created_at: string
           currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -6415,6 +6474,7 @@ export type Database = {
         Returns: boolean
       }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
+      expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
       finalize_external_connect: {
         Args: {
           p_actor_id: string
@@ -6454,6 +6514,37 @@ export type Database = {
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }
+      get_expense_advance_aging: {
+        Args: never
+        Returns: {
+          advance_id: string
+          age_days: number
+          amount: number
+          bucket: string
+          claim_number: string
+          claimant_id: string
+          claimant_name: string
+          currency: string
+          outstanding: number
+          paid_on: string
+          project_id: string
+          project_name: string
+          returned: number
+          settled: number
+        }[]
+      }
+      get_expense_claim_approval_routes: {
+        Args: { p_ids: string[] }
+        Returns: {
+          approvers: Json
+          claim_id: string
+          line_budget: number
+          line_used: number
+          reason: string
+          request_amount: number
+          route: string
+        }[]
+      }
       get_finance_budget_review: { Args: never; Returns: Json }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
@@ -6527,6 +6618,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -6642,19 +6735,19 @@ export type Database = {
           p_limit?: number
         }
         Returns: {
-          action: string | null
-          actor_id: string | null
-          changes: Json | null
+          action: string
+          actor_id: string
+          changes: Json
           created_at: string
-          currency: string | null
-          detail: Json | null
+          currency: string
+          detail: Json
           entity_id: string
           entity_type: string
           event_id: string
-          op: string | null
-          parent_id: string | null
-          parent_type: string | null
-          seq: number | null
+          op: string
+          parent_id: string
+          parent_type: string
+          seq: number
           source: string
         }[]
       }
@@ -6937,6 +7030,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: string
       }
+      progress_assessment_line_ok: {
+        Args: { p_boq_item_id: string; p_entry_id: string }
+        Returns: boolean
+      }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
@@ -7114,6 +7211,49 @@ export type Database = {
         }
         Returns: string
       }
+      set_procurement_invoice_efaktur: {
+        Args: {
+          p_efaktur_date: string
+          p_efaktur_number: string
+          p_invoice_id: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          external_ref: string | null
+          id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
+          invoice_date: string | null
+          org_id: string
+          po_id: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          vi_number: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_project_contract_value: {
         Args: {
           p_id: string
@@ -7128,6 +7268,49 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_sales_invoice_efaktur: {
+        Args: {
+          p_efaktur_date: string
+          p_efaktur_number: string
+          p_si_id: string
+        }
+        Returns: {
+          amount: number | null
+          author_user_id: string | null
+          created_at: string
+          currency: string
+          customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_due_date: string | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          id: string
+          invoice_date: string | null
+          org_id: string
+          project_id: string | null
+          received_date: string | null
+          reference_number: string | null
+          si_number: string | null
+          status: string
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_sales_invoice_received_date: {
         Args: { p_received_date: string; p_si_id: string }
         Returns: {
@@ -7136,6 +7319,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -7197,6 +7382,16 @@ export type Database = {
           route: string
         }[]
       }
+      stage_vault_secret_for_org: {
+        Args: {
+          p_actor_id?: string
+          p_external_tier: string
+          p_org_id: string
+          p_secret_name: string
+          p_secret_value: string
+        }
+        Returns: string
+      }
       submit_sales_invoice: {
         Args: { p_si_id: string }
         Returns: {
@@ -7205,6 +7400,8 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null

@@ -49,6 +49,9 @@
 -- DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + Admin/Finance + org,
 -- proven by supabase/tests/0250_progress_billing_{claims,evidence,withdraw}.test.sql. `record_progress_assessment`
 -- and `get_project_billing` are SECURITY INVOKER and deliberately NOT listed.
+-- ⚑ AMENDED BY 0265 (#893 / DD-EFK-1): the PMO-only sales and procurement e-Faktur setters join the retained
+-- authenticated RPC set (+2, count 61). Both re-assert current Admin/Finance role, active membership, and org;
+-- their row checks and mirror preservation are proved by supabase/tests/0265_efaktur_number.test.sql.
 --
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
@@ -125,7 +128,9 @@ insert into client_callable_rpc_names (proname) values
   ('reserve_credits'),
   ('save_timesheet_week'),
   ('select_procurement_quote'),
+  ('set_procurement_invoice_efaktur'),
   ('set_project_contract_value'),
+  ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
   ('set_work_order_value'),
   ('submit_sales_invoice'),
@@ -157,8 +162,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  59,
-  'AC-ACL-002 all 59 retained client-callable RPC names still have a public function');
+  61,
+  'AC-ACL-002 all 61 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -167,8 +172,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  59,
-  'AC-ACL-003 all 59 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  61,
+  'AC-ACL-003 all 61 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

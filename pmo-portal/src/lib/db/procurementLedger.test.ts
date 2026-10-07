@@ -64,7 +64,7 @@ type RfqRow = Pick<Tables<'rfqs'>, 'id' | 'org_id' | 'procurement_id' | 'rfq_num
 type QuotRow = Pick<Tables<'procurement_quotations'>, 'id' | 'org_id' | 'procurement_id' | 'vq_number' | 'vendor_id' | 'total_amount' | 'received_date' | 'is_selected' | 'reference'>;
 type PORow = Pick<Tables<'purchase_orders'>, 'id' | 'org_id' | 'procurement_id' | 'po_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'created_at'>;
 type GRRow = Pick<Tables<'procurement_receipts'>, 'id' | 'org_id' | 'procurement_id' | 'gr_number' | 'status' | 'receipt_date' | 'created_at' | 'po_id' | 'reference_number'>;
-type VIRow = Pick<Tables<'procurement_invoices'>, 'id' | 'org_id' | 'procurement_id' | 'vi_number' | 'status' | 'invoice_date' | 'created_at' | 'po_id' | 'reference_number' | 'amount'>;
+type VIRow = Pick<Tables<'procurement_invoices'>, 'id' | 'org_id' | 'procurement_id' | 'vi_number' | 'status' | 'invoice_date' | 'created_at' | 'po_id' | 'reference_number' | 'amount'> & Partial<Pick<Tables<'procurement_invoices'>, 'efaktur_number' | 'efaktur_date' | 'erp_docstatus' | 'erp_cancelled_at'>>;
 type PayRow = Pick<Tables<'payments'>, 'id' | 'org_id' | 'procurement_id' | 'pay_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'invoice_id' | 'created_at'>;
 
 // ---------------------------------------------------------------------------
@@ -559,6 +559,28 @@ describe('AC-PR-LEDGER-017: VI externalRef + amount from procurement_invoices', 
     const viRow = rows.find((r) => r.type === 'Invoice');
     expect(viRow?.externalRef).toBeNull();
     expect(viRow?.amount).toBeNull();
+  });
+});
+
+describe('AC-EFK-005 vendor e-Faktur ledger projection', () => {
+  it('projects e-Faktur values only from vendor invoice rows and leaves other record types empty', () => {
+    const vi: VIRow = {
+      id: 'vi-efaktur', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-001', status: 'Paid',
+      invoice_date: '2026-10-01', created_at: '2026-10-01T00:00:00Z', po_id: null,
+      reference_number: null, amount: 100, efaktur_number: '010.001-26.12345678', efaktur_date: '2026-10-01',
+      erp_docstatus: 1, erp_cancelled_at: null,
+    };
+    const pr: PRRow = {
+      id: 'pr-no-efaktur', org_id: 'org-1', procurement_id: 'proc-1', pr_number: 'PR-1',
+      reference_number: null, status: 'Approved', date: '2026-10-01', amount: 100, created_at: '2026-10-01T00:00:00Z',
+    };
+    const rows = buildLedgerRows(makeDetail({ invoices: [vi], purchase_requests: [pr] }));
+    expect(rows.find((row) => row.type === 'Invoice')).toMatchObject({
+      efakturNumber: '010.001-26.12345678', efakturDate: '2026-10-01', isCancelled: false,
+    });
+    expect(rows.find((row) => row.type === 'PR')).toMatchObject({
+      efakturNumber: null, efakturDate: null, isCancelled: false,
+    });
   });
 });
 

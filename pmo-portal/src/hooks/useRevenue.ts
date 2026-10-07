@@ -160,6 +160,15 @@ export function useRevenueMutations() {
     onSuccess: invalidate,
   });
 
+  // DD-EFK-1: these PMO-owned facts are written directly even when revenue is ERP-owned.
+  const setEfaktur = useMutation({
+    mutationFn: ({ siId, efakturNumber, efakturDate }: {
+      siId: string; efakturNumber: string | null; efakturDate: string | null;
+    }) => repositories.revenue.setEfaktur(siId, { efakturNumber, efakturDate }),
+    onSuccess: invalidate,
+  });
+
+
   const createPayment = useMutation({
     mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; date: string; intent?: CommandIntent }) =>
       repositories.revenue.createPayment(input, intent),
@@ -190,5 +199,5 @@ export function useRevenueMutations() {
     },
   });
 
-  return { create, setReceivedDate, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
+  return { create, setReceivedDate, setEfaktur, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
 }

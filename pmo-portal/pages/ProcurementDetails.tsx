@@ -438,6 +438,8 @@ const ProcurementDetails: React.FC = () => {
   const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
   const canManageFiles = may('create', 'procFile');
+  // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
+  const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
   const currentUserId = currentUser?.id ?? null;
 
   // Shared classified-toast helper for the CRUD section mutations.
@@ -1026,6 +1028,16 @@ const ProcurementDetails: React.FC = () => {
               procurementId={p.id}
               uploadedById={currentUserId}
               canWrite={canManageFiles}
+              canRecordEfaktur={canRecordEfaktur}
+              efakturSaving={mutations.setEfaktur?.isPending ?? false}
+              onSetEfaktur={async (invoiceId, values) => {
+                await mutations.setEfaktur.mutateAsync({ invoiceId, ...values });
+                toast(
+                  t('efaktur.saved', 'e-Faktur details saved'),
+                  p.invoices?.find((inv) => inv.id === invoiceId)?.vi_number ?? undefined,
+                  'success',
+                );
+              }}
               invoices={p.invoices}
             />
           </Card>

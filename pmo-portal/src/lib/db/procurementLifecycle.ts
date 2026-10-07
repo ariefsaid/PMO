@@ -226,6 +226,20 @@ export async function transitionProcurement(
   if (error) throwRpc(error);
 }
 
+/** DD-EFK-1: set PMO-owned supplier e-Faktur facts directly; no procurement/ERP command is created. */
+export async function setProcurementInvoiceEfaktur(
+  invoiceId: string,
+  efakturNumber: string | null,
+  efakturDate: string | null,
+): Promise<void> {
+  const { error } = (await supabase.rpc('set_procurement_invoice_efaktur', {
+    p_invoice_id: invoiceId,
+    p_efaktur_number: efakturNumber as string,
+    p_efaktur_date: efakturDate as string,
+  })) as unknown as { data: null; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
+}
+
 /**
  * Creates a procurement quotation via the security-definer RPC (AC-816, FR-PROC-011/016).
  * org_id is NEVER sent; the RPC re-asserts authz internally.

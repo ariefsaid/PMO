@@ -35,6 +35,7 @@ const h = vi.hoisted(() => {
     /** Every `.order(column, opts)` the DAL applied, in order. */
     orders: [] as Array<{ column: string; ascending?: boolean }>,
     invoiceQueries: 0,
+    rpcCalls: [] as Array<{ name: string; args: Record<string, unknown> }>,
     /** LIVE-TABLE mode: when set, invoice queries are served from this mutable, id-ordered table. */
     table: null as Array<Record<string, unknown>> | null,
     /** Fired ONCE, after the next invoice query is served — simulates a concurrent write. */
@@ -85,11 +86,18 @@ const h = vi.hoisted(() => {
     return b;
   }
 
-  return { from: vi.fn((table: string) => builder(table)), state };
+  return {
+    from: vi.fn((table: string) => builder(table)),
+    rpc: vi.fn((name: string, args: Record<string, unknown>) => {
+      state.rpcCalls.push({ name, args });
+      return Promise.resolve({ data: null, error: null });
+    }),
+    state,
+  };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { getRevenueByProject, getSalesInvoice, getIncomingPayment } from './revenue';
+import { getRevenueByProject, getSalesInvoice, getIncomingPayment, setSalesInvoiceEfaktur } from './revenue';
 
 /** `n` invoices for one project, each `amount` billed with `outstanding` still open. Ids are unique
  *  and sort in insertion order — the keyset scan reads its cursor from the last row of each page. */
@@ -129,10 +137,22 @@ beforeEach(() => {
   h.state.inFilters = [];
   h.state.orders = [];
   h.state.invoiceQueries = 0;
+  h.state.rpcCalls = [];
+  h.rpc.mockClear();
   h.state.table = null;
   h.state.mutateAfterQuery = null;
   nextInvoiceId = 0;
   h.from.mockClear();
+});
+
+describe('AC-EFK-004 sales e-Faktur DAL', () => {
+  it('calls the PMO setter with only the invoice id, nullable number, and nullable date', async () => {
+    await setSalesInvoiceEfaktur('si-efaktur', '010.001', null);
+    expect(h.state.rpcCalls).toEqual([{
+      name: 'set_sales_invoice_efaktur',
+      args: { p_si_id: 'si-efaktur', p_efaktur_number: '010.001', p_efaktur_date: null },
+    }]);
+  });
 });
 
 describe('db/revenue getRevenueByProject — net of tax, per currency, paged', () => {
@@ -296,6 +316,8 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
       si_number: 'ACC-SINV-1',
       companies: { erp_payment_terms_days: 30, name: 'Acme Co' },
       sales_invoice_authors: [{ user_id: 'u-1' }],
+      efaktur_number: '010.001-26.12345678',
+      efaktur_date: '2026-10-01',
     };
 
     const row = await getSalesInvoice('si-1');
@@ -307,6 +329,17 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
     expect(h.state.eqCalls).toContainEqual(['id', 'si-1']);
     expect(row?.customer_name).toBe('Acme Co');
     expect(row?.author_user_ids).toEqual(['u-1']);
+    expect(row?.efaktur_number).toBe('010.001-26.12345678');
+    expect(row?.efaktur_date).toBe('2026-10-01');
+  });
+
+  it('AC-EFK-004: absent sales e-Faktur fields hydrate as nullable facts', async () => {
+    h.state.singles.sales_invoices = {
+      id: 'si-empty-efaktur', companies: null, sales_invoice_authors: [],
+    };
+    const row = await getSalesInvoice('si-empty-efaktur');
+    expect(row?.efaktur_number).toBeNull();
+    expect(row?.efaktur_date).toBeNull();
   });
 
   it('AC-FIN-001: getIncomingPayment uses the customer-qualified projection and flattens customer_name', async () => {

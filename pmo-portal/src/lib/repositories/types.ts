@@ -377,6 +377,8 @@ export interface ProcurementRepository {
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
   ): Promise<ProcurementInvoiceRow>;
+  /** DD-EFK-1: edit the PMO-owned vendor e-Faktur facts through the guarded setter RPC. */
+  setEfaktur(invoiceId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
   create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
@@ -466,6 +468,8 @@ export interface RevenueRepository {
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
   /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
   setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
+  /** DD-EFK-1: edit the PMO-owned sales e-Faktur facts through the guarded setter RPC. */
+  setEfaktur(siId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
   submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
   /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */

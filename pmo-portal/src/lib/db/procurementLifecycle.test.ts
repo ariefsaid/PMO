@@ -28,6 +28,7 @@ import {
   createInvoice,
   captureVendorInvoice,
   createQuotation,
+  setProcurementInvoiceEfaktur,
   ProcurementError,
 } from './procurementLifecycle';
 
@@ -420,6 +421,16 @@ describe('captureVendorInvoice', () => {
       p_tax_amount: 94.14,
     });
     expect(result).toMatchObject({ id: 'invoice-vi-1' });
+  });
+});
+
+describe('AC-EFK-005 procurement e-Faktur DAL', () => {
+  it('calls the PMO setter with only the bill id, nullable number, and nullable date', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await setProcurementInvoiceEfaktur('vendor-bill-1', null, '2026-10-01');
+    expect(mockRpc).toHaveBeenCalledWith('set_procurement_invoice_efaktur', {
+      p_invoice_id: 'vendor-bill-1', p_efaktur_number: null, p_efaktur_date: '2026-10-01',
+    });
   });
 });
 
