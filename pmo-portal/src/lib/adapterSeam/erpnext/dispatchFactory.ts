@@ -22,7 +22,7 @@ import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow 
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
 import { resolveSalesTaxRows, type ErpTaxRow } from './erpSalesTaxRows.ts';
-import { buildEnteredPurchaseTaxRows, ENTERED_TAX_AND_TEMPLATE, parseEnteredPurchaseTax, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
+import { buildEnteredPurchaseTaxRows, ENTERED_TAX_AND_TEMPLATE, findDefaultPurchaseTaxTemplate, parseEnteredPurchaseTax, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { itemsNetTotal, lineRate, type ItemsNetLine } from '../../itemsNet.ts';
 import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
@@ -1022,7 +1022,11 @@ async function resolveOrdinaryInvoiceTaxes(
  *     company and expanded into its rows here;
  *   • the VAT / PPh AMOUNTS the user entered (DD-VWH-13): fixed `Actual` rows on the org's tax accounts, marked
  *     `taxesFromAmounts` so `piToBody` sends them with an empty template;
- *   • neither: nothing is sent and ERPNext applies its own default (AC-520-2, non-form callers).
+ *   • neither: a create naming neither is where ERPNext would apply the company's own default. #915: PMO looks that
+ *     default up (the sales side's read) and runs it through the SAME resolver/validator a chosen template gets,
+ *     BEFORE any ERP write — a malformed default used to be refused only by the database mirror AFTER the bill had
+ *     posted (fail-closed, manual repair). None found (or no ERP company to look one up for) → unchanged: nothing is
+ *     sent and the bill posts untaxed, as AC-520-2 and DD-VWH-15/DD-VI-3 keep for non-form callers.
  * Both is refused before any ERP call. Rows and the marker are written onto the record BEFORE the outbox snapshot, so
  * the payload and digest cover them and a sweep replay re-sends them with no ERPNext read. A caller's `taxes` and
  * `taxesFromAmounts` are always dropped; edits and amends send none.
@@ -1039,6 +1043,7 @@ async function resolvePurchaseInvoiceTaxes(
   const entered = deps.command.operation === 'create' ? parseEnteredPurchaseTax(record) : null;
   if (deps.command.operation !== 'create' || (!chosen && !entered)) {
     for (const key of ['taxTemplate', 'vatAmount', 'withheldAmount', 'pphType']) delete record[key];
+    if (deps.command.operation === 'create') await sendDefaultPurchaseTaxTemplate(deps, binding, record);
     return;
   }
   if (chosen && entered) throw new AdapterError('commit-rejected', ENTERED_TAX_AND_TEMPLATE);
@@ -1082,6 +1087,25 @@ async function resolvePurchaseInvoiceTaxes(
   record.vatAmount = entered.vatAmount;
   record.withheldAmount = entered.withheldAmount;
   record.pphType = entered.pphType;
+}
+
+/**
+ * #915 — the create-naming-neither path: resolve the ERP company's default Purchase Taxes and Charges Template through
+ * the same validator a chosen template goes through, so a malformed default is refused BEFORE the ERP write instead of
+ * by the database mirror after the bill posted. The refusals and wording are the chosen path's own (`config-rejected`,
+ * naming the template). No default — or no company configured to look one up for — sends nothing, exactly as before.
+ */
+async function sendDefaultPurchaseTaxTemplate(
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, record: Record<string, unknown>,
+): Promise<void> {
+  const company = binding.config?.company;
+  if (typeof company !== 'string' || !company) return;
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  const defaultTemplate = await findDefaultPurchaseTaxTemplate(client, company);
+  if (!defaultTemplate) return;
+  record.taxTemplate = defaultTemplate;
+  record.taxes = await resolvePurchaseTaxRows(client, company, defaultTemplate);
 }
 
 /** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */
