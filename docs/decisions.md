@@ -1308,6 +1308,20 @@ provisioning and a historical load to it would put the go-live out of reach.
 the local Docker dev bed (`docs/environments.md` §ERPNext v15 dev bed). Provisioning, company setup,
 credentials and the historical load are charted in #474. *(Fact superseded 2026-09-02: `DD-OPS-10` — a v16 test instance now exists; the ruling itself stands.)*
 
+**[OD-ERP-3] ERPNext is not user-facing for RIS (owner, 2026-10-07).** No RIS user — accountant
+included — logs in to ERPNext; every workflow, accounting and audit included, runs in PMO. ERPNext is the
+headless ledger only. Sharpens `OD-SAR-PMO-IS-THE-UI` (which still allowed the Desk for audit): a need an
+ERPNext screen would meet is a **PMO gap**, filed as a PMO issue — never answered with an ERPNext login.
+ERPNext setup and data fixes are operator work (us), not RIS's.
+
+**[OD-ERP-4] What `OD-ERP-3` adds to PMO, and when (owner, 2026-10-07).** Go-live: vendor withholding (#876)
+and the e-Faktur number/date on invoices and bills (#893). First month-end (≈ early November): manual journal
+entries with maker ≠ approver, **built first** (#895) → bank book + reconciliation (#896), financial statements
+with the audit pack folded in (#897), tax registers (#898). Year-end: fixed-asset register (#899), year-end close
+with period lock and foreign-currency revaluation (#900). Map: "Month-end and year-end close in PMO when the ERP
+is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
+work, not a PMO gap.
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
@@ -3047,3 +3061,8 @@ the Executive/Finance dashboards (DD-BWO-10) · invoices without a WO stay legal
 milestone→WO display link is a follow-up (DD-BWO-12). Plan: `docs/plans/2026-10-07-billing-by-work-order.md`.
 
 **DD-BWO-13 (Director, 2026-10-07, #785 rendered review)** — the Billing tab's "Claims raised, not yet submitted" (claims only, AC-PB-007/008) and the Work orders tab's "Not yet submitted" (drafts + unraised claims, DD-BWO-1) are different measures and carry different labels; they are not reconciled into one figure. A WO with nothing left but a draft outstanding reads "Awaiting submission", never "Fully invoiced".
+
+**OD-ROLE-1 (owner, 2026-10-07) — user-defined roles and permissions.**
+(1) The organisation's system Admin creates and edits roles and their permission matrix in the app (for the first client, the owner). (2) Granularity = module × action (view / create / edit / request / approve / delete / export) **with a scope per permission** (assigned projects only vs the whole organisation); field-level permissions (e.g. see cost but not margin) are an aspirational later step, charted as fog. (3) Not a go-live blocker — built after go-live; until then a requester-only user takes the closest built-in role and is not named as a project's PM (so no routed approval reaches them). Director defaults stated alongside: SoD (requester ≠ approver, value-setter rules) stays hard-wired whatever a role says; the built-in roles become editable presets; every permission is enforced server-side (RLS/RPC), the FE only mirrors it.
+
+**OD-ROLE-2 (owner, 2026-10-07, #904)** — "assigned projects" (the narrower permission scope under OD-ROLE-1) means projects whose **team list** includes the user. Each project has an explicit team list maintained on the project; the named project manager is always a member.
