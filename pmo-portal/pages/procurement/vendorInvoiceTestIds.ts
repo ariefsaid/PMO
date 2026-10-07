@@ -36,3 +36,11 @@ export const VI_FIELD_TEST_IDS = {
   // comment, not an enforced contract) — single-sourced here for the same reason as the fields above.
   taxRequiredHint: 'vi-tax-required-hint',
 } as const;
+
+/** #876 (DD-VWH-6): the withholding breakdown under a vendor invoice's amount in the procurement ledger. */
+export const VI_WITHHOLDING_TEST_IDS = {
+  breakdown: 'vi-withholding-breakdown',
+  vat: 'vi-withholding-vat',
+  withheld: 'vi-withholding-withheld',
+  net: 'vi-withholding-net',
+} as const;

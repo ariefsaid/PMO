@@ -1592,6 +1592,11 @@
       "label": "ERPNext tax template",
       "default": "ERPNext default",
       "loadError": "Could not load the ERPNext tax templates. The ERPNext default will apply."
+    },
+    "withholding": {
+      "netPayable": "Net payable",
+      "vat": "VAT",
+      "withheld": "Tax withheld (PPh)"
     }
   },
   "projectDetail": {

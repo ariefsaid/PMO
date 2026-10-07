@@ -3336,6 +3336,7 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          withheld_amount: number
         }
         Insert: {
           amount?: number | null
@@ -3366,6 +3367,7 @@ export type Database = {
           tax_template?: string | null
           tax_treatment: string
           vi_number?: string | null
+          withheld_amount?: number
         }
         Update: {
           amount?: number | null
@@ -3396,6 +3398,7 @@ export type Database = {
           tax_template?: string | null
           tax_treatment?: string
           vi_number?: string | null
+          withheld_amount?: number
         }
         Relationships: [
           {
@@ -6192,6 +6195,7 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          withheld_amount: number
         }
         SetofOptions: {
           from: "*"
@@ -6342,6 +6346,7 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          withheld_amount: number
         }
         SetofOptions: {
           from: "*"

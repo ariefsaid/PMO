@@ -35,12 +35,14 @@ import { EfakturModal, type EfakturSaveValues } from '@/src/components/EfakturMo
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
+import { WithholdingBreakdown } from './WithholdingBreakdown';
 import type { RecordKind } from './RecordCaptureForm';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { withholdingFigures } from '@/src/lib/vendorWithholding';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
@@ -151,15 +153,24 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     // OD-TAX-1 §2: a vendor invoice's total states its basis (0196's NOT NULL marker). The other
     // ledger types carry no treatment column at all, so `taxTreatment` is null for them and the
     // label renders nothing — a PO amount is not silently re-labelled with the invoice's basis.
-    cell: (row) =>
-      row.amount != null ? (
+    // #876 (DD-VWH-6): a vendor invoice with tax withheld adds VAT · Tax withheld (PPh) · Net payable under its gross
+    // total; every other row renders exactly as before.
+    cell: (row) => {
+      if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
+      const total = (
         <span className="inline-flex items-baseline justify-end gap-1.5">
           <span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span>
           <TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} />
         </span>
-      ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
-      ),
+      );
+      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount) : null;
+      return figures ? (
+        <div className="inline-flex flex-col items-end gap-0.5">
+          {total}
+          <WithholdingBreakdown figures={figures} currency={row.currency} />
+        </div>
+      ) : total;
+    },
   },
   {
     key: 'status',

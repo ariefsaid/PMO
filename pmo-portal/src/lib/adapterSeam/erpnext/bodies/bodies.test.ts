@@ -196,6 +196,51 @@ describe('erpnext/bodies — fromDoc canonical mapping (decimal-string money, he
     }
   });
 
+  // #876 (DD-VWH-2): a withholding bill's header — grand_total is the NET payable, total_taxes is VAT − PPh.
+  it('AC-VWH-004 a bill with tax withheld mirrors the gross, the VAT and the withheld tax from the ERP header', () => {
+    const canonical = piFromDoc({
+      name: 'ACC-PINV-2026-00876', grand_total: 1090000, total_taxes_and_charges: 90000,
+      taxes_and_charges_deducted: 20000, outstanding_amount: 1090000, taxes_and_charges: 'PPN 11 + PPh 23 - RIS', docstatus: 1,
+    });
+    expect(canonical).toMatchObject({
+      amount: '1110000.00', tax_amount: '110000.00', withheld_amount: '20000.00', erp_outstanding_amount: '1090000.00',
+    });
+  });
+
+  it('AC-VWH-004 a PPh-only bill (no VAT) mirrors a zero VAT, never a negative tax', () => {
+    const canonical = piFromDoc({
+      name: 'ACC-PINV-2026-00877', grand_total: 980000, total_taxes_and_charges: -20000,
+      taxes_and_charges_deducted: 20000, outstanding_amount: 980000,
+    });
+    expect(canonical).toMatchObject({ amount: '1000000.00', tax_amount: '0.00', withheld_amount: '20000.00' });
+  });
+
+  it('AC-VWH-004 a return (debit note) keeps every figure negative (sign parity)', () => {
+    const canonical = piFromDoc({
+      name: 'ACC-PINV-RET-2026-00001', grand_total: -1090000, total_taxes_and_charges: -90000,
+      taxes_and_charges_deducted: -20000, outstanding_amount: -1090000,
+    });
+    expect(canonical).toMatchObject({ amount: '-1110000.00', tax_amount: '-110000.00', withheld_amount: '-20000.00' });
+  });
+
+  it('AC-VWH-004 a payload without the deducted total leaves withholding unknown and the header verbatim', () => {
+    const canonical = piFromDoc({ name: 'ACC-PINV-2026-00878', grand_total: 1090000, total_taxes_and_charges: 90000, outstanding_amount: 1090000 });
+    expect(canonical.amount).toBe('1090000.00');
+    expect(canonical.tax_amount).toBe('90000.00');
+    expect(canonical).not.toHaveProperty('withheld_amount');
+  });
+
+  it('AC-VWH-004 PI_FROM_DOC_FIELDS requests taxes_and_charges_deducted (the sweep reads it from the list endpoint)', () => {
+    expect(PI_FROM_DOC_FIELDS as readonly string[]).toContain('taxes_and_charges_deducted');
+  });
+
+  // #876: the bill's currency is the ERP doc's, so the mirror never inherits the org default by accident.
+  it('AC-VWH-005 piFromDoc mirrors the bill currency verbatim and PI_FROM_DOC_FIELDS requests it', () => {
+    expect(piFromDoc({ name: 'ACC-PINV-2026-00879', grand_total: 1090000, currency: 'IDR' }).currency).toBe('IDR');
+    expect(piFromDoc({ name: 'ACC-PINV-2026-00880', grand_total: 1090000 }).currency).toBeNull();
+    expect(PI_FROM_DOC_FIELDS as readonly string[]).toContain('currency');
+  });
+
   it('peFromDoc maps paid_amount -> amount exactly; absent optional -> null', () => {
     const canonical = peFromDoc({ name: 'ACC-PAY-2026-00001', paid_amount: 150000, reference_no: null, docstatus: 1, modified: '2026-07-11 10:00:00.000000' });
     expect(canonical).toMatchObject({ id: 'ACC-PAY-2026-00001', pay_number: 'ACC-PAY-2026-00001', amount: '150000.00', reference_number: null });

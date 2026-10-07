@@ -1592,6 +1592,11 @@
       "label": "Templat pajak ERPNext",
       "default": "Bawaan ERPNext",
       "loadError": "Templat pajak ERPNext tidak dapat dimuat. Bawaan ERPNext akan digunakan."
+    },
+    "withholding": {
+      "netPayable": "Neto yang harus dibayar",
+      "vat": "PPN",
+      "withheld": "Pajak dipotong (PPh)"
     }
   },
   "projectDetail": {

@@ -75,6 +75,11 @@ export interface LedgerRow {
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
+  /** #876 (DD-VWH-6) — vendor invoice only: VAT on the bill (`tax_amount`) and the tax withheld (`withheld_amount`).
+   *  `withheld_amount` is NOT NULL (0266), so every Invoice row carries both (0 = nothing withheld; the breakdown renders
+   *  only when non-zero, `withholdingFigures`). Absent on every other ledger type. */
+  taxAmount?: number | null;
+  withheldAmount?: number | null;
   /** Status label for the StatusPill. */
   status: string;
   /** StatusPill variant derived from status. */
@@ -163,6 +168,8 @@ interface MakeRowExtra {
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
   taxBaseUnknown?: boolean;
+  taxAmount?: number | null;
+  withheldAmount?: number | null;
 }
 
 function makeRow(
@@ -178,7 +185,7 @@ function makeRow(
   files?: EmbeddedFileRow[],
   extra: MakeRowExtra = {},
 ): LedgerRow {
-  const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
+  const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount,
     efakturNumber, efakturDate, efakturLocked } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount } = filePresence(files);
@@ -203,6 +210,7 @@ function makeRow(
     efakturDate: type === 'Invoice' ? (efakturDate ?? null) : null,
     ...(type === 'Invoice' ? { efakturLocked: efakturLocked ?? false } : {}),
     taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
+    ...(withheldAmount !== undefined ? { taxAmount: taxAmount ?? null, withheldAmount } : {}),
   };
 }
 
@@ -338,6 +346,8 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
           taxBaseNumerator: vi.tax_base_numerator,
           taxBaseDenominator: vi.tax_base_denominator,
           taxBaseUnknown: vi.erp_docstatus != null,
+          taxAmount: vi.tax_amount,
+          withheldAmount: vi.withheld_amount,
           efakturNumber: vi.efaktur_number,
           efakturDate: vi.efaktur_date,
           efakturLocked: vi.erp_docstatus === 2 || vi.erp_cancelled_at != null,
