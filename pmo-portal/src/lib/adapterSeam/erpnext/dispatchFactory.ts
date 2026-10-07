@@ -1101,10 +1101,13 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
-  // Likewise the work order: only a claim sets it (from the claim row, below). An ordinary invoice's work order
-  // comes from its own mirror row, never from the caller's command.
+  // OD-BILL-1 / DD-BWO-8: an ordinary invoice CREATE may name the work order it bills ("Invoice this work order", the
+  // assistant's work-order draft). Its org is checked by the link pre-flight (DOMAIN_LINK_FIELDS); its project, status
+  // and what is still to invoice by the outbox fence (0262) before any ERP write. Edits and amends never move it —
+  // their work order is the mirror row's, which that same fence reads.
   if (!claimData) {
-    delete record.workOrderId;
+    const named = typeof record.workOrderId === 'string' && record.workOrderId.trim() !== '';
+    if (deps.command.operation !== 'create' || !named) delete record.workOrderId;
     return 'ordinary';
   }
   const claim = claimData as ProgressClaimRecord;

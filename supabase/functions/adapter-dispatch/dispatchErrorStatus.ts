@@ -48,6 +48,10 @@ const BUSINESS_REJECTION_CODES: readonly string[] = [
   // document it does not own. Like the draft rival, this is a business refusal with a precise remedy
   // (remove it, or accept it as the authority for that project-year), not a malformed request.
   'budget-unowned-live-occupant',
+  // OD-BILL-1 (0262, DD-BWO-4): the work-order over-invoice fence. A BEFORE INSERT trigger on the outbox raises SQLSTATE
+  // BW001 before any ERP write when an invoice would bill past its work order, names a Draft/Cancelled one, one on
+  // another project, or lines it cannot read. The request was well-formed; the rule refused it.
+  'BW001',
 ];
 
 export function isBusinessRejectionCode(code: unknown): code is string {
