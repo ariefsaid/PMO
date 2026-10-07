@@ -390,7 +390,9 @@ create or replace function public.claim_outbox_for_commit(
     --   (and, for a claim's invoice, against the claim being withdrawn since) — the fence's own check, on the stored
     --   payload. The helper takes the work order's billing lock before it reads anything.
     if v_domain = 'revenue' then
-      select * into v_row from public.external_command_outbox where id = p_id;
+      -- Rule: the row is locked before its state is read, so no other worker can move it to `failed` between this read
+      -- and the claiming UPDATE. Lock order: outbox row, then the billing lock (no billing-lock holder waits on a row).
+      select * into v_row from public.external_command_outbox where id = p_id for update;
       if v_row.state = 'failed' then
         perform public.assert_invoice_command_within_work_order(v_row.org_id, v_row.operation, v_row.pmo_record_id, v_row.payload);
       end if;
