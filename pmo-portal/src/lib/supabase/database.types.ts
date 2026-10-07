@@ -6109,6 +6109,10 @@ export type Database = {
         Returns: undefined
       }
       assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
+      assert_sales_invoice_approver: {
+        Args: { p_actor: string; p_author_user_id: string; p_si_id: string }
+        Returns: undefined
+      }
       assert_work_order_invoiceable: {
         Args: {
           p_billed: number
@@ -6987,7 +6991,68 @@ export type Database = {
         }
         Returns: undefined
       }
-      native_invoice_settled: { Args: { p_si_id: string }; Returns: number }
+      native_invoice_gross: {
+        Args: {
+          p_amount: number
+          p_tax_amount: number
+          p_tax_treatment: string
+        }
+        Returns: number
+      }
+      native_invoice_restate: {
+        Args: { p_si_id: string }
+        Returns: {
+          amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
+          author_user_id: string | null
+          created_at: string
+          currency: string
+          customer_id: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_due_date: string | null
+          erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
+          erp_outstanding_amount: number | null
+          id: string
+          invoice_date: string | null
+          native_lines: Json | null
+          org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
+          project_id: string | null
+          received_date: string | null
+          reference_number: string | null
+          si_number: string | null
+          status: string
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      native_invoice_settled: {
+        Args: { p_org: string; p_si_id: string }
+        Returns: number
+      }
+      native_org_today: { Args: { p_org: string }; Returns: string }
+      native_revenue_doc_number: {
+        Args: { p_doc_date: string; p_org: string; p_prefix: string }
+        Returns: string
+      }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
         Returns: string

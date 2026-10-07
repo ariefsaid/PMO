@@ -75,7 +75,7 @@ import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
-import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
+import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -963,6 +963,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   //      that record's external identity to a fresh ERP document before the mirror insert fails on
   //      the duplicate PK. This command's own retry (same idempotency key) stays allowed.
   if (isErpDomain) {
+    // #784 — a PMO-native invoice or receipt is never acted on through the ERP path (any operation).
+    const erpPath = await checkRevenueErpPathTarget(serviceClient as never, command);
+    if (!erpPath.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: erpPath.message }), {
+        status: erpPath.status,
+        headers,
+      });
+    }
     const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
     if (!binding.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {

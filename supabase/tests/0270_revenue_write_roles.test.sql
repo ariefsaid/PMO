@@ -5,7 +5,7 @@
 -- transaction (rolled back), then shows which roles the policy admits.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(30);
 
 insert into organizations (id, name) values ('02700000-0000-0000-0000-000000000001', 'NAR Org');
 insert into auth.users (id, email) values
@@ -28,8 +28,12 @@ insert into projects (id, org_id, name, status, currency, contract_value, tax_tr
 insert into public.sales_invoices (id, org_id, project_id, customer_id, reference_number, amount, tax_treatment, tax_amount, currency, status) values
   ('02700000-0000-0000-0000-0000000000f5', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 'SEED', 100, 'exclusive', 0, 'IDR', 'Draft'),
   ('02700000-0000-0000-0000-0000000000f7', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 'DELETE-ME', 100, 'exclusive', 0, 'IDR', 'Draft');
+insert into public.sales_invoices (id, org_id, project_id, customer_id, reference_number, amount, tax_treatment, tax_amount, currency, status) values
+  ('02700000-0000-0000-0000-0000000000f8', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', 'ADMIN-DELETE-ME', 100, 'exclusive', 0, 'IDR', 'Draft');
 insert into public.incoming_payments (id, org_id, customer_id, reference_number, date, amount) values
-  ('02700000-0000-0000-0000-0000000000f6', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'SEED', '2026-10-07', 10);
+  ('02700000-0000-0000-0000-0000000000f6', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'SEED', '2026-10-07', 10),
+  ('02700000-0000-0000-0000-0000000000f9', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'RCPT-DELETE-ME', '2026-10-07', 10),
+  ('02700000-0000-0000-0000-0000000000fa', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'RCPT-ADMIN-DELETE-ME', '2026-10-07', 10);
 
 -- ── INSERT (the narrow column-limited body) ────────────────────────────────────────────────────────
 set local role authenticated;
@@ -119,7 +123,40 @@ delete from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000
 reset role;
 select is((select count(*)::int from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f7'), 0,
   'AC-NAR-007 a Finance member''s delete is admitted by the policy');                                              -- 19
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a7","role":"authenticated"}';
+delete from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f8';
+reset role;
+select is((select count(*)::int from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f8'), 1,
+  'AC-NAR-007 an Engineer''s delete of a sales invoice removes nothing');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+delete from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f8';
+reset role;
+select is((select count(*)::int from public.sales_invoices where id = '02700000-0000-0000-0000-0000000000f8'), 0,
+  'AC-NAR-007 an Admin''s delete of a sales invoice is admitted by the policy');
 revoke delete on public.sales_invoices from authenticated;
+
+grant delete on public.incoming_payments to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+delete from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f9';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+delete from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f9';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a7","role":"authenticated"}';
+delete from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f9';
+reset role;
+select is((select count(*)::int from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f9'), 1,
+  'AC-NAR-007 Project Manager, Executive and Engineer deletes of a customer receipt remove nothing');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+delete from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000f9';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+delete from public.incoming_payments where id = '02700000-0000-0000-0000-0000000000fa';
+reset role;
+select is((select count(*)::int from public.incoming_payments where id in ('02700000-0000-0000-0000-0000000000f9', '02700000-0000-0000-0000-0000000000fa')), 0,
+  'AC-NAR-007 Finance and Admin deletes of a customer receipt are admitted by the policy');
+revoke delete on public.incoming_payments from authenticated;
 
 -- ── the PMO revenue RPCs carry the same rule in their bodies ──────────────────────────────────────
 set local role authenticated;
@@ -145,6 +182,9 @@ set local role service_role;
 select lives_ok($$ insert into public.sales_invoices (org_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount, status, erp_docstatus, tax_treatment, tax_amount)
   values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'SI-MIRROR-NAR', '2026-10-07', 250, 250, 'Unpaid', 1, 'inclusive', 0) $$,
   'AC-NAR-007 CONTROL the service-role ERP mirror writer still lands a full mirror row');                           -- 25
+select lives_ok($$ insert into public.incoming_payments (org_id, customer_id, ip_number, date, amount, status, erp_docstatus)
+  values ('02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1', 'ACC-PAY-MIRROR-NAR', '2026-10-07', 250, 'Paid', 1) $$,
+  'AC-NAR-007 CONTROL the service-role ERP mirror writer still lands a full customer-receipt mirror row');
 
 select * from finish();
 rollback;

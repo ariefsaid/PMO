@@ -3,7 +3,7 @@
 -- Migration under test: 0270_native_revenue.sql §1–§3 (and 0262's work-order fence, DD-BWO-4).
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(26);
 
 insert into organizations (id, name) values
   ('02700000-0000-0000-0000-000000000001', 'NAR Org'),
@@ -32,8 +32,14 @@ insert into projects (id, org_id, name, status, currency, contract_value, tax_tr
   ('02700000-0000-0000-0000-0000000000d3', '02700000-0000-0000-0000-000000000001', 'NAR VAT no-rate project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, true, null, '02700000-0000-0000-0000-0000000000c1'),
   ('02700000-0000-0000-0000-0000000000d9', '02700000-0000-0000-0000-000000000002', 'NAR X project', 'Ongoing Project', 'IDR', 10000000, 'exclusive', 0, null, 1, 1, true, null, '02700000-0000-0000-0000-0000000000c9');
 insert into work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount, currency, client_po_number) values
-  ('02700000-0000-0000-0000-0000000000e1', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', 'NAR WO', 'Issued', 'WO-NAR-1', 2000000, 'exclusive', 0, 'IDR', 'PO-NAR-777');
+  ('02700000-0000-0000-0000-0000000000e1', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000d1', 'NAR WO', 'Issued', 'WO-NAR-1', 2000000, 'exclusive', 0, 'IDR', 'PO-NAR-777'),
+  ('02700000-0000-0000-0000-0000000000e9', '02700000-0000-0000-0000-000000000002', '02700000-0000-0000-0000-0000000000d9', 'NAR X WO', 'Issued', 'WO-NAR-X', 2000000, 'exclusive', 0, 'IDR', 'PO-NAR-X');
+-- NFR-NAR-002: read back the org row's lock with pgrowlocks (a single session cannot race two transactions).
+create extension if not exists pgrowlocks;
 
+select ok(not exists (select 1 from pgrowlocks('public.organizations') l join public.organizations o on o.ctid = l.locked_row
+                       where o.id = '02700000-0000-0000-0000-000000000001' and 'For Share' = any(l.modes)),
+  'NFR-NAR-002 CONTROL before any create the org row is not share-locked (the setup''s foreign keys take only KEY SHARE)');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
@@ -88,6 +94,14 @@ select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-000
 select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c9',
   '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb) $$,
   'P0002', 'customer not found', 'AC-NAR-001 another org''s customer is refused');                                   -- 13
+select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',
+  '[{"item_code":"SVC","qty":1,"rate":100}]'::jsonb, '02700000-0000-0000-0000-0000000000e9') $$,
+  'P0002', 'work order not found', 'AC-NAR-001 another org''s work order is refused');
+reset role;
+select ok(exists (select 1 from pgrowlocks('public.organizations') l join public.organizations o on o.ctid = l.locked_row
+                   where o.id = '02700000-0000-0000-0000-000000000001' and 'For Share' = any(l.modes)),
+  'NFR-NAR-002 a create holds the org row FOR SHARE, so an ERP take-over waits for it and then counts its draft');
+set local role authenticated;
 select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1', '[]'::jsonb) $$,
   '23514', 'an invoice needs between 1 and 100 lines', 'AC-NAR-001 an invoice with no lines is refused');           -- 14
 select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-0000-0000-0000000000d1', '02700000-0000-0000-0000-0000000000c1',

@@ -6,7 +6,7 @@
 -- they stay as history if the ERP is released. Migration under test: 0270 §6–§7.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(25);
 
 insert into organizations (id, name) values
   ('02700000-0000-0000-0000-000000000001', 'NAR Org');
@@ -36,9 +36,9 @@ end $$;
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 do $$ begin
   perform public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), 'Unpaid');
-  perform public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), p_amount => 100, p_date => '2026-10-01');
+  perform public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), p_amount => 100, p_date => (select invoice_date from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'));
   perform public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect paid"}]'), 'Unpaid');
-  perform public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect paid"}]'), p_date => '2026-10-01');
+  perform public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect paid"}]'), p_date => (select invoice_date from public.sales_invoices where native_lines @> '[{"description":"Pre-connect paid"}]'));
 end $$;
 
 reset role;
@@ -54,6 +54,11 @@ select lives_ok($$ insert into public.external_domain_ownership (org_id, externa
   'AC-NAR-004 the guard binds the revenue domain only');                                                            -- 3
 select is((select count(*)::int from public.sales_invoices where erp_opening_at is not null), 0,
   'AC-NAR-004 another domain''s take-over stamps no invoice (DD-NAR-16)');                                           -- 4
+-- NFR-NAR-002: a revenue take-over serialises with create_native_sales_invoice on the org row (create holds FOR SHARE
+-- from before it reads who owns revenue until it commits; the take-over takes FOR NO KEY UPDATE before counting
+-- drafts). One session cannot race two transactions, so the lock is read back with pgrowlocks after the take-over; the
+-- behaviour it protects (no take-over with a draft open, no create once the ERP owns revenue) is asserted at 1 and 9.
+create extension if not exists pgrowlocks;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect draft"}]'), 'Cancelled') $$,
@@ -63,6 +68,9 @@ set local request.jwt.claims = '{}';
 select lives_ok($$ insert into public.external_domain_ownership (org_id, external_tier, domain)
   values ('02700000-0000-0000-0000-000000000001', 'erpnext', 'revenue') $$,
   'AC-NAR-004 with no PMO draft open, the ERP takes over customer invoicing');                                      -- 6
+select ok(exists (select 1 from pgrowlocks('public.organizations') l join public.organizations o on o.ctid = l.locked_row
+                   where o.id = '02700000-0000-0000-0000-000000000001' and 'For No Key Update' = any(l.modes)),
+  'NFR-NAR-002 the revenue take-over holds the org row (FOR NO KEY UPDATE) before counting PMO drafts');
 select is(
   (select row(erp_opening_amount, erp_opening_at is not null)::text from public.sales_invoices
     where native_lines @> '[{"description":"Pre-connect unpaid"}]'),
@@ -82,7 +90,7 @@ select throws_ok($$ select public.create_native_sales_invoice('02700000-0000-000
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), 'Cancelled') $$,
   '42501', 'customer invoices for this organisation are raised in the connected ERP, not in PMO',
   'AC-NAR-004 a pre-connect PMO invoice cannot be cancelled in PMO');                                                -- 10
-select throws_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), p_amount => 10, p_date => '2026-10-01') $$,
+select throws_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), p_amount => 10, p_date => (select invoice_date from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]')) $$,
   '42501', 'customer invoices for this organisation are raised in the connected ERP, not in PMO',
   'AC-NAR-004 a pre-connect PMO invoice takes no PMO receipt');                                                      -- 11
 select throws_ok($$ select public.cancel_native_receipt((select id from public.incoming_payments where pmo_native and amount = 100)) $$,
@@ -122,7 +130,7 @@ set local request.jwt.claims = '{}';
 delete from public.external_domain_ownership where org_id = '02700000-0000-0000-0000-000000000001' and domain = 'revenue';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), p_amount => 10, p_date => '2026-10-01') $$,
+select lives_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]'), p_amount => 10, p_date => (select invoice_date from public.sales_invoices where native_lines @> '[{"description":"Pre-connect unpaid"}]')) $$,
   'AC-NAR-004 releasing the ERP re-opens PMO invoicing on the same rows — the crossing is reversible');             -- 21
 select is(
   (select row(erp_opening_amount, erp_outstanding_amount)::text from public.sales_invoices
