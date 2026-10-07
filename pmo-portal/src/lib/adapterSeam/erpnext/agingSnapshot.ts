@@ -203,7 +203,9 @@ interface PleMirrorRow {
  *  aging figure indistinguishable from the truth. */
 async function bucketFromMirror(svc: SnapshotServiceClient, orgId: string, scope: AgingScope): Promise<AgingRow[]> {
   const data = await fetchAllRowsByKeyset<PleMirrorRow>((afterId, limit) => {
-    const sel = svc.from('erp_payment_ledger_mirror').select('id,party,party_type,amount,due_date,posting_date').eq('org_id', orgId);
+    // #901: a delinked row (cancel / unreconcile) is not owed — ERPNext's own outstanding rule (`delinked = 0`).
+    const sel = svc.from('erp_payment_ledger_mirror').select('id,party,party_type,amount,due_date,posting_date')
+      .eq('org_id', orgId).eq('delinked', false);
     const filtered = scope.partyType ? sel.eq('party_type', scope.partyType) : sel;
     const ordered = filtered.order(PLE_MIRROR_SCAN_ORDER, { ascending: true });
     return (afterId === null ? ordered : ordered.gt(PLE_MIRROR_SCAN_ORDER, afterId))

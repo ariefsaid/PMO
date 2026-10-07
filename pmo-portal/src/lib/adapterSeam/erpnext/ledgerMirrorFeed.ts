@@ -12,8 +12,14 @@
  *
  * Pure + Deno-importable (relative imports only); the service-client seam is structural (matches
  * supabase-js at runtime, cast `as never` at the boundary — the actualsSnapshot.ts idiom). The ERP
- * client is injected (ErpClientDeps). The cancellation filter lives in `ledgerFetch.ts` (7.2) — this
- * feed forwards whatever ledgerFetch returns (single responsibility: never a second cancellation filter).
+ * client is injected (ErpClientDeps).
+ *
+ * #901 — cancellation is a FLAG, never a filter. ledgerFetch returns cancelled rows (`is_cancelled` /
+ * `delinked`); this feed writes the flag onto the mirror copy IN PLACE, keyed on the mirror's unique
+ * `(org_id, erp_name)`, and the readers (actuals, the aging fallback) exclude flagged rows. The upsert
+ * MUST name that key: without `onConflict` PostgREST targets the uuid PK the rows never carry, so every
+ * re-delivered name (the `>=` cursor re-delivers the boundary row on every tick; a cancel re-delivers the
+ * originals) is a 23505 that fails the whole batch before the watermark advances — freezing the mirror.
  */
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
@@ -22,6 +28,8 @@ import type { ErpClientDeps } from './client.ts';
 
 /** Both mirrors' uuid PRIMARY KEY (0101 §1–§2) — the KEYSET cursor + stable order the scan needs. */
 const MIRROR_SCAN_ORDER = 'id';
+/** Both mirrors' natural key — `unique (org_id, erp_name)` (0101 §1–§2): the upsert's conflict target. */
+const MIRROR_UNIQUE_KEY = 'org_id,erp_name';
 
 /** Per-source watermark `domain` keys on `external_sync_watermarks` (namespaced under `ledger::`). */
 export const LEDGER_GL_WM_DOMAIN = 'ledger::GL Entry';
@@ -37,7 +45,12 @@ export interface LedgerFeedServiceClient {
 }
 export interface LedgerFeedTable {
   select(columns: string): LedgerFeedSelectBuilder;
-  upsert(rows: unknown | unknown[], opts?: { onConflict?: string }): Promise<{ error: { message: string; code?: string } | null }>;
+  update(values: Record<string, unknown>, opts?: { count?: 'exact' }): LedgerFeedUpdateBuilder;
+  upsert(rows: unknown | unknown[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }): Promise<{ error: { message: string; code?: string } | null }>;
+}
+export interface LedgerFeedUpdateBuilder extends PromiseLike<{ count: number | null; error: { message: string; code?: string } | null }> {
+  eq(column: string, value: string | number | boolean | null): LedgerFeedUpdateBuilder;
+  lt(column: string, value: string): LedgerFeedUpdateBuilder;
 }
 export interface LedgerFeedSelectBuilder extends PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | number | boolean | null): LedgerFeedSelectBuilder;
@@ -56,6 +69,8 @@ export interface FeedLedgerMirrorsOpts {
   /** `external_org_bindings.config.company` — the ERP Company the rows are scoped to. */
   company: string;
   pageSize?: number;
+  /** Test/operations override; production defaults to the bounded ledger-fetch budget. */
+  maxPages?: number;
 }
 
 export interface FeedLedgerMirrorsResult {
@@ -63,6 +78,8 @@ export interface FeedLedgerMirrorsResult {
   pleFed: number;
   glCursor: string | null;
   pleCursor: string | null;
+  glCaughtUp: boolean;
+  pleCaughtUp: boolean;
 }
 
 /**
@@ -73,21 +90,41 @@ export async function feedLedgerMirrors(
   serviceClient: LedgerFeedServiceClient,
   opts: FeedLedgerMirrorsOpts,
 ): Promise<FeedLedgerMirrorsResult> {
-  const { client, orgId, company, pageSize } = opts;
+  const { client, orgId, company, pageSize, maxPages } = opts;
 
   const glCursor = await readWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN);
-  const glRows = await fetchGlEntries(client, { company, since: glCursor ?? undefined, pageSize });
-  const glFed = await upsertMirrorRows(serviceClient, 'erp_gl_entry_mirror', orgId, glRows.map(glRowToMirror));
-  const glNext = maxModified(glRows);
+  // A caller-supplied small budget is used to exercise/limit the initial backfill. Resumed ticks use
+  // the production default budget so the inclusive boundary row does not consume an entire override
+  // budget before the next unseen page can be observed; production remains bounded on every tick.
+  const glResult = await fetchGlEntries(client, {
+    company,
+    since: glCursor ?? undefined,
+    pageSize,
+    maxPages,
+  });
+  const glFed = await upsertMirrorRows(serviceClient, 'erp_gl_entry_mirror', orgId, glResult.rows.map(glRowToMirror));
+  const glNext = maxModified(glResult.rows);
   const glFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glNext, glCursor);
 
   const pleCursor = await readWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN);
-  const pleRows = await fetchPaymentLedgerEntries(client, { company, since: pleCursor ?? undefined, pageSize });
-  const pleFed = await upsertMirrorRows(serviceClient, 'erp_payment_ledger_mirror', orgId, pleRows.map(pleRowToMirror));
-  const pleNext = maxModified(pleRows);
+  const pleResult = await fetchPaymentLedgerEntries(client, {
+    company,
+    since: pleCursor ?? undefined,
+    pageSize,
+    maxPages,
+  });
+  const pleFed = await upsertMirrorRows(serviceClient, 'erp_payment_ledger_mirror', orgId, pleResult.rows.map(pleRowToMirror));
+  const pleNext = maxModified(pleResult.rows);
   const pleFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN, pleNext, pleCursor);
 
-  return { glFed, pleFed, glCursor: glFinalCursor, pleCursor: pleFinalCursor };
+  return {
+    glFed,
+    pleFed,
+    glCursor: glFinalCursor,
+    pleCursor: pleFinalCursor,
+    glCaughtUp: glResult.caughtUp,
+    pleCaughtUp: pleResult.caughtUp,
+  };
 }
 
 async function readWm(sc: LedgerFeedServiceClient, orgId: string, domain: string): Promise<string | null> {
@@ -99,17 +136,29 @@ async function readWm(sc: LedgerFeedServiceClient, orgId: string, domain: string
 
 async function advanceWm(sc: LedgerFeedServiceClient, orgId: string, domain: string, next: string | null, prev: string | null): Promise<string | null> {
   // Monotonic: never rewind. next null (no rows this feed) keeps the prior cursor.
-  const advanced = next ?? prev;
-  if (advanced === null) return null;
-  // Only write if it differs from prev (avoid a spurious write that could rewind via a stale prev read
-  // under concurrency — the value is the max of prev and next by construction here).
-  const value = prev !== null && prev > advanced ? prev : advanced;
-  const { error } = await sc.from('external_sync_watermarks').upsert(
-    { org_id: orgId, external_tier: ERPNEXT_TIER, domain, watermark_cursor: value },
-    { onConflict: 'org_id,external_tier,domain' },
-  );
-  if (error) throw new AppError(error.message, error.code);
-  return value;
+  const value = next === null ? prev : prev !== null && prev > next ? prev : next;
+  if (value === null) return null;
+
+  // A read-then-upsert is racy: another tick can advance the row after `prev` was read, then this
+  // tick's ordinary upsert would rewind it. Update only a row that is still strictly behind value.
+  const table = sc.from('external_sync_watermarks');
+  const { count, error: updateError } = await table.update(
+    { watermark_cursor: value },
+    { count: 'exact' },
+  ).eq('org_id', orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', domain)
+    .lt('watermark_cursor', value);
+  if (updateError) throw new AppError(updateError.message, updateError.code);
+
+  // If no row matched, it is either already at/ahead of value or absent. Insert-if-absent handles
+  // first activation without overwriting a concurrent winner; the final read reports the stored truth.
+  if (count === 0) {
+    const { error: insertError } = await sc.from('external_sync_watermarks').upsert(
+      { org_id: orgId, external_tier: ERPNEXT_TIER, domain, watermark_cursor: value },
+      { onConflict: 'org_id,external_tier,domain', ignoreDuplicates: true },
+    );
+    if (insertError) throw new AppError(insertError.message, insertError.code);
+  }
+  return readWm(sc, orgId, domain);
 }
 
 /** The per-row `erp_modified >=` guarded upsert. Reads the org's existing mirror rows (PAGED), drops
@@ -148,7 +197,7 @@ async function upsertMirrorRows(
     return String(r.erp_modified) >= stored; // >= : re-delivery of the same modified re-applies (idempotent)
   });
   if (fresh.length === 0) return 0;
-  const { error } = await sc.from(table).upsert(fresh.map((r) => ({ ...r, org_id: orgId })));
+  const { error } = await sc.from(table).upsert(fresh.map((r) => ({ ...r, org_id: orgId })), { onConflict: MIRROR_UNIQUE_KEY });
   if (error) throw new AppError(error.message, error.code);
   return fresh.length;
 }
@@ -190,6 +239,7 @@ function pleRowToMirror(r: PaymentLedgerEntryRow): Record<string, unknown> {
     amount: r.amount,
     posting_date: r.posting_date,
     due_date: r.due_date,
+    delinked: r.delinked,
     erp_docstatus: r.docstatus,
     erp_modified: r.modified,
   };

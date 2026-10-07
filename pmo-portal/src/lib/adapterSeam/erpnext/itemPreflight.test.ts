@@ -38,6 +38,8 @@ describe('item catalog money preflight', () => {
         const path = decodeURIComponent(new URL(String(_url)).pathname);
         if (path === '/api/resource/Company/Test Co') return Response.json({ data: { default_currency: 'USD' } }); // #866: the billing-currency check
         if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: [{ name: 'Test Tax' }] });
+        // #915: the neither-path reads the company's default purchase tax template first; this org has none.
+        if (path === '/api/resource/Purchase Taxes and Charges Template') return Response.json({ data: [] });
         if (path === '/api/resource/Sales Taxes and Charges Template/Test Tax') {
           return Response.json({ data: { name: 'Test Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT', rate: 11 }] } });
         }
@@ -83,18 +85,21 @@ describe('item catalog money preflight', () => {
       record: { id: 'record-test', erp_doc_kind: 'purchase-invoice', procurementId: 'case-test' },
     } as const;
     const before = await canonicalCommandDigest(command);
-    const fetchImpl = vi.fn(async () =>
-      Response.json({
-        data: [
-          {
-            name: 'ITEM-TEST',
-            item_name: 'Test service',
-            disabled: 0,
-            is_sales_item: 1,
-            is_purchase_item: 1,
-          },
-        ],
-      }),
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) =>
+      // #915: the neither-path's default-template lookup happens during resolve; this org has no default.
+      decodeURIComponent(new URL(String(url)).pathname) === '/api/resource/Purchase Taxes and Charges Template'
+        ? Response.json({ data: [] })
+        : Response.json({
+            data: [
+              {
+                name: 'ITEM-TEST',
+                item_name: 'Test service',
+                disabled: 0,
+                is_sales_item: 1,
+                is_purchase_item: 1,
+              },
+            ],
+          }),
     );
     await resolveErpDispatchAdapter({
       serviceClient: client({
@@ -112,7 +117,9 @@ describe('item catalog money preflight', () => {
     expect(command.record).toMatchObject({
       items: [{ item_code: 'ITEM-TEST', description: 'Inspection of test unit', qty: 2, rate: 10 }],
     });
-    expect(fetchImpl).not.toHaveBeenCalled();
+    // #915: the resolve phase makes no ERP read beyond the mandated default-template lookup — no catalog read, no write.
+    expect(fetchImpl.mock.calls.map(([url]) => decodeURIComponent(new URL(String(url)).pathname)))
+      .toEqual(['/api/resource/Purchase Taxes and Charges Template']);
     const resolved = await canonicalCommandDigest(command);
     expect(resolved).not.toBe(before);
     expect(await canonicalCommandDigest(command)).toBe(resolved);

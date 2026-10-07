@@ -10,10 +10,12 @@
  * (applying the per-row `erp_modified >=` guard against the existing mirror row). Money fields cross
  * as decimal-strings (R4) — a Frappe number is coerced, `null`/absent stays `null`.
  *
- * Filters (version-pinned, FR-ENA-150/162): GL Entry excludes cancelled
- * (`is_cancelled=0` AND `docstatus!=2`); Payment Ledger Entry excludes cancelled (`docstatus!=2` —
- * a cancelled PLE is docstatus 2). Both scope by `company` and by `modified >= since` (the sweep's
- * per-org watermark cursor; omit for a full backfill).
+ * Filters: ONLY the scope — `company` and `modified >= since` (the sweep's per-org watermark cursor; omit
+ * for a full backfill). Never a cancellation filter (#901): on cancel ERPNext keeps the original ledger rows
+ * at docstatus 1, flips their state (`GL Entry.is_cancelled`, `Payment Ledger Entry.delinked`) and bumps
+ * `modified`, then adds reversal rows carrying the same flag. A fetch that filters on that state can never
+ * re-read the flipped originals, so their mirror copies stay live. The state crosses as a flag instead
+ * (docstatus 2 folded in), and the mirror READERS exclude flagged rows.
  */
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
 import { AppError } from '../../appError.ts';
@@ -32,6 +34,7 @@ export interface GlEntryRow {
   posting_date: string | null;
   debit: string | null;
   credit: string | null;
+  /** ERPNext `is_cancelled` (a cancelled original or its reversal) OR docstatus 2 — never counted. */
   is_cancelled: boolean;
   docstatus: number | null;
   /** Frappe `modified` — the per-row source-mod cursor (the slice-8 feed's `>=` guard). */
@@ -51,6 +54,8 @@ export interface PaymentLedgerEntryRow {
   posting_date: string | null;
   due_date: string | null;
   docstatus: number | null;
+  /** ERPNext `delinked` (cancel / unreconcile) OR docstatus 2 — never counted (ERPNext's own `delinked=0` rule). */
+  delinked: boolean;
   modified: string;
 }
 
@@ -61,9 +66,21 @@ export interface LedgerFetchOpts {
   since?: string;
   /** Page size for the list endpoint. Default 500 (a safe, commonly-allowed Frappe page length). */
   pageSize?: number;
+  /** Maximum pages fetched in one tick. The small bounded default prevents a first backfill from
+   * monopolizing a sweep; the inclusive modified cursor makes the next tick safe and resumable. */
+  maxPages?: number;
 }
 
 const DEFAULT_PAGE_SIZE = 500;
+/** 20 × 500 = at most 10,000 rows per doctype per tick; a later tick resumes at the inclusive watermark. */
+export const DEFAULT_MAX_PAGES = 20;
+const LEDGER_ORDER_BY = 'modified asc, name asc';
+
+export interface LedgerFetchResult<T> {
+  rows: T[];
+  /** False means the page budget ended on a full page; the next tick must continue from the watermark. */
+  caughtUp: boolean;
+}
 
 const GL_FIELDS = [
   'name', 'account', 'cost_center', 'fiscal_year', 'project', 'party_type', 'party',
@@ -72,13 +89,25 @@ const GL_FIELDS = [
 
 const PLE_FIELDS = [
   'name', 'account', 'party_type', 'party', 'against_voucher_type', 'against_voucher_no',
-  'amount', 'posting_date', 'due_date', 'docstatus', 'modified',
+  'amount', 'posting_date', 'due_date', 'docstatus', 'delinked', 'modified',
 ] as const;
 
 /** Coerces a Frappe money value to a decimal-string (R4). A Frappe `null`/absent → `null`. */
 function money(v: unknown): string | null {
   if (v === null || v === undefined || v === '') return null;
   return String(v);
+}
+
+/** Frappe `docstatus` as a number (null-safe). */
+function docstatusOf(v: unknown): number | null {
+  return typeof v === 'number' ? v : v !== null && v !== undefined ? Number(v) : null;
+}
+
+/** The two ERP-side "scope only" filters every ledger fetch sends (#901: never a cancellation filter). */
+function scopeFilters(opts: LedgerFetchOpts): unknown[] {
+  const filters: unknown[] = [['company', '=', opts.company]];
+  if (opts.since !== undefined) filters.push(['modified', '>=', opts.since]);
+  return filters;
 }
 
 /** Normalizes a Frappe list-row's common scalar fields (null-safe). */
@@ -97,7 +126,8 @@ function listPath(
   const encodedDoctype = encodeURIComponent(doctype);
   const f = encodeURIComponent(JSON.stringify(filters));
   const fld = encodeURIComponent(JSON.stringify(fields));
-  const qs = `filters=${f}&fields=${fld}&limit_page_length=${pageSize}&limit_start=${limitStart}`;
+  const orderBy = encodeURIComponent(LEDGER_ORDER_BY);
+  const qs = `filters=${f}&fields=${fld}&limit_page_length=${pageSize}&limit_start=${limitStart}&order_by=${orderBy}`;
   return `/api/resource/${encodedDoctype}?${qs}`;
 }
 
@@ -108,19 +138,21 @@ async function fetchAllPages(
   filters: unknown[],
   fields: readonly string[],
   pageSize: number,
-): Promise<Record<string, unknown>[]> {
+  maxPages: number,
+): Promise<{ rows: Record<string, unknown>[]; caughtUp: boolean }> {
   const rows: Record<string, unknown>[] = [];
   let limitStart = 0;
-  // Guard: a pathological server that returns full pages forever cannot loop us indefinitely.
-  for (let safety = 0; safety < 1000; safety += 1) {
+  // A full page is not proof that the source is drained. Stop after the bounded budget and let the
+  // inclusive modified watermark re-read the boundary row on the next tick.
+  for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
     const body = await erpnextRequest(client, { method: 'GET', path: listPath(doctype, filters, fields, pageSize, limitStart) });
     const page = (body as { data?: Record<string, unknown>[] } | null)?.data;
-    if (!Array.isArray(page) || page.length === 0) break;
+    if (!Array.isArray(page) || page.length === 0) return { rows, caughtUp: true };
     rows.push(...page);
-    if (page.length < pageSize) break; // short page → done
+    if (page.length < pageSize) return { rows, caughtUp: true };
     limitStart += pageSize;
   }
-  return rows;
+  return { rows, caughtUp: false };
 }
 
 /** The ledger doctypes the sweep's ledger-mirror feed reads for EVERY activated org (not domain-gated) —
@@ -130,7 +162,7 @@ export const PAYMENT_LEDGER_ENTRY_DOCTYPE = 'Payment Ledger Entry';
 export const LEDGER_MIRROR_DOCTYPES: readonly string[] = [GL_ENTRY_DOCTYPE, PAYMENT_LEDGER_ENTRY_DOCTYPE];
 
 /** `GET /api/resource/GL Entry` — mirrored GL Entry truth (FR-ENA-150). Pure fetch; never persists. */
-export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<GlEntryRow[]> {
+export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<LedgerFetchResult<GlEntryRow>> {
   // OD-INT-6: fail loud on missing Company (config-rejected) instead of silently filtering ['company','=',null]
   // which returns zero rows silently — no error, no sync, no alert.
   if (!opts.company || typeof opts.company !== 'string' || opts.company.trim() === '') {
@@ -140,35 +172,36 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
     );
   }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
-  const filters: unknown[] = [
-    ['is_cancelled', '=', 0],
-    ['docstatus', '!=', 2],
-    ['company', '=', opts.company],
-  ];
-  if (opts.since !== undefined) filters.push(['modified', '>=', opts.since]);
-  const raw = await fetchAllPages(client, GL_ENTRY_DOCTYPE, filters, GL_FIELDS, pageSize);
-  return raw.map((r) => ({
-    name: String(r.name),
-    account: String(r.account),
-    cost_center: str(r.cost_center),
-    fiscal_year: str(r.fiscal_year),
-    project: str(r.project),
-    party_type: str(r.party_type),
-    party: str(r.party),
-    voucher_type: str(r.voucher_type),
-    voucher_no: str(r.voucher_no),
-    posting_date: str(r.posting_date),
-    debit: money(r.debit),
-    credit: money(r.credit),
-    is_cancelled: Boolean(r.is_cancelled),
-    docstatus: typeof r.docstatus === 'number' ? r.docstatus : r.docstatus !== null && r.docstatus !== undefined ? Number(r.docstatus) : null,
-    modified: String(r.modified),
-  }));
+  const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
+  const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), GL_FIELDS, pageSize, maxPages);
+  return {
+    ...result,
+    rows: result.rows.map((r) => {
+      const docstatus = docstatusOf(r.docstatus);
+      return {
+        name: String(r.name),
+        account: String(r.account),
+        cost_center: str(r.cost_center),
+        fiscal_year: str(r.fiscal_year),
+        project: str(r.project),
+        party_type: str(r.party_type),
+        party: str(r.party),
+        voucher_type: str(r.voucher_type),
+        voucher_no: str(r.voucher_no),
+        posting_date: str(r.posting_date),
+        debit: money(r.debit),
+        credit: money(r.credit),
+        is_cancelled: Boolean(r.is_cancelled) || docstatus === 2,
+        docstatus,
+        modified: String(r.modified),
+      };
+    }),
+  };
 }
 
 /** `GET /api/resource/Payment Ledger Entry` — mirrored Payment Ledger Entry truth (FR-ENA-162).
  *  Pure fetch; never persists. */
-export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<PaymentLedgerEntryRow[]> {
+export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<LedgerFetchResult<PaymentLedgerEntryRow>> {
   // OD-INT-6: fail loud on missing Company (config-rejected) instead of silently filtering ['company','=',null]
   if (!opts.company || typeof opts.company !== 'string' || opts.company.trim() === '') {
     throw new AppError(
@@ -177,23 +210,26 @@ export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: Led
     );
   }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
-  const filters: unknown[] = [
-    ['docstatus', '!=', 2],
-    ['company', '=', opts.company],
-  ];
-  if (opts.since !== undefined) filters.push(['modified', '>=', opts.since]);
-  const raw = await fetchAllPages(client, PAYMENT_LEDGER_ENTRY_DOCTYPE, filters, PLE_FIELDS, pageSize);
-  return raw.map((r) => ({
-    name: String(r.name),
-    account: String(r.account),
-    party_type: str(r.party_type),
-    party: str(r.party),
-    against_voucher_type: str(r.against_voucher_type),
-    against_voucher_no: str(r.against_voucher_no),
-    amount: money(r.amount),
-    posting_date: str(r.posting_date),
-    due_date: str(r.due_date),
-    docstatus: typeof r.docstatus === 'number' ? r.docstatus : r.docstatus !== null && r.docstatus !== undefined ? Number(r.docstatus) : null,
-    modified: String(r.modified),
-  }));
+  const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
+  const result = await fetchAllPages(client, PAYMENT_LEDGER_ENTRY_DOCTYPE, scopeFilters(opts), PLE_FIELDS, pageSize, maxPages);
+  return {
+    ...result,
+    rows: result.rows.map((r) => {
+      const docstatus = docstatusOf(r.docstatus);
+      return {
+        name: String(r.name),
+        account: String(r.account),
+        party_type: str(r.party_type),
+        party: str(r.party),
+        against_voucher_type: str(r.against_voucher_type),
+        against_voucher_no: str(r.against_voucher_no),
+        amount: money(r.amount),
+        posting_date: str(r.posting_date),
+        due_date: str(r.due_date),
+        docstatus,
+        delinked: Boolean(r.delinked) || docstatus === 2,
+        modified: String(r.modified),
+      };
+    }),
+  };
 }

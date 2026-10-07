@@ -180,13 +180,14 @@ describe('erpnext/adapter — commit() transition, verb:amend (task 6.3, FR-ENA-
       record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00001', verb: 'amend', items: [{ item_code: 'X', qty: 2 }] },
       idempotencyKey: 'idem-amend-1',
     });
-    expect(calls.map((c) => c.method)).toEqual(['PUT', 'POST', 'PUT', 'GET']);
+    // #915: the tax-less replacement triggers the company-default lookup GET before the cancel.
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'PUT', 'POST', 'PUT', 'GET']);
     // cancel old
-    expect(calls[0].body).toEqual({ docstatus: 2 });
+    expect(calls[1].body).toEqual({ docstatus: 2 });
     // create new: amended_from = old name + the PI anchor stamp ('remarks') = the amend idempotency key
-    expect(calls[1].body).toMatchObject({ amended_from: 'ACC-PINV-2026-00001', remarks: 'idem-amend-1', supplier: 'Spike Supplier', items: [{ item_code: 'X', qty: 2 }] });
+    expect(calls[2].body).toMatchObject({ amended_from: 'ACC-PINV-2026-00001', remarks: 'idem-amend-1', supplier: 'Spike Supplier', items: [{ item_code: 'X', qty: 2 }] });
     // submit new
-    expect(calls[2].body).toEqual({ docstatus: 1 });
+    expect(calls[3].body).toEqual({ docstatus: 1 });
     // the NEW ERP name is returned (external_refs will repoint to it)
     expect(result.externalRecordId).toBe('ACC-PINV-2026-00002');
     expect(result.canonical).toMatchObject({ id: 'pmo-pi-1', vi_number: 'ACC-PINV-2026-00002', erp_amended_from: 'ACC-PINV-2026-00001', erp_docstatus: 1 });
@@ -195,6 +196,8 @@ describe('erpnext/adapter — commit() transition, verb:amend (task 6.3, FR-ENA-
   it('amend fires afterSubmitHook after the new doc submits (FR-ENA-003 seam parity)', async () => {
     const order: string[] = [];
     const fetchImpl = async (_url: string, init?: RequestInit) => {
+      // #915: the tax-less replacement triggers the company-default lookup first — none exists here.
+      if (decodeURIComponent(new URL(_url).pathname) === '/api/resource/Purchase Taxes and Charges Template') return jsonResponse(200, { data: [] });
       if (init?.method === 'PUT' && init.body && JSON.parse(init.body as string).docstatus === 2) { order.push('cancel'); return jsonResponse(200, { name: 'ACC-PINV-2026-00001', docstatus: 2 }); }
       if (init?.method === 'POST') { order.push('create'); return jsonResponse(200, { name: 'ACC-PINV-2026-00002' }); }
       if (init?.method === 'PUT') { order.push('submit'); return jsonResponse(200, { name: 'ACC-PINV-2026-00002', docstatus: 1 }); }
@@ -275,8 +278,9 @@ describe('erpnext/adapter — commit() update on a SUBMITTABLE kind (task 6.3 up
       record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00001', items: [{ item_code: 'X', qty: 2 }] },
       idempotencyKey: 'idem-update-1',
     });
-    // GET (docstatus 1 -> routeEdit -> amend) -> cancel PUT -> create POST -> submit PUT -> refetch GET
-    expect(calls.map((c) => c.method)).toEqual(['GET', 'PUT', 'POST', 'PUT', 'GET']);
+    // GET (docstatus 1 -> routeEdit -> amend) -> #915 default-template lookup GET -> cancel PUT ->
+    // create POST -> submit PUT -> refetch GET
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'GET', 'PUT', 'POST', 'PUT', 'GET']);
     expect(result.externalRecordId).toBe('ACC-PINV-2026-00002');
   });
 
@@ -422,5 +426,84 @@ describe('erpnext/adapter — unsupported transition verbs still fail loud', () 
     await expect(
       adapter.commit({ domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00001', verb: 'unknown' } }),
     ).rejects.toBeInstanceOf(AdapterError);
+  });
+});
+
+// ============================================================================
+// #915 fix round — the amend replacement obeys the create's default-template rule. ERPNext applies
+// the company's CURRENT default Purchase Taxes and Charges Template to any Purchase Invoice POSTed
+// with no tax fields, and the amend's replacement is such a POST (an edit/amend carries no taxes —
+// `piToBody` only sends tax fields for a chosen template or entered amounts). So BEFORE the
+// predecessor is cancelled — the point of no return, ⚑ HIGH-1 — the replacement body is built and,
+// when it carries no taxes, the current default is validated through the SAME resolver a chosen
+// template gets: malformed ⇒ config-rejected (the chosen path's wording), nothing cancelled, nothing
+// POSTed; valid or no default ⇒ behaviour unchanged, replacement sent exactly as persisted.
+// ============================================================================
+
+const AMEND_PI_BODY_FNS: DoctypeBodyFns = {
+  toBody: (rec: PmoRecord) => ({ supplier: 'Spike Supplier', items: rec.items }),
+  fromDoc: (doc: unknown) => ({ id: 'placeholder', vi_number: (doc as { name: string }).name, erp_docstatus: (doc as { docstatus?: number }).docstatus ?? 0 }),
+};
+
+interface AmendCall { method: string; path: string; body?: unknown }
+
+/** Answers the default-template reads (list + single doc), then the update→amend lifecycle calls. */
+function amendFetch(calls: AmendCall[], templateDoc: Record<string, unknown> | null) {
+  return async (url: string, init?: RequestInit) => {
+    const path = decodeURIComponent(new URL(url).pathname);
+    calls.push({ method: init?.method ?? 'GET', path, body: init?.body ? JSON.parse(init.body as string) : undefined });
+    const templateName = templateDoc ? String(templateDoc.name) : '';
+    if (path === '/api/resource/Purchase Taxes and Charges Template') {
+      return jsonResponse(200, { data: templateDoc ? [{ name: templateName }] : [] });
+    }
+    if (templateDoc && path === `/api/resource/Purchase Taxes and Charges Template/${templateName}`) {
+      return jsonResponse(200, { data: templateDoc });
+    }
+    if (init?.method === 'GET') return jsonResponse(200, { name: 'ACC-PINV-2026-00001', docstatus: 1 });
+    if (init?.method === 'PUT' && init.body && JSON.parse(init.body as string).docstatus === 2) return jsonResponse(200, { name: 'ACC-PINV-2026-00001', docstatus: 2 });
+    if (init?.method === 'POST') return jsonResponse(200, { name: 'ACC-PINV-2026-00002' });
+    if (init?.method === 'PUT') return jsonResponse(200, { name: 'ACC-PINV-2026-00002', docstatus: 1 });
+    return jsonResponse(200, { name: 'ACC-PINV-2026-00002', docstatus: 1, amended_from: 'ACC-PINV-2026-00001' });
+  };
+}
+
+const MALFORMED_DEFAULT = {
+  name: 'Broken Default', company: 'PMO Smoke Co', disabled: 0,
+  taxes: [{ charge_type: 'On Net Total', account_head: 'Input VAT - SC', rate: -2, description: 'Input VAT', category: 'Total', add_deduct_tax: 'Add' }],
+};
+
+describe('erpnext/adapter — the amend replacement\'s default-template gate (#915 fix round)', () => {
+  it('an update→amend of a submitted purchase-invoice whose replacement carries no taxes is refused (config-rejected, naming the default) BEFORE the cancel when the current default is malformed', async () => {
+    const calls: AmendCall[] = [];
+    const adapter = createErpAdapter(baseDeps(amendFetch(calls, MALFORMED_DEFAULT), { doctypeBodies: { 'purchase-invoice': AMEND_PI_BODY_FNS } }));
+    await expect(adapter.commit({
+      domain: 'procurement',
+      operation: 'update',
+      record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00001', items: [{ item_code: 'X', qty: 2 }] },
+    })).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('Broken Default') });
+    // Refused BEFORE the point of no return: nothing cancelled, nothing POSTed.
+    expect(calls.filter((c) => c.method === 'PUT' || c.method === 'POST')).toEqual([]);
+    // The only ERP calls were the docstatus probe and the default-template validation reads
+    // (find-default list, then the validator's list + single-doc re-check — a chosen template's own cost).
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'GET', 'GET', 'GET']);
+  });
+
+  it('an update→amend of a submitted purchase-invoice with no taxes still cancels and re-creates unchanged when the current default is VALID — the replacement is sent untaxed exactly as persisted', async () => {
+    const calls: AmendCall[] = [];
+    const valid = { ...MALFORMED_DEFAULT, name: 'Sound Default', taxes: [{ ...MALFORMED_DEFAULT.taxes[0], rate: 11 }] };
+    const adapter = createErpAdapter(baseDeps(amendFetch(calls, valid), { doctypeBodies: { 'purchase-invoice': AMEND_PI_BODY_FNS } }));
+    const result = await adapter.commit({
+      domain: 'procurement',
+      operation: 'update',
+      record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00001', items: [{ item_code: 'X', qty: 2 }] },
+      idempotencyKey: 'idem-amend-915',
+    });
+    // probe GET -> the default's find + validation reads -> cancel PUT -> create POST -> submit PUT -> refetch GET
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'GET', 'GET', 'GET', 'PUT', 'POST', 'PUT', 'GET']);
+    const posted = calls.find((c) => c.method === 'POST');
+    expect(posted).toBeDefined();
+    expect(posted!.body).not.toHaveProperty('taxes');             // the replacement is NOT mutated:
+    expect(posted!.body).not.toHaveProperty('taxes_and_charges'); // the valid default is ERPNext's to apply
+    expect(result.externalRecordId).toBe('ACC-PINV-2026-00002');
   });
 });

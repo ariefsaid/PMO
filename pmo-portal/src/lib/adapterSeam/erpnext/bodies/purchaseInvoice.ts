@@ -16,6 +16,18 @@ function addMoney(a: string, b: string): string {
   return `${sum < 0n ? '-' : ''}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`;
 }
 
+/**
+ * #520/#876 — the exact condition under which `piToBody` sends tax fields: a chosen template sent with
+ * its server-resolved rows, or the entered-amounts marker sent with its fixed `Actual` rows (empty
+ * template). Its COMPLEMENT is the condition under which ERPNext applies the company's default
+ * Purchase Taxes and Charges Template to the POST — so the #915 replay/amend gates read THIS predicate
+ * and cannot drift from the body they guard.
+ */
+export function piBodyCarriesTaxes(rec: Record<string, unknown>): boolean {
+  return (Array.isArray(rec.taxes) && rec.taxes.length > 0 && typeof rec.taxTemplate === 'string')
+    || (rec.taxesFromAmounts === true && Array.isArray(rec.taxes) && typeof rec.taxTemplate !== 'string');
+}
+
 export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   const items = requireItems(rec, 'Purchase Invoice');
   const reference = rec.referenceNumber ?? rec.reference_number;
@@ -30,13 +42,12 @@ export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     })),
     ...(typeof reference === 'string' && reference.trim() ? { bill_no: reference.trim() } : {}),
     ...(typeof date === 'string' && date.trim() ? { bill_date: date.trim() } : {}),
-    // #520: the user-chosen template, sent WITH its server-resolved rows (ERPNext does not expand a template named over REST).
-    ...(Array.isArray(rec.taxes) && rec.taxes.length > 0 && typeof rec.taxTemplate === 'string'
+    // The two sends are exactly `piBodyCarriesTaxes` (#520 chosen template with its rows; #876 slice 2
+    // (DD-VWH-13) entered-amounts `Actual` rows with the explicit empty template — bench-proven (spike
+    // addendum 2) to make ERPNext apply no template and no default; an empty table is a deliberate "no tax").
+    ...(piBodyCarriesTaxes(rec) && typeof rec.taxTemplate === 'string'
       ? { taxes_and_charges: rec.taxTemplate, taxes: rec.taxes } : {}),
-    // #876 slice 2 (DD-VWH-13): the fixed `Actual` rows the dispatch built from the ENTERED amounts. The empty template
-    // is explicit so ERPNext applies no template (and no default — bench-proven, spike addendum 2) on top; an empty
-    // table is a deliberate "no tax".
-    ...(rec.taxesFromAmounts === true && Array.isArray(rec.taxes) && typeof rec.taxTemplate !== 'string'
+    ...(piBodyCarriesTaxes(rec) && typeof rec.taxTemplate !== 'string'
       ? { taxes_and_charges: '', taxes: rec.taxes } : {}),
   };
 }
