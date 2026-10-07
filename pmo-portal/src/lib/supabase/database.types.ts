@@ -868,6 +868,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           created_at?: string
+          created_by?: string | null
           currency?: string
           id?: string
           import_batch_id?: string | null
@@ -882,6 +883,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           created_at?: string
+          created_by?: string | null
           currency?: string
           id?: string
           import_batch_id?: string | null

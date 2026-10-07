@@ -18,9 +18,9 @@ Use a shared client validator only for immediate UX feedback; the RPC is authori
 
 | AC | Outcome | Owning proof (lowest sufficient layer) |
 | --- | --- | --- |
-| AC-EFK-001 | Admin/Finance can atomically set or clear trimmed e-Faktur number/date on an own-org, non-cancelled sales invoice; direct writes, wrong role/org, disabled members, cancelled rows, future dates and invalid number shapes are refused. | `supabase/tests/0271_efaktur_number.test.sql` |
-| AC-EFK-002 | The identical guarded PMO-only setter contract applies to a vendor bill (`procurement_invoices`). | `supabase/tests/0271_efaktur_number.test.sql` |
-| AC-EFK-003 | ERP mirror refreshes preserve PMO e-Faktur facts on both row types and adapter writer patches never contain them. | `supabase/tests/0271_efaktur_number.test.sql` (DB preservation) and `supabase/functions/adapter-dispatch/readModelWriters.money.test.ts` (writer omission) |
+| AC-EFK-001 | Admin/Finance can atomically set or clear trimmed e-Faktur number/date on an own-org, non-cancelled sales invoice; direct writes, wrong role/org, disabled members, cancelled rows, future dates and invalid number shapes are refused. | `supabase/tests/0272_efaktur_number.test.sql` |
+| AC-EFK-002 | The identical guarded PMO-only setter contract applies to a vendor bill (`procurement_invoices`). | `supabase/tests/0272_efaktur_number.test.sql` |
+| AC-EFK-003 | ERP mirror refreshes preserve PMO e-Faktur facts on both row types and adapter writer patches never contain them. | `supabase/tests/0272_efaktur_number.test.sql` (DB preservation) and `supabase/functions/adapter-dispatch/readModelWriters.money.test.ts` (writer omission) |
 | AC-EFK-004 | Sales Invoice detail/list shows both optional facts and permits only Admin/Finance to open the validated edit dialog and save via the sales setter. | `pmo-portal/pages/__tests__/SalesInvoices.efaktur.test.tsx` |
 | AC-EFK-005 | The Procurement detail ledger shows both optional facts for Invoice rows only and permits only Admin/Finance to edit a non-cancelled vendor bill via its setter. | `pmo-portal/pages/procurement/ProcurementLedger.efaktur.test.tsx` |
 | AC-EFK-006 | e-Faktur values remain absent from ERP body mappings and from the onboarding custom-field inventory. | `pmo-portal/src/lib/adapterSeam/erpnext/efakturOwnership.test.ts` |
@@ -39,7 +39,7 @@ Add `DD-EFK-1` immediately after `OD-ERP-4`: PMO alone stores e-Faktur number/da
 
 ### 2. Write the failing database contract first (4 min)
 
-**Files:** add `supabase/tests/0271_efaktur_number.test.sql`.
+**Files:** add `supabase/tests/0272_efaktur_number.test.sql`.
 
 Before the migration, create two isolated organizations, active Finance/Admin/Project-Manager/disabled-Finance fixtures, and a sales invoice plus vendor invoice in each org. Add AC-leading pgTAP descriptions proving:
 
@@ -52,12 +52,12 @@ Start with a test count matching the exact assertions. It must fail against migr
 
 **Verify (expected RED before Task 3):**
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0271_efaktur_number.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0272_efaktur_number.test.sql'
 ```
 
 ### 3. Add the reversible 0265 schema and guarded setters (5 min)
 
-**Files:** add `supabase/migrations/0271_efaktur_number.sql`; add `supabase/migrations/rollback/0271_efaktur_number_down.sql`.
+**Files:** add `supabase/migrations/0272_efaktur_number.sql`; add `supabase/migrations/rollback/0272_efaktur_number_down.sql`.
 
 In **0265 only**:
 
@@ -68,7 +68,7 @@ In **0265 only**:
 
 **Verify (GREEN and type generation in one DB lock hold):**
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && supabase test db supabase/tests/0271_efaktur_number.test.sql supabase/tests/0178_anon_executable_definers.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && supabase test db supabase/tests/0272_efaktur_number.test.sql supabase/tests/0178_anon_executable_definers.test.sql'
 ```
 
 ### 4. Regenerate the typed client and update security denominators (3 min)
@@ -81,7 +81,7 @@ Add both setter names to the explicit client-callable SECURITY DEFINER allow-lis
 
 **Verify:**
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && supabase test db supabase/tests/0271_efaktur_number.test.sql supabase/tests/0178_anon_executable_definers.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && supabase test db supabase/tests/0272_efaktur_number.test.sql supabase/tests/0178_anon_executable_definers.test.sql'
 grep -n 'efaktur_number\|set_sales_invoice_efaktur\|set_procurement_invoice_efaktur' pmo-portal/src/lib/supabase/database.types.ts scripts/isolation-probe-denominator.json
 ```
 
@@ -157,7 +157,7 @@ scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run src/lib/db/pr
 Run these after every touched test is green; do not weaken a test or regenerate `package-lock.json`.
 
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && supabase test db supabase/tests/0271_efaktur_number.test.sql supabase/tests/0178_anon_executable_definers.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && supabase test db supabase/tests/0272_efaktur_number.test.sql supabase/tests/0178_anon_executable_definers.test.sql'
 cd supabase/functions/adapter-dispatch && deno test . --config deno.json --allow-env --allow-net --allow-read
 cd ../../..
 scripts/with-test-lock.sh bash -c 'cd pmo-portal && npm run typecheck && npx eslint --max-warnings=0 pages/SalesInvoices.tsx pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx src/components/EfakturModal.tsx src/lib/efaktur.ts src/lib/db/revenue.ts src/lib/db/procurementLifecycle.ts src/lib/db/procurementLedger.ts src/hooks/useRevenue.ts src/hooks/useProcurementDetail.ts src/lib/repositories/index.ts src/lib/repositories/types.ts src/auth/policy.ts && npx vitest run --changed origin/dev && npm run check:i18n'

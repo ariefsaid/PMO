@@ -1,4 +1,4 @@
--- 0271_efaktur_number.test.sql — PMO-owned e-Faktur facts (DD-EFK-1).
+-- 0272_efaktur_number.test.sql — PMO-owned e-Faktur facts (DD-EFK-1).
 begin;
 select plan(49);
 -- Deterministic dates: the fixture orgs keep their day in UTC and so does this session, so

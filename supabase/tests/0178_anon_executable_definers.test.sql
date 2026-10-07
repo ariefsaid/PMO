@@ -49,9 +49,9 @@
 -- DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + Admin/Finance + org,
 -- proven by supabase/tests/0250_progress_billing_{claims,evidence,withdraw}.test.sql. `record_progress_assessment`
 -- and `get_project_billing` are SECURITY INVOKER and deliberately NOT listed.
--- ⚑ AMENDED BY 0271 (#893 / DD-EFK-1): the PMO-only sales and procurement e-Faktur setters join the retained
+-- ⚑ AMENDED BY 0272 (#893 / DD-EFK-1): the PMO-only sales and procurement e-Faktur setters join the retained
 -- authenticated RPC set (+2, count 61). Both re-assert current Admin/Finance role, active membership, and org;
--- their row checks and mirror preservation are proved by supabase/tests/0271_efaktur_number.test.sql.
+-- their row checks and mirror preservation are proved by supabase/tests/0272_efaktur_number.test.sql.
 --
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
