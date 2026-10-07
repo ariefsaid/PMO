@@ -3028,3 +3028,20 @@ The minutes editor's chunk re-emitted BlockNote's Tailwind utilities into `utili
 
 **OD-BILL-1 (owner, 2026-10-07, #785/#786) — clients are billed by their PO/SO (the work order), never by tracker milestones.**
 Project-tracker milestones stay progress-only; they carry no amount and no invoice points at them. Billing hangs off the work order (the client's PO/SO): per-WO invoiced / paid / remaining, "Invoice this work order" (Draft, pre-filled with the remaining amount; partial allowed; the server refuses invoicing beyond the WO's value), the WO shows Paid when its invoices are fully paid. A milestone may optionally reference a work order when a project is tracked by PO — display only, the two stay separate records. Supersedes #785's milestone-amount design; #786's "still to invoice" reads the same per-WO remaining.
+
+**DD-BWO-1..12 (Director, 2026-10-07, #785/#786, under OD-BILL-1) — billing by work order.** Ruled as written in
+`docs/specs/progress-billing.spec.md` §7.1 and ADR-0080: a work order's billed total is its linked non-cancelled
+invoices at their billed work (DD-PBL-9; a down payment counts zero) plus its live unraised claims at gross; invoiced =
+submitted, not yet submitted = drafts + unraised claims, still to invoice = value excl. tax − both (DD-BWO-1) · Paid =
+billed work of Paid invoices, withheld tax counts as settled; the WO is Paid when nothing is left, nothing is in draft
+and every submitted invoice is Paid — derived, never stored (DD-BWO-2) · excl. tax in the WO's currency; an invoice
+with no amount or another currency makes the WO "can't total" and the refusal fails closed (DD-BWO-3) · one helper
+refuses (SQLSTATE BW001, HTTP 422) from a BEFORE INSERT trigger on the outbox (before any ERP write), a trigger on
+`sales_invoices` for every writer except the service-role mirror and a no-JWT load, and `create_progress_claim`; the
+mirror is never refused, an ERP-side overage shows as over-invoiced (DD-BWO-4) · a per-WO advisory xact lock, taken
+before reading, serialises billing writes; in-flight ERP commands count until mirrored; not a row lock because the
+claim RPC locks the project first (DD-BWO-5) · Admin/Finance, SoD unchanged (DD-BWO-6) · Closed WOs can be invoiced
+(DD-BWO-7) · an ordinary invoice create may name its WO (create only), PO reference from the WO (DD-BWO-8) · the
+assistant links the WO and defaults to what is left (amends DD-AIN-4) (DD-BWO-9) · shown on the Work orders tab and
+the Executive/Finance dashboards (DD-BWO-10) · invoices without a WO stay legal, project-level (DD-BWO-11) · the
+milestone→WO display link is a follow-up (DD-BWO-12). Plan: `docs/plans/2026-10-07-billing-by-work-order.md`.
