@@ -456,3 +456,63 @@ describe('erpnext/sweepCursor — deterministic paging (round-7 SHOULD-FIX)', ()
     expect((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].redirect).toBe('manual');
   });
 });
+
+describe('erpnext/sweepCursor — the #916 page budget (a bounded tick, resumable at the watermark)', () => {
+  const row = (name: string, modified: string) => ({ name, modified, docstatus: 1, amended_from: null });
+  const FULL_PAGE = (prefix: string, modified: string) =>
+    Array.from({ length: 500 }, (_, i) => row(`${prefix}-${String(i + 1).padStart(4, '0')}`, modified));
+
+  it('stops after maxPages full pages; nextCursor is the max modified SEEN (the tick resumes exactly at the boundary)', async () => {
+    // Page 1: 500 rows modified :01. Page 2: 500 rows modified :02. Page 3 EXISTS but must never be
+    // fetched — the budget ends the call after 2 pages, with the cursor at page 2's max (not the tail).
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls += 1;
+      const data = calls === 1 ? FULL_PAGE('A', '2026-08-01 10:00:01.000000') : FULL_PAGE('B', '2026-08-01 10:00:02.000000');
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    });
+    const client = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+    const { changes, nextCursor } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Material Request', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC, maxPages: 2 },
+      null,
+    );
+    expect(calls).toBe(2);
+    expect(changes).toHaveLength(1000);
+    expect(nextCursor).toBe('2026-08-01 10:00:02.000000');
+  });
+
+  it('a short page inside the budget drains naturally (no extra request, no truncation)', async () => {
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls += 1;
+      const data = calls === 1 ? FULL_PAGE('A', '2026-08-01 10:00:01.000000') : [row('B-0001', '2026-08-01 10:00:02.000000')];
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    });
+    const client = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+    const { changes, nextCursor } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Material Request', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC, maxPages: 2 },
+      null,
+    );
+    expect(calls).toBe(2);
+    expect(changes).toHaveLength(501);
+    expect(nextCursor).toBe('2026-08-01 10:00:02.000000');
+  });
+
+  it('absent maxPages stays UNBOUNDED (the pre-#916 callers — e.g. the onboarding probe — byte-for-byte)', async () => {
+    // Three FULL pages then an empty one: an unbounded call fetches 4 times and emits 1500 changes;
+    // a maxPages=2 call would have stopped after 2. (The safety guard is not what ends this fetch.)
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls += 1;
+      const data = calls <= 3 ? FULL_PAGE(`P${calls}`, `2026-08-01 10:00:0${calls}.000000`) : [];
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    });
+    const client = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+    const { changes } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Material Request', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC },
+      null,
+    );
+    expect(calls).toBe(4);
+    expect(changes).toHaveLength(1500);
+  });
+});

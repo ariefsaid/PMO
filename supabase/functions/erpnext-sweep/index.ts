@@ -16,7 +16,11 @@ import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
  * Per employing org, ONE cycle runs SEVEN passes in order:
  *   (1) reconcileOrgOutbox — the ADR-0058 §4 outbox recovery pass (delegates to the REAL
  *       dispatchMoneyWrite per candidate — one algorithm, shared with the retry path);
- *   (2) the modified-poll doctype sweep (runSweep per doctype, the convergence authority — AC-ENA-071);
+ *   (2) the modified-poll doctype sweep (runSweep per doctype, the convergence authority — AC-ENA-071;
+ *       #916: BOUNDED per tick — each doctype lists at most `SWEEP_LIST_MAX_PAGES` pages and the whole
+ *       walk stops once the tick's `SWEEP_TICK_MAX_DOCS` document budget or `SWEEP_TICK_TIME_BUDGET_MS`
+ *       elapsed-time budget is spent; the per-doctype watermark is the persisted cursor the next tick
+ *       resumes from, so a full-year backfill is resumable instead of one CPU-limit-dying pass);
  *   (3) the ledger-mirror feed (feedLedgerMirrors, 8.6b — populates erp_gl_entry_mirror/
  *       erp_payment_ledger_mirror);
  *   (4) refreshActuals + refreshAging (slice 7 — read the freshly-fed mirror);
@@ -745,8 +749,64 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
   };
 }
 
-/** The per-org sweep: runSweep per doctype with the lineage-aware apply injected, per-doctype watermark. */
-export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ applied: number; error?: string }> {
+// ── #916: the doctype walk's per-tick budgets ──────────────────────────────────────────────────
+// The walk used to list + apply EVERY doctype's full modified-poll inside one invocation; on a full
+// year of books that hit the edge runtime's CPU hard limit (HTTP 546) mid-pass, stranding actuals /
+// Paid status / receipts. Both budgets make the walk a bounded quantum per tick: the per-doctype
+// watermark (`external_sync_watermarks`) is the persisted cursor, the listing order is the total
+// order `modified asc, name asc`, and the cursor filter is INCLUSIVE — so the next tick resumes
+// exactly at the boundary (no document skipped, none double-applied; the writers are idempotent
+// upserts and the per-row source-mod guard re-applies an equal stamp idempotently). The first sweep
+// after a reset or a new binding (cursor NULL → oldest-first backfill) is resumable by construction.
+
+/** Max ERP list PAGES ONE doctype's poll may fetch in one tick (2 × the 500-row page = ≤1000 docs
+ *  listed per doctype). The same bounded-pages shape as the ledger feed (#901), tighter because the
+ *  walk APPLIES each doc through ~4 DB round-trips where the ledger batch-upserts. */
+export const SWEEP_LIST_MAX_PAGES = 2;
+
+/** Max documents LISTED across one org's whole walk in one tick — the walk stops before starting
+ *  another doctype once spent (a doctype already started finishes its own bounded quantum, so the
+ *  worst-case overrun is ONE doctype's `SWEEP_LIST_MAX_PAGES × 500`). */
+export const SWEEP_TICK_MAX_DOCS = 1_000;
+
+/** Whole-tick wall-clock budget for the walk (the pass-2 doctype loop), measured from the INVOCATION
+ *  start the serve handler stamps, so every org's walk in the tick shares one clock. Wall clock is a
+ *  PROXY here — the hard constraint is CPU time, which the doc budgets bound directly; this stops a
+ *  slow/unreachable ERP from holding the worker while staying far under any CPU limit. */
+export const SWEEP_TICK_TIME_BUDGET_MS = 20_000;
+
+/** Operator overrides (the "clock/env read" DI class): `ERPNEXT_SWEEP_TICK_MAX_DOCS` /
+ *  `ERPNEXT_SWEEP_TICK_TIME_BUDGET_MS`. A missing/invalid value falls back to the shipped default. */
+export const SWEEP_TICK_MAX_DOCS_ENV = 'ERPNEXT_SWEEP_TICK_MAX_DOCS';
+export const SWEEP_TICK_TIME_BUDGET_MS_ENV = 'ERPNEXT_SWEEP_TICK_TIME_BUDGET_MS';
+
+/** Optional per-tick budget knobs for the doctype walk. Absent ⇒ the shipped defaults above, clocked
+ *  from `Date.now()` at entry (the `nowMs: number = Date.now()` default-param pattern). The serve
+ *  handler passes the INVOCATION's start + its env reads; tests inject a controllable clock. */
+export interface SweepTickBudgetOpts {
+  /** The moment this tick began (the serve handler's entry), so the whole invocation shares one
+   *  elapsed-time budget. Default: `nowMs()` at call. */
+  tickStartMs?: number;
+  /** Injected clock. Default `Date.now`. */
+  nowMs?: () => number;
+  /** Overrides `SWEEP_TICK_MAX_DOCS` (tests). */
+  tickMaxDocs?: number;
+  /** Overrides `SWEEP_TICK_TIME_BUDGET_MS` (tests). */
+  tickTimeBudgetMs?: number;
+  /** Overrides the per-doctype listing quantum `SWEEP_LIST_MAX_PAGES` (tests). */
+  maxListPages?: number;
+}
+
+/** The per-org sweep: runSweep per doctype with the lineage-aware apply injected, per-doctype watermark.
+ *  #916: the walk is BOUNDED per tick — each doctype lists at most `SWEEP_LIST_MAX_PAGES` pages, and
+ *  the whole walk stops (finishing the doctype in flight; watermarks are persisted per doctype by
+ *  `runSweep`) once the tick's document or elapsed-time budget is spent. A budget stop is NORMAL
+ *  operation — never an error — the remaining doctypes resume next tick from their own watermarks. */
+export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache, opts: SweepTickBudgetOpts = {}): Promise<{ applied: number; error?: string }> {
+  const nowMs = opts.nowMs ?? Date.now;
+  const tickStartMs = opts.tickStartMs ?? nowMs();
+  const tickMaxDocs = opts.tickMaxDocs ?? SWEEP_TICK_MAX_DOCS;
+  const tickTimeBudgetMs = opts.tickTimeBudgetMs ?? SWEEP_TICK_TIME_BUDGET_MS;
   const client = await erpClientForOrg(serviceClient, org, cache);
   let applied = 0;
   // HIGH-A: one doctype's failure is RECORDED and the loop CONTINUES. It used to `return`, so a single
@@ -754,6 +814,12 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   // `DOCTYPE_REGISTRY`'s order that meant a Timesheet problem silently stopped `employee` and `budget`
   // (the money-control push's own feed) from sweeping at all.
   const doctypeErrors: string[] = [];
+  // #916: the tick's spent budget. `docsThisTick` counts documents LISTED (the quantum the walk
+  // touches), read off each doctype's bounded listing; the clock is read BEFORE each doctype so a
+  // doctype in flight always finishes (its watermark then persists a clean resume point — aborting a
+  // batch mid-apply would stall: the watermark only advances after the whole listed batch applies).
+  let docsThisTick = 0;
+  let walkedDoctypes = 0;
   // BLOCK 1 / round-7 B5: the pull-adopt guard. NOT a snapshot — the probe asks the outbox about each
   // CANDIDATE document at the moment the poll sees it, so neither a stale key set nor PostgREST's
   // `max_rows` ceiling can let a PMO-originated document be pull-adopted into a SECOND PMO row. A read
@@ -762,6 +828,16 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   const inFlightProbe = createInFlightAnchorProbe(serviceClient, org.orgId);
   // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier.
   for (const { kind, doctype } of sweepKindsForOrg(org.ownedDomains)) {
+    const elapsedMs = nowMs() - tickStartMs;
+    if (docsThisTick >= tickMaxDocs || elapsedMs >= tickTimeBudgetMs) {
+      console.warn(
+        `[erpnext-sweep] org ${org.orgId}: tick budget reached after ${walkedDoctypes} doctype walk(s) `
+          + `(${docsThisTick}/${tickMaxDocs} docs listed, ${elapsedMs}/${tickTimeBudgetMs} ms elapsed) — the remaining `
+          + 'doctypes resume next tick from their persisted watermarks (#916)',
+      );
+      break;
+    }
+    walkedDoctypes += 1;
     const domain = KIND_DOMAIN[kind];
     const bodyFns = DOCTYPE_BODIES[kind];
     if (!bodyFns) continue; // not yet wired — skip (inert until the slice that wires it lands)
@@ -810,6 +886,10 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
       ? (name: string) => fetchErpDoc(client, doctype, name)
       : undefined;
     try {
+      // #916: how many documents THIS doctype's bounded listing surfaced (≤ maxPages × pageSize) —
+      // read off the listing so the tick's doc budget counts everything the walk touches, including
+      // per-row no-ops and acked-and-skipped docs.
+      let listedThisWalk = 0;
       const result = await runSweep(
         { tier: ERPNEXT_TIER, domain },
         {
@@ -823,29 +903,36 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
           // watermark still advances and the changes behind it (a Desk cancel of a PMO-pushed Budget)
           // apply. Anything unclassified still halts this doctype, unadvanced, for the next tick.
           applyErrorPolicy: erpFeedApplyErrorPolicy,
-          listChanges: (cursor) => listErpChangesSinceWatermark(
-            {
-              client,
-              doctype,
-              fields,
-              fromDoc: bodyFns.fromDoc,
-              ...(hydrateDoc ? { hydrateDoc } : {}),
-              // WIRE 3: the company conjunct rides alongside BLOCK A1's payment_type discriminator.
-              extraFilters: poll.extraFilters,
-              // BLOCK A1's post-fetch discriminator AND WIRE 3's per-document company gate — the
-              // server-side filters above are an optimization, these are the authority — composed under
-              // BLOCK 1's in-flight-adopt guard (`inFlightAnchorFilter` returns the base filter
-              // unchanged when it has nothing of its own to add).
-              ...(() => {
-                const filterRow = inFlightAnchorFilter(kind, inFlightProbe, poll.admits);
-                return filterRow ? { filterRow } : {};
-              })(),
-            },
-            cursor,
-          ),
+          listChanges: async (cursor) => {
+            const listed = await listErpChangesSinceWatermark(
+              {
+                client,
+                doctype,
+                fields,
+                fromDoc: bodyFns.fromDoc,
+                ...(hydrateDoc ? { hydrateDoc } : {}),
+                // WIRE 3: the company conjunct rides alongside BLOCK A1's payment_type discriminator.
+                extraFilters: poll.extraFilters,
+                // BLOCK A1's post-fetch discriminator AND WIRE 3's per-document company gate — the
+                // server-side filters above are an optimization, these are the authority — composed under
+                // BLOCK 1's in-flight-adopt guard (`inFlightAnchorFilter` returns the base filter
+                // unchanged when it has nothing of its own to add).
+                ...(() => {
+                  const filterRow = inFlightAnchorFilter(kind, inFlightProbe, poll.admits);
+                  return filterRow ? { filterRow } : {};
+                })(),
+                // #916: the bounded listing quantum — the walk resumes at the persisted cursor.
+                maxPages: opts.maxListPages ?? SWEEP_LIST_MAX_PAGES,
+              },
+              cursor,
+            );
+            listedThisWalk = listed.changes.length;
+            return listed;
+          },
         },
       );
       applied += result.applied;
+      docsThisTick += listedThisWalk;
       // Never silent: an acked-and-skipped document (never-adopt / lossy hint) is logged with its ERP
       // name so an operator can see exactly what the poll declined to import.
       for (const s of result.skipped) {
@@ -2034,6 +2121,21 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
   const serviceClient = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseClient;
 
+  // #916: the whole invocation shares ONE elapsed-time budget for the doctype walk, stamped HERE (the
+  // env-int reader is the sanctioned "clock/env read" DI — a missing/invalid value falls back).
+  const tickStartMs = Date.now();
+  const envPositiveInt = (name: string, fallback: number): number => {
+    const raw = Deno.env.get(name);
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+  const tickBudget = {
+    tickStartMs,
+    tickMaxDocs: envPositiveInt(SWEEP_TICK_MAX_DOCS_ENV, SWEEP_TICK_MAX_DOCS),
+    tickTimeBudgetMs: envPositiveInt(SWEEP_TICK_TIME_BUDGET_MS_ENV, SWEEP_TICK_TIME_BUDGET_MS),
+  };
+
   // #651 / FR-ENA-019: ONE credential resolution per ORG per TICK. The cache is created HERE, inside the
   // request/tick scope, and shared by every pass that resolves a pair — never module-level, so a shared
   // isolate never holds one tenant's credential across ticks and a rotated credential never outlives the
@@ -2044,7 +2146,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
     reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row, erpAuth)),
-    sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth),
+    sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth, tickBudget),
     repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org, erpAuth),
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org, erpAuth),
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),

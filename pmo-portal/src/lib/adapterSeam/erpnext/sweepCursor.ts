@@ -58,6 +58,14 @@ export interface SweepCursorDeps {
    *  those kinds (the sweep's `KINDS_NEEDING_FULL_DOC`), so no other poll pays an extra round-trip.
    *  Applied AFTER dedupe + `filterRow`, so exactly the emitted rows are hydrated. */
   hydrateDoc?: (name: string) => Promise<Record<string, unknown>>;
+  /** #916: the page budget for ONE call — the walk stops starting new pages once this many pages have
+   *  been fetched, and `nextCursor` is the max `modified` SEEN so far. Because the listing order is the
+   *  total order `modified asc, name asc` and the caller's cursor filter is INCLUSIVE, the next call
+   *  (next tick) resumes exactly at that boundary: nothing after the cut is skipped, and the tied
+   *  boundary rows it re-delivers re-apply idempotently. This is what makes a full-year backfill
+   *  resumable instead of one CPU-limit-dying pass. Absent ⇒ UNBOUNDED (the pre-#916 behavior — the
+   *  sweep fn passes its shipped budget explicitly; the onboarding probe reads unbounded). */
+  maxPages?: number;
 }
 
 const DEFAULT_PAGE_SIZE = 500;
@@ -121,12 +129,18 @@ export async function listErpChangesSinceWatermark(
   const byName = new Map<string, { row: Record<string, unknown>; modified: string }>();
   let nextCursor: string | null = null;
   let limitStart = 0;
+  const maxPages = deps.maxPages ?? Number.POSITIVE_INFINITY;
+  let pagesFetched = 0;
   // Guard: a pathological server that returns full pages forever cannot loop us indefinitely.
   for (let safety = 0; safety < 1000; safety += 1) {
+    // #916 page budget: stop STARTING new pages once spent. The inclusive `modified >=` cursor makes
+    // the next call resume exactly at max-modified-seen (see `maxPages` above).
+    if (pagesFetched >= maxPages) break;
     const body = await erpnextRequest(deps.client, {
       method: 'GET',
       path: listPath(deps.doctype, filters, fields, pageSize, limitStart),
     });
+    pagesFetched += 1;
     const page = (body as { data?: Array<Record<string, unknown>> } | null)?.data;
     if (!Array.isArray(page) || page.length === 0) break;
     for (const row of page) {
