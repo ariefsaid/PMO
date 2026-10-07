@@ -73,6 +73,7 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => {
 });
 
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 import ApprovalsPage from '../Approvals';
 
 const renderPage = () =>

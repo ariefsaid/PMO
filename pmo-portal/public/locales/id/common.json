@@ -289,6 +289,12 @@
     }
   },
   "approvals": {
+    "salesInvoices": {
+      "label": "Faktur pelanggan yang menunggu Anda",
+      "heading": "Faktur pelanggan yang menunggu Anda ({{count}})",
+      "errorTitle": "Gagal memuat faktur yang menunggu Anda",
+      "errorSub": "Permintaan pembelian dan lembar waktu di bawah tidak terpengaruh."
+    },
     "bulk": {
       "approveN": "Setujui {{count}}",
       "clear": "Bersihkan",
@@ -3237,6 +3243,30 @@
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
   "financeCopy": {
+    "nativeSalesInvoicesDescription": "Faktur klien yang dibuat, disetujui, dan dilunasi di PMO.",
+    "nativeNewInvoiceSubtitle": "Membuat draf. Pengguna Finance atau Admin lain yang menyetujuinya.",
+    "nativeProjectRequired": "Proyek wajib diisi: proyek menentukan PPN faktur.",
+    "nativeSelectProject": "Pilih proyek…",
+    "approve": "Setujui",
+    "approveInvoiceNamed": "Setujui faktur untuk {{customer}}?",
+    "approveInvoiceBody": "Persetujuan menerbitkan faktur: faktur mendapat nomor, menjadi Belum Dibayar, dan dapat menerima pembayaran. Pembuatnya tidak dapat menyetujuinya.",
+    "approveInvoice": "Setujui faktur",
+    "invoiceApproved": "Faktur disetujui",
+    "nativeCancelInvoiceBody": "Ini membatalkan faktur di PMO sehingga tidak lagi dihitung sebagai tagihan. Faktur yang memiliki penerimaan hanya dapat dibatalkan setelah penerimaannya dibatalkan.",
+    "statusPartlyPaid": "Dibayar sebagian",
+    "recordedBeforeErp": "Dicatat di PMO sebelum ERP terhubung",
+    "overpaidBy": "Kelebihan bayar {{amount}}",
+    "carriedIntoErpOpening": "Dibawa ke saldo awal ERP: {{amount}} pada {{date}}",
+    "nativeIncomingPaymentsDescription": "Penerimaan pelanggan yang dicatat di PMO atas faktur yang telah disetujui.",
+    "salesInvoiceLabel": "Faktur Penjualan",
+    "salesInvoiceRequired": "Pilih faktur yang dilunasi penerimaan ini.",
+    "paymentDateLabel": "Tanggal pembayaran",
+    "paymentDateNotFuture": "Tanggal pembayaran tidak boleh di masa depan.",
+    "nativeReceiptAmountHelper": "Diisi dengan sisa tagihan {{amount}}. Isi lebih kecil untuk pembayaran sebagian, atau lebih besar jika klien membayar lebih; kelebihannya ditampilkan sebagai kelebihan bayar.",
+    "receiptDateMissing": "Isi tanggal pembayaran.",
+    "receiptRefused": "Periksa jumlah penerimaan.",
+    "nativeCancelReceiptBody": "Ini membatalkan penerimaan di PMO dan mengembalikan jumlahnya ke saldo faktur.",
+    "receiptCancelled": "Penerimaan dibatalkan",
     "receivedDate": "Diterima",
     "recordReceivedDate": "Catat tanggal diterima",
     "receivedDateHelp": "Tanggal klien menerima faktur ini. Tanggal jatuh tempo mengikuti tanggal ini.",

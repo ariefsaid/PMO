@@ -289,6 +289,12 @@
     }
   },
   "approvals": {
+    "salesInvoices": {
+      "label": "Customer invoices awaiting you",
+      "heading": "Customer invoices awaiting you ({{count}})",
+      "errorTitle": "Couldn't load invoices awaiting you",
+      "errorSub": "Purchase requests and timesheets below are unaffected."
+    },
     "bulk": {
       "approveN": "Approve {{count}}",
       "clear": "Clear",
@@ -3237,6 +3243,30 @@
     "title": "Allow {{client}} to access your PMO account?"
   },
   "financeCopy": {
+    "nativeSalesInvoicesDescription": "Client invoices raised, approved and settled in PMO.",
+    "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",
+    "nativeProjectRequired": "Project is required: it decides the invoice's VAT.",
+    "nativeSelectProject": "Select project…",
+    "approve": "Approve",
+    "approveInvoiceNamed": "Approve the invoice for {{customer}}?",
+    "approveInvoiceBody": "Approving issues the invoice: it gets its number, becomes Unpaid and can receive payments. Its author cannot approve it.",
+    "approveInvoice": "Approve invoice",
+    "invoiceApproved": "Invoice approved",
+    "nativeCancelInvoiceBody": "This cancels the invoice in PMO and it stops counting as billed. An invoice with receipts can be cancelled only after its receipts are cancelled.",
+    "statusPartlyPaid": "Partly paid",
+    "recordedBeforeErp": "Recorded in PMO before the ERP was connected",
+    "overpaidBy": "Overpaid by {{amount}}",
+    "carriedIntoErpOpening": "Carried into the ERP opening balance: {{amount}} on {{date}}",
+    "nativeIncomingPaymentsDescription": "Customer receipts recorded in PMO against approved invoices.",
+    "salesInvoiceLabel": "Sales Invoice",
+    "salesInvoiceRequired": "Choose the invoice this receipt settles.",
+    "paymentDateLabel": "Payment date",
+    "paymentDateNotFuture": "The payment date cannot be in the future.",
+    "nativeReceiptAmountHelper": "Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.",
+    "receiptDateMissing": "Enter the payment date.",
+    "receiptRefused": "Check the receipt amounts.",
+    "nativeCancelReceiptBody": "This cancels the receipt in PMO and puts its amount back on the invoice's balance.",
+    "receiptCancelled": "Receipt cancelled",
     "receivedDate": "Received",
     "recordReceivedDate": "Record received date",
     "receivedDateHelp": "The date the client received this invoice. The due date follows it.",

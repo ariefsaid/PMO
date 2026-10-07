@@ -277,6 +277,12 @@ import {
   submitSalesInvoiceSod,
   setSalesInvoiceReceivedDate,
 } from '@/src/lib/db/revenue';
+import {
+  createNativeSalesInvoice,
+  transitionNativeSalesInvoice,
+  recordNativeReceipt,
+  cancelNativeReceipt,
+} from '@/src/lib/db/revenueNative';
 import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
   CommandIntent,
@@ -610,6 +616,42 @@ const procurement: ProcurementRepository = {
       : wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
 };
 
+/** #784 AC-NAR-004 (DD-NAR-11): a PMO invoice or receipt from before the ERP took revenue over is history — never pushed. */
+function nativeReadOnly(): AppError {
+  return new AppError('this was recorded in PMO before the ERP was connected and is read-only', 'native-revenue-read-only');
+}
+
+/** #784 (DD-NAR-1/7): no ERP owns revenue — PMO raises the invoice. The project decides its VAT, so it is required. */
+function nativeCreateInvoice(input: Parameters<RevenueRepository['createInvoice']>[0]): Promise<{ id: string; si_number: string }> {
+  const projectId = input.projectId;
+  if (!projectId) {
+    return Promise.reject(new AppError('an invoice raised in PMO needs a project — the project decides its VAT', 'native-invoice-needs-project'));
+  }
+  return wrap(() => createNativeSalesInvoice({
+    projectId,
+    customerId: input.customerId,
+    lines: input.items,
+    workOrderId: input.workOrderId ?? null,
+  })).then((id) => ({ id, si_number: '' }));
+}
+
+/** #784 (FR-NAR-007): a PMO receipt settles a named PMO invoice — there is no on-account receipt without an ERP. */
+function nativeCreatePayment(input: Parameters<RevenueRepository['createPayment']>[0]): Promise<{ id: string; ip_number: string }> {
+  const salesInvoiceId = input.salesInvoiceId;
+  if (!salesInvoiceId) {
+    return Promise.reject(new AppError('a receipt recorded in PMO must name the invoice it settles', 'native-receipt-needs-invoice'));
+  }
+  return wrap(() => recordNativeReceipt({
+    salesInvoiceId,
+    amount: input.paidAmount,
+    receivedAmount: input.receivedAmount ?? input.paidAmount - (input.withheldAmount ?? 0),
+    withheldAmount: input.withheldAmount ?? 0,
+    ...(input.withholdingSlipNumber ? { withholdingSlipNumber: input.withholdingSlipNumber } : {}),
+    // DD-NAR-17: the payment date is always sent — the server refuses a receipt without one.
+    date: input.date,
+  })).then((id) => ({ id, ip_number: '' }));
+}
+
 const revenue: RevenueRepository = {
   // Read methods (ADR-0017)
   listInvoices: (params) => wrap(() => listSalesInvoices(params)),
@@ -622,7 +664,7 @@ const revenue: RevenueRepository = {
     routeDomainWrite('revenue') === 'external'
       ? dispatchCreate('revenue', salesInvoiceCreateFields(input), intent)
           .then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : nativeCreateInvoice(input),
   createPayment: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? dispatchCreate(
@@ -643,13 +685,14 @@ const revenue: RevenueRepository = {
           },
           intent,
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : nativeCreatePayment(input),
   setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
   submitInvoice: (siId, intent) =>
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {
         await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
         const si = await getSalesInvoice(siId);
+        if (si?.pmo_native) throw nativeReadOnly();
         if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
         await dispatchDomainCommand(
           'revenue',
@@ -658,13 +701,15 @@ const revenue: RevenueRepository = {
           keyFor(intent),
         );
       } else {
-        throw new AppError('revenue is not enabled for this org', 'revenue-not-enabled');
+        // #784 (FR-NAR-005): approve in PMO — the RPC enforces approver ≠ author and the approver's current role.
+        await transitionNativeSalesInvoice(siId, 'Unpaid');
       }
     }),
   cancelInvoice: (siId, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {
           const si = await getSalesInvoice(siId);
+          if (si?.pmo_native) throw nativeReadOnly();
           if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
           await dispatchDomainCommand(
             'revenue',
@@ -673,11 +718,12 @@ const revenue: RevenueRepository = {
             keyFor(intent),
           );
         })
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : wrap(() => transitionNativeSalesInvoice(siId, 'Cancelled')),
   cancelPayment: (ipId, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {
           const ip = await getIncomingPayment(ipId);
+          if (ip?.pmo_native) throw nativeReadOnly();
           if (!ip || !ip.ip_number) throw new AppError('incoming payment not found or missing ip_number', 'not-found');
           await dispatchDomainCommand(
             'revenue',
@@ -686,7 +732,7 @@ const revenue: RevenueRepository = {
             keyFor(intent),
           );
         })
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+      : wrap(() => cancelNativeReceipt(ipId)),
 };
 
 /**

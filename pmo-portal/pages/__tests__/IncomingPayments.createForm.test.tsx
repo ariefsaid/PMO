@@ -282,11 +282,13 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
   });
 
   it('AC-PLC-009: persists id-ID grouped payment amounts as 1234', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', customer_id: 'cust-1' })];
     setActiveLocale(ID_LOCALE);
     const user = userEvent.setup();
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-ACME');
     for (const label of [/Paid Amount/, /Received Amount/]) {
       const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);

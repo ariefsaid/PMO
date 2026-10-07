@@ -160,6 +160,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
     await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
     await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
@@ -213,7 +214,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(await screen.findByRole('option', { name: /Alpha Platform/ })).toBeInTheDocument();
   });
 
-  it('enables "Create invoice" once a customer is chosen (it was permanently disabled)', async () => {
+  it('enables "Create invoice" once a customer and project are chosen (it was permanently disabled)', async () => {
     const user = userEvent.setup();
     renderPage();
     await openForm(user);
@@ -222,6 +223,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(submit).toBeDisabled();
 
     await pick(user, 'Customer', 'Acme Energy');
+
+    expect(screen.getByRole('button', { name: 'Create invoice' })).toBeDisabled();
+    await pick(user, 'Project', 'Alpha Platform');
 
     expect(screen.getByRole('button', { name: 'Create invoice' })).toBeEnabled();
   });
@@ -259,6 +263,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
     const rate = screen.getByLabelText(/Rate/);
     await user.clear(rate);
@@ -275,6 +280,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
     const rate = screen.getByLabelText(/Rate/);
     await user.clear(rate);
@@ -292,6 +298,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await openForm(user);
 
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
     await user.click(screen.getByRole('button', { name: /Add line item/i }));
 

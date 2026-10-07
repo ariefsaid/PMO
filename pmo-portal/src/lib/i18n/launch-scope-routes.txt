@@ -84,7 +84,7 @@
 
 # ── Daily manager action. An untranslated approve/reject is the highest-consequence English
 #    left on screen.
-/approvals                     pages/Approvals.tsx pages/approvals/ExpenseClaimApprovalSection.tsx
+/approvals                     pages/Approvals.tsx pages/approvals/ExpenseClaimApprovalSection.tsx pages/approvals/SalesInvoiceApprovalSection.tsx
 
 # ── Delivery spend register, worked daily by PM/procurement alongside the project. The record
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would

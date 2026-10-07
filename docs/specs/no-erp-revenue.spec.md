@@ -118,9 +118,10 @@ dunning, currency conversion · notifications to approvers.
 - **FR-NAR-006** The Approvals page shall list the PMO drafts the viewer may approve, under "Customer invoices awaiting
   you", with an Approve action behind a confirmation.
 - **FR-NAR-007** When an Admin or Finance member records a receipt against a PMO invoice that is Unpaid, the system shall
-  refuse an amount above the balance, refuse cash + tax withheld ≠ amount settled, require a withholding-slip number when
+  require the payment date (not in the future), take the amount received as given (the balance when none is given; less
+  or more is accepted, DD-NAR-17), refuse cash + tax withheld ≠ amount settled, require a withholding-slip number when
   tax is withheld, record the receipt (Paid, PMO number, the invoice's customer and currency), recompute the balance from
-  live PMO receipts, and set the invoice Paid when the balance is zero.
+  live PMO receipts (never below zero, any excess as `overpaid_amount`), and set the invoice Paid when the balance is zero.
 - **FR-NAR-008** While a PMO invoice is Unpaid with a balance above zero and below its gross, Sales Invoices shall show
   "Partly paid" and the balance.
 - **FR-NAR-009** When an Admin or Finance member cancels a PMO invoice, the system shall allow it from Draft, or from
@@ -165,7 +166,8 @@ dunning, currency conversion · notifications to approvers.
   (An Admin cannot approve an invoice they raised; a user demoted or offboarded since is refused.)
 - **AC-NAR-003 — record payment.** Given an Unpaid PMO invoice with a gross of 1,110,000,
   When Finance records a receipt of 500,000, Then the invoice shows Partly paid with 610,000 outstanding;
-  When Finance records the remaining 610,000, Then the invoice shows Paid; a receipt above the balance is refused.
+  When Finance records the remaining 610,000, Then the invoice shows Paid; a receipt above the balance is accepted, marks
+  the invoice Paid and shows the excess as overpaid (DD-NAR-17).
 - **AC-NAR-004 — connecting an ERP later.** Given an org with PMO invoices and receipts that connects an ERP,
   When revenue is employed, Then the PMO invoices and receipts from before connect stay listed and readable, every PMO
   invoice/receipt write is refused, none is sent to the ERP, and employing revenue is refused while a PMO draft is open

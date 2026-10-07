@@ -142,6 +142,8 @@ const KNOWN_REASON_CODES = new Set([
   'native-budget-not-adopted', 'native-timesheet-not-adopted', 'not-found',
   'procurement-inbound-adopt-no-case-link', 'project-unmapped', 'revenue-not-enabled',
   'snapshot-replaced-mid-read',
+  // #784 (reviewed 2026-10-07): the PMO-native revenue repository refusals.
+  'native-invoice-needs-project', 'native-receipt-needs-invoice', 'native-revenue-read-only',
 ]);
 
 /** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */

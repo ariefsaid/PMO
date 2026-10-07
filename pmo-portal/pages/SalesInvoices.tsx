@@ -32,7 +32,7 @@ import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyCents, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -41,6 +41,8 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
+import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { invoiceNumber, isPartlyPaid, overpaidBy } from '@/src/lib/revenue/nativeInvoice';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 /** Status filter segments. */
@@ -92,9 +94,15 @@ const EMPTY_LINE: LineItemDraft = { item_code: '', qty: 1, rate: '0' };
  */
 const parseRate = (raw: string): number | null => parseMoneyInputAtScale(raw, 2);
 
-const validate = (v: FormValues, t: (key: string, fallback: string, options?: Record<string, unknown>) => string): Partial<Record<keyof FormValues, string>> => {
+const validate = (
+  v: FormValues,
+  t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
+  native = false,
+): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
+  // #784 (DD-NAR-7): the project decides a PMO invoice's VAT (OD-TAX-4), so a PMO invoice names one.
+  if (native && !v.projectId) errors.projectId = t('financeCopy.nativeProjectRequired', "Project is required: it decides the invoice's VAT.");
   if (v.lineItems.length === 0) {
     errors.lineItems = t('financeCopy.invoiceLineRequired', 'At least one line item is required.');
   } else {
@@ -120,6 +128,7 @@ const SalesInvoices: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const { create, setReceivedDate, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
+  const native = useRevenueMode() === 'native';
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
@@ -151,7 +160,7 @@ const SalesInvoices: React.FC = () => {
     return all
       .filter((inv) => statusFilter === 'All' || inv.status === statusFilter)
       .filter((inv) => !q
-        || inv.si_number?.toLowerCase().includes(q)
+        || invoiceNumber(inv)?.toLowerCase().includes(q)
         || inv.reference_number?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || inv.customer_name?.toLowerCase().includes(q));
@@ -185,11 +194,19 @@ const SalesInvoices: React.FC = () => {
       key: 'si_number',
       header: t('financeCopy.invoice', "Invoice #"),
       cell: (inv) => (
-        <span className="truncate font-mono text-[13px]" title={inv.si_number ?? ''}>
-          {inv.si_number ?? '—'}
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate font-mono text-[13px]" title={invoiceNumber(inv) ?? ''}>
+            {invoiceNumber(inv) ?? '—'}
+          </span>
+          {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
+          {inv.pmo_native && !native && (
+            <span className="text-xs text-muted-foreground">
+              {t('financeCopy.recordedBeforeErp', 'Recorded in PMO before the ERP was connected')}
+            </span>
+          )}
         </span>
       ),
-      exportValue: (inv) => inv.si_number ?? '',
+      exportValue: (inv) => invoiceNumber(inv) ?? '',
     },
     {
       key: 'reference_number',
@@ -214,7 +231,10 @@ const SalesInvoices: React.FC = () => {
     {
       key: 'status',
       header: t('financeCopy.status', "Status"),
-      cell: (inv) => <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>,
+      // DD-NAR-3: "Partly paid" is a display state of a PMO Unpaid invoice, never a stored status.
+      cell: (inv) => isPartlyPaid(inv)
+        ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
+        : <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>,
       exportValue: (inv) => inv.status,
     },
     {
@@ -239,11 +259,31 @@ const SalesInvoices: React.FC = () => {
       key: 'erp_outstanding_amount',
       header: t('financeCopy.outstanding', "Outstanding"),
       align: 'num',
-      cell: (inv) => (
-        <span className="tabular text-right font-mono text-[13px]">
-          {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
-        </span>
-      ),
+      cell: (inv) => {
+        const overpaid = overpaidBy(inv);
+        return (
+          <span className="flex w-full flex-col items-end gap-0.5 text-right">
+            <span className="tabular font-mono text-[13px]">
+              {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
+            </span>
+            {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
+            {overpaid != null && (
+              <span className="text-xs text-muted-foreground">
+                {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyCents(overpaid, inv.currency) })}
+              </span>
+            )}
+            {/* #784 DD-NAR-16: what this PMO invoice carried into the ERP's opening entry at connect. */}
+            {inv.pmo_native && inv.erp_opening_amount != null && inv.erp_opening_at && (
+              <span className="text-xs text-muted-foreground">
+                {t('financeCopy.carriedIntoErpOpening', 'Carried into the ERP opening balance: {{amount}} on {{date}}', {
+                  amount: formatCurrencyCents(inv.erp_opening_amount, inv.currency),
+                  date: formatInstantDate(inv.erp_opening_at),
+                })}
+              </span>
+            )}
+          </span>
+        );
+      },
       exportValue: (inv) => inv.erp_outstanding_amount ?? '',
     },
     {
@@ -274,12 +314,15 @@ const SalesInvoices: React.FC = () => {
 
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
+    // #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history — no approve or cancel.
+    const frozen = Boolean(inv.pmo_native) && !native;
     if (canEdit) items.push({ label: t('financeCopy.edit', "Edit"), onClick: () => setFormTarget({ invoice: inv }) });
     // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).
     if (canRecordReceipt && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
-    if (canCancel && inv.status !== 'Cancelled')
+    // A Paid PMO invoice is not cancellable (FR-NAR-009); an ERP one follows the ERP.
+    if (canCancel && !frozen && inv.status !== 'Cancelled' && !(inv.pmo_native && inv.status === 'Paid'))
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(inv), danger: true });
     // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record
     // context (SoD). The oracle is the APPEND-ONLY author SET (`sales_invoice_authors`, migration
@@ -287,14 +330,19 @@ const SalesInvoices: React.FC = () => {
     // last-writer-wins scalar showed an EARLIER body writer an enabled "Submit" that 403'd on click
     // (round-6 re-audit NIT 1). `can()` also fails closed on an unattributable invoice, so the
     // separate author-not-null guard is no longer needed here.
+    // #784: a PMO Draft is APPROVED in PMO by a second person (DD-NAR-5) — the same predicate.
     if (
-      inv.status === 'Draft'
+      !frozen
+      && inv.status === 'Draft'
       && may('submit_sales_invoice', 'salesInvoice', {
         currentUserId: currentUser?.id,
         record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
       })
     ) {
-      items.push({ label: t('financeCopy.submit', "Submit"), onClick: () => setSubmitTarget(inv) });
+      items.push({
+        label: inv.pmo_native ? t('financeCopy.approve', 'Approve') : t('financeCopy.submit', "Submit"),
+        onClick: () => setSubmitTarget(inv),
+      });
     }
     return items;
   };
@@ -305,7 +353,7 @@ const SalesInvoices: React.FC = () => {
     try {
       await cancelInvoice.mutateAsync({ siId: cancelTarget.id, intent: verbIntents.intentFor(key) });
       verbIntents.release(key);
-      toast(t('financeCopy.invoiceCancelled', 'Invoice cancelled'), cancelTarget.si_number ?? cancelTarget.id, 'success');
+      toast(t('financeCopy.invoiceCancelled', 'Invoice cancelled'), invoiceNumber(cancelTarget) ?? cancelTarget.customer_name ?? cancelTarget.id, 'success');
       setCancelTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -319,7 +367,11 @@ const SalesInvoices: React.FC = () => {
     try {
       await submitInvoice.mutateAsync({ siId: submitTarget.id, intent: verbIntents.intentFor(key) });
       verbIntents.release(key);
-      toast(t('financeCopy.invoiceSubmitted', 'Invoice submitted'), submitTarget.si_number ?? submitTarget.id, 'success');
+      toast(
+        submitTarget.pmo_native ? t('financeCopy.invoiceApproved', 'Invoice approved') : t('financeCopy.invoiceSubmitted', 'Invoice submitted'),
+        invoiceNumber(submitTarget) ?? submitTarget.customer_name ?? submitTarget.id,
+        'success',
+      );
       setSubmitTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -330,7 +382,9 @@ const SalesInvoices: React.FC = () => {
   return (
     <ListPage
       title={t('financeCopy.salesInvoices', "Sales Invoices")}
-      description={t('financeCopy.clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced', "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.")}
+      description={native
+        ? t('financeCopy.nativeSalesInvoicesDescription', 'Client invoices raised, approved and settled in PMO.')
+        : t('financeCopy.clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced', "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.")}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ invoice: null })}>
@@ -424,6 +478,7 @@ const SalesInvoices: React.FC = () => {
         <SalesInvoiceFormModal
           invoice={formTarget.invoice}
           pendingPush={pendingPush}
+          native={native}
           onClose={() => setFormTarget(null)}
           onCreate={async (input, intent) => {
             await create.mutateAsync({
@@ -455,7 +510,7 @@ const SalesInvoices: React.FC = () => {
           onSave={async (date) => {
             try {
               await setReceivedDate.mutateAsync({ siId: receiptTarget.id, receivedDate: date });
-              toast(t('financeCopy.receivedDateSaved', 'Received date saved'), receiptTarget.si_number ?? receiptTarget.id, 'success');
+              toast(t('financeCopy.receivedDateSaved', 'Received date saved'), invoiceNumber(receiptTarget) ?? receiptTarget.id, 'success');
               setReceiptTarget(null);
             } catch (err) {
               const { headline, detail } = classifyMutationError(err);
@@ -469,8 +524,10 @@ const SalesInvoices: React.FC = () => {
       <ConfirmDialog
         open={!!cancelTarget}
         tone="destructive"
-        title={cancelTarget ? t('financeCopy.cancelInvoiceNamed', 'Cancel {{invoice}}?', { invoice: cancelTarget.si_number ?? cancelTarget.id }) : t('financeCopy.cancelInvoiceQuestion', 'Cancel invoice?')}
-        description={t('financeCopy.thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased', "This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released.")}
+        title={cancelTarget ? t('financeCopy.cancelInvoiceNamed', 'Cancel {{invoice}}?', { invoice: invoiceNumber(cancelTarget) ?? cancelTarget.customer_name ?? cancelTarget.id }) : t('financeCopy.cancelInvoiceQuestion', 'Cancel invoice?')}
+        description={cancelTarget?.pmo_native
+          ? t('financeCopy.nativeCancelInvoiceBody', 'This cancels the invoice in PMO and it stops counting as billed. An invoice with receipts can be cancelled only after its receipts are cancelled.')
+          : t('financeCopy.thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased', "This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released.")}
         confirmLabel={t('financeCopy.cancelInvoice', "Cancel invoice")}
         loading={cancelInvoice.isPending}
         onConfirm={onCancelConfirm}
@@ -480,9 +537,13 @@ const SalesInvoices: React.FC = () => {
       {/* Submit confirm (default tone — primary action) */}
       <ConfirmDialog
         open={!!submitTarget}
-        title={submitTarget ? t('financeCopy.submitInvoiceNamed', 'Submit {{invoice}}?', { invoice: submitTarget.si_number ?? submitTarget.id }) : t('financeCopy.submitInvoiceQuestion', 'Submit invoice?')}
-        description={t('financeCopy.submitInvoiceForApprovalThisCommitsItToTheLedgerAndCannotBeUndoneByTheSubmitter', "Submit invoice for approval? This commits it to the ledger and cannot be undone by the submitter.")}
-        confirmLabel={t('financeCopy.submitInvoice', "Submit invoice")}
+        title={submitTarget?.pmo_native
+          ? t('financeCopy.approveInvoiceNamed', 'Approve the invoice for {{customer}}?', { customer: submitTarget.customer_name ?? '' })
+          : submitTarget ? t('financeCopy.submitInvoiceNamed', 'Submit {{invoice}}?', { invoice: submitTarget.si_number ?? submitTarget.id }) : t('financeCopy.submitInvoiceQuestion', 'Submit invoice?')}
+        description={submitTarget?.pmo_native
+          ? t('financeCopy.approveInvoiceBody', 'Approving issues the invoice: it gets its number, becomes Unpaid and can receive payments. Its author cannot approve it.')
+          : t('financeCopy.submitInvoiceForApprovalThisCommitsItToTheLedgerAndCannotBeUndoneByTheSubmitter', "Submit invoice for approval? This commits it to the ledger and cannot be undone by the submitter.")}
+        confirmLabel={submitTarget?.pmo_native ? t('financeCopy.approveInvoice', 'Approve invoice') : t('financeCopy.submitInvoice', "Submit invoice")}
         loading={submitInvoice.isPending}
         onConfirm={onSubmitConfirm}
         onCancel={() => setSubmitTarget(null)}
@@ -543,6 +604,8 @@ interface SalesInvoiceFormModalProps {
   onUpdate: (id: string, input: { customerId: string; projectId: string | null; lineItems: LineItem[] }) => Promise<void>;
   onError: (err: unknown) => void;
   pendingPush: PendingPushState;
+  /** #784: true while PMO owns revenue — the project is required and lines carry a description. */
+  native: boolean;
 }
 
 const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
@@ -552,6 +615,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   onUpdate,
   onError,
   pendingPush,
+  native,
 }) => {
   const { t } = useTranslation();
   const isEdit = !!invoice;
@@ -571,18 +635,19 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       projectId: null,
       lineItems: [EMPTY_LINE],
     },
-    validate: (values) => validate(values, t),
+    validate: (values) => validate(values, t, native),
     idPrefix: 'sales-invoice-form',
-    requiredFields: ['customerId', 'lineItems'],
+    requiredFields: native ? ['customerId', 'projectId', 'lineItems'] : ['customerId', 'lineItems'],
     module: 'salesInvoices',
   });
 
   const customerField = form.fieldProps('customerId');
   const projectField = form.fieldProps('projectId');
 
-  const errorSummary = form.errors.customerId || form.errors.lineItems
+  const errorSummary = form.errors.customerId || form.errors.projectId || form.errors.lineItems
     ? [
         ...(form.errors.customerId ? [{ fieldId: customerField.id, message: form.errors.customerId }] : []),
+        ...(form.errors.projectId ? [{ fieldId: projectField.id, message: form.errors.projectId }] : []),
         ...(form.errors.lineItems ? [{ fieldId: 'line-items', message: form.errors.lineItems }] : []),
       ]
     : undefined;
@@ -637,7 +702,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     <EntityFormModal
       open
       title={isEdit ? 'Edit invoice' : 'New invoice'}
-      subtitle={isEdit ? 'Update this sales invoice' : 'Create a new sales invoice for a client'}
+      subtitle={native ? t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.') : (isEdit ? 'Update this sales invoice' : 'Create a new sales invoice for a client')}
       submitLabel={isEdit ? 'Save invoice' : 'Create invoice'}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -647,7 +712,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
-      {pendingPush.status !== 'idle' && (
+      {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
           <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
@@ -666,10 +731,11 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
           />
           <Combobox
             label={t('financeCopy.project', "Project")}
+            required={native}
             value={projectField.value ?? ''}
             onChange={(value, _option) => projectField.onChange(value ?? '')}
             error={projectField.error}
-            placeholder={t('financeCopy.selectProjectOptional', "Select project (optional)…")}
+            placeholder={native ? t('financeCopy.nativeSelectProject', 'Select project…') : t('financeCopy.selectProjectOptional', "Select project (optional)…")}
             loadOptions={loadProjects}
             noun="project"
           />
@@ -702,7 +768,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   className="flex-1"
                 />
               )}
-              {erpItems.connected && (
+              {(erpItems.connected || native) && (
                 <TextField
                   label={t('financeCopy.description', 'Description')}
                   value={item.description ?? ''}

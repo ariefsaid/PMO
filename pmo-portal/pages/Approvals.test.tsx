@@ -67,6 +67,7 @@ const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean }
 };
 const confirmMutation: MutationState = { mutate: vi.fn(), isPending: false };
 
+vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => queryState,

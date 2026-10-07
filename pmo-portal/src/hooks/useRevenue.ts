@@ -44,6 +44,21 @@ export function useSalesInvoice(id: string | undefined) {
 }
 
 /**
+ * #784 (DD-NAR-12): the PMO drafts the approvals queue offers — PMO-native Drafts only (partial index
+ * sales_invoices_native_draft_idx). `enabled` lets the queue skip the read for a viewer who cannot approve.
+ * Shares the 'salesInvoices' key prefix, so every revenue mutation's invalidation refreshes it.
+ */
+export function useNativeDraftInvoices(enabled: boolean) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<SalesInvoiceRow[]>({
+    queryKey: ['salesInvoices', orgId, 'native-drafts'],
+    queryFn: () => repositories.revenue.listInvoices({ status: 'Draft', nativeOnly: true }),
+    enabled: Boolean(orgId) && enabled,
+  });
+}
+
+/**
  * Org-scoped incoming payments list over the repository seam (ADR-0017).
  * Optional `customerId` narrows to one customer.
  */

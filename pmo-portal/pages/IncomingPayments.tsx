@@ -31,9 +31,18 @@ import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/sr
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyCents, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
+import {
+  currencySymbol,
+  formatCurrencyCents,
+  formatDateOnly,
+  formatMoneyInputValue,
+  instantToZonedDatetimeLocal,
+  parseMoneyInputAtScale,
+} from '@/src/lib/format';
 import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { incomingPaymentStatusVariant } from '@/src/lib/status/statusVariants';
+import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
+import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { invoiceNumber, receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -73,9 +82,32 @@ function parsePaymentAmount(raw: string): number | null {
   return n !== null && n > 0 ? n : null;
 }
 
-const validate = (v: FormValues, t: (key: string, fallback: string) => string): Partial<Record<keyof FormValues, string>> => {
+/** #784 (DD-NAR-17): today in the org's time zone — the latest payment date the server accepts. */
+const orgToday = (): string => instantToZonedDatetimeLocal(new Date()).slice(0, 10);
+
+/**
+ * #784 (DD-NAR-17): the server's receipt refusals are classified by code; these headlines say what to fix in
+ * plain words (the server's own sentence stays as the detail).
+ */
+function nativeReceiptErrorHeadlines(err: unknown, t: (key: string, fallback: string) => string): Record<string, string> {
+  const message = err instanceof Error ? err.message : '';
+  return {
+    '23502': t('financeCopy.receiptDateMissing', 'Enter the payment date.'),
+    '23514': /future/i.test(message)
+      ? t('financeCopy.paymentDateNotFuture', 'The payment date cannot be in the future.')
+      : t('financeCopy.receiptRefused', 'Check the receipt amounts.'),
+  };
+}
+
+const validate = (
+  v: FormValues,
+  t: (key: string, fallback: string) => string,
+  native = false,
+): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
+  // #784 (FR-NAR-007): a PMO receipt settles a named PMO invoice — there is no on-account receipt without an ERP.
+  if (native && !v.salesInvoiceId) errors.salesInvoiceId = t('financeCopy.salesInvoiceRequired', 'Choose the invoice this receipt settles.');
   if (parsePaymentAmount(v.paidAmount) === null) {
     errors.paidAmount = t('financeCopy.paidAmountPositive', 'Paid amount must be positive, with no more than 2 decimal places.');
   }
@@ -83,6 +115,8 @@ const validate = (v: FormValues, t: (key: string, fallback: string) => string): 
     errors.receivedAmount = t('financeCopy.receivedAmountPositive', 'Received amount must be positive, with no more than 2 decimal places.');
   }
   if (!v.date) errors.date = t('financeCopy.paymentDateRequired', 'Date is required.');
+  // #784 (DD-NAR-17): the server refuses a future payment date; say so before the round trip.
+  else if (native && v.date > orgToday()) errors.date = t('financeCopy.paymentDateNotFuture', 'The payment date cannot be in the future.');
   const withheld = v.withheldAmount.trim() ? parseMoneyInputAtScale(v.withheldAmount, 2) : 0;
   if (withheld === null || withheld < 0) {
     errors.withheldAmount = t('financeCopy.withheldAmountInvalid', "Withheld tax must be non-negative, with no more than 2 decimal places.");
@@ -118,7 +152,7 @@ function openInvoiceOptions(
     .filter((inv) => !customerId || inv.customer_id === customerId)
     .map((inv) => ({
       value: inv.id,
-      label: inv.si_number ?? inv.id,
+      label: invoiceNumber(inv) ?? inv.id,
       sub:
         inv.erp_outstanding_amount != null
           ? `${formatCurrencyCents(inv.erp_outstanding_amount, inv.currency)} outstanding`
@@ -134,6 +168,7 @@ const IncomingPayments: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
   const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
+  const native = useRevenueMode() === 'native';
 
   const canView = may('view', 'incomingPayment');
   const canCreate = may('create', 'incomingPayment');
@@ -158,7 +193,7 @@ const IncomingPayments: React.FC = () => {
     return all
       .filter((p) => statusFilter === 'All' || p.status === statusFilter)
       .filter((p) => !q
-        || p.ip_number?.toLowerCase().includes(q)
+        || receiptNumber(p)?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || p.customer_name?.toLowerCase().includes(q));
   }, [all, search, statusFilter]);
@@ -191,11 +226,11 @@ const IncomingPayments: React.FC = () => {
       key: 'ip_number',
       header: t('financeCopy.payment', "Payment #"),
       cell: (p) => (
-        <span className="truncate font-mono text-[13px]" title={p.ip_number ?? ''}>
-          {p.ip_number ?? '—'}
+        <span className="truncate font-mono text-[13px]" title={receiptNumber(p) ?? ''}>
+          {receiptNumber(p) ?? '—'}
         </span>
       ),
-      exportValue: (p) => p.ip_number ?? '',
+      exportValue: (p) => receiptNumber(p) ?? '',
     },
     {
       key: 'reference_number',
@@ -220,8 +255,11 @@ const IncomingPayments: React.FC = () => {
     {
       key: 'status',
       header: t('financeCopy.status', "Status"),
-      cell: (p) => <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.status, t)}</StatusPill>,
-      exportValue: (p) => p.status,
+      // #784 AC-NAR-006: a cancelled PMO receipt keeps its row (status stays Paid) and reads Cancelled.
+      cell: (p) => p.cancelled_at
+        ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
+        : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.status, t)}</StatusPill>,
+      exportValue: (p) => (p.cancelled_at ? 'Cancelled' : p.status),
     },
     {
       key: 'amount',
@@ -263,7 +301,10 @@ const IncomingPayments: React.FC = () => {
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canCancel && p.status !== 'Paid')
+    if (canCancel && !p.pmo_native && p.status !== 'Paid')
+      items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
+    // #784 AC-NAR-006: a PMO receipt is cancelled in PMO while PMO owns revenue (the RPC re-checks all of it).
+    if (canCancel && p.pmo_native && !p.cancelled_at && native)
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     return items;
   };
@@ -274,7 +315,11 @@ const IncomingPayments: React.FC = () => {
     try {
       await cancelPayment.mutateAsync({ ipId: cancelTarget.id, intent: verbIntents.intentFor(key) });
       verbIntents.release(key);
-      toast(t('financeCopy.paymentCancelled', 'Payment cancelled'), cancelTarget.ip_number ?? cancelTarget.id, 'success');
+      toast(
+        cancelTarget.pmo_native ? t('financeCopy.receiptCancelled', 'Receipt cancelled') : t('financeCopy.paymentCancelled', 'Payment cancelled'),
+        receiptNumber(cancelTarget) ?? cancelTarget.id,
+        'success',
+      );
       setCancelTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -285,7 +330,9 @@ const IncomingPayments: React.FC = () => {
   return (
     <ListPage
       title={t('financeCopy.incomingPayments', "Incoming Payments")}
-      description={t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
+      description={native
+        ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
+        : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
@@ -372,6 +419,7 @@ const IncomingPayments: React.FC = () => {
         <IncomingPaymentFormModal
           payment={formTarget.payment}
           pendingPush={pendingPush}
+          native={native}
           onClose={() => setFormTarget(null)}
           onCreate={async (input, intent) => {
             await createPayment.mutateAsync({ ...input, intent });
@@ -379,7 +427,7 @@ const IncomingPayments: React.FC = () => {
             setFormTarget(null);
           }}
           onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
+            const { headline, detail } = classifyMutationError(err, native ? nativeReceiptErrorHeadlines(err, t) : undefined);
             toast(headline, detail, 'warning');
           }}
         />
@@ -389,8 +437,10 @@ const IncomingPayments: React.FC = () => {
       <ConfirmDialog
         open={!!cancelTarget}
         tone="destructive"
-        title={cancelTarget ? t('financeCopy.cancelPaymentNamed', 'Cancel {{payment}}?', { payment: cancelTarget.ip_number ?? cancelTarget.id }) : t('financeCopy.cancelPaymentQuestion', 'Cancel payment?')}
-        description={t('financeCopy.cancelPaymentDescription', "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.")}
+        title={cancelTarget ? t('financeCopy.cancelPaymentNamed', 'Cancel {{payment}}?', { payment: receiptNumber(cancelTarget) ?? cancelTarget.id }) : t('financeCopy.cancelPaymentQuestion', 'Cancel payment?')}
+        description={cancelTarget?.pmo_native
+          ? t('financeCopy.nativeCancelReceiptBody', "This cancels the receipt in PMO and puts its amount back on the invoice's balance.")
+          : t('financeCopy.cancelPaymentDescription', "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.")}
         confirmLabel={t('financeCopy.cancelPayment', "Cancel payment")}
         loading={cancelPayment.isPending}
         onConfirm={onCancelConfirm}
@@ -420,6 +470,8 @@ interface IncomingPaymentFormModalProps {
   ) => Promise<void>;
   onError: (err: unknown) => void;
   pendingPush: PendingPushState;
+  /** #784: true while PMO owns revenue — the receipt names its invoice and states its payment date (DD-NAR-17). */
+  native: boolean;
 }
 
 const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
@@ -428,13 +480,14 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   onCreate,
   onError,
   pendingPush,
+  native,
 }) => {
   const { t } = useTranslation();
   const isEdit = !!payment;
   // The adornment follows the record's own currency when editing one; a create form has no record
-  // yet, so it falls back to the org's operating currency (#731). The hook is called unconditionally.
+  // yet, so it falls back to the org's operating currency (#731) — or, for a PMO receipt, the chosen
+  // invoice's (`moneyPrefix` below). The hook is called unconditionally.
   const orgCurrency = useOrgCurrency();
-  const moneyPrefix = currencySymbol(payment?.currency ?? orgCurrency);
   // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
   // form is open, so its mount IS the session: a retry after "external system unreachable" reuses
   // this identity (the committed Payment Entry is reconciled, NOT posted twice), while a success
@@ -448,9 +501,10 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       receivedAmount: '0',
       withheldAmount: '0',
       withholdingSlipNumber: '',
-      date: new Date().toISOString().split('T')[0],
+      // #784 (DD-NAR-17): a PMO receipt's payment date starts at today in the org's time zone.
+      date: native ? orgToday() : new Date().toISOString().split('T')[0],
     },
-    validate: (values) => validate(values, t),
+    validate: (values) => validate(values, t, native),
     idPrefix: 'incoming-payment-form',
     requiredFields: ['customerId', 'paidAmount', 'receivedAmount', 'date'],
     module: 'incomingPayments',
@@ -470,15 +524,20 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
 
   const customerField = form.fieldProps('customerId');
   const salesInvoiceField = form.fieldProps('salesInvoiceId');
+  // #784 (DD-NAR-17): the PMO invoice this receipt settles, for the amount's starting value and its helper.
+  const chosenInvoice = native ? invoices?.find((inv) => inv.id === salesInvoiceField.value) : undefined;
+  // A PMO receipt is recorded in its invoice's currency (0270), so the amounts read in it once one is chosen.
+  const moneyPrefix = currencySymbol(payment?.currency ?? chosenInvoice?.currency ?? orgCurrency);
   const paidAmountField = form.fieldProps('paidAmount');
   const receivedAmountField = form.fieldProps('receivedAmount');
   const withheldAmountField = form.fieldProps('withheldAmount');
   const slipField = form.fieldProps('withholdingSlipNumber');
   const dateField = form.fieldProps('date');
 
-  const errorSummary = form.errors.customerId || form.errors.paidAmount || form.errors.receivedAmount || form.errors.date || form.errors.withheldAmount || form.errors.withholdingSlipNumber
+  const errorSummary = form.errors.customerId || form.errors.salesInvoiceId || form.errors.paidAmount || form.errors.receivedAmount || form.errors.date || form.errors.withheldAmount || form.errors.withholdingSlipNumber
     ? [
         ...(form.errors.customerId ? [{ fieldId: customerField.id, message: form.errors.customerId }] : []),
+        ...(form.errors.salesInvoiceId ? [{ fieldId: salesInvoiceField.id, message: form.errors.salesInvoiceId }] : []),
         ...(form.errors.paidAmount ? [{ fieldId: paidAmountField.id, message: form.errors.paidAmount }] : []),
         ...(form.errors.receivedAmount ? [{ fieldId: receivedAmountField.id, message: form.errors.receivedAmount }] : []),
         ...(form.errors.date ? [{ fieldId: dateField.id, message: form.errors.date }] : []),
@@ -519,7 +578,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
         // `suppressCapture` only: the page's own `onError` classifies this same rejection for
         // the toast and owns the single `save_failed` event (ADR-0067). Passing a module here
         // would be a second, competing capture point.
-        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        const { headline, detail } = classifyMutationError(
+          err,
+          native ? nativeReceiptErrorHeadlines(err, t) : undefined,
+          { suppressCapture: true },
+        );
         setSaveError({ headline, detail });
         onError(err);
       }
@@ -540,7 +603,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
-      {pendingPush.status !== 'idle' && (
+      {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
           <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
@@ -558,9 +621,18 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             noun="customer"
           />
           <Combobox
-            label={t('financeCopy.salesInvoiceOptional', "Sales Invoice (optional)")}
+            label={native ? t('financeCopy.salesInvoiceLabel', 'Sales Invoice') : t('financeCopy.salesInvoiceOptional', "Sales Invoice (optional)")}
+            required={native}
             value={salesInvoiceField.value ?? ''}
-            onChange={(value, _option) => salesInvoiceField.onChange(value ?? '')}
+            onChange={(value, _option) => {
+              salesInvoiceField.onChange(value ?? '');
+              // #784 (DD-NAR-17): a PMO receipt's amount starts at what the chosen invoice still owes.
+              const chosen = native ? invoices?.find((inv) => inv.id === value) : undefined;
+              if (chosen?.erp_outstanding_amount != null && chosen.erp_outstanding_amount > 0) {
+                const draft = formatMoneyInputValue(chosen.erp_outstanding_amount);
+                form.setValues({ paidAmount: draft, receivedAmount: draft, withheldAmount: '0' });
+              }
+            }}
             error={salesInvoiceField.error}
             placeholder={t('financeCopy.linkToSalesInvoice', "Link to sales invoice…")}
             loadOptions={loadOpenInvoices}
@@ -575,7 +647,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix={moneyPrefix}
             error={paidAmountField.error}
-            helper={t('financeCopy.paidAmountHelper', "The full amount applied to the invoice, including tax withheld by the client.")}
+            helper={chosenInvoice?.erp_outstanding_amount != null
+              ? t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
+                  amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
+                })
+              : t('financeCopy.paidAmountHelper', "The full amount applied to the invoice, including tax withheld by the client.")}
             localeAware
           />
           <NumberField
@@ -612,7 +688,8 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
           />
           <TextField
-            label={t('financeCopy.date', "Date")}
+            label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
+            max={native ? orgToday() : undefined}
             value={dateField.value}
             onChange={dateField.onChange}
             onBlur={dateField.onBlur}

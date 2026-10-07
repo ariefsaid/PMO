@@ -713,6 +713,10 @@ Record the three outputs in the PR body.
 
 ## Task 6 — RED: pgTAP for receipts (AC-NAR-003 contract, AC-NAR-006) (5 min)
 
+> **Superseded by DD-NAR-17 (owner OD-NAR-1):** a receipt carries a required payment date (never future) and an amount
+> that defaults to the balance; more than the balance is accepted (Paid, `overpaid_amount` = the excess). The committed
+> `0270_native_revenue_receipts.test.sql` and migration §5 are the source of truth for Tasks 6–7.
+
 **File:** `supabase/tests/0270_native_revenue_receipts.test.sql`
 
 ```sql
@@ -830,6 +834,10 @@ rollback;
 ---
 
 ## Task 7 — GREEN: §5 receipt RPCs (5 min)
+
+> **Superseded by DD-NAR-17 (owner OD-NAR-1):** a receipt carries a required payment date (never future) and an amount
+> that defaults to the balance; more than the balance is accepted (Paid, `overpaid_amount` = the excess). The committed
+> `0270_native_revenue_receipts.test.sql` and migration §5 are the source of truth for Tasks 6–7.
 
 **Append to** `supabase/migrations/0270_native_revenue.sql`:
 
@@ -983,7 +991,7 @@ Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db
 
 | # | Change (in §5, `record_native_receipt`) | Must go RED |
 |---|---|---|
-| M4 | `if p_amount > v_out then` → `if false and p_amount > v_out then` | 5 "a receipt above the balance is refused" |
+| M4 | `overpaid_amount        = greatest(v_settled - v_gross, 0),` (the one in `record_native_receipt`) → `overpaid_amount        = 0,` | 18 "an overpaid invoice is Paid, owes nothing, and shows the 90,000 received beyond its gross" (DD-NAR-17 replaced the over-balance refusal) |
 | M5 | `status                 = case when v_out = 0 then 'Paid' else 'Unpaid' end` (the one in `record_native_receipt`) → `status                 = 'Unpaid'` | 10 "settled in full, the invoice is Paid", 19 the invariant |
 
 Revert each by hand; re-run green. **Verify:** the listed assertions fail under the mutation and pass after revert.
@@ -1507,11 +1515,13 @@ select ok(not exists (
 select ok(not exists (
   select 1 from (values ('sales_invoices','pmo_native'), ('sales_invoices','pmo_number'), ('sales_invoices','native_lines'),
                         ('sales_invoices','approved_by_id'), ('sales_invoices','approved_at'),
+                        ('sales_invoices','overpaid_amount'), ('sales_invoices','erp_opening_amount'),
+                        ('sales_invoices','erp_opening_at'),
                         ('incoming_payments','pmo_native'), ('incoming_payments','pmo_number'),
                         ('incoming_payments','cancelled_at')) c(t, col)
    where has_column_privilege('authenticated', 'public.' || c.t, c.col, 'INSERT')
       or has_column_privilege('authenticated', 'public.' || c.t, c.col, 'UPDATE')),
-  'NFR-NAR-001 no client writes a PMO marker, number, line set or stamp directly');
+  'NFR-NAR-001 no client writes a PMO marker, number, line set, stamp, overpaid figure or ERP opening stamp directly');
 
 select * from finish();
 rollback;
@@ -1545,13 +1555,19 @@ begin
     raise exception '0270 §9: client roles can execute internal functions: %', v_bad;
   end if;
 
-  if has_column_privilege('authenticated', 'public.sales_invoices', 'pmo_native', 'INSERT')
-     or has_column_privilege('authenticated', 'public.sales_invoices', 'pmo_number', 'INSERT')
-     or has_column_privilege('authenticated', 'public.sales_invoices', 'native_lines', 'INSERT')
-     or has_column_privilege('authenticated', 'public.sales_invoices', 'approved_by_id', 'INSERT')
-     or has_column_privilege('authenticated', 'public.incoming_payments', 'pmo_native', 'INSERT')
-     or has_column_privilege('authenticated', 'public.incoming_payments', 'cancelled_at', 'INSERT') then
-    raise exception '0270 §9: a PMO revenue marker or stamp is client-insertable';
+  -- Every column §1 adds: neither client-insertable nor client-updatable (DD-NAR-2, -16, -17).
+  select string_agg(c.t || '.' || c.col, ', ') into v_bad
+    from (values ('sales_invoices','pmo_native'), ('sales_invoices','pmo_number'), ('sales_invoices','native_lines'),
+                 ('sales_invoices','approved_by_id'), ('sales_invoices','approved_at'), ('sales_invoices','overpaid_amount'),
+                 ('sales_invoices','erp_opening_amount'), ('sales_invoices','erp_opening_at'),
+                 ('incoming_payments','pmo_native'), ('incoming_payments','pmo_number'),
+                 ('incoming_payments','cancelled_at')) c(t, col)
+   where has_column_privilege('authenticated', 'public.' || c.t, c.col, 'INSERT')
+      or has_column_privilege('authenticated', 'public.' || c.t, c.col, 'UPDATE')
+      or has_column_privilege('anon', 'public.' || c.t, c.col, 'INSERT')
+      or has_column_privilege('anon', 'public.' || c.t, c.col, 'UPDATE');
+  if v_bad is not null then
+    raise exception '0270 §9: a PMO revenue column is client-writable: %', v_bad;
   end if;
 
   -- §8: exactly six write policies on the two tables, each admitting Admin and Finance and no other role.

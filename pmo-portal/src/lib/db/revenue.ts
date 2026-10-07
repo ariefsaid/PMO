@@ -53,6 +53,20 @@ export interface SalesInvoiceRow {
   erp_due_date: string | null;
   /** #767: the date the client received the invoice; due = this + the customer's terms when set. */
   received_date: string | null;
+  /** #784 (DD-NAR-2): true for an invoice raised in PMO while no ERP owned revenue; written only by migration 0270's RPCs. */
+  pmo_native?: boolean;
+  /** #784 (DD-NAR-9): PMO's own invoice number, minted on approval; null for a Draft and for ERP invoices. */
+  pmo_number?: string | null;
+  /** #784 (DD-NAR-8): the lines of a PMO invoice as raised. */
+  native_lines?: Array<{ item_code: string | null; description: string | null; qty: number; rate: number; amount: number }> | null;
+  /** #784 (FR-NAR-005): who approved a PMO invoice, and when. */
+  approved_by_id?: string | null;
+  approved_at?: string | null;
+  /** #784 (DD-NAR-17): what a PMO invoice received beyond its gross (0 when not overpaid). */
+  overpaid_amount?: number | null;
+  /** #784 (DD-NAR-16): the balance carried into the ERP's opening entry when the ERP took revenue over, and when. */
+  erp_opening_amount?: number | null;
+  erp_opening_at?: string | null;
 }
 
 export interface IncomingPaymentRow {
@@ -77,6 +91,12 @@ export interface IncomingPaymentRow {
   erp_amended_from: string | null;
   erp_cancelled_at: string | null;
   created_at: string;
+  /** #784 (DD-NAR-2): a receipt recorded in PMO against a PMO invoice. */
+  pmo_native?: boolean;
+  /** #784 (DD-NAR-9): PMO's own receipt number. */
+  pmo_number?: string | null;
+  /** #784 (DD-NAR-10): set when a PMO receipt is cancelled. */
+  cancelled_at?: string | null;
 }
 
 export type SalesInvoiceStatus = SalesInvoiceRow['status'];
@@ -135,13 +155,15 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
 }
 
 export async function listSalesInvoices(
-  params?: { projectId?: string } & PageParams,
+  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean } & PageParams,
 ): Promise<SalesInvoiceRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase
       .from('sales_invoices')
       .select(SALES_INVOICE_SELECT);
     if (params?.projectId) query = query.eq('project_id', params.projectId);
+    if (params?.status) query = query.eq('status', params.status);
+    if (params?.nativeOnly) query = query.eq('pmo_native', true);
     return query
       .order('invoice_date', { ascending: false })
       .order('created_at', { ascending: false })

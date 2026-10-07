@@ -19,6 +19,7 @@ import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
 import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
+import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -754,6 +755,8 @@ const ApprovalsPage: React.FC = () => {
       {canApproveTimesheets && <EmployeeLinkConfirmSection />}
       {canApproveTimesheets && <ReopenableApprovedSection />}
       {canApproveProcurement && <ExpenseClaimApprovalSection />}
+      {/* #784: gates itself on the revenue write role and on PMO owning revenue. */}
+      <SalesInvoiceApprovalSection />
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">

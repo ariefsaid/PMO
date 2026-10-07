@@ -476,7 +476,7 @@ export interface RevenueRepository {
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
-  listInvoices(params?: { projectId?: string } & PageParams): Promise<SalesInvoiceRow[]>;
+  listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean } & PageParams): Promise<SalesInvoiceRow[]>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */
