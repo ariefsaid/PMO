@@ -87,22 +87,26 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
     let boqId: string | null = null;
     let documentId: string | null = null;
 
-    let createdTemplate = false;
+    // ERPNext names a template '<title> - <company abbr>', so the cleanup deletes by the name the POST returned —
+    // deleting by the bare title 404s and leaves a 10% default that taxes every later invoice on the bench.
+    let createdTemplate: string | null = null;
     try {
       await benchAllowNegativeRates();
       await benchEnsure('Account', { account_name: 'Progress Billing VAT', parent_account: 'Duties and Taxes - PSC', company: 'PMO Smoke Co', is_group: 0, account_type: 'Tax' });
       const existingDefault = (await (await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template?${new URLSearchParams({
         filters: JSON.stringify([['company', '=', 'PMO Smoke Co'], ['is_default', '=', 1]]), fields: JSON.stringify(['name']) })}`, { headers: benchHeaders })).json()) as { data: unknown[] };
       if (existingDefault.data.length === 0) {
-        await benchEnsure('Sales Taxes and Charges Template', { title: TAX_TEMPLATE, company: 'PMO Smoke Co', is_default: 1,
-          taxes: [{ charge_type: 'On Net Total', account_head: TAX_ACCOUNT, description: 'VAT 10%', rate: 10 }] });
-        createdTemplate = true;
+        const created = await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template`, { method: 'POST', headers: benchHeaders,
+          body: JSON.stringify({ title: TAX_TEMPLATE, company: 'PMO Smoke Co', is_default: 1,
+            taxes: [{ charge_type: 'On Net Total', account_head: TAX_ACCOUNT, description: 'VAT 10%', rate: 10 }] }) });
+        expect(created.status, 'the bench must accept the default sales tax template').toBe(200);
+        createdTemplate = ((await created.json()) as { data: { name: string } }).data.name;
       }
       await benchEnsure('Account', { account_name: 'Customer Advances', parent_account: 'Current Liabilities - PSC', company: 'PMO Smoke Co', is_group: 0 });
       await benchEnsure('Item', { item_code: DP_ITEM, item_name: 'Down payment', item_group: 'Services', stock_uom: 'Nos', is_stock_item: 0, is_sales_item: 1,
         item_defaults: [{ company: 'PMO Smoke Co', income_account: ADVANCE_ACCOUNT }] });
       expect((await admin.from('organizations').update({ down_payment_item: DP_ITEM }).eq('id', ORG_ID)).error).toBeNull();
-      expect((await admin.from('projects').update({ client_id: seeded.companyId, contract_value: 1_000_000, tax_treatment: 'exclusive', tax_amount: 0 })
+      expect((await admin.from('projects').update({ client_id: seeded.companyId, contract_value: 1_000_000, tax_treatment: 'exclusive', tax_amount: 0, subject_to_vat: true })
         .eq('id', seeded.projectId)).error).toBeNull();
       const boq = await admin.from('boq_items').insert({ org_id: ORG_ID, project_id: seeded.projectId, item_code: 'SPIKE-ITEM-1',
         description: 'Route survey', unit: 'km', quantity: 10, rate: 50000 }).select('id').single();
@@ -159,7 +163,10 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
         await admin.from('progress_claim_lines').delete().in('claim_id', claimIds);
         await admin.from('progress_claims').delete().in('id', claimIds);
       }
-      if (createdTemplate) await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template/${encodeURIComponent(TAX_TEMPLATE)}`, { method: 'DELETE', headers: benchHeaders });
+      if (createdTemplate) {
+        const removed = await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template/${encodeURIComponent(createdTemplate)}`, { method: 'DELETE', headers: benchHeaders });
+        if (!removed.ok) console.warn(`AC-PB-003 cleanup: the bench kept tax template ${createdTemplate} (HTTP ${removed.status}); later invoices will be taxed`);
+      }
       if (documentId) await admin.from('project_documents').delete().eq('id', documentId);
       if (boqId) await admin.from('boq_items').delete().eq('id', boqId);
       await admin.from('organizations').update({ down_payment_item: previousItem }).eq('id', ORG_ID);
