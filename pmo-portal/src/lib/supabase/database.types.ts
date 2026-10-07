@@ -7361,6 +7361,7 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          withheld_amount: number
         }
         SetofOptions: {
           from: "*"

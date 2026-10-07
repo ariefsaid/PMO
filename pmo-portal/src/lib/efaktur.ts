@@ -10,7 +10,7 @@ export interface EfakturErrors {
   date?: 'future' | 'invalid' | 'missing';
 }
 
-/** The setters' known refusals, keyed by the stable DETAIL they raise (0265). */
+/** The setters' known refusals, keyed by the stable DETAIL they raise (0270). */
 export type EfakturRefusal = 'cancelled' | 'incomplete' | 'future-date';
 
 const REFUSAL_BY_DETAIL: Record<string, EfakturRefusal> = {

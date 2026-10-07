@@ -1,4 +1,4 @@
--- Reverse 0265_efaktur_number.sql.
+-- Reverse 0270_efaktur_number.sql.
 revoke execute on function public.set_sales_invoice_efaktur(uuid, text, date) from public, anon, authenticated;
 revoke execute on function public.set_procurement_invoice_efaktur(uuid, text, date) from public, anon, authenticated;
 drop function if exists public.set_sales_invoice_efaktur(uuid, text, date);
