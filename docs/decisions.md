@@ -3027,6 +3027,7 @@ The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) alr
   template without withholding."): the vendor-invoice mirror allows a negative tax only on a negative amount (0196), so the ERP
   document would land and its mirror fail on every sweep replay. Rows are copied with `included_in_print_rate` (and `cost_center`
   when set) so an inclusive template is not applied on top. Revisit when PMO records withholding.
+  - **Superseded in part (2026-10-07, #876):** well-formed withholding templates are now sent — see DD-VWH-4.
 
 **DD-ENA-15a (Director, 2026-10-06, #654, under FR-ENA-015's #651 carve-out) — the external-integrations kill switch applies to ERPNext onboarding too.**
 `erpnext-onboard` resolves its credential through the shared `_shared/erpAuthPair.ts` (kill switch → Vault → env pair → refuse; an unreadable store refuses, never falls back), so a disabled integration cannot be onboarded. Behaviour delta from the pre-#651 path: onboarding with the switch off now fails `config-rejected` (422) instead of reading the env pair. A credential miss logs the failure class only (ADR-0072). Tests: AC-ENA-091, AC-ENA-090.
@@ -3064,3 +3065,18 @@ milestone→WO display link is a follow-up (DD-BWO-12). Plan: `docs/plans/2026-1
 (1) The organisation's system Admin creates and edits roles and their permission matrix in the app (for the first client, the owner). (2) Granularity = module × action (view / create / edit / request / approve / delete / export) **with a scope per permission** (assigned projects only vs the whole organisation); field-level permissions (e.g. see cost but not margin) are an aspirational later step, charted as fog. (3) Not a go-live blocker — built after go-live; until then a requester-only user takes the closest built-in role and is not named as a project's PM (so no routed approval reaches them). Director defaults stated alongside: SoD (requester ≠ approver, value-setter rules) stays hard-wired whatever a role says; the built-in roles become editable presets; every permission is enforced server-side (RLS/RPC), the FE only mirrors it.
 
 **OD-ROLE-2 (owner, 2026-10-07, #904)** — "assigned projects" (the narrower permission scope under OD-ROLE-1) means projects whose **team list** includes the user. Each project has an explicit team list maintained on the project; the named project manager is always a member.
+
+**DD-VWH-1..9 (Director, 2026-10-07, #876, under OD-ERP-3/OD-ERP-4) — vendor withholding on ERP-owned bills.**
+Ruled as written in `docs/specs/vendor-withholding.spec.md` §2 and ADR-0082: a new `procurement_invoices.withheld_amount`
+(not null, default 0, sign-matched to `amount`, never larger); `amount` stays the gross bill and `tax_amount` stays VAT,
+net payable = gross − withheld, derived (DD-VWH-1) · read back from the ERPNext header: gross = grand_total + deducted,
+VAT = total taxes + deducted, withheld = deducted, outstanding verbatim; a payload without the field leaves withholding
+unknown (DD-VWH-2) · Paid = ERPNext outstanding zero, i.e. the net paid; withheld tax is owed to the tax office
+(DD-VWH-3) · DD-VI-3a is lifted for well-formed withholding templates; refused: any negative rate, any rate above 100%,
+a Deduct row not counted in the Total only, included in the item price, or on a non-liability account, Deduct rates
+summing to 100% or more (DD-VWH-4) · a mirrored bill's money and status refresh from any feed change carrying the whole
+money header — FR-ENA-116's paid-detection, built (DD-VWH-5) · the ledger shows VAT, Tax withheld (PPh) and Net payable
+under a withholding bill, nothing else changes (DD-VWH-6) · the column default is a fact for PMO-native bills; the
+mirror always states the value (DD-VWH-7) · no cost, actual, commitment or budget figure is reduced by withholding;
+never map a PPh payable account into a budget category (DD-VWH-8) · sales symmetry: client withholding stays on the
+receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2026-10-07-vendor-withholding.md`.
