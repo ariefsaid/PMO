@@ -52,11 +52,14 @@ const DISABLED = { ...STANDARD, name: 'Old VAT', disabled: 1 };
 const TEMPLATES = [STANDARD, FOREIGN, DISABLED];
 const SENT_ROWS = [{ charge_type: 'On Net Total', account_head: 'Input VAT - SC', description: 'Input VAT', rate: 11, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0 }];
 
+/** #876: the ERPNext Account `root_type` the withholding check reads (one GET per Deduct row). */
+const ACCOUNTS: Record<string, string> = { 'PPh 23 - SC': 'Liability', 'PPh 4(2) - SC': 'Liability', 'Discount - SC': 'Income' };
+
 /**
  * An ERPNext fake that answers the template list with real filter + paging semantics (name/company/disabled,
  * limit_start/limit_page_length). `docs` lets a test make the single-doc read disagree with the list.
  */
-function erpFetch(templates: Row[] = TEMPLATES, docs: Row[] = templates) {
+function erpFetch(templates: Row[] = TEMPLATES, docs: Row[] = templates, accounts: Record<string, string> = ACCOUNTS) {
   const writes: Row[] = [];
   const templateReads: string[] = [];
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -78,6 +81,12 @@ function erpFetch(templates: Row[] = TEMPLATES, docs: Row[] = templates) {
       const name = path.slice('/api/resource/Purchase Taxes and Charges Template/'.length);
       const found = docs.find((t) => t.name === name);
       return found ? Response.json({ data: found }) : new Response('{"exc_type":"DoesNotExistError"}', { status: 404 });
+    }
+    if (path.startsWith('/api/resource/Account/')) {
+      const name = path.slice('/api/resource/Account/'.length);
+      return name in accounts
+        ? Response.json({ data: { name, root_type: accounts[name] } })
+        : new Response('{"exc_type":"DoesNotExistError"}', { status: 404 });
     }
     if (init?.method === 'POST') {
       const body = JSON.parse(String(init.body)) as Row;
@@ -166,20 +175,6 @@ describe('vendor invoice purchase tax template (#520)', () => {
     expect(body.taxes).toEqual([{ ...SENT_ROWS[0], included_in_print_rate: 1, cost_center: 'Main - SC' }]);
   });
 
-  it.each([
-    ['a Deduct row', { add_deduct_tax: 'Deduct', rate: 2 }],
-    ['a negative rate', { add_deduct_tax: 'Add', rate: -2 }],
-  ])('AC-520-11 a withholding template (%s) is refused (config-rejected, action required) before any ERPNext write', async (_label, row) => {
-    const withholding = { ...STANDARD, taxes: [STANDARD.taxes[0], { ...STANDARD.taxes[0], account_head: 'PPh 23 - SC', ...row }] };
-    const cmd = command({ taxTemplate: 'Synthetic Input VAT' });
-    const erp = erpFetch([withholding]);
-    await expect(resolve(cmd, erp)).rejects.toMatchObject({
-      code: 'config-rejected',
-      message: 'This template withholds tax (e.g. PPh), which PMO cannot record yet — choose a template without withholding.',
-    });
-    expect(erp.writes).toEqual([]);
-  });
-
   it('AC-520-12 the picker list pages past the ERPNext page limit and keeps only the company\'s enabled templates', async () => {
     const many = Array.from({ length: 450 }, (_, i) => ({ ...STANDARD, name: `VAT ${String(i).padStart(3, '0')}` }));
     const erp = erpFetch([...many, FOREIGN, DISABLED]);
@@ -216,5 +211,42 @@ describe('vendor invoice purchase tax template (#520)', () => {
     expect(erp.fetchImpl).not.toHaveBeenCalled();
     expect(await canonicalCommandDigest({ domain: replay.domain, operation: replay.operation, record: replay.record }))
       .toBe(await canonicalCommandDigest({ domain: first.command.domain, operation: first.command.operation, record: first.command.record }));
+  });
+});
+
+const PPH23 = { charge_type: 'On Net Total', account_head: 'PPh 23 - SC', rate: 2, description: 'PPh 23', category: 'Total', add_deduct_tax: 'Deduct' };
+const SENT_PPH23 = { charge_type: 'On Net Total', account_head: 'PPh 23 - SC', description: 'PPh 23', rate: 2, category: 'Total', add_deduct_tax: 'Deduct', included_in_print_rate: 0 };
+const malformed = (reason: string) =>
+  `The purchase tax template "Synthetic Input VAT" withholds tax in a way PMO cannot record: ${reason}. Ask your ERP administrator to correct the template (or pick another), then record the invoice again.`;
+
+describe('vendor withholding templates (#876)', () => {
+  it('AC-VWH-001 a VAT + PPh 23 template is sent with its Deduct row intact (Total only, exclusive)', async () => {
+    const { body, writes } = await push({ taxTemplate: 'Synthetic Input VAT' }, [{ ...STANDARD, taxes: [STANDARD.taxes[0], PPH23] }]);
+    expect(writes).toHaveLength(1);
+    expect(body.taxes_and_charges).toBe('Synthetic Input VAT');
+    expect(body.taxes).toEqual([SENT_ROWS[0], SENT_PPH23]);
+  });
+
+  it('AC-VWH-002 a PPh-only template (a Deduct row, no VAT row) is sent, not refused', async () => {
+    const { body } = await push({ taxTemplate: 'Synthetic Input VAT' }, [{ ...STANDARD, taxes: [PPH23] }]);
+    expect(body.taxes).toEqual([SENT_PPH23]);
+  });
+
+  it.each([
+    ['a negative-rate Add row (disguised withholding)', [{ ...STANDARD.taxes[0], rate: -2 }], 'a row has a negative rate'],
+    ['a negative-rate Deduct row', [STANDARD.taxes[0], { ...PPH23, rate: -2 }], 'a row has a negative rate'],
+    ['a rate above 100%', [{ ...STANDARD.taxes[0], rate: 101 }], 'a row has a rate above 100%'],
+    ['a Deduct row counted in valuation', [STANDARD.taxes[0], { ...PPH23, category: 'Valuation and Total' }], 'a withholding row must count toward the invoice total only'],
+    ['a Deduct row included in the item price', [STANDARD.taxes[0], { ...PPH23, included_in_print_rate: 1 }], 'a withholding row cannot be included in the item price'],
+    ['a Deduct row on a non-liability account', [STANDARD.taxes[0], { ...PPH23, account_head: 'Discount - SC' }], 'a withholding row must post to a tax-payable (liability) account'],
+    ['withholding rates adding up to 100%', [{ ...PPH23, rate: 60 }, { ...PPH23, account_head: 'PPh 4(2) - SC', rate: 40 }], 'its withholding rates add up to 100% or more'],
+  ] as Array<[string, Row[], string]>)('AC-VWH-003 a template with %s is refused (config-rejected) before any ERPNext write', async (_label, taxes, reason) => {
+    const erp = erpFetch([{ ...STANDARD, taxes }]);
+    const err = await resolve(command({ taxTemplate: 'Synthetic Input VAT' }), erp).then(() => null, (e: Error & { code?: string }) => e);
+    expect(err).toMatchObject({ code: 'config-rejected', message: malformed(reason) });
+    // ADR-0072: the refusal names the template, never the ERP company or an account.
+    expect(err!.message).not.toContain(COMPANY);
+    expect(err!.message).not.toMatch(/ - SC/);
+    expect(erp.writes).toEqual([]);
   });
 });

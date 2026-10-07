@@ -433,6 +433,10 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (piTaxAmount !== null) patch.tax_amount = piTaxAmount;
   const piTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
   if (piTaxTemplate !== null) patch.tax_template = piTaxTemplate;
+  // #876 (0266, DD-VWH-1/7): the tax withheld rides with `amount` (both come from the same ERP header read, piFromDoc).
+  // Omitted when the canonical does not carry it, so a status tick never zeroes a recorded withholding.
+  const piWithheld = (canonical.withheld_amount as string | null | undefined) ?? null;
+  if (piWithheld !== null) patch.withheld_amount = piWithheld;
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
@@ -445,6 +449,8 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
       // taxes), and PI_FROM_DOC_FIELDS requests it — '0.00' is the untaxed-document case, never
       // "unknown".
       tax_amount: piTaxAmount ?? '0.00',
+      // #876: stated on every create — the column's DEFAULT 0 is for PMO-native bills, never relied on here.
+      withheld_amount: piWithheld ?? '0.00',
     });
     if (error) throw new AppError(error.message, error.code);
     return;

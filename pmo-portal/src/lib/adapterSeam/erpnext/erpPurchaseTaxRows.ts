@@ -6,8 +6,13 @@
  * The choice is validated here, server-side: it must be an ENABLED template of the binding's company. A choice that is
  * not is refused (config-rejected) — never silently replaced by the default, and never sent untaxed. Each row is copied
  * with every field ERPNext computes it from (including `included_in_print_rate`), so the invoice totals exactly as the
- * template would. A withholding template (any Deduct row or negative rate) is refused before any ERP write: PMO's
- * vendor-invoice mirror cannot hold a negative tax on a positive invoice (DD-VI-3).
+ * template would.
+ *
+ * #876 (DD-VWH-4, ADR-0082): withholding (PPh) rows — `add_deduct_tax: 'Deduct'` — are sent when well-formed, because
+ * the vendor-invoice mirror records them (`withheld_amount`, 0266). A malformed one is refused before any ERP write: a
+ * negative rate anywhere (a negative Add row is withholding ERPNext would not count as deducted), a rate above 100%, a
+ * Deduct row not counted in the Total only, a Deduct row included in the item price, a Deduct row whose account is not
+ * a Liability, or Deduct rates adding up to 100% or more. Messages name the template, never the company or an account.
  */
 import { AppError } from '../../appError.ts';
 import { AdapterError } from '../contract.ts';
@@ -19,7 +24,7 @@ export interface ErpPurchaseTaxRow {
   description: string;
   rate: number;
   category: 'Total' | 'Valuation' | 'Valuation and Total';
-  add_deduct_tax: 'Add';
+  add_deduct_tax: 'Add' | 'Deduct';
   included_in_print_rate: 0 | 1;
   cost_center?: string;
 }
@@ -28,7 +33,12 @@ const TEMPLATE = 'Purchase Taxes and Charges Template';
 const CATEGORIES = ['Total', 'Valuation', 'Valuation and Total'] as const;
 const ADD_DEDUCT = ['Add', 'Deduct'] as const;
 const PAGE = 200;
-const WITHHOLDING = 'This template withholds tax (e.g. PPh), which PMO cannot record yet — choose a template without withholding.';
+function malformedWithholding(templateName: string, reason: string): AppError {
+  return new AppError(
+    `The purchase tax template "${templateName}" withholds tax in a way PMO cannot record: ${reason}. Ask your ERP administrator to correct the template (or pick another), then record the invoice again.`,
+    'config-rejected',
+  );
+}
 
 /** The picker's options: the company's enabled purchase tax templates (names only), paged to the end. */
 export async function listPurchaseTaxTemplates(deps: ErpClientDeps, company: string): Promise<Array<{ name: string }>> {
@@ -52,6 +62,7 @@ export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: strin
   const template = (await getDoc(deps, TEMPLATE, templateName)) as { company?: unknown; disabled?: unknown; taxes?: Array<Record<string, unknown>> } | null;
   if (!template || template.company !== company || Number(template.disabled) !== 0) throw new AppError(notUsable, 'config-rejected');
   const rows: ErpPurchaseTaxRow[] = [];
+  let withheldRate = 0;
   for (const row of template.taxes ?? []) {
     if (row.charge_type !== 'On Net Total') {
       throw new AdapterError('commit-rejected', `The purchase tax template "${templateName}" has a "${String(row.charge_type)}" row; only "On Net Total" rows can be sent for a vendor invoice`);
@@ -64,16 +75,29 @@ export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: strin
         || !(CATEGORIES as readonly unknown[]).includes(category) || !(ADD_DEDUCT as readonly unknown[]).includes(addDeduct)) {
       throw new AdapterError('commit-rejected', `The purchase tax template "${templateName}" has an incomplete row`);
     }
-    if (addDeduct === 'Deduct' || rate < 0) throw new AppError(WITHHOLDING, 'config-rejected');
+    if (rate < 0) throw malformedWithholding(templateName, 'a row has a negative rate');
+    if (rate > 100) throw malformedWithholding(templateName, 'a row has a rate above 100%');
+    const included: 0 | 1 = Number(row.included_in_print_rate) === 1 ? 1 : 0;
+    if (addDeduct === 'Deduct') {
+      if (category !== 'Total') throw malformedWithholding(templateName, 'a withholding row must count toward the invoice total only');
+      if (included === 1) throw malformedWithholding(templateName, 'a withholding row cannot be included in the item price');
+      const ledger = (await getDoc(deps, 'Account', account)) as { root_type?: unknown } | null;
+      if (ledger?.root_type !== 'Liability') {
+        throw malformedWithholding(templateName, 'a withholding row must post to a tax-payable (liability) account');
+      }
+      withheldRate += rate;
+    }
     const costCenter = typeof row.cost_center === 'string' && row.cost_center ? row.cost_center : '';
     rows.push({
       charge_type: 'On Net Total', account_head: account,
       description: typeof row.description === 'string' && row.description ? row.description : account,
-      rate, category: category as ErpPurchaseTaxRow['category'], add_deduct_tax: 'Add',
-      included_in_print_rate: Number(row.included_in_print_rate) === 1 ? 1 : 0,
+      rate, category: category as ErpPurchaseTaxRow['category'],
+      add_deduct_tax: addDeduct as ErpPurchaseTaxRow['add_deduct_tax'],
+      included_in_print_rate: included,
       ...(costCenter ? { cost_center: costCenter } : {}),
     });
   }
+  if (withheldRate >= 100) throw malformedWithholding(templateName, 'its withholding rates add up to 100% or more');
   if (rows.length === 0) {
     throw new AppError(`The purchase tax template "${templateName}" has no tax rows in ERPNext. Add its rows in ERPNext (or pick another template), then record the invoice again.`, 'config-rejected');
   }

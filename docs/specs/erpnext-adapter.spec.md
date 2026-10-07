@@ -604,6 +604,8 @@ are **removed** — R9 is RESOLVED (`docs/spikes/2026-07-11-erpnext-pe-mandatory
   row); after a referenced-PE submit, the PI flips **`Paid`/`outstanding_amount 0`** server-side (R9
   paid-detection idiom → mirror the PI's new `erp_outstanding_amount`). Cancel per OQ-7; **amend is
   desk-only in P2**.
+- **Amended 2026-10-07 (#876):** withholding on the PI mirror (gross / VAT / withheld) and the PI paid-detection
+  refresh from the feed — `docs/specs/vendor-withholding.spec.md`, ADR-0082.
 - **FR-ENA-117 (docstatus mechanics, cross-doctype)** — Submit = `PUT /api/resource/<DT>/<name>
   {docstatus:1}` (no RPC); cancel = `{docstatus:2}`; the adapter always uses **two-step insert-then-submit**
   (FR-ENA-044) and re-fetches derived status after submit; cancel ordering is chain-reverse (FR-ENA-051);

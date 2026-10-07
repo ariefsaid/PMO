@@ -683,3 +683,18 @@ describe('FR-L10N-020: LedgerRow.currency — each source record stamps its own 
     expect(rows[0].currency).toBe('IDR');
   });
 });
+
+describe('AC-VWH-011: a vendor invoice row carries its VAT and tax withheld (#876)', () => {
+  it('AC-VWH-011 the Invoice row carries tax_amount and withheld_amount; a row without them is unchanged', () => {
+    const vi = {
+      id: 'vi-876', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-2026-0876', status: 'Received',
+      invoice_date: '2026-10-07', created_at: '2026-10-07T08:00:00Z', po_id: null, reference_number: 'INV-876',
+      amount: 1110000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 110000, withheld_amount: 20000,
+    };
+    const [row] = buildLedgerRows(makeDetail({ invoices: [vi] }));
+    expect(row).toMatchObject({ type: 'Invoice', amount: 1110000, taxAmount: 110000, withheldAmount: 20000, currency: 'IDR' });
+    const [plain] = buildLedgerRows(makeDetail({ invoices: [{ ...vi, tax_amount: undefined, withheld_amount: undefined }] }));
+    expect(plain).not.toHaveProperty('taxAmount');
+    expect(plain).not.toHaveProperty('withheldAmount');
+  });
+});

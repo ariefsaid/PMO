@@ -1211,3 +1211,56 @@ Deno.test({
     assertEquals('work_order_id' in (insertCall!.args[0] as Record<string, unknown>), false);
   },
 });
+
+// ============================================================================
+// #876 (0266, DD-VWH-1/7) — the PI mirror states withheld_amount on every create and never nulls it on an update.
+// ============================================================================
+
+Deno.test({
+  name: 'AC-VWH-006 a created PI mirror with tax withheld stores the gross amount, the VAT and the withheld tax',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        id: 'pmo-pi-876-1', vi_number: 'ACC-PINV-2026-00876', invoice_date: '2026-10-07', amount: '1110000.00',
+        erp_outstanding_amount: '1090000.00', erp_docstatus: 1, erp_modified: '2026-10-07 10:00:00.000000',
+        tax_amount: '110000.00', withheld_amount: '20000.00', tax_template: 'PPN 11 + PPh 23 - RIS',
+      },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-876-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assertEquals(row.amount, '1110000.00');
+    assertEquals(row.tax_amount, '110000.00');
+    assertEquals(row.withheld_amount, '20000.00');
+    assertEquals(row.status, 'Received', 'the net 1,090,000 is still owed');
+  },
+});
+
+Deno.test({
+  name: 'AC-VWH-006 a PI create whose canonical carries no withholding states 0.00 — it never relies on the column default',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-876-2', vi_number: 'ACC-PINV-2026-00879', amount: '5000.00', erp_outstanding_amount: '5000.00', erp_docstatus: 0 },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-876-2', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assertEquals(row.withheld_amount, '0.00');
+  },
+});
+
+Deno.test({
+  name: 'AC-VWH-006 a PI update omits withheld_amount when the canonical does not carry it (never zeroes a recorded withholding)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-876-3', vi_number: 'ACC-PINV-2026-00880', amount: '5000.00', erp_outstanding_amount: '0.00', erp_docstatus: 1 },
+      { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-876-3', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00880', verb: 'submit' } },
+    );
+    const patch = calls.find((c) => c.method === 'update' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assert(!('withheld_amount' in patch), 'an absent withholding must be omitted, not written');
+  },
+});
