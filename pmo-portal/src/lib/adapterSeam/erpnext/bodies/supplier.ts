@@ -5,6 +5,7 @@
  * (`type='Vendor'` per FR-ENA-090's discriminator).
  */
 import type { PmoRecord } from '../../contract.ts';
+import { externalIdFor } from '../partyAdopt.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 
 interface SupplierDoc {
@@ -21,7 +22,10 @@ export const supplierFromDoc = (doc: unknown): PmoRecord => {
   const d = doc as SupplierDoc;
   const name = d.supplier_name ?? d.name;
   return {
-    id: 'placeholder',
+    // #935 — `runSweep` keys the apply on this id, so it MUST be the production link shape
+    // (`Supplier:<docname>`, the SAME `externalIdFor` the onboarding/webhook paths stamp —
+    // never a placeholder, which collapsed every sweep-adopted party onto one external_refs row).
+    id: externalIdFor('Supplier', String(d.name)),
     name,
     type: 'Vendor',
     erp_party_type: 'Vendor',

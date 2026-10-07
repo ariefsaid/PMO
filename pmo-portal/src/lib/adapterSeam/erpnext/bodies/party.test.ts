@@ -36,6 +36,14 @@ describe('erpnext/bodies/supplier.ts (R9 §0 minimal, FR-ENA-090/092)', () => {
     expect(canonical.name).toBe('Acme Co');
     expect(canonical.erp_tax_id).toBeNull();
   });
+
+  // #935: the sweep keys external_refs on this id — 'placeholder' collapsed every sweep-adopted
+  // party onto ONE external_refs row. Must be the doctype-encoded ERP doc NAME (the same shape
+  // `partyAdopt.externalIdFor` / the webhook's `externalIdForKind` stamp), never the display name.
+  it('supplierFromDoc keys the external id as `Supplier:<docname>` — the doc name, never the display name (#935)', () => {
+    expect(supplierFromDoc({ name: 'S-000001', supplier_name: 'Acme Co' }).id).toBe('Supplier:S-000001');
+    expect(supplierFromDoc({ name: 'S-000001' }).id).toBe('Supplier:S-000001');
+  });
 });
 
 describe('erpnext/bodies/customer.ts (FR-ENA-090/092/094)', () => {
@@ -62,6 +70,12 @@ describe('erpnext/bodies/customer.ts (FR-ENA-090/092/094)', () => {
   it('customerFromDoc carries a pre-resolved payment-terms credit_days through unchanged', () => {
     const canonical = customerFromDoc({ name: 'Acme Co' }, 45);
     expect(canonical.erp_payment_terms_days).toBe(45);
+  });
+
+  // #935 — mirror of the supplier id contract above (Customer:<docname>, the doc name).
+  it('customerFromDoc keys the external id as `Customer:<docname>` — the doc name, never the display name (#935)', () => {
+    expect(customerFromDoc({ name: 'C-000001', customer_name: 'Acme Co' }, 30).id).toBe('Customer:C-000001');
+    expect(customerFromDoc({ name: 'C-000001' }).id).toBe('Customer:C-000001');
   });
 });
 
