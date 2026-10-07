@@ -22,7 +22,8 @@ import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow 
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
 import { resolveSalesTaxRows, type ErpTaxRow } from './erpSalesTaxRows.ts';
-import { buildEnteredPurchaseTaxRows, ENTERED_TAX_AND_TEMPLATE, findDefaultPurchaseTaxTemplate, parseEnteredPurchaseTax, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
+import { buildEnteredPurchaseTaxRows, ENTERED_TAX_AND_TEMPLATE, findDefaultPurchaseTaxTemplate, parseEnteredPurchaseTax, resolvePurchaseTaxRows, type ErpPurchaseTaxRow } from './erpPurchaseTaxRows.ts';
+import { piBodyCarriesTaxes } from './bodies/purchaseInvoice.ts';
 import { itemsNetTotal, lineRate, type ItemsNetLine } from '../../itemsNet.ts';
 import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
@@ -1036,7 +1037,16 @@ async function resolvePurchaseInvoiceTaxes(
 ): Promise<void> {
   const record = deps.command.record as Record<string, unknown>;
   if (record.erp_doc_kind !== 'purchase-invoice') return;
-  if (deps.replay && deps.command.operation === 'create') return;
+  if (deps.replay && deps.command.operation === 'create') {
+    // #915 fix round: a replay of a create whose persisted body sends NO tax fields (e.g. the earlier
+    // "no default found" refusal stored no marker) lets ERPNext apply the company's CURRENT default at
+    // POST time — so that default is looked up and validated here, before the re-POST, with the create
+    // path's own refusals. Deliberately validate-only: the persisted record, body and digest are never
+    // mutated (a valid default is ERPNext's to apply; `piBodyCarriesTaxes` is the body predicate this
+    // mirrors, so the gate cannot drift from the body it guards).
+    if (!piBodyCarriesTaxes(record)) await validateCurrentDefaultPurchaseTaxTemplate(deps, binding);
+    return;
+  }
   delete record.taxes;
   delete record.taxesFromAmounts;
   const chosen = typeof record.taxTemplate === 'string' ? record.taxTemplate.trim() : '';
@@ -1090,6 +1100,32 @@ async function resolvePurchaseInvoiceTaxes(
 }
 
 /**
+ * #915 — the ERP company's CURRENT default Purchase Taxes and Charges Template, resolved through the
+ * SAME validator a chosen template goes through (`findDefaultPurchaseTaxTemplate` +
+ * `resolvePurchaseTaxRows`, so a malformed default refuses `config-rejected` with the chosen path's
+ * exact wording, naming the template — never the company, ADR-0072). Null when no ERP company is
+ * configured to look one up for, or no default exists — callers treat that as "send nothing".
+ */
+async function resolveCurrentDefaultPurchaseTax(
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow,
+): Promise<{ template: string; rows: ErpPurchaseTaxRow[] } | null> {
+  const company = binding.config?.company;
+  if (typeof company !== 'string' || !company) return null;
+  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
+  const template = await findDefaultPurchaseTaxTemplate(client, company);
+  if (!template) return null;
+  return { template, rows: await resolvePurchaseTaxRows(client, company, template) };
+}
+
+/** #915 fix round — the replay gate: validate the current default, write NOTHING anywhere. */
+async function validateCurrentDefaultPurchaseTaxTemplate(
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow,
+): Promise<void> {
+  await resolveCurrentDefaultPurchaseTax(deps, binding);
+}
+
+/**
  * #915 — the create-naming-neither path: resolve the ERP company's default Purchase Taxes and Charges Template through
  * the same validator a chosen template goes through, so a malformed default is refused BEFORE the ERP write instead of
  * by the database mirror after the bill posted. The refusals and wording are the chosen path's own (`config-rejected`,
@@ -1098,14 +1134,10 @@ async function resolvePurchaseInvoiceTaxes(
 async function sendDefaultPurchaseTaxTemplate(
   deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, record: Record<string, unknown>,
 ): Promise<void> {
-  const company = binding.config?.company;
-  if (typeof company !== 'string' || !company) return;
-  const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
-    baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
-  const defaultTemplate = await findDefaultPurchaseTaxTemplate(client, company);
-  if (!defaultTemplate) return;
-  record.taxTemplate = defaultTemplate;
-  record.taxes = await resolvePurchaseTaxRows(client, company, defaultTemplate);
+  const resolved = await resolveCurrentDefaultPurchaseTax(deps, binding);
+  if (!resolved) return;
+  record.taxTemplate = resolved.template;
+  record.taxes = resolved.rows;
 }
 
 /** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */

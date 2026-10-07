@@ -280,3 +280,52 @@ describe('vendor withholding templates (#876)', () => {
     expect(erp.writes).toEqual([]);
   });
 });
+
+// ── #915 fix round: the REPLAY of a marker-less create ────────────────────────────────────────────
+// A create refused with "no default found" (or made before the default path existed) persists no tax
+// marker, so its replay re-POSTs a body with no tax fields — and ERPNext applies the company's
+// CURRENT default template to such a POST. The replay therefore validates that default before
+// re-sending (a read is acceptable here), with the create path's own refusals. It exists to refuse,
+// never to mutate: the persisted body, its digest and the command stay byte-identical — a valid
+// default is ERPNext's to apply at POST time, not PMO's to inline.
+
+describe('vendor invoice default purchase tax template — replay of a marker-less create (#915 fix round)', () => {
+  /** First attempt with no default at all: the bill posted untaxed and the command stored no marker. */
+  async function markerlessCreate() {
+    const first = await push();
+    const replay = command();
+    replay.record = structuredClone(first.command.record) as AdapterCommand['record'];
+    return { first, replay };
+  }
+  const digestOf = (cmd: AdapterCommand) =>
+    canonicalCommandDigest({ domain: cmd.domain, operation: cmd.operation, record: cmd.record });
+
+  it('AC-520-2 a replay whose company has gained a MALFORMED default is refused (config-rejected, same wording) before the re-POST, command unmutated', async () => {
+    const { first, replay } = await markerlessCreate();
+    const erp = erpFetch([{ ...STANDARD, is_default: 1, taxes: [{ ...STANDARD.taxes[0], rate: -2 }] }]);
+    const err = await resolve(replay, erp, true).then(() => null, (e: Error & { code?: string }) => e);
+    expect(err).toMatchObject({ code: 'config-rejected', message: malformed('a row has a negative rate') });
+    expect(err!.message).not.toContain(COMPANY); // ADR-0072: names the template, never the ERP company
+    expect(erp.writes).toEqual([]);              // refused BEFORE the Purchase Invoice POST
+    expect(await digestOf(replay)).toBe(await digestOf(first.command)); // the replay is never mutated
+  });
+
+  it('AC-520-2 a replay whose company has gained a VALID default re-sends the persisted (untaxed) body unchanged', async () => {
+    const { first, replay } = await markerlessCreate();
+    const erp = erpFetch([{ ...STANDARD, is_default: 1 }]);
+    await (await resolve(replay, erp, true)).commit(replay);
+    expect(erp.writes).toHaveLength(1);
+    expect(erp.writes[0]).not.toHaveProperty('taxes');             // the body is exactly as persisted —
+    expect(erp.writes[0]).not.toHaveProperty('taxes_and_charges'); // the valid default is ERPNext's to apply
+    expect(await digestOf(replay)).toBe(await digestOf(first.command)); // the replay is never mutated
+  });
+
+  it('AC-520-2 a replay with still no default posts untaxed, exactly as before the fix', async () => {
+    const { replay } = await markerlessCreate();
+    const erp = erpFetch([]);
+    await (await resolve(replay, erp, true)).commit(replay);
+    expect(erp.writes).toHaveLength(1);
+    expect(erp.writes[0]).not.toHaveProperty('taxes');
+    expect(erp.writes[0]).not.toHaveProperty('taxes_and_charges');
+  });
+});
