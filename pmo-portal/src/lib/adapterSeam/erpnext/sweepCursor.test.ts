@@ -498,6 +498,70 @@ describe('erpnext/sweepCursor — the #916 page budget (a bounded tick, resumabl
     expect(nextCursor).toBe('2026-08-01 10:00:02.000000');
   });
 
+  it('#916 tie wedge: a `modified` tie WIDER than the page budget cannot wedge the cursor — the tick keeps paging past the budget until the tie breaks', async () => {
+    // The persisted cursor is `modified` ONLY. A bulk ERP write can tie MORE rows on one `modified`
+    // than one tick's page budget reads: a budget stop at max-modified == starting-cursor persists a
+    // cursor whose inclusive filter re-delivers the same first rows EVERY tick — zero progress,
+    // forever. So when the budget is spent AND the max modified seen still equals the starting
+    // cursor, the walk must keep paging PAST the budget until a later `modified` appears. Here: 2 ×
+    // the 1-page budget tied on the cursor's own `modified`, one later row behind them — the tick
+    // must come back having listed all 1001 and with the cursor at the LATER row.
+    const TIE = '2026-08-01 10:00:00.000000';
+    const LATER = '2026-08-01 10:00:01.000000';
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls += 1;
+      const data = calls <= 2 ? FULL_PAGE(`T${calls}`, TIE) : [row('L-0001', LATER)];
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    });
+    const client = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+    const { changes, nextCursor } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Material Request', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC, maxPages: 1 },
+      TIE, // the persisted cursor — every tied row sits AT it
+    );
+    expect(calls).toBe(3); // the escape spent 2 pages past the 1-page budget — bounded by the tie, not free-running
+    expect(changes).toHaveLength(1001); // every tied row AND the row that broke the tie listed this tick
+    expect(nextCursor).toBe(LATER); // the cursor advanced PAST the tie — the next tick resumes at LATER, not at the tie
+  });
+
+  it('#916 tie wedge: a tie that EXHAUSTS the source drains it and stops (the escape is bounded by the source, not unbounded)', async () => {
+    // Page 1 full of tie rows (budget 1 spent), page 2 SHORT and still all at the tie: the escape
+    // drains the short page and ends there. No later `modified` exists, so the cursor stays at the
+    // tie (the honest answer) — and the loop terminates instead of chasing pages forever.
+    const TIE = '2026-08-01 10:00:00.000000';
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls += 1;
+      const data = calls === 1 ? FULL_PAGE('T1', TIE) : FULL_PAGE('T2', TIE).slice(0, 200);
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    });
+    const client = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+    const { changes, nextCursor } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Material Request', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC, maxPages: 1 },
+      TIE,
+    );
+    expect(calls).toBe(2); // the escape fetched exactly one page past the budget — the short page ended the walk
+    expect(changes).toHaveLength(700);
+    expect(nextCursor).toBe(TIE); // no later row exists — the cursor stays at the tie
+  });
+
+  it('#916 budget undercount: rows LISTED are counted even when filterRow drops every one (the walk still paid for them)', async () => {
+    // 500 rows fetched on the one budgeted page; the per-row authority (the discriminator / the
+    // in-flight adopt guard) rejects every one. `changes` is empty — but the tick's document budget
+    // must still count the 500 FETCHED rows: the walk touched them whether or not any survived the
+    // filter. Counting survivors is what let a fully-filtered listing consume no budget at all.
+    const client = clientWithPages([FULL_PAGE('F', '2026-08-01 10:00:00.000000')]);
+    const { changes, listedCount } = await listErpChangesSinceWatermark(
+      {
+        client, doctype: 'Material Request', fields: ['name', 'modified', 'docstatus', 'amended_from'],
+        fromDoc: FROM_DOC, maxPages: 1, filterRow: () => false,
+      },
+      null,
+    );
+    expect(changes).toHaveLength(0); // nothing survived the filter
+    expect(listedCount).toBe(500); // …but the walk LISTED 500 rows, and that is what the budget counts
+  });
+
   it('absent maxPages stays UNBOUNDED (the pre-#916 callers — e.g. the onboarding probe — byte-for-byte)', async () => {
     // Three FULL pages then an empty one: an unbounded call fetches 4 times and emits 1500 changes;
     // a maxPages=2 call would have stopped after 2. (The safety guard is not what ends this fetch.)

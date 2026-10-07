@@ -694,6 +694,35 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     ownedByOrg.set(row.org_id, [...(ownedByOrg.get(row.org_id) ?? []), row.domain]);
   }
 
+  // #916 fix round (starvation): the whole invocation shares ONE elapsed-time budget, so a FIXED org
+  // order lets always-busy head orgs spend it every tick and starve the tail orgs' doctype walks
+  // forever. Order the orgs LEAST-RECENTLY-SWEPT first: an org's sweep recency is the NEWEST
+  // `updated_at` on its own poll watermark rows (`external_sync_watermarks`, the rows this sweep's
+  // cursor advance stamps — no new table), and the stalest org walks first; an org with no rows
+  // (never swept) first of all. Ties keep the loaded order (stable sort), so a fresh install sweeps
+  // exactly as before. The `ledger::` rows share the table but NOT the walk — they are the ledger
+  // feed's own cursors and never count as sweep completions.
+  {
+    const { data: wm, error: wmError } = await serviceClient.from('external_sync_watermarks')
+      .select('org_id, domain, updated_at')
+      .eq('external_tier', ERPNEXT_TIER)
+      .in('org_id', activated.map((r) => r.org_id));
+    if (wmError) {
+      // Ordering is a fairness optimization, not a correctness control: a failed read degrades this
+      // tick to the loaded order (logged) rather than skipping the sweep.
+      console.error(`[erpnext-sweep] external_sync_watermarks recency load failed: code=${wmError.code ?? 'none'} message=${wmError.message}`);
+    } else {
+      const lastSweptMs = new Map<string, number>();
+      for (const row of (wm as Array<{ org_id: string; domain: string; updated_at: string | null }> | null) ?? []) {
+        if (typeof row.domain === 'string' && row.domain.startsWith('ledger::')) continue;
+        const t = Date.parse(row.updated_at ?? '');
+        const prev = lastSweptMs.get(row.org_id);
+        lastSweptMs.set(row.org_id, Math.max(prev ?? 0, Number.isFinite(t) ? t : 0));
+      }
+      activated.sort((a, b) => (lastSweptMs.get(a.org_id) ?? 0) - (lastSweptMs.get(b.org_id) ?? 0));
+    }
+  }
+
   return activated.map((r) => ({
     orgId: r.org_id,
     siteUrl: r.site_url,
@@ -775,6 +804,54 @@ export const SWEEP_TICK_MAX_DOCS = 1_000;
  *  slow/unreachable ERP from holding the worker while staying far under any CPU limit. */
 export const SWEEP_TICK_TIME_BUDGET_MS = 20_000;
 
+/**
+ * #916 fix round (starvation): ONE org's doctypes ordered LEAST-RECENTLY-COMPLETED first.
+ *
+ * The fixed registry order plus the shared tick budget let an always-busy registry-earlier doctype
+ * (e.g. a Timesheet backlog) consume the whole document budget EVERY tick, so the registry-later
+ * doctypes (revenue / budget / timesheet pushes) never ran again. The per-doctype watermark row
+ * already carries the completion recency — `external_sync_watermarks.updated_at`, stamped by this
+ * sweep's own cursor advance — so the order reuses it: rows ASC by `updated_at`, a doctype with NO
+ * row (never completed a walk) first. Ties (all never-run, or equal stamps) keep the registry order
+ * (the sort is stable), which is exactly the pre-fix behavior on a fresh org.
+ *
+ * Exported for direct unit testing (the sweepTickBudget starvation test drives it through the
+ * shipped `sweepOrgDoctypesLive`).
+ */
+export async function orderedSweepKindsForOrg(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  ownedDomains: readonly string[],
+): Promise<Array<{ kind: ErpDocKind; doctype: string }>> {
+  const kinds = sweepKindsForOrg(ownedDomains);
+  if (kinds.length <= 1) return kinds;
+  const domains = kinds.map(({ kind }) => sweepWatermarkDomain(kind));
+  let rows: Array<{ domain: string; updated_at: string | null }>;
+  try {
+    const { data, error } = await serviceClient.from('external_sync_watermarks')
+      .select('domain, updated_at')
+      .eq('org_id', orgId).eq('external_tier', ERPNEXT_TIER)
+      .in('domain', domains);
+    if (error) throw new AppError(error.message, error.code);
+    rows = (data as Array<{ domain: string; updated_at: string | null }> | null) ?? [];
+  } catch (err) {
+    // Ordering is a fairness optimization, not a correctness control: a failed recency read degrades
+    // this tick to the registry order (logged) rather than skipping the org's sweep.
+    console.error(`[erpnext-sweep] org ${orgId}: watermark-recency load failed `
+      + `${err instanceof Error ? err.message : String(err)} — this tick keeps registry order`);
+    return kinds;
+  }
+  const completedAtMs = new Map<string, number>();
+  for (const row of rows) {
+    const t = Date.parse(row.updated_at ?? '');
+    completedAtMs.set(row.domain, Number.isFinite(t) ? t : 0);
+  }
+  // Never-run (no row) → 0 → sorts first; ASC = least-recently-completed first; stable sort keeps
+  // registry order within ties.
+  const recency = ({ kind }: { kind: ErpDocKind }): number => completedAtMs.get(sweepWatermarkDomain(kind)) ?? 0;
+  return [...kinds].sort((a, b) => recency(a) - recency(b));
+}
+
 /** Operator overrides (the "clock/env read" DI class): `ERPNEXT_SWEEP_TICK_MAX_DOCS` /
  *  `ERPNEXT_SWEEP_TICK_TIME_BUDGET_MS`. A missing/invalid value falls back to the shipped default. */
 export const SWEEP_TICK_MAX_DOCS_ENV = 'ERPNEXT_SWEEP_TICK_MAX_DOCS';
@@ -801,7 +878,9 @@ export interface SweepTickBudgetOpts {
  *  #916: the walk is BOUNDED per tick — each doctype lists at most `SWEEP_LIST_MAX_PAGES` pages, and
  *  the whole walk stops (finishing the doctype in flight; watermarks are persisted per doctype by
  *  `runSweep`) once the tick's document or elapsed-time budget is spent. A budget stop is NORMAL
- *  operation — never an error — the remaining doctypes resume next tick from their own watermarks. */
+ *  operation — never an error — the remaining doctypes resume next tick from their own watermarks.
+ *  #916 fix round: the doctypes run LEAST-RECENTLY-COMPLETED first (never-run first), so a doctype
+ *  the budget keeps skipping cannot starve forever behind an always-busy registry-earlier sibling. */
 export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache, opts: SweepTickBudgetOpts = {}): Promise<{ applied: number; error?: string }> {
   const nowMs = opts.nowMs ?? Date.now;
   const tickStartMs = opts.tickStartMs ?? nowMs();
@@ -815,9 +894,10 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   // (the money-control push's own feed) from sweeping at all.
   const doctypeErrors: string[] = [];
   // #916: the tick's spent budget. `docsThisTick` counts documents LISTED (the quantum the walk
-  // touches), read off each doctype's bounded listing; the clock is read BEFORE each doctype so a
-  // doctype in flight always finishes (its watermark then persists a clean resume point — aborting a
-  // batch mid-apply would stall: the watermark only advances after the whole listed batch applies).
+  // touches) — incremented the moment each doctype's bounded listing returns, regardless of the
+  // apply outcome; the clock is read BEFORE each doctype so a doctype in flight always finishes
+  // (its watermark then persists a clean resume point — aborting a batch mid-apply would stall:
+  // the watermark only advances after the whole listed batch applies).
   let docsThisTick = 0;
   let walkedDoctypes = 0;
   // BLOCK 1 / round-7 B5: the pull-adopt guard. NOT a snapshot — the probe asks the outbox about each
@@ -826,8 +906,10 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   // failure throws out of the poll below (fail closed): polling with a blind guard is exactly the state
   // that duplicated money rows. One probe per org tick shares the memo across that org's doctypes.
   const inFlightProbe = createInFlightAnchorProbe(serviceClient, org.orgId);
-  // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier.
-  for (const { kind, doctype } of sweepKindsForOrg(org.ownedDomains)) {
+  // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier —
+  // ordered least-recently-completed first (#916 fix round: see `orderedSweepKindsForOrg`).
+  const sweepKinds = await orderedSweepKindsForOrg(serviceClient, org.orgId, org.ownedDomains);
+  for (const { kind, doctype } of sweepKinds) {
     const elapsedMs = nowMs() - tickStartMs;
     if (docsThisTick >= tickMaxDocs || elapsedMs >= tickTimeBudgetMs) {
       console.warn(
@@ -867,8 +949,19 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
         return (data as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? null;
       },
       advanceWatermark: async (cursor: string) => {
+        // `updated_at` is stamped EXPLICITLY (PostgREST's ON CONFLICT DO UPDATE sets every supplied
+        // column): it is the doctype's last-completed stamp, the recency the fair-order read
+        // (`orderedSweepKindsForOrg`, #916 fix round) sorts by. Left implicit, it would stay at
+        // first-insert and the ordering would degenerate to registry order after every doctype's
+        // first walk.
         const { error } = await serviceClient.from('external_sync_watermarks').upsert(
-          { org_id: org.orgId, external_tier: ERPNEXT_TIER, domain: wmDomain, watermark_cursor: cursor },
+          {
+            org_id: org.orgId,
+            external_tier: ERPNEXT_TIER,
+            domain: wmDomain,
+            watermark_cursor: cursor,
+            updated_at: new Date().toISOString(),
+          },
           { onConflict: 'org_id,external_tier,domain' },
         );
         if (error) throw new AppError(error.message, error.code);
@@ -886,10 +979,6 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
       ? (name: string) => fetchErpDoc(client, doctype, name)
       : undefined;
     try {
-      // #916: how many documents THIS doctype's bounded listing surfaced (≤ maxPages × pageSize) —
-      // read off the listing so the tick's doc budget counts everything the walk touches, including
-      // per-row no-ops and acked-and-skipped docs.
-      let listedThisWalk = 0;
       const result = await runSweep(
         { tier: ERPNEXT_TIER, domain },
         {
@@ -926,13 +1015,19 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
               },
               cursor,
             );
-            listedThisWalk = listed.changes.length;
+            // #916 fix round (budget undercount): the tick's document budget counts rows LISTED
+            // (fetched) — the quantum the walk touches — NOT rows that applied. A 1,000-row listing
+            // whose apply fails, or whose rows a per-row filter drops, costs the walk exactly as much
+            // as one that applies; counting outcomes re-spent the same tick on the same work (a
+            // failing doctype left the budget at zero and every later doctype walked anyway).
+            // Counted HERE, the moment the listing returns, so the budget is spent regardless of the
+            // apply outcome below (including a halt that aborts this doctype mid-batch).
+            docsThisTick += listed.listedCount;
             return listed;
           },
         },
       );
       applied += result.applied;
-      docsThisTick += listedThisWalk;
       // Never silent: an acked-and-skipped document (never-adopt / lossy hint) is logged with its ERP
       // name so an operator can see exactly what the poll declined to import.
       for (const s of result.skipped) {

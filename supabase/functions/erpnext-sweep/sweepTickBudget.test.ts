@@ -120,19 +120,24 @@ function stubErpPages(
 }
 
 /** A STATEFUL Supabase stand-in: `external_sync_watermarks` persists across ticks (the cursor store
- *  under test), `external_refs` resolves an upserted mapping (so a re-listed boundary doc applies as
- *  an UPDATE, never a duplicate adopt), and every claim is recorded for the no-duplicates proof. */
+ *  under test — cursor AND the `updated_at` recency stamp the fair-order read sorts by),
+ *  `external_refs` resolves an upserted mapping (so a re-listed boundary doc applies as an UPDATE,
+ *  never a duplicate adopt), and every claim is recorded for the no-duplicates proof. */
 function statefulFakeDb() {
   const watermarks = new Map<string, string>();
+  // Recency stamps: a strictly-increasing value per upsert (real clocks can tie two upserts inside
+  // one tick; the ORDER between ticks is what the fair-order test pins, not the wall time).
+  let stampSeq = 0;
+  const wmUpdatedAt = new Map<string, string>();
   const refsByExternal = new Map<string, string>();
   const refUpserts: Array<Record<string, unknown>> = [];
   const client = {
     from(table: string) {
       // deno-lint-ignore no-explicit-any
-      const b: any = { cols: {} as Record<string, string> };
+      const b: any = { cols: {} as Record<string, string>, inDomains: null as string[] | null };
       b.select = () => b;
       b.eq = (col: string, val: string | number) => { b.cols[col] = String(val); return b; };
-      b.in = () => b;
+      b.in = (col: string, vals: unknown[]) => { if (col === 'domain') b.inDomains = vals.map(String); return b; };
       b.is = () => b;
       b.not = () => b;
       b.order = () => b;
@@ -146,6 +151,7 @@ function statefulFakeDb() {
         if (table === 'external_sync_watermarks') {
           const p = payload as { domain: string; watermark_cursor: string };
           watermarks.set(p.domain, p.watermark_cursor);
+          wmUpdatedAt.set(p.domain, new Date(Date.UTC(2026, 0, 1, 0, 0, stampSeq++)).toISOString());
         }
         if (table === 'external_refs') {
           const p = payload as { domain: string; external_record_id: string; pmo_record_id: string };
@@ -169,7 +175,18 @@ function statefulFakeDb() {
         }
         return Promise.resolve({ data: null, error: null });
       };
-      b.then = (resolve: (v: unknown) => void) => resolve({ data: [], error: null });
+      b.then = (resolve: (v: unknown) => void) => {
+        if (table === 'external_sync_watermarks') {
+          // The LIST-shaped read (the fair-order recency load — the per-doctype cursor read goes
+          // through `maybeSingle` above): serve domain + updated_at for the requested domains.
+          const rows = [...wmUpdatedAt.entries()]
+            .filter(([domain]) => b.inDomains === null || b.inDomains.includes(domain))
+            .map(([domain, updated_at]) => ({ domain, updated_at }));
+          resolve({ data: rows, error: null });
+          return;
+        }
+        resolve({ data: [], error: null });
+      };
       return b;
     },
     rpc: () => Promise.resolve({ data: null, error: null }),
@@ -185,6 +202,30 @@ const employeeDoc = (i: number) => ({
   status: 'Active',
   company: OURS,
   modified: frappeModified(i),
+  docstatus: 1,
+  amended_from: null,
+});
+
+/** A Timesheet-shaped list row: the mapper reads only tolerant fields, and `company` is what the
+ *  company-scoped poll's per-row admission gate reads. A native Timesheet is never ADOPTED
+ *  (FR-TSP-082 acks it) — but listing it is real work the tick pays for. */
+const timesheetDoc = (i: number) => ({
+  name: `TS-${String(i + 1).padStart(6, '0')}`,
+  company: OURS,
+  total_hours: '2.00',
+  total_costing_amount: '100.00',
+  modified: frappeModified(i),
+  docstatus: 1,
+  amended_from: null,
+});
+
+/** A Desk-created Budget row: never adopted (FR-BUD-140 acks it) — but it IS work the poll must
+ *  REACH: the doctype walks, lists it, and advances its watermark past it. */
+const deskBudgetDoc = (name: string, modified: string) => ({
+  name,
+  company: OURS,
+  fiscal_year: '2026',
+  modified,
   docstatus: 1,
   amended_from: null,
 });
@@ -340,4 +381,94 @@ Deno.test('#916: the shipped tick budgets are coherent and well under the edge C
     SWEEP_TICK_TIME_BUDGET_MS === 20_000 && SWEEP_TICK_TIME_BUDGET_MS < 60_000,
     `the whole-tick wall-clock budget is 20s — far under any CPU hard limit, got ${SWEEP_TICK_TIME_BUDGET_MS}`,
   );
+});
+
+// ── #916 fix round: the budget counts rows LISTED, not rows APPLIED ───────────────────────────────
+
+Deno.test('#916: a failing apply still consumes the tick budget (the walk counts LISTED rows, not applied outcomes)', async () => {
+  // 600 Timesheet docs LIST (two pages, within the per-doctype quantum) but the apply HALTS on the
+  // FIRST change (the superseded-name lineage read — the apply's first DB touch — fails transiently,
+  // the same shape sweepWedge proves halts). Counting only SUCCESSFULLY APPLIED rows leaves the
+  // tick's document budget at zero for that doctype and lets the walk continue to Employee/Budget —
+  // the tick pays twice for work it already did. The 600 LISTED rows alone must spend the 500 budget.
+  const docs = Array.from({ length: 600 }, (_, i) => timesheetDoc(i));
+  const db = statefulFakeDb();
+  const env = stubEnv();
+  const erp = stubErpPages({
+    Timesheet: docs,
+    Employee: [employeeDoc(0)],
+    Budget: [deskBudgetDoc('BUDGET-DESK-009', frappeModified(31_536_000))],
+  });
+  // The transient apply failure: the lineage read errors for EVERY change (halt — not an ack).
+  const originalFrom = db.client.from.bind(db.client);
+  (db.client as unknown as { from: (t: string) => unknown }).from = (table: string) => {
+    if (table === 'external_ref_lineage') {
+      // deno-lint-ignore no-explicit-any
+      const b: any = {};
+      b.select = () => b;
+      b.eq = () => b;
+      b.limit = () => Promise.resolve({ data: null, error: { message: 'connection terminated', code: '08006' } });
+      return b;
+    }
+    return originalFrom(table);
+  };
+  const opts = { nowMs: () => 0, tickStartMs: 0, tickTimeBudgetMs: 60_000, tickMaxDocs: 500 };
+  try {
+    const tick = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets', 'budget']), undefined, opts);
+    assert(!!tick.error, `the transient apply failure must surface as a sweep error (halt), got ${JSON.stringify(tick)}`);
+    assert(tick.applied === 0, `nothing applied — the first apply halted, got ${tick.applied}`);
+    assert(
+      erp.of('Employee').length === 0,
+      `the failed doctype LISTED 600 rows — the 500 budget is spent and Employee must NOT walk this tick (walked ${erp.of('Employee').length} pages)`,
+    );
+    assert(
+      erp.of('Budget').length === 0,
+      `Budget must NOT walk this tick either (walked ${erp.of('Budget').length} pages)`,
+    );
+  } finally {
+    erp.restore();
+    env.restore();
+  }
+});
+
+// ── #916 fix round: FAIR doctype order across ticks (a busy doctype cannot starve its siblings) ────
+
+Deno.test('#916: a doctype the budget keeps skipping is walked FIRST once its siblings have run (least-recently-completed order)', async () => {
+  // Timesheet holds a backlog wider than three ticks (3000 docs = 1000 listed/tick — every doc is
+  // acked-and-skipped, FR-TSP-082, so the backlog never drains and the watermark ALWAYS advances).
+  // Budget holds ONE doc. Registry order restarts at Timesheet every tick and stops at the spent
+  // budget: Budget would NEVER run. The fix orders each tick's doctypes least-recently-completed
+  // first — by their `external_sync_watermarks.updated_at` asc, never-run first — so tick 2 gives
+  // Budget (and the never-run Employee) the walk before the just-swept Timesheet.
+  const backlog = Array.from({ length: 3000 }, (_, i) => timesheetDoc(i));
+  const budgetModified = frappeModified(31_536_000);
+  const db = statefulFakeDb();
+  const env = stubEnv();
+  const erp = stubErpPages({ Timesheet: backlog, Budget: [deskBudgetDoc('BUDGET-DESK-001', budgetModified)] });
+  try {
+    // Tick 1 — every doctype never-run: registry order (stable), so Timesheet walks first and spends
+    // the whole doc budget; Budget (registry-last) is skipped. This is the OLD behavior and stays true.
+    const tick1 = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets', 'budget']));
+    assert(tick1.error === undefined, `tick 1 must be clean: ${tick1.error}`);
+    assert(erp.of('Budget').length === 0, 'tick 1: Budget (registry-last) is skipped behind the busy Timesheet');
+    assert(
+      db.watermarks.has('timesheets::Timesheet'),
+      'tick 1: the Timesheet watermark advanced (its recency stamp is now the freshest)',
+    );
+
+    // Tick 2 — Timesheet completed most recently; Budget and Employee NEVER ran: they must go first.
+    const tick2 = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets', 'budget']));
+    assert(tick2.error === undefined, `tick 2 must be clean: ${tick2.error}`);
+    assert(
+      erp.of('Budget').length >= 1,
+      `STARVATION: the always-busy first doctype must not starve Budget — by tick 2 the never-run Budget walk must run (walked ${erp.of('Budget').length} pages)`,
+    );
+    assert(
+      db.watermarks.get('budget::Budget') === budgetModified,
+      `tick 2: Budget completed its walk and persisted its own cursor, got ${JSON.stringify(db.watermarks.get('budget::Budget'))}`,
+    );
+  } finally {
+    erp.restore();
+    env.restore();
+  }
 });
