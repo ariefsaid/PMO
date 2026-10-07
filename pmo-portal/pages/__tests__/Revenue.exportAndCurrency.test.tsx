@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ExcelJS from 'exceljs';
 import { ToastProvider } from '@/src/components/ui';
@@ -81,11 +82,15 @@ const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta
 
 function renderPage(node: React.ReactElement) {
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
-        <ToastProvider>{node}</ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
+    // standard provider even though `useRevenue` itself is mocked here.
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter>
+          <ToastProvider>{node}</ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 }
 

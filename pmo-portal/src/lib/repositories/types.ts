@@ -482,6 +482,9 @@ export interface RevenueRepository {
   submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
   /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
   cancelInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** #912: the ERP's own print-format PDF of a SUBMITTED, ERP-owned invoice (Admin/Finance; the edge
+   *  function `external-invoice-pdf` enforces role, tenancy and docstatus). */
+  downloadInvoicePdf(siId: string): Promise<Blob>;
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */

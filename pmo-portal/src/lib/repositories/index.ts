@@ -626,6 +626,9 @@ const procurement: ProcurementRepository = {
       : wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
 };
 
+/** #912: the edge function makes two ERP calls bounded at 20 s each; leave room for both. */
+const INVOICE_PDF_INVOKE_TIMEOUT_MS = 45_000;
+
 const revenue: RevenueRepository = {
   // Read methods (ADR-0017)
   listInvoices: (params) => wrap(() => listSalesInvoices(params)),
@@ -692,6 +695,16 @@ const revenue: RevenueRepository = {
           );
         })
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  downloadInvoicePdf: (siId) =>
+    wrap(async () => {
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<Blob>('external-invoice-pdf', { body: { salesInvoiceId: siId } }),
+        INVOICE_PDF_INVOKE_TIMEOUT_MS,
+      );
+      if (error) await throwInvokeError(error);
+      if (!(data instanceof Blob)) throw new AppError('The ERP did not return a PDF', 'ERP_UNREACHABLE');
+      return data;
+    }),
   cancelPayment: (ipId, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {

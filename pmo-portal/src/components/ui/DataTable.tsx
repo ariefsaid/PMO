@@ -42,6 +42,12 @@ export interface RowMenuItem {
   label: string;
   onClick: () => void;
   danger?: boolean;
+  /** Dimmed, announced disabled and unclickable — e.g. a per-row action already in flight (AC-PDF-011).
+   *  WAI-ARIA menu pattern: rendered as `aria-disabled="true"`, NOT the HTML `disabled` attribute —
+   *  a disabled button is unfocusable, so a disabled FIRST item would strand open-focus on the
+   *  trigger (arrows/Escape dead). Staying focusable gives the roving focus a landing spot; the
+   *  activate guard below makes Enter/click a no-op. */
+  disabled?: boolean;
 }
 
 export interface DataTableProps<Row> {
@@ -597,6 +603,9 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
   };
 
   const activate = (item: RowMenuItem) => {
+    // Load-bearing since the aria-disabled switch: an aria-disabled <button> still fires
+    // click (there is no HTML `disabled` to swallow it) — this guard is the no-op.
+    if (item.disabled) return;
     item.onClick();
     close();
   };
@@ -649,13 +658,15 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
                   <button
                     role="menuitem"
                     type="button"
+                    aria-disabled={item.disabled || undefined}
                     tabIndex={i === active ? 0 : -1}
                     data-menuitem-index={i}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => activate(item)}
                     className={cn(
                       'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
-                      item.danger && 'text-destructive'
+                      item.danger && 'text-destructive',
+                      item.disabled && 'cursor-not-allowed text-muted-foreground hover:bg-transparent'
                     )}
                   >
                     {item.label}

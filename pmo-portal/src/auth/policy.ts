@@ -31,6 +31,7 @@ export type Action =
   | 'setValue'
   | 'submit_sales_invoice'
   | 'record_received_date'
+  | 'download_pdf'
   | 'record_efaktur'
   | 'manage_external_bindings'
   | 'manage'
@@ -447,6 +448,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // #767: record the date the client received the invoice — any non-cancelled state. Mirrors the
     // `set_sales_invoice_received_date` RPC's Admin+Finance gate (the RPC is the authority).
     record_received_date: allow(REVENUE_WRITE),
+    // #912 (DD-PDF-1/2): download the ERP's own PDF of a SUBMITTED, ERP-owned invoice — the client
+    // document. Mirrors external-invoice-pdf, which re-checks role, active membership and the LIVE ERP
+    // docstatus; this is UX only.
+    download_pdf: (role, ctx) =>
+      has(REVENUE_WRITE, role)
+      && ctx.record?.erp_docstatus === 1
+      && ['Submitted', 'Unpaid', 'Paid'].includes(String(ctx.record?.status ?? '')),
     // DD-EFK-1: e-Faktur facts stay PMO-owned and are editable by the revenue write set only.
     record_efaktur: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the

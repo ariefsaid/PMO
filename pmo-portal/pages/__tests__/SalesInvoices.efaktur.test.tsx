@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -52,9 +53,12 @@ function cellOf(siNumber: string, header: string): HTMLElement {
 
 function renderAs(role: Role) {
   return render(
-    <ImpersonationProvider realRole={role}>
-      <MemoryRouter><ToastProvider><SalesInvoices /></ToastProvider></MemoryRouter>
-    </ImpersonationProvider>,
+    // The page's PDF hook (#912) reads the query cache — give it the standard provider.
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <ImpersonationProvider realRole={role}>
+        <MemoryRouter><ToastProvider><SalesInvoices /></ToastProvider></MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 }
 

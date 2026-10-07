@@ -43,6 +43,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
+import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 /** Status filter segments. */
@@ -122,6 +123,7 @@ const SalesInvoices: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
+  const pdfDownload = useInvoicePdfDownload();
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
@@ -289,6 +291,18 @@ const SalesInvoices: React.FC = () => {
 
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
+    // #912 (OD-INV-PDF-1, AC-PDF-003): the ERP's own PDF of a submitted invoice — what the client receives.
+    // `can()` is UX only; external-invoice-pdf re-checks role, tenancy and the LIVE ERP docstatus.
+    // AC-PDF-011: while THIS invoice's download runs, the item disables itself under the busy
+    // label — a repeat click is impossible, not silent.
+    if (may('download_pdf', 'salesInvoice', { record: { status: inv.status, erp_docstatus: inv.erp_docstatus } }))
+      items.push({
+        label: pdfDownload.inFlightIds.has(inv.id)
+          ? t('financeCopy.invoicePdf.preparing', 'Preparing PDF…')
+          : t('financeCopy.invoicePdf.download', 'Download PDF'),
+        disabled: pdfDownload.inFlightIds.has(inv.id),
+        onClick: () => void pdfDownload.download(inv),
+      });
     if (canEdit) items.push({ label: t('financeCopy.edit', "Edit"), onClick: () => setFormTarget({ invoice: inv }) });
     // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).

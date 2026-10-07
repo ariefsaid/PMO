@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -77,15 +78,19 @@ const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta
 
 const renderPage = () =>
   render(
-    <FinanceI18nTestProvider>
-      <ImpersonationProvider realRole="Finance">
-        <MemoryRouter>
-          <ToastProvider>
-            <SalesInvoices />
-          </ToastProvider>
-        </MemoryRouter>
-      </ImpersonationProvider>
-    </FinanceI18nTestProvider>,
+    // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
+    // standard provider even though `useRevenue` itself is mocked here.
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <FinanceI18nTestProvider>
+        <ImpersonationProvider realRole="Finance">
+          <MemoryRouter>
+            <ToastProvider>
+              <SalesInvoices />
+            </ToastProvider>
+          </MemoryRouter>
+        </ImpersonationProvider>
+      </FinanceI18nTestProvider>
+    </QueryClientProvider>,
   );
 
 /** Opens the create form (the header action; the empty state offers the same button). */
