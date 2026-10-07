@@ -162,8 +162,8 @@ function allowedActions(
 
   const legal = (to: ProcurementStatus) => isLegalTransition(status, to);
 
-  // Draft → Requested: any member (FR-PROC-005)
-  if (legal('Requested')) {
+  // Draft → Requested: the requester, any role; Admin break-glass (OD-PROC-1, FR-PROC-005)
+  if (legal('Requested') && (isRequester || role === 'Admin')) {
     actions.push({ to: 'Requested', label: t('procurementDetail.action.submitRequest', 'Submit Request'), variant: 'primary' });
   }
 
