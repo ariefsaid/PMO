@@ -1,9 +1,10 @@
 // @e2e-isolation: self-isolated — creates its own uniquely-named client company and VAT project each run, raises, approves and settles its own invoice, and deletes all of it afterwards; touches no shared seed row (the seed org's revenue is PMO-owned in this lane; only serial specs flip it, and they run after).
 /**
  * AC-NAR-003 — #784, the one cross-stack journey for billing without an ERP. Finance raises an invoice on a VAT project
- * (12% on 11/12 → 1,110,000 gross); an Admin approves it from the Approvals queue (the second person, AC-NAR-002's
- * path); Finance records a part payment — the invoice reads Partly paid with 610,000 outstanding — then accepts the
- * amount the receipt form starts at (what is still owed, DD-NAR-17), and the invoice reads Paid.
+ * (12% on 11/12 → 1,110,000 gross); an Admin opens it on the Approvals queue, reads the whole invoice and approves it
+ * (the second person, AC-NAR-002's path); Finance records a part payment — the invoice reads Partly paid with 610,000
+ * outstanding — then a receipt above what is still owed (the form starts at the 610,000 balance, DD-NAR-17), and the
+ * invoice reads Paid with the 90,000 excess shown as overpaid.
  * Goal oracle: what the Sales Invoices list shows, to the people who act on it.
  */
 import { test, expect, type Page } from '@playwright/test';
@@ -25,6 +26,7 @@ let admin: SupabaseClient | undefined;
 let projectId = '';
 let companyId = '';
 let tag = '';
+let financeName = '';
 
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
@@ -42,6 +44,9 @@ test.beforeEach(async () => {
   }).select('id').single();
   if (project.error) throw new Error(`AC-NAR-003 fixture project: ${project.error.message}`);
   projectId = project.data.id;
+  const author = await admin.from('profiles').select('full_name').eq('email', 'finance@acme.test').single();
+  if (author.error) throw new Error(`AC-NAR-003 fixture author: ${author.error.message}`);
+  financeName = author.data.full_name;
 });
 
 test.afterEach(async () => {
@@ -71,22 +76,21 @@ async function invoiceRow(page: Page) {
   return page.getByRole('row').filter({ hasText: `${tag} Client` });
 }
 
-/** Records a receipt against this run's invoice; `amount` null accepts the amount the form starts at. */
-async function recordReceipt(page: Page, amount: string | null) {
+/** Records a receipt against this run's invoice; `startsAt` is the balance the form must start at (DD-NAR-17). */
+async function recordReceipt(page: Page, amount: string, startsAt?: RegExp) {
   await page.goto('/incoming-payments');
   await page.getByRole('button', { name: 'Receive Payment' }).first().click();
   const form = page.getByRole('dialog');
   await pickComboboxOption(form, page, /^Customer/, new RegExp(`${tag} Client`));
   await pickComboboxOption(form, page, /^Sales Invoice/, /INV-\d{10}/);
-  if (amount !== null) {
-    await form.getByLabel(/Paid Amount/).fill(amount);
-    await form.getByLabel(/Received Amount/).fill(amount);
-  }
+  if (startsAt) await expect(form.getByLabel(/Paid Amount/)).toHaveValue(startsAt);
+  await form.getByLabel(/Paid Amount/).fill(amount);
+  await form.getByLabel(/Received Amount/).fill(amount);
   await form.getByRole('button', { name: 'Record payment' }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
 }
 
-test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it, and part then full payment marks it Paid', async ({ page }) => {
+test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it after reading it, and part then over payment marks it Paid', async ({ page }) => {
   // Finance raises the invoice.
   await signIn(page, 'finance@acme.test');
   await page.goto('/sales-invoices');
@@ -108,6 +112,13 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it, an
   const queue = page.getByRole('region', { name: 'Customer invoices awaiting you' });
   const item = queue.getByRole('listitem').filter({ hasText: `${tag} Client` });
   await expect(item).toBeVisible({ timeout: 15_000 });
+  // I-1: the approver reads the invoice before approving it — project, customer, the line, who raised it, the total due.
+  await item.getByRole('button', { name: `Show invoice details for ${tag} Client` }).click();
+  await expect(item.getByRole('link', { name: new RegExp(tag) })).toBeVisible();
+  await expect(item.getByRole('list', { name: 'Line items' })).toContainText('Site survey');
+  await expect(item.getByRole('list', { name: 'Line items' })).toContainText('SVC-NAR');
+  await expect(item).toContainText(financeName);
+  await expect(item).toContainText(/Total due\s*\S*\s?1[.,]110[.,]000/);
   await item.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Approve invoice' }).click();
   await expect(item).toHaveCount(0, { timeout: 15_000 });
@@ -115,13 +126,14 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it, an
   await expect(row.getByText('Unpaid', { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/INV-\d{10}/);
 
-  // Finance records a part payment, then the rest — the amount the form starts at.
+  // Finance records a part payment, then more than is still owed.
   await signIn(page, 'finance@acme.test');
   await recordReceipt(page, '500000');
   row = await invoiceRow(page);
   await expect(row.getByText('Partly paid', { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/610[.,]000/);
-  await recordReceipt(page, null);
+  await recordReceipt(page, '700000', /^610[.,]000$/);
   row = await invoiceRow(page);
   await expect(row.getByText('Paid', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(row).toContainText(/Overpaid by\s*\S*\s?90[.,]000/);
 });

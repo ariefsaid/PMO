@@ -84,8 +84,8 @@ const ALL_ITEMS: NavItem[] = [
   // Admin is included for parity (Admin may also have tasks assigned to them).
   // Executives and managers use the project Tasks tab for their task oversight (OD-W2-4).
   { to: '/my-tasks', text: 'My Tasks', icon: 'check', group: 'Workforce', roles: [UserRole.Engineer, UserRole.Admin] },
-  // Finance section — gated by the `revenue` feature flag (ERPNext external domain ownership).
-  // Visible to Finance, PM, Exec, Admin roles when the org has `revenue` externally owned.
+  // Finance section — gated by the `revenue` feature flag (an org entitlement, #784 DD-NAR-14), shown to Finance, PM,
+  // Exec and Admin whether PMO raises the invoices (no ERP owns revenue) or a connected ERP does.
   { to: '/sales-invoices', text: 'Sales Invoices', icon: 'file', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/incoming-payments', text: 'Incoming Payments', icon: 'dollar', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },

@@ -449,15 +449,17 @@ export interface ProcurementRepository {
 }
 
 export interface RevenueRepository {
-  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. */
+  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. The number is null
+   *  for a PMO Draft (#784 DD-NAR-9 mints it on approval). */
   createInvoice(input: {
     customerId: string;
     projectId?: string | null;
     items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
     /** OD-BILL-1: the work order this invoice bills ("Invoice this work order"). */
     workOrderId?: string | null;
-  }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
-  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
+  }, intent?: CommandIntent): Promise<{ id: string; si_number: string | null }>;
+  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. The number is null for a
+   *  PMO receipt (#784: the RPC returns only the id; the list read carries its PMO number). */
   createPayment(input: {
     customerId: string;
     salesInvoiceId?: string | null;
@@ -466,7 +468,7 @@ export interface RevenueRepository {
     withheldAmount?: number;
     withholdingSlipNumber?: string | null;
     date: string;
-  }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
+  }, intent?: CommandIntent): Promise<{ id: string; ip_number: string | null }>;
   /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
   setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */

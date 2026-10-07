@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
@@ -43,6 +44,8 @@ export interface ErrorSummaryItem {
 export interface SubmitError {
   headline: string;
   detail?: string;
+  /** Optional way to fix it, rendered under the detail (e.g. a link to where the missing setting is recorded). */
+  action?: React.ReactNode;
 }
 
 export interface EntityFormModalProps {
@@ -101,6 +104,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   width = 'sm',
   children,
 }) => {
+  const { t } = useTranslation();
   const titleId = useId();
   const subId = useId();
   const summaryId = useId();
@@ -298,7 +302,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
             <Button
               variant="ghost"
               iconOnly
-              aria-label="Close"
+              aria-label={t('entityForm.close', 'Close')}
               onClick={requestClose}
               disabled={loading}
             >
@@ -314,7 +318,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                   ref={saveErrorRef}
                   data-testid="entity-modal-save-error"
                   role="alert"
-                  aria-label="Save failed"
+                  aria-label={t('entityForm.saveFailed', 'Save failed')}
                   // Focus target for the rejected save — not in the Tab order, so it is
                   // reached deliberately (on failure) and never sits between fields.
                   tabIndex={-1}
@@ -328,8 +332,11 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                     {visibleSaveError.detail && (
                       <p className="text-[12.5px] text-muted-foreground">{visibleSaveError.detail}</p>
                     )}
+                    {visibleSaveError.action && (
+                      <p className="text-[12.5px]">{visibleSaveError.action}</p>
+                    )}
                     <p className="text-[12.5px] text-muted-foreground">
-                      Nothing was saved — your entries are still here.
+                      {t('entityForm.nothingSaved', 'Nothing was saved — your entries are still here.')}
                     </p>
                   </div>
                 </div>
@@ -338,13 +345,13 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                 <div
                   id={summaryId}
                   role="alert"
-                  aria-label="Form errors"
+                  aria-label={t('entityForm.formErrors', 'Form errors')}
                   className="mb-4 flex gap-2.5 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3"
                 >
                   <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
                   <div className="min-w-0">
                     <div className="text-[13px] font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
-                      Fix {errorSummary!.length} field{errorSummary!.length === 1 ? '' : 's'} before saving
+                      {t('entityForm.fixFields', 'Fix {{count}} fields before saving', { count: errorSummary!.length })}
                     </div>
                     {errorSummary!.map((item) => (
                       <a
@@ -369,12 +376,12 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
             <div className="border-t border-border px-[18px] py-3.5">
               {submitDisabled && (
                 <span id={disabledReasonId} className="sr-only">
-                  Complete all required fields (marked with an asterisk) to save.
+                  {t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
                 </span>
               )}
               <FormActions
                 submitLabel={submitLabel}
-                cancelLabel={cancelLabel}
+                cancelLabel={cancelLabel ?? t('entityForm.cancel', 'Cancel')}
                 onCancel={requestClose}
                 disabled={submitDisabled}
                 loading={loading}
@@ -389,10 +396,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
       <ConfirmDialog
         open={confirmDiscard}
         tone="destructive"
-        title="Discard your changes?"
-        description="This form has unsaved changes. Discarding will lose them."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={t('entityForm.discardTitle', 'Discard your changes?')}
+        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('entityForm.discard', 'Discard')}
+        cancelLabel={t('entityForm.keepEditing', 'Keep editing')}
         onConfirm={() => {
           setConfirmDiscard(false);
           onClose();

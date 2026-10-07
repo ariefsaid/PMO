@@ -84,7 +84,7 @@
 
 # ── Daily manager action. An untranslated approve/reject is the highest-consequence English
 #    left on screen.
-/approvals                     pages/Approvals.tsx pages/approvals/ExpenseClaimApprovalSection.tsx pages/approvals/SalesInvoiceApprovalSection.tsx
+/approvals                     pages/Approvals.tsx pages/approvals/ExpenseClaimApprovalSection.tsx pages/approvals/SalesInvoiceApprovalSection.tsx pages/approvals/SalesInvoiceApprovalRow.tsx src/lib/revenue/nativeRevenueErrors.ts
 
 # ── Delivery spend register, worked daily by PM/procurement alongside the project. The record
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would
@@ -99,8 +99,8 @@
 #    lives in the shared component, and it also renders on this screen.
 /sales                         pages/SalesPipeline.tsx components/SalesKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/Funnel.tsx
 # ── Finance lists (#789): invoices, receipts, and their project revenue roll-up.
-/sales-invoices                pages/SalesInvoices.tsx
-/incoming-payments             pages/IncomingPayments.tsx
+/sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
+/incoming-payments             pages/IncomingPayments.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
 /revenue-by-project            pages/RevenueByProject.tsx
 /reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
 

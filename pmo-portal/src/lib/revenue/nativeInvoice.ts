@@ -47,6 +47,23 @@ export function overpaidBy(inv: { pmo_native?: boolean; overpaid_amount?: number
   return inv.overpaid_amount;
 }
 
+/**
+ * I-4: what a PMO invoice has been paid so far, so gross − paid = outstanding reads by eye. By DD-NAR-4 the balance is
+ * gross − live receipts and any excess is `overpaid_amount` (DD-NAR-17), so paid = gross − balance + overpaid. Null for
+ * a Draft, a Cancelled invoice (its balance is zeroed, not paid), an ERP invoice, or one with no balance reported.
+ */
+export function paidToDate(
+  inv: Pick<SalesInvoiceRow, 'status' | 'erp_outstanding_amount' | 'amount' | 'tax_amount' | 'tax_treatment'> & {
+    pmo_native?: boolean;
+    overpaid_amount?: number | null;
+  },
+): number | null {
+  if (!inv.pmo_native || (inv.status !== 'Unpaid' && inv.status !== 'Paid') || inv.erp_outstanding_amount == null) return null;
+  const gross = invoiceGross(inv);
+  if (gross == null) return null;
+  return Math.round((gross - inv.erp_outstanding_amount + (inv.overpaid_amount ?? 0)) * 100) / 100;
+}
+
 /** What a PMO invoice bills, in one line of text: its first line, plus how many more. */
 export function nativeInvoiceSummary(inv: { native_lines?: NativeInvoiceLine[] | null }): string | null {
   const lines = inv.native_lines ?? [];

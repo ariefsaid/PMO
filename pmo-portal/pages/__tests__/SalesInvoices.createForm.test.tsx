@@ -30,7 +30,7 @@ const hoisted = vi.hoisted(() => ({
     { value: 'cust-1', label: 'Acme Energy', sub: 'Client' },
     { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' },
   ],
-  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01' }],
+  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false }],
   connected: false,
 }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: hoisted.connected, loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] }) }));
@@ -50,7 +50,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: hoisted.clientOptions }),
-  useProjectOptions: () => ({ data: hoisted.projectOptions }),
+  useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }),
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -62,6 +62,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useNavigate: () => hoisted.navigateMock };

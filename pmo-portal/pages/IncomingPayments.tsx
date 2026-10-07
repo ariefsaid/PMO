@@ -43,22 +43,34 @@ import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from 
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { invoiceNumber, receiptNumber } from '@/src/lib/revenue/nativeInvoice';
+import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
-/** Status filter segments. */
-type StatusFilter = 'All' | IncomingPaymentStatus;
-const STATUS_FILTERS: StatusFilter[] = ['All', 'Scheduled', 'Paid'];
+/** Status filter segments. "Received"/"Cancelled" are how a PMO receipt reads (I-5): it is recorded as received, never
+ *  Scheduled, and a cancelled one keeps its row (DD-NAR-10). */
+type StatusFilter = 'All' | IncomingPaymentStatus | 'Received' | 'Cancelled';
+const ERP_STATUS_FILTERS: StatusFilter[] = ['All', 'Scheduled', 'Paid'];
+const NATIVE_STATUS_FILTERS: StatusFilter[] = ['All', 'Received', 'Cancelled'];
 
 function incomingPaymentStatusLabel(status: StatusFilter, t: (key: string, fallback: string) => string): string {
   const labels: Record<StatusFilter, string> = {
     All: t('financeCopy.statusAll', 'All'),
     Scheduled: t('financeCopy.statusScheduled', 'Scheduled'),
     Paid: t('financeCopy.statusPaid', 'Paid'),
+    Received: t('financeCopy.statusReceived', 'Received'),
+    Cancelled: t('financeCopy.statusCancelled', 'Cancelled'),
   };
   return labels[status] ?? status;
+}
+
+function matchesStatus(p: IncomingPaymentRow, filter: StatusFilter): boolean {
+  if (filter === 'All') return true;
+  if (filter === 'Cancelled') return Boolean(p.cancelled_at);
+  if (filter === 'Received') return p.status === 'Paid' && !p.cancelled_at;
+  return p.status === filter;
 }
 
 /** Form values for the payment modal. */
@@ -85,24 +97,11 @@ function parsePaymentAmount(raw: string): number | null {
 /** #784 (DD-NAR-17): today in the org's time zone — the latest payment date the server accepts. */
 const orgToday = (): string => instantToZonedDatetimeLocal(new Date()).slice(0, 10);
 
-/**
- * #784 (DD-NAR-17): the server's receipt refusals are classified by code; these headlines say what to fix in
- * plain words (the server's own sentence stays as the detail).
- */
-function nativeReceiptErrorHeadlines(err: unknown, t: (key: string, fallback: string) => string): Record<string, string> {
-  const message = err instanceof Error ? err.message : '';
-  return {
-    '23502': t('financeCopy.receiptDateMissing', 'Enter the payment date.'),
-    '23514': /future/i.test(message)
-      ? t('financeCopy.paymentDateNotFuture', 'The payment date cannot be in the future.')
-      : t('financeCopy.receiptRefused', 'Check the receipt amounts.'),
-  };
-}
-
 const validate = (
   v: FormValues,
   t: (key: string, fallback: string) => string,
   native = false,
+  invoiceDate?: string | null,
 ): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
@@ -114,21 +113,34 @@ const validate = (
   if (parsePaymentAmount(v.receivedAmount) === null) {
     errors.receivedAmount = t('financeCopy.receivedAmountPositive', 'Received amount must be positive, with no more than 2 decimal places.');
   }
+  // I-5: in PMO the cash received plus the tax withheld IS the amount settled (DD-RCPT-1) — always, so a part payment
+  // is checked here rather than refused by the server.
+  if (native) {
+    const paid = parsePaymentAmount(v.paidAmount);
+    const received = parsePaymentAmount(v.receivedAmount);
+    const withheldNow = v.withheldAmount.trim() ? parseMoneyInputAtScale(v.withheldAmount, 2) : 0;
+    if (paid !== null && received !== null && withheldNow !== null && withheldNow >= 0
+      && Math.round(received * 100) + Math.round(withheldNow * 100) !== Math.round(paid * 100)) {
+      errors.receivedAmount = t('financeCopy.withheldAmountUnbalanced', "Cash received plus withheld tax must equal the amount allocated to the invoice.");
+    }
+  }
   if (!v.date) errors.date = t('financeCopy.paymentDateRequired', 'Date is required.');
   // #784 (DD-NAR-17): the server refuses a future payment date; say so before the round trip.
   else if (native && v.date > orgToday()) errors.date = t('financeCopy.paymentDateNotFuture', 'The payment date cannot be in the future.');
+  // The server refuses a payment dated before its invoice (0270); say so before the round trip.
+  else if (native && invoiceDate && v.date < invoiceDate) errors.date = t('financeCopy.paymentDateBeforeInvoice', 'The payment date cannot be before the invoice date.');
   const withheld = v.withheldAmount.trim() ? parseMoneyInputAtScale(v.withheldAmount, 2) : 0;
   if (withheld === null || withheld < 0) {
     errors.withheldAmount = t('financeCopy.withheldAmountInvalid', "Withheld tax must be non-negative, with no more than 2 decimal places.");
-  } else if (withheld > 0) {
+  } else if (withheld > 0 && !native) {
     const paid = parsePaymentAmount(v.paidAmount);
     const received = parsePaymentAmount(v.receivedAmount);
     if (paid !== null && received !== null && Math.round(received * 100) + Math.round(withheld * 100) !== Math.round(paid * 100)) {
       errors.withheldAmount = t('financeCopy.withheldAmountUnbalanced', "Cash received plus withheld tax must equal the amount allocated to the invoice.");
     }
-    if (!v.withholdingSlipNumber.trim() || v.withholdingSlipNumber.trim().length > 140) {
-      errors.withholdingSlipNumber = t('financeCopy.withholdingSlipInvalid', "Enter a withholding-slip number of at most 140 characters.");
-    }
+  }
+  if (withheld !== null && withheld > 0 && (!v.withholdingSlipNumber.trim() || v.withholdingSlipNumber.trim().length > 140)) {
+    errors.withholdingSlipNumber = t('financeCopy.withholdingSlipInvalid', "Enter a withholding-slip number of at most 140 characters.");
   }
   return errors;
 };
@@ -144,9 +156,13 @@ const validate = (
  */
 function openInvoiceOptions(
   invoices: SalesInvoiceRow[],
-  customerId?: string | null,
+  customerId: string | null | undefined,
+  native: boolean,
+  t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
 ): ComboboxOption[] {
   return invoices
+    // I-5: a PMO receipt settles only a PMO invoice; an ERP payment never settles a PMO invoice frozen at connect.
+    .filter((inv) => Boolean(inv.pmo_native) === native)
     .filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
     .filter((inv) => inv.erp_outstanding_amount == null || inv.erp_outstanding_amount > 0)
     .filter((inv) => !customerId || inv.customer_id === customerId)
@@ -155,7 +171,7 @@ function openInvoiceOptions(
       label: invoiceNumber(inv) ?? inv.id,
       sub:
         inv.erp_outstanding_amount != null
-          ? `${formatCurrencyCents(inv.erp_outstanding_amount, inv.currency)} outstanding`
+          ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) })
           : undefined,
     }));
 }
@@ -168,7 +184,16 @@ const IncomingPayments: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
   const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
-  const native = useRevenueMode() === 'native';
+  // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
+  const mode = useRevenueMode();
+  const native = mode === 'native';
+  const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
+  // I-5: the invoice each receipt settles, by its number (the list read already holds them).
+  const { data: invoiceList } = useSalesInvoices();
+  const invoiceNumberById = useMemo(
+    () => new Map((invoiceList ?? []).map((inv) => [inv.id, invoiceNumber(inv)])),
+    [invoiceList],
+  );
 
   const canView = may('view', 'incomingPayment');
   const canCreate = may('create', 'incomingPayment');
@@ -191,14 +216,14 @@ const IncomingPayments: React.FC = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all
-      .filter((p) => statusFilter === 'All' || p.status === statusFilter)
+      .filter((p) => matchesStatus(p, statusFilter))
       .filter((p) => !q
         || receiptNumber(p)?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || p.customer_name?.toLowerCase().includes(q));
   }, [all, search, statusFilter]);
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
+  const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
     : isError || !data
       ? 'error'
@@ -233,6 +258,15 @@ const IncomingPayments: React.FC = () => {
       exportValue: (p) => receiptNumber(p) ?? '',
     },
     {
+      key: 'sales_invoice_id',
+      header: t('financeCopy.invoice', "Invoice #"),
+      cell: (p) => {
+        const number = p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? null : null;
+        return <span className="truncate font-mono text-[13px]" title={number ?? ''}>{number ?? '—'}</span>;
+      },
+      exportValue: (p) => (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? '' : ''),
+    },
+    {
       key: 'reference_number',
       header: t('financeCopy.reference', "Reference"),
       cell: (p) => (
@@ -256,10 +290,11 @@ const IncomingPayments: React.FC = () => {
       key: 'status',
       header: t('financeCopy.status', "Status"),
       // #784 AC-NAR-006: a cancelled PMO receipt keeps its row (status stays Paid) and reads Cancelled.
+      // I-5: a live PMO receipt reads Received — the same word as its filter.
       cell: (p) => p.cancelled_at
         ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
-        : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.status, t)}</StatusPill>,
-      exportValue: (p) => (p.cancelled_at ? 'Cancelled' : p.status),
+        : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.pmo_native && p.status === 'Paid' ? 'Received' : p.status, t)}</StatusPill>,
+      exportValue: (p) => (p.cancelled_at ? 'Cancelled' : p.pmo_native && p.status === 'Paid' ? 'Received' : p.status),
     },
     {
       key: 'amount',
@@ -322,7 +357,7 @@ const IncomingPayments: React.FC = () => {
       );
       setCancelTarget(null);
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t));
       toast(headline, detail, 'warning');
     }
   };
@@ -330,11 +365,13 @@ const IncomingPayments: React.FC = () => {
   return (
     <ListPage
       title={t('financeCopy.incomingPayments', "Incoming Payments")}
-      description={native
-        ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
-        : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
+      description={mode === undefined
+        ? undefined
+        : native
+          ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
+          : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
       primaryAction={
-        canCreate && (
+        canCreate && mode !== undefined && (
           <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
             <Icon name="plus" />
             {t('financeCopy.receivePayment', "Receive Payment")}</Button>
@@ -343,11 +380,11 @@ const IncomingPayments: React.FC = () => {
       filters={
         state !== 'loading' && (
           <ViewToggle<StatusFilter>
-            options={STATUS_FILTERS.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
+            options={statusFilters.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
             value={statusFilter}
             onChange={(v) => {
               setStatusFilter(v);
-              trackFilterApplied('status', STATUS_FILTERS.length, 'incomingPayments');
+              trackFilterApplied('status', statusFilters.length, 'incomingPayments');
             }}
             ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
           />
@@ -426,10 +463,6 @@ const IncomingPayments: React.FC = () => {
             toast(t('financeCopy.paymentCreated', 'Payment created'), input.customerId, 'success');
             setFormTarget(null);
           }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err, native ? nativeReceiptErrorHeadlines(err, t) : undefined);
-            toast(headline, detail, 'warning');
-          }}
         />
       )}
 
@@ -468,7 +501,6 @@ interface IncomingPaymentFormModalProps {
     },
     intent: CommandIntent,
   ) => Promise<void>;
-  onError: (err: unknown) => void;
   pendingPush: PendingPushState;
   /** #784: true while PMO owns revenue — the receipt names its invoice and states its payment date (DD-NAR-17). */
   native: boolean;
@@ -478,7 +510,6 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   payment,
   onClose,
   onCreate,
-  onError,
   pendingPush,
   native,
 }) => {
@@ -493,6 +524,8 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   // this identity (the committed Payment Entry is reconciled, NOT posted twice), while a success
   // closes the modal → the next "Receive Payment" mints a fresh one.
   const intent = useCommandIntent();
+  const { data: invoices } = useSalesInvoices();
+  const invoiceDateOf = (id: string | null) => (id ? invoices?.find((inv) => inv.id === id)?.invoice_date ?? null : null);
   const form = useEntityForm<FormValues>({
     initialValues: {
       customerId: '',
@@ -504,7 +537,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       // #784 (DD-NAR-17): a PMO receipt's payment date starts at today in the org's time zone.
       date: native ? orgToday() : new Date().toISOString().split('T')[0],
     },
-    validate: (values) => validate(values, t, native),
+    validate: (values) => validate(values, t, native, invoiceDateOf(values.salesInvoiceId)),
     idPrefix: 'incoming-payment-form',
     requiredFields: ['customerId', 'paidAmount', 'receivedAmount', 'date'],
     module: 'incomingPayments',
@@ -514,12 +547,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   // back the already-fetched lists. The invoice loader depends on the chosen customer, so the
   // picker re-loads when the customer changes.
   const { data: customerOptions } = useClientCompanyOptions();
-  const { data: invoices } = useSalesInvoices();
   const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => customerOptions ?? [], [customerOptions]);
   const selectedCustomerId = form.values.customerId;
   const loadOpenInvoices = useCallback(
-    async (): Promise<ComboboxOption[]> => openInvoiceOptions(invoices ?? [], selectedCustomerId),
-    [invoices, selectedCustomerId],
+    async (): Promise<ComboboxOption[]> => openInvoiceOptions(invoices ?? [], selectedCustomerId, native, t),
+    [invoices, selectedCustomerId, native, t],
   );
 
   const customerField = form.fieldProps('customerId');
@@ -575,16 +607,10 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       try {
         await onCreate(input, intent);
       } catch (err) {
-        // `suppressCapture` only: the page's own `onError` classifies this same rejection for
-        // the toast and owns the single `save_failed` event (ADR-0067). Passing a module here
-        // would be a second, competing capture point.
-        const { headline, detail } = classifyMutationError(
-          err,
-          native ? nativeReceiptErrorHeadlines(err, t) : undefined,
-          { suppressCapture: true },
-        );
+        // A rejected save is shown ONCE — here, persistently, in the dialog (#559) — not also as a toast, so this is
+        // the form's one `save_failed` capture point (ADR-0067). Headlines are keyed on the refusal code (#784).
+        const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t), { module: 'sales' });
         setSaveError({ headline, detail });
-        onError(err);
       }
     });
   };
@@ -592,9 +618,10 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit payment' : 'Receive Payment'}
-      subtitle={isEdit ? 'Update this incoming payment' : 'Record a new incoming payment from a client'}
-      submitLabel={isEdit ? 'Save payment' : 'Record payment'}
+      title={isEdit ? t('financeCopy.editPaymentTitle', 'Edit payment') : t('financeCopy.receivePayment', 'Receive Payment')}
+      subtitle={isEdit ? t('financeCopy.editPaymentSubtitle', 'Update this incoming payment') : t('financeCopy.receivePaymentSubtitle', 'Record a new incoming payment from a client')}
+      submitLabel={isEdit ? t('financeCopy.savePayment', 'Save payment') : t('financeCopy.recordPayment', 'Record payment')}
+      cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={handleSubmit}
       submitError={saveError}
       onClose={onClose}
@@ -641,7 +668,12 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
           <NumberField
             label={t('financeCopy.paidAmount', "Paid Amount")}
             value={String(paidAmountField.value)}
-            onChange={(v) => paidAmountField.onChange(v)}
+            onChange={(v) => {
+              // I-5: while nothing is withheld, the cash received IS the amount paid — keep them in step.
+              const withheldNow = form.values.withheldAmount.trim() ? parseMoneyInputAtScale(form.values.withheldAmount, 2) : 0;
+              if (native && withheldNow === 0) form.setValues({ paidAmount: v, receivedAmount: v });
+              else paidAmountField.onChange(v);
+            }}
             required
             min={0}
             step={0.01}
@@ -690,6 +722,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
           <TextField
             label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
             max={native ? orgToday() : undefined}
+            min={native ? chosenInvoice?.invoice_date ?? undefined : undefined}
             value={dateField.value}
             onChange={dateField.onChange}
             onBlur={dateField.onBlur}

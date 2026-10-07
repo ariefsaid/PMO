@@ -42,7 +42,7 @@ describe('no ERP owns revenue — writes take the PMO path and never dispatch (A
   it('AC-NAR-001 createInvoice raises a PMO invoice with the typed lines and never dispatches', async () => {
     const items = [{ item_code: 'SVC', qty: 2, rate: 500000, description: 'Site survey' }];
     await expect(repositories.revenue.createInvoice({ customerId: 'c-1', projectId: 'p-1', items }))
-      .resolves.toEqual({ id: 'si-native-1', si_number: '' });
+      .resolves.toEqual({ id: 'si-native-1', si_number: null });
     expect(native.createNativeSalesInvoice).toHaveBeenCalledWith({ projectId: 'p-1', customerId: 'c-1', lines: items, workOrderId: null });
     expect(dispatchDomainCommand).not.toHaveBeenCalled();
   });
@@ -65,9 +65,13 @@ describe('no ERP owns revenue — writes take the PMO path and never dispatch (A
   });
   it('AC-NAR-003 createPayment records a PMO receipt against the invoice', async () => {
     await expect(repositories.revenue.createPayment({ customerId: 'c-1', salesInvoiceId: 'si-1', paidAmount: 610000, receivedAmount: 600000, withheldAmount: 10000, withholdingSlipNumber: 'BP-1', date: '2026-10-07' }))
-      .resolves.toEqual({ id: 'ip-native-1', ip_number: '' });
+      .resolves.toEqual({ id: 'ip-native-1', ip_number: null });
     expect(native.recordNativeReceipt).toHaveBeenCalledWith({ salesInvoiceId: 'si-1', amount: 610000, receivedAmount: 600000, withheldAmount: 10000, withholdingSlipNumber: 'BP-1', date: '2026-10-07' });
     expect(dispatchDomainCommand).not.toHaveBeenCalled();
+  });
+  it('AC-NAR-003 (DD-NAR-17) an amount with no cash/withheld split sends no client-computed split — the server defaults it', async () => {
+    await repositories.revenue.createPayment({ customerId: 'c-1', salesInvoiceId: 'si-1', paidAmount: 610000.1, date: '2026-10-07' });
+    expect(native.recordNativeReceipt).toHaveBeenCalledWith({ salesInvoiceId: 'si-1', amount: 610000.1, date: '2026-10-07' });
   });
   it('AC-NAR-003 a PMO receipt must name its invoice', async () => {
     await expect(repositories.revenue.createPayment({ customerId: 'c-1', salesInvoiceId: null, paidAmount: 1, receivedAmount: 1, date: '2026-10-07' }))
@@ -90,6 +94,10 @@ describe('an ERP owns revenue — a PMO row from before connect is never pushed 
   it('AC-NAR-004 submitInvoice on a PMO invoice is refused and never dispatched', async () => {
     await expect(repositories.revenue.submitInvoice('si-1')).rejects.toMatchObject({ code: 'native-revenue-read-only' });
     expect(dispatchDomainCommand).not.toHaveBeenCalled();
+  });
+  it('AC-NAR-004 a PMO invoice is refused as read-only BEFORE the ERP SoD check runs', async () => {
+    await expect(repositories.revenue.submitInvoice('si-1')).rejects.toMatchObject({ code: 'native-revenue-read-only' });
+    expect(revenueDb.submitSalesInvoiceSod).not.toHaveBeenCalled();
   });
   it('AC-NAR-004 cancelInvoice on a PMO invoice is refused and never dispatched', async () => {
     await expect(repositories.revenue.cancelInvoice('si-1')).rejects.toMatchObject({ code: 'native-revenue-read-only' });

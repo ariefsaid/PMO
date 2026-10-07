@@ -11,6 +11,7 @@ vi.mock('./analytics', () => analytics);
 
 import { classifyMutationError, trackBatchSaveFailed } from './classifyMutationError';
 import type { ClassifyContext } from './classifyMutationError';
+import { NATIVE_REVENUE_REFUSALS } from './db/revenueNative';
 
 beforeEach(() => {
   analytics.trackSaveFailed.mockClear();
@@ -72,6 +73,14 @@ describe('classifyMutationError friction capture', () => {
     analytics.trackSaveFailed.mockClear();
     classifyMutationError({ code: '503 Service Unavailable for tenant Acme Corp', message: 'x' });
     expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe('other');
+  });
+
+  it('#784 the PMO-native revenue refusal codes are reviewed reason codes and pass through', () => {
+    for (const code of NATIVE_REVENUE_REFUSALS) {
+      analytics.trackSaveFailed.mockClear();
+      classifyMutationError({ code, message: 'refused' });
+      expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe(code);
+    }
   });
 
   it('SECURITY (review round 2 #3): `module` is bounded to a known slug — a free-text value ' +

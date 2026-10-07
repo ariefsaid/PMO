@@ -1,18 +1,18 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import type { Json } from '@/src/lib/supabase/database.types';
 
 /**
  * #784 (ADR-0055 addendum 2026-10-07): the PMO-native revenue writes — used while no ERP owns revenue for the org.
  * Every write is a SECURITY DEFINER RPC (migration 0270) that enforces role (Admin/Finance), approval SoD, ownership and
  * balance rules; this module only names them.
  */
-export interface NativeInvoiceLineInput {
+/** A type alias (not an interface) so a line is assignable to the generated `Json` the RPC takes. */
+export type NativeInvoiceLineInput = {
   item_code: string;
   qty: number;
   rate: number;
   description?: string;
-}
+};
 
 export interface NativeInvoiceInput {
   projectId: string;
@@ -36,19 +36,50 @@ export interface NativeReceiptInput {
   date: string;
 }
 
-function fail(error: { message: string; code?: string }): never {
-  throw new AppError(error.message, error.code);
+/**
+ * The machine-readable refusal codes migration 0270's RPCs put in the error DETAIL. The UI keys its headlines on these,
+ * never on the message text. Any other detail (e.g. Postgres's own "Failing row contains …") is ignored and the
+ * SQLSTATE stays the code, so free text never becomes a code.
+ */
+export const NATIVE_REVENUE_REFUSALS = [
+  // Ownership: a PMO write once an ERP owns revenue; the PMO path refusing an ERP row; the ERP path refusing a PMO row.
+  'erp-owns-revenue', 'not-pmo-native', 'pmo-native',
+  // Receipts (23502 / 23514).
+  'payment-date-missing', 'payment-date-future', 'payment-date-before-invoice', 'receipt-amount-invalid',
+  'withheld-amount-invalid', 'receipt-split-mismatch', 'withholding-slip-missing', 'receipt-on-pmo-invoice',
+  // Invoice body (23514) and tax (P0001).
+  'invoice-lines-count', 'invoice-line-invalid', 'invoice-total-invalid', 'vat-rate-missing',
+  // State (P0001) and approval SoD.
+  'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
+  'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
+] as const;
+export type NativeRevenueRefusal = (typeof NATIVE_REVENUE_REFUSALS)[number];
+const REFUSALS: ReadonlySet<string> = new Set(NATIVE_REVENUE_REFUSALS);
+
+/** The code a revenue refusal is classified by: its machine-readable detail when it is a known one, else the SQLSTATE. */
+export function revenueRefusalCode(error: { code?: string; details?: string | null }): string | undefined {
+  return error.details && REFUSALS.has(error.details) ? error.details : error.code;
+}
+
+function fail(error: { message: string; code?: string; details?: string | null }): never {
+  throw new AppError(error.message, revenueRefusalCode(error));
+}
+
+/** The new row's id. A write that reports success with no id is an error, never the string "null". */
+function newId(data: unknown, what: string): string {
+  if (typeof data !== 'string' || data === '') throw new AppError(`the server recorded the ${what} but returned no id`);
+  return data;
 }
 
 export async function createNativeSalesInvoice(input: NativeInvoiceInput): Promise<string> {
   const { data, error } = await supabase.rpc('create_native_sales_invoice', {
     p_project_id: input.projectId,
     p_customer_id: input.customerId,
-    p_lines: input.lines as unknown as Json,
+    p_lines: input.lines,
     ...(input.workOrderId ? { p_work_order_id: input.workOrderId } : {}),
   });
   if (error) fail(error);
-  return String(data);
+  return newId(data, 'invoice');
 }
 
 export async function transitionNativeSalesInvoice(id: string, to: 'Unpaid' | 'Cancelled'): Promise<void> {
@@ -67,7 +98,7 @@ export async function recordNativeReceipt(input: NativeReceiptInput): Promise<st
     p_date: input.date,
   });
   if (error) fail(error);
-  return String(data);
+  return newId(data, 'receipt');
 }
 
 export async function cancelNativeReceipt(id: string): Promise<void> {

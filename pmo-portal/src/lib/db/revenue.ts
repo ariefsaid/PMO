@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
@@ -275,7 +276,8 @@ export async function getIncomingPayment(id: string): Promise<IncomingPaymentRow
  */
 export async function submitSalesInvoiceSod(siId: string): Promise<void> {
   const { error } = await supabase.rpc('submit_sales_invoice', { p_si_id: siId });
-  if (error) throw error;
+  // #784: keyed on the refusal's machine-readable detail (e.g. `pmo-native`, `sod-self-approval`) when it carries one.
+  if (error) throw new AppError(error.message, revenueRefusalCode(error));
 }
 
 /**

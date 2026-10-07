@@ -20,6 +20,7 @@ import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTim
 import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
+import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -629,6 +630,9 @@ const ApprovalsPage: React.FC = () => {
 
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
+  // #784 C-1: the same source the "Customer invoices awaiting you" section lists, so the page never claims "all caught
+  // up" above a waiting invoice.
+  const invoices = useInvoicesAwaitingViewer();
 
   const procurementRows = useMemo(
     () => pendingProcurementApprovals(procurements, selfId, realRole === 'Admin').sort(
@@ -664,7 +668,9 @@ const ApprovalsPage: React.FC = () => {
 
   const procSettledEmpty = !canApproveProcurement || (!procPending && !procError && pendingProc === 0);
   const tsSettledEmpty = !canApproveTimesheets || (!tsPending && !tsError && pendingTs === 0);
-  const allCaughtUp = procSettledEmpty && tsSettledEmpty;
+  const pendingInv = invoices.rows.length;
+  const invSettledEmpty = !invoices.isPending && !invoices.isError && pendingInv === 0;
+  const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty;
 
   const queueItems = useMemo<QueueItem[]>(() => {
     const items: QueueItem[] = [];
@@ -746,7 +752,7 @@ const ApprovalsPage: React.FC = () => {
         <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
           {t(
             'approvals.subtitle',
-            'Needs my approval — everything waiting on your decision, across procurement and timesheets.',
+            'Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.',
           )}
         </p>
       </div>
@@ -773,7 +779,8 @@ const ApprovalsPage: React.FC = () => {
                         value: 'all' as const,
                         label: t('approvals.scope.all', 'All'),
                         icon: 'grid' as const,
-                        count: pendingProc + pendingTs,
+                        // #784 C-1: the All count includes the customer invoices listed above the queue.
+                        count: pendingProc + pendingTs + pendingInv,
                       },
                     ]
                   : []),
@@ -817,7 +824,7 @@ const ApprovalsPage: React.FC = () => {
           <p className="max-w-[44ch] text-[13px] text-muted-foreground">
             {t(
               'approvals.caughtUp.sub',
-              'Nothing is waiting on your approval right now. New purchase requests and submitted timesheets will appear here.',
+              'Nothing is waiting on your approval right now. New purchase requests, timesheets, expense claims and customer invoices will appear here.',
             )}
           </p>
         </div>

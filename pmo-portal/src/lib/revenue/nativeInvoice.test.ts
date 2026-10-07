@@ -5,6 +5,7 @@ import {
   isPartlyPaid,
   nativeInvoiceSummary,
   overpaidBy,
+  paidToDate,
   receiptNumber,
 } from './nativeInvoice';
 
@@ -46,5 +47,18 @@ describe('nativeInvoice display rules (#784)', () => {
     expect(nativeInvoiceSummary({ native_lines: [line, { ...line, description: null }] })).toBe('Site survey +1');
     expect(nativeInvoiceSummary({ native_lines: [{ ...line, description: null }] })).toBe('SVC');
     expect(nativeInvoiceSummary({ native_lines: null })).toBeNull();
+  });
+  it('AC-NAR-003 (I-4) a PMO invoice reads what has been paid, so gross − paid = outstanding reconciles by eye', () => {
+    expect(paidToDate(unpaid)).toBe(500_000);
+    expect(paidToDate({ ...unpaid, status: 'Paid', erp_outstanding_amount: 0 })).toBe(1_110_000);
+    // DD-NAR-17: an overpaid invoice has paid its gross plus the excess.
+    expect(paidToDate({ ...unpaid, status: 'Paid', erp_outstanding_amount: 0, overpaid_amount: 90_000 })).toBe(1_200_000);
+    expect(paidToDate({ ...unpaid, erp_outstanding_amount: 1_110_000 })).toBe(0);
+  });
+  it('AC-NAR-003 (I-4) a Draft, a Cancelled, an ERP or an unreported invoice has no paid-to-date', () => {
+    expect(paidToDate({ ...unpaid, status: 'Draft', erp_outstanding_amount: null })).toBeNull();
+    expect(paidToDate({ ...unpaid, status: 'Cancelled', erp_outstanding_amount: 0 })).toBeNull();
+    expect(paidToDate({ ...unpaid, pmo_native: false })).toBeNull();
+    expect(paidToDate({ ...unpaid, erp_outstanding_amount: null })).toBeNull();
   });
 });

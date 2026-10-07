@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
-import { cancelNativeReceipt, createNativeSalesInvoice, recordNativeReceipt, transitionNativeSalesInvoice } from './revenueNative';
+import { NATIVE_REVENUE_REFUSALS, cancelNativeReceipt, createNativeSalesInvoice, recordNativeReceipt, transitionNativeSalesInvoice } from './revenueNative';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -55,5 +55,24 @@ describe('revenueNative DAL (#784) — names the four RPCs and sends what the us
     await expect(recordNativeReceipt({ salesInvoiceId: 'si-1', date: '2099-01-01' })).rejects.toMatchObject({ code: '23514' });
     await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [] })).rejects.toBeInstanceOf(AppError);
     await expect(cancelNativeReceipt('ip-1')).rejects.toBeInstanceOf(AppError);
+  });
+  it('#784 the final refusal codes from migration 0270 are all known (22)', () => {
+    expect(NATIVE_REVENUE_REFUSALS).toHaveLength(22);
+    expect(NATIVE_REVENUE_REFUSALS).toEqual(expect.arrayContaining(['pmo-native', 'receipt-split-mismatch', 'sod-self-approval', 'illegal-transition']));
+  });
+  it('#784 a refusal carrying a machine-readable detail reaches the caller keyed on that detail, not the SQLSTATE', async () => {
+    for (const detail of NATIVE_REVENUE_REFUSALS) {
+      h.rpc.mockResolvedValueOnce({ data: null, error: { message: 'refused', code: '23514', details: detail } });
+      await expect(recordNativeReceipt({ salesInvoiceId: 'si-1', date: '2026-10-07' })).rejects.toMatchObject({ code: detail, message: 'refused' });
+    }
+  });
+  it('#784 an unknown detail never becomes the code — the SQLSTATE stays', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'refused', code: '23514', details: 'Failing row contains (secret)' } });
+    await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [{ item_code: 'S', qty: 1, rate: 1 }] })).rejects.toMatchObject({ code: '23514' });
+  });
+  it('#784 a write that returns no id is an error, never the string "null"', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [{ item_code: 'S', qty: 1, rate: 1 }] })).rejects.toBeInstanceOf(AppError);
+    await expect(recordNativeReceipt({ salesInvoiceId: 'si-1', date: '2026-10-07' })).rejects.toBeInstanceOf(AppError);
   });
 });
