@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Issue** | [#912](https://github.com/ariefsaid/PMO/issues/912) — invoice PDF |
-| **Status** | Draft — DD-PDF-1..11 proposed by the planner, awaiting Director ruling; two owner questions (§2) |
+| **Status** | Accepted — DD-PDF-1..11 accepted by the Director 2026-10-07 by the planner, awaiting Director ruling; two owner questions (§2) |
 | **Rulings it serves** | `OD-INV-PDF-1` (go-live: PMO hands over the ERP's own print-format PDF of a submitted invoice) · `OD-ERP-3` (nobody at the client opens ERPNext; a need an ERPNext screen would meet is a PMO gap) · `OD-SAR-PMO-IS-THE-UI` |
 | **Architecture** | ADR-0055 (ERP is SoT for revenue documents) · ADR-0083 (ERP-rendered documents are proxied on demand, never stored) |
 | **Lane** | auth / token custody — an edge function reads the client's ERP with the org's stored credentials. Director-dispatched build. |

@@ -3170,6 +3170,18 @@
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
   "financeCopy": {
+    "invoicePdf": {
+      "download": "Unduh PDF",
+      "failed": "PDF tidak dapat diunduh",
+      "notPermitted": "ERP menolak mencetak faktur ini. Minta administrator memberi pengguna integrasi akses Cetak untuk Faktur Penjualan.",
+      "documentMissing": "ERP tidak lagi memiliki faktur ini. Muat ulang daftar lalu coba lagi.",
+      "notSubmitted": "Hanya faktur yang sudah diajukan yang dapat diunduh. Muat ulang daftar — faktur ini mungkin sudah dibatalkan.",
+      "notErpInvoice": "Faktur ini tidak diterbitkan melalui ERP, jadi tidak ada PDF dari ERP.",
+      "notConnected": "Koneksi ERP tidak aktif. Minta administrator memeriksa Integrasi.",
+      "notFound": "Faktur ini tidak lagi tersedia. Muat ulang daftar.",
+      "forbidden": "Anda tidak memiliki akses untuk mengunduh faktur ini.",
+      "unreachable": "ERP tidak merespons. Coba lagi sebentar lagi."
+    },
     "receivedDate": "Diterima",
     "recordReceivedDate": "Catat tanggal diterima",
     "receivedDateHelp": "Tanggal klien menerima faktur ini. Tanggal jatuh tempo mengikuti tanggal ini.",
