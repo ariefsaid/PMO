@@ -1322,12 +1322,14 @@ with period lock and foreign-currency revaluation (#900). Map: "Month-end and ye
 is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
 work, not a PMO gap.
 
-**[DD-NAR-1..15] PMO-native customer invoicing when no ERP owns revenue (#784, Director 2026-10-07).** Recorded in
+**[DD-NAR-1..17] PMO-native customer invoicing when no ERP owns revenue (#784, Director 2026-10-07).** Recorded in
 full in `docs/specs/no-erp-revenue.spec.md` §3: PMO owns revenue when no ERP row says otherwise; same tables with a
 `pmo_native` marker written only by four RPCs; no new status (Partly paid is display); Paid stamped from a recomputed
 balance; approver ≠ author, role + membership read at approval time; Admin/Finance only (DD-NAR-15, owner ruling);
 project required, tax from the project; corrections by cancelling; at connect the `OD-XING-1` flip applies (PMO rows
-frozen, never pushed). ADR-0055 addendum 2026-10-07 makes §5A defer to `OD-XING-1`.
+frozen, never pushed); at connect each open PMO invoice is stamped with the amount carried into the ERP opening entry
+(DD-NAR-16); a receipt may be short or over — over marks Paid and records `overpaid_amount` (DD-NAR-17). Owner
+rulings: OD-NAR-1. ADR-0055 addendum 2026-10-07 makes §5A defer to `OD-XING-1`.
 
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains

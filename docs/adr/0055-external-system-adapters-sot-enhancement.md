@@ -172,7 +172,7 @@ entry wedge.
 
 ## Addendum — 2026-10-07: PMO-native revenue when no ERP owns it (#784, OD-REEL-1)
 
-**Status:** Proposed (Director sign-off with `docs/specs/no-erp-revenue.spec.md`, DD-NAR-1..14).
+**Status:** Accepted (Director 2026-10-07, with `docs/specs/no-erp-revenue.spec.md`, DD-NAR-1..17; owner rulings OD-NAR-1).
 
 ### Context
 
@@ -208,7 +208,8 @@ has happened is externally-owned, always") describes a client that employs an ER
 
 - Open native receipts-to-be at connect (Unpaid PMO invoices) are not settled in PMO after connect. The client's
   accountant carries them into the ERP as one opening entry (OD-XING-1 option 3); loading them as individual ERP
-  invoices would have the feed adopt them into PMO a second time. Owner question 1 in the spec.
+  invoices would have the feed adopt them into PMO a second time. Owner ruling OD-NAR-1: PMO stamps each such invoice
+  with the amount carried (`erp_opening_amount`/`erp_opening_at`, DD-NAR-16) so the sum reconciles to that one entry.
 - A no-ERP org's invoices count everywhere invoices count (revenue by project, management pack, work-order billing),
   because they are the same rows with the same statuses.
 - The client-INSERT seam left by 0176/0178 stays; rows it produces are not native and cannot be approved or settled.
