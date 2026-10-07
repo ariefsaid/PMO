@@ -1314,6 +1314,14 @@ headless ledger only. Sharpens `OD-SAR-PMO-IS-THE-UI` (which still allowed the D
 ERPNext screen would meet is a **PMO gap**, filed as a PMO issue — never answered with an ERPNext login.
 ERPNext setup and data fixes are operator work (us), not RIS's.
 
+**[OD-ERP-4] What `OD-ERP-3` adds to PMO, and when (owner, 2026-10-07).** Go-live: vendor withholding (#876)
+and the e-Faktur number/date on invoices and bills (#893). First month-end (≈ early November): manual journal
+entries with maker ≠ approver, **built first** (#895) → bank book + reconciliation (#896), financial statements
+with the audit pack folded in (#897), tax registers (#898). Year-end: fixed-asset register (#899), year-end close
+with period lock and foreign-currency revaluation (#900). Map: "Month-end and year-end close in PMO when the ERP
+is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
+work, not a PMO gap.
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
