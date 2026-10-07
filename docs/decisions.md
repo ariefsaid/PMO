@@ -3061,6 +3061,8 @@ assistant links the WO and defaults to what is left (amends DD-AIN-4) (DD-BWO-9)
 the Executive/Finance dashboards (DD-BWO-10) · invoices without a WO stay legal, project-level (DD-BWO-11) · the
 milestone→WO display link is a follow-up (DD-BWO-12). Plan: `docs/plans/2026-10-07-billing-by-work-order.md`.
 
+**DD-BWO-13 (Director, 2026-10-07, #785 rendered review)** — the Billing tab's "Claims raised, not yet submitted" (claims only, AC-PB-007/008) and the Work orders tab's "Not yet submitted" (drafts + unraised claims, DD-BWO-1) are different measures and carry different labels; they are not reconciled into one figure. A WO with nothing left but a draft outstanding reads "Awaiting submission", never "Fully invoiced".
+
 **OD-ROLE-1 (owner, 2026-10-07) — user-defined roles and permissions.**
 (1) The organisation's system Admin creates and edits roles and their permission matrix in the app (for the first client, the owner). (2) Granularity = module × action (view / create / edit / request / approve / delete / export) **with a scope per permission** (assigned projects only vs the whole organisation); field-level permissions (e.g. see cost but not margin) are an aspirational later step, charted as fog. (3) Not a go-live blocker — built after go-live; until then a requester-only user takes the closest built-in role and is not named as a project's PM (so no routed approval reaches them). Director defaults stated alongside: SoD (requester ≠ approver, value-setter rules) stays hard-wired whatever a role says; the built-in roles become editable presets; every permission is enforced server-side (RLS/RPC), the FE only mirrors it.
 

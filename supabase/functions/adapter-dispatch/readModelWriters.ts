@@ -689,8 +689,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // throws.
     const customerId = await resolveLinkOrNull(ctx, 'companies', record.customerId);
     const projectId = await resolveLinkOrNull(ctx, 'projects', record.projectId);
-    // #766: a claim invoice records the work order it bills (the dispatch set it from the claim). The
-    // same-project trigger (0193 §10) re-checks it; an absent work order writes no key at all.
+    // #766 + OD-BILL-1 (DD-BWO-8): a create records the work order it bills — a claim's (set from the claim) or the
+    // one an ordinary create names. The outbox fence (0262) checked its project, status and what is left before the
+    // ERP write, so the same-project trigger (0193 §10) cannot refuse it here; an absent work order writes no key.
     const workOrderId = await resolveLinkOrNull(ctx, 'work_orders', record.workOrderId);
     // project_id and customer_id are machine-set from the command record
     // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a

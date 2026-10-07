@@ -35,6 +35,13 @@ export function useProgressBillingMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['salesInvoices'] });
   };
+  // OD-BILL-1: an unraised claim counts as pending against its work order, so a claim write also moves the
+  // work-order billing (Work orders tab) and the org-wide still-to-invoice card (dashboards).
+  const invalidateClaim = () => {
+    invalidate();
+    void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
+    void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
+  };
   const createBoq = useMutation({ mutationFn: (input: BoqItemInput) => repositories.progressBilling.createBoq(projectId, input), onSuccess: invalidate });
   const updateBoq = useMutation({ mutationFn: ({ id, input }: { id: string; input: BoqItemInput }) => repositories.progressBilling.updateBoq(id, input), onSuccess: invalidate });
   const deleteBoq = useMutation({ mutationFn: (id: string) => repositories.progressBilling.deleteBoq(id), onSuccess: invalidate });
@@ -42,16 +49,16 @@ export function useProgressBillingMutations(projectId: string) {
     mutationFn: (input: Omit<ProgressAssessmentInput, 'projectId'>) => repositories.progressBilling.recordAssessment({ ...input, projectId }),
     onSuccess: () => { invalidate(); void qc.invalidateQueries({ queryKey: ['managementPack'] }); },
   });
-  const createClaim = useMutation({ mutationFn: (input: Omit<ProgressClaimInput, 'projectId'>) => repositories.progressBilling.createClaim({ ...input, projectId }), onSuccess: invalidate });
+  const createClaim = useMutation({ mutationFn: (input: Omit<ProgressClaimInput, 'projectId'>) => repositories.progressBilling.createClaim({ ...input, projectId }), onSuccess: invalidateClaim });
   const attachEvidence = useMutation({
     mutationFn: ({ claimId, documentId }: { claimId: string; documentId: string }) => repositories.progressBilling.attachEvidence(claimId, documentId),
     onSuccess: invalidate,
   });
-  const withdrawClaim = useMutation({ mutationFn: (id: string) => repositories.progressBilling.withdrawClaim(id), onSuccess: invalidate });
+  const withdrawClaim = useMutation({ mutationFn: (id: string) => repositories.progressBilling.withdrawClaim(id), onSuccess: invalidateClaim });
   const raiseInvoice = useMutation({
     mutationFn: ({ claimId, customerId, intent }: { claimId: string; customerId: string; intent?: CommandIntent }) =>
       repositories.progressBilling.raiseInvoice({ claimId, projectId, customerId }, intent),
-    onSettled: invalidate,
+    onSettled: invalidateClaim,
   });
   return { createBoq, updateBoq, deleteBoq, recordAssessment, createClaim, attachEvidence, withdrawClaim, raiseInvoice };
 }

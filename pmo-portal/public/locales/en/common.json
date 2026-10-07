@@ -919,6 +919,16 @@
       "activeProjects": "active projects",
       "statuses": "statuses"
     },
+    "stillToInvoice": {
+      "count": "Work orders: {{n}}",
+      "daysSinceClosed": "Days since closed: {{days}}",
+      "empty": "Nothing left to invoice on issued work orders",
+      "error": "Couldn't load what is still to invoice",
+      "incomplete": "Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}",
+      "title": "Still to invoice on work orders",
+      "incompleteMore": "and {{n}} more",
+      "clientPo": "Client PO {{po}}"
+    },
     "subtitle": {
       "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
       "mobile": "What needs your attention across the contracting book."
@@ -1714,7 +1724,7 @@
         "exclTax": "excl. PPN",
         "gap": "Work done, not yet billed",
         "noAssessment": "No assessment yet",
-        "notSubmitted": "Raised, not yet submitted",
+        "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
         "title": "Billing summary"
       }
@@ -2322,13 +2332,70 @@
         "new": "New work order",
         "setValue": "Set value"
       },
+      "billing": {
+        "column": "Billing",
+        "incompleteNote": "An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.",
+        "invoiceAction": "Invoice",
+        "invoiced": "Invoiced",
+        "lineInvoiced": "Invoiced {{invoiced}} · paid {{paid}}",
+        "lineOver": "Over by {{amount}}",
+        "lineRemaining": "Still to invoice {{amount}}",
+        "loadError": "Couldn't load billing for these work orders",
+        "modal": {
+          "amount": "Amount (excl. PPN)",
+          "amountHelp": "Up to {{remaining}} is still to invoice on this work order.",
+          "description": "Description",
+          "errorHeadline": "That would invoice past the work order",
+          "errors": {
+            "amountInvalid": "Enter an amount with no more than 2 decimal places.",
+            "amountOver": "Only {{remaining}} is still to invoice on this work order.",
+            "amountPositive": "The amount must be more than zero.",
+            "itemRequired": "Choose the ERP item.",
+            "refused": "Nothing was written to ERPNext. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left."
+          },
+          "item": "ERP item",
+          "itemCode": "Item code",
+          "submit": "Create draft invoice",
+          "subtitle": "Creates a draft invoice in ERPNext for the project's client. A different Finance or Admin user submits it.",
+          "title": "Invoice this work order",
+          "createFailed": "Couldn't create the draft invoice",
+          "cancel": "Cancel",
+          "clientPo": "Client PO on the invoice",
+          "clientPoNone": "None on this work order"
+        },
+        "paid": "Paid",
+        "status": {
+          "fullyInvoiced": "Fully invoiced",
+          "incomplete": "Can't total",
+          "notInvoiced": "Not invoiced",
+          "overInvoiced": "Over-invoiced",
+          "paid": "Paid",
+          "partlyInvoiced": "Partly invoiced",
+          "awaitingSubmission": "Awaiting submission"
+        },
+        "stillToInvoice": "Still to invoice",
+        "summaryNote": "Issued and closed work orders, less what has been invoiced or drafted against them.",
+        "summaryTitle": "Billing against work orders",
+        "toast": {
+          "created": "Draft invoice created",
+          "createdSub": "{{number}} — submit it from Sales Invoices."
+        },
+        "unavailable": "Unavailable",
+        "notSubmitted": "Not yet submitted",
+        "lineNotSubmitted": "Not yet submitted {{amount}}",
+        "lineNet": "Net value {{amount}}",
+        "cause": {
+          "noAmount": "{{number}} has no amount",
+          "otherCurrency": "{{number}} is in {{currency}}",
+          "anInvoice": "An invoice"
+        }
+      },
       "clientPo": "Client PO",
       "column": {
         "actions": "Actions",
         "number": "WO number",
         "orderDate": "Order date",
         "status": "Status",
-        "title": "Scope",
         "value": "Order value"
       },
       "confirm": {

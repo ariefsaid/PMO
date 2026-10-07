@@ -20,6 +20,7 @@ import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
 import { AwaitingApprovalTile } from '@/src/components/dashboard/AwaitingApprovalTile';
+import { StillToInvoiceCard } from '@/src/components/dashboard/StillToInvoiceCard';
 import { MobileExecutiveDashboard } from '@/src/components/dashboard/MobileExecutiveDashboard';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -113,6 +114,8 @@ const ExecutiveDashboard: React.FC = () => {
     /** Chart/detail section — shared between mobile (below fold) and desktop. */
     const chartsSection = (
       <>
+        {/* OD-BILL-1 / #786: what is still to invoice on the client's POs (gated inside on salesInvoice.view). */}
+        <StillToInvoiceCard />
         <DashGrid>
           <Card data-testid="dashboard-pipeline">
             <span className="sr-only">{`${data.active_projects} ${t('dashboard.sr.activeProjects', 'active projects')}`}</span>
