@@ -339,6 +339,18 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const { toast } = useToast();
   const { t } = useTranslation();
   const cfg = kindConfig(kind);
+  // #910 (DD-VPAY-8): the payment capture NEVER asks for a status — the form's `{Pending, Processed,
+  // Cleared}` options are illegal against the `payments.status ('Scheduled','Paid')` CHECK (0035), so
+  // every native form capture from this form failed (0178). The native RPC coalesces a null status to
+  // `Scheduled`; the external wire record omits status entirely (DD-VPAY-1) — the ERP docstatus is
+  // the only status truth. Other kinds keep their selects.
+  const isPayment = kind === 'payment';
+  // #910 (DD-VPAY-3 + DD-VPAY-10, FR-VPAY-010): on a FLIPPED org (the same org-level predicate the
+  // group-ref hide uses) the dispatched payment must name its bill — so the invoice FK is required,
+  // and selecting a bill prefills the amount with its mirrored ERP outstanding (what we actually
+  // owe, net of withholding). On a PMO-native org the FK stays optional (nullable predecessor).
+  const paymentBillRequired = isPayment && !groupRefIsPmoAuthored();
+  const [billError, setBillError] = useState<string | undefined>(undefined);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [groupRef, setGroupRef] = useState('');
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
@@ -471,7 +483,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     try {
       const refNum = referenceNumber.trim() || null;
       const dateVal = date || null;
-      const statusVal = status || null;
+      // DD-VPAY-8: a payment never sends a status — not the (hidden, illegal) select value.
+      const statusVal = isPayment ? null : (status || null);
+
+      // DD-VPAY-3: on a flipped org the payment MUST name its bill — refused here, locally, before
+      // any dispatch call (the server gate is the authority; this is the form not throwing blind).
+      if (paymentBillRequired && !invoiceId) {
+        setBillError('Select the vendor invoice this payment closes.');
+        setSubmitting(false);
+        return;
+      }
 
       let input: CreateRecordInput;
       if (kind === 'payment') {
@@ -582,17 +603,19 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           />
         </div>
 
-        {/* Status */}
-        <div className="min-w-[140px] flex-1">
-          <SelectField
-            id={`${formId}-status`}
-            label="Status"
-            value={status}
-            onChange={setStatus}
-            options={statusOptions}
-            data-testid={cfg.statusTestId}
-          />
-        </div>
+        {/* Status — never rendered for a payment: DD-VPAY-8 (the options are illegal; null is sent). */}
+        {!isPayment && (
+          <div className="min-w-[140px] flex-1">
+            <SelectField
+              id={`${formId}-status`}
+              label="Status"
+              value={status}
+              onChange={setStatus}
+              options={statusOptions}
+              data-testid={cfg.statusTestId}
+            />
+          </div>
+        )}
       </div>
 
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
@@ -691,17 +714,35 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </p>
       )}
 
-      {/* [PD-5]: predecessor FK for payment — optional inline-select */}
+      {/* [PD-5]: predecessor FK for payment — required on a flipped org (DD-VPAY-3), optional otherwise */}
       {cfg.showInvoiceFk && (
-        <SelectField
-          id={`${formId}-invoice`}
-          label={<>Links to invoice <span className="font-normal">(optional)</span></>}
-          value={invoiceId}
-          onChange={setInvoiceId}
-          data-testid="payment-invoice-select"
-          placeholder="— none —"
-          options={invoices.map((inv) => ({ value: inv.id, label: inv.vi_number ?? inv.id }))}
-        />
+        <div className="flex flex-col gap-1">
+          <SelectField
+            id={`${formId}-invoice`}
+            label={<>Links to invoice {!paymentBillRequired && <span className="font-normal">(optional)</span>}</>}
+            value={invoiceId}
+            onChange={(next) => {
+              setInvoiceId(next);
+              setBillError(undefined);
+              // DD-VPAY-10: the bill's mirrored ERP outstanding is the default amount — what we
+              // actually owe, net of withholding (AC-VWH-005's figures: gross 1,110,000 → 1,090,000).
+              // The user may pay less (partial); the server gate (DD-VPAY-7) remains the authority.
+              if (paymentBillRequired) {
+                const selected = invoices.find((inv) => inv.id === next);
+                const raw = selected?.erp_outstanding_amount;
+                const outstanding = typeof raw === 'string' ? Number(raw) : raw;
+                if (typeof outstanding === 'number' && Number.isFinite(outstanding)) {
+                  setAmountStr(String(outstanding));
+                  setAmountError(undefined);
+                }
+              }
+            }}
+            data-testid="payment-invoice-select"
+            placeholder="— none —"
+            options={invoices.map((inv) => ({ value: inv.id, label: inv.vi_number ?? inv.id }))}
+          />
+          <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
+        </div>
       )}
 
       {/* Action row */}

@@ -534,6 +534,11 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
       procurement_id: record.procurementId,
       invoice_id: invoiceId,
       date: record.date ?? null,
+      // #910 (DD-VPAY-9, FR-VPAY-009): the pay artifact names its payer — the verified dispatch
+      // caller. Undefined on a machine write (sweep finalize/replay) → null; and only HERE: the
+      // update path below never writes the column, so a finalize retry/cancel tombstone can never
+      // overwrite the original attribution.
+      recorded_by_id: ctx.callerUserId ?? null,
       ...patch,
     });
     if (error) throw new AppError(error.message, error.code);
