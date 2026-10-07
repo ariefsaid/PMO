@@ -1,4 +1,4 @@
--- Rollback for 0266_vendor_invoice_withholding.sql (#876). Revert the #876 edge functions FIRST (they write
+-- Rollback for 0269_vendor_invoice_withholding.sql (#876). Revert the #876 edge functions FIRST (they write
 -- withheld_amount). Restores 0196 §4's mirror-guard body, then drops the constraint and the column. Bills mirrored
 -- with withholding keep their GROSS `amount`; re-mirror them if the rollback is permanent.
 create or replace function public.procurement_invoices_native_mirror_guard() returns trigger

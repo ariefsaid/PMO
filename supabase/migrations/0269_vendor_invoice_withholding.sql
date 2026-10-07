@@ -1,4 +1,4 @@
--- 0266_vendor_invoice_withholding.sql — #876: vendor withholding (PPh 23 / PPh 4(2)) on ERP-owned bills.
+-- 0269_vendor_invoice_withholding.sql — #876: vendor withholding (PPh 23 / PPh 4(2)) on ERP-owned bills.
 --
 -- ADR-0082, DD-VWH-1 / DD-VWH-7. One additive column, its bounds, one line in the procurement mirror guard.
 --   • withheld_amount — income tax withheld from the vendor on this bill (ERPNext Purchase Invoice header
@@ -15,7 +15,7 @@
 -- modifies them. Before applying beyond local, list the target ERPNext's Purchase Invoices with
 -- taxes_and_charges_deducted <> 0 that PMO mirrors, and re-mirror any found.
 --
--- Rollback: supabase/migrations/rollback/0266_vendor_invoice_withholding_down.sql (revert the #876 edge functions
+-- Rollback: supabase/migrations/rollback/0269_vendor_invoice_withholding_down.sql (revert the #876 edge functions
 -- first — they write this column).
 
 -- §1 — the column and its bounds.
@@ -66,7 +66,7 @@ begin
      or new.tax_amount            is distinct from old.tax_amount    -- 0196 (#505)
      or new.tax_rate              is distinct from old.tax_rate      -- 0196 (#505)
      or new.tax_template          is distinct from old.tax_template  -- 0196 (#505)
-     or new.withheld_amount       is distinct from old.withheld_amount -- 0266 (#876)
+     or new.withheld_amount       is distinct from old.withheld_amount -- 0269 (#876)
      or new.id                    is distinct from old.id
      or new.procurement_id        is distinct from old.procurement_id
      or new.org_id                is distinct from old.org_id
@@ -86,7 +86,7 @@ begin
      or has_column_privilege('anon', 'public.procurement_invoices', 'withheld_amount', 'INSERT')
      or has_column_privilege('anon', 'public.procurement_invoices', 'withheld_amount', 'UPDATE')
   then
-    raise exception '0266: procurement_invoices.withheld_amount would be client-writable on this database; a table-level INSERT/UPDATE grant is present (see 0174/0175) — resolve it before applying';
+    raise exception '0269: procurement_invoices.withheld_amount would be client-writable on this database; a table-level INSERT/UPDATE grant is present (see 0174/0175) — resolve it before applying';
   end if;
 end $$;
 

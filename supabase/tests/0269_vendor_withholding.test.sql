@@ -1,4 +1,4 @@
--- 0266_vendor_withholding.test.sql — 0266_vendor_invoice_withholding.sql (#876, ADR-0082).
+-- 0269_vendor_withholding.test.sql — 0269_vendor_invoice_withholding.sql (#876, ADR-0082).
 -- Owns AC-VWH-008 (shape + bounds) and AC-VWH-009 (not client-writable, native = 0, mirror guard).
 begin;
 select plan(19);
