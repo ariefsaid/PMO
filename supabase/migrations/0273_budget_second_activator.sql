@@ -7,6 +7,10 @@
 --      server-side actor with the caller's JWT still in force: the cloner becomes the copy's drafter.
 --      Server-side writers (seed, service-role fixtures) may state the drafter; when they don't, the
 --      caller's uid applies, and with no caller it stays NULL.
+--      The FK is ON DELETE RESTRICT (#922 fix round): 0179 makes profile DELETE Admin-reachable, and a
+--      SET NULL delete would erase the drafter — silently losing attribution AND widening activation to
+--      the no-drafter Admin/Finance-only rule. Deleting a profile that drafted a version is therefore
+--      refused (23503); offboarding, not deletion, is how a drafter leaves.
 --   §2 activate_budget_version: 0139's body VERBATIM plus the drafter read and two refusals (marked 0273).
 --      The drafter is refused whatever their role — Admin included, as with OD-PROC-8. A version with no
 --      recorded drafter (older or seeded) is activated by Admin or Finance only. Both run after the org /
@@ -24,11 +28,13 @@
 -- §1 — the drafter column + its server-side stamp.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 alter table public.budget_versions
-  add column if not exists created_by uuid references public.profiles(id) on delete set null;
+  add column if not exists created_by uuid references public.profiles(id) on delete restrict;
 
 comment on column public.budget_versions.created_by is
   'Who drafted this version (OD-BUDGET-6): stamped server-side on insert and on clone, never client-set. '
-  'activate_budget_version refuses this person; NULL (older or seeded) = Admin or Finance only.';
+  'activate_budget_version refuses this person; NULL (older or seeded) = Admin or Finance only. ON DELETE '
+  'RESTRICT: a profile that drafted a version cannot be deleted — offboard it instead, so attribution '
+  'survives and activation never widens.';
 
 -- The 0176 column INSERT grant and 0178 UPDATE (status) grant name their columns, so a new column is
 -- outside both. Re-stated explicitly so the state does not depend on a reader finding those files.

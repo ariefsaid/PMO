@@ -1,10 +1,12 @@
 -- budget_second_activator.test.sql — OD-BUDGET-6 (#922): the person who drafted a budget version cannot
 -- activate it; a second person activates. The drafter is recorded server-side on insert and on clone; a
 -- version with no recorded drafter (older or seeded) can be activated by Admin or Finance only.
+-- The drafter's profile itself cannot be deleted out from under the version (created_by is
+-- ON DELETE RESTRICT): attribution is never silently lost and activation never widens.
 -- Migration under test: 0273_budget_second_activator.sql.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(27);
 
 -- Fixtures (inserted as table owner, no JWT: auth.uid() is null here).
 insert into organizations (id, name) values
@@ -157,6 +159,29 @@ select lives_ok(
 select lives_ok(
   $$ select activate_budget_version('f9222222-0000-0000-0000-000000000004') $$,
   'OD-BUDGET-6: Finance activates a version another person drafted');
+
+-- ── The drafter's profile cannot be deleted out from under the version (created_by RESTRICT) ─────
+-- 0179 makes profile DELETE Admin-reachable. created_by is ON DELETE RESTRICT, so the delete is
+-- refused (23503) while any drafted version still cites the profile: attribution is never silently
+-- nulled (which would ALSO widen activation to the no-drafter Admin/Finance-only rule). Offboarding,
+-- not deletion, is how a drafter leaves. PM Two (who drafted the clone) is the target — a later
+-- section of this file still acts as PM One, so the delete must not consume THAT profile.
+set local request.jwt.claims = '{"sub":"f9220000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+
+select throws_ok(
+  $$ delete from profiles where id = 'f9220000-0000-0000-0000-0000000000a2' $$,
+  '23503', null,
+  'OD-BUDGET-6: deleting a profile that drafted a budget version is refused');
+
+select is(
+  (select created_by from budget_versions where id = (select id from _clone)),
+  'f9220000-0000-0000-0000-0000000000a2'::uuid,
+  'OD-BUDGET-6: the refused delete leaves the drafter attribution unchanged');
+
+-- RESTRICT bites only on the provenance edge: a profile that drafted nothing is not trapped.
+select lives_ok(
+  $$ delete from profiles where id = 'f9220000-0000-0000-0000-0000000000a5' $$,
+  'OD-BUDGET-6: a profile that drafted no budget version can still be deleted');
 
 reset role;
 
