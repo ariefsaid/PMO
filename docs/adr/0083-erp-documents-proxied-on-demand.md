@@ -1,6 +1,6 @@
 # ADR-0083 — ERP-rendered client documents are proxied on demand, never stored in PMO
 
-- **Status:** Proposed (2026-10-07, #912)
+- **Status:** Accepted (Director, 2026-10-07, #912)
 - **Deciders:** Director (on the planner's proposal); owner ruling `OD-INV-PDF-1` sets the requirement
 - **Related:** ADR-0055 (ERP is SoT for the revenue domain), ADR-0057 (caller-JWT verification in edge functions), ADR-0072 (one ERP credential resolver), `OD-ERP-3`, spec `docs/specs/invoice-pdf.spec.md`
 
