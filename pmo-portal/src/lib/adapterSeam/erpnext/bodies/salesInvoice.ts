@@ -23,7 +23,8 @@ export function siToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   // binding's ERP-project→PMO map) and supplies it in ctx.refs.project. Header `project` suffices (it
   // propagates to both GL legs on submit). Omitted when no project (gate OFF / inbound-adopted).
   if (ctx.refs.project) body.project = ctx.refs.project;
-  // #858: a billing claim states its own currency (the dispatch sets it from the claim row); other invoices leave it to ERP.
+  // The dispatch states every rebuilt invoice's currency: a billing claim's from the claim row (#858), an ordinary create's
+  // from its project (#866), an ordinary edit or amend's from its mirror row (OD-BILL-1). Absent only when nothing set it.
   if (typeof rec.currency === 'string' && rec.currency) body.currency = rec.currency;
   // #766 (DD-PBL-12b): a billing claim's invoice carries its tax rows explicitly (the dispatch resolves them from the
   // company's default template); every other invoice sends none, as before.

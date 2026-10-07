@@ -265,7 +265,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               )}
               <Figure testId="billing-dp-held" label={t('projectDetail.billing.summary.dpHeld', 'Down payment held')} value={money(summary.dpHeld)} />
               <Figure testId="billing-remaining" label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={money(summary.remaining)} />
-              <Figure testId="billing-not-submitted" label={t('projectDetail.billing.summary.notSubmitted', 'Raised, not yet submitted')} value={money(summary.notSubmitted)} />
+              <Figure testId="billing-not-submitted" label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} />
             </dl>
           )}
         </CardPad>

@@ -80,6 +80,11 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-billed')).toHaveTextContent('excl. PPN');
   });
 
+  it("AC-PB-008 the not-submitted figure says it counts claims only — never mistaken for the Work orders tab's not yet submitted, which also counts draft invoices (#785 Discover)", () => {
+    renderTab();
+    expect(screen.getByTestId('billing-not-submitted').closest('div')).toHaveTextContent('Claims raised, not yet submitted');
+  });
+
   it('AC-PB-008 with no assessment it says so instead of a figure, and shows no gap', () => {
     h.billing = { ...h.billing, data: { ...FACTS, assessment: null, assessedByBoqItem: {} } };
     renderTab();

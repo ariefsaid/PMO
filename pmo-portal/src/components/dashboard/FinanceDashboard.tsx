@@ -6,6 +6,7 @@ import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/sr
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
+import { StillToInvoiceCard } from './StillToInvoiceCard';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
@@ -329,6 +330,9 @@ export const FinanceDashboard: React.FC = () => {
         {/* N15: PRs-only approvals shortcut (Finance has no timesheet approval) → /approvals. */}
         <AwaitingApprovalTile includeTimesheets={false} label="PRs awaiting you" />
       </section>
+
+      {/* OD-BILL-1 / #786: what is still to invoice on the client's POs. */}
+      <StillToInvoiceCard />
 
       {/* Finance "ledger" block: Ready to pay + Budget review stacked full-width (C1 fix).
           Previously a 2-up DashGrid which clipped the 5-col budget table (~626px intrinsic)

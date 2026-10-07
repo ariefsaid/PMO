@@ -7,6 +7,10 @@ import { ToastProvider } from '@/src/components/ui/Toast';
 import { formatCurrency } from '@/src/lib/format';
 
 const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn() }));
+// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
+  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/lib/analytics', () => ({ trackComingSoonClicked: analytics.trackComingSoonClicked }));
 
 // Oracle payload — extended dual-lens fields (no avg_gross_margin)
@@ -266,5 +270,12 @@ describe('coming_soon_clicked: the "Board pack" deferred export affordance (2026
     // The wrapping span reports the click — a disabled button cannot dispatch one.
     fireEvent.click(boardPack.parentElement!);
     expect(analytics.trackComingSoonClicked).toHaveBeenCalledWith('board-pack-export', 'dashboard');
+  });
+});
+
+describe('still to invoice (OD-BILL-1 / #786)', () => {
+  it('AC-UNB-005 the executive dashboard carries the still-to-invoice card', () => {
+    renderPage();
+    expect(screen.getByTestId('still-to-invoice-loading')).toBeInTheDocument();
   });
 });

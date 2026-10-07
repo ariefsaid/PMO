@@ -494,6 +494,9 @@ async function claimAndCommit(
   return { externalRecordId, canonical };
 }
 
+/** A uuid as Postgres prints it: lower-case, hyphenated, nothing around it. */
+const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /** The reconcile-by-state algorithm (ADR-0058 §4 table) — never a blind second create. */
 /** In-request budget for waiting on a live `committing` owner before surfacing the retryable
  * in-flight signal. A LIVE owner normally finishes well within this; a DEAD one (crashed mid-lease)
@@ -612,6 +615,12 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
   const { command, money } = deps;
   if (!command.idempotencyKey) {
     throw toDispatchError(new AdapterError('commit-rejected', 'missing-idempotency-key'));
+  }
+  // OD-BILL-1: an invoice is identified everywhere downstream (the outbox fence, the one-in-flight index, external_refs,
+  // the claim it may raise) by its uuid compared as TEXT — so only the canonical spelling is accepted. The database
+  // refuses any other spelling too (0262); this answers it before the outbox is touched.
+  if (command.record.erp_doc_kind === 'sales-invoice' && !CANONICAL_UUID.test(String(command.record.id))) {
+    throw toDispatchError(new AdapterError('commit-rejected', 'sales-invoice-record-id-not-canonical'));
   }
   const outboxRecordId = deps.outboxRecordId ?? command.record.id;
   let row = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey);

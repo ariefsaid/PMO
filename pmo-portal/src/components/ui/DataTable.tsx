@@ -78,6 +78,36 @@ export interface DataTableProps<Row> {
    */
   rowMenu?: (row: Row) => RowMenuItem[] | undefined;
   className?: string;
+  /**
+   * Opt-in (AC-TBL-CARDS-001): render the stacked record cards whenever the table's OWN width is below this many px,
+   * not only below the `md` viewport. For a table in a column narrower than the viewport implies (the record layout,
+   * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
+   */
+  cardBelow?: number;
+}
+
+/** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
+ *  width (0, e.g. no layout) reads as wide, so the table stays the default. Switching branches never changes the width
+ *  (the parent column decides it), so this cannot oscillate. */
+function useNarrowerThan(ref: React.RefObject<HTMLElement | null>, below: number | undefined): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!below || !el) {
+      setNarrow(false);
+      return;
+    }
+    const decide = () => {
+      const w = el.getBoundingClientRect().width;
+      setNarrow(w > 0 && w < below);
+    };
+    decide();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(decide);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, below]);
+  return narrow;
 }
 
 function alignClass(align?: ColAlign) {
@@ -141,8 +171,12 @@ export function DataTable<Row>({
   onRetry,
   rowMenu,
   className,
+  cardBelow,
 }: DataTableProps<Row>) {
-  const isDesktop = useIsDesktop();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const wideViewport = useIsDesktop();
+  const narrowTable = useNarrowerThan(rootRef, cardBelow);
+  const isDesktop = wideViewport && !narrowTable;
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
   // Shared ListState node — rendered once and reused in both branches via a
@@ -170,7 +204,7 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+    <div ref={rootRef} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
       {isDesktop ? (
       /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
       // `relative` makes this scroller the containing block for the absolutely-positioned
@@ -337,6 +371,7 @@ export function DataTable<Row>({
        */
       <ul
         data-testid="dt-card-branch"
+        data-dt-cards=""
         role="list"
         className="divide-y divide-border/70"
       >
