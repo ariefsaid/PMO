@@ -2,7 +2,7 @@
 -- Migration under test: 0262_billing_by_work_order.sql §4–§8. Every refusal asserts SQLSTATE AND message.
 begin;
 create extension if not exists pgtap;
-select plan(30);
+select plan(31);
 
 insert into organizations (id, name) values
   ('02620000-0000-0000-0000-000000000001', 'BWO Org'),
@@ -97,6 +97,9 @@ select lives_ok($$ insert into external_command_outbox (org_id, domain, pmo_reco
   values ('02620000-0000-0000-0000-000000000001', 'revenue', '02620000-0000-0000-0000-000000000c04', 'bwo-k4', 'erpnext', 'create', 'pending',
           '{"erp_doc_kind":"sales-invoice","workOrderId":"02620000-0000-0000-0000-0000000000d6","projectId":"02620000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":600}]}') $$,
   'AC-BWO-002 a failed command no longer counts');                                                                  -- 13
+select throws_ok($$ select public.claim_outbox_for_commit((select id from external_command_outbox where pmo_record_id = '02620000-0000-0000-0000-000000000c01')) $$,
+  'BW001', 'this invoice would bill 600.00 against work order WO-R-6 (worth 1000.00 excl. tax, with 1000.00 already invoiced or in draft): only 0.00 is still to invoice',
+  'AC-BWO-002 …so the failed command cannot be revived once the remainder is reserved: the claim re-checks it');     -- 13b
 select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02620000-0000-0000-0000-000000000001', 'revenue', '02620000-0000-0000-0000-000000000c05', 'bwo-k5', 'erpnext', 'create', 'pending',
           '{"erp_doc_kind":"sales-invoice","workOrderId":"02620000-0000-0000-0000-0000000000d6","projectId":"02620000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":"5"}]}') $$,
@@ -174,7 +177,8 @@ select ok(not has_function_privilege('anon', 'public.assert_work_order_invoiceab
           and not has_function_privilege('authenticated', 'public.assert_work_order_invoiceable(uuid,uuid,uuid,text,numeric,text)', 'execute'),
   'AC-BWO-002 the refusal helper is not client-executable');                                                         -- 28
 select ok(not exists (select 1 from (values ('public.lock_work_order_billing(uuid)'), ('public.invoice_command_line_total(jsonb)'),
-                                            ('public.assert_sales_invoice_within_work_order()'), ('public.assert_outbox_invoice_within_work_order()')) f(sig)
+                                            ('public.assert_sales_invoice_within_work_order()'), ('public.assert_outbox_invoice_within_work_order()'),
+                                            ('public.assert_invoice_command_within_work_order(uuid,text,text,jsonb)')) f(sig)
                        where has_function_privilege('anon', f.sig, 'execute') or has_function_privilege('authenticated', f.sig, 'execute')),
   'AC-BWO-002 the lock, line-total and trigger functions are not client-executable');                               -- 29
 select is((select count(*)::int from pg_trigger

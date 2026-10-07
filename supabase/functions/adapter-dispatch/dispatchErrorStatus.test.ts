@@ -60,3 +60,11 @@ Deno.test('AC-BWO-003 the work-order over-invoice refusal (BW001) is a 422 busin
   assert(dispatchErrorStatus('BW001', 400) === 422, 'the adapter-select exit must answer 422, not its 400 fallback');
   assert(isBusinessRejectionCode('BW001'), 'BW001 is a classified business rejection');
 });
+
+// FR-PB-013 (0250 / 0262 §6b): a withdrawn claim's invoice is refused with SQLSTATE 55000 — on the outbox insert, and when
+// a failed attempt is revived by the claim. The request was well-formed; the rule refused it — 422, never the fallback.
+Deno.test('AC-BWO-002 the withdrawn-claim refusal (55000) is a 422 business rejection at both exits', () => {
+  assert(dispatchErrorStatus('55000', 500) === 422, 'the dispatch exit must answer 422, not its 500 fallback');
+  assert(dispatchErrorStatus('55000', 400) === 422, 'the adapter-select exit must answer 422, not its 400 fallback');
+  assert(isBusinessRejectionCode('55000'), '55000 is a classified business rejection');
+});

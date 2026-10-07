@@ -52,6 +52,9 @@ const BUSINESS_REJECTION_CODES: readonly string[] = [
   // BW001 before any ERP write when an invoice would bill past its work order, names a Draft/Cancelled one, one on
   // another project, or lines it cannot read. The request was well-formed; the rule refused it.
   'BW001',
+  // FR-PB-013 (0250, 0262 §6b): a withdrawn progress claim raises no invoice — SQLSTATE 55000 from the outbox insert, or
+  // from claim_outbox_for_commit when a failed attempt is revived. A business rule refused a well-formed request.
+  '55000',
 ];
 
 export function isBusinessRejectionCode(code: unknown): code is string {

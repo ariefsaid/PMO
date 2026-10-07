@@ -1053,11 +1053,23 @@ async function assertClaimCurrencyMatchesErp(
  * #866: an ordinary invoice create is stated in its project's currency (the org's default when it has no project). Refuse a
  * mismatch with the customer's ERPNext billing currency before any write, and put the currency on the record so the body
  * (and so the persisted outbox payload a replay re-sends) carries it explicitly.
+ * OD-BILL-1: an edit or amend (it rebuilds the body; the caller only reaches here for those) is stated in the invoice's
+ * own mirrored currency, so ERPNext refuses a re-denomination and the work-order fence (0262) compares currencies.
  */
 async function resolveOrdinaryInvoiceCurrency(
   deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, record: Record<string, unknown>,
 ): Promise<void> {
-  if (deps.command.operation !== 'create') return;
+  if (deps.command.operation !== 'create') {
+    const { data, error } = await deps.serviceClient.from('sales_invoices').select('currency')
+      .eq('org_id', deps.orgId).eq('id', record.id as string).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    const value = (data as { currency?: unknown } | null)?.currency;
+    if (typeof value !== 'string' || !/^[A-Z]{3}$/.test(value)) {
+      throw new AppError('PMO cannot tell which currency this invoice is in. Refresh the invoice from ERPNext, then edit it again.', 'config-rejected');
+    }
+    record.currency = value;
+    return;
+  }
   const projectId = typeof record.projectId === 'string' && record.projectId ? record.projectId : null;
   const { data, error } = projectId
     ? await deps.serviceClient.from('projects').select('currency').eq('org_id', deps.orgId).eq('id', projectId).maybeSingle()

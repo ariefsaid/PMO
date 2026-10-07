@@ -1,7 +1,64 @@
 -- Reverses 0262 (OD-BILL-1). Run BEFORE 0251's and 0250's rollbacks. Posted ERP documents are untouched.
 drop trigger if exists external_command_outbox_zz_work_order_invoice_fence on public.external_command_outbox;
 drop trigger if exists sales_invoices_zzzz_work_order_invoiceable on public.sales_invoices;
+-- Restore 0161 §C's claim_outbox_for_commit verbatim (without 0262's re-check on revival):
+create or replace function public.claim_outbox_for_commit(
+  p_id uuid, p_lease interval default interval '60 seconds'
+) returns public.external_command_outbox
+  language plpgsql security definer set search_path = public as $$
+  declare
+    v public.external_command_outbox;
+    v_domain text;
+    v_record_id text;
+    v_key text;
+    v_status timesheet_status;
+    v_approved_at timestamptz;
+    v_witness timestamptz;
+  begin
+    select domain, pmo_record_id, idempotency_key
+      into v_domain, v_record_id, v_key
+      from public.external_command_outbox where id = p_id;
+    if v_domain = 'timesheets' then
+      -- The canonical uuid text — the SAME identity §B stores and the Approved→Draft arm locks on
+      -- (BLOCK 3). `domain` and `pmo_record_id` are immutable for the life of a row, so reading them
+      -- before the lock is safe; everything that can CHANGE is read after it.
+      v_record_id := (v_record_id::uuid)::text;
+      perform pg_advisory_xact_lock(hashtextextended('ts-correct:' || v_record_id, 0));
+      select status, approved_at into v_status, v_approved_at
+        from public.timesheets where id = v_record_id::uuid;
+      if v_status is distinct from 'Approved' then
+        raise exception 'timesheet-no-longer-approved' using errcode = 'P0001';
+      end if;
+      -- ⚑ THE GENERATION FENCE ON THE RE-DRIVE (Luna round-2 BLOCK 1). `Approved` is re-reachable: one
+      -- correction cycle later the sheet is Approved AGAIN, as a DIFFERENT generation. A stale `failed`
+      -- T1 row re-driven then (the foreground Retry, the sweep's mirror queue) would POST the
+      -- SUPERSEDED hours and the corrected week would post as a SECOND ERP Timesheet. So this row's own
+      -- persisted witness — its deterministic key (§A2), the SAME string §B refused to insert without —
+      -- must equal the sheet's CURRENT `approved_at`. NULL ⇒ the row cannot prove its generation ⇒
+      -- REFUSE (fail closed): an old or hand-written row is never given the benefit of the doubt over
+      -- money. The refusal is a raise, never a NULL return — a NULL means "not claimable now" and would
+      -- send the caller back into reconcileOutbox to try this same row forever.
+      v_witness := public.timesheet_push_key_witness(v_key);
+      if v_witness is null or v_witness is distinct from v_approved_at then
+        raise exception 'timesheet-approval-superseded' using errcode = 'P0001';
+      end if;
+    end if;
+    update public.external_command_outbox
+       set state='committing',
+           attempt_count = attempt_count + 1,
+           claim_generation = claim_generation + 1,   -- fencing token (F4): monotonic per claim
+           claimed_at = now(),
+           updated_at = now()
+     where id = p_id
+       and ( state in ('pending','failed')
+             or (state='quarantined' and reconcile_after is not null and reconcile_after < now()) )
+    returning * into v;
+    return v;   -- v.claim_generation is the caller's fencing token; null ⇒ not claimable now
+  end; $$;
+revoke all on function public.claim_outbox_for_commit(uuid, interval) from public, anon, authenticated;
+grant execute on function public.claim_outbox_for_commit(uuid, interval) to service_role;
 drop function if exists public.assert_outbox_invoice_within_work_order();
+drop function if exists public.assert_invoice_command_within_work_order(uuid, text, text, jsonb);
 drop function if exists public.assert_sales_invoice_within_work_order();
 drop function if exists public.get_unbilled_work_orders(integer);
 -- Restore 0250 §5's create_progress_claim verbatim (without 0262's lock and reservation):

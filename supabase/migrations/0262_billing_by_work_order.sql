@@ -4,10 +4,11 @@
 -- ADR: docs/adr/0080-billing-by-work-order.md. Rulings: DD-BWO-1..12. Plan: docs/plans/2026-10-07-billing-by-work-order.md.
 -- Reversal: supabase/migrations/rollback/0262_billing_by_work_order_down.sql (pre-production: supabase db reset).
 --
--- ⚑ No table and no column. Two security_invoker views, one invoker reader RPC, two invoker helpers and two SECURITY
+-- ⚑ No table and no column. Two security_invoker views, one invoker reader RPC, four invoker helpers and two SECURITY
 --   DEFINER trigger functions with NO client EXECUTE, and one paired edit of create_progress_claim (0250 §5 verbatim +
---   a lock + one call). 0178's allow-list is unchanged (59): nothing here is a client-callable definer. The isolation
---   denominator is unchanged: views are not tables and trigger functions are not in its definer list.
+--   a lock + one call), and one of 0161's claim_outbox_for_commit (a re-check on revival, §6b). 0178's allow-list is
+--   unchanged (59): nothing here is a client-callable definer. The isolation denominator is unchanged: views are not
+--   tables, trigger functions are not in its definer list, and claim_outbox_for_commit is already in it.
 -- ⚑ Hosted Supabase grants EXECUTE on new public functions — and SELECT on new views — to anon/authenticated
 --   explicitly (0185/0210): every object below revokes what it must not expose, and each section asserts the result
 --   on the database itself.
@@ -156,6 +157,10 @@ begin
     raise exception 'the invoice amount could not be read, so it cannot be checked against work order %', v_label
       using errcode = 'BW001';
   end if;
+  -- A claim is never negative and a down payment bills 0: a negative amount would only open room on the work order.
+  if p_billed < 0 then
+    raise exception 'an invoice cannot bill a negative amount against work order %', v_label using errcode = 'BW001';
+  end if;
 
   with lines as (
     -- what the views count (mirrored invoices + unraised claims), minus the record being written
@@ -173,10 +178,11 @@ begin
        and jsonb_typeof(o.payload -> 'items') = 'array'
        and (o.operation in ('create', 'update') or (o.operation = 'transition' and o.payload ->> 'verb' = 'amend'))
        and lower(o.pmo_record_id) <> lower(p_record_id)
-       and not exists (select 1 from public.progress_claims pc where pc.id::text = lower(o.pmo_record_id))
+       and not exists (select 1 from public.progress_claims pc
+                        where pc.id::text = lower(o.pmo_record_id) and pc.org_id = p_org_id)
        and lower(coalesce(nullif(btrim(o.payload ->> 'workOrderId'), ''),
                           (select si.work_order_id::text from public.sales_invoices si
-                            where si.id::text = lower(o.pmo_record_id)))) = p_work_order_id::text
+                            where si.id::text = lower(o.pmo_record_id) and si.org_id = p_org_id))) = p_work_order_id::text
   ), per_record as (
     -- an invoice with an edit in flight counts at the larger of its mirrored and its pending amount
     select record_id, max(billed) as billed,
@@ -219,6 +225,13 @@ begin
   if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then return new; end if;
   -- A server-side load with no JWT (seed, migration, owner-run loader).
   if auth.uid() is null and session_user in ('postgres', 'supabase_admin') then return new; end if;
+  -- A claim's invoice is raised from the claim and mirrored under its id; any other writer taking that id would be
+  -- read as the claim's invoice (its recovery, a down payment's zero) and stop the claim counting as unraised. That
+  -- moves a work order's figures only when the claim or the invoice names one — the case refused here.
+  if tg_op = 'INSERT' and exists (select 1 from public.progress_claims pc
+                                   where pc.id = new.id and (pc.work_order_id is not null or new.work_order_id is not null)) then
+    raise exception 'this id belongs to a progress claim: its invoice is raised from the claim' using errcode = 'BW001';
+  end if;
   if new.work_order_id is null or new.status = 'Cancelled' then return new; end if;
 
   -- The row's billed work, by the same rule as sales_invoice_work_billed (a claim invoice adds its recovery back; a
@@ -233,8 +246,9 @@ begin
     v_old := case when coalesce(v_dp, false) then 0
                   else (case when old.tax_treatment = 'inclusive' then old.amount - old.tax_amount else old.amount end)
                        + coalesce(v_recovery, 0) end;
-    -- A reduction, or a status move that bills the same, never needs refusing. NULL on either side falls through.
-    if v_new <= v_old then return new; end if;
+    -- A reduction, or a status move that bills the same, never needs refusing — down to zero, not below it. NULL on
+    -- either side falls through to the helper, which refuses it.
+    if v_new <= v_old and v_new >= 0 then return new; end if;
   end if;
 
   perform public.assert_work_order_invoiceable(new.org_id, new.work_order_id, new.project_id, new.id::text, v_new, new.currency);
@@ -250,42 +264,70 @@ create trigger sales_invoices_zzzz_work_order_invoiceable
 -- an ERP document. PostgREST runs the insert as one statement: the advisory lock is held until it commits.
 -- zz_: fires after external_command_outbox_stamp_org_id (it reads NEW.org_id).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
-create or replace function public.assert_outbox_invoice_within_work_order() returns trigger
-  language plpgsql security definer set search_path = public as $$
+-- The ONE check of an ERP invoice command against its work order, on the command as stored. Shared by the outbox insert
+-- (below) and by claim_outbox_for_commit when it revives a failed command (§6b), so a command re-driven later is
+-- measured against what is billed THEN. INVOKER with no client EXECUTE: only those two SECURITY DEFINER callers run it.
+create or replace function public.assert_invoice_command_within_work_order(
+  p_org_id uuid, p_operation text, p_pmo_record_id text, p_payload jsonb)
+  returns void language plpgsql volatile set search_path = public as $$
 declare
-  v_record  text := lower(new.pmo_record_id);
-  v_wo_text text;
-  v_wo      uuid;
-  v_project uuid;
-  v_uuid    constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  v_record    text;
+  v_wo_text   text;
+  v_wo        uuid;
+  v_project   uuid;
+  v_withdrawn timestamptz;
+  v_uuid      constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 begin
-  if new.payload is null or new.payload ->> 'erp_doc_kind' is distinct from 'sales-invoice' then return new; end if;
+  if p_payload is null or p_payload ->> 'erp_doc_kind' is distinct from 'sales-invoice' then return; end if;
   -- submit / cancel act on an existing document and build no body (buildsSalesInvoiceBody, dispatchFactory.ts)
-  if not (new.operation in ('create', 'update') or (new.operation = 'transition' and new.payload ->> 'verb' = 'amend')) then
-    return new;
+  if not (p_operation in ('create', 'update') or (p_operation = 'transition' and p_payload ->> 'verb' = 'amend')) then
+    return;
   end if;
-  if jsonb_typeof(new.payload -> 'items') is distinct from 'array' then return new; end if;
-  if v_record !~ v_uuid then return new; end if;
-  -- A billing claim reserved its gross when it was created (§7) and is immutable (0250).
-  if exists (select 1 from public.progress_claims pc where pc.id = v_record::uuid) then return new; end if;
+  if jsonb_typeof(p_payload -> 'items') is distinct from 'array' then return; end if;
+  -- Every comparison below is on the canonical uuid text: any other spelling of a uuid is refused, never skipped.
+  begin
+    v_record := (p_pmo_record_id::uuid)::text;
+  exception when invalid_text_representation then
+    v_record := null;
+  end;
+  if v_record is null or lower(p_pmo_record_id) is distinct from v_record then
+    raise exception 'a sales invoice command must name its invoice by its canonical id' using errcode = 'BW001';
+  end if;
+  -- A billing claim reserved its gross when it was created (§7) and is immutable (0250) — while it is live. A withdrawn
+  -- claim no longer counts, so it can raise no invoice (FR-PB-013; the insert also meets 0250's claim fence first).
+  select pc.withdrawn_at into v_withdrawn
+    from public.progress_claims pc where pc.id = v_record::uuid and pc.org_id = p_org_id for share;
+  if found then
+    if v_withdrawn is not null then
+      raise exception 'this progress claim was withdrawn, so no invoice can be raised for it' using errcode = '55000';
+    end if;
+    return;
+  end if;
 
-  if new.operation = 'create' then
-    v_wo_text := lower(nullif(btrim(new.payload ->> 'workOrderId'), ''));
-    if v_wo_text is null then return new; end if;
+  if p_operation = 'create' then
+    v_wo_text := lower(nullif(btrim(p_payload ->> 'workOrderId'), ''));
+    if v_wo_text is null then return; end if;
     if v_wo_text !~ v_uuid then
       raise exception 'work order not found' using errcode = 'BW001';
     end if;
     v_wo := v_wo_text::uuid;
-    v_project := case when lower(new.payload ->> 'projectId') ~ v_uuid then lower(new.payload ->> 'projectId')::uuid end;
+    v_project := case when lower(p_payload ->> 'projectId') ~ v_uuid then lower(p_payload ->> 'projectId')::uuid end;
   else
     -- An edit or amend never moves the work order (DD-BWO-8): it is the mirror row's.
     select si.work_order_id, si.project_id into v_wo, v_project
-      from public.sales_invoices si where si.id = v_record::uuid and si.org_id = new.org_id;
-    if v_wo is null then return new; end if;
+      from public.sales_invoices si where si.id = v_record::uuid and si.org_id = p_org_id;
+    if v_wo is null then return; end if;
   end if;
 
-  perform public.assert_work_order_invoiceable(new.org_id, v_wo, v_project, v_record,
-    public.invoice_command_line_total(new.payload), nullif(btrim(new.payload ->> 'currency'), ''));
+  perform public.assert_work_order_invoiceable(p_org_id, v_wo, v_project, v_record,
+    public.invoice_command_line_total(p_payload), nullif(btrim(p_payload ->> 'currency'), ''));
+end; $$;
+revoke all on function public.assert_invoice_command_within_work_order(uuid, text, text, jsonb) from public, anon, authenticated;
+
+create or replace function public.assert_outbox_invoice_within_work_order() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  perform public.assert_invoice_command_within_work_order(new.org_id, new.operation, new.pmo_record_id, new.payload);
   return new;
 end; $$;
 revoke all on function public.assert_outbox_invoice_within_work_order() from public, anon, authenticated;
@@ -293,6 +335,80 @@ create trigger external_command_outbox_zz_work_order_invoice_fence
   before insert on public.external_command_outbox
   for each row when (new.domain = 'revenue')
   execute function public.assert_outbox_invoice_within_work_order();
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §6b — paired edit: 0161 §C's claim_outbox_for_commit, VERBATIM, with one marked addition. A `failed` command is not
+-- counted by the fence (it holds nothing), so when the foreground retry or the sweep revives one it is re-checked here,
+-- against its stored payload, under the work order's billing lock and in the same transaction as the claiming UPDATE
+-- — the timesheet branch's re-check-on-revival pattern. A refusal is a raise, never a NULL (a NULL would send the
+-- caller back to re-read and re-claim the same row). Grants, SECURITY DEFINER and search_path are 0161's, re-asserted
+-- in §8. Reversal: re-apply 0161 §C (the rollback does).
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+create or replace function public.claim_outbox_for_commit(
+  p_id uuid, p_lease interval default interval '60 seconds'
+) returns public.external_command_outbox
+  language plpgsql security definer set search_path = public as $$
+  declare
+    v public.external_command_outbox;
+    v_domain text;
+    v_record_id text;
+    v_key text;
+    v_status timesheet_status;
+    v_approved_at timestamptz;
+    v_witness timestamptz;
+    v_row public.external_command_outbox;
+  begin
+    select domain, pmo_record_id, idempotency_key
+      into v_domain, v_record_id, v_key
+      from public.external_command_outbox where id = p_id;
+    if v_domain = 'timesheets' then
+      -- The canonical uuid text — the SAME identity §B stores and the Approved→Draft arm locks on
+      -- (BLOCK 3). `domain` and `pmo_record_id` are immutable for the life of a row, so reading them
+      -- before the lock is safe; everything that can CHANGE is read after it.
+      v_record_id := (v_record_id::uuid)::text;
+      perform pg_advisory_xact_lock(hashtextextended('ts-correct:' || v_record_id, 0));
+      select status, approved_at into v_status, v_approved_at
+        from public.timesheets where id = v_record_id::uuid;
+      if v_status is distinct from 'Approved' then
+        raise exception 'timesheet-no-longer-approved' using errcode = 'P0001';
+      end if;
+      -- ⚑ THE GENERATION FENCE ON THE RE-DRIVE (Luna round-2 BLOCK 1). `Approved` is re-reachable: one
+      -- correction cycle later the sheet is Approved AGAIN, as a DIFFERENT generation. A stale `failed`
+      -- T1 row re-driven then (the foreground Retry, the sweep's mirror queue) would POST the
+      -- SUPERSEDED hours and the corrected week would post as a SECOND ERP Timesheet. So this row's own
+      -- persisted witness — its deterministic key (§A2), the SAME string §B refused to insert without —
+      -- must equal the sheet's CURRENT `approved_at`. NULL ⇒ the row cannot prove its generation ⇒
+      -- REFUSE (fail closed): an old or hand-written row is never given the benefit of the doubt over
+      -- money. The refusal is a raise, never a NULL return — a NULL means "not claimable now" and would
+      -- send the caller back into reconcileOutbox to try this same row forever.
+      v_witness := public.timesheet_push_key_witness(v_key);
+      if v_witness is null or v_witness is distinct from v_approved_at then
+        raise exception 'timesheet-approval-superseded' using errcode = 'P0001';
+      end if;
+    end if;
+    -- ⚑ 0262 (OD-BILL-1, DD-BWO-4/5): a revenue command revived from `failed` is re-checked against its work order
+    --   (and, for a claim's invoice, against the claim being withdrawn since) — the fence's own check, on the stored
+    --   payload. The helper takes the work order's billing lock before it reads anything.
+    if v_domain = 'revenue' then
+      select * into v_row from public.external_command_outbox where id = p_id;
+      if v_row.state = 'failed' then
+        perform public.assert_invoice_command_within_work_order(v_row.org_id, v_row.operation, v_row.pmo_record_id, v_row.payload);
+      end if;
+    end if;
+    update public.external_command_outbox
+       set state='committing',
+           attempt_count = attempt_count + 1,
+           claim_generation = claim_generation + 1,   -- fencing token (F4): monotonic per claim
+           claimed_at = now(),
+           updated_at = now()
+     where id = p_id
+       and ( state in ('pending','failed')
+             or (state='quarantined' and reconcile_after is not null and reconcile_after < now()) )
+    returning * into v;
+    return v;   -- v.claim_generation is the caller's fencing token; null ⇒ not claimable now
+  end; $$;
+revoke all on function public.claim_outbox_for_commit(uuid, interval) from public, anon, authenticated;
+grant execute on function public.claim_outbox_for_commit(uuid, interval) to service_role;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §7 — paired edit: 0250 §5's create_progress_claim, VERBATIM, with two marked additions (the billing lock before the
@@ -480,7 +596,9 @@ begin
                  ('public.lock_work_order_billing(uuid)'),
                  ('public.assert_work_order_invoiceable(uuid,uuid,uuid,text,numeric,text)'),
                  ('public.assert_sales_invoice_within_work_order()'),
-                 ('public.assert_outbox_invoice_within_work_order()')) f(sig)
+                 ('public.assert_outbox_invoice_within_work_order()'),
+                 ('public.assert_invoice_command_within_work_order(uuid,text,text,jsonb)'),
+                 ('public.claim_outbox_for_commit(uuid,interval)')) f(sig)
    where has_function_privilege('anon', sig, 'execute') or has_function_privilege('authenticated', sig, 'execute');
   if v_exposed is not null then
     raise exception '0262 §8: client roles can execute internal billing functions: %', v_exposed;
@@ -488,6 +606,11 @@ begin
   if has_function_privilege('anon', 'public.create_progress_claim(uuid,text,uuid,jsonb,numeric,numeric,boolean)', 'execute')
      or not has_function_privilege('authenticated', 'public.create_progress_claim(uuid,text,uuid,jsonb,numeric,numeric,boolean)', 'execute') then
     raise exception '0262 §8: create_progress_claim grants drifted';
+  end if;
+  if not has_function_privilege('service_role', 'public.claim_outbox_for_commit(uuid,interval)', 'execute')
+     or not (select p.prosecdef and p.proconfig = array['search_path=public'] from pg_proc p
+              where p.oid = 'public.claim_outbox_for_commit(uuid,interval)'::regprocedure) then
+    raise exception '0262 §8: claim_outbox_for_commit lost its service-role grant, SECURITY DEFINER or search_path';
   end if;
 end $$;
 
