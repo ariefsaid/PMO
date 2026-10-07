@@ -66,6 +66,15 @@ export async function listPurchaseTaxTemplates(deps: ErpClientDeps, company: str
   }
 }
 
+/**
+ * #915 — the company's default Purchase Taxes and Charges Template, or null. The sales side's read (`resolveSalesTaxRows`):
+ * enabled templates of the company flagged `is_default`, first name wins (ERPNext keeps one default per company).
+ */
+export async function findDefaultPurchaseTaxTemplate(deps: ErpClientDeps, company: string): Promise<string | null> {
+  const found = await listDocsByFilters(deps, TEMPLATE, [['company', '=', company], ['is_default', '=', 1], ['disabled', '=', 0]], ['name'], 2);
+  return found.length > 0 ? String(found[0].name) : null;
+}
+
 export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: string, templateName: string): Promise<ErpPurchaseTaxRow[]> {
   const notUsable = `The purchase tax template "${templateName}" is not an enabled Purchase Taxes and Charges Template for this company in ERPNext. Pick another template (or enter the tax amounts), then record the invoice again.`;
   const found = await listDocsByFilters(deps, TEMPLATE, [['name', '=', templateName], ['company', '=', company], ['disabled', '=', 0]], ['name'], 2);
