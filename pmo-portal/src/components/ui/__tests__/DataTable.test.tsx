@@ -187,21 +187,49 @@ describe('DataTable', () => {
 
     const header = screen.getByRole('columnheader', { name: 'Actions' });
     const actionCell = screen.getAllByRole('button', { name: /row actions/i })[0].closest('td')!;
+    // Chromium table-cell paint quirks (2026-10-08 fix round, see ROW_MENU_STICKY_CLASS):
+    // - `-right-px`: the cell sticks 1px PAST the scrollport edge so the scroller's own clip
+    //   closes the 1px seam through which scrolled text otherwise shows (the cell's painted bg
+    //   stops ~1px short of its layout edge when stuck flush with `right-0`).
+    // - Inset hairline box-shadow instead of `border-l`: in a border-collapse table the collapsed
+    //   border does NOT travel with a sticky cell; the inset shadow paints with the cell.
     const sharedClasses = [
       'sticky',
-      'right-0',
+      '-right-px',
       'bg-card',
-      'border-l',
-      'border-border',
-      'shadow-[-4px_0_6px_-4px_hsl(var(--foreground)/0.12)]',
+      'shadow-[inset_1px_0_0_hsl(var(--border))]',
     ];
 
     for (const className of sharedClasses) {
       expect(header.className).toContain(className);
       expect(actionCell.className).toContain(className);
     }
+    expect(header.className).not.toContain('border-l');
+    expect(actionCell.className).not.toContain('border-l');
     expect(header.className).toContain('z-[3]');
     expect(actionCell.className).toContain('z-[1]');
+  });
+
+  it('AC-TBL-STICKY-001 renders the left-cast separation gradient in BOTH sticky cells — outset box-shadows do not paint on sticky table cells, so the strip is a positioned element', () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
+      />
+    );
+
+    const seams = document.querySelectorAll<HTMLSpanElement>('[data-dt-seam]');
+    expect(seams.length).toBeGreaterThanOrEqual(2); // one in the header th, one in each body td
+    for (const seam of seams) {
+      expect(seam.getAttribute('aria-hidden')).toBe('true');
+      expect(seam.className).toContain('absolute');
+      expect(seam.className).toContain('-left-3');
+      expect(seam.className).toContain('bg-gradient-to-l');
+      expect(seam.className).toContain('from-[hsl(var(--foreground)/0.16)]');
+      expect(seam.className).toContain('pointer-events-none');
+    }
   });
 
   it('per-row rowMenu returning undefined ("no menu for this row") skips that row\'s trigger, other rows unaffected', () => {

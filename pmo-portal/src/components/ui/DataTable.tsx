@@ -9,8 +9,25 @@ import { trackSearchUsed } from '@/src/lib/analytics';
 /** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
  * search intent, never per keystroke. */
 const SEARCH_USED_DEBOUNCE_MS = 500;
+/** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
+ *  (2026-10-08 fix round, AC-TBL-STICKY-001):
+ *  1. In a `border-collapse` table the cell's collapsed `border-l` does NOT travel with a sticky
+ *     cell — at the stuck position no border paints at all. The divider is an INSET box-shadow
+ *     hairline, which paints with the cell's own layer in light and dark.
+ *  2. A cell stuck flush (`right-0`) paints its background ~1px short of its layout edge, leaving
+ *     a seam through which scrolled text shows as a glyph sliver PAST the ⋯ column. Sticking 1px
+ *     PAST the scrollport edge (`-right-px`) lets the scroller's own clip cut the excess and
+ *     closes the seam.
+ *  3. An OUTSET box-shadow on a sticky table cell is not painted at all (clipped to the cell's
+ *     box), so the left-cast separation shadow is a positioned gradient strip (ROW_MENU_SEAM_CLASS)
+ *     rendered inside the cell — see DESIGN.md §6 Row actions. */
 const ROW_MENU_STICKY_CLASS =
-  'sticky right-0 border-l border-border bg-card shadow-[-4px_0_6px_-4px_hsl(var(--foreground)/0.12)]';
+  'sticky -right-px bg-card shadow-[inset_1px_0_0_hsl(var(--border))]';
+/** Left-cast separation gradient for the sticky actions column: from the `foreground` token
+ *  (near-black in light, near-light in dark — the token flips the cast with the mode) fading out
+ *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
+const ROW_MENU_SEAM_CLASS =
+  'pointer-events-none absolute inset-y-0 -left-3 w-3 bg-gradient-to-l from-[hsl(var(--foreground)/0.16)] to-transparent';
 
 export type ColAlign = 'num' | 'center';
 
@@ -261,6 +278,7 @@ export function DataTable<Row>({
               })}
               {rowMenu && (
                 <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b')} scope="col">
+                  <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />
                   <span className="sr-only">Actions</span>
                 </th>
               )}
@@ -347,6 +365,7 @@ export function DataTable<Row>({
                     })}
                     {rowMenu && (
                       <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle')}>
+                        <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />
                         {(() => {
                           const items = rowMenu(row) ?? [];
                           return items.length > 0 ? <RowMenu items={items} /> : null;
