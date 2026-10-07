@@ -7,7 +7,7 @@
  */
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
-import { deriveErpPaymentTermsDays } from '../partyAdopt.ts';
+import { deriveErpPaymentTermsDays, externalIdFor } from '../partyAdopt.ts';
 
 interface CustomerDoc {
   name: string;
@@ -29,7 +29,10 @@ export const customerFromDoc = (doc: unknown, paymentTermsDays?: number | null):
   const d = doc as CustomerDoc;
   const name = d.customer_name ?? d.name;
   return {
-    id: 'placeholder',
+    // #935 — mirror of `supplierFromDoc`: `runSweep` keys the apply on this id, so it MUST be the
+    // production link shape (`Customer:<docname>`, the SAME `externalIdFor` the onboarding/webhook
+    // paths stamp) — never a placeholder collapsing every sweep-adopted party onto one ref.
+    id: externalIdFor('Customer', String(d.name)),
     name,
     type: 'Client',
     erp_party_type: 'Client',
