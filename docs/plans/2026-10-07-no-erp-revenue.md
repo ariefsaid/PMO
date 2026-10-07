@@ -2,7 +2,7 @@
 
 > Spec: `docs/specs/no-erp-revenue.spec.md` (FR-NAR-001..013, NFR-NAR-001..006, AC-NAR-001..007, DD-NAR-1..15).
 > ADR: `docs/adr/0055-external-system-adapters-sot-enhancement.md` § Addendum 2026-10-07.
-> Lane: **money path + SoD → Director-dispatched, not the factory.** Migration slot: **0270** only.
+> Lane: **money path + SoD → Director-dispatched, not the factory.** Migration slot: **0275** only.
 > Worktree: `/Users/ariefsaid/Coding/PMO/.claude/worktrees/784` (branch `feat/784-no-erp-invoicing`). Every command
 > below runs from that root unless it starts with `(cd pmo-portal && …)`.
 
@@ -61,14 +61,14 @@ reads one invoice's receipts (existing `incoming_payments_org_si_idx`); lists st
 
 | File | Change |
 |---|---|
-| `supabase/migrations/0270_native_revenue.sql` | new (§1–§9, built across Tasks 2/4/7/10/13/15) |
-| `supabase/migrations/rollback/0270_native_revenue_down.sql` | new (Task 16) |
-| `supabase/tests/0270_native_revenue_create.test.sql` | new (Task 1) |
-| `supabase/tests/0270_native_revenue_approve.test.sql` | new (Task 3) |
-| `supabase/tests/0270_native_revenue_receipts.test.sql` | new (Task 6) |
-| `supabase/tests/0270_native_revenue_crossing.test.sql` | new (Task 9) |
-| `supabase/tests/0270_revenue_write_roles.test.sql` | new (Task 12) |
-| `supabase/tests/0270_native_revenue_acl.test.sql` | new (Task 15) |
+| `supabase/migrations/0275_native_revenue.sql` | new (§1–§9, built across Tasks 2/4/7/10/13/15) |
+| `supabase/migrations/rollback/0275_native_revenue_down.sql` | new (Task 16) |
+| `supabase/tests/0275_native_revenue_create.test.sql` | new (Task 1) |
+| `supabase/tests/0275_native_revenue_approve.test.sql` | new (Task 3) |
+| `supabase/tests/0275_native_revenue_receipts.test.sql` | new (Task 6) |
+| `supabase/tests/0275_native_revenue_crossing.test.sql` | new (Task 9) |
+| `supabase/tests/0275_revenue_write_roles.test.sql` | new (Task 12) |
+| `supabase/tests/0275_native_revenue_acl.test.sql` | new (Task 15) |
 | `supabase/tests/0178_anon_executable_definers.test.sql` | +4 names, count 59 → 63 (Task 15) |
 | `pmo-portal/src/lib/supabase/database.types.ts`, `scripts/isolation-probe-denominator.json` | regenerated (Task 17) |
 | `pmo-portal/src/lib/revenue/nativeInvoice.ts` (+ test) | new (Task 19) |
@@ -89,14 +89,14 @@ reads one invoice's receipts (existing `incoming_payments_org_si_idx`); lists st
 
 | AC | Owning test | Task |
 |---|---|---|
-| AC-NAR-001 | `supabase/tests/0270_native_revenue_create.test.sql` | 1–2 |
-| AC-NAR-002 | `supabase/tests/0270_native_revenue_approve.test.sql` | 3–5 |
+| AC-NAR-001 | `supabase/tests/0275_native_revenue_create.test.sql` | 1–2 |
+| AC-NAR-002 | `supabase/tests/0275_native_revenue_approve.test.sql` | 3–5 |
 | AC-NAR-003 | `pmo-portal/e2e/AC-NAR-003-no-erp-billing.spec.ts` | 33 (DB contract: Tasks 6–8) |
-| AC-NAR-004 | `supabase/tests/0270_native_revenue_crossing.test.sql` | 9–11 (FE never-dispatch: Task 23) |
-| AC-NAR-005 | `supabase/tests/0270_native_revenue_approve.test.sql` | 3–4 |
-| AC-NAR-006 | `supabase/tests/0270_native_revenue_receipts.test.sql` | 6–7 |
-| AC-NAR-007 | `supabase/tests/0270_revenue_write_roles.test.sql` | 12–14 |
-| NFR-NAR-001 | `supabase/tests/0270_native_revenue_acl.test.sql` | 15 |
+| AC-NAR-004 | `supabase/tests/0275_native_revenue_crossing.test.sql` | 9–11 (FE never-dispatch: Task 23) |
+| AC-NAR-005 | `supabase/tests/0275_native_revenue_approve.test.sql` | 3–4 |
+| AC-NAR-006 | `supabase/tests/0275_native_revenue_receipts.test.sql` | 6–7 |
+| AC-NAR-007 | `supabase/tests/0275_revenue_write_roles.test.sql` | 12–14 |
+| NFR-NAR-001 | `supabase/tests/0275_native_revenue_acl.test.sql` | 15 |
 
 Gate commands used below:
 - **DB:** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'` (reset and test in ONE lock hold).
@@ -108,23 +108,23 @@ Gate commands used below:
 
 ```bash
 test -f supabase/migrations/0262_billing_by_work_order.sql && echo "0262 present" || echo "STOP: rebase onto dev after #785 merges"
-ls supabase/migrations/0270_* 2>/dev/null && echo "STOP: slot 0270 taken" || echo "0270 free"
+ls supabase/migrations/0275_* 2>/dev/null && echo "STOP: slot 0275 taken" || echo "0275 free"
 grep -n "workOrderId?: string | null" pmo-portal/src/lib/repositories/types.ts || echo "STOP: #785 FE not on this base"
 grep -c "^  ('" supabase/tests/0178_anon_executable_definers.test.sql
 ```
-**Verify:** the first three lines print `0262 present`, `0270 free` and a `types.ts` match; the last prints the current
+**Verify:** the first three lines print `0262 present`, `0275 free` and a `types.ts` match; the last prints the current
 allow-list length (59 unless #775 phase B landed — then use that number + 4 in Task 15). On any `STOP`, do not start.
 
 ---
 
 ## Task 1 — RED: pgTAP for raising an invoice (AC-NAR-001) (5 min)
 
-**File:** `supabase/tests/0270_native_revenue_create.test.sql`
+**File:** `supabase/tests/0275_native_revenue_create.test.sql`
 
 ```sql
--- 0270_native_revenue_create.test.sql — #784 AC-NAR-001: with no ERP owning revenue, a Finance user raises a customer
+-- 0275_native_revenue_create.test.sql — #784 AC-NAR-001: with no ERP owning revenue, a Finance user raises a customer
 -- invoice; it saves as Draft with its tax treatment, tax and currency, its author recorded, and lists for the org only.
--- Migration under test: 0270_native_revenue.sql §1–§3 (and 0262's work-order fence, DD-BWO-4).
+-- Migration under test: 0275_native_revenue.sql §1–§3 (and 0262's work-order fence, DD-BWO-4).
 begin;
 create extension if not exists pgtap;
 select plan(23);
@@ -254,19 +254,19 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_create.test.sql'`
 → fails with `function public.create_native_sales_invoice(...) does not exist`.
 
 ---
 
 ## Task 2 — GREEN: migration header, §1 schema, §2 helper, §3 create RPC (5 min)
 
-**File (new):** `supabase/migrations/0270_native_revenue.sql`
+**File (new):** `supabase/migrations/0275_native_revenue.sql`
 
 ```sql
--- 0270_native_revenue.sql — #784 (OD-REEL-1): customer invoices and receipts for an org whose revenue no ERP owns.
+-- 0275_native_revenue.sql — #784 (OD-REEL-1): customer invoices and receipts for an org whose revenue no ERP owns.
 -- Spec: docs/specs/no-erp-revenue.spec.md (FR-NAR-*, AC-NAR-001..007). ADR: ADR-0055 addendum 2026-10-07.
--- Plan: docs/plans/2026-10-07-no-erp-revenue.md. Rollback: supabase/migrations/rollback/0270_native_revenue_down.sql.
+-- Plan: docs/plans/2026-10-07-no-erp-revenue.md. Rollback: supabase/migrations/rollback/0275_native_revenue_down.sql.
 --
 -- Shape (DD-NAR-1..15): no new table. A PMO invoice / receipt is a row of sales_invoices / incoming_payments with
 -- pmo_native = true, written ONLY by four SECURITY DEFINER RPCs:
@@ -466,17 +466,17 @@ comment on function public.create_native_sales_invoice(uuid, uuid, jsonb, uuid) 
   '#784 FR-NAR-001..004: raises a PMO customer invoice as a Draft while no ERP owns revenue. Admin/Finance only; tax from the project; the caller is recorded as author.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql'` → `ok 1..23`, `All tests successful`.
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_create.test.sql'` → `ok 1..23`, `All tests successful`.
 
 ---
 
 ## Task 3 — RED: pgTAP for approving and cancelling (AC-NAR-002, AC-NAR-005) (5 min)
 
-**File:** `supabase/tests/0270_native_revenue_approve.test.sql`
+**File:** `supabase/tests/0275_native_revenue_approve.test.sql`
 
 ```sql
--- 0270_native_revenue_approve.test.sql — #784 AC-NAR-002 (a second person approves; the author never can) and
--- AC-NAR-005 (a Draft, or an Unpaid invoice with no receipt, can be cancelled). Migration under test: 0270 §3–§4.
+-- 0275_native_revenue_approve.test.sql — #784 AC-NAR-002 (a second person approves; the author never can) and
+-- AC-NAR-005 (a Draft, or an Unpaid invoice with no receipt, can be cancelled). Migration under test: 0275 §3–§4.
 begin;
 create extension if not exists pgtap;
 select plan(19);
@@ -595,14 +595,14 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_approve.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_approve.test.sql'`
 → fails: `function public.transition_native_sales_invoice(uuid, unknown) does not exist`.
 
 ---
 
 ## Task 4 — GREEN: §4 transition RPC (approve / cancel) (5 min)
 
-**Append to** `supabase/migrations/0270_native_revenue.sql`:
+**Append to** `supabase/migrations/0275_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -690,15 +690,15 @@ comment on function public.transition_native_sales_invoice(uuid, text) is
   '#784 FR-NAR-005/009: approve (Draft → Unpaid; approver not in the author set; current Admin/Finance) or cancel (Draft, or Unpaid with no live receipt) a PMO invoice.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql supabase/tests/0270_native_revenue_approve.test.sql'` → both files `All tests successful` (23 + 19).
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_create.test.sql supabase/tests/0275_native_revenue_approve.test.sql'` → both files `All tests successful` (23 + 19).
 
 ---
 
 ## Task 5 — Mutation checks on the approval SoD (5 min)
 
-Each mutation is made in `supabase/migrations/0270_native_revenue.sql`, run, then **reverted by hand to the exact
+Each mutation is made in `supabase/migrations/0275_native_revenue.sql`, run, then **reverted by hand to the exact
 original line**, then the file is re-run green. Command for every step:
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_approve.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_approve.test.sql'`
 
 | # | Change (in §4) | Must go RED (by description) |
 |---|---|---|
@@ -715,14 +715,14 @@ Record the three outputs in the PR body.
 
 > **Superseded by DD-NAR-17 (owner OD-NAR-1):** a receipt carries a required payment date (never future) and an amount
 > that defaults to the balance; more than the balance is accepted (Paid, `overpaid_amount` = the excess). The committed
-> `0270_native_revenue_receipts.test.sql` and migration §5 are the source of truth for Tasks 6–7.
+> `0275_native_revenue_receipts.test.sql` and migration §5 are the source of truth for Tasks 6–7.
 
-**File:** `supabase/tests/0270_native_revenue_receipts.test.sql`
+**File:** `supabase/tests/0275_native_revenue_receipts.test.sql`
 
 ```sql
--- 0270_native_revenue_receipts.test.sql — #784 AC-NAR-003 (part and full receipts; the balance is the gross less live
+-- 0275_native_revenue_receipts.test.sql — #784 AC-NAR-003 (part and full receipts; the balance is the gross less live
 -- PMO receipts; Paid exactly at zero) and AC-NAR-006 (a receipt can be cancelled; the balance comes back).
--- Migration under test: 0270 §5.
+-- Migration under test: 0275 §5.
 begin;
 create extension if not exists pgtap;
 select plan(19);
@@ -828,7 +828,7 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_receipts.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_receipts.test.sql'`
 → fails: `function public.record_native_receipt(uuid, integer) does not exist`.
 
 ---
@@ -837,9 +837,9 @@ rollback;
 
 > **Superseded by DD-NAR-17 (owner OD-NAR-1):** a receipt carries a required payment date (never future) and an amount
 > that defaults to the balance; more than the balance is accepted (Paid, `overpaid_amount` = the excess). The committed
-> `0270_native_revenue_receipts.test.sql` and migration §5 are the source of truth for Tasks 6–7.
+> `0275_native_revenue_receipts.test.sql` and migration §5 are the source of truth for Tasks 6–7.
 
-**Append to** `supabase/migrations/0270_native_revenue.sql`:
+**Append to** `supabase/migrations/0275_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -981,13 +981,13 @@ comment on function public.cancel_native_receipt(uuid) is
   '#784 FR-NAR-009: cancels a PMO receipt and recomputes its invoice''s balance and status.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_create.test.sql supabase/tests/0270_native_revenue_approve.test.sql supabase/tests/0270_native_revenue_receipts.test.sql'` → all three `All tests successful`.
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_create.test.sql supabase/tests/0275_native_revenue_approve.test.sql supabase/tests/0275_native_revenue_receipts.test.sql'` → all three `All tests successful`.
 
 ---
 
 ## Task 8 — Mutation checks on the receipt rules (3 min)
 
-Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_receipts.test.sql'`
+Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_receipts.test.sql'`
 
 | # | Change (in §5, `record_native_receipt`) | Must go RED |
 |---|---|---|
@@ -1000,12 +1000,12 @@ Revert each by hand; re-run green. **Verify:** the listed assertions fail under 
 
 ## Task 9 — RED: pgTAP for connecting an ERP later (AC-NAR-004) (5 min)
 
-**File:** `supabase/tests/0270_native_revenue_crossing.test.sql`
+**File:** `supabase/tests/0275_native_revenue_crossing.test.sql`
 
 ```sql
--- 0270_native_revenue_crossing.test.sql — #784 AC-NAR-004 (DD-NAR-11, OD-XING-1 default): once an ERP owns revenue,
+-- 0275_native_revenue_crossing.test.sql — #784 AC-NAR-004 (DD-NAR-11, OD-XING-1 default): once an ERP owns revenue,
 -- PMO invoices and receipts from before stay readable, every PMO write is refused (RPC + mirror guards), and the ERP
--- cannot take revenue over while a PMO draft is open. Migration under test: 0270 §6–§7.
+-- cannot take revenue over while a PMO draft is open. Migration under test: 0275 §6–§7.
 begin;
 create extension if not exists pgtap;
 select plan(14);
@@ -1101,20 +1101,20 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_crossing.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_crossing.test.sql'`
 → assertion 1 fails (the revenue row inserts), and 11–13 fail (the guards do not yet pin the new columns).
 
 ---
 
 ## Task 10 — GREEN: §6 mirror guards (paired edit) and §7 employ guard (5 min)
 
-**Append to** `supabase/migrations/0270_native_revenue.sql`:
+**Append to** `supabase/migrations/0275_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §6 — the mirror guards pin the new columns (DD-WO-4: a column added later is user-writable while the ERP owns the
 -- domain unless its guard enumerates it). Bodies are the live definitions VERBATIM — sales_invoices from 0193,
--- incoming_payments from 0232 — with the lines marked `0270` added. SECURITY INVOKER as before; no trigger re-created
+-- incoming_payments from 0232 — with the lines marked `0275` added. SECURITY INVOKER as before; no trigger re-created
 -- (a trigger binds by OID and create-or-replace keeps it).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
@@ -1141,11 +1141,11 @@ begin
      or new.tax_rate is distinct from old.tax_rate               -- 0188 (#478)
      or new.tax_template is distinct from old.tax_template       -- 0188 (#478)
      or new.work_order_id is distinct from old.work_order_id     -- 0193 (#498): which scope grant this bills
-     or new.pmo_native is distinct from old.pmo_native           -- 0270 (#784)
-     or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)
-     or new.native_lines is distinct from old.native_lines       -- 0270 (#784)
-     or new.approved_by_id is distinct from old.approved_by_id   -- 0270 (#784)
-     or new.approved_at is distinct from old.approved_at         -- 0270 (#784)
+     or new.pmo_native is distinct from old.pmo_native           -- 0275 (#784)
+     or new.pmo_number is distinct from old.pmo_number           -- 0275 (#784)
+     or new.native_lines is distinct from old.native_lines       -- 0275 (#784)
+     or new.approved_by_id is distinct from old.approved_by_id   -- 0275 (#784)
+     or new.approved_at is distinct from old.approved_at         -- 0275 (#784)
      or new.id is distinct from old.id or new.org_id is distinct from old.org_id
      or new.created_at is distinct from old.created_at
   then
@@ -1175,9 +1175,9 @@ begin
      or new.withheld_amount is distinct from old.withheld_amount
      or new.withholding_slip_number is distinct from old.withholding_slip_number
      or new.currency is distinct from old.currency               -- 0187 (#478)
-     or new.pmo_native is distinct from old.pmo_native           -- 0270 (#784)
-     or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)
-     or new.cancelled_at is distinct from old.cancelled_at       -- 0270 (#784)
+     or new.pmo_native is distinct from old.pmo_native           -- 0275 (#784)
+     or new.pmo_number is distinct from old.pmo_number           -- 0275 (#784)
+     or new.cancelled_at is distinct from old.cancelled_at       -- 0275 (#784)
      or new.id is distinct from old.id or new.org_id is distinct from old.org_id
      or new.created_at is distinct from old.created_at
   then
@@ -1212,19 +1212,19 @@ create trigger external_domain_ownership_revenue_employable
   for each row execute function public.assert_revenue_employable();
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_crossing.test.sql supabase/tests/0270_native_revenue_receipts.test.sql'` → both `All tests successful` (14 + 19).
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_crossing.test.sql supabase/tests/0275_native_revenue_receipts.test.sql'` → both `All tests successful` (14 + 19).
 
 ---
 
 ## Task 11 — Mutation checks on the crossing rules (3 min)
 
-Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_crossing.test.sql'`
+Command: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_crossing.test.sql'`
 
 | # | Change | Must go RED |
 |---|---|---|
 | M6 | §3: `if public.domain_externally_owned(v_org, 'revenue') then` → `if false and public.domain_externally_owned(v_org, 'revenue') then` | 5 "no new PMO invoice once the ERP owns revenue" |
 | M7 | §7: `if v_drafts > 0 then` → `if false and v_drafts > 0 then` | 1 "the ERP cannot take over … while a PMO draft is open" |
-| M8 | §6 (sales_invoices guard): delete the line `or new.pmo_number is distinct from old.pmo_number           -- 0270 (#784)` | 11 "the mirror guard pins the PMO number…" |
+| M8 | §6 (sales_invoices guard): delete the line `or new.pmo_number is distinct from old.pmo_number           -- 0275 (#784)` | 11 "the mirror guard pins the PMO number…" |
 
 Revert each by hand; re-run green. **Verify:** listed assertions fail under the mutation, pass after revert.
 
@@ -1232,10 +1232,10 @@ Revert each by hand; re-run green. **Verify:** listed assertions fail under the 
 
 ## Task 12 — RED: pgTAP for "revenue writes are Admin and Finance only" (AC-NAR-007) (5 min)
 
-**File:** `supabase/tests/0270_revenue_write_roles.test.sql`
+**File:** `supabase/tests/0275_revenue_write_roles.test.sql`
 
 ```sql
--- 0270_revenue_write_roles.test.sql — #784 AC-NAR-007 (owner ruling, DD-NAR-15): writes to sales_invoices and
+-- 0275_revenue_write_roles.test.sql — #784 AC-NAR-007 (owner ruling, DD-NAR-15): writes to sales_invoices and
 -- incoming_payments are Admin and Finance only, by every path a member has — direct insert, update and delete (the
 -- table policies), and the PMO revenue RPCs. The service-role ERP mirror writer is unaffected.
 -- Update and delete are proven through the POLICY layer: the test grants the column/table privilege inside its own
@@ -1387,14 +1387,14 @@ select * from finish();
 rollback;
 ```
 
-**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_revenue_write_roles.test.sql'`
+**Verify (RED):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_revenue_write_roles.test.sql'`
 → assertions 5–8, 11–12 and 17–18 fail (the policies still admit Executive and Project Manager).
 
 ---
 
 ## Task 13 — GREEN: §8 revenue write policies, Admin and Finance only (3 min)
 
-**Append to** `supabase/migrations/0270_native_revenue.sql`:
+**Append to** `supabase/migrations/0275_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1445,14 +1445,14 @@ comment on policy incoming_payments_delete on public.incoming_payments is
   'Revenue writes are Admin and Finance only (owner ruling, #784). Deletes are made by the service-role mirror writer and audited; this policy states the same rule.';
 ```
 
-**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_revenue_write_roles.test.sql'` → `ok 1..25`.
+**Verify (GREEN):** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_revenue_write_roles.test.sql'` → `ok 1..25`.
 
 ---
 
 ## Task 14 — Mutation check on the policies + sweep of existing tests for the ruled role set (5 min)
 
 1. **M9:** in §8, `sales_invoices_insert` line `and auth_role() in ('Admin','Finance')` → `and auth_role() in ('Admin','Executive','Project Manager','Finance')`.
-   Run `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_revenue_write_roles.test.sql'`
+   Run `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_revenue_write_roles.test.sql'`
    → assertions 5 and 7 must fail. Revert by hand, re-run → green.
 2. **Sweep.** List every existing pgTAP file that writes either table under a member JWT:
    ```bash
@@ -1476,10 +1476,10 @@ comment on policy incoming_payments_delete on public.incoming_payments is
 
 ## Task 15 — ACL proof, §9 in-migration assertions, 0178 allow-list (5 min)
 
-**a) File:** `supabase/tests/0270_native_revenue_acl.test.sql`
+**a) File:** `supabase/tests/0275_native_revenue_acl.test.sql`
 
 ```sql
--- 0270_native_revenue_acl.test.sql — #784 NFR-NAR-001: the four PMO revenue writers are client-callable SECURITY
+-- 0275_native_revenue_acl.test.sql — #784 NFR-NAR-001: the four PMO revenue writers are client-callable SECURITY
 -- DEFINER functions with a pinned search_path, never anon; the helper and the employ guard are not client-executable;
 -- no new column is client-writable.
 begin;
@@ -1527,7 +1527,7 @@ select * from finish();
 rollback;
 ```
 
-**b) Append to** `supabase/migrations/0270_native_revenue.sql`:
+**b) Append to** `supabase/migrations/0275_native_revenue.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1545,14 +1545,14 @@ begin
       or not has_function_privilege('authenticated', sig, 'execute')
       or not (select p.prosecdef from pg_proc p where p.oid = sig::regprocedure);
   if v_bad is not null then
-    raise exception '0270 §9: PMO revenue writer grants or SECURITY DEFINER drifted: %', v_bad;
+    raise exception '0275 §9: PMO revenue writer grants or SECURITY DEFINER drifted: %', v_bad;
   end if;
 
   select string_agg(sig, ', ') into v_bad
     from (values ('public.native_invoice_settled(uuid)'), ('public.assert_revenue_employable()')) f(sig)
    where has_function_privilege('anon', sig, 'execute') or has_function_privilege('authenticated', sig, 'execute');
   if v_bad is not null then
-    raise exception '0270 §9: client roles can execute internal functions: %', v_bad;
+    raise exception '0275 §9: client roles can execute internal functions: %', v_bad;
   end if;
 
   -- Every column §1 adds: neither client-insertable nor client-updatable (DD-NAR-2, -16, -17).
@@ -1567,7 +1567,7 @@ begin
       or has_column_privilege('anon', 'public.' || c.t, c.col, 'INSERT')
       or has_column_privilege('anon', 'public.' || c.t, c.col, 'UPDATE');
   if v_bad is not null then
-    raise exception '0270 §9: a PMO revenue column is client-writable: %', v_bad;
+    raise exception '0275 §9: a PMO revenue column is client-writable: %', v_bad;
   end if;
 
   -- §8: exactly six write policies on the two tables, each admitting Admin and Finance and no other role.
@@ -1578,7 +1578,7 @@ begin
                  where schemaname = 'public' and tablename in ('sales_invoices','incoming_payments')
                    and cmd in ('INSERT','UPDATE','DELETE')
                    and (coalesce(qual, '') || coalesce(with_check, '')) ~ '(Executive|Project Manager|Engineer)') then
-    raise exception '0270 §9: revenue write policies are not exactly the Admin/Finance set';
+    raise exception '0275 §9: revenue write policies are not exactly the Admin/Finance set';
   end if;
 end $$;
 ```
@@ -1587,11 +1587,11 @@ end $$;
 - After the `-- ⚑ AMENDED BY 0250 (#766): …` paragraph (ending `…deliberately NOT listed.`), insert:
   ```sql
   --
-  -- ⚑ AMENDED BY 0270 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
+  -- ⚑ AMENDED BY 0275 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
   -- and `cancel_native_receipt` join the retained set, taking the count to 63 (59 + 4, re-derived by hand from the list).
   -- Each is a SECURITY DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + org +
-  -- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0270_native_revenue_*.test.sql and
-  -- 0270_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
+  -- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0275_native_revenue_*.test.sql and
+  -- 0275_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
   ```
 - In the `insert into client_callable_rpc_names` list add, in alphabetical position: `('cancel_native_receipt'),` after
   `('attest_timesheet_no_erp_document'),`; `('create_native_sales_invoice'),` after `('confirm_erp_employee_link'),`;
@@ -1603,18 +1603,18 @@ end $$;
 **Verify:**
 ```bash
 grep -c "^  ('" supabase/tests/0178_anon_executable_definers.test.sql   # → 63 (or base + 4)
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_native_revenue_acl.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0173_rpc_active_member_gate.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0275_native_revenue_acl.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0173_rpc_active_member_gate.test.sql'
 ```
-→ `db reset` applies 0270 without a §9 exception; all three files pass.
+→ `db reset` applies 0275 without a §9 exception; all three files pass.
 
 ---
 
 ## Task 16 — Rollback file and a reversibility check (5 min)
 
-**File:** `supabase/migrations/rollback/0270_native_revenue_down.sql`
+**File:** `supabase/migrations/rollback/0275_native_revenue_down.sql`
 
 ```sql
--- Rollback for 0270_native_revenue.sql (#784). Precondition (data, not schema): no PMO invoice or receipt exists —
+-- Rollback for 0275_native_revenue.sql (#784). Precondition (data, not schema): no PMO invoice or receipt exists —
 --   select count(*) from public.sales_invoices where pmo_native;    -- must be 0
 --   select count(*) from public.incoming_payments where pmo_native; -- must be 0
 -- Dropping the columns with PMO rows present would leave them indistinguishable from mirror rows.
@@ -1753,11 +1753,11 @@ alter table public.sales_invoices
 **Verify (round trip, one lock hold):**
 ```bash
 scripts/with-db-lock.sh bash -c 'supabase db reset \
-  && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0270_native_revenue_down.sql \
+  && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0275_native_revenue_down.sql \
   && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -At -c "select count(*) from information_schema.columns where table_name in ('"'"'sales_invoices'"'"','"'"'incoming_payments'"'"') and column_name in ('"'"'pmo_native'"'"','"'"'pmo_number'"'"','"'"'native_lines'"'"','"'"'cancelled_at'"'"')" \
   && supabase db reset'
 ```
-→ the rollback runs without error, the count prints `0`, and the final reset re-applies 0270 cleanly.
+→ the rollback runs without error, the count prints `0`, and the final reset re-applies 0275 cleanly.
 
 ---
 
@@ -1782,9 +1782,9 @@ and the four RPCs under `Functions`.
 
 ```bash
 scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db \
-  supabase/tests/0270_native_revenue_create.test.sql supabase/tests/0270_native_revenue_approve.test.sql \
-  supabase/tests/0270_native_revenue_receipts.test.sql supabase/tests/0270_native_revenue_crossing.test.sql \
-  supabase/tests/0270_revenue_write_roles.test.sql supabase/tests/0270_native_revenue_acl.test.sql \
+  supabase/tests/0275_native_revenue_create.test.sql supabase/tests/0275_native_revenue_approve.test.sql \
+  supabase/tests/0275_native_revenue_receipts.test.sql supabase/tests/0275_native_revenue_crossing.test.sql \
+  supabase/tests/0275_revenue_write_roles.test.sql supabase/tests/0275_native_revenue_acl.test.sql \
   supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0173_rpc_active_member_gate.test.sql \
   supabase/tests/0169_create_path_sod_residuals.test.sql supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql \
   supabase/tests/0171_sod_class_completeness.test.sql supabase/tests/0193_work_orders.test.sql \
@@ -1849,7 +1849,7 @@ Run `(cd pmo-portal && ../scripts/with-test-lock.sh npx vitest run src/lib/reven
 ```ts
 /**
  * #784 — the pure display rules the PMO-native revenue surfaces share (docs/specs/no-erp-revenue.spec.md).
- * Display only: migration 0270's RPCs are the authority for every figure these read.
+ * Display only: migration 0275's RPCs are the authority for every figure these read.
  */
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
@@ -1968,7 +1968,7 @@ import type { Json } from '@/src/lib/supabase/database.types';
 
 /**
  * #784 (ADR-0055 addendum 2026-10-07): the PMO-native revenue writes — used while no ERP owns revenue for the org.
- * Every write is a SECURITY DEFINER RPC (migration 0270) that enforces role (Admin/Finance), approval SoD, ownership and
+ * Every write is a SECURITY DEFINER RPC (migration 0275) that enforces role (Admin/Finance), approval SoD, ownership and
  * balance rules; this module only names them.
  */
 export interface NativeInvoiceLineInput {
@@ -2083,7 +2083,7 @@ Run `(cd pmo-portal && ../scripts/with-test-lock.sh npx vitest run src/lib/db/re
 **Step 2 — edits in** `pmo-portal/src/lib/db/revenue.ts`:
 - In `interface SalesInvoiceRow`, after `received_date: string | null;` add:
   ```ts
-  /** #784 (DD-NAR-2): true for an invoice raised in PMO while no ERP owned revenue; written only by migration 0270's RPCs. */
+  /** #784 (DD-NAR-2): true for an invoice raised in PMO while no ERP owned revenue; written only by migration 0275's RPCs. */
   pmo_native?: boolean;
   /** #784 (DD-NAR-9): PMO's own invoice number, minted on approval; null for a Draft and for ERP invoices. */
   pmo_number?: string | null;
@@ -2194,7 +2194,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * #784 — the repository's PMO-native revenue path. While no ERP owns revenue (cold or 'pmo' route), every revenue
- * write goes to migration 0270's RPCs and NEVER dispatches to the ERP (the goal AC-SAR-001 always asserted). Once an
+ * write goes to migration 0275's RPCs and NEVER dispatches to the ERP (the goal AC-SAR-001 always asserted). Once an
  * ERP owns revenue, a row raised in PMO before connect is history: it is never pushed (AC-NAR-004).
  */
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: vi.fn() }));
@@ -3421,7 +3421,7 @@ security — this is money + SoD + RLS) and the rendered Discover pass on `/sale
 
 ## Appendix A — if #785 (0262) is not on `dev` when #784 must build
 
-Do not merge 0270 before 0262: the hosted push would then need an out-of-order `--include-all`. If the Director still
+Do not merge 0275 before 0262: the hosted push would then need an out-of-order `--include-all`. If the Director still
 orders #784 first, these exact deltas apply (and are reverted when #785 lands):
 1. §3: replace `    perform public.lock_work_order_billing(p_work_order_id);` with
    `    perform pg_advisory_xact_lock(hashtextextended('work_order_billing:' || p_work_order_id::text, 0));`

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -96,13 +97,17 @@ import SalesInvoices from '../../pages/SalesInvoices';
 
 const renderAt = (url: string) =>
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter initialEntries={[url]}>
-        <ToastProvider>
-          <SalesInvoices />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
+    // standard provider even though `useRevenue` itself is mocked here.
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter initialEntries={[url]}>
+          <ToastProvider>
+            <SalesInvoices />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 
 describe('SalesInvoices — deep link (#787)', () => {

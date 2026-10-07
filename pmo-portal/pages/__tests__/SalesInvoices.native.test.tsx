@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -81,7 +82,12 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>, row: HTMLEleme
   await user.click(within(row).getByRole('button', { name: 'Row actions' }));
 }
 
+// The page's PDF hook (#912) reads the query cache — one client per test, kept across rerenders.
+let queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+beforeEach(() => { queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }); });
+
 const page = () => (
+  <QueryClientProvider client={queryClient}>
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole="Finance">
       <MemoryRouter>
@@ -91,6 +97,7 @@ const page = () => (
       </MemoryRouter>
     </ImpersonationProvider>
   </FinanceI18nTestProvider>
+  </QueryClientProvider>
 );
 const renderPage = () => render(page());
 
@@ -172,11 +179,14 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const badge = within(row).getByText('Pre-ERP');
     expect(badge.closest('[title]')).toHaveAttribute('title', 'Recorded in PMO before the ERP was connected');
     expect(within(row).getByText(/Recorded in PMO before the ERP was connected/)).toHaveClass('sr-only');
-    // #784 (fix round): the frozen row's last affordance — "Record received date" — is gone too, so the row
-    // offers no row menu at all: nothing to Approve, Cancel or date-stamp from PMO while the ERP owns revenue.
-    expect(within(row).queryByRole('button', { name: 'Row actions' })).toBeNull();
+    // #784: the frozen row has no PMO lifecycle affordances while the ERP owns revenue. e-Faktur remains
+    // PMO-owned (#893), so its record action is still available even on the frozen history row.
+    const user = userEvent.setup();
+    await openMenu(user, row);
     expect(screen.queryByRole('menuitem', { name: 'Approve' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Cancel' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Record received date' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
   });
   it('AC-NAR-003 (DD-NAR-17) a PMO invoice paid beyond its gross reads Paid and shows the overpaid excess', () => {
     h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 0, overpaid_amount: 90_000 })];
@@ -360,9 +370,12 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
     renderPage();
     const row = rowFor('INV-2610070001');
-    // The frozen row keeps no PMO affordances — its received date is the ERP's history now; the RPC refuses it too.
-    expect(within(row).queryByRole('button', { name: 'Row actions' })).toBeNull();
+    // The frozen row keeps no PMO lifecycle affordances — its received date is the ERP's history now;
+    // e-Faktur is still a PMO-owned fact and remains editable.
+    const user = userEvent.setup();
+    await openMenu(user, row);
     expect(screen.queryByRole('menuitem', { name: 'Record received date' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
   });
 
   it('NFR-NAR-006 (M-6) the new-invoice form is translated', async () => {

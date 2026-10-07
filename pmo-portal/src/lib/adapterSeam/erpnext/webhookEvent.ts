@@ -79,8 +79,10 @@ export function decodeErpWebhookEvent(raw: unknown): ErpFeedEvent | null {
   if (!doctype || !erpName) return null;
   // Payment Entry disambiguation by payment_type (FR-SAR-081): one doctype → two PMO kinds.
   const paymentType = doctype === 'Payment Entry' ? str(fieldOf(payload, 'payment_type')) : undefined;
+  // #775 phase B: an Employee party routes to the expense kinds (FR-EXP-113), never to procurement/revenue.
+  const partyType = doctype === 'Payment Entry' ? str(fieldOf(payload, 'party_type')) : undefined;
   const kind = doctype === 'Payment Entry'
-    ? kindFromDoctypeAndPaymentType(doctype, paymentType ?? undefined)
+    ? kindFromDoctypeAndPaymentType(doctype, paymentType ?? undefined, partyType ?? undefined)
     : kindFromDoctype(doctype);
   const domain = kind ? KIND_DOMAIN[kind] : undefined;
   const externalRecordId = kind ? externalIdForKind(kind, erpName) : erpName;

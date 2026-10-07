@@ -127,7 +127,7 @@ const validate = (
   if (!v.date) errors.date = t('financeCopy.paymentDateRequired', 'Date is required.');
   // #784 (DD-NAR-17): the server refuses a future payment date; say so before the round trip.
   else if (native && v.date > orgToday()) errors.date = t('financeCopy.paymentDateNotFuture', 'The payment date cannot be in the future.');
-  // The server refuses a payment dated before its invoice (0270); say so before the round trip.
+  // The server refuses a payment dated before its invoice (0275); say so before the round trip.
   else if (native && invoiceDate && v.date < invoiceDate) errors.date = t('financeCopy.paymentDateBeforeInvoice', 'The payment date cannot be before the invoice date.');
   const withheld = v.withheldAmount.trim() ? parseMoneyInputAtScale(v.withheldAmount, 2) : 0;
   if (withheld === null || withheld < 0) {
@@ -558,7 +558,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   const salesInvoiceField = form.fieldProps('salesInvoiceId');
   // #784 (DD-NAR-17): the PMO invoice this receipt settles, for the amount's starting value and its helper.
   const chosenInvoice = native ? invoices?.find((inv) => inv.id === salesInvoiceField.value) : undefined;
-  // A PMO receipt is recorded in its invoice's currency (0270), so the amounts read in it once one is chosen.
+  // A PMO receipt is recorded in its invoice's currency (0275), so the amounts read in it once one is chosen.
   const moneyPrefix = currencySymbol(payment?.currency ?? chosenInvoice?.currency ?? orgCurrency);
   const paidAmountField = form.fieldProps('paidAmount');
   const receivedAmountField = form.fieldProps('receivedAmount');

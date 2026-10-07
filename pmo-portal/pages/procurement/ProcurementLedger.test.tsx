@@ -5,7 +5,7 @@
  * empty/filtered-empty states. Uses RTL + the real DataTable (not mocked).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -79,6 +79,7 @@ import { ProcurementLedger } from './ProcurementLedger';
 import * as procurementFilesModule from '@/src/lib/db/procurementFiles';
 import type { LedgerRow } from '../../src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '../../src/lib/db/procurementLifecycle';
+import { formatCurrency } from '@/src/lib/format';
 
 function makeDetail(overrides: Partial<ProcurementDetail> = {}): ProcurementDetail {
   return {
@@ -469,5 +470,38 @@ describe('AC-EXT-002 (#769): the ledger shows each record\'s Group ref', () => {
   it('a record with no external reference never shows another record\'s value', () => {
     wrap(<ProcurementLedger {...BASE_PROPS} />);
     expect(screen.queryByText('PRO-0026100002')).toBeNull();
+  });
+});
+
+describe('AC-VWH-012: a vendor invoice with tax withheld shows VAT, tax withheld and net payable (#876)', () => {
+  const withholdingRow: LedgerRow = {
+    ...SAMPLE_ROWS[1], id: 'vi-876', systemNumber: 'VI-2026-0876', recordId: 'vi-876',
+    amount: 1110000, currency: 'IDR', taxAmount: 110000, withheldAmount: 20000,
+  };
+
+  it('AC-VWH-012 the three figures are shown, each labelled, in the bill currency', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[withholdingRow]} />);
+    const breakdown = screen.getAllByTestId('vi-withholding-breakdown')[0];
+    expect(within(breakdown).getByText('VAT')).toBeInTheDocument();
+    expect(within(breakdown).getByTestId('vi-withholding-vat').textContent).toBe(formatCurrency(110000, 'IDR'));
+    expect(within(breakdown).getByText('Tax withheld (PPh)')).toBeInTheDocument();
+    expect(within(breakdown).getByTestId('vi-withholding-withheld').textContent).toBe(formatCurrency(20000, 'IDR'));
+    expect(within(breakdown).getByText('Net payable')).toBeInTheDocument();
+    expect(within(breakdown).getByTestId('vi-withholding-net').textContent).toBe(formatCurrency(1090000, 'IDR'));
+  });
+
+  it('AC-VWH-012 a vendor invoice with nothing withheld renders no breakdown (unchanged)', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[{ ...SAMPLE_ROWS[1], taxAmount: 0, withheldAmount: 0 }]} />);
+    expect(screen.queryByTestId('vi-withholding-breakdown')).toBeNull();
+  });
+});
+
+describe('AC-VWH-026: a standalone tax-exclusive bill shows net payable = amount + VAT − withheld (#876 slice 2)', () => {
+  it('AC-VWH-026 the breakdown adds the VAT back for a tax-exclusive amount', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[{
+      ...SAMPLE_ROWS[1], id: 'vi-s2', recordId: 'vi-s2', amount: 1000000, currency: 'IDR',
+      taxTreatment: 'exclusive', taxAmount: 110000, withheldAmount: 20000,
+    }]} />);
+    expect(screen.getAllByTestId('vi-withholding-net')[0].textContent).toBe(formatCurrency(1090000, 'IDR'));
   });
 });

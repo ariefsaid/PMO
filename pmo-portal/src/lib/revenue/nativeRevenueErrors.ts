@@ -3,7 +3,7 @@ import type { NativeRevenueRefusal } from '@/src/lib/db/revenueNative';
 type T = (key: string, fallback: string) => string;
 
 /**
- * #784: the headline for each machine-readable refusal migration 0270's RPCs return (mapped to the error code by
+ * #784: the headline for each machine-readable refusal migration 0275's RPCs return (mapped to the error code by
  * `src/lib/db/revenueNative.ts`). Pass to `classifyMutationError` as its overrides: the headline says what to fix in
  * plain words and the server's own sentence stays the detail. Keyed on the code, never on the message text.
  */

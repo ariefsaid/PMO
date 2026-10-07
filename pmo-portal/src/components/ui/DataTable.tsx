@@ -42,6 +42,12 @@ export interface RowMenuItem {
   label: string;
   onClick: () => void;
   danger?: boolean;
+  /** Dimmed, announced disabled and unclickable — e.g. a per-row action already in flight (AC-PDF-011).
+   *  WAI-ARIA menu pattern: rendered as `aria-disabled="true"`, NOT the HTML `disabled` attribute —
+   *  a disabled button is unfocusable, so a disabled FIRST item would strand open-focus on the
+   *  trigger (arrows/Escape dead). Staying focusable gives the roving focus a landing spot; the
+   *  activate guard below makes Enter/click a no-op. */
+  disabled?: boolean;
 }
 
 export interface DataTableProps<Row> {
@@ -424,33 +430,39 @@ export function DataTable<Row>({
                   )}
                 </div>
 
-                {/* Remaining columns as a definition list */}
+                {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
+                    (null/undefined/false — e.g. a fact that only one record type carries) is left out of
+                    the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
-                    {restCols.map((col) => (
-                      <React.Fragment key={col.key}>
-                        <dt
-                          className={cn(
-                            'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
-                            stripHiddenClasses(col.colClassName)
-                          )}
-                        >
-                          {col.header}
-                        </dt>
-                        <dd
-                          className={cn(
-                            // [&_.truncate]:block — see the title note above: inline truncate
-                            // cells (e.g. a contact email) don't clip and bleed at 360px.
-                            'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
-                            col.align === 'num' && 'tabular text-right',
-                            col.align === 'center' && 'text-center',
-                            stripHiddenClasses(col.colClassName)
-                          )}
-                        >
-                          {col.cell(row)}
-                        </dd>
-                      </React.Fragment>
-                    ))}
+                    {restCols.map((col) => {
+                      const content = col.cell(row);
+                      if (content == null || content === false) return null;
+                      return (
+                        <React.Fragment key={col.key}>
+                          <dt
+                            className={cn(
+                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
+                              stripHiddenClasses(col.colClassName)
+                            )}
+                          >
+                            {col.header}
+                          </dt>
+                          <dd
+                            className={cn(
+                              // [&_.truncate]:block — see the title note above: inline truncate
+                              // cells (e.g. a contact email) don't clip and bleed at 360px.
+                              'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
+                              col.align === 'num' && 'tabular text-right',
+                              col.align === 'center' && 'text-center',
+                              stripHiddenClasses(col.colClassName)
+                            )}
+                          >
+                            {content}
+                          </dd>
+                        </React.Fragment>
+                      );
+                    })}
                   </dl>
                 )}
               </li>
@@ -591,6 +603,9 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
   };
 
   const activate = (item: RowMenuItem) => {
+    // Load-bearing since the aria-disabled switch: an aria-disabled <button> still fires
+    // click (there is no HTML `disabled` to swallow it) — this guard is the no-op.
+    if (item.disabled) return;
     item.onClick();
     close();
   };
@@ -643,13 +658,15 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
                   <button
                     role="menuitem"
                     type="button"
+                    aria-disabled={item.disabled || undefined}
                     tabIndex={i === active ? 0 : -1}
                     data-menuitem-index={i}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => activate(item)}
                     className={cn(
                       'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
-                      item.danger && 'text-destructive'
+                      item.danger && 'text-destructive',
+                      item.disabled && 'cursor-not-allowed text-muted-foreground hover:bg-transparent'
                     )}
                   >
                     {item.label}

@@ -36,3 +36,23 @@ export const VI_FIELD_TEST_IDS = {
   // comment, not an enforced contract) — single-sourced here for the same reason as the fields above.
   taxRequiredHint: 'vi-tax-required-hint',
 } as const;
+
+/** #876 (DD-VWH-6): the withholding breakdown under a vendor invoice's amount in the procurement ledger. */
+export const VI_WITHHOLDING_TEST_IDS = {
+  breakdown: 'vi-withholding-breakdown',
+  vat: 'vi-withholding-vat',
+  withheld: 'vi-withholding-withheld',
+  net: 'vi-withholding-net',
+} as const;
+
+/** #876 slice 2 (OD-VWH-1): the vendor-bill tax inputs shared by both entry points (VendorBillTaxFields.tsx). */
+export const VI_VENDOR_TAX_TEST_IDS = {
+  nativeWithheld: 'vi-withheld-input',
+  erpFields: 'vi-erp-tax-fields',
+  erpVat: 'vi-erp-vat-input',
+  pphType: 'vi-pph-type-select',
+  erpWithheld: 'vi-erp-withheld-input',
+  itemsNet: 'vi-items-net',
+  suggestedFrom: 'vi-tax-suggested-from',
+  erpRequiredHint: 'vi-erp-tax-required-hint',
+} as const;

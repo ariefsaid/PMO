@@ -49,12 +49,21 @@
 -- DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + Admin/Finance + org,
 -- proven by supabase/tests/0250_progress_billing_{claims,evidence,withdraw}.test.sql. `record_progress_assessment`
 -- and `get_project_billing` are SECURITY INVOKER and deliberately NOT listed.
+-- ⚑ AMENDED BY 0272 (#893 / DD-EFK-1): the PMO-only sales and procurement e-Faktur setters join the retained
+-- authenticated RPC set (+2, count 61). Both re-assert current Admin/Finance role, active membership, and org;
+-- their row checks and mirror preservation are proved by supabase/tests/0272_efaktur_number.test.sql.
 --
--- ⚑ AMENDED BY 0270 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
--- and `cancel_native_receipt` join the retained set, taking the count to 63 (59 + 4, re-derived by hand from the list).
+-- ⚑ AMENDED BY 0273 (#876 slice 2): `set_vendor_tax_defaults` joins the retained set (+1). A SECURITY DEFINER
+-- writer called through PostgREST under a member's JWT; its body re-asserts the active membership, the
+-- Admin/Finance role and the caller's org, paired in supabase/tests/0273_vendor_tax_defaults.test.sql
+-- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
+-- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
+--
+-- ⚑ AMENDED BY 0275 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
+-- and `cancel_native_receipt` join the retained set, taking the count to 66 after the dev merge (dev's 62 + 4, re-derived by hand from the list).
 -- Each is a SECURITY DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + org +
--- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0270_native_revenue_*.test.sql and
--- 0270_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
+-- Admin/Finance (and, for approval, approver ∉ author set), proven by supabase/tests/0275_native_revenue_*.test.sql and
+-- 0275_revenue_write_roles.test.sql. `native_invoice_settled` (INVOKER, no client EXECUTE) is deliberately NOT listed.
 --
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
@@ -134,8 +143,11 @@ insert into client_callable_rpc_names (proname) values
   ('reserve_credits'),
   ('save_timesheet_week'),
   ('select_procurement_quote'),
+  ('set_procurement_invoice_efaktur'),
   ('set_project_contract_value'),
+  ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
@@ -167,8 +179,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  63,
-  'AC-ACL-002 all 63 retained client-callable RPC names still have a public function');
+  66,
+  'AC-ACL-002 all 66 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -177,8 +189,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  63,
-  'AC-ACL-003 all 63 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  66,
+  'AC-ACL-003 all 66 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

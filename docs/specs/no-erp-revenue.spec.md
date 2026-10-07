@@ -14,7 +14,7 @@
 > UX only; SoD by SECURITY DEFINER RPC + pgTAP).
 > **Builds on (must be on `dev` first):** #785 — `supabase/migrations/0262_billing_by_work_order.sql`
 > (`lock_work_order_billing`, the `sales_invoices` work-order fence, the `workOrderId` create input). Migration slot for
-> this issue: **0270** only.
+> this issue: **0275** only.
 
 ## 1. Job story
 
@@ -147,7 +147,7 @@ dunning, currency conversion · notifications to approvers.
   receipt. The balance is recomputed from receipts, never incremented.
 - **NFR-NAR-003 (audit).** Creates are audited by the existing insert triggers (0176/0178/0232); approve/cancel and
   receipt-cancel write `log_audit` rows.
-- **NFR-NAR-004 (reversible).** One migration (0270) with `supabase/migrations/rollback/0270_native_revenue_down.sql`.
+- **NFR-NAR-004 (reversible).** One migration (0275) with `supabase/migrations/rollback/0275_native_revenue_down.sql`.
 - **NFR-NAR-005 (scale).** The approvals queue reads only PMO drafts (partial index); a balance is computed from one
   invoice's receipts (indexed by `(org_id, sales_invoice_id)`); list reads stay paged (`fetchAllPages`).
 - **NFR-NAR-006 (i18n).** Every new string is a key in `en` and `id`; the new Approvals section is on the launch-scope
@@ -186,14 +186,14 @@ dunning, currency conversion · notifications to approvers.
 
 | AC | Owning test (layer) | Supporting |
 |---|---|---|
-| AC-NAR-001 | `supabase/tests/0270_native_revenue_create.test.sql` (pgTAP) | `pages/__tests__/SalesInvoices.native.test.tsx`, `src/lib/repositories/revenue.native.test.ts`, `src/lib/db/revenueNative.test.ts` |
-| AC-NAR-002 | `supabase/tests/0270_native_revenue_approve.test.sql` (pgTAP) | `pages/approvals/SalesInvoiceApprovalSection.test.tsx`, e2e AC-NAR-003 |
-| AC-NAR-003 | `pmo-portal/e2e/AC-NAR-003-no-erp-billing.spec.ts` (Playwright) | `supabase/tests/0270_native_revenue_receipts.test.sql`, `src/lib/revenue/nativeInvoice.test.ts` |
-| AC-NAR-004 | `supabase/tests/0270_native_revenue_crossing.test.sql` (pgTAP) | `src/lib/repositories/revenue.native.test.ts` (never dispatched), `SalesInvoices.native.test.tsx` |
-| AC-NAR-005 | `supabase/tests/0270_native_revenue_approve.test.sql` (pgTAP) | `0270_native_revenue_receipts.test.sql` (receipt blocks cancel) |
-| AC-NAR-006 | `supabase/tests/0270_native_revenue_receipts.test.sql` (pgTAP) | `pages/__tests__/IncomingPayments.native.test.tsx` |
-| AC-NAR-007 | `supabase/tests/0270_revenue_write_roles.test.sql` (pgTAP) | role refusals in the create/approve/receipts files |
-| NFR-NAR-001 | `supabase/tests/0270_native_revenue_acl.test.sql` + `0178_anon_executable_definers.test.sql` | migration §9 assertions |
+| AC-NAR-001 | `supabase/tests/0275_native_revenue_create.test.sql` (pgTAP) | `pages/__tests__/SalesInvoices.native.test.tsx`, `src/lib/repositories/revenue.native.test.ts`, `src/lib/db/revenueNative.test.ts` |
+| AC-NAR-002 | `supabase/tests/0275_native_revenue_approve.test.sql` (pgTAP) | `pages/approvals/SalesInvoiceApprovalSection.test.tsx`, e2e AC-NAR-003 |
+| AC-NAR-003 | `pmo-portal/e2e/AC-NAR-003-no-erp-billing.spec.ts` (Playwright) | `supabase/tests/0275_native_revenue_receipts.test.sql`, `src/lib/revenue/nativeInvoice.test.ts` |
+| AC-NAR-004 | `supabase/tests/0275_native_revenue_crossing.test.sql` (pgTAP) | `src/lib/repositories/revenue.native.test.ts` (never dispatched), `SalesInvoices.native.test.tsx` |
+| AC-NAR-005 | `supabase/tests/0275_native_revenue_approve.test.sql` (pgTAP) | `0275_native_revenue_receipts.test.sql` (receipt blocks cancel) |
+| AC-NAR-006 | `supabase/tests/0275_native_revenue_receipts.test.sql` (pgTAP) | `pages/__tests__/IncomingPayments.native.test.tsx` |
+| AC-NAR-007 | `supabase/tests/0275_revenue_write_roles.test.sql` (pgTAP) | role refusals in the create/approve/receipts files |
+| NFR-NAR-001 | `supabase/tests/0275_native_revenue_acl.test.sql` + `0178_anon_executable_definers.test.sql` | migration §9 assertions |
 
 ## 8. Premises corrected while specifying
 

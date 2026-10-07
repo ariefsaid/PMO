@@ -11,11 +11,12 @@
  * the SAME `external_refs` row the outbound create recorded.
  */
 import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
+import { EXPENSE_JOURNAL_KEY_RE } from './expensePostingKey.ts';
 
 export type { ErpDocKind } from './doctypeRegistry.ts';
 
-/** kind → the PMO domain (the ERPNext-owned domains: companies/procurement/revenue/timesheets/budget). */
-export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue' | 'timesheets' | 'budget'> = {
+/** kind → the PMO domain (the ERPNext-owned domains: companies/procurement/revenue/timesheets/budget/expenses). */
+export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue' | 'timesheets' | 'budget' | 'expenses'> = {
   'purchase-request': 'procurement',
   rfq: 'procurement',
   quotation: 'procurement',
@@ -39,6 +40,10 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   // P3c — the budget push (ADR-0059 Posture B). PMO authors the budget; ERP receives a copy for the GL
   // + its native overspend controls.
   budget: 'budget',
+  // #775 phase B — expense postings (Posture B). Lifecycle-only inbound; never adopted (FR-EXP-113).
+  'expense-journal': 'expenses',
+  'expense-payment': 'expenses',
+  'expense-receipt': 'expenses',
 };
 
 /** kind → the PMO mirror table the feed upserts/reads (the table carrying `erp_modified`/`erp_docstatus`).
@@ -67,14 +72,23 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   // budget figure (OD-BUDGET-1) and no feed/mirror write may ever touch them. A Desk-created ERP Budget
   // is ack-and-skipped, never adopted (FR-BUD-140) — the inverse of P3a's adopt rule.
   budget: 'budget_version_erp_mirror',
+  // #775 phase B — the SIDE mirror (0270). ⛔ NEVER `expense_claims`: PMO is the SoT for the claim; only the side
+  // mirror is a feed target.
+  'expense-journal': 'expense_posting_erp_mirror',
+  'expense-payment': 'expense_posting_erp_mirror',
+  'expense-receipt': 'expense_posting_erp_mirror',
 };
+
+/** Kinds that share a doctype with an earlier kind and are reached only through a discriminator
+ *  (`kindFromDoctypeAndPaymentType`'s party type). Kept out of the plain reverse map so `kindFromDoctype` answers
+ *  exactly as it did before they existed. */
+const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt']);
 
 /** Reverse doctype→kind lookup (built from the registry — one source of doctype names). */
 const DOCTYPE_TO_KIND: Record<string, ErpDocKind> = Object.fromEntries(
-  (Object.entries(DOCTYPE_REGISTRY) as Array<[ErpDocKind, { doctype: string }]>).map(([kind, entry]) => [
-    entry.doctype,
-    kind,
-  ]),
+  (Object.entries(DOCTYPE_REGISTRY) as Array<[ErpDocKind, { doctype: string }]>)
+    .filter(([kind]) => !DISCRIMINATED_KINDS.has(kind))
+    .map(([kind, entry]) => [entry.doctype, kind]),
 );
 
 /** Resolve a Frappe doctype name → the PMO `erp_doc_kind`, or `undefined` for a doctype P2 does not
@@ -83,9 +97,15 @@ export function kindFromDoctype(doctype: string): ErpDocKind | undefined {
   return DOCTYPE_TO_KIND[doctype];
 }
 
-/** Disambiguate an inbound Payment Entry by payment_type (FR-SAR-081): one doctype → two PMO kinds. */
-export function kindFromDoctypeAndPaymentType(doctype: string, paymentType?: string): ErpDocKind | undefined {
+/** Disambiguate an inbound Payment Entry by payment_type (FR-SAR-081) and, for an Employee party, route it to the
+ *  expense kinds (FR-EXP-113): one doctype → four PMO kinds. */
+export function kindFromDoctypeAndPaymentType(doctype: string, paymentType?: string, partyType?: string): ErpDocKind | undefined {
   if (doctype === 'Payment Entry') {
+    if (partyType === 'Employee') {
+      if (paymentType === 'Receive') return 'expense-receipt';
+      if (paymentType === 'Pay') return 'expense-payment';
+      return undefined;
+    }
     if (paymentType === 'Receive') return 'incoming-payment';
     if (paymentType === 'Pay') return 'payment';
     return undefined; // unknown/absent payment_type → ack-and-skip (lossy hint, FR-SAR-083)
@@ -139,6 +159,10 @@ const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.ent
   .filter(([kind]) => !SWEEP_UNPOLLED_KINDS.has(kind))
   .map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
 
+/** A master another domain also needs: the ERP Employee is polled for `timesheets` AND `expenses` (DD-EXP-21).
+ *  Its feed domain stays `timesheets` (`KIND_DOMAIN`), so its `external_refs` namespace is unchanged. */
+const KIND_ALSO_POLLED_FOR: Partial<Record<ErpDocKind, readonly string[]>> = { employee: ['expenses'] };
+
 /**
  * The doctypes ONE org's sweep may poll (Luna BLOCK 9). A valid, activated ERPNext binding says the org
  * talks to ERPNext; it does NOT say which PMO domains it handed over. Polling every doctype regardless
@@ -148,5 +172,54 @@ const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.ent
  */
 export function sweepKindsForOrg(ownedDomains: readonly string[]): Array<{ kind: ErpDocKind; doctype: string }> {
   const owned = new Set(ownedDomains);
-  return SWEEP_DOCTYPES.filter(({ kind }) => owned.has(KIND_DOMAIN[kind]));
+  return SWEEP_DOCTYPES.filter(({ kind }) =>
+    owned.has(KIND_DOMAIN[kind]) || (KIND_ALSO_POLLED_FOR[kind] ?? []).some((domain) => owned.has(domain)));
+}
+
+/** A poll's extra server-side filter + the per-row authority behind it (FR-EXP-113). `null` = no discriminator. */
+export interface KindPollDiscriminator {
+  filters: Array<[string, string, string]>;
+  fields: string[];
+  admits(row: Record<string, unknown>): boolean;
+  /** A field every genuine row of this kind states: a row without it means the source omitted it (a webhook
+   *  configuration gap), which the ingress surfaces instead of dropping silently. */
+  requiredField?: string;
+}
+
+/** A Payment Entry states its party type; a row without one is not adopted by any Payment Entry kind. */
+function statedPartyType(row: Record<string, unknown>): string | null {
+  return typeof row.party_type === 'string' && row.party_type.trim() !== '' ? row.party_type : null;
+}
+
+/**
+ * Payment Entry carries Supplier, Customer AND Employee parties. Before #775 phase B the procurement/revenue polls
+ * read Employee entries too — a revenue-owned org would adopt an employee's cash return as a customer receipt.
+ * A Payment Entry without party_type is not adopted: the field decides the domain, so a row that omits it (a
+ * webhook whose configuration leaves it out) cannot be placed. The sweep always requests it; ERPNext requires it
+ * on every Pay/Receive entry.
+ * The Journal Entry poll admits only PMO keys: native journals (payroll, depreciation) are never even listed.
+ */
+export function pollDiscriminatorForKind(kind: ErpDocKind): KindPollDiscriminator | null {
+  if (kind === 'payment' || kind === 'incoming-payment') {
+    return {
+      filters: [['party_type', '!=', 'Employee']],
+      fields: ['party_type'],
+      requiredField: 'party_type',
+      admits: (row) => {
+        const partyType = statedPartyType(row);
+        return partyType !== null && partyType !== 'Employee';
+      },
+    };
+  }
+  if (kind === 'expense-payment' || kind === 'expense-receipt') {
+    return { filters: [['party_type', '=', 'Employee']], fields: ['party_type'], admits: (row) => row.party_type === 'Employee' };
+  }
+  if (kind === 'expense-journal') {
+    return {
+      filters: [['user_remark', 'like', 'exp%']],
+      fields: ['user_remark'],
+      admits: (row) => typeof row.user_remark === 'string' && EXPENSE_JOURNAL_KEY_RE.test(row.user_remark),
+    };
+  }
+  return null;
 }

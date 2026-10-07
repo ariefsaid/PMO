@@ -61,7 +61,9 @@ export function moneyWriteRolesForDomain(domain: string): readonly string[] {
  * the ACTIVE-membership half of check (b) still run for these domains, and an unlisted domain still
  * resolves to the empty (fail-closed) role set.
  */
-const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets']);
+// #775 phase B: `expenses` — the approver (approval rank) or payer (Finance/Admin) is re-checked by
+// expense_posting_for_push (0270 §5) against the recorded actor's CURRENT role before every fresh posting.
+const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets', 'expenses']);
 
 /**
  * ⚑ AC-BUD-003 / FR-BUD-006(a) / FR-BUD-010 — the Posture-B domains, whose employ signal for gate (a) is

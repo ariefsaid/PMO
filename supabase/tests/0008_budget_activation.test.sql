@@ -6,18 +6,21 @@ insert into organizations (id, name) values
   ('d0000000-0000-0000-0000-000000000001','Activation Test Org');
 
 insert into auth.users (id, email) values
-  ('d0000000-0000-0000-0000-0000000000a1','pm-act@example.com');
+  ('d0000000-0000-0000-0000-0000000000a1','pm-act@example.com'),
+  ('d0000000-0000-0000-0000-0000000000a2','drafter-act@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
-  ('d0000000-0000-0000-0000-0000000000a1','d0000000-0000-0000-0000-000000000001','PM Act','pm-act@example.com','Project Manager');
+  ('d0000000-0000-0000-0000-0000000000a1','d0000000-0000-0000-0000-000000000001','PM Act','pm-act@example.com','Project Manager'),
+  -- OD-BUDGET-6: v2's drafter — a second person, so the PM may activate it.
+  ('d0000000-0000-0000-0000-0000000000a2','d0000000-0000-0000-0000-000000000001','Drafter Act','drafter-act@example.com','Project Manager');
 
 insert into projects (id, org_id, name, status) values
   ('d1111111-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000001','Budget Act Project','Ongoing Project');
 
 -- v1 Active with a line-item, v2 Draft (inserted as table owner so the trigger passes on Draft).
-insert into budget_versions (id, org_id, project_id, version, name, status) values
-  ('d2222222-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000001','d1111111-0000-0000-0000-000000000001',1,'Initial Budget','Active'),
-  ('d2222222-0000-0000-0000-000000000002','d0000000-0000-0000-0000-000000000001','d1111111-0000-0000-0000-000000000001',2,'Revised Budget','Draft');
+insert into budget_versions (id, org_id, project_id, version, name, status, created_by) values
+  ('d2222222-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000001','d1111111-0000-0000-0000-000000000001',1,'Initial Budget','Active',null),
+  ('d2222222-0000-0000-0000-000000000002','d0000000-0000-0000-0000-000000000001','d1111111-0000-0000-0000-000000000001',2,'Revised Budget','Draft','d0000000-0000-0000-0000-0000000000a2');
 
 -- Insert line-item while v1 is Active would be blocked by trigger; insert against the Draft v2 instead.
 -- For v1 we bypass by inserting directly as table owner in the same txn before RLS is set.

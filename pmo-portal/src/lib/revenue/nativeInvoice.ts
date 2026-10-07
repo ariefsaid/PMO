@@ -1,6 +1,6 @@
 /**
  * #784 — the pure display rules the PMO-native revenue surfaces share (docs/specs/no-erp-revenue.spec.md).
- * Display only: migration 0270's RPCs are the authority for every figure these read.
+ * Display only: migration 0275's RPCs are the authority for every figure these read.
  */
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 

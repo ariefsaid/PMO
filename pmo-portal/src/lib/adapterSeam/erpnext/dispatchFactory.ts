@@ -15,13 +15,15 @@ import { findPmoRecordId, resolveExternalRef, type ExternalRefsLookupClient } fr
 import { packTimeLogs } from './timeLogPacking.ts';
 import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
+import { AdapterError } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
 import { resolveSalesTaxRows, type ErpTaxRow } from './erpSalesTaxRows.ts';
-import { resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
+import { buildEnteredPurchaseTaxRows, ENTERED_TAX_AND_TEMPLATE, parseEnteredPurchaseTax, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
+import { itemsNetTotal, lineRate, type ItemsNetLine } from '../../itemsNet.ts';
 import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRecord } from './progressClaimItems.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
@@ -285,6 +287,9 @@ function assertSiProjectGate(deps: ErpDispatchFactoryDeps, binding: ExternalOrgB
 const PAYMENT_TYPE_BY_KIND: Readonly<Record<string, 'Pay' | 'Receive'>> = {
   payment: 'Pay',
   'incoming-payment': 'Receive',
+  // #775 phase B — Employee Payment Entries (the expense postings' Pay/Receive twins).
+  'expense-payment': 'Pay',
+  'expense-receipt': 'Receive',
 };
 
 /**
@@ -460,6 +465,34 @@ async function resolveRevenueRefs(
 // P3b (FR-TSP-050..055) — the Posture-B timesheet ref pre-flight
 // ============================================================================
 
+/** The PMO user's CONFIRMED ERP Employee (FR-TSP-051; reused by #775 phase B, FR-EXP-106). `proposed` is never
+ *  authoritative; the org filter is in the query; the ERP name comes from `external_refs`, never a mirror column. */
+export type ConfirmedEmployeeLookup =
+  | { status: 'no-link' }
+  | { status: 'no-ref'; employeeId: string }
+  | { status: 'ok'; employee: string };
+
+export async function lookupConfirmedErpEmployee(
+  serviceClient: DispatchServiceClient,
+  orgId: string,
+  profileId: string,
+): Promise<ConfirmedEmployeeLookup> {
+  const { data, error } = await serviceClient
+    .from('erp_employees')
+    .select('id, employee_number, org_id')
+    .eq('org_id', orgId)
+    .eq('profile_id', profileId)
+    .eq('link_state', 'confirmed')
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const employeeId = (data as { id?: string } | null)?.id;
+  if (!employeeId) return { status: 'no-link' };
+  // The ERP target comes from `external_refs`, never from a mirrored display column.
+  const external = await resolveExternalRef(serviceClient as unknown as ExternalRefsLookupClient, orgId, 'timesheets', employeeId);
+  if (!external) return { status: 'no-ref', employeeId };
+  return { status: 'ok', employee: external.startsWith('Employee:') ? external.slice('Employee:'.length) : external };
+}
+
 /**
  * Resolve `timesheets`-domain refs. EVERY resolution is FAIL-CLOSED and happens HERE — before the
  * adapter is constructed, therefore before the outbox claim and before the ERP POST (FR-TSP-050;
@@ -495,34 +528,17 @@ async function resolveTimesheetRefs(
   //     NEVER a shared default (it would mis-attribute cost). 'proposed' is NOT authoritative: an
   //     ERP-side email edit may PROPOSE a link but must never silently re-point whose cost a week
   //     becomes. The org filter is in the QUERY, so a cross-org row cannot even be read (FR-TSP-054).
-  const { data: employeeRow, error: employeeError } = await deps.serviceClient
-    .from('erp_employees')
-    .select('id, employee_number, org_id')
-    .eq('org_id', deps.orgId)
-    .eq('profile_id', record.user_id ?? '')
-    .eq('link_state', 'confirmed')
-    .maybeSingle();
-  if (employeeError) throw new AppError(employeeError.message, employeeError.code);
-  const employeeId = (employeeRow as { id?: string } | null)?.id;
-  if (!employeeId) {
+  const lookup = await lookupConfirmedErpEmployee(deps.serviceClient, deps.orgId, record.user_id ?? '');
+  if (lookup.status === 'no-link') {
     throw new AppError(
       `no confirmed erp_employees link for user '${record.user_id ?? ''}' — an Admin must confirm it`,
       'employee-unlinked',
     );
   }
-  // The ERP target comes from `external_refs`, never from a mirrored display column.
-  const employeeExternalId = await resolveExternalRef(
-    deps.serviceClient as unknown as ExternalRefsLookupClient,
-    deps.orgId,
-    'timesheets',
-    employeeId,
-  );
-  if (!employeeExternalId) {
-    throw new AppError(`employee '${employeeId}' has no external_refs mapping`, 'employee-unlinked');
+  if (lookup.status === 'no-ref') {
+    throw new AppError(`employee '${lookup.employeeId}' has no external_refs mapping`, 'employee-unlinked');
   }
-  refs.employee = employeeExternalId.startsWith('Employee:')
-    ? employeeExternalId.slice('Employee:'.length)
-    : employeeExternalId;
+  refs.employee = lookup.employee;
 
   // (2) activity type — mandatory at submit whenever `employee` is set (spike §1b), and P3b always
   //     sets it. Fail closed rather than let ERP reject the whole document after the claim.
@@ -1001,30 +1017,71 @@ async function resolveOrdinaryInvoiceTaxes(
 }
 
 /**
- * #520 — a vendor invoice create on a flipped org may name the ERPNext Purchase Taxes and Charges Template the user chose.
- * No choice → no rows and no template read (ERPNext applies its own default, the pre-#520 behaviour). A choice → its rows are
- * resolved here, validated against the binding's company, and written onto the record BEFORE the outbox snapshot, so the
- * payload and digest cover them; a sweep replay keeps the persisted rows and makes no ERPNext read (as #858 does for sales).
- * A caller's `taxes` is always dropped; edits and amends send none.
+ * #520 + #876 slice 2 — the tax a vendor invoice create on a flipped org sends. Exactly one of:
+ *   • a user-chosen ERPNext Purchase Taxes and Charges Template (#520): resolved, validated against the binding's
+ *     company and expanded into its rows here;
+ *   • the VAT / PPh AMOUNTS the user entered (DD-VWH-13): fixed `Actual` rows on the org's tax accounts, marked
+ *     `taxesFromAmounts` so `piToBody` sends them with an empty template;
+ *   • neither: nothing is sent and ERPNext applies its own default (AC-520-2, non-form callers).
+ * Both is refused before any ERP call. Rows and the marker are written onto the record BEFORE the outbox snapshot, so
+ * the payload and digest cover them and a sweep replay re-sends them with no ERPNext read. A caller's `taxes` and
+ * `taxesFromAmounts` are always dropped; edits and amends send none.
  */
-async function resolvePurchaseInvoiceTaxes(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): Promise<void> {
+async function resolvePurchaseInvoiceTaxes(
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, resolvedItems: ResolvedLineItem[] | undefined,
+): Promise<void> {
   const record = deps.command.record as Record<string, unknown>;
   if (record.erp_doc_kind !== 'purchase-invoice') return;
   if (deps.replay && deps.command.operation === 'create') return;
   delete record.taxes;
+  delete record.taxesFromAmounts;
   const chosen = typeof record.taxTemplate === 'string' ? record.taxTemplate.trim() : '';
-  if (deps.command.operation !== 'create' || !chosen) {
-    delete record.taxTemplate;
+  const entered = deps.command.operation === 'create' ? parseEnteredPurchaseTax(record) : null;
+  if (deps.command.operation !== 'create' || (!chosen && !entered)) {
+    for (const key of ['taxTemplate', 'vatAmount', 'withheldAmount', 'pphType']) delete record[key];
     return;
   }
-  record.taxTemplate = chosen;
+  if (chosen && entered) throw new AdapterError('commit-rejected', ENTERED_TAX_AND_TEMPLATE);
   const company = binding.config?.company;
   if (typeof company !== 'string' || !company) {
-    throw new AppError('ERPNext has no company set for this organization, so the chosen purchase tax template cannot be checked. Set the ERP company in Administration → Integrations, then record the invoice again.', 'config-rejected');
+    throw new AppError(chosen
+      ? 'ERPNext has no company set for this organization, so the chosen purchase tax template cannot be checked. Set the ERP company in Administration → Integrations, then record the invoice again.'
+      : 'ERPNext has no company set for this organization, so the vendor invoice tax cannot be checked. Set the ERP company in Administration → Integrations, then record the invoice again.',
+    'config-rejected');
   }
   const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
     baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
-  record.taxes = await resolvePurchaseTaxRows(client, company, chosen);
+  if (chosen) {
+    record.taxTemplate = chosen;
+    record.taxes = await resolvePurchaseTaxRows(client, company, chosen);
+    return;
+  }
+  if (!entered) return;
+  delete record.taxTemplate;
+  // The items the PI will carry: the command's own, else the case's (adapter.ts substitutes `resolvedItems`).
+  const lines = (Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems ?? []) as ItemsNetLine[];
+  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22): an unpriced line must not count as 0 — it
+  // would understate the base the withheld bound checks against — and an unknown total (a line without a
+  // quantity) must not SKIP the bound — ERPNext would accept the bill and every replay would then refuse it.
+  if (lines.some((line) => lineRate(line) === null)) {
+    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
+  }
+  const itemsTotal = itemsNetTotal(lines);
+  if (lines.length > 0 && itemsTotal === null) {
+    throw new AdapterError('commit-rejected', "The vendor invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
+  }
+  const { data, error } = await deps.serviceClient.from('organizations')
+    .select('input_vat_account,pph23_payable_account,pph4_2_payable_account').eq('id', deps.orgId).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const settings = (data ?? {}) as Record<string, unknown>;
+  const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+  record.taxes = await buildEnteredPurchaseTaxRows(client, company, entered, {
+    inputVat: text(settings.input_vat_account), pph23: text(settings.pph23_payable_account), pph4_2: text(settings.pph4_2_payable_account),
+  }, itemsTotal);
+  record.taxesFromAmounts = true;
+  record.vatAmount = entered.vatAmount;
+  record.withheldAmount = entered.withheldAmount;
+  record.pphType = entered.pphType;
 }
 
 /** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */
@@ -1260,7 +1317,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // #856: ordinary-invoice tax rows read ERPNext, so they wait for the project gate and the PMO source reads (all fail closed before any ERP call).
   if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceCurrency(deps, binding, deps.command.record as Record<string, unknown>);
   if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceTaxes(deps, binding, deps.command.record as Record<string, unknown>);
-  await resolvePurchaseInvoiceTaxes(deps, binding);
+  await resolvePurchaseInvoiceTaxes(deps, binding, resolvedItems);
   // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
   // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
   const itemKind = deps.command.record.erp_doc_kind;

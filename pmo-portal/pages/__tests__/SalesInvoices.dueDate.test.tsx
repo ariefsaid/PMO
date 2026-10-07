@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -98,13 +99,17 @@ import SalesInvoices from '../../pages/SalesInvoices';
 
 const renderAs = (realRole: Role) =>
   render(
-    <ImpersonationProvider realRole={realRole}>
-      <MemoryRouter>
-        <ToastProvider>
-          <SalesInvoices />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
+    // standard provider even though `useRevenue` itself is mocked here.
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <ImpersonationProvider realRole={realRole}>
+        <MemoryRouter>
+          <ToastProvider>
+            <SalesInvoices />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 
 // ⚑ The fixture list is module-level shared state and `beforeEach` did NOT reset it, so any test

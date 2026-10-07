@@ -40,6 +40,14 @@ export interface ErrorSummaryItem {
   message: string;
 }
 
+/** Copy for the dirty-discard confirm; omit to keep the English default. */
+export interface DiscardCopy {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+}
+
 /** A rejected mutation, already classified for humans (see `classifyMutationError`). */
 export interface SubmitError {
   headline: string;
@@ -60,6 +68,13 @@ export interface EntityFormModalProps {
   onClose: () => void;
   /** Disable the submit (e.g. while the form is invalid). */
   submitDisabled?: boolean;
+  /**
+   * The screen-reader reason a disabled submit is described by. Defaults to the required-fields hint;
+   * pass your own when the submit is disabled for another reason (e.g. an invalid value).
+   */
+  disabledReason?: string;
+  /** Translated/specific copy for the dirty-discard confirm (default: English generic). */
+  discardCopy?: DiscardCopy;
   /** Mutation in flight: footer spinner + Esc/scrim lockout. */
   loading?: boolean;
   /** Dirty => Cancel/Esc/scrim asks to confirm discard. */
@@ -97,6 +112,8 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   onSubmit,
   onClose,
   submitDisabled,
+  disabledReason,
+  discardCopy,
   loading = false,
   dirty = false,
   errorSummary,
@@ -376,7 +393,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
             <div className="border-t border-border px-[18px] py-3.5">
               {submitDisabled && (
                 <span id={disabledReasonId} className="sr-only">
-                  {t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
+                  {disabledReason ?? t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
                 </span>
               )}
               <FormActions
@@ -396,10 +413,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
       <ConfirmDialog
         open={confirmDiscard}
         tone="destructive"
-        title={t('entityForm.discardTitle', 'Discard your changes?')}
-        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
-        confirmLabel={t('entityForm.discard', 'Discard')}
-        cancelLabel={t('entityForm.keepEditing', 'Keep editing')}
+        title={discardCopy?.title ?? t('entityForm.discardTitle', 'Discard your changes?')}
+        description={discardCopy?.description ?? t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={discardCopy?.confirmLabel ?? t('entityForm.discard', 'Discard')}
+        cancelLabel={discardCopy?.cancelLabel ?? t('entityForm.keepEditing', 'Keep editing')}
         onConfirm={() => {
           setConfirmDiscard(false);
           onClose();

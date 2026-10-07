@@ -11,7 +11,7 @@ const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-mute
 
 /**
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
- * raised it, every line, and net / tax / total due. Display only; migration 0270 fixed every figure at creation.
+ * raised it, every line, and net / tax / total due. Display only; migration 0275 fixed every figure at creation.
  */
 const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow }> = ({ inv }) => {
   const { t } = useTranslation();

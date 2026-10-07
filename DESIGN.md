@@ -419,6 +419,9 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
   UPPERCASE, `muted-foreground`** (NOT §3's Overline: the tighter tracking is deliberate for dense
   numeric columns), bottom `border`. Numeric columns right-align. Row `⋯` menu trigger is **always
   visible** (hover-hidden was reverted: undiscoverable on touch + keyboard).
+- **Column budget:** a new column must not push the row `⋯` trigger out of the 1440 view — merge related
+  facts into one cell first (a primary value over a `muted` second line, as the e-Faktur number + date
+  cell does, #893) before adding a column.
 - **Body cells:** **13.5px**, `h-[54px]` MINIMUM (a taller in-cell composition — e.g. the 2-line
   project cell — legitimately grows the row to ~68px; airier target ~56–64px), 12px padding, divider =
   `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`.

@@ -17,15 +17,20 @@
  * CURRENT Active version's figures — never a second object; `external_refs` resolves to the same (or
  * repointed) ERP `name`; and the roll-back is NOT silently suppressed.
  *
+ * OD-BUDGET-6 (#922): the cloner becomes the clone's drafter and cannot activate their own version —
+ * so after each clone a SECOND person (the seeded Admin) activates, in their own signed-in session;
+ * the drafter (Finance) still does the cloning/editing. Steps only — the goal oracle is unchanged.
+ *
  * Run: scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
  *        npx playwright test e2e/serial/AC-BUD-031
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { login } from '../helpers';
 import {
   ORG_ID,
   ACTIVATOR_EMAIL,
+  SECOND_ACTIVATOR_EMAIL,
   LABOR_ACCOUNT,
   accountAmount,
   activateSelectedVersion,
@@ -67,6 +72,31 @@ async function describePushState(admin: SupabaseClient): Promise<string> {
     .select('budget_version_id, push_state, push_error, erp_budget_name')
     .eq('org_id', ORG_ID);
   return JSON.stringify(data);
+}
+
+/** The run's ONE Draft version right now — the clone waiting for its second-person activation
+ *  (OD-BUDGET-6). Asserting "exactly one" keeps a flow drift loud instead of activating the wrong row. */
+async function theOneDraft(admin: SupabaseClient, seeded: BudSeed): Promise<{ id: string; name: string }> {
+  const { data, error } = await admin
+    .from('budget_versions').select('id, name')
+    .eq('org_id', ORG_ID).eq('project_id', seeded.projectId).eq('status', 'Draft');
+  if (error) throw new Error(`draft-version read failed: ${error.message}`);
+  expect(data, 'exactly ONE Draft version waits for its second-person activation').toHaveLength(1);
+  return (data as Array<{ id: string; name: string }>)[0];
+}
+
+/** Select a version by its row id — the <option> value, never the display text: once the roll-back
+ *  clone exists, TWO versions share the name `Budget v1 <suffix> (copy)`, and text matching would
+ *  resolve the wrong (Archived) one. Mirrors AC-732's by-value selection. */
+async function selectVersionById(page: Page, versionId: string, name: string): Promise<void> {
+  const versionSelect = page.getByLabel('Version', { exact: true });
+  await expect(versionSelect).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.locator(`option[value="${versionId}"]`),
+    `version "${name}" (${versionId}) is not offered in the version select`,
+  ).toBeAttached({ timeout: 20_000 });
+  await versionSelect.selectOption(versionId);
+  await expect(page.getByTestId('version-card')).toContainText(name, { timeout: 20_000 });
 }
 
 /** THE invariant, asserted after EVERY activation: one live Budget, carrying the CURRENT figure. */
@@ -128,8 +158,14 @@ test.describe('AC-BUD-031: revising a budget never leaves two budgets on the cli
       const firstName = await expectSingleLiveBudgetAt(admin, seeded, 50000, fiscalYear, 'after the first activation');
 
       // ── 2. A revision: clone the Active version, raise Labor to 60,000, activate. ──
+      // OD-BUDGET-6: the clone's drafter is its CLONER (Finance), and the drafter cannot activate
+      // their own version — so the second person (Admin) activates in their own signed-in session.
       await cloneSelectedVersion(page);
       await editLineItemAmount(page, 'Labor', '60000');
+      const revision = await theOneDraft(admin, seeded);
+      await login(page, SECOND_ACTIVATOR_EMAIL);
+      await openBudgetTab(page, seeded.projectId);
+      await selectVersionById(page, revision.id, revision.name);
       await activateSelectedVersion(page, () => describePushState(admin));
       const revisedName = await expectSingleLiveBudgetAt(admin, seeded, 60000, fiscalYear, 'after the revision');
 
@@ -146,9 +182,15 @@ test.describe('AC-BUD-031: revising a budget never leaves two budgets on the cli
       // ── 3. The roll-back: restore the earlier version's figures and activate again. ──
       // (`activate_budget_version` only admits a Draft, so the user's real roll-back journey is
       // "clone the version I want back, then activate it" — the figures are what roll back.)
+      // The drafter (Finance) clones; the second person (Admin) activates — OD-BUDGET-6 again.
+      await login(page, ACTIVATOR_EMAIL);
       await openBudgetTab(page, seeded.projectId);
       await selectVersion(page, v1Name);
       await cloneSelectedVersion(page);
+      const rollBack = await theOneDraft(admin, seeded);
+      await login(page, SECOND_ACTIVATOR_EMAIL);
+      await openBudgetTab(page, seeded.projectId);
+      await selectVersionById(page, rollBack.id, rollBack.name);
       await activateSelectedVersion(page, () => describePushState(admin));
 
       // ⚑ NOT silently suppressed: the roll-back is its own command and ERP really goes back to 50,000.

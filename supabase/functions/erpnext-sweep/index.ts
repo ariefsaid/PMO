@@ -13,7 +13,7 @@ import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
  * Registered-but-idle per the 0094 precedent: the cron helper no-ops until an operator creates the
  * Vault secrets, so the job fires as a no-op until then (no employing org ⇒ no-op).
  *
- * Per employing org, ONE cycle runs SIX passes in order:
+ * Per employing org, ONE cycle runs SEVEN passes in order:
  *   (1) reconcileOrgOutbox — the ADR-0058 §4 outbox recovery pass (delegates to the REAL
  *       dispatchMoneyWrite per candidate — one algorithm, shared with the retry path);
  *   (2) the modified-poll doctype sweep (runSweep per doctype, the convergence authority — AC-ENA-071);
@@ -28,9 +28,12 @@ import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
  *       (org_id, push_state) work queue, re-asserting the SAME 0138 approval gate the foreground push
  *       enforces, with `p_actor` => the sheet's own `approved_by`. Until this landed, the push had ONE
  *       originator (the Approvals UI) and a push that died with the browser was stranded forever.
- * ⚑ Passes (5) and (6) are the SOLE owners of the `budget` and `timesheets` domains: pass (1) skips
- *   both, so each domain's gate is re-asserted by exactly one pass and `0131`'s attempt budget is
- *   spent once per tick, not twice.
+ *   (7) #775 phase B — reconcileOrgExpensePostings, the ONLY originator of expense postings (ADR-0081,
+ *       `expensePostingBackstop.ts`): drives the intents 0270 writes in the claim's own transaction —
+ *       replay an existing outbox row, else re-assert `expense_posting_for_push`, resolve, and post.
+ * ⚑ Passes (5), (6) and (7) are the SOLE owners of the `budget`, `timesheets` and `expenses` domains: pass
+ *   (1) skips all three, so each domain's gate is re-asserted by exactly one pass and `0131`'s attempt
+ *   budget is spent once per tick, not twice.
  * An org's failure is recorded WITHOUT blocking the others (sweep resilience: one client's bench
  * hiccup must not kill every org's refresh). Interactive priority over bulk (NFR-ENA-PERF-001).
  *
@@ -72,14 +75,17 @@ import { SQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpn
 import { SUPPLIER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplier.ts';
 import { CONTACT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/contact.ts';
 import { CUSTOMER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
-import { KIND_DOMAIN, KIND_MIRROR_TABLE, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expenseJournal.ts';
+import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
+import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { erpnextRequest, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps, type ErpFilter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
 import {
+  lookupConfirmedErpEmployee,
   readBudgetLineItems,
   readCategoryAccountMap,
   resolveErpDispatchAdapter,
@@ -95,10 +101,10 @@ import {
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
-import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
+import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 // BLOCK 1 / B5: the pull-adopt barrier now lives in `_shared/` so the WEBHOOK adopt path raises the
@@ -145,7 +151,13 @@ function fiscalYearOfIdentity(pmoRecordId: string): string | null {
 function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined): string {
   return `${versionId}\u0000${fiscalYear ?? ''}`;
 }
-import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+// #775 phase B (ADR-0081) — the expense posting pass (7), the only originator of expense postings.
+import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
+import { resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
+import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
+import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
+import { reconcileOrgExpensePostings, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
 import {
   reconcileOrgTimesheetPushes,
@@ -191,14 +203,22 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   budget: BUDGET_FROM_DOC_FIELDS,
   timesheet: TS_FROM_DOC_FIELDS,
   employee: EMPLOYEE_FROM_DOC_FIELDS,
+  // #775 phase B — expense postings (lifecycle-only inbound, FR-EXP-113).
+  'expense-journal': EXPENSE_JOURNAL_FROM_DOC_FIELDS,
+  'expense-payment': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
+  'expense-receipt': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
 };
 
 /** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`
  *  discriminator where the kind shares a doctype (BLOCK A1). Exported for direct unit testing. */
 export function sweepFieldsForKind(kind: ErpDocKind): string[] {
   const fields = new Set<string>(FROM_DOC_FIELDS_BY_KIND[kind] ?? []);
-  for (const routing of kind === 'contact' ? ['name', 'modified', 'docstatus'] : ['name', 'modified', 'docstatus', 'amended_from']) fields.add(routing);
+  const routingFields = ['name', 'modified', 'docstatus'];
+  if (DOCTYPE_REGISTRY[kind].submittable) routingFields.push('amended_from');
+  for (const routing of routingFields) fields.add(routing);
   if (PAYMENT_TYPE_BY_KIND[kind]) fields.add('payment_type');
+  // #775 phase B (FR-EXP-113): the party/key discriminator's own fields — the per-row `admits` reads them.
+  for (const field of pollDiscriminatorForKind(kind)?.fields ?? []) fields.add(field);
   // BLOCK 1: the recovery ANCHOR field (ADR-0058 §3 — 'remarks' for SI/PI/PR, 'reference_no' for the
   // Payment Entry kinds). Without it the poll cannot tell a PMO-originated, still-unresolved document
   // from a native one, and pull-adopts a SECOND PMO row for a doc the outbox is about to finalize.
@@ -255,7 +275,52 @@ export { sweepKindsForOrg };
 export const PAYMENT_TYPE_BY_KIND: Partial<Record<ErpDocKind, 'Pay' | 'Receive'>> = {
   payment: 'Pay',
   'incoming-payment': 'Receive',
+  // #775 phase B — the Employee Payment Entry kinds poll their own direction.
+  'expense-payment': 'Pay',
+  'expense-receipt': 'Receive',
 };
+
+/**
+ * The ONE definition of a kind's poll scope: payment direction (BLOCK A1) + party/key discriminator (#775 phase B,
+ * FR-EXP-113) + company (WIRE 3). `extraFilters` is the server-side optimization; `admits` is the per-row authority.
+ * `null` = UNSCOPEABLE (a company-scoped kind on a binding with no company) — the caller skips the kind.
+ * Exported for direct unit testing (AC-EXP-122).
+ */
+export function pollFiltersForKind(
+  kind: ErpDocKind,
+  bindingCompany: string | null,
+): { extraFilters: ErpFilter[]; admits: (row: Record<string, unknown>) => boolean } | null {
+  const companyFilters = companyDocFilters(kind, bindingCompany);
+  if (companyFilters === null) return null;
+  const paymentType = PAYMENT_TYPE_BY_KIND[kind];
+  const discriminator = pollDiscriminatorForKind(kind);
+  return {
+    extraFilters: [
+      ...(paymentType ? ([['payment_type', '=', paymentType]] as ErpFilter[]) : []),
+      ...((discriminator?.filters ?? []) as ErpFilter[]),
+      ...(companyFilters as ErpFilter[]),
+    ],
+    admits: (row) =>
+      (paymentType ? row.payment_type === paymentType : true)
+      && (discriminator ? discriminator.admits(row) : true)
+      && admitsDocForBindingCompany(kind, row, bindingCompany),
+  };
+}
+
+/**
+ * The poll watermark key (FR-ENA-080: org × doctype), stored in `external_sync_watermarks.domain`. Unchanged
+ * `<domain>::<doctype>` for every kind that is alone on its (domain, doctype) — so no shipped cursor resets — and
+ * qualified with the kind when two kinds share BOTH (#775 phase B: `expense-payment` and `expense-receipt` are one
+ * domain on one doctype; one shared cursor would let the first kind's poll advance past the second's changes).
+ * Exported for direct unit testing (AC-EXP-122).
+ */
+export function sweepWatermarkDomain(kind: ErpDocKind): string {
+  const doctype = DOCTYPE_REGISTRY[kind].doctype;
+  const domain = KIND_DOMAIN[kind];
+  const shared = (Object.keys(DOCTYPE_REGISTRY) as ErpDocKind[])
+    .some((other) => other !== kind && KIND_DOMAIN[other] === domain && DOCTYPE_REGISTRY[other].doctype === doctype);
+  return shared ? `${domain}::${doctype}::${kind}` : `${domain}::${doctype}`;
+}
 
 /**
  * Luna round-5 BLOCK 4 — the sweep's outbox-recovery probe (`DispatchMoneyOutboxDeps.probeByRemarksKey`).
@@ -307,6 +372,11 @@ export function buildOutboxProbe(args: {
       createdAfter: String(payload.created_after ?? ''),
       paymentType,
       ...withholdingMatchFromPayload(payload),
+      // #775 phase B — an Employee Payment Entry's cited approval Journal Entry and its two accounts (frozen with
+      // the command; conjoined only for an Employee party).
+      journalNames: Array.isArray(payload.je_names) ? (payload.je_names as string[]) : undefined,
+      paidFrom: typeof payload.paid_from === 'string' ? payload.paid_from : undefined,
+      paidTo: typeof payload.paid_to === 'string' ? payload.paid_to : undefined,
     });
   };
 }
@@ -413,6 +483,9 @@ export async function reconcileOrgOutbox(
     // Skipping is safe precisely BECAUSE pass 6 owns it: the row is not dropped, it is reconciled by the
     // one pass that re-asserts the gate first.
     if (candidate.domain === ERPNEXT_TIMESHEETS_DOMAIN) continue;
+    // #775 phase B (ADR-0081): `expenses` is owned by pass (7) ALONE — it replays its own outbox rows (the same
+    // dispatchMoneyWrite) after checking the intent, so driving them here too would burn 0131's attempt budget 2×.
+    if (candidate.domain === ERPNEXT_EXPENSES_DOMAIN) continue;
     try {
       await dispatch(await buildDeps(candidate));
       reconciled += 1;
@@ -470,6 +543,9 @@ export interface ErpSweepCycleDeps {
    *  foreground push enforces. Optional so the existing cycle tests stay byte-for-byte; the live wiring
    *  always supplies it. */
   reconcileOrgTimesheetPushes?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
+  /** #775 phase B (ADR-0081) — pass (7), the only originator of expense postings. Optional so the existing cycle
+   *  tests stay byte-for-byte; the live wiring always supplies it. */
+  reconcileOrgExpensePostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
 }
 
 export interface ErpSweepCycleResult {
@@ -555,6 +631,16 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
         if (r.error) errors.push(`timesheet:${r.error}`);
       } catch (err) {
         errors.push(`timesheet:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // (7) #775 phase B — expense postings, LAST: an approval posted by this pass reaches the GL mirror on the next
+    // tick's (3). Same try/catch shape as its siblings.
+    if (deps.reconcileOrgExpensePostings) {
+      try {
+        const r = await deps.reconcileOrgExpensePostings(org);
+        if (r.error) errors.push(`expenses:${r.error}`);
+      } catch (err) {
+        errors.push(`expenses:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     perOrg.push({ orgId: org.orgId, reconcile, sweep, ledger, errors });
@@ -685,8 +771,8 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
     // `null` means UNSCOPEABLE (a company-scoped kind on a binding that names no company) — skip the
     // kind entirely and log it as the configuration error it is. It is deliberately NOT `[]` ("no
     // company dimension, sweep freely"), which is what would sweep the whole ERP site into one tenant.
-    const companyFilters = companyDocFilters(kind, org.company || null);
-    if (companyFilters === null) {
+    const poll = pollFiltersForKind(kind, org.company || null);
+    if (poll === null) {
       console.error(
         `[erpnext-sweep] org ${org.orgId}: binding names no ERP company — the company-scoped '${kind}' poll is `
           + 'SKIPPED (an unscopeable poll would adopt every company on the site). Set config.company on the binding.',
@@ -697,7 +783,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
     // Per-doctype watermark (FR-ENA-080: org × doctype) — keyed on a namespaced domain value so each
     // doctype has its own cursor row on external_sync_watermarks (the applyEngine ctx.domain stays the
     // PMO domain for external_refs; the watermark key is the sweep's own concern).
-    const wmDomain = `${domain}::${doctype}`;
+    const wmDomain = sweepWatermarkDomain(kind);
     const watermarkDeps = {
       readWatermark: async () => {
         const { data } = await serviceClient.from('external_sync_watermarks').select('watermark_cursor')
@@ -714,8 +800,8 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
     };
     // Luna BLOCK A1: `payment`/`incoming-payment` share the `Payment Entry` doctype — fetch
     // `payment_type` and filter the poll (server-side + defense-in-depth post-fetch) so a Pay doc is
-    // NEVER adopted by the incoming-payment poll and vice-versa.
-    const paymentType = PAYMENT_TYPE_BY_KIND[kind];
+    // NEVER adopted by the incoming-payment poll and vice-versa. #775 phase B adds the party/key
+    // discriminator; all of it is `pollFiltersForKind` (above).
     // Luna BLOCK 6: fetch exactly the fields THIS kind's mapper consumes (money included), plus — where
     // the canonical depends on a child table the list endpoint cannot return (the Receive PE's
     // `references`) — re-read each changed doc in full.
@@ -745,22 +831,13 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
               fromDoc: bodyFns.fromDoc,
               ...(hydrateDoc ? { hydrateDoc } : {}),
               // WIRE 3: the company conjunct rides alongside BLOCK A1's payment_type discriminator.
-              extraFilters: [
-                ...(paymentType ? ([['payment_type', '=', paymentType]] as [string, string, string][]) : []),
-                ...companyFilters,
-              ],
+              extraFilters: poll.extraFilters,
               // BLOCK A1's post-fetch discriminator AND WIRE 3's per-document company gate — the
               // server-side filters above are an optimization, these are the authority — composed under
               // BLOCK 1's in-flight-adopt guard (`inFlightAnchorFilter` returns the base filter
               // unchanged when it has nothing of its own to add).
               ...(() => {
-                const filterRow = inFlightAnchorFilter(
-                  kind,
-                  inFlightProbe,
-                  (row: Record<string, unknown>) =>
-                    (paymentType ? row.payment_type === paymentType : true)
-                    && admitsDocForBindingCompany(kind, row, org.company || null),
-                );
+                const filterRow = inFlightAnchorFilter(kind, inFlightProbe, poll.admits);
                 return filterRow ? { filterRow } : {};
               })(),
             },
@@ -1256,12 +1333,24 @@ async function findTimesheetOutboxRow(
   timesheetId: string,
   idempotencyKey: string,
 ): Promise<OutboxRow | null> {
+  return findOutboxRowByKey(serviceClient, orgId, ERPNEXT_TIMESHEETS_DOMAIN, timesheetId, idempotencyKey);
+}
+
+/** The EXISTING `external_command_outbox` row for a (domain, record, deterministic key), if any — shared by the
+ *  timesheet backstop and the expense pass (#775 phase B), whose keys are re-derived identically every tick. */
+async function findOutboxRowByKey(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  domain: string,
+  pmoRecordId: string,
+  idempotencyKey: string,
+): Promise<OutboxRow | null> {
   const { data, error } = await serviceClient
     .from('external_command_outbox')
     .select('id, domain, pmo_record_id, idempotency_key, state, external_record_id, canonical, claim_generation, payload_digest')
     .eq('org_id', orgId)
-    .eq('domain', ERPNEXT_TIMESHEETS_DOMAIN)
-    .eq('pmo_record_id', timesheetId)
+    .eq('domain', domain)
+    .eq('pmo_record_id', pmoRecordId)
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle();
   if (error) throw new AppError(error.message, error.code);
@@ -1673,6 +1762,260 @@ async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, or
   }
 }
 
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// (7) #775 phase B — the expense posting pass, the ONLY originator of expense postings (ADR-0081).
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The live reads `resolveExpensePosting` needs (FR-EXP-106). ERP reads use the probe budget (one attempt, tight
+ *  deadline) — this runs before the outbox claim, so a slow ERP fails the attempt instead of hanging the tick.
+ *  Exported for its unit test (`expenseResolveDepsLive.test.ts`). */
+export function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): ExpenseResolveDeps {
+  const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
+  let erpClient: ErpClientDeps | null = null;
+  const client = async (): Promise<ErpClientDeps> => {
+    if (!erpClient) {
+      const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
+      erpClient = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl });
+    }
+    return erpClient;
+  };
+  const getOrNull = async (doctype: string, name: string): Promise<Record<string, unknown> | null> => {
+    try {
+      return (await getDoc(await client(), doctype, name)) as Record<string, unknown>;
+    } catch (err) {
+      if (err instanceof ErpError && err.status === 404) return null;
+      throw err;
+    }
+  };
+  return {
+    readBinding: () => Promise.resolve({
+      company: text(org.company),
+      cashAccount: text(org.config.default_cash_account) ?? text(org.config.default_bank_account),
+      costCenter: text(org.config.cost_center),
+      projectMap: (org.config.project_map as Record<string, string> | undefined) ?? {},
+    }),
+    readConfirmedEmployee: async (profileId) => {
+      const lookup = await lookupConfirmedErpEmployee(serviceClient as never, org.orgId, profileId);
+      return lookup.status === 'ok' ? lookup.employee : null;
+    },
+    readAccountMap: async () => {
+      const { data, error } = await serviceClient.from('expense_account_map').select('account_key, erp_account').eq('org_id', org.orgId);
+      if (error) throw new AppError(error.message, error.code);
+      return Object.fromEntries(((data as Array<{ account_key: string; erp_account: string }> | null) ?? [])
+        .map((r) => [r.account_key, r.erp_account]));
+    },
+    readApprovalPosting: async (claimId) => {
+      const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
+        .select('push_state, erp_name, erp_cancelled_at')
+        .eq('org_id', org.orgId).eq('posting_identity', `${claimId}:approval`).maybeSingle();
+      if (error) throw new AppError(error.message, error.code);
+      return (data as { push_state: string; erp_name: string | null; erp_cancelled_at: string | null } | null) ?? null;
+    },
+    // Any outbox command for the approval itself (its key prefix; the cancel shares the approval's identity).
+    readApprovalOutboxExists: async (claimId) => {
+      const { data, error } = await serviceClient.from('external_command_outbox').select('id')
+        .eq('org_id', org.orgId).eq('domain', ERPNEXT_EXPENSES_DOMAIN)
+        .eq('pmo_record_id', expenseOutboxIdentity('approval', claimId))
+        .like('idempotency_key', `${EXPENSE_POSTING_KEY_PREFIX.approval}:%`).limit(1);
+      if (error) throw new AppError(error.message, error.code);
+      return Array.isArray(data) && data.length > 0;
+    },
+    readErpAccounts: async (names) => {
+      const facts: ErpAccountFacts[] = [];
+      for (const name of names) {
+        const doc = await getOrNull('Account', name);
+        if (doc) facts.push({ ...doc, name } as ErpAccountFacts);
+      }
+      return facts;
+    },
+    // One Company read gives both facts; the supplier payable account is ERPNext's LIVE value, never the binding's copy.
+    readErpCompany: async (company) => {
+      const doc = await getOrNull('Company', company);
+      return doc ? { currency: text(doc.default_currency), defaultPayableAccount: text(doc.default_payable_account) } : null;
+    },
+    readErpJournalDocstatus: async (name) => {
+      const doc = await getOrNull(DOCTYPE_REGISTRY['expense-journal'].doctype, name);
+      return typeof doc?.docstatus === 'number' ? doc.docstatus : null;
+    },
+  };
+}
+
+/** Why an existing outbox row that 0131 no longer offers is parked: what an operator must look at. */
+function expenseOutboxHoldReason(state: string): string {
+  if (state === 'confirmed') return 'expense-posting-mirror-diverged';
+  if (state === 'held') return 'command-held';
+  return 'expense-posting-attempts-exhausted';
+}
+
+/** The posting a deterministic expense key names (`<prefix>:<subject>:<stamp>`), or null for any other key. */
+function expensePostingOfKey(idempotencyKey: string): ExpensePosting | null {
+  const prefix = idempotencyKey.split(':', 1)[0];
+  const hit = (Object.entries(EXPENSE_POSTING_KEY_PREFIX) as Array<[ExpensePosting, string]>).find(([, p]) => p === prefix);
+  return hit ? hit[0] : null;
+}
+
+const EXPENSE_INTENT_COLUMNS = 'id, posting, posting_identity, claim_id, return_id, state_stamp, push_state, push_error';
+
+/** The live deps of pass (7). `eligibleOutbox` is 0131's expenses candidate set, read once per pass. Exported so the
+ *  replay/hold routing is unit-proven against a fake client (`expensePostingBackstopLive.test.ts`). */
+export function expensePostingBackstopDepsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  eligibleOutbox: readonly OutboxRow[],
+  cache?: ErpAuthPairCache,
+): ExpenseBackstopDeps {
+  const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
+  // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
+  // The notice is deduplicated by surfaceActionRequired against an unread one for the same posting and reason.
+  const recordOutcome = async (row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void> => {
+    const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
+    if (outcome.state === 'pushed') {
+      patch.erp_name = outcome.erpName ?? null;
+      patch.pushed_at = new Date().toISOString();
+    }
+    const { error } = await serviceClient.from('expense_posting_erp_mirror').update(patch)
+      .eq('org_id', org.orgId).eq('id', row.id).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null);
+    if (error) throw new AppError(error.message, error.code);
+    if (outcome.state !== 'pushed') {
+      await surfaceActionRequired(serviceClient, org.orgId, outcome.state === 'held' ? 'expense-posting-held' : 'expense-posting-failed',
+        { postingIdentity: row.posting_identity, reason: outcome.reason });
+    }
+  };
+  const classify = (err: unknown): ExpenseOutcome => {
+    const code = (err as { code?: unknown } | null)?.code;
+    return {
+      state: code === 'command-held' ? 'held' : 'failed',
+      reason: typeof code === 'string' ? code : err instanceof Error ? err.message : String(err),
+    };
+  };
+  return {
+    // Round robin (NFR-EXP-013): never-attempted first, then least recently attempted — index-served (0270 §3).
+    listPending: async (orgId, limit) => {
+      const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
+        .select(EXPENSE_INTENT_COLUMNS)
+        .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
+        .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).limit(limit);
+      if (error) throw new AppError(error.message, error.code);
+      return (data as ExpenseIntentRow[] | null) ?? [];
+    },
+    markAttempted: async (orgId, intentIds) => {
+      const { error } = await serviceClient.from('expense_posting_erp_mirror')
+        .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in('id', intentIds);
+      if (error) throw new AppError(error.message, error.code);
+    },
+    // A command left `committed` (finalize-only: the ERP document exists) whose intent the read-model writer already
+    // marked `pushed`. Finishing it issues no ERP write; leaving it blocks the record's next command (0134).
+    listStranded: async (orgId) => {
+      const committed = eligibleOutbox.filter((row) => row.state === 'committed' && row.domain === ERPNEXT_EXPENSES_DOMAIN);
+      const byIdentity = new Map<string, OutboxRow>();
+      for (const outbox of committed) {
+        const posting = expensePostingOfKey(outbox.idempotencyKey);
+        const subject = outbox.pmoRecordId.split(':', 1)[0];
+        if (posting && subject) byIdentity.set(expensePostingIdentity(posting, subject), outbox);
+      }
+      if (byIdentity.size === 0) return [];
+      const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
+        .select(EXPENSE_INTENT_COLUMNS)
+        .eq('org_id', orgId).eq('push_state', 'pushed').in('posting_identity', [...byIdentity.keys()]);
+      if (error) throw new AppError(error.message, error.code);
+      return ((data as ExpenseIntentRow[] | null) ?? []).flatMap((row) => {
+        const outbox = byIdentity.get(row.posting_identity);
+        return outbox ? [{ row, outbox }] : [];
+      });
+    },
+    findOutbox: (row) => {
+      const posting = row.posting as ExpensePosting;
+      const subject = row.return_id ?? row.claim_id;
+      return findOutboxRowByKey(serviceClient, org.orgId, ERPNEXT_EXPENSES_DOMAIN,
+        expenseOutboxIdentity(posting, subject), expensePostingKey(posting, subject, row.state_stamp));
+    },
+    replay: async (row, ref) => {
+      const outbox = ref as OutboxRow;
+      if (!eligibleOutboxIds.has(outbox.id)) {
+        if (outbox.state === 'committing' || outbox.state === 'quarantined') return; // not due yet (0131)
+        await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
+        return;
+      }
+      // A replay that may issue a NEW ERP write re-asserts the recorded actor's CURRENT role/rank — the gate's actor
+      // half (0270 §5), which the generic replay authorization (active membership only for expenses) does not run.
+      // A refusal leaves the outbox row untouched; the intent is recorded failed and retried.
+      if (replayMayIssueErpWrite(outbox.state)) {
+        const { error } = await serviceClient.rpc('expense_posting_actor_check', { p_org_id: org.orgId, p_mirror_id: row.id });
+        if (error) {
+          if (error.code === '42501' || error.code === 'P0002') {
+            await recordOutcome(row, { state: 'failed', reason: error.message });
+            return;
+          }
+          throw new AppError(error.message, error.code);
+        }
+      }
+      try {
+        await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
+      } catch (err) {
+        // A stranded finish (the intent is already pushed) has nothing to record: the pass reports it and retries.
+        if (row.push_state === 'pushed') throw err;
+        await recordOutcome(row, classify(err));
+      }
+    },
+    assertGate: async (row) => {
+      const { data, error } = await serviceClient.rpc('expense_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
+      if (error) {
+        if (error.code === 'P0001' || error.code === 'P0002' || error.code === '42501') return { ok: false, reason: error.message };
+        throw new AppError(error.message, error.code);
+      }
+      return { ok: true, truth: parseExpenseGateTruth(data) };
+    },
+    resolve: (truth) => resolveExpensePosting(truth, expenseResolveDepsLive(serviceClient, org, cache)),
+    recordOutcome,
+    driveFresh: async (row, truth, refs) => {
+      const built = buildExpensePostingCommand(truth, refs, erpDatetime(Date.now() - 60_000));
+      const auth = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, truth.actor_id, {
+        domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
+        record: { id: built.outboxIdentity, erp_doc_kind: built.record.erp_doc_kind },
+      });
+      if (!auth.ok) {
+        await recordOutcome(row, { state: 'failed', reason: auth.message });
+        return;
+      }
+      const command: AdapterCommand = {
+        domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
+        record: built.record as AdapterCommand['record'], idempotencyKey: built.idempotencyKey,
+      };
+      try {
+        await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org,
+          { command, actorUserId: truth.actor_id, outboxRecordId: built.outboxIdentity, persistPayload: true }, cache));
+      } catch (err) {
+        await recordOutcome(row, classify(err));
+      }
+    },
+  };
+}
+
+/** Pass (7), domain-gated (an org that has not employed `expenses` has nothing to post). */
+async function reconcileOrgExpensePostingsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  cache?: ErpAuthPairCache,
+): Promise<{ driven: number; error?: string }> {
+  if (!org.ownedDomains.includes(ERPNEXT_EXPENSES_DOMAIN)) return { driven: 0 };
+  try {
+    const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
+    const result = await reconcileOrgExpensePostings(
+      expensePostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache),
+      { orgId: org.orgId },
+    );
+    for (const e of result.errors) {
+      console.warn(`[erpnext-sweep] org ${org.orgId} expense intent ${e.intentId}: ${e.error}`);
+    }
+    return {
+      driven: result.driven + result.replayed + result.finished,
+      error: result.errors.length ? `${result.errors.length} expense intent(s) failed` : undefined,
+    };
+  } catch (err) {
+    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring clickup-sweep). The cron presents this same
@@ -1707,6 +2050,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
+    reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
   }, erpAuth);
   return json({ ok: true, ...cycle });
 });
@@ -1776,12 +2120,37 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // reject — is what the throw guarantees.)
   await assertBudgetSweepGate(serviceClient, org, payload, cache);
 
+  const command: AdapterCommand = {
+    domain: row.domain as AdapterCommand['domain'],
+    operation: rowExtra.operation,
+    record: payload as AdapterCommand['record'],
+    idempotencyKey: row.idempotencyKey,
+  };
+  return buildMoneyWriteDepsLive(serviceClient, org,
+    { command, actorUserId: rowExtra.actor_user_id, outboxRecordId: row.pmoRecordId, persistPayload: false }, cache);
+}
+
+/**
+ * The money-write deps for ONE command, given its actor and outbox identity — the body `buildReconcileDepsLive`
+ * always had, extracted so the expense pass (#775 phase B) can drive a FRESH command through the identical
+ * outbox/probe/fence/re-authorization machinery. `persistPayload` is set only for a fresh command: it makes the
+ * outbox INSERT carry the payload and the recorded actor (a recovery row already has both).
+ */
+export async function buildMoneyWriteDepsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean },
+  cache?: ErpAuthPairCache,
+): Promise<DispatchMoneyWriteDeps> {
+  const command = args.command;
+  const operation = command.operation as 'create' | 'update' | 'transition';
+  const payload = command.record as Record<string, unknown>;
   const kind = payload.erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
   const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;
   if (!entry || !bodyFns) {
     // Loud (never a silent no-op): a candidate whose kind we cannot resolve needs an operator, not a POST.
-    throw new AppError(`erpnext-sweep reconcile: unresolvable erp_doc_kind '${String(kind)}' for ${row.domain}/${row.pmoRecordId}`, 'commit-rejected');
+    throw new AppError(`erpnext-sweep reconcile: unresolvable erp_doc_kind '${String(kind)}' for ${command.domain}/${args.outboxRecordId}`, 'commit-rejected');
   }
 
   const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
@@ -1789,14 +2158,6 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
   const client = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl });
-  // M-3: dispatch digests the exact payload persisted at INSERT. Reuse that full payload as the
-  // digest input (and command record), rather than reconstructing only id + erp_doc_kind.
-  const command: AdapterCommand = {
-    domain: row.domain as AdapterCommand['domain'],
-    operation: rowExtra.operation,
-    record: payload as AdapterCommand['record'],
-    idempotencyKey: row.idempotencyKey,
-  };
 
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
@@ -1812,7 +2173,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   });
 
   const anchorField = entry.anchorField;
-  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: row.pmoRecordId };
+  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: args.outboxRecordId };
   const encodeExternalRecordId = (mapping: ExternalRefMapping): string =>
     mapping.domain === ERPNEXT_COMPANIES_DOMAIN ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
 
@@ -1822,7 +2183,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     serviceClient: serviceClient as never,
     orgId: org.orgId,
     externalTier: ERPNEXT_TIER,
-    operation: rowExtra.operation,
+    operation,
     // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
     // ⚑ HIGH-1: an `upsertOnGrain` kind (ERP `Budget`) has no anchor at ALL, but ERP itself enforces its
     // natural grain, so the dispatch factory's server-derived grain read is a conclusive probe and a
@@ -1843,22 +2204,25 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     // `checkErpnextCommandAuthorization` rule the synchronous gate + that replay check run. Consulted by
     // `dispatch.ts` ONLY on the actual reissue branch — an adopt or a mutable-anchor hold never calls it.
     // Fail-CLOSED on an unattributable row; a refusal HOLDS the row for an operator (never dropped).
+    // #775 phase B — a FRESH command (the expense pass) persists its frozen payload + recorded actor at INSERT, so a
+    // later replay re-reads exactly what was digested and re-authorizes the same person.
+    ...(args.persistPayload ? { payload, actorUserId: args.actorUserId ?? undefined } : {}),
     reauthorizeRecoveryReissue: async () => {
-      if (!rowExtra.actor_user_id) {
-        return { ok: false, message: `outbox row ${row.id} has no recorded actor — reissue held for an operator` };
+      if (!args.actorUserId) {
+        return { ok: false, message: `outbox row ${args.outboxRecordId} has no recorded actor — reissue held for an operator` };
       }
-      const res = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, rowExtra.actor_user_id, {
+      const res = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, args.actorUserId, {
         domain: command.domain,
-        operation: rowExtra.operation,
-        record: { id: row.pmoRecordId, erp_doc_kind: payload.erp_doc_kind },
+        operation,
+        record: { id: args.outboxRecordId, erp_doc_kind: payload.erp_doc_kind },
       });
       return { ok: res.ok, message: res.message };
     },
   });
 
   const writeReadModel = async (canonical: PmoRecord): Promise<void> => {
-    await getReadModelWriter(row.domain).upsert(
-      { serviceClient: serviceClient as never, orgId: org.orgId, callerUserId: rowExtra.actor_user_id ?? undefined },
+    await getReadModelWriter(command.domain).upsert(
+      { serviceClient: serviceClient as never, orgId: org.orgId, callerUserId: args.actorUserId ?? undefined },
       canonical,
       command,
     );
@@ -1869,7 +2233,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // FR-BFY-032: the outbox row + `external_refs` are keyed on the row's OWN `pmo_record_id` — the
   // year-qualified `<vid>:<encoded_fy>` for a budget fan-out, the bare record id for every other
   // domain (where the two are the same string, so this is byte-for-byte).
-  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: row.pmoRecordId };
+  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId };
 }
 
 /**
@@ -1962,7 +2326,7 @@ async function readErpFiscalYearsLive(
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
       ERP_PROBE_TIMEOUT_MS,
     );
-  } catch (_err) {
+  } catch {
     throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
   }
   if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');

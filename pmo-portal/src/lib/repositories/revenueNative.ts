@@ -9,7 +9,7 @@ import type { RevenueRepository } from './types';
 
 /**
  * #784 (ADR-0055 addendum 2026-10-07): the PMO-native revenue writes the revenue repository routes to while no ERP owns
- * revenue for the org. Thin by design: migration 0270's RPCs enforce role, approval SoD, ownership and balances.
+ * revenue for the org. Thin by design: migration 0275's RPCs enforce role, approval SoD, ownership and balances.
  */
 
 async function wrap<T>(fn: () => Promise<T>): Promise<T> {

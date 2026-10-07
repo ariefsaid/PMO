@@ -3,7 +3,7 @@ import { AppError } from '@/src/lib/appError';
 
 /**
  * #784 (ADR-0055 addendum 2026-10-07): the PMO-native revenue writes — used while no ERP owns revenue for the org.
- * Every write is a SECURITY DEFINER RPC (migration 0270) that enforces role (Admin/Finance), approval SoD, ownership and
+ * Every write is a SECURITY DEFINER RPC (migration 0275) that enforces role (Admin/Finance), approval SoD, ownership and
  * balance rules; this module only names them.
  */
 /** A type alias (not an interface) so a line is assignable to the generated `Json` the RPC takes. */
@@ -37,7 +37,7 @@ export interface NativeReceiptInput {
 }
 
 /**
- * The machine-readable refusal codes migration 0270's RPCs put in the error DETAIL. The UI keys its headlines on these,
+ * The machine-readable refusal codes migration 0275's RPCs put in the error DETAIL. The UI keys its headlines on these,
  * never on the message text. Any other detail (e.g. Postgres's own "Failing row contains …") is ignored and the
  * SQLSTATE stays the code, so free text never becomes a code.
  */

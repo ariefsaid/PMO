@@ -56,7 +56,7 @@ describe('revenueNative DAL (#784) — names the four RPCs and sends what the us
     await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [] })).rejects.toBeInstanceOf(AppError);
     await expect(cancelNativeReceipt('ip-1')).rejects.toBeInstanceOf(AppError);
   });
-  it('#784 the final refusal codes from migration 0270 are all known (22)', () => {
+  it('#784 the final refusal codes from migration 0275 are all known (22)', () => {
     expect(NATIVE_REVENUE_REFUSALS).toHaveLength(22);
     expect(NATIVE_REVENUE_REFUSALS).toEqual(expect.arrayContaining(['pmo-native', 'receipt-split-mismatch', 'sod-self-approval', 'illegal-transition']));
   });

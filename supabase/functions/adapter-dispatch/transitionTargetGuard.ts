@@ -346,7 +346,7 @@ async function revenueRowsFor(client: GuardLookupClient, id: string): Promise<Re
 /**
  * #784 — revenue commands through the ERP path only ever target ERP-path rows.
  *
- * An invoice or receipt raised in PMO (`pmo_native`, migration 0270) is approved, settled and cancelled by PMO's
+ * An invoice or receipt raised in PMO (`pmo_native`, migration 0275) is approved, settled and cancelled by PMO's
  * own RPCs and is never an ERP document. So every revenue command — create, update or transition — is refused
  * when its `record.id` is a PMO-native invoice or receipt, or when it cites a PMO-native invoice as the invoice a
  * receipt settles (`record.salesInvoiceId`). There is no retry exemption: no ERP-path command ever legitimately

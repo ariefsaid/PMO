@@ -11,190 +11,190 @@ file is run only once everything it touches exists.
 
 ### D1 — RED: returns test (AC-EXP-102)
 
-Create `supabase/tests/0263_expense_advance_returns.test.sql`:
+Create `supabase/tests/0270_expense_advance_returns.test.sql`:
 
 ```sql
--- 0263_expense_advance_returns.test.sql — #775 phase B: each cash return is its own row and its own posting intent
--- (FR-EXP-102, DD-EXP-17). AC-EXP-102. Migration under test: 0263_expense_postings.sql §1 + §4.
+-- 0270_expense_advance_returns.test.sql — #775 phase B: each cash return is its own row and its own posting intent
+-- (FR-EXP-102, DD-EXP-17). AC-EXP-102. Migration under test: 0270_expense_postings.sql §1 + §4.
 begin;
 create extension if not exists pgtap;
 select plan(8);
 
 insert into organizations (id, name, default_currency, default_timezone) values
-  ('02630000-0000-0000-0000-00000000000a','EXP-B Returns Org','IDR','Asia/Jakarta');
+  ('02700000-0000-0000-0000-00000000000a','EXP-B Returns Org','IDR','Asia/Jakarta');
 insert into auth.users (id, email) values
-  ('02630000-0000-0000-0000-0000000000a1','expb-r-e1@example.com'),
-  ('02630000-0000-0000-0000-0000000000a4','expb-r-f1@example.com');
+  ('02700000-0000-0000-0000-0000000000a1','expb-r-e1@example.com'),
+  ('02700000-0000-0000-0000-0000000000a4','expb-r-f1@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02630000-0000-0000-0000-0000000000a1','02630000-0000-0000-0000-00000000000a','R Eng','expb-r-e1@example.com','Engineer','active'),
-  ('02630000-0000-0000-0000-0000000000a4','02630000-0000-0000-0000-00000000000a','R Fin','expb-r-f1@example.com','Finance','active');
+  ('02700000-0000-0000-0000-0000000000a1','02700000-0000-0000-0000-00000000000a','R Eng','expb-r-e1@example.com','Engineer','active'),
+  ('02700000-0000-0000-0000-0000000000a4','02700000-0000-0000-0000-00000000000a','R Fin','expb-r-f1@example.com','Finance','active');
 insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, config, activated_at) values
-  ('02630000-0000-0000-0000-00000000000a','erpnext','https://erp.example.test','test-ref','{"company":"Example Co"}'::jsonb, now());
+  ('02700000-0000-0000-0000-00000000000a','erpnext','https://erp.example.test','test-ref','{"company":"Example Co"}'::jsonb, now());
 insert into external_domain_ownership (org_id, external_tier, domain) values
-  ('02630000-0000-0000-0000-00000000000a','erpnext','expenses');
+  ('02700000-0000-0000-0000-00000000000a','erpnext','expenses');
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number,
                             approved_by_id, paid_by_id, paid_at, paid_on) values
-  ('02630000-0000-0000-0000-000000000301','02630000-0000-0000-0000-00000000000a','advance',
-   '02630000-0000-0000-0000-0000000000a1','Float',500,'Paid','ADV-2610070001',
-   '02630000-0000-0000-0000-0000000000a4','02630000-0000-0000-0000-0000000000a4', now(),
+  ('02700000-0000-0000-0000-000000000301','02700000-0000-0000-0000-00000000000a','advance',
+   '02700000-0000-0000-0000-0000000000a1','Float',500,'Paid','ADV-2610070001',
+   '02700000-0000-0000-0000-0000000000a4','02700000-0000-0000-0000-0000000000a4', now(),
    (now() at time zone 'Asia/Jakarta')::date);
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select lives_ok($$ select record_expense_advance_return('02630000-0000-0000-0000-000000000301', 100, 'CB-1') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select lives_ok($$ select record_expense_advance_return('02700000-0000-0000-0000-000000000301', 100, 'CB-1') $$,
   'AC-EXP-102: Finance records a 100 cash return');
-select throws_ok($$ select record_expense_advance_return('02630000-0000-0000-0000-000000000301', 450) $$,
+select throws_ok($$ select record_expense_advance_return('02700000-0000-0000-0000-000000000301', 450) $$,
   'P0001', 'a return of 450.00 exceeds the 400.00 still outstanding on this advance',
   'AC-EXP-102: the phase-A ceiling still refuses a return above what is outstanding');
 reset role;
 
-select is((select returned_amount from expense_claims where id = '02630000-0000-0000-0000-000000000301'),
+select is((select returned_amount from expense_claims where id = '02700000-0000-0000-0000-000000000301'),
   100.00::numeric, 'AC-EXP-102: returned_amount carries the return');
-select is((select count(*)::int from expense_advance_returns where advance_id = '02630000-0000-0000-0000-000000000301'),
+select is((select count(*)::int from expense_advance_returns where advance_id = '02700000-0000-0000-0000-000000000301'),
   1, 'AC-EXP-102: one return row — the refused 450 wrote none');
 select is((select amount::text || '/' || reference || '/' || recorded_by::text
-             from expense_advance_returns where advance_id = '02630000-0000-0000-0000-000000000301'),
-  '100.00/CB-1/02630000-0000-0000-0000-0000000000a4',
+             from expense_advance_returns where advance_id = '02700000-0000-0000-0000-000000000301'),
+  '100.00/CB-1/02700000-0000-0000-0000-0000000000a4',
   'AC-EXP-102: the row holds the amount, the reference and the recorder');
-select is((select returned_on from expense_advance_returns where advance_id = '02630000-0000-0000-0000-000000000301'),
+select is((select returned_on from expense_advance_returns where advance_id = '02700000-0000-0000-0000-000000000301'),
   (now() at time zone 'Asia/Jakarta')::date, 'AC-EXP-102: returned_on is today in the org timezone');
 select is((select count(*)::int
              from expense_posting_erp_mirror m join expense_advance_returns r on r.id = m.return_id
-            where r.advance_id = '02630000-0000-0000-0000-000000000301' and m.posting = 'advance-return'
+            where r.advance_id = '02700000-0000-0000-0000-000000000301' and m.posting = 'advance-return'
               and m.push_state = 'pending' and m.state_stamp = r.recorded_at and m.actor_id = r.recorded_by),
   1, 'AC-EXP-102: one pending advance-return intent carries the row''s stamp and recorder');
 select is((select posting_identity from expense_posting_erp_mirror
-            where posting = 'advance-return' and claim_id = '02630000-0000-0000-0000-000000000301'),
+            where posting = 'advance-return' and claim_id = '02700000-0000-0000-0000-000000000301'),
   (select id::text || ':advance-return' from expense_advance_returns
-    where advance_id = '02630000-0000-0000-0000-000000000301'),
+    where advance_id = '02700000-0000-0000-0000-000000000301'),
   'AC-EXP-102: the intent identity is <return id>:advance-return');
 
 select * from finish();
 rollback;
 ```
 
-Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0263_expense_advance_returns.test.sql` → fails
+Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0270_expense_advance_returns.test.sql` → fails
 with `relation "expense_advance_returns" does not exist`.
 
 ### D2 — RED: intent test (AC-EXP-100, AC-EXP-101, AC-EXP-103)
 
-Create `supabase/tests/0263_expense_postings_enqueue.test.sql`:
+Create `supabase/tests/0270_expense_postings_enqueue.test.sql`:
 
 ```sql
--- 0263_expense_postings_enqueue.test.sql — #775 phase B: the event writes its posting intents in its own
+-- 0270_expense_postings_enqueue.test.sql — #775 phase B: the event writes its posting intents in its own
 -- transaction, and only while the org employs `expenses` (FR-EXP-100/101, DD-EXP-12/13). AC-EXP-100, 101, 103.
--- Migration under test: 0263_expense_postings.sql §3 + §4.
+-- Migration under test: 0270_expense_postings.sql §3 + §4.
 begin;
 create extension if not exists pgtap;
 select plan(17);
 
 insert into organizations (id, name, default_currency, default_timezone) values
-  ('02630000-0000-0000-0000-00000000010a','EXP-B Employing Org','IDR','Asia/Jakarta'),
-  ('02630000-0000-0000-0000-00000000010c','EXP-B Connected Only Org','IDR','Asia/Jakarta');
+  ('02700000-0000-0000-0000-00000000010a','EXP-B Employing Org','IDR','Asia/Jakarta'),
+  ('02700000-0000-0000-0000-00000000010c','EXP-B Connected Only Org','IDR','Asia/Jakarta');
 insert into auth.users (id, email) values
-  ('02630000-0000-0000-0000-0000000001a1','expb-q-e1@example.com'),
-  ('02630000-0000-0000-0000-0000000001a3','expb-q-pm@example.com'),
-  ('02630000-0000-0000-0000-0000000001a4','expb-q-f1@example.com'),
-  ('02630000-0000-0000-0000-0000000001c1','expb-q-ce1@example.com'),
-  ('02630000-0000-0000-0000-0000000001c3','expb-q-cpm@example.com');
+  ('02700000-0000-0000-0000-0000000001a1','expb-q-e1@example.com'),
+  ('02700000-0000-0000-0000-0000000001a3','expb-q-pm@example.com'),
+  ('02700000-0000-0000-0000-0000000001a4','expb-q-f1@example.com'),
+  ('02700000-0000-0000-0000-0000000001c1','expb-q-ce1@example.com'),
+  ('02700000-0000-0000-0000-0000000001c3','expb-q-cpm@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02630000-0000-0000-0000-0000000001a1','02630000-0000-0000-0000-00000000010a','Q Eng','expb-q-e1@example.com','Engineer','active'),
-  ('02630000-0000-0000-0000-0000000001a3','02630000-0000-0000-0000-00000000010a','Q PM','expb-q-pm@example.com','Project Manager','active'),
-  ('02630000-0000-0000-0000-0000000001a4','02630000-0000-0000-0000-00000000010a','Q Fin','expb-q-f1@example.com','Finance','active'),
-  ('02630000-0000-0000-0000-0000000001c1','02630000-0000-0000-0000-00000000010c','QC Eng','expb-q-ce1@example.com','Engineer','active'),
-  ('02630000-0000-0000-0000-0000000001c3','02630000-0000-0000-0000-00000000010c','QC PM','expb-q-cpm@example.com','Project Manager','active');
+  ('02700000-0000-0000-0000-0000000001a1','02700000-0000-0000-0000-00000000010a','Q Eng','expb-q-e1@example.com','Engineer','active'),
+  ('02700000-0000-0000-0000-0000000001a3','02700000-0000-0000-0000-00000000010a','Q PM','expb-q-pm@example.com','Project Manager','active'),
+  ('02700000-0000-0000-0000-0000000001a4','02700000-0000-0000-0000-00000000010a','Q Fin','expb-q-f1@example.com','Finance','active'),
+  ('02700000-0000-0000-0000-0000000001c1','02700000-0000-0000-0000-00000000010c','QC Eng','expb-q-ce1@example.com','Engineer','active'),
+  ('02700000-0000-0000-0000-0000000001c3','02700000-0000-0000-0000-00000000010c','QC PM','expb-q-cpm@example.com','Project Manager','active');
 insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, config, activated_at) values
-  ('02630000-0000-0000-0000-00000000010a','erpnext','https://erp.example.test','test-ref-a','{"company":"Example Co"}'::jsonb, now()),
-  ('02630000-0000-0000-0000-00000000010c','erpnext','https://erp.example.test','test-ref-c','{"company":"Other Co"}'::jsonb, now());
+  ('02700000-0000-0000-0000-00000000010a','erpnext','https://erp.example.test','test-ref-a','{"company":"Example Co"}'::jsonb, now()),
+  ('02700000-0000-0000-0000-00000000010c','erpnext','https://erp.example.test','test-ref-c','{"company":"Other Co"}'::jsonb, now());
 insert into external_domain_ownership (org_id, external_tier, domain) values
-  ('02630000-0000-0000-0000-00000000010a','erpnext','expenses');
+  ('02700000-0000-0000-0000-00000000010a','erpnext','expenses');
 
 -- advances (paid ones first: the advance-link check needs them)
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number,
                             approved_by_id, approved_at, paid_by_id, paid_at, paid_on) values
-  ('02630000-0000-0000-0000-000000000311','02630000-0000-0000-0000-00000000010a','advance','02630000-0000-0000-0000-0000000001a1','Adv 500',500,'Paid','ADV-2610070011','02630000-0000-0000-0000-0000000001a3',now(),'02630000-0000-0000-0000-0000000001a4',now(),(now() at time zone 'Asia/Jakarta')::date),
-  ('02630000-0000-0000-0000-000000000312','02630000-0000-0000-0000-00000000010a','advance','02630000-0000-0000-0000-0000000001a1','Adv 1000',1000,'Paid','ADV-2610070012','02630000-0000-0000-0000-0000000001a3',now(),'02630000-0000-0000-0000-0000000001a4',now(),(now() at time zone 'Asia/Jakarta')::date);
+  ('02700000-0000-0000-0000-000000000311','02700000-0000-0000-0000-00000000010a','advance','02700000-0000-0000-0000-0000000001a1','Adv 500',500,'Paid','ADV-2610070011','02700000-0000-0000-0000-0000000001a3',now(),'02700000-0000-0000-0000-0000000001a4',now(),(now() at time zone 'Asia/Jakarta')::date),
+  ('02700000-0000-0000-0000-000000000312','02700000-0000-0000-0000-00000000010a','advance','02700000-0000-0000-0000-0000000001a1','Adv 1000',1000,'Paid','ADV-2610070012','02700000-0000-0000-0000-0000000001a3',now(),'02700000-0000-0000-0000-0000000001a4',now(),(now() at time zone 'Asia/Jakarta')::date);
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at) values
-  ('02630000-0000-0000-0000-000000000313','02630000-0000-0000-0000-00000000010a','advance','02630000-0000-0000-0000-0000000001a1','Adv 200',200,'Approved','ADV-2610070013','02630000-0000-0000-0000-0000000001a3',now());
+  ('02700000-0000-0000-0000-000000000313','02700000-0000-0000-0000-00000000010a','advance','02700000-0000-0000-0000-0000000001a1','Adv 200',200,'Approved','ADV-2610070013','02700000-0000-0000-0000-0000000001a3',now());
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, submitted_at) values
-  ('02630000-0000-0000-0000-000000000411','02630000-0000-0000-0000-00000000010a','claim','02630000-0000-0000-0000-0000000001a1','To approve',100,'Submitted','EXP-2610070011',now()),
-  ('02630000-0000-0000-0000-000000000412','02630000-0000-0000-0000-00000000010c','claim','02630000-0000-0000-0000-0000000001c1','Org C claim',100,'Submitted','EXP-2610070012',now()),
-  ('02630000-0000-0000-0000-000000000415','02630000-0000-0000-0000-00000000010a','claim','02630000-0000-0000-0000-0000000001a1','Withdrawn',100,'Submitted','EXP-2610070015',now());
+  ('02700000-0000-0000-0000-000000000411','02700000-0000-0000-0000-00000000010a','claim','02700000-0000-0000-0000-0000000001a1','To approve',100,'Submitted','EXP-2610070011',now()),
+  ('02700000-0000-0000-0000-000000000412','02700000-0000-0000-0000-00000000010c','claim','02700000-0000-0000-0000-0000000001c1','Org C claim',100,'Submitted','EXP-2610070012',now()),
+  ('02700000-0000-0000-0000-000000000415','02700000-0000-0000-0000-00000000010a','claim','02700000-0000-0000-0000-0000000001a1','Withdrawn',100,'Submitted','EXP-2610070015',now());
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at, advance_id) values
-  ('02630000-0000-0000-0000-000000000413','02630000-0000-0000-0000-00000000010a','claim','02630000-0000-0000-0000-0000000001a1','Claim 800',800,'Approved','EXP-2610070013','02630000-0000-0000-0000-0000000001a3',now(),'02630000-0000-0000-0000-000000000311'),
-  ('02630000-0000-0000-0000-000000000414','02630000-0000-0000-0000-00000000010a','claim','02630000-0000-0000-0000-0000000001a1','Claim 300',300,'Approved','EXP-2610070014','02630000-0000-0000-0000-0000000001a3',now(),'02630000-0000-0000-0000-000000000312'),
-  ('02630000-0000-0000-0000-000000000416','02630000-0000-0000-0000-00000000010a','claim','02630000-0000-0000-0000-0000000001a1','Approved before employment',100,'Approved','EXP-2610070016','02630000-0000-0000-0000-0000000001a3',now(),null);
+  ('02700000-0000-0000-0000-000000000413','02700000-0000-0000-0000-00000000010a','claim','02700000-0000-0000-0000-0000000001a1','Claim 800',800,'Approved','EXP-2610070013','02700000-0000-0000-0000-0000000001a3',now(),'02700000-0000-0000-0000-000000000311'),
+  ('02700000-0000-0000-0000-000000000414','02700000-0000-0000-0000-00000000010a','claim','02700000-0000-0000-0000-0000000001a1','Claim 300',300,'Approved','EXP-2610070014','02700000-0000-0000-0000-0000000001a3',now(),'02700000-0000-0000-0000-000000000312'),
+  ('02700000-0000-0000-0000-000000000416','02700000-0000-0000-0000-00000000010a','claim','02700000-0000-0000-0000-0000000001a1','Approved before employment',100,'Approved','EXP-2610070016','02700000-0000-0000-0000-0000000001a3',now(),null);
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000001a3","role":"authenticated"}';
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000411','Approved') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000001a3","role":"authenticated"}';
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000411','Approved') $$,
   'AC-EXP-100: the PM approves E1''s claim in the org that employs expenses');
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000001c3","role":"authenticated"}';
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000412','Approved') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000001c3","role":"authenticated"}';
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000412','Approved') $$,
   'AC-EXP-100: the PM approves in the org that is connected but has not employed expenses');
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000001a4","role":"authenticated"}';
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000413','Paid') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000001a4","role":"authenticated"}';
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000413','Paid') $$,
   'AC-EXP-101: Finance pays the 800 claim (500 from the advance, 300 cash)');
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000414','Paid') $$,
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000414','Paid') $$,
   'AC-EXP-101: Finance pays the 300 claim (all from the advance)');
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000313','Paid') $$,
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000313','Paid') $$,
   'AC-EXP-101: Finance pays the 200 advance');
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000411','Cancelled') $$,
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000411','Cancelled') $$,
   'AC-EXP-103: Finance cancels the approved claim that has an approval intent');
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000416','Cancelled') $$,
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000416','Cancelled') $$,
   'AC-EXP-103: Finance cancels an approved claim that has no approval intent');
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000001a1","role":"authenticated"}';
-select lives_ok($$ select transition_expense_claim('02630000-0000-0000-0000-000000000415','Cancelled') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000001a1","role":"authenticated"}';
+select lives_ok($$ select transition_expense_claim('02700000-0000-0000-0000-000000000415','Cancelled') $$,
   'AC-EXP-103: the claimant cancels a Submitted claim');
 reset role;
 
 select is((select count(*)::int from expense_posting_erp_mirror
-            where claim_id = '02630000-0000-0000-0000-000000000411' and posting = 'approval'),
+            where claim_id = '02700000-0000-0000-0000-000000000411' and posting = 'approval'),
   1, 'AC-EXP-100: exactly one approval intent');
 select is((select m.push_state || '/' || (m.state_stamp = c.approved_at)::text || '/' || m.actor_id::text
              from expense_posting_erp_mirror m join expense_claims c on c.id = m.claim_id
-            where m.posting_identity = '02630000-0000-0000-0000-000000000411:approval'),
-  'pending/true/02630000-0000-0000-0000-0000000001a3',
+            where m.posting_identity = '02700000-0000-0000-0000-000000000411:approval'),
+  'pending/true/02700000-0000-0000-0000-0000000001a3',
   'AC-EXP-100: pending, stamped with approved_at, attributed to the approver');
 select is((select count(*)::int from expense_posting_erp_mirror
-            where org_id = '02630000-0000-0000-0000-00000000010c'),
+            where org_id = '02700000-0000-0000-0000-00000000010c'),
   0, 'AC-EXP-100: an org that has not employed expenses gets no intent');
 select is((select array_agg(posting order by posting) from expense_posting_erp_mirror
-            where claim_id = '02630000-0000-0000-0000-000000000413'),
+            where claim_id = '02700000-0000-0000-0000-000000000413'),
   array['claim-payment','settlement'], 'AC-EXP-101: cash part and advance part are two intents');
 select is((select array_agg(posting order by posting) from expense_posting_erp_mirror
-            where claim_id = '02630000-0000-0000-0000-000000000414'),
+            where claim_id = '02700000-0000-0000-0000-000000000414'),
   array['settlement'], 'AC-EXP-101: a claim the advance fully covers has no cash payment intent');
 select is((select array_agg(posting order by posting) from expense_posting_erp_mirror
-            where claim_id = '02630000-0000-0000-0000-000000000313'),
+            where claim_id = '02700000-0000-0000-0000-000000000313'),
   array['advance-payment'], 'AC-EXP-101: a paid advance has one advance-payment intent');
 select is((select actor_id from expense_posting_erp_mirror
-            where posting_identity = '02630000-0000-0000-0000-000000000411:approval-cancel'),
-  '02630000-0000-0000-0000-0000000001a4'::uuid, 'AC-EXP-103: the cancel intent is attributed to the canceller');
+            where posting_identity = '02700000-0000-0000-0000-000000000411:approval-cancel'),
+  '02700000-0000-0000-0000-0000000001a4'::uuid, 'AC-EXP-103: the cancel intent is attributed to the canceller');
 select is((select count(*)::int from expense_posting_erp_mirror
-            where claim_id = '02630000-0000-0000-0000-000000000415'),
+            where claim_id = '02700000-0000-0000-0000-000000000415'),
   0, 'AC-EXP-103: cancelling a Submitted claim queues nothing');
 select is((select count(*)::int from expense_posting_erp_mirror
-            where claim_id = '02630000-0000-0000-0000-000000000416'),
+            where claim_id = '02700000-0000-0000-0000-000000000416'),
   0, 'AC-EXP-103: cancelling an approval that was never queued queues nothing');
 
 select * from finish();
 rollback;
 ```
 
-Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0263_expense_postings_enqueue.test.sql` → fails
+Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0270_expense_postings_enqueue.test.sql` → fails
 with `relation "expense_posting_erp_mirror" does not exist`.
 
 ### D3 — GREEN part 1: migration header + §1 returns (FR-EXP-102)
 
-Create `supabase/migrations/0263_expense_postings.sql` with exactly:
+Create `supabase/migrations/0270_expense_postings.sql` with exactly:
 
 ```sql
--- 0263_expense_postings.sql — #775 phase B: expense claims and cash advances post to ERPNext
+-- 0270_expense_postings.sql — #775 phase B: expense claims and cash advances post to ERPNext
 -- (ADR-0059 Posture B; ADR-0081 one originator). Spec: docs/specs/expense-claims.spec.md §10.
 -- Plan: docs/plans/2026-10-07-expense-claims-phase-b.md (+ part2..part6).
--- Proven by supabase/tests/0263_expense_advance_returns.test.sql, 0263_expense_postings_enqueue.test.sql,
---   0263_expense_posting_gate.test.sql, 0263_expense_postings_acl.test.sql and the §6 self-assertion.
+-- Proven by supabase/tests/0270_expense_advance_returns.test.sql, 0270_expense_postings_enqueue.test.sql,
+--   0270_expense_posting_gate.test.sql, 0270_expense_postings_acl.test.sql and the §6 self-assertion.
 --
 -- §1 expense_advance_returns + record_expense_advance_return (0247 §9 body + one insert)
 -- §2 expense_account_map (written only by external-set-company, as service role)
@@ -205,7 +205,7 @@ Create `supabase/migrations/0263_expense_postings.sql` with exactly:
 --
 -- ⛔ transition_expense_claim, spend_approval_route and every phase-A policy are NOT touched (ADR-0059 §3.1).
 -- ⛔ org_id has NO default on the three new tables: every writer states it (the 0074/0213 seed-default class).
--- REVERSE: supabase/migrations/rollback/0263_expense_postings_down.sql (stop the sweep pass first).
+-- REVERSE: supabase/migrations/rollback/0270_expense_postings_down.sql (stop the sweep pass first).
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- §1 — each cash return is its own row (DD-EXP-17): the subject of one advance-return posting.
@@ -224,7 +224,7 @@ create table public.expense_advance_returns (
 create index expense_advance_returns_advance_idx on public.expense_advance_returns (advance_id);
 comment on table public.expense_advance_returns is
   '#775 phase B — one row per cash return on an advance; written only by record_expense_advance_return. '
-  'Returns recorded before 0263 exist only as expense_advance.return audit events.';
+  'Returns recorded before 0270 exist only as expense_advance.return audit events.';
 
 alter table public.expense_advance_returns enable row level security;
 alter table public.expense_advance_returns force  row level security;
@@ -235,7 +235,7 @@ revoke all on public.expense_advance_returns from public, anon, authenticated;
 grant select on public.expense_advance_returns to authenticated;
 grant select, insert, update, delete on public.expense_advance_returns to service_role;
 
--- 0247 §9 VERBATIM except the one marked insert. Reverse: rollback/0263 restores the 0247 text.
+-- 0247 §9 VERBATIM except the one marked insert. Reverse: rollback/0270 restores the 0247 text.
 create or replace function public.record_expense_advance_return(p_id uuid, p_amount numeric, p_reference text default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -270,7 +270,7 @@ begin
       using errcode = 'P0001';
   end if;
   update public.expense_claims set returned_amount = returned_amount + p_amount where id = p_id;
-  -- 0263 (DD-EXP-17): the return as its own row — the subject of its advance-return posting.
+  -- 0270 (DD-EXP-17): the return as its own row — the subject of its advance-return posting.
   insert into public.expense_advance_returns (org_id, advance_id, amount, reference, recorded_by, returned_on)
   values (v_row.org_id, p_id, p_amount, nullif(btrim(p_reference), ''), v_uid,
           (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = v_row.org_id),
@@ -287,7 +287,7 @@ Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db 
 
 ### D4 — GREEN part 2: §3 the side mirror (FR-EXP-100, FR-EXP-115)
 
-Append to `supabase/migrations/0263_expense_postings.sql`:
+Append to `supabase/migrations/0270_expense_postings.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -418,85 +418,85 @@ create trigger expense_advance_returns_enqueue_posting_trg
 ```
 
 Verify GREEN (one lock hold):
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0263_expense_advance_returns.test.sql supabase/tests/0263_expense_postings_enqueue.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_expense_advance_returns.test.sql supabase/tests/0270_expense_postings_enqueue.test.sql'`
 → `All tests successful. Files=2, Tests=25`.
 
 ### D6 — RED: gate test (AC-EXP-105)
 
-Create `supabase/tests/0263_expense_posting_gate.test.sql`:
+Create `supabase/tests/0270_expense_posting_gate.test.sql`:
 
 ```sql
--- 0263_expense_posting_gate.test.sql — #775 phase B: the sweep re-reads DB truth and the recorded actor's CURRENT
--- standing before every attempt (FR-EXP-104, FR-EXP-109). AC-EXP-105. Migration under test: 0263 §5.
+-- 0270_expense_posting_gate.test.sql — #775 phase B: the sweep re-reads DB truth and the recorded actor's CURRENT
+-- standing before every attempt (FR-EXP-104, FR-EXP-109). AC-EXP-105. Migration under test: 0270 §5.
 begin;
 create extension if not exists pgtap;
 select plan(10);
 
 insert into organizations (id, name, default_currency, default_timezone) values
-  ('02630000-0000-0000-0000-00000000020a','EXP-B Gate Org','IDR','Asia/Jakarta'),
-  ('02630000-0000-0000-0000-00000000020b','EXP-B Gate Org B','IDR','Asia/Jakarta');
+  ('02700000-0000-0000-0000-00000000020a','EXP-B Gate Org','IDR','Asia/Jakarta'),
+  ('02700000-0000-0000-0000-00000000020b','EXP-B Gate Org B','IDR','Asia/Jakarta');
 insert into auth.users (id, email) values
-  ('02630000-0000-0000-0000-0000000002a1','expb-g-e1@example.com'),
-  ('02630000-0000-0000-0000-0000000002a3','expb-g-pm@example.com'),
-  ('02630000-0000-0000-0000-0000000002a4','expb-g-f1@example.com'),
-  ('02630000-0000-0000-0000-0000000002a5','expb-g-pmx@example.com');
+  ('02700000-0000-0000-0000-0000000002a1','expb-g-e1@example.com'),
+  ('02700000-0000-0000-0000-0000000002a3','expb-g-pm@example.com'),
+  ('02700000-0000-0000-0000-0000000002a4','expb-g-f1@example.com'),
+  ('02700000-0000-0000-0000-0000000002a5','expb-g-pmx@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02630000-0000-0000-0000-0000000002a1','02630000-0000-0000-0000-00000000020a','G Eng','expb-g-e1@example.com','Engineer','active'),
-  ('02630000-0000-0000-0000-0000000002a3','02630000-0000-0000-0000-00000000020a','G PM','expb-g-pm@example.com','Project Manager','active'),
-  ('02630000-0000-0000-0000-0000000002a4','02630000-0000-0000-0000-00000000020a','G Fin','expb-g-f1@example.com','Finance','active'),
-  ('02630000-0000-0000-0000-0000000002a5','02630000-0000-0000-0000-00000000020a','G PM Gone','expb-g-pmx@example.com','Project Manager','disabled');
+  ('02700000-0000-0000-0000-0000000002a1','02700000-0000-0000-0000-00000000020a','G Eng','expb-g-e1@example.com','Engineer','active'),
+  ('02700000-0000-0000-0000-0000000002a3','02700000-0000-0000-0000-00000000020a','G PM','expb-g-pm@example.com','Project Manager','active'),
+  ('02700000-0000-0000-0000-0000000002a4','02700000-0000-0000-0000-00000000020a','G Fin','expb-g-f1@example.com','Finance','active'),
+  ('02700000-0000-0000-0000-0000000002a5','02700000-0000-0000-0000-00000000020a','G PM Gone','expb-g-pmx@example.com','Project Manager','disabled');
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at) values
-  ('02630000-0000-0000-0000-000000000501','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Trip',0,'Approved','EXP-2610080001','02630000-0000-0000-0000-0000000002a3','2026-10-07 18:30:00+00'),
-  ('02630000-0000-0000-0000-000000000502','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Trip 2',0,'Approved','EXP-2610080002','02630000-0000-0000-0000-0000000002a5','2026-10-07 10:00:00+00');
+  ('02700000-0000-0000-0000-000000000501','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Trip',0,'Approved','EXP-2610080001','02700000-0000-0000-0000-0000000002a3','2026-10-07 18:30:00+00'),
+  ('02700000-0000-0000-0000-000000000502','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Trip 2',0,'Approved','EXP-2610080002','02700000-0000-0000-0000-0000000002a5','2026-10-07 10:00:00+00');
 insert into expense_claim_lines (claim_id, expense_date, expense_type, description, amount) values
-  ('02630000-0000-0000-0000-000000000501','2026-10-06','Travel','Bus',100),
-  ('02630000-0000-0000-0000-000000000501','2026-10-06','Travel','Taxi',50),
-  ('02630000-0000-0000-0000-000000000501','2026-10-06','Meals','Lunch',25);
+  ('02700000-0000-0000-0000-000000000501','2026-10-06','Travel','Bus',100),
+  ('02700000-0000-0000-0000-000000000501','2026-10-06','Travel','Taxi',50),
+  ('02700000-0000-0000-0000-000000000501','2026-10-06','Meals','Lunch',25);
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at,
                             paid_by_id, paid_at, paid_on) values
-  ('02630000-0000-0000-0000-000000000503','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Paid',200,'Paid','EXP-2610080003','02630000-0000-0000-0000-0000000002a3','2026-10-06 02:00:00+00','02630000-0000-0000-0000-0000000002a4','2026-10-07 02:00:00+00','2026-10-07'),
-  ('02630000-0000-0000-0000-000000000504','02630000-0000-0000-0000-00000000020a','claim','02630000-0000-0000-0000-0000000002a1','Paid 2',200,'Paid','EXP-2610080004','02630000-0000-0000-0000-0000000002a3','2026-10-06 02:00:00+00','02630000-0000-0000-0000-0000000002a4','2026-10-07 03:00:00+00','2026-10-07');
+  ('02700000-0000-0000-0000-000000000503','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Paid',200,'Paid','EXP-2610080003','02700000-0000-0000-0000-0000000002a3','2026-10-06 02:00:00+00','02700000-0000-0000-0000-0000000002a4','2026-10-07 02:00:00+00','2026-10-07'),
+  ('02700000-0000-0000-0000-000000000504','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Paid 2',200,'Paid','EXP-2610080004','02700000-0000-0000-0000-0000000002a3','2026-10-06 02:00:00+00','02700000-0000-0000-0000-0000000002a4','2026-10-07 03:00:00+00','2026-10-07');
 insert into expense_posting_erp_mirror (id, org_id, claim_id, posting, posting_identity, state_stamp, actor_id) values
-  ('02630000-0000-0000-0000-000000000601','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000501','approval','02630000-0000-0000-0000-000000000501:approval','2026-10-07 18:30:00+00','02630000-0000-0000-0000-0000000002a3'),
-  ('02630000-0000-0000-0000-000000000602','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000502','approval','02630000-0000-0000-0000-000000000502:approval','2026-10-07 10:00:00+00','02630000-0000-0000-0000-0000000002a5'),
-  ('02630000-0000-0000-0000-000000000603','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000503','claim-payment','02630000-0000-0000-0000-000000000503:claim-payment','2026-10-07 02:00:00+00','02630000-0000-0000-0000-0000000002a4'),
-  ('02630000-0000-0000-0000-000000000604','02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000504','claim-payment','02630000-0000-0000-0000-000000000504:claim-payment','2026-10-07 03:00:00+00','02630000-0000-0000-0000-0000000002a1');
+  ('02700000-0000-0000-0000-000000000601','02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000501','approval','02700000-0000-0000-0000-000000000501:approval','2026-10-07 18:30:00+00','02700000-0000-0000-0000-0000000002a3'),
+  ('02700000-0000-0000-0000-000000000602','02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000502','approval','02700000-0000-0000-0000-000000000502:approval','2026-10-07 10:00:00+00','02700000-0000-0000-0000-0000000002a5'),
+  ('02700000-0000-0000-0000-000000000603','02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000503','claim-payment','02700000-0000-0000-0000-000000000503:claim-payment','2026-10-07 02:00:00+00','02700000-0000-0000-0000-0000000002a4'),
+  ('02700000-0000-0000-0000-000000000604','02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000504','claim-payment','02700000-0000-0000-0000-000000000504:claim-payment','2026-10-07 03:00:00+00','02700000-0000-0000-0000-0000000002a1');
 
 set local role service_role;
-select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000601') ->> 'amount',
+select is(expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000601') ->> 'amount',
   '175.00', 'AC-EXP-105: the approval amount is the claim amount, as text with two decimals');
-select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000601') -> 'lines',
+select is(expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000601') -> 'lines',
   '[{"amount":"25.00","expense_type":"Meals"},{"amount":"150.00","expense_type":"Travel"}]'::jsonb,
   'AC-EXP-105: lines are summed per expense type, ordered by type');
-select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000601') ->> 'posting_date',
+select is(expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000601') ->> 'posting_date',
   '2026-10-08', 'AC-EXP-105: 18:30 UTC is the next day in Asia/Jakarta (FR-EXP-109)');
-select is((expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000601') ->> 'approval_posting_exists')::boolean,
+select is((expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000601') ->> 'approval_posting_exists')::boolean,
   true, 'AC-EXP-105: the gate reports whether the claim has an approval intent');
-select is(expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000603') ->> 'amount',
+select is(expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000603') ->> 'amount',
   '200.00', 'AC-EXP-105: a claim payment is the cash part (amount - advance_applied)');
-select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000602') $$,
+select throws_ok($$ select expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000602') $$,
   '42501', 'expense-posting-actor-inactive', 'AC-EXP-105: a disabled approver posts nothing');
-select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000604') $$,
+select throws_ok($$ select expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000604') $$,
   '42501', 'expense-posting-actor-not-authorized', 'AC-EXP-105: a payment intent whose actor is not Finance/Admin posts nothing');
 reset role;
 update expense_posting_erp_mirror set state_stamp = state_stamp - interval '1 day'
- where id = '02630000-0000-0000-0000-000000000601';
+ where id = '02700000-0000-0000-0000-000000000601';
 set local role service_role;
-select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000601') $$,
+select throws_ok($$ select expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000601') $$,
   'P0001', 'expense-posting-precondition-failed', 'AC-EXP-105: an intent whose stamp no longer matches the claim posts nothing');
-select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020b','02630000-0000-0000-0000-000000000603') $$,
+select throws_ok($$ select expense_posting_for_push('02700000-0000-0000-0000-00000000020b','02700000-0000-0000-0000-000000000603') $$,
   'P0002', 'expense posting not found', 'AC-EXP-105: another org''s id finds nothing');
 reset role;
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000002a1","role":"authenticated"}';
-select throws_ok($$ select expense_posting_for_push('02630000-0000-0000-0000-00000000020a','02630000-0000-0000-0000-000000000603') $$,
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000002a1","role":"authenticated"}';
+select throws_ok($$ select expense_posting_for_push('02700000-0000-0000-0000-00000000020a','02700000-0000-0000-0000-000000000603') $$,
   '42501', 'permission denied for function expense_posting_for_push', 'AC-EXP-105: no client can call the gate');
 
 select * from finish();
 rollback;
 ```
 
-Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0263_expense_posting_gate.test.sql` → fails with
+Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0270_expense_posting_gate.test.sql` → fails with
 `function expense_posting_for_push(unknown, unknown) does not exist`.
 
 ### D7 — GREEN: §5 the gate (FR-EXP-104, FR-EXP-109)
@@ -598,53 +598,53 @@ grant execute on function public.expense_posting_for_push(uuid, uuid) to service
 ```
 
 Verify GREEN:
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0263_expense_posting_gate.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_expense_posting_gate.test.sql'`
 → `All tests successful. Files=1, Tests=10`.
 
 ### D8 — RED: ACL test (AC-EXP-104)
 
-Create `supabase/tests/0263_expense_postings_acl.test.sql`:
+Create `supabase/tests/0270_expense_postings_acl.test.sql`:
 
 ```sql
--- 0263_expense_postings_acl.test.sql — #775 phase B: no client write path, visibility follows the claim, the gate
+-- 0270_expense_postings_acl.test.sql — #775 phase B: no client write path, visibility follows the claim, the gate
 -- and the trigger functions are not client-callable, and the account-map keys track the expense_type enum
--- (NFR-EXP-010/012, FR-EXP-112). AC-EXP-104. Migration under test: 0263 §1–§5.
+-- (NFR-EXP-010/012, FR-EXP-112). AC-EXP-104. Migration under test: 0270 §1–§5.
 begin;
 create extension if not exists pgtap;
 select plan(15);
 
 insert into organizations (id, name, default_currency, default_timezone) values
-  ('02630000-0000-0000-0000-00000000030a','EXP-B ACL Org','IDR','Asia/Jakarta'),
-  ('02630000-0000-0000-0000-00000000030b','EXP-B ACL Org B','IDR','Asia/Jakarta');
+  ('02700000-0000-0000-0000-00000000030a','EXP-B ACL Org','IDR','Asia/Jakarta'),
+  ('02700000-0000-0000-0000-00000000030b','EXP-B ACL Org B','IDR','Asia/Jakarta');
 insert into auth.users (id, email) values
-  ('02630000-0000-0000-0000-0000000003a1','expb-a-e1@example.com'),
-  ('02630000-0000-0000-0000-0000000003a2','expb-a-e2@example.com'),
-  ('02630000-0000-0000-0000-0000000003a3','expb-a-pm@example.com'),
-  ('02630000-0000-0000-0000-0000000003b1','expb-a-bad@example.com');
+  ('02700000-0000-0000-0000-0000000003a1','expb-a-e1@example.com'),
+  ('02700000-0000-0000-0000-0000000003a2','expb-a-e2@example.com'),
+  ('02700000-0000-0000-0000-0000000003a3','expb-a-pm@example.com'),
+  ('02700000-0000-0000-0000-0000000003b1','expb-a-bad@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('02630000-0000-0000-0000-0000000003a1','02630000-0000-0000-0000-00000000030a','A Eng 1','expb-a-e1@example.com','Engineer','active'),
-  ('02630000-0000-0000-0000-0000000003a2','02630000-0000-0000-0000-00000000030a','A Eng 2','expb-a-e2@example.com','Engineer','active'),
-  ('02630000-0000-0000-0000-0000000003a3','02630000-0000-0000-0000-00000000030a','A PM','expb-a-pm@example.com','Project Manager','active'),
-  ('02630000-0000-0000-0000-0000000003b1','02630000-0000-0000-0000-00000000030b','B Admin','expb-a-bad@example.com','Admin','active');
+  ('02700000-0000-0000-0000-0000000003a1','02700000-0000-0000-0000-00000000030a','A Eng 1','expb-a-e1@example.com','Engineer','active'),
+  ('02700000-0000-0000-0000-0000000003a2','02700000-0000-0000-0000-00000000030a','A Eng 2','expb-a-e2@example.com','Engineer','active'),
+  ('02700000-0000-0000-0000-0000000003a3','02700000-0000-0000-0000-00000000030a','A PM','expb-a-pm@example.com','Project Manager','active'),
+  ('02700000-0000-0000-0000-0000000003b1','02700000-0000-0000-0000-00000000030b','B Admin','expb-a-bad@example.com','Admin','active');
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at,
                             paid_by_id, paid_at, paid_on, returned_amount) values
-  ('02630000-0000-0000-0000-000000000701','02630000-0000-0000-0000-00000000030a','advance','02630000-0000-0000-0000-0000000003a1','E1 float',300,'Paid','ADV-2610090001','02630000-0000-0000-0000-0000000003a3',now(),'02630000-0000-0000-0000-0000000003a3',now(),current_date,50);
+  ('02700000-0000-0000-0000-000000000701','02700000-0000-0000-0000-00000000030a','advance','02700000-0000-0000-0000-0000000003a1','E1 float',300,'Paid','ADV-2610090001','02700000-0000-0000-0000-0000000003a3',now(),'02700000-0000-0000-0000-0000000003a3',now(),current_date,50);
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at) values
-  ('02630000-0000-0000-0000-000000000702','02630000-0000-0000-0000-00000000030a','claim','02630000-0000-0000-0000-0000000003a2','E2 claim',90,'Approved','EXP-2610090002','02630000-0000-0000-0000-0000000003a3',now());
+  ('02700000-0000-0000-0000-000000000702','02700000-0000-0000-0000-00000000030a','claim','02700000-0000-0000-0000-0000000003a2','E2 claim',90,'Approved','EXP-2610090002','02700000-0000-0000-0000-0000000003a3',now());
 insert into expense_advance_returns (id, org_id, advance_id, amount, recorded_by, returned_on) values
-  ('02630000-0000-0000-0000-000000000711','02630000-0000-0000-0000-00000000030a','02630000-0000-0000-0000-000000000701',50,'02630000-0000-0000-0000-0000000003a3',current_date);
+  ('02700000-0000-0000-0000-000000000711','02700000-0000-0000-0000-00000000030a','02700000-0000-0000-0000-000000000701',50,'02700000-0000-0000-0000-0000000003a3',current_date);
 insert into expense_posting_erp_mirror (org_id, claim_id, posting, posting_identity, state_stamp, actor_id) values
-  ('02630000-0000-0000-0000-00000000030a','02630000-0000-0000-0000-000000000701','advance-payment','02630000-0000-0000-0000-000000000701:advance-payment',now(),'02630000-0000-0000-0000-0000000003a3'),
-  ('02630000-0000-0000-0000-00000000030a','02630000-0000-0000-0000-000000000702','approval','02630000-0000-0000-0000-000000000702:approval',now(),'02630000-0000-0000-0000-0000000003a3');
+  ('02700000-0000-0000-0000-00000000030a','02700000-0000-0000-0000-000000000701','advance-payment','02700000-0000-0000-0000-000000000701:advance-payment',now(),'02700000-0000-0000-0000-0000000003a3'),
+  ('02700000-0000-0000-0000-00000000030a','02700000-0000-0000-0000-000000000702','approval','02700000-0000-0000-0000-000000000702:approval',now(),'02700000-0000-0000-0000-0000000003a3');
 insert into expense_account_map (org_id, account_key, erp_account) values
-  ('02630000-0000-0000-0000-00000000030a','employee_payable','Employee Payable - EX');
+  ('02700000-0000-0000-0000-00000000030a','employee_payable','Employee Payable - EX');
 
 create function pg_temp.map_key_accepted(p_key text) returns boolean language plpgsql as $$
 begin
   begin
     insert into public.expense_account_map (org_id, account_key, erp_account)
-      values ('02630000-0000-0000-0000-00000000030b', p_key, 'probe ' || p_key);
-    delete from public.expense_account_map where org_id = '02630000-0000-0000-0000-00000000030b' and account_key = p_key;
+      values ('02700000-0000-0000-0000-00000000030b', p_key, 'probe ' || p_key);
+    delete from public.expense_account_map where org_id = '02700000-0000-0000-0000-00000000030b' and account_key = p_key;
     return true;
   exception when check_violation then
     return false;
@@ -667,17 +667,17 @@ select ok(not has_table_privilege('anon', 'public.expense_posting_erp_mirror', '
 
 -- ── visibility follows the claim ──
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000003a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000003a1","role":"authenticated"}';
 select is((select count(*)::int from expense_posting_erp_mirror), 1, 'AC-EXP-104: E1 sees the intent of their own advance');
 select is((select count(*)::int from expense_advance_returns), 1, 'AC-EXP-104: E1 sees the return on their own advance');
 select is((select count(*)::int from expense_account_map), 1, 'AC-EXP-104: a member reads the org''s account map');
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000003a2","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000003a2","role":"authenticated"}';
 select is((select count(*)::int from expense_posting_erp_mirror
-            where claim_id = '02630000-0000-0000-0000-000000000701'), 0, 'AC-EXP-104: E2 does not see E1''s intents');
+            where claim_id = '02700000-0000-0000-0000-000000000701'), 0, 'AC-EXP-104: E2 does not see E1''s intents');
 select is((select count(*)::int from expense_advance_returns), 0, 'AC-EXP-104: E2 does not see E1''s returns');
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000003a3","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000003a3","role":"authenticated"}';
 select is((select count(*)::int from expense_posting_erp_mirror), 2, 'AC-EXP-104: approval rank sees every intent');
-set local request.jwt.claims = '{"sub":"02630000-0000-0000-0000-0000000003b1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000003b1","role":"authenticated"}';
 select is((select count(*)::int from expense_posting_erp_mirror), 0, 'AC-EXP-104: another org''s Admin sees no intent');
 select is((select count(*)::int from expense_account_map), 0, 'AC-EXP-104: another org''s Admin sees no account map');
 reset role;
@@ -706,7 +706,7 @@ select is((select count(*)::int
   (select count(*)::int + 2 from unnest(enum_range(null::public.expense_type))),
   'AC-EXP-104: every expense_type label and the two party keys are accepted');
 select throws_ok($$ insert into expense_account_map (org_id, account_key, erp_account)
-                    values ('02630000-0000-0000-0000-00000000030b','Bogus','Any') $$,
+                    values ('02700000-0000-0000-0000-00000000030b','Bogus','Any') $$,
   '23514', 'new row for relation "expense_account_map" violates check constraint "expense_account_map_key"',
   'AC-EXP-104: an unknown key is refused');
 
@@ -714,12 +714,12 @@ select * from finish();
 rollback;
 ```
 
-Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0263_expense_postings_acl.test.sql` → fails with
+Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/0270_expense_postings_acl.test.sql` → fails with
 `relation "expense_account_map" does not exist`.
 
 ### D9 — GREEN: §2 account map + §6 self-assertion (FR-EXP-112 storage, NFR-EXP-010/012)
 
-Insert **between §1 and §3** of `supabase/migrations/0263_expense_postings.sql`:
+Insert **between §1 and §3** of `supabase/migrations/0270_expense_postings.sql`:
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -775,7 +775,7 @@ begin
      or has_function_privilege('authenticated', 'public.enqueue_expense_return_posting()', 'EXECUTE')
      or has_function_privilege('anon', 'public.record_expense_advance_return(uuid, numeric, text)', 'EXECUTE')
      or not has_function_privilege('authenticated', 'public.record_expense_advance_return(uuid, numeric, text)', 'EXECUTE') then
-    raise exception '0263: expense posting function ACL is not the intended shape';
+    raise exception '0270: expense posting function ACL is not the intended shape';
   end if;
   foreach v_table in array array['public.expense_advance_returns', 'public.expense_account_map',
                                  'public.expense_posting_erp_mirror'] loop
@@ -783,14 +783,14 @@ begin
        or has_table_privilege('authenticated', v_table, 'INSERT,UPDATE,DELETE,TRUNCATE')
        or not has_table_privilege('authenticated', v_table, 'SELECT')
        or not has_table_privilege('service_role', v_table, 'SELECT,INSERT,UPDATE') then
-      raise exception '0263: % ACL is not the intended shape', v_table;
+      raise exception '0270: % ACL is not the intended shape', v_table;
     end if;
   end loop;
 end $$;
 ```
 
 Verify GREEN (all four files, one hold):
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0263_expense_advance_returns.test.sql supabase/tests/0263_expense_postings_enqueue.test.sql supabase/tests/0263_expense_posting_gate.test.sql supabase/tests/0263_expense_postings_acl.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0270_expense_advance_returns.test.sql supabase/tests/0270_expense_postings_enqueue.test.sql supabase/tests/0270_expense_posting_gate.test.sql supabase/tests/0270_expense_postings_acl.test.sql'`
 → `All tests successful. Files=4, Tests=50`.
 
 Hosted-shape proof (the self-assertion must be able to fire): on the scratch DB run
@@ -801,7 +801,7 @@ Hosted-shape proof (the self-assertion must be able to fire): on the scratch DB 
 
 Each under `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <file>'`, then revert and re-run green:
 
-| # | Change in `0263_expense_postings.sql` | File | Expected red |
+| # | Change in `0270_expense_postings.sql` | File | Expected red |
 |---|---|---|---|
 | M1 | §4 enqueue trigger: delete the `if not public.org_employs_expense_postings(...) then return new; end if;` block | enqueue | test 11 (org C gets an intent) |
 | M2 | §4: `if new.amount - new.advance_applied > 0` → `if true` | enqueue | test 13 (`{claim-payment,settlement}` for the 300 claim) |
@@ -814,10 +814,10 @@ Record "M1–M6: red → reverted green" in the PR body.
 
 ### D11 — Rollback file + forward → down → forward (NFR-EXP-011)
 
-Create `supabase/migrations/rollback/0263_expense_postings_down.sql`:
+Create `supabase/migrations/rollback/0270_expense_postings_down.sql`:
 
 ```sql
--- rollback/0263_expense_postings_down.sql — reverse of 0263 (ADR-0006). App first: deploy an erpnext-sweep without
+-- rollback/0270_expense_postings_down.sql — reverse of 0270 (ADR-0006). App first: deploy an erpnext-sweep without
 -- pass (7) and an external-set-company without the expense actions, THEN run this in one transaction.
 -- Intents, returns rows and the account map are dropped; claims, advances and returned_amount are untouched.
 -- Outbox rows and external_refs in domain 'expenses' stay as audit (ADR-0058 §Consequences).
@@ -874,14 +874,14 @@ revoke all on function public.record_expense_advance_return(uuid, numeric, text)
 grant execute on function public.record_expense_advance_return(uuid, numeric, text) to authenticated;
 
 drop table if exists public.expense_advance_returns;
--- The 'expenses' ownership rows are inert without 0263; remove them so a re-apply starts un-employed.
+-- The 'expenses' ownership rows are inert without 0270; remove them so a re-apply starts un-employed.
 delete from public.external_domain_ownership where domain = 'expenses';
 commit;
 ```
 
 Verify (one hold):
-`scripts/with-db-lock.sh bash -c 'supabase db reset && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0263_expense_postings_down.sql && supabase test db supabase/tests/expense_advances.test.sql && supabase db reset && supabase test db supabase/tests/0263_expense_advance_returns.test.sql'`
-→ the down file runs clean, phase A's `expense_advances.test.sql` is green after the down, and 0263's returns test is
+`scripts/with-db-lock.sh bash -c 'supabase db reset && psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0270_expense_postings_down.sql && supabase test db supabase/tests/expense_advances.test.sql && supabase db reset && supabase test db supabase/tests/0270_expense_advance_returns.test.sql'`
+→ the down file runs clean, phase A's `expense_advances.test.sql` is green after the down, and 0270's returns test is
 green after the re-apply.
 
 ### D12 — Catalog gates, denominator, types (NFR-EXP-012)
@@ -901,13 +901,13 @@ green after the re-apply.
 2. Catalog gates + phase-A regression, one hold:
    `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0173_rpc_active_member_gate.test.sql supabase/tests/0171_sod_class_completeness.test.sql supabase/tests/0203_rls_active_member_composition.test.sql supabase/tests/0210_service_only_definers_execute_grants.test.sql supabase/tests/0137_service_role_grants.test.sql supabase/tests/dead_authenticated_write_grants.test.sql supabase/tests/record_changes_catalog_gate.test.sql supabase/tests/expense_claims_schema_rls.test.sql supabase/tests/expense_claims_transition.test.sql supabase/tests/expense_claims_routing.test.sql supabase/tests/expense_claims_line_lock.test.sql supabase/tests/expense_advances.test.sql supabase/tests/expense_claims_notify.test.sql'`
    → all green. **0178 must stay at 59** (no client-callable function was added). If a catalog gate names one of
-   the 0263 objects, fix the object (grant/policy), never the gate, and say so in the PR.
+   the 0270 objects, fix the object (grant/policy), never the gate, and say so in the PR.
 3. Types: `scripts/with-db-lock.sh bash -c 'supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts'`.
    `git diff --stat pmo-portal/src/lib/supabase/database.types.ts` must show only additions for the three tables and
    the two functions (`expense_posting_for_push`, `org_employs_expense_postings`; the trigger and enqueue functions
    do not appear). If unrelated drift appears, restore the file and hand-add only those five entries in the same
    shape as `expense_claim_files` / `get_expense_advance_aging`. Verify: `cd pmo-portal && npm run typecheck` → 0 errors.
 
-Commit part 2: `feat(expenses): 0263 posting intents, returns rows, account map, sweep gate (#775 phase B)`.
+Commit part 2: `feat(expenses): 0270 posting intents, returns rows, account map, sweep gate (#775 phase B)`.
 
 Next: [part 3 — adapter seam](2026-10-07-expense-claims-phase-b.part3-seam.md).

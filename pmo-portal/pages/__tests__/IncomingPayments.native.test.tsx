@@ -151,7 +151,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(screen.getByLabelText(/Paid Amount/)).toHaveValue('610,000');
     expect(screen.getByLabelText(/Received Amount/)).toHaveValue('610,000');
     expect(screen.getByText(/Starts at the .*610,000\.00 outstanding/)).toBeInTheDocument();
-    // The receipt takes the invoice's currency (0270), so the amount reads in it — not the org default.
+    // The receipt takes the invoice's currency (0275), so the amount reads in it — not the org default.
     expect(screen.getByLabelText(/Paid Amount/).closest('div')).toHaveTextContent(currencySymbol('IDR'));
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(h.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({

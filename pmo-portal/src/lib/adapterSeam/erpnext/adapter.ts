@@ -30,6 +30,9 @@ export const ERPNEXT_TIMESHEETS_DOMAIN: PmoDomain = 'timesheets';
  *  ACTIVE version so the GL reports against it and its native overspend controls enforce it. Listed here
  *  so the shipped router/dispatch machinery routes it generically. */
 export const ERPNEXT_BUDGET_DOMAIN: PmoDomain = 'budget';
+/** #775 phase B (ADR-0059 Posture B, ADR-0081): expense claims post their accounting consequence. Driven ONLY by
+ *  the erpnext-sweep pass — adapter-dispatch deliberately has no route for this domain. */
+export const ERPNEXT_EXPENSES_DOMAIN: PmoDomain = 'expenses';
 
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;
@@ -498,6 +501,9 @@ export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
       ERPNEXT_REVENUE_DOMAIN,
       ERPNEXT_TIMESHEETS_DOMAIN,
       ERPNEXT_BUDGET_DOMAIN,
+      // #775 phase B — expense postings (ADR-0081). Reached only through the erpnext-sweep pass; adapter-dispatch
+      // still has no `expenses` route, and an org can employ it only through the release-guarded Admin switch.
+      ERPNEXT_EXPENSES_DOMAIN,
     ]),
     commit: (command: AdapterCommand) => commitErpCommand(command, deps),
     // The modified-poll sweep is the change-feed convergence authority (design decision #9) — its

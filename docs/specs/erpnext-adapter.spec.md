@@ -604,6 +604,8 @@ are **removed** — R9 is RESOLVED (`docs/spikes/2026-07-11-erpnext-pe-mandatory
   row); after a referenced-PE submit, the PI flips **`Paid`/`outstanding_amount 0`** server-side (R9
   paid-detection idiom → mirror the PI's new `erp_outstanding_amount`). Cancel per OQ-7; **amend is
   desk-only in P2**.
+- **Amended 2026-10-07 (#876):** withholding on the PI mirror (gross / VAT / withheld) and the PI paid-detection
+  refresh from the feed — `docs/specs/vendor-withholding.spec.md`, ADR-0082.
 - **FR-ENA-117 (docstatus mechanics, cross-doctype)** — Submit = `PUT /api/resource/<DT>/<name>
   {docstatus:1}` (no RPC); cancel = `{docstatus:2}`; the adapter always uses **two-step insert-then-submit**
   (FR-ENA-044) and re-fetches derived status after submit; cancel ordering is chain-reverse (FR-ENA-051);
@@ -640,9 +642,12 @@ are **removed** — R9 is RESOLVED (`docs/spikes/2026-07-11-erpnext-pe-mandatory
 ### 5.12 Actuals + aging read-only domains (Findings 10, 11)
 
 - **FR-ENA-150 (actuals — ledger-sourced)** — The system shall provide a read-only **actuals** snapshot
-  (`erp_actuals_snapshot`, §4.4) sourced from ERPNext **`GL Entry`** truth (filter `is_cancelled=0` /
-  exclude `docstatus=2`), scoped by project/cost-center/fiscal-year per binding; PMO may **sum** mirrored
-  ledger rows but shall **never** invent accounting numbers (ADR-0048 ledger-sourced-display).
+  (`erp_actuals_snapshot`, §4.4) sourced from ERPNext **`GL Entry`** truth (count only rows with
+  `is_cancelled=0` and `docstatus≠2`), scoped by project/cost-center/fiscal-year per binding; PMO may **sum**
+  mirrored ledger rows but shall **never** invent accounting numbers (ADR-0048 ledger-sourced-display).
+  *(#901)* The cancellation state is applied by the **readers**, never as a fetch filter: when a document is
+  cancelled, ERPNext flips its original ledger rows (`GL Entry.is_cancelled`, `Payment Ledger Entry.delinked`)
+  and bumps `modified`, so the incremental feed shall re-read them and update the mirrored flag in place.
 - **FR-ENA-160 (aging — report-RPC primary)** — The system shall provide read-only **AP aging** and **AR
   aging** snapshots (`erp_ap_aging_snapshot`/`erp_ar_aging_snapshot`, §4.4) whose **primary** source is the
   authoritative report RPC `frappe.desk.query_report.run` (`Accounts Payable`/`Accounts Receivable`) with
@@ -951,6 +956,14 @@ Each row ships a **reversible flip migration** (add mirror columns + RLS native-
   **no** bucket is computed by invoice-only local math over `procurement_invoices`. (FR-ENA-160, FR-ENA-161,
   FR-ENA-162)
 
+- **AC-ENA-062** *(#901)* — A cancel in ERPNext leaves actuals as if the document never posted.
+  **[served-fn e2e]**
+  **Given** an activated binding whose project map links a PMO project to an ERP Project, and a submitted
+  Purchase Invoice charged to that ERP Project, mirrored by a sweep so the project's actuals show its amount,
+  **When** the invoice is cancelled in ERPNext and the next sweep runs,
+  **Then** the project's actuals fall back to their value before the invoice, and the sweep reports no ledger
+  error. (FR-ENA-150, FR-ENA-162)
+
 ### Change-feed and RLS
 
 - **AC-ENA-070** — Webhook signature is the trust boundary. **[unit]**
@@ -1026,6 +1039,7 @@ Each row ships a **reversible flip migration** (add mirror columns + RLS native-
 | AC-ENA-054 | FR-ENA-103, FR-ENA-081 | pgTAP | `supabase/tests/external_refs_adopt_unique.test.sql` |
 | AC-ENA-060 | FR-ENA-150, FR-ENA-073 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/erpnext/actualsSnapshot.test.ts` |
 | AC-ENA-061 | FR-ENA-160, FR-ENA-161, FR-ENA-162 | served-fn e2e | `pmo-portal/e2e/AC-ENA-061-aging-readback.spec.ts` |
+| AC-ENA-062 | FR-ENA-150, FR-ENA-162 | served-fn e2e | `pmo-portal/e2e/serial/AC-ENA-062-cancel-reverses-actuals.spec.ts` |
 | AC-ENA-070 | FR-ENA-082, FR-ENA-083 | Vitest (unit) | `supabase/functions/erpnext-webhook/index.test.ts` |
 | AC-ENA-071 | FR-ENA-080, FR-ENA-081, FR-ENA-083, NFR-ENA-FEED-001 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/erpnext/sweepCursor.test.ts` |
 | AC-ENA-072 | FR-ENA-170, FR-ENA-171, NFR-ENA-SEC-003/004 | pgTAP | `supabase/tests/erpnext_money_flip_rls.test.sql` (+ per-table §7 files) |

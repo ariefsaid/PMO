@@ -15,10 +15,14 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
+// #876 slice 2: the vendor's tax default read is pinned (null unless a test sets it).
+const vendorDefault = vi.hoisted(() => ({ value: null as null | { vatRate: number | null; pphType: 'pph23' | 'pph4_2' | null; pphRate: number | null } }));
+vi.mock('@/src/hooks/useVendorTaxDefault', () => ({ useVendorTaxDefault: () => vendorDefault.value }));
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { formatMoneyInputValue } from '@/src/lib/format';
 
 // ---------------------------------------------------------------------------
 // Shared mutable hook state
@@ -68,6 +72,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
+    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 
@@ -299,5 +304,59 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxTemplate: 'Input VAT 11' })),
     );
+  });
+});
+
+describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write', () => {
+  beforeEach(() => {
+    mockCaptureVendorInvoice.mockClear();
+    mockCreateInvoice.mockClear();
+    orgDefault.value = 'exclusive';
+    vendorDefault.value = null;
+  });
+  afterEach(() => { vendorDefault.value = null; });
+
+  it('AC-VWH-030 Mark Vendor Invoiced pre-fills VAT and PPh from the vendor default and forwards the withholding', async () => {
+    vendorDefault.value = { vatRate: 11, pphType: 'pph23', pphRate: 2 };
+    await openInlineCapture();
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
+    await waitFor(() => expect(screen.getByTestId('vi-tax-amount-input')).toHaveValue(formatMoneyInputValue(110000)));
+    await waitFor(() => expect(screen.getByTestId('vi-withheld-input')).toHaveValue(formatMoneyInputValue(20000)));
+    await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
+    await waitFor(() => expect(mockCaptureVendorInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 1000000, taxTreatment: 'exclusive', taxAmount: 110000, withheldAmount: 20000,
+        withheldPphType: 'pph23' })));
+  });
+
+  it('AC-VWH-032 the staged standalone bill carries its PPh and its type through the confirm to createInvoice', async () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '110000');
+    await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
+    await userEvent.type(screen.getByTestId('vi-withheld-input'), '20000');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vi/i }));
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ taxAmount: 110000, withheldAmount: 20000, withheldPphType: 'pph23' })));
+  });
+
+  it('AC-VWH-032 an ERP-owned org forwards the entered VAT and PPh as erpTaxAmounts, and no template', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await userEvent.type(screen.getByTestId('vi-erp-vat-input'), '110000');
+    await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
+    await userEvent.type(screen.getByTestId('vi-erp-withheld-input'), '20000');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vi/i }));
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({
+      erpTaxAmounts: { vatAmount: 110000, withheldAmount: 20000, pphType: 'pph23' } })));
+    expect(mockCreateInvoice.mock.calls[0][0]).not.toHaveProperty('taxTemplate');
   });
 });

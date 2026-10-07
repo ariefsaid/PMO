@@ -329,7 +329,7 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`.
 - Phase B: HRMS `Expense Claim` / `Employee Advance` documents (DD-EXP-9); reversing a **Paid** claim or advance in
   ERPNext (Paid is terminal in PMO, FR-EXP-020); back-posting events that happened before the org employed the
   `expenses` domain (OD-XING-1 default); an operator screen to re-attribute a posting whose actor was offboarded (Q9);
-  per-line descriptions on the Journal Entry; returns recorded before migration 0263 as `expense_advance_returns` rows
+  per-line descriptions on the Journal Entry; returns recorded before migration 0270 as `expense_advance_returns` rows
   (they remain audit events only).
 
 ## 8. Traceability
@@ -446,7 +446,7 @@ v15 bench (`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`).
 
 ### 10.3 Functional requirements (EARS)
 
-**Intent (server, migration 0263)**
+**Intent (server, migration 0270)**
 - **FR-EXP-100** While an org employs the `expenses` domain (DD-EXP-13), when one of the §10.1 events commits, the
   system shall write in the same transaction one `pending` intent per posting into `expense_posting_erp_mirror` with the
   posting, its subject, the event's stamp and the event's actor (approver, payer, return recorder, or the cancelling
@@ -515,7 +515,7 @@ v15 bench (`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`).
 - **NFR-EXP-010 (tenancy)** The three new tables FORCE RLS; their `org_id` has no default and is written explicitly by
   the trigger, the RPC or the service-role writer; `authenticated` holds SELECT only (scoped like the parent claim, or
   the org for the account map), `anon` nothing.
-- **NFR-EXP-011 (reversible)** Migration `0263` only, with `supabase/migrations/rollback/0263_expense_postings_down.sql`.
+- **NFR-EXP-011 (reversible)** Migration `0270` only, with `supabase/migrations/rollback/0270_expense_postings_down.sql`.
 - **NFR-EXP-012 (definer surface)** No new client-callable function: the gate is SECURITY INVOKER and executable only
   by `service_role`; the two trigger functions are SECURITY DEFINER with EXECUTE revoked from `public`, `anon`,
   `authenticated`, `service_role`. The migration ends with an in-database assertion of this ACL shape (hosted grant
@@ -527,7 +527,7 @@ v15 bench (`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`).
 
 ### 10.5 Acceptance criteria (Given/When/Then)
 
-**Intent — `supabase/tests/0263_expense_postings_enqueue.test.sql`**
+**Intent — `supabase/tests/0270_expense_postings_enqueue.test.sql`**
 - **AC-EXP-100** *Given* org A with an activated ERPNext binding and the `expenses` domain employed, and org C with
   the binding but no `expenses` row, *when* a PM approves E1's Submitted claim in each, *then* A holds exactly one
   `approval` intent, `pending`, with `state_stamp` = the claim's `approved_at` and `actor_id` = the PM, and C holds
@@ -540,13 +540,13 @@ v15 bench (`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`).
   `approval-cancel` intent exists with `actor_id` = that Finance user; *when* the claimant cancels a Submitted claim,
   or Finance cancels an Approved claim with no `approval` intent, *then* none. (FR-EXP-101)
 
-**Returns — `supabase/tests/0263_expense_advance_returns.test.sql`**
+**Returns — `supabase/tests/0270_expense_advance_returns.test.sql`**
 - **AC-EXP-102** *Given* org A and E1's paid 500 advance, *when* Finance F1 records a 100 return with reference "CB-1",
   *then* `returned_amount` is 100, one `expense_advance_returns` row holds 100, "CB-1", recorder F1 and today's
   Asia/Jakarta date, and one `advance-return` intent names that row; *when* F1 records 450, *then* P0001 and no new row.
   (FR-EXP-102, FR-EXP-041)
 
-**ACL — `supabase/tests/0263_expense_postings_acl.test.sql`**
+**ACL — `supabase/tests/0270_expense_postings_acl.test.sql`**
 - **AC-EXP-104** *Then* `authenticated` holds SELECT and no INSERT/UPDATE/DELETE on the three new tables and `anon`
   holds nothing; E1 sees the intents and returns of their own advance, E2 sees none of them, a PM sees every intent,
   org B's Admin sees none; a member of org A reads org A's account map and org B's Admin reads none of it; `anon` and
@@ -554,7 +554,7 @@ v15 bench (`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`).
   `service_role` can execute the first two; the account map's key CHECK admits exactly the `expense_type` labels plus
   `employee_payable` and `employee_advance`. (NFR-EXP-010/012)
 
-**Gate — `supabase/tests/0263_expense_posting_gate.test.sql`**
+**Gate — `supabase/tests/0270_expense_posting_gate.test.sql`**
 - **AC-EXP-105** *Given* an `approval` intent for a claim with lines Travel 100 + 50 and Meals 25 approved at
   `2026-10-07 18:30:00+00` in an Asia/Jakarta org, *when* the service role reads the gate, *then* it returns amount
   `175.00`, lines `[{Meals, 25.00}, {Travel, 150.00}]`, posting date `2026-10-08` and that the claim has an approval
@@ -655,10 +655,10 @@ v15 bench (`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`).
 
 | AC | Owning layer | Test file |
 |---|---|---|
-| AC-EXP-100, 101, 103 | pgTAP | `supabase/tests/0263_expense_postings_enqueue.test.sql` |
-| AC-EXP-102 | pgTAP | `supabase/tests/0263_expense_advance_returns.test.sql` |
-| AC-EXP-104 | pgTAP | `supabase/tests/0263_expense_postings_acl.test.sql` |
-| AC-EXP-105 | pgTAP | `supabase/tests/0263_expense_posting_gate.test.sql` |
+| AC-EXP-100, 101, 103 | pgTAP | `supabase/tests/0270_expense_postings_enqueue.test.sql` |
+| AC-EXP-102 | pgTAP | `supabase/tests/0270_expense_advance_returns.test.sql` |
+| AC-EXP-104 | pgTAP | `supabase/tests/0270_expense_postings_acl.test.sql` |
+| AC-EXP-105 | pgTAP | `supabase/tests/0270_expense_posting_gate.test.sql` |
 | AC-EXP-110 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.test.ts` |
 | AC-EXP-111 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/bodies/expenseJournal.test.ts` |
 | AC-EXP-112 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/adapter.expenseJournalAmend.test.ts` |

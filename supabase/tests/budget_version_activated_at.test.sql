@@ -33,21 +33,24 @@ insert into organizations (id, name) values
 
 insert into auth.users (id, email) values
   ('e0000000-0000-0000-0000-0000000000a1','pm-actat@example.com'),
-  ('e0000000-0000-0000-0000-0000000000a2','fin-offboarded@example.com');
+  ('e0000000-0000-0000-0000-0000000000a2','fin-offboarded@example.com'),
+  ('e0000000-0000-0000-0000-0000000000a3','drafter-actat@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
   ('e0000000-0000-0000-0000-0000000000a1','e0000000-0000-0000-0000-000000000001','PM ActAt','pm-actat@example.com','Project Manager'),
   -- MEDIUM-F: an OD-BUDGET-3 role who has been DEACTIVATED but still holds a valid JWT.
-  ('e0000000-0000-0000-0000-0000000000a2','e0000000-0000-0000-0000-000000000001','Finance Offboarded','fin-offboarded@example.com','Finance');
+  ('e0000000-0000-0000-0000-0000000000a2','e0000000-0000-0000-0000-000000000001','Finance Offboarded','fin-offboarded@example.com','Finance'),
+  -- OD-BUDGET-6: v2's drafter — a second person, so the PM below may activate it.
+  ('e0000000-0000-0000-0000-0000000000a3','e0000000-0000-0000-0000-000000000001','Drafter ActAt','drafter-actat@example.com','Project Manager');
 update profiles set status = 'disabled' where id = 'e0000000-0000-0000-0000-0000000000a2';
 
 insert into projects (id, org_id, name, status) values
   ('e1111111-0000-0000-0000-000000000001','e0000000-0000-0000-0000-000000000001','ActAt Project','Ongoing Project');
 
 -- v1 Active (the incumbent), v2 Draft (the one we activate).
-insert into budget_versions (id, org_id, project_id, version, name, status) values
-  ('e2222222-0000-0000-0000-000000000001','e0000000-0000-0000-0000-000000000001','e1111111-0000-0000-0000-000000000001',1,'Initial Budget','Active'),
-  ('e2222222-0000-0000-0000-000000000002','e0000000-0000-0000-0000-000000000001','e1111111-0000-0000-0000-000000000001',2,'Revised Budget','Draft');
+insert into budget_versions (id, org_id, project_id, version, name, status, created_by) values
+  ('e2222222-0000-0000-0000-000000000001','e0000000-0000-0000-0000-000000000001','e1111111-0000-0000-0000-000000000001',1,'Initial Budget','Active',null),
+  ('e2222222-0000-0000-0000-000000000002','e0000000-0000-0000-0000-000000000001','e1111111-0000-0000-0000-000000000001',2,'Revised Budget','Draft','e0000000-0000-0000-0000-0000000000a3');
 
 insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount) values
   ('e0000000-0000-0000-0000-000000000001','e2222222-0000-0000-0000-000000000002','Labor','Team costs',500000,0);

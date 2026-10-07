@@ -27,6 +27,7 @@ vi.mock('@/src/lib/db/revenue', () => ({
   submitSalesInvoiceSod: vi.fn(),
   getSalesInvoice: vi.fn(),
   getIncomingPayment: vi.fn(),
+  setSalesInvoiceEfaktur: vi.fn(),
 }));
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
@@ -45,6 +46,20 @@ beforeEach(() => {
   dispatchSpy = vi.spyOn(dispatchClient, 'dispatchDomainCommand');
   // Default routeDomainWrite to 'pmo' (cold map) unless a test overrides it
   vi.mocked(routeDomainWrite).mockReturnValue('pmo');
+});
+
+// DD-EFK-1 (#893): the e-Faktur setter stays PMO-direct on every route — including externally owned revenue.
+// (#784's cold-map native routing supersedes this file's former AC-SAR-001 `revenue-not-enabled` assertions:
+// those encoded the pre-#784 rejection, and the surviving oracle — revenue writes never dispatch on the cold
+// map — is kept by `revenue.native.test.ts`'s first describe block.)
+describe('AC-EFK-004 DD-EFK-1 sales setter remains PMO-direct for externally owned revenue', () => {
+  it('calls the guarded PMO DAL setter and never dispatches e-Faktur facts', async () => {
+    vi.mocked(routeDomainWrite).mockReturnValue('external');
+    vi.mocked(revenueDb.setSalesInvoiceEfaktur).mockResolvedValue(undefined);
+    await repositories.revenue.setEfaktur('si-efaktur', { efakturNumber: '010.001', efakturDate: null });
+    expect(revenueDb.setSalesInvoiceEfaktur).toHaveBeenCalledWith('si-efaktur', '010.001', null);
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('AC-SAR-001 cold ownership map — P2 procurement/company writes stay byte-for-byte on direct DAL', () => {

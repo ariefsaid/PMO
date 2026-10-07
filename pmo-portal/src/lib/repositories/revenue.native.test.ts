@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * #784 — the repository's PMO-native revenue path. While no ERP owns revenue (cold or 'pmo' route), every revenue
- * write goes to migration 0270's RPCs and NEVER dispatches to the ERP (the goal AC-SAR-001 always asserted). Once an
+ * write goes to migration 0275's RPCs and NEVER dispatches to the ERP (the goal AC-SAR-001 always asserted). Once an
  * ERP owns revenue, a row raised in PMO before connect is history: it is never pushed (AC-NAR-004).
  */
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: vi.fn() }));

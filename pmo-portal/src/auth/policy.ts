@@ -31,6 +31,8 @@ export type Action =
   | 'setValue'
   | 'submit_sales_invoice'
   | 'record_received_date'
+  | 'download_pdf'
+  | 'record_efaktur'
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
@@ -51,6 +53,7 @@ export type Entity =
   | 'document'
   | 'documentStatus'
   | 'budgetLine'
+  | 'budgetVersion'
   | 'user'
   | 'timesheet'
   | 'approval'
@@ -64,10 +67,12 @@ export type Entity =
   | 'meeting'
   | 'userView'
   | 'salesInvoice'
+  | 'procurementInvoice'
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
   | 'orgAccounting'
+  | 'vendorTaxDefault'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'employeeLink'
@@ -126,6 +131,8 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
  * (Admin·Exec·PM·Finance) — do not fold the two together.
  */
 const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
+/** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
+const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -334,6 +341,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: allow(MASTER_DATA), // Draft-only checked at the call-site (shipped WRITE_ROLES)
     delete: allow(MASTER_DATA),
   },
+  /**
+   * Budget version activation (`transition`) — OD-BUDGET-6, mirroring `activate_budget_version`
+   * (migration 0271): a Draft only; the drafter (`created_by`, server-stamped, never client-set) may
+   * not activate their own version whatever their role, Admin included; a version with no recorded
+   * drafter is Admin or Finance only. The RPC is the authority.
+   */
+  budgetVersion: {
+    transition: (role, ctx) => {
+      if (!has(MASTER_DATA, role) || ctx.record?.status !== 'Draft') return false;
+      const drafter = ctx.record?.created_by ?? null;
+      if (drafter === null) return role === 'Admin' || role === 'Finance';
+      return !!ctx.currentUserId && drafter !== ctx.currentUserId;
+    },
+  },
   user: {
     // Exec may VIEW a read-only user directory (rbac-visibility §J); write is Admin-only.
     view: allow(ARCHIVE_ROLES), // Admin·Executive
@@ -427,6 +448,15 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // #767: record the date the client received the invoice — any non-cancelled state. Mirrors the
     // `set_sales_invoice_received_date` RPC's Admin+Finance gate (the RPC is the authority).
     record_received_date: allow(REVENUE_WRITE),
+    // #912 (DD-PDF-1/2): download the ERP's own PDF of a SUBMITTED, ERP-owned invoice — the client
+    // document. Mirrors external-invoice-pdf, which re-checks role, active membership and the LIVE ERP
+    // docstatus; this is UX only.
+    download_pdf: (role, ctx) =>
+      has(REVENUE_WRITE, role)
+      && ctx.record?.erp_docstatus === 1
+      && ['Submitted', 'Unpaid', 'Paid'].includes(String(ctx.record?.status ?? '')),
+    // DD-EFK-1: e-Faktur facts stay PMO-owned and are editable by the revenue write set only.
+    record_efaktur: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.
@@ -445,6 +475,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       if (authorIds?.includes(ctx.currentUserId)) return false;
       return true;
     },
+  },
+  procurementInvoice: {
+    // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
+    record_efaktur: allow(REVENUE_WRITE),
   },
   incomingPayment: {
     // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);
@@ -474,6 +508,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgAccounting: {
     manage: allow(ADMIN),
   },
+  // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
+  vendorTaxDefault: { manage: allow(TAX_SETUP) },
   orgProjectNumbering: {
     manage: allow(ADMIN),
   },

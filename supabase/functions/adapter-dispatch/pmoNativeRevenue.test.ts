@@ -1,7 +1,7 @@
 /**
  * #784 — revenue commands through the ERP path only ever target ERP-path rows.
  *
- * Invoices and receipts raised in PMO (`pmo_native`, migration 0270) are approved, settled and cancelled by
+ * Invoices and receipts raised in PMO (`pmo_native`, migration 0275) are approved, settled and cancelled by
  * PMO's own RPCs. The ERP path (this function) therefore:
  *   • refuses any revenue command whose `record.id` is a PMO-native invoice or receipt, and any receipt
  *     command that cites a PMO-native invoice (`record.salesInvoiceId`);

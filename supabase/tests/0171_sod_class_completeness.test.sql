@@ -69,11 +69,12 @@ insert into projects (id, org_id, name, status) values
 
 -- Budget versions. The line item goes in while the version is Draft — budget_line_items_draft_guard
 -- refuses to touch it once the version is Active, which is the guard the round trip voided.
-insert into budget_versions (id, org_id, project_id, version, name, status) values
-  ('01710000-0000-0000-0000-0000000000f1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',1,'SCC Active','Draft'),
-  ('01710000-0000-0000-0000-0000000000f2','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',2,'SCC Draft','Draft'),
-  ('01710000-0000-0000-0000-0000000000f3','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',3,'SCC Archived','Draft'),
-  ('01710000-0000-0000-0000-0000000000f4','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b2',1,'SCC Cascade Active','Draft');
+-- OD-BUDGET-6: SCC Draft was drafted by the Colleague, so the PM may activate it (a second person).
+insert into budget_versions (id, org_id, project_id, version, name, status, created_by) values
+  ('01710000-0000-0000-0000-0000000000f1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',1,'SCC Active','Draft',null),
+  ('01710000-0000-0000-0000-0000000000f2','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',2,'SCC Draft','Draft','01710000-0000-0000-0000-0000000000a2'),
+  ('01710000-0000-0000-0000-0000000000f3','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',3,'SCC Archived','Draft',null),
+  ('01710000-0000-0000-0000-0000000000f4','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b2',1,'SCC Cascade Active','Draft',null);
 
 insert into budget_line_items (id, org_id, budget_version_id, category, description, budgeted_amount) values
   ('01710000-0000-0000-0000-0000000000e1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000f1','Labor','the line item the round trip rewrote',1000000);

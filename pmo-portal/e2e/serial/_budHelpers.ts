@@ -39,6 +39,9 @@ export const LABOR_SIBLING_ACCOUNT = 'Travel Expenses - PSC';
 
 /** A Finance user may activate a budget version (OD-BUDGET-3 write roles). */
 export const ACTIVATOR_EMAIL = 'finance@acme.test';
+/** OD-BUDGET-6 (#922): whoever CLONES a version becomes the clone's drafter and cannot activate it —
+ *  a second eligible person does. The seeded Admin is the canonical second activator. */
+export const SECOND_ACTIVATOR_EMAIL = 'admin@acme.test';
 
 const benchHeaders = (): Record<string, string> => ({
   Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`,

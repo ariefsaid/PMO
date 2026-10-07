@@ -59,7 +59,7 @@ import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 // same shared table (doctypeBodies.ts) rather than a parallel local const — one side table, never two.
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError, type CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -381,11 +381,6 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
             });
           },
   });
-}
-
-/** ERP `creation` filter format (`YYYY-MM-DD HH:MM:SS`) for the composite-probe claim window. */
-function erpDatetime(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
 }
 
 /** Build the Payment Entry composite-probe payload from the command (persisted at outbox INSERT).

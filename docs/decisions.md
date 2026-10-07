@@ -1331,6 +1331,27 @@ frozen, never pushed); at connect each open PMO invoice is stamped with the amou
 (DD-NAR-16); a receipt may be short or over — over marks Paid and records `overpaid_amount` (DD-NAR-17). Owner
 rulings: OD-NAR-1. ADR-0055 addendum 2026-10-07 makes §5A defer to `OD-XING-1`.
 
+**[DD-EFK-1] e-Faktur number and date are PMO-owned facts (Director, 2026-10-07).** Store these values only
+on the PMO sales-invoice and vendor-bill rows; never push them to ERPNext. ERPNext is headless for client users
+(OD-ERP-3), the reference is not a ledger fact and is usually assigned after invoice issuance, and changing a
+submitted ERP document would require `commitAmend`'s cancel-and-amend path — re-issuing an invoice just to attach
+a reference is wrong. The tax registers in #898 read the values from PMO. This excludes ERP custom fields, ERP
+mappings, onboarding changes, and outbox commands for e-Faktur; the ERP mirror writers (outbound read-model and
+inbound feed) never overwrite or null the two columns. Admin/Finance set them through one setter RPC per table,
+at any status except cancelled.
+
+**[DD-EFK-2] e-Faktur number and date: both or neither (Director, 2026-10-07).** A number without its date
+falls out of the monthly VAT register (#898 groups by the e-Faktur date), and a date without its number names no
+tax invoice. So a save carrying only one of the two is refused — inline in the e-Faktur dialog, by both setter
+RPCs (SQLSTATE 23514, DETAIL `efaktur-incomplete`), and by a table CHECK on `sales_invoices` and
+`procurement_invoices` so no other writer can split the pair. Clearing both stays valid (a non-VAT document).
+
+**[DD-PDF-1..11] The client invoice PDF is the ERP's own print, proxied on demand (#912, Director 2026-10-07).**
+Recorded in full in `docs/specs/invoice-pdf.spec.md` and ADR-0083: Admin/Finance only; submitted invoices only (PMO
+row AND the ERP's live status); document name from the machine-written link table, doctype fixed in code; the ERP's
+default print format; nothing stored in PMO; fixed error messages, never ERP text; no migration.
+
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
@@ -3104,3 +3125,9 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2
 **DD-EXP-12..22 + ADR-0081 ratified (Director, 2026-10-07, #775 phase B)** — as written in `docs/specs/expense-claims.spec.md` §10 and `docs/adr/0081-expense-postings-single-originator.md`: one originator (the PMO transition writes a posting intent; only the ERPNext sweep turns it into an ERP document; no client dispatch route), enabling the `expenses` domain is also the cut-off (nothing before it posts), JE anchored on `user_remark` (re-stamped on amend), Employee Payment Entries anchored on `reference_no` with paid_from/paid_to always sent and the approval JE referenced, an Admin account map refusing `Creditors` and untyped advance accounts, cancel only an approval JE after it posted. Also accepted: procurement/revenue Payment Entry polls stop reading party-type Employee entries (otherwise an employee's cash return could be adopted as a customer receipt); postings land within one sweep interval. The Admin enable switch lands only after #901. Plan: `docs/plans/2026-10-07-expense-claims-phase-b*.md`.
 
 **DD-VWH-10..14 (Director, 2026-10-07, #876 slice 2, under OD-VWH-1)** — (10) standalone (no-ERP) bills may also carry withholding: the create functions take a withheld amount; the slice-1 "standalone records zero" rule is amended with its test. (11) The vendor default tax treatment is three company columns (VAT rate; PPh type pph23 / pph4_2; PPh rate), editable only through a role-checked SECURITY DEFINER function (Admin/Finance), outside the companies ERP mirror guard. (12) Org account settings: input-VAT account, PPh 23 payable account, PPh 4(2) payable account — organisations columns on the `tax_prepaid_account` precedent (column grant, Admin only, audited), liability check on send. (13) The server builds ERPNext `Actual` tax rows from the bill's entered amounts and the org accounts; client-supplied tax rows are never passed through; a bill naming both a template and amounts is refused. (14) On an ERP-connected org the bill form asks for tax again (reverses #505's connected-org hiding for vendor bills): items carry the net, tax rows carry the entered amounts.
+
+**DD-VWH-15..22 ratified (Director, 2026-10-07, #876 slice 2)** — as proposed in `docs/specs/vendor-withholding.spec.md` slice-2 decisions and ADR-0084, with two Director calls on its open questions: **OQ-VWH-6** — the PPh type IS stored on every bill that withholds, standalone included, so a later no-ERP tax register can tell PPh 23 from PPh 4(2); **OQ-VWH-8** — the unused "Amount (optional)" field is hidden on ERP-connected bills (it was never sent). If plan Task 0 shows ERPNext applying a default template over an empty one, the build stops and comes back.
+
+**OD-BUDGET-6 (owner, 2026-10-07)** — the person who drafted a budget version cannot activate it; a second person activates (activation also pushes the budget to the ERP). PMO records who drafted each version (created on insert and on clone); a version with no recorded drafter (older or seeded) can be activated by Admin or Finance only.
+
+**OD-EXP-PB-1 (owner, 2026-10-07, #775 phase B)** — (1) assume the client ERP has no HRMS; anything an HR module would provide that phase B needs is built in PMO (core doctypes only, DD-EXP-9). (2) Accounts come from the client's own 2025 chart of accounts (client-specific; mapping held privately and entered by the Admin/operator at setup); where the chart has no fitting account (employee payable; a staff-only advance account) the operator adds one with the client's accountant before posting is enabled; claims tagged to a project post to the direct-cost account, untagged claims to the overhead account for their type. (3) claims approved before posting is enabled are not posted retroactively (opening balance covers them). (4) an entry whose recorded approver/payer has left is held with an action-required notice, never posted under them. (5) staff are paid from the company default cash account, else its default bank account.
