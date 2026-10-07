@@ -3239,15 +3239,18 @@
   "financeCopy": {
     "invoicePdf": {
       "download": "Download PDF",
+      "downloaded": "PDF downloaded — {{name}}",
       "failed": "Couldn't download the PDF",
       "notPermitted": "The ERP refused to print this invoice. Ask your administrator to give the integration user Print access to Sales Invoices.",
-      "documentMissing": "The ERP no longer has this invoice. Refresh the list and try again.",
-      "notSubmitted": "Only a submitted invoice can be downloaded. Refresh the list — this invoice may have been cancelled.",
+      "notPermittedAdmin": "The ERP refused to print this invoice. Open Administration → Integrations to check the connection, and in ERPNext give the integration user Print access to Sales Invoices.",
+      "documentMissing": "The ERP no longer has this invoice.",
+      "notSubmitted": "Only a submitted invoice can be downloaded — this invoice may have been cancelled.",
       "notErpInvoice": "This invoice was not issued through the ERP, so there is no ERP PDF.",
       "notConnected": "The ERP connection is not active. Ask your administrator to check Integrations.",
-      "notFound": "This invoice is no longer available. Refresh the list.",
+      "notConnectedAdmin": "The ERP connection is not active. Open Administration → Integrations and reconnect the ERP.",
+      "notFound": "This invoice is no longer available.",
       "forbidden": "You do not have access to download this invoice.",
-      "unreachable": "The ERP did not answer. Try again in a moment.",
+      "unreachable": "PMO could not reach the download service. Try again in a moment.",
       "preparing": "Preparing PDF…",
       "sessionExpired": "Your session expired — sign in again."
     },

@@ -148,7 +148,8 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     expect(revenue.downloadInvoicePdf).toHaveBeenCalledWith('si-sub');
   });
 
-  it('AC-PDF-011 a second choice while the first is in flight starts no second request', async () => {
+  it('AC-PDF-011 success replaces the preparing toast with "PDF downloaded — <file>"', async () => {
+    const pdf = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
     let release!: (b: Blob) => void;
     revenue.downloadInvoicePdf.mockImplementation(() => new Promise<Blob>((resolve) => { release = resolve; }));
     const user = userEvent.setup();
@@ -156,14 +157,37 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
     expect((await toastWith('Preparing PDF…')).kind).toBe('info');
-    await openMenu(user, 'ACC-SINV-2026-00001');
-    await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect(revenue.downloadInvoicePdf).toHaveBeenCalledTimes(1);
-    release(new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
-    await waitFor(() => expect(triggerBlobDownload).toHaveBeenCalledTimes(1));
+    release(pdf);
+    const done = await toastWith(/PDF downloaded — ACC-SINV-2026-00001\.pdf/);
+    expect(done.kind).toBe('success');
+    expect(screen.queryByText('Preparing PDF…')).not.toBeInTheDocument();
   });
 
-  it('AC-PDF-011 a refused download explains the remedy; an unknown failure says the ERP did not answer', async () => {
+  // Deliberate UX change (fix round): the repeat click used to be silently swallowed; it is now
+  // impossible — the row item disables itself under the busy label until the outcome arrives.
+  it('AC-PDF-011 while a download is in flight the row item is disabled under the busy label, and the outcome re-enables it', async () => {
+    let release!: (b: Blob) => void;
+    revenue.downloadInvoicePdf.mockImplementation(() => new Promise<Blob>((resolve) => { release = resolve; }));
+    const user = userEvent.setup();
+    renderPage('Finance');
+    await openMenu(user, 'ACC-SINV-2026-00001');
+    await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
+    expect((await toastWith('Preparing PDF…')).kind).toBe('info');
+
+    await openMenu(user, 'ACC-SINV-2026-00001');
+    const busy = screen.getByRole('menuitem', { name: 'Preparing PDF…' });
+    expect(busy).toBeDisabled();
+    // A disabled menuitem fires no click — the menu stays open underneath.
+    await user.click(busy);
+    expect(revenue.downloadInvoicePdf).toHaveBeenCalledTimes(1);
+
+    release(new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
+    await waitFor(() => expect(triggerBlobDownload).toHaveBeenCalledTimes(1));
+    // The still-open menu shows the item back under its own name, enabled again.
+    expect(await screen.findByRole('menuitem', { name: 'Download PDF' })).toBeEnabled();
+  });
+
+  it('AC-PDF-011 a refused download explains the remedy', async () => {
     revenue.downloadInvoicePdf.mockRejectedValueOnce(
       Object.assign(new Error('The ERP refused to print this invoice.'), { code: 'ERP_NOT_PERMITTED' }),
     );
@@ -174,12 +198,46 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     const refused = await toastWith(/give the integration user Print access/);
     expect(refused.kind).toBe('warning');
     expect(within(refused.el).getByText("Couldn't download the PDF")).toBeInTheDocument();
+    expect(triggerBlobDownload).not.toHaveBeenCalled();
+  });
 
-    revenue.downloadInvoicePdf.mockRejectedValueOnce(new Error('boom'));
+  it.each([
+    ['no code at all (unreachable)', new Error('boom')],
+    ['a non-ERP code (503)', Object.assign(new Error('Service Unavailable'), { code: 'HTTP_503' })],
+    ['an unknown future code', Object.assign(new Error('mystery'), { code: 'SOMETHING_NEW' })],
+  ])('AC-PDF-011 a failure that is not an ERP code (%s) blames the download service, not the ERP', async (_name, err) => {
+    revenue.downloadInvoicePdf.mockRejectedValueOnce(err);
+    const user = userEvent.setup();
+    renderPage('Finance');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect((await toastWith(/The ERP did not answer/)).kind).toBe('warning');
+    expect((await toastWith(/PMO could not reach the download service/)).kind).toBe('warning');
     expect(triggerBlobDownload).not.toHaveBeenCalled();
+  });
+
+  it.each(['NOT_SUBMITTED', 'ERP_DOCUMENT_MISSING', 'NOT_FOUND'])('AC-PDF-011 a %s refusal invalidates the sales-invoices list instead of telling the user to refresh', async (code) => {
+    revenue.downloadInvoicePdf.mockRejectedValueOnce(Object.assign(new Error(code), { code }));
+    const user = userEvent.setup();
+    renderPage('Finance');
+    await screen.findAllByText('ACC-SINV-2026-00001');
+    expect(revenue.listInvoices).toHaveBeenCalledTimes(1);
+    await openMenu(user, 'ACC-SINV-2026-00001');
+    await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
+    await waitFor(() => expect(revenue.listInvoices).toHaveBeenCalledTimes(2));
+  });
+
+  it.each([
+    ['Admin', 'ERP_NOT_CONNECTED', /Open Administration → Integrations/],
+    ['Finance', 'ERP_NOT_CONNECTED', /Ask your administrator to check Integrations/],
+    ['Admin', 'ERP_NOT_PERMITTED', /Open Administration → Integrations/],
+    ['Finance', 'ERP_NOT_PERMITTED', /Ask your administrator to give the integration user Print access/],
+  ])('AC-PDF-011 as %s, a %s refusal says where the fix lives instead of only who to ask', async (role, code, match) => {
+    revenue.downloadInvoicePdf.mockRejectedValueOnce(Object.assign(new Error(code), { code }));
+    const user = userEvent.setup();
+    renderPage(role as Role);
+    await openMenu(user, 'ACC-SINV-2026-00001');
+    await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
+    expect((await toastWith(match)).kind).toBe('warning');
   });
 
   it('AC-PDF-011 an expired session tells the user to sign in again', async () => {
@@ -191,7 +249,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
     expect((await toastWith('Your session expired — sign in again.')).kind).toBe('warning');
-    expect(screen.queryByText(/The ERP did not answer/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PMO could not reach the download service/)).not.toBeInTheDocument();
     expect(triggerBlobDownload).not.toHaveBeenCalled();
   });
 });

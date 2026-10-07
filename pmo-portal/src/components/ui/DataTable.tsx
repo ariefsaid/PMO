@@ -42,6 +42,8 @@ export interface RowMenuItem {
   label: string;
   onClick: () => void;
   danger?: boolean;
+  /** Dimmed, unfocusable and unclickable — e.g. a per-row action already in flight (AC-PDF-011). */
+  disabled?: boolean;
 }
 
 export interface DataTableProps<Row> {
@@ -591,6 +593,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
   };
 
   const activate = (item: RowMenuItem) => {
+    if (item.disabled) return; // a disabled button fires no click; this guard is belt-and-braces
     item.onClick();
     close();
   };
@@ -643,13 +646,15 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
                   <button
                     role="menuitem"
                     type="button"
+                    disabled={item.disabled}
                     tabIndex={i === active ? 0 : -1}
                     data-menuitem-index={i}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => activate(item)}
                     className={cn(
                       'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
-                      item.danger && 'text-destructive'
+                      item.danger && 'text-destructive',
+                      item.disabled && 'cursor-not-allowed text-muted-foreground hover:bg-transparent'
                     )}
                   >
                     {item.label}

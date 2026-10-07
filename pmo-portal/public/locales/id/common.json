@@ -3239,15 +3239,18 @@
   "financeCopy": {
     "invoicePdf": {
       "download": "Unduh PDF",
+      "downloaded": "PDF diunduh — {{name}}",
       "failed": "PDF tidak dapat diunduh",
       "notPermitted": "ERP menolak mencetak faktur ini. Minta administrator memberi pengguna integrasi akses Cetak untuk Faktur Penjualan.",
-      "documentMissing": "ERP tidak lagi memiliki faktur ini. Muat ulang daftar lalu coba lagi.",
-      "notSubmitted": "Hanya faktur yang sudah diajukan yang dapat diunduh. Muat ulang daftar — faktur ini mungkin sudah dibatalkan.",
+      "notPermittedAdmin": "ERP menolak mencetak faktur ini. Buka Administrasi → Integrasi untuk memeriksa koneksi, lalu beri pengguna integrasi akses Cetak untuk Faktur Penjualan di ERPNext.",
+      "documentMissing": "ERP tidak lagi memiliki faktur ini.",
+      "notSubmitted": "Hanya faktur yang sudah diajukan yang dapat diunduh — faktur ini mungkin sudah dibatalkan.",
       "notErpInvoice": "Faktur ini tidak diterbitkan melalui ERP, jadi tidak ada PDF dari ERP.",
       "notConnected": "Koneksi ERP tidak aktif. Minta administrator memeriksa Integrasi.",
-      "notFound": "Faktur ini tidak lagi tersedia. Muat ulang daftar.",
+      "notConnectedAdmin": "Koneksi ERP tidak aktif. Buka Administrasi → Integrasi dan hubungkan kembali ERP.",
+      "notFound": "Faktur ini tidak lagi tersedia.",
       "forbidden": "Anda tidak memiliki akses untuk mengunduh faktur ini.",
-      "unreachable": "ERP tidak merespons. Coba lagi sebentar lagi.",
+      "unreachable": "PMO tidak dapat menghubungi layanan unduhan. Coba lagi sebentar lagi.",
       "preparing": "Menyiapkan PDF…",
       "sessionExpired": "Sesi Anda telah berakhir — masuk lagi."
     },
