@@ -79,6 +79,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: vi.fn(), isPending: false, error: null },
     createInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
+    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 
@@ -202,6 +203,30 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
     expect(screen.getByRole('button', { name: /submit request/i })).toBeInTheDocument();
+  });
+
+  it('OD-PROC-1: Draft (PM, non-requester): no Submit Request — submit is the requester\'s act', () => {
+    roleState.realRole = 'Project Manager';
+    roleState.effectiveRole = 'Project Manager';
+    detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
+    renderPage();
+    expect(screen.queryByRole('button', { name: /submit request/i })).not.toBeInTheDocument();
+  });
+
+  it('OD-PROC-1: Draft (Admin, non-requester): shows Submit Request (break-glass)', () => {
+    roleState.realRole = 'Admin';
+    roleState.effectiveRole = 'Admin';
+    detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
+    renderPage();
+    expect(screen.getByRole('button', { name: /submit request/i })).toBeInTheDocument();
+  });
+
+  it('OD-PROC-1: Draft (impersonating Admin, real PM, non-requester): no Submit Request', () => {
+    roleState.realRole = 'Project Manager';
+    roleState.effectiveRole = 'Admin';
+    detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
+    renderPage();
+    expect(screen.queryByRole('button', { name: /submit request/i })).not.toBeInTheDocument();
   });
 
   it('Requested (PM role, non-requester): shows Approve (primary) and Reject', () => {

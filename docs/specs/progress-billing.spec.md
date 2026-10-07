@@ -13,6 +13,10 @@
 > **Migrations of this feature:** `0250_progress_billing.sql` and `0251_management_pack_billed_work.sql`.
 > **Executor:** money path — Director-dispatched (CLAUDE.md executor routing).
 > **Ids:** rulings are `DD-PBL-n` (`DD-PB-1` is already a budget-push ruling in `docs/decisions.md`).
+> **Amended 2026-10-07:** §7 — billing by work order (owner ruling OD-BILL-1, #785 / #786;
+> [ADR-0080](../adr/0080-billing-by-work-order.md); plan
+> [`docs/plans/2026-10-07-billing-by-work-order.md`](../plans/2026-10-07-billing-by-work-order.md); migration
+> `0262_billing_by_work_order.sql`; rulings `DD-BWO-n`).
 
 ## Owner ruling (2026-10-06)
 
@@ -80,7 +84,8 @@ Renumbered after the ruling. "Was" gives the previous number; **changed** / **ne
   Remeasurement is normal (DD-WO-2 precedent). An assessment may record more than a BoQ quantity (the percent
   still counts that line at most to 100%); a claim may bill more than the BoQ or more than was assessed. The
   submit SoD and the evidence are the controls. Quantities carry at most 3 decimals (ERPNext's default float
-  precision).
+  precision). *(2026-10-07: a claim on a work order is now also capped by what is still to invoice on that work
+  order — §7, DD-BWO-4. Over-claiming against the BoQ stays allowed.)*
 - **DD-PBL-11 — retention is out of scope.** *(was 9; unchanged)* Indonesian PPN is charged on the full progress
   value, so a negative retention line would wrongly cut the tax base; retention needs its own decision.
 - **DD-PBL-12 — the ERP site must be set up for claims (spike 2026-10-06).** (a) Selling Settings "Allow Negative rates for Items"
@@ -357,7 +362,236 @@ Finance bills.
 
 ## 6. Out of scope
 
-Retention (DD-PBL-11); claims without an ERP (#784); milestone billing (#785); a Sales Order push; closing
+Retention (DD-PBL-11); claims without an ERP (#784); milestone billing (#785 — superseded by OD-BILL-1: billing is
+by work order, §7); a Sales Order push; closing
 assessment periods (as #765); history of overwritten assessments (only the latest per month is kept, with who and
 when, as #765); detaching evidence; ERP-side quantity tracking; reflecting ERPNext Desk edits of a claim invoice
 back into claim quantities; currency conversion; more than one live down payment per project (owner question 1).
+
+## 7. Amendment 2026-10-07 — billing by work order (OD-BILL-1, #785 / #786)
+
+> **Owner ruling OD-BILL-1 (2026-10-07):** clients are billed by their PO/SO — the work order — never by tracker
+> milestones. Milestones stay progress-only (no amount, no invoice points at them). Per work order: invoiced / paid /
+> remaining; "Invoice this work order" (Draft, pre-filled with the remaining amount; partial allowed; the server
+> refuses invoicing beyond the work order's value); the work order shows Paid when its invoices are fully paid. A
+> milestone may optionally reference a work order — display only. #786's "still to invoice" reads the same
+> per-work-order remaining. This supersedes #785's milestone-amount design (showreel audit N2, AC-BMS-001..004) and
+> #786's milestone-based AC-UNB-002.
+
+### 7.1 Director rulings (DD-BWO-n, 2026-10-07; also recorded in `docs/decisions.md` and ADR-0080)
+
+- **DD-BWO-1 — what counts against a work order.** Per invoice linked to the work order and not Cancelled: its billed
+  work from `sales_invoice_work_billed` (DD-PBL-9: net of tax, plus the down-payment recovery its claim removed); a
+  down-payment invoice counts zero (an advance, recovered through later claims — counting it too would bill the
+  recovered part twice). Per live progress claim on the work order not yet raised as an invoice: its gross. A
+  withdrawn claim, a cancelled invoice and a claim whose invoice is cancelled count nothing. **Invoiced to date** =
+  linked Submitted/Unpaid/Paid; **not yet submitted** = linked Draft invoices + unraised claims; **still to invoice** =
+  work-order value excl. tax − both. Credit notes are not linked to work orders and do not reduce them (owner
+  question 1); to reduce a work order's invoiced figure, cancel the invoice.
+- **DD-BWO-2 — paid.** "Paid" on a work order = the billed work of its linked invoices whose status is Paid (ERPNext
+  outstanding 0; tax the client withheld counts as settled, DD-RCPT-1). A part-paid invoice counts as unpaid on the
+  work order. A work order shows **Paid** when nothing is still to invoice, nothing is not yet submitted, and every
+  submitted invoice on it (down-payment invoices included) is Paid. Derived on every read; never a stored status
+  (DD-WO-3 stands).
+- **DD-BWO-3 — basis and currency.** Every figure is excl. tax in the work order's own currency (pinned to the
+  project's, DD-WO-9). The work order's value excl. tax uses 0197's rule (inclusive → value − tax amount). An invoice
+  linked in another currency, or with no amount, makes the work order's figures "can't total": shown as such, and the
+  refusal below fails closed.
+- **DD-BWO-4 — the refusal, server-side, before any ERP write.** One helper decides; three places call it: a
+  `BEFORE INSERT` trigger on `external_command_outbox` for sales-invoice create/edit/amend commands (the outbox insert
+  precedes every ERP POST, ADR-0058); a `BEFORE INSERT/UPDATE` trigger on `sales_invoices` for every writer except the
+  service-role mirror and a no-JWT server load (the native path, and any definer RPC acting for a user); and
+  `create_progress_claim` (a claim reserves its gross when created; claims are immutable). It refuses (SQLSTATE
+  `BW001`, HTTP 422 from the dispatch) a work order that is not Issued/Closed, on another project or organisation, an
+  amount or currency it cannot check, and any amount that with everything already billed — including ERP commands
+  still in flight — would pass the value. Equal is allowed. A reduction is always allowed.
+- **DD-BWO-5 — concurrency.** Every billing write takes a transaction-scoped advisory lock keyed on the work order
+  before reading, so two Finance users invoicing one work order serialise and the second sees the first (in-flight
+  ERP commands count until mirrored). Not a row lock: `create_progress_claim` locks the project row and
+  `transition_work_order` locks work order then project; a work-order row lock taken after the project row would
+  invert that order. `create_progress_claim` takes the advisory lock before its project row lock.
+- **DD-BWO-6 — who.** "Invoice this work order" uses the existing invoice-create authority (Admin, Finance — the
+  dispatch's revenue write roles) and only where an invoice can be raised today (revenue on ERPNext; #784 will add the
+  native path, which the database already guards). Separation of duties is unchanged: the author cannot submit.
+- **DD-BWO-7 — Closed work orders can be invoiced** (a final invoice after the scope closes is normal; the same rule
+  as claims, 0250, and the assistant, DD-AIN-4). Draft and Cancelled cannot.
+- **DD-BWO-8 — an ordinary invoice create may name its work order.** The dispatch keeps `workOrderId` on create only
+  (its org is checked by the existing link pre-flight; project, status and amount by the fence); edits and amends
+  never move it (their work order is the mirror row's). The ERP draft's PO reference is the work order's client PO.
+  Supersedes the 0250-era rule "an ordinary invoice never takes a caller-supplied work order".
+- **DD-BWO-9 — the assistant** (amends DD-AIN-4): a work-order draft links the work order and defaults to what is
+  still to invoice on it, before tax; a stated amount above that, nothing left, or an untotallable work order is
+  refused before the approval chip.
+- **DD-BWO-10 — where it shows.** Per work order and project totals on the project's Work orders tab, to the revenue
+  read set (Admin, Executive, PM, Finance — `salesInvoice.view`); org-wide on the Executive and Finance dashboards
+  (totals per currency, never converted; the 8 work orders with the most left; days since a Closed one closed, in the
+  org's timezone; archived projects excluded). The Overview's contract-basis "Invoicing against contract"
+  (AC-UNB-001/003) is unchanged. Not on the PM dashboard in v1.
+- **DD-BWO-11 — invoices without a work order stay legal.** An invoice raised from Sales Invoices with no work order,
+  or a claim with none, is project-level: it counts in the contract view, not against any PO.
+- **DD-BWO-12 — the optional milestone → work order link is a follow-up.** Display only, no money effect; it touches
+  the milestone strip and its seven test files, so it ships as its own small issue.
+
+### 7.2 Owner questions (commercial facts only; each has the default the build uses)
+
+1. **Does the client correct an invoice with a credit note, or always cancel and re-issue?** Default: cancel and
+   re-issue (ERPNext amend). A credit note raised in ERPNext is not linked to a work order and does not reduce what the
+   work order shows invoiced.
+2. **Does the client's accounts-payable count a down-payment invoice against the PO's value?** Default: no — a down
+   payment is an advance recovered through the progress invoices, and the PO counts the work billed. With the down
+   payment fully recovered the two agree at the end.
+3. **Is a PO ever invoiced past its value by agreement (an accepted overrun without a revised PO)?** Default: never —
+   the client issues a new or replacement PO (Cancel + re-issue, DD-WO-5).
+
+### 7.3 Job stories
+
+- When I (Finance) receive the client's PO and the work is done, I want to invoice that PO in one step for what is
+  left on it, so the invoice carries the client's PO number and the PO is never over-billed.
+- When I (PM / Finance / Executive) look at a project or the portfolio, I want to see per PO what is invoiced, paid
+  and still to invoice, so "is it invoiced yet?" has an answer without asking anyone.
+
+### 7.4 Requirements (EARS)
+
+- **FR-BWO-001** The system shall derive, for each work order, excl. tax in its currency: its value, invoiced to date,
+  not yet submitted, paid and still to invoice, as defined by DD-BWO-1 and DD-BWO-2.
+- **FR-BWO-002** While an invoice linked to a work order has no amount or is in another currency than the work order,
+  the system shall report that work order's figures as not totalled instead of a figure.
+- **FR-BWO-003** When an invoice that names a work order is created, or its amount, tax, status or work order changes,
+  by any writer other than the ERP mirror writer or a no-JWT server load, the system shall refuse it if the work order
+  is not Issued or Closed, belongs to another project or organisation, the amount or currency cannot be checked, or
+  its billed work plus everything already billed or in flight against the work order would exceed the work order's
+  value excl. tax.
+- **FR-BWO-004** When an ERP sales-invoice create, edit or amend command with invoice lines is queued for an invoice
+  that names (create) or is mirrored with (edit, amend) a work order, the system shall apply FR-BWO-003 to the
+  command's line total before any ERP write, counting other commands still in flight against that work order.
+- **FR-BWO-005** When a progress claim names a work order, the system shall apply FR-BWO-003 to the claim's gross when
+  the claim is created.
+- **FR-BWO-006** The system shall never refuse the ERP mirror writer for exceeding a work order; when an excess arrives
+  from the ERP, the system shall show the work order as over-invoiced by the excess.
+- **FR-BWO-007** The system shall serialise every write that bills a work order on that work order.
+- **FR-BWO-008** When Admin or Finance chooses "Invoice this work order" on an Issued or Closed work order with
+  something still to invoice, on a project with a client, in an organisation whose revenue is on ERPNext, the system
+  shall create one ERPNext Draft sales invoice for the project's client with one line on a chosen ERP item, amount
+  pre-filled with what is still to invoice (editable to any amount above zero, at most 2 decimals, not above what is
+  left), linked to the work order, with the work order's client PO as the ERP PO reference.
+- **FR-BWO-009** Where the assistant drafts an invoice for a work order, the system shall link the work order, default
+  the amount to what is still to invoice, and refuse — before the approval chip — a stated amount above it, a work
+  order with nothing left, and a work order whose figures cannot be totalled.
+- **FR-BWO-010** While a work order has nothing still to invoice, nothing not yet submitted and every submitted invoice
+  on it Paid, the system shall show it as Paid.
+- **FR-BWO-011** The project's Work orders tab shall show the revenue read set, per work order, its billing status
+  (Not invoiced, Partly invoiced, Fully invoiced, Paid, Over-invoiced, Can't total) with invoiced, paid and still to
+  invoice, and for the project the totals over its Issued and Closed work orders, each figure labelled excl. PPN.
+- **FR-BWO-012** The Executive and Finance dashboards shall show the revenue read set what is still to invoice across
+  the organisation's Issued and Closed work orders on live projects: a total per currency with its count, the 8 work
+  orders with the most left (number or title, project, amount, and days since closed for a Closed one, in the
+  organisation's timezone), and how many could not be totalled.
+- **FR-BWO-013** The system shall have every new string in English and Indonesian.
+
+### 7.5 Observed (behaviour this amends)
+
+- **OBS-BWO-001** Before this amendment the dispatch dropped a caller-named work order on every ordinary invoice
+  (`dispatchFactory.ts` `resolveProgressClaimInvoice`); only claim invoices wrote `sales_invoices.work_order_id`
+  (AC-PB-013). Superseded by FR-BWO-008 / DD-BWO-8.
+- **OBS-BWO-002** The Overview's "Invoicing against contract" — contract value, invoiced to date and remaining to
+  invoice, each with its basis, normalised to the contract's basis (`calculateProjectInvoiceSummary`) — is shipped
+  (#786 AC-UNB-001 and AC-UNB-003) and unchanged.
+- **OBS-BWO-003** The assistant drafted a work-order invoice at the work order's full pre-tax value without linking it
+  (DD-AIN-4). Superseded by FR-BWO-009 / DD-BWO-9.
+
+### 7.6 Non-functional
+
+- **NFR-BWO-001 (money exactness)** SQL `numeric`; UI arithmetic in integer cents; equal to the value is allowed,
+  one cent over is refused.
+- **NFR-BWO-002 (security/tenancy)** Both views are `security_invoker` (RLS stays the boundary); the dashboard reader
+  is SECURITY INVOKER with no `anon` EXECUTE; the refusal helper, the lock and line-total helpers and both trigger
+  functions have no client EXECUTE; the migration asserts these grants on the database itself (hosted grant
+  defaults, 0185/0210). The 0178 allow-list stays at 59; the isolation denominator is unchanged.
+- **NFR-BWO-003 (performance)** The project read is one view query (≤ 500 work orders, refused above rather than
+  truncated); the dashboard is one RPC returning one jsonb document aggregated server-side, so its totals are not
+  bounded by PostgREST `max_rows`; the fence reads only the organisation's in-flight outbox rows.
+- **NFR-BWO-004 (reversibility)** `supabase/migrations/rollback/0262_billing_by_work_order_down.sql`.
+- **NFR-BWO-005 (honest states)** Loading shows skeletons; a failed or malformed read shows an error, never 0; figures
+  that cannot be totalled read "Unavailable" / "Can't total".
+
+### 7.7 Acceptance criteria (Given/When/Then)
+
+- **AC-BWO-001** Given a work order worth 555,000 incl. 55,000 tax with an Unpaid invoice of 222,000 incl. 22,000 tax,
+  a Paid invoice of 100,000 excl. tax, a Draft of 50,000, a Cancelled invoice of 80,000, an unraised progress claim of
+  40,000, a withdrawn claim of 30,000, an Unpaid claim invoice of net 24,000 whose claim recovered 6,000, and an Unpaid
+  down-payment invoice of 100,000, When Finance reads its billing, Then its value is 500,000, invoiced 330,000, not yet
+  submitted 90,000, paid 100,000 and still to invoice 80,000, from 6 counted records of which 3 are submitted and
+  unpaid; And a work order with no invoices reads nothing billed and its whole value still to invoice; And a work
+  order with an invoice that has no amount reads "not totalled"; And another organisation's Finance reads none of it;
+  And anon cannot read either view.
+- **AC-BWO-002** Given an Issued work order worth 1,000 excl. tax in an organisation whose revenue PMO owns, When
+  Finance records invoices of 600 then 401 against it, Then the 401 is refused (BW001) with a message naming 401.00,
+  the work order, 1000.00, 600.00 and 400.00; And exactly 400 is accepted and one cent more is refused; And a Draft or
+  a Cancelled work order is refused by name while a Closed one is accepted, and an invoice in another currency is
+  refused; And an ERP create of 600 in flight makes a second ERP create of 401 and a native invoice of 401 both
+  refused while one of 400 is accepted, and a failed command no longer counts; And an ERP command whose lines cannot be
+  read, one naming another organisation's work order and one naming another project's work order are refused; And an
+  ERP edit whose lines would pass the rest is refused while an edit with no lines passes; And the ERP mirror writer
+  recording an invoice past the value is accepted and the work order then reads over-invoiced; And an update that
+  raises an invoice past the value under a Finance JWT is refused, a reduction passes, and reviving a cancelled invoice
+  past the value is refused; And a progress claim whose gross would pass the work order is refused while one within it
+  is accepted, and that claim's own invoice command is left to the claim; And a billing write takes its work order's
+  advisory lock; And the helper, lock, line-total and trigger functions are not executable by anon or authenticated.
+- **AC-BWO-003** Given the ERP bench, an organisation with revenue on ERPNext and an Issued work order worth 300,000
+  excl. tax with client PO P, When Finance invoices 200,000 against it, Then ERPNext holds one Draft with PO
+  reference P and PMO shows 200,000 not yet submitted and 100,000 still to invoice; When Finance tries 150,000, Then
+  it is refused (HTTP 422, BW001) with a message saying only 100,000.00 is still to invoice, and ERPNext still holds
+  exactly one invoice with PO P; When a second user submits the first and Finance invoices exactly 100,000, Then PMO
+  shows invoiced 200,000, not yet submitted 100,000 and nothing still to invoice.
+- **AC-BWO-004** Given the project's Work orders tab, Then Finance, Admin, Executive and the PM see per work order its
+  billing status with invoiced, paid and still to invoice "excl. PPN" (Paid when fully invoiced and paid;
+  Over-invoiced with the excess; Can't total when an invoice cannot be added up), and an Engineer sees no billing;
+  And Finance and Admin see "Invoice" only on an Issued or Closed work order with something left, on a project with a
+  client, with revenue on ERPNext; And the dialog pre-fills what is left and the work order's label, requires an item,
+  refuses 0, more than is left and more than 2 decimals, sends one line linked to the work order for the project's
+  client, and keeps a server refusal on screen.
+- **AC-BWO-005** Given the assistant is asked to invoice a work order worth 1,000,000 before tax with 400,000 already
+  billed, Then the draft is 600,000 and names the work order; And a stated 700,000 is refused naming 600,000 left; And
+  a work order with nothing left, or with an invoice that cannot be totalled, is refused before the chip; And the
+  approved draft dispatches the work order with the create; And a replayed draft with a malformed work-order id is
+  refused.
+- **AC-BWO-006** Every new `projectDetail.workOrders.billing.*` and `dashboard.stillToInvoice.*` key exists, non-empty,
+  in English and Indonesian, and every such key the new screens use is in the catalogue.
+- **AC-UNB-001** *(shipped with #786, unchanged; restated for traceability)* Given a won project with invoices, When I
+  open it, Then I see contract value, invoiced to date and remaining to invoice, each with its tax basis label.
+- **AC-UNB-002** *(replaces the milestone-based AC-UNB-002, OD-BILL-1)* Given a project with Issued and Closed work
+  orders, When I open its Work orders tab, Then I see invoiced, paid and still to invoice across them, each "excl.
+  PPN", where still to invoice adds each work order's amount left (an over-invoiced one adds nothing, a Draft or
+  Cancelled one is not counted); And if any of them cannot be totalled the totals read "Unavailable".
+- **AC-UNB-004** Given Issued, Closed, Draft and Cancelled work orders, one on an archived project, one fully
+  invoiced, one that cannot be totalled and one Closed three days ago in an organisation on Asia/Jakarta time, When
+  Finance reads what is still to invoice, Then the total per currency counts only Issued and Closed work orders on
+  live projects with something left, the untotallable one is counted apart, the rows are ordered by amount left and
+  capped at the limit, the Closed one reads 3 days since closed; And another organisation reads only its own; And
+  anon cannot execute it and it is not SECURITY DEFINER.
+- **AC-UNB-005** Given the Executive or Finance dashboard, Then the card shows each currency's total "excl. PPN" with
+  its count, the work orders with the most left linking to their project's Work orders tab with days since closed for
+  a Closed one, the untotalled count, an empty state, a loading state and an error state with Retry; And a role
+  outside the revenue read set sees no card.
+
+### 7.8 AC owning layer (ADR-0010)
+
+| AC | Owning layer | Canonical proof |
+|---|---|---|
+| AC-BWO-001 | pgTAP | `supabase/tests/0262_work_order_billing_figures.test.sql` |
+| AC-BWO-002 | pgTAP | `supabase/tests/0262_work_order_billing_refusal.test.sql` (+ Deno `dispatchErrorStatus.test.ts` for the 422) |
+| AC-BWO-003 | Playwright (served lane + ERP bench) | `pmo-portal/e2e/serial/AC-BWO-003-invoice-work-order-erp.spec.ts` (+ Vitest `progressClaimInvoice.test.ts`, `salesInvoiceCommand.test.ts`, `useRevenue.workOrderBilling.test.tsx`) |
+| AC-BWO-004 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx` (+ `InvoiceWorkOrderModal.test.tsx`, `src/lib/workOrderBilling.test.ts`, `src/lib/db/workOrderBilling.test.ts`, `src/hooks/useWorkOrderBilling.test.tsx`) |
+| AC-BWO-005 | Vitest | `pmo-portal/src/lib/agent/draftInvoice.prepare.test.ts` (+ `draftInvoice.run.test.ts`) |
+| AC-BWO-006 | Vitest | `pmo-portal/src/lib/workOrderBilling.i18n.test.ts` |
+| AC-UNB-001 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/OverviewTab.test.tsx` (shipped) |
+| AC-UNB-002 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx` |
+| AC-UNB-004 | pgTAP | `supabase/tests/0262_unbilled_work_orders.test.sql` |
+| AC-UNB-005 | Vitest/RTL | `pmo-portal/src/components/dashboard/__tests__/StillToInvoiceCard.test.tsx` |
+
+### 7.9 Out of scope
+
+The milestone → work order display link (DD-BWO-12, follow-up); native invoicing without an ERP (#784 — the database
+rule already covers it); credit notes against work orders (owner question 1); currency conversion; per-line work-order
+allocation of one invoice across several work orders (one invoice bills one work order); a PM dashboard card;
+reflecting an ERPNext Desk edit back as a refusal (it is shown as over-invoiced, never refused).

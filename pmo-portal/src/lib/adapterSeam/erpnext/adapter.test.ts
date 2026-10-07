@@ -25,12 +25,12 @@ function baseDeps(fetchImpl: (url: string, init?: RequestInit) => Promise<Respon
 }
 
 describe('erpnext/adapter — capability + tier', () => {
-  it('exposes tier="erpnext" and capabilityMap={companies,procurement,revenue,timesheets,budget}', () => {
+  it('exposes tier="erpnext" and capabilityMap={companies,procurement,revenue,timesheets,budget,expenses}', () => {
     const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
     expect(adapter.tier).toBe(ERPNEXT_TIER);
     // P3b adds `timesheets` (ADR-0059 Posture B) — additively; the router reads capabilityMap generically.
     // P3c adds `budget` (ADR-0055 §6, also Posture B) — likewise additively.
-    expect(adapter.capabilityMap).toEqual(new Set(['companies', 'procurement', 'revenue', 'timesheets', 'budget']));
+    expect(adapter.capabilityMap).toEqual(new Set(['companies', 'procurement', 'revenue', 'timesheets', 'budget', 'expenses']));
   });
 });
 

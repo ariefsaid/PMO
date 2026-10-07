@@ -39,6 +39,14 @@ export interface ErrorSummaryItem {
   message: string;
 }
 
+/** Copy for the dirty-discard confirm; omit to keep the English default. */
+export interface DiscardCopy {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+}
+
 /** A rejected mutation, already classified for humans (see `classifyMutationError`). */
 export interface SubmitError {
   headline: string;
@@ -57,6 +65,13 @@ export interface EntityFormModalProps {
   onClose: () => void;
   /** Disable the submit (e.g. while the form is invalid). */
   submitDisabled?: boolean;
+  /**
+   * The screen-reader reason a disabled submit is described by. Defaults to the required-fields hint;
+   * pass your own when the submit is disabled for another reason (e.g. an invalid value).
+   */
+  disabledReason?: string;
+  /** Translated/specific copy for the dirty-discard confirm (default: English generic). */
+  discardCopy?: DiscardCopy;
   /** Mutation in flight: footer spinner + Esc/scrim lockout. */
   loading?: boolean;
   /** Dirty => Cancel/Esc/scrim asks to confirm discard. */
@@ -94,6 +109,8 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   onSubmit,
   onClose,
   submitDisabled,
+  disabledReason = 'Complete all required fields (marked with an asterisk) to save.',
+  discardCopy,
   loading = false,
   dirty = false,
   errorSummary,
@@ -164,17 +181,31 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
 
     triggerRef.current = document.activeElement as HTMLElement | null;
     const root = dialogRef.current;
-    // First real form field; fall back to any focusable; then the dialog container itself.
-    const firstField = root?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    // First real form field; fall back to any focusable; then the dialog container itself. A `Combobox` picker is a
+    // form field too (its trigger is a role="combobox" button): skipping it opened a form whose first field is a picker
+    // on the next text box instead (#785 — the invoice dialog landed on its pre-filled description).
+    const firstField = root?.querySelector<HTMLElement>(
+      'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role="combobox"]:not([disabled])',
+    );
     const firstAny = root?.querySelector<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
     (firstField ?? firstAny ?? root)?.focus();
 
     // C-2 cleanup: restore focus when this effect re-runs (open→false) OR when the
     // component is unmounted while still open (conditional-render consumer).
     return () => {
-      if (triggerRef.current) {
-        triggerRef.current.focus();
-        triggerRef.current = null;
+      const trigger = triggerRef.current;
+      triggerRef.current = null;
+      if (!trigger) return;
+      trigger.focus();
+      // AC-A11Y-MODAL-002: on Discard the nested confirm leaves in the SAME commit and still holds its share of the
+      // background `inert` while this cleanup runs, so the focus above is a silent no-op and focus lands on <body>.
+      // Every cleanup of the commit runs synchronously, so a microtask retry runs once the background is live again.
+      if (trigger.closest('[inert]')) {
+        queueMicrotask(() => {
+          // Never steal focus something else has deliberately taken in the meantime.
+          const stranded = !document.activeElement || document.activeElement === document.body;
+          if (stranded && trigger.isConnected && !trigger.closest('[inert]')) trigger.focus();
+        });
       }
     };
   }, [open]);
@@ -355,7 +386,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
             <div className="border-t border-border px-[18px] py-3.5">
               {submitDisabled && (
                 <span id={disabledReasonId} className="sr-only">
-                  Complete all required fields (marked with an asterisk) to save.
+                  {disabledReason}
                 </span>
               )}
               <FormActions
@@ -375,10 +406,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
       <ConfirmDialog
         open={confirmDiscard}
         tone="destructive"
-        title="Discard your changes?"
-        description="This form has unsaved changes. Discarding will lose them."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={discardCopy?.title ?? 'Discard your changes?'}
+        description={discardCopy?.description ?? 'This form has unsaved changes. Discarding will lose them.'}
+        confirmLabel={discardCopy?.confirmLabel ?? 'Discard'}
+        cancelLabel={discardCopy?.cancelLabel ?? 'Keep editing'}
         onConfirm={() => {
           setConfirmDiscard(false);
           onClose();

@@ -162,7 +162,8 @@ merge):
   fine-grained "only Admin may edit win-probabilities" tightening is deferred to the config bridge
   (OD-PROC-6), exactly as OD-BUDGET-3 deferred "only Finance may mark Active". Read is in-org for all.
   *Confirm* the coarse-gate default (vs Admin-only). (Low stakes: no editing UI ships this issue, so the
-  gate is exercised only by pgTAP + seed.)
+  gate is exercised only by pgTAP + seed.) **Superseded (#909, migration 0268): the write gate is
+  Admin-only, per OD-SP-2.**
 - **OD-PR-B (permissive transition map — sensible forward AND back) — assumed.** The issue brief asks for a
   "permissive map … allow sensible forward/back moves". The spec assumes the explicit map in FR-PR-003:
   pipeline stages step forward/back one-or-more, any pipeline stage can be lost, win is reachable from the
@@ -232,9 +233,9 @@ merge):
   organizations DEFAULT '0000…0001', status project_status, win_probability numeric(4,3), primary key
   (org_id, status))` with `enable row level security` + `force row level security`, a `pipeline_stage_config
   _select` policy (`using (org_id = auth_org_id())`, read-in-org), and a `pipeline_stage_config_write`
-  policy (FOR ALL, `using`/`with check` = `org_id = auth_org_id() and auth_role() in ('Admin','Executive',
-  'Project Manager','Finance')` per OD-PR-A). The `org_id` seam is client-unspoofable (column default +
-  `with check`).
+  policy (FOR ALL, `using`/`with check` = `org_id = auth_org_id() and auth_role() = 'Admin'` — OD-SP-2's
+  admin-configurable seam; narrowed from OD-PR-A's coarse role set by migration 0268). The `org_id` seam is
+  client-unspoofable (column default + `with check`).
 - **FR-PR-009** — The migration shall seed `pipeline_stage_config` for the default org with the OD-SP-2
   defaults: `Leads → 0.10`, `PQ Submitted → 0.25`, `Quotation Submitted → 0.40`, `Tender Submitted → 0.50`,
   `Negotiation → 0.75` (the five pipeline stages; no row for won/on-hand/lost/internal statuses).
@@ -355,8 +356,8 @@ AC names its id as the leading token (traceability) and is annotated with its **
 - **AC-1010** *(pgTAP)* — `pipeline_stage_config` RLS + seed + anon-revoke.
   Given the `pipeline_stage_config` table, When an in-org authenticated user SELECTs it Then they read their
   org's rows; When an org-B user SELECTs Then org-A rows are not visible (cross-org isolated); When an
-  Engineer-role user attempts an `insert`/`update` Then it is blocked by RLS, and an authorized (PM) write
-  succeeds (OD-PR-A); And the default-org seed has exactly the five OD-SP-2 rows with the documented
+  Engineer- or PM-role user attempts an `insert`/`update` Then it is blocked by RLS, and an Admin write
+  succeeds (OD-SP-2, migration 0268); And the default-org seed has exactly the five OD-SP-2 rows with the documented
   probabilities; And the `anon` role cannot execute `transition_project`. *(FR-PR-008/009/010)*
 - **AC-1011** *(E2E)* — Win a project end-to-end (single curated journey).
   Given an authorized user (PM) signed in on the Projects page with a project in a late pipeline stage, When

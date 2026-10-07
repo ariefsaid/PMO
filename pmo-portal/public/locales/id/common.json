@@ -1,10 +1,70 @@
 {
+  "efaktur": {
+    "title": "Catat detail e-Faktur",
+    "number": "Nomor e-Faktur",
+    "date": "Tanggal e-Faktur",
+    "column": "e-Faktur",
+    "record": "Catat e-Faktur",
+    "subtitle": "Untuk {{record}}. Catat nomor beserta tanggalnya, atau biarkan keduanya kosong untuk dokumen non-PPN.",
+    "invalidNumber": "Gunakan maksimal 32 angka, titik, atau tanda hubung.",
+    "numberMissing": "Isi juga nomor e-Faktur, atau kosongkan tanggalnya.",
+    "dateMissing": "Isi juga tanggal e-Faktur, atau kosongkan nomornya.",
+    "futureDate": "Tanggal e-Faktur tidak boleh di masa depan.",
+    "invalidDate": "Masukkan tanggal yang valid.",
+    "disabledReason": "Perbaiki nilai e-Faktur yang ditandai untuk menyimpan.",
+    "notSaved": "e-Faktur tidak disimpan",
+    "refusedIncomplete": "Catat nomor e-Faktur beserta tanggalnya.",
+    "refusedCancelled": "Faktur ini sudah dibatalkan, sehingga e-Fakturnya tidak dapat dicatat lagi. Daftar telah diperbarui.",
+    "cancel": "Batal",
+    "discardTitle": "Buang detail e-Faktur ini?",
+    "discardDescription": "Nomor dan tanggal yang Anda isi tidak akan disimpan.",
+    "discard": "Buang",
+    "keepEditing": "Lanjut mengedit",
+    "saved": "Detail e-Faktur disimpan"
+  },
   "budget": {
     "category": {
       "specialExpenses": "Biaya khusus"
     }
   },
   "admin": {
+    "expenseMap": {
+      "change": "Ubah {{key}}",
+      "clear": "Hapus {{key}}",
+      "confirmClear": {
+        "confirm": "Hapus",
+        "description": "Posting yang memerlukan akun ini akan berhenti sampai akun dipetakan lagi.",
+        "title": "Hapus {{key}}?"
+      },
+      "description": "Akun ERPNext tempat klaim biaya dan uang muka yang disetujui diposting. Posting yang memerlukan akun yang belum dipetakan akan berhenti dan dilaporkan.",
+      "error": {
+        "title": "Tidak dapat memuat peta akun biaya"
+      },
+      "form": {
+        "account": "Akun ERP",
+        "legend": "Akun",
+        "placeholder": "mis. Employee Payable - ABC",
+        "required": "Akun ERP wajib diisi.",
+        "save": "Simpan akun",
+        "subtitle": "ERPNext memeriksa akun sebelum disimpan"
+      },
+      "key": {
+        "accommodation": "Akomodasi",
+        "employeeAdvance": "Uang muka karyawan",
+        "employeePayable": "Utang karyawan",
+        "localTransport": "Transportasi lokal",
+        "meals": "Makan",
+        "other": "Lainnya",
+        "travel": "Perjalanan"
+      },
+      "map": "Petakan {{key}}",
+      "title": "Peta akun biaya",
+      "toast": {
+        "saved": "Akun biaya disimpan"
+      },
+      "unmapped": "Belum dipetakan — posting biaya berhenti",
+      "unmappedIdle": "Belum dipetakan"
+    },
     "access": {
       "checking": "Memeriksa akses Administrasi Anda…",
       "checkEntry": "Periksa akses Administrasi",
@@ -286,6 +346,19 @@
         "projectRequired": "Pilih proyek.",
         "save": "Tambah"
       }
+    },
+    "vendorTaxAccounts": {
+      "heading": "Akun pajak tagihan vendor",
+      "helper": "Masukkan nama akun ERPNext yang persis. Kosongkan jika tidak digunakan.",
+      "inputVat": "Akun PPN Masukan",
+      "intro": "Akun ERPNext tempat PMO membukukan PPN dan pajak dipotong pada tagihan vendor. Wajib diisi sebelum tagihan dengan jumlah tersebut dapat dikirim ke ERPNext.",
+      "loadError": "Tidak dapat memuat akun pajak",
+      "notConfigured": "Belum dikonfigurasi",
+      "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
+      "pph23": "Akun Utang PPh 23",
+      "pph42": "Akun Utang PPh 4(2)",
+      "save": "Simpan akun",
+      "saved": "Akun pajak disimpan"
     }
   },
   "approvals": {
@@ -647,6 +720,24 @@
       "client": "Klien",
       "internal": "Internal",
       "vendor": "Vendor"
+    },
+    "vendorTax": {
+      "hint": "Mengisi otomatis tagihan baru dari vendor ini. Jumlahnya tetap dapat diubah di setiap tagihan.",
+      "none": "Tidak ada",
+      "notSet": "Belum diatur",
+      "onlyRoles": "Hanya Admin atau Finance yang dapat mengubahnya.",
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)",
+      "pphRate": "Tarif PPh (%)",
+      "pphRateError": "Masukkan tarif di atas 0 dan di bawah 100 dengan paling banyak 3 angka desimal.",
+      "save": "Simpan default",
+      "saved": "Default pajak vendor disimpan",
+      "summaryPph": "{{type}} sebesar {{rate}}%",
+      "summaryVat": "PPN {{rate}}%",
+      "title": "Default pajak vendor",
+      "vatRate": "Tarif PPN (%)",
+      "vatRateError": "Masukkan tarif 0 sampai 100 dengan paling banyak 3 angka desimal, atau kosongkan.",
+      "withholding": "Pemotongan pajak"
     }
   },
   "contactDetail": {
@@ -919,6 +1010,16 @@
       "activeProjects": "proyek aktif",
       "statuses": "status"
     },
+    "stillToInvoice": {
+      "count": "Work Order: {{n}}",
+      "daysSinceClosed": "Hari sejak ditutup: {{days}}",
+      "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",
+      "error": "Gagal memuat yang belum ditagih",
+      "incomplete": "Work Order yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
+      "title": "Belum ditagih per Work Order",
+      "incompleteMore": "dan {{n}} lainnya",
+      "clientPo": "PO klien {{po}}"
+    },
     "subtitle": {
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
@@ -929,6 +1030,41 @@
     }
   },
   "expenses": {
+    "postings": {
+      "errorSub": "Klaim itu sendiri tidak terpengaruh. Coba lagi.",
+      "errorTitle": "Tidak dapat memuat posting buku besar",
+      "kind": {
+        "advancePayment": "Pembayaran uang muka",
+        "advanceReturn": "Pengembalian tunai",
+        "approval": "Jurnal persetujuan",
+        "approvalCancel": "Persetujuan dibatalkan",
+        "claimPayment": "Pembayaran tunai",
+        "settlement": "Penyelesaian uang muka"
+      },
+      "state": {
+        "cancelledInErp": "Dibatalkan di ERPNext",
+        "failed": "Gagal",
+        "held": "Perlu operator",
+        "pending": "Dalam antrean",
+        "pushed": "Terposting"
+      },
+      "title": "Posting buku besar",
+      "reason": {
+        "accountInvalid": "Akun yang dipetakan tidak valid di ERPNext.",
+        "accountUnmapped": "Ada akun biaya yang belum dipetakan (Administrasi › Akuntansi).",
+        "actor": "Orang yang menyetujui atau membayar ini tidak lagi dapat mempostingnya.",
+        "approvalCancelled": "Jurnal persetujuan dibatalkan di ERPNext.",
+        "cashAccount": "Koneksi ERPNext tidak memiliki akun kas atau bank.",
+        "changed": "Klaim berubah setelah posting ini masuk antrean.",
+        "claimCancelled": "Klaim dibatalkan sebelum ini diposting.",
+        "config": "Pengaturan koneksi ERPNext tidak mengizinkan posting ini.",
+        "employeeUnlinked": "Pengaju klaim belum ditautkan ke karyawan ERPNext.",
+        "operator": "PMO tidak dapat memastikan apa yang tercatat di ERPNext. Operator harus memeriksanya.",
+        "other": "Posting tidak dapat diselesaikan. Admin telah diberi tahu beserta detailnya.",
+        "projectUnmapped": "Proyek klaim belum ditautkan ke proyek ERPNext.",
+        "unreachable": "ERPNext tidak dapat dihubungi. Akan dicoba lagi secara otomatis."
+      }
+    },
     "actions": {
       "approve": "Setujui",
       "cancel": "Batalkan",
@@ -1557,8 +1693,26 @@
     },
     "erpTaxTemplate": {
       "label": "Templat pajak ERPNext",
-      "default": "Bawaan ERPNext",
-      "loadError": "Templat pajak ERPNext tidak dapat dimuat. Bawaan ERPNext akan digunakan."
+      "enterAmounts": "Masukkan jumlah pajak",
+      "loadError": "Templat pajak ERPNext tidak dapat dimuat. Masukkan jumlah pajaknya."
+    },
+    "withholding": {
+      "netPayable": "Neto yang harus dibayar",
+      "vat": "PPN",
+      "withheld": "Pajak dipotong (PPh)"
+    },
+    "vendorTax": {
+      "erpRequiredHint": "Masukkan jumlah PPN dari faktur vendor (0 jika tidak ada) dan, jika ada pajak dipotong, jenis dan jumlahnya.",
+      "itemsNet": "Total item, sebelum pajak: {{amount}}",
+      "none": "Tidak ada",
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)",
+      "suggestedFrom": "Default vendor {{rate}}% dari {{base}}",
+      "vatAmount": "Jumlah PPN",
+      "withheldAmount": "Jumlah PPh",
+      "withheldError": "Masukkan pajak dipotong sebagai jumlah yang tidak melebihi jumlah faktur (isi jumlah faktur terlebih dahulu).",
+      "withholding": "Pajak dipotong",
+      "withheldAboveItems": "Pajak dipotong lebih besar dari total item sebelum pajak. Periksa jumlah PPh."
     }
   },
   "projectDetail": {
@@ -1714,7 +1868,7 @@
         "exclTax": "belum termasuk PPN",
         "gap": "Pekerjaan selesai, belum ditagih",
         "noAssessment": "Belum ada penilaian",
-        "notSubmitted": "Diterbitkan, belum di-submit",
+        "notSubmitted": "Klaim diterbitkan, belum dikirim",
         "remaining": "Kontrak belum ditagih",
         "title": "Ringkasan penagihan"
       }
@@ -2322,13 +2476,70 @@
         "new": "Work Order baru",
         "setValue": "Tetapkan nilai"
       },
+      "billing": {
+        "column": "Penagihan",
+        "incompleteNote": "Salah satu faktur pada Work Order ini tidak memiliki jumlah atau memakai mata uang lain, sehingga totalnya tidak dapat dijumlahkan.",
+        "invoiceAction": "Tagih",
+        "invoiced": "Sudah ditagih",
+        "lineInvoiced": "Ditagih {{invoiced}} · dibayar {{paid}}",
+        "lineOver": "Lebih {{amount}}",
+        "lineRemaining": "Sisa untuk ditagih {{amount}}",
+        "loadError": "Gagal memuat penagihan Work Order ini",
+        "modal": {
+          "amount": "Jumlah (belum termasuk PPN)",
+          "amountHelp": "Paling banyak {{remaining}} yang belum ditagih pada Work Order ini.",
+          "description": "Deskripsi",
+          "errorHeadline": "Tagihan ini akan melewati nilai Work Order",
+          "errors": {
+            "amountInvalid": "Masukkan jumlah dengan paling banyak 2 angka desimal.",
+            "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
+            "amountPositive": "Jumlah harus lebih dari nol.",
+            "itemRequired": "Pilih item ERP.",
+            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya."
+          },
+          "item": "Item ERP",
+          "itemCode": "Kode item",
+          "submit": "Buat draf faktur",
+          "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
+          "title": "Tagih Work Order ini",
+          "createFailed": "Draf faktur tidak dapat dibuat",
+          "cancel": "Batal",
+          "clientPo": "PO klien pada faktur",
+          "clientPoNone": "Tidak ada pada Work Order ini"
+        },
+        "paid": "Dibayar",
+        "status": {
+          "fullyInvoiced": "Sudah ditagih penuh",
+          "incomplete": "Tidak dapat dijumlahkan",
+          "notInvoiced": "Belum ditagih",
+          "overInvoiced": "Tagihan berlebih",
+          "paid": "Lunas",
+          "partlyInvoiced": "Ditagih sebagian",
+          "awaitingSubmission": "Menunggu dikirim"
+        },
+        "stillToInvoice": "Sisa untuk ditagih",
+        "summaryNote": "Work Order yang diterbitkan dan ditutup, dikurangi yang sudah ditagih atau masih draf.",
+        "summaryTitle": "Penagihan per Work Order",
+        "toast": {
+          "created": "Draf faktur dibuat",
+          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan."
+        },
+        "unavailable": "Tidak tersedia",
+        "notSubmitted": "Belum dikirim",
+        "lineNotSubmitted": "Belum dikirim {{amount}}",
+        "lineNet": "Nilai neto {{amount}}",
+        "cause": {
+          "noAmount": "{{number}} tidak memiliki jumlah",
+          "otherCurrency": "{{number}} dalam {{currency}}",
+          "anInvoice": "Sebuah faktur"
+        }
+      },
       "clientPo": "PO klien",
       "column": {
         "actions": "Tindakan",
         "number": "Nomor WO",
         "orderDate": "Tanggal order",
         "status": "Status",
-        "title": "Lingkup",
         "value": "Nilai order"
       },
       "confirm": {
@@ -3107,7 +3318,8 @@
         "companies": "Perusahaan",
         "procurement": "Pengadaan",
         "revenue": "Pendapatan",
-        "timesheets": "Lembar waktu"
+        "timesheets": "Lembar waktu",
+        "expenses": "Biaya"
       }
     }
   },
@@ -3170,6 +3382,23 @@
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
   "financeCopy": {
+    "invoicePdf": {
+      "download": "Unduh PDF",
+      "downloaded": "PDF diunduh — {{name}}",
+      "failed": "PDF tidak dapat diunduh",
+      "notPermitted": "ERP menolak mencetak faktur ini. Minta administrator memberi pengguna integrasi akses Cetak untuk Faktur Penjualan.",
+      "notPermittedAdmin": "ERP menolak mencetak faktur ini. Buka Administrasi → Integrasi untuk memeriksa koneksi, lalu beri pengguna integrasi akses Cetak untuk Faktur Penjualan di ERPNext.",
+      "documentMissing": "ERP tidak lagi memiliki faktur ini.",
+      "notSubmitted": "Hanya faktur yang sudah diajukan yang dapat diunduh — faktur ini mungkin sudah dibatalkan.",
+      "notErpInvoice": "Faktur ini tidak diterbitkan melalui ERP, jadi tidak ada PDF dari ERP.",
+      "notConnected": "Koneksi ERP tidak aktif. Minta administrator memeriksa Integrasi.",
+      "notConnectedAdmin": "Koneksi ERP tidak aktif. Buka Administrasi → Integrasi dan hubungkan kembali ERP.",
+      "notFound": "Faktur ini tidak lagi tersedia.",
+      "forbidden": "Anda tidak memiliki akses untuk mengunduh faktur ini.",
+      "unreachable": "PMO tidak dapat menghubungi layanan unduhan. Coba lagi sebentar lagi.",
+      "preparing": "Menyiapkan PDF…",
+      "sessionExpired": "Sesi Anda telah berakhir — masuk lagi."
+    },
     "receivedDate": "Diterima",
     "recordReceivedDate": "Catat tanggal diterima",
     "receivedDateHelp": "Tanggal klien menerima faktur ini. Tanggal jatuh tempo mengikuti tanggal ini.",
@@ -3195,6 +3424,8 @@
     "total": "Total",
     "addBudgetLineItem": "+ Tambah item anggaran",
     "activate": "Aktifkan",
+    "activateDrafterBlocked": "Anda menyusun versi ini, jadi orang lain yang harus mengaktifkannya.",
+    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
     "deleteDraft": "Hapus draf",
     "archive": "Arsipkan",
     "cloneToRevise": "Salin untuk revisi",

@@ -53,6 +53,7 @@ import {
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
@@ -133,17 +134,20 @@ type PendingConfirm =
       taxRate?: number | null;
       taxBaseNumerator?: number;
       taxBaseDenominator?: number;
-      /** #520: the ERPNext purchase tax template chosen on a flipped org; absent = ERPNext default. */
+      /** #520: the ERPNext purchase tax template chosen on a flipped org. */
       taxTemplate?: string;
+      /** #876 slice 2: standalone tax withheld + its PPh type (only when > 0, OQ-VWH-6) and the ERP-bound entered amounts. */
+      withheldAmount?: number;
+      withheldPphType?: PphType;
+      erpTaxAmounts?: ErpVendorTaxAmounts;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
 
 /**
  * Returns the list of (from→to) transitions that should be shown to this role.
- * Cosmetic only — the RPC enforces for real (AC-805, FR-PROC-006). PRESERVED:
- * the matrix below is byte-identical to the prior implementation, only the
- * button-variant vocabulary maps onto the design-system Button variants.
+ * Cosmetic only — the RPC enforces for real (AC-805, FR-PROC-006); it mirrors
+ * transition_procurement's matrix (submit: the requester, or a real Admin).
  */
 function allowedActions(
   status: ProcurementStatus,
@@ -162,8 +166,8 @@ function allowedActions(
 
   const legal = (to: ProcurementStatus) => isLegalTransition(status, to);
 
-  // Draft → Requested: any member (FR-PROC-005)
-  if (legal('Requested')) {
+  // Draft → Requested: the requester, any role; Admin break-glass (OD-PROC-1, FR-PROC-005)
+  if (legal('Requested') && (isRequester || role === 'Admin')) {
     actions.push({ to: 'Requested', label: t('procurementDetail.action.submitRequest', 'Submit Request'), variant: 'primary' });
   }
 
@@ -438,6 +442,8 @@ const ProcurementDetails: React.FC = () => {
   const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
   const canManageFiles = may('create', 'procFile');
+  // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
+  const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
   const currentUserId = currentUser?.id ?? null;
 
   // Shared classified-toast helper for the CRUD section mutations.
@@ -635,6 +641,9 @@ const ProcurementDetails: React.FC = () => {
           taxAmount: pendingConfirm.taxAmount,
           taxRate: pendingConfirm.taxRate, taxBaseNumerator: pendingConfirm.taxBaseNumerator, taxBaseDenominator: pendingConfirm.taxBaseDenominator,
           ...(pendingConfirm.taxTemplate ? { taxTemplate: pendingConfirm.taxTemplate } : {}),
+          ...(pendingConfirm.withheldAmount && pendingConfirm.withheldPphType
+            ? { withheldAmount: pendingConfirm.withheldAmount, withheldPphType: pendingConfirm.withheldPphType } : {}),
+          ...(pendingConfirm.erpTaxAmounts ? { erpTaxAmounts: pendingConfirm.erpTaxAmounts } : {}),
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
@@ -1026,6 +1035,16 @@ const ProcurementDetails: React.FC = () => {
               procurementId={p.id}
               uploadedById={currentUserId}
               canWrite={canManageFiles}
+              canRecordEfaktur={canRecordEfaktur}
+              efakturSaving={mutations.setEfaktur.isPending}
+              onSetEfaktur={async (invoiceId, values) => {
+                await mutations.setEfaktur.mutateAsync({ invoiceId, ...values });
+                toast(
+                  t('efaktur.saved', 'e-Faktur details saved'),
+                  p.invoices?.find((inv) => inv.id === invoiceId)?.vi_number ?? undefined,
+                  'success',
+                );
+              }}
               invoices={p.invoices}
             />
           </Card>

@@ -241,10 +241,21 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect((await push({ taxes: forged, items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null)).body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
   });
 
-  it('AC-PB-020 an ordinary invoice never takes a caller-supplied work order', async () => {
+  // OD-BILL-1 / DD-BWO-8 deliberately reverses the 0250-era rule this test used to pin ("an ordinary invoice never
+  // takes a caller-supplied work order"). The protection moved rather than disappeared: the link pre-flight checks the
+  // work order's org, and the outbox fence (0262, AC-BWO-002) checks its project, status and what is left BEFORE any
+  // ERP write — so the stranded-mirror risk the old rule avoided cannot occur.
+  it('AC-BWO-003 an ordinary invoice create keeps the work order it names and takes the client PO from it', async () => {
     const { body, command: cmd } = await push({ workOrderId: 'wo-1', items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, null);
+    expect(cmd.record.workOrderId).toBe('wo-1');
+    expect(body.po_no).toBe('WO-PO-001');
+  });
+
+  it('AC-BWO-003 an edit never moves an ordinary invoice onto a caller-named work order', async () => {
+    const cmd = command({ id: 'si-9', workOrderId: 'wo-1', externalRecordId: 'SYNTHETIC-SI-9', items: [{ item_code: 'OWN-ITEM', qty: 1, rate: 1 }] }, 'update');
+    const { attempt } = refused(cmd, null);
+    await attempt.catch(() => undefined);
     expect(cmd.record.workOrderId).toBeUndefined();
-    expect(body.po_no).toBeUndefined();
   });
 
   it('AC-PB-007 refuses a case-variant claim id before any ERP call (one claim, one invoice)', async () => {

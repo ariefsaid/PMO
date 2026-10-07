@@ -14,6 +14,7 @@
 // Stub Deno.serve so importing index.ts (top-level Deno.serve) does not bind a port under deno test.
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { sweepKindsForOrg, sweepFieldsForKind, KINDS_NEEDING_FULL_DOC } = await import('./index.ts');
+import { DOCTYPE_REGISTRY } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
 import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { EMPLOYEE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/employee.ts';
@@ -146,18 +147,29 @@ Deno.test('AC-TSP-003 an org owning `timesheets` alone still polls NO companies/
 // → confirm_erp_employee_link → approved hours posting against that Employee's costing rate), so
 // admitting another tenant's Employee is a tenancy leak with a money consequence. The poll therefore
 // requests `company` and conjoins it, exactly like every other company-scoped kind.
-Deno.test('AC-TSP-003/HIGH-B the Employee poll fetches every field employeeFromDoc consumes, the lifecycle routing fields, AND the company dimension it is scoped by', () => {
+Deno.test('AC-TSP-003/HIGH-B the Employee poll fetches every field employeeFromDoc consumes, lifecycle routing fields, AND the company dimension it is scoped by', () => {
   const fields = sweepFieldsForKind('employee');
   for (const required of EMPLOYEE_FROM_DOC_FIELDS) {
     assert(fields.includes(required), `the Employee poll must fetch every field its mapper reads — missing '${required}'`);
   }
-  for (const required of ['name', 'modified', 'docstatus', 'amended_from']) {
+  for (const required of ['name', 'modified', 'docstatus']) {
     assert(fields.includes(required), `expected the Employee poll to fetch the lifecycle routing field '${required}'`);
   }
+  assert(!fields.includes('amended_from'), 'Employee is not submittable and must not request amended_from');
   assert(
     fields.includes('company'),
     'HIGH-B: Employee IS company-scoped — without fetching `company` the per-document admission gate is blind and (failing closed) would adopt nothing at all',
   );
+});
+
+Deno.test('AC-921 sweep requests amended_from exactly for registered submittable doctypes', () => {
+  for (const [kind, entry] of Object.entries(DOCTYPE_REGISTRY)) {
+    const fields = sweepFieldsForKind(kind as Parameters<typeof sweepFieldsForKind>[0]);
+    assert(
+      fields.includes('amended_from') === entry.submittable,
+      `kind '${kind}' submittable=${entry.submittable} but amended_from ${fields.includes('amended_from') ? 'is present' : 'is absent'}`,
+    );
+  }
 });
 
 Deno.test('HIGH-B every company-scoped kind FETCHES `company` — the half-fix (scope it, but never read it) fails closed and breaks adoption entirely', () => {

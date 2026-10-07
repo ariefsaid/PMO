@@ -39,6 +39,18 @@ export const ALLOWED_SKIPS = [
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
     verified: '2026-10-05',
   },
+  {
+    file: 'serial/AC-VWH-005-vendor-withholding.spec.ts',
+    reason: 'Vendor withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
+    verified: '2026-10-07',
+  },
+  {
+    file: 'serial/AC-VWH-036-vendor-tax-amounts.spec.ts',
+    reason: 'Entered vendor-tax amounts proof requires the local served-functions lane and throwaway ERPNext bench.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
+    verified: '2026-10-07',
+  },
   // ── Served lane absent: config.toml sets [edge_runtime] enabled = false in CI *and* local, so
   // nothing serves functions/v1 unless scripts/serve-functions.sh is running (it exports
   // SUPABASE_FUNCTIONS_URL). These run in the served lane and skip everywhere else.
@@ -91,6 +103,18 @@ export const ALLOWED_SKIPS = [
     reason: 'Progress-billing ledger proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle is the ERP GL). The spec now enables Allow Negative rates and its tax template on the bench itself; the bench is still not provisioned in CI.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
     verified: '2026-10-06',
+  },
+  {
+    file: 'serial/AC-EXP-140-expense-postings-erp.spec.ts',
+    reason: 'Expense posting ledger proof needs the served functions lane (it drives erpnext-sweep) and the throwaway ERPNext bench (its goal oracle is the ERP documents and the GL mirror); the bench is not provisioned in CI.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
+    verified: '2026-10-07',
+  },
+  {
+    file: 'serial/AC-BWO-003-invoice-work-order-erp.spec.ts',
+    reason: 'Work-order billing proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle includes the ERP Sales Invoice list for the PO); the bench is not provisioned in CI.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
+    verified: '2026-10-07',
   },
 
   // ── Feature-flag quarantine: the incidents module is OFF. Code/DAL/RLS are preserved.

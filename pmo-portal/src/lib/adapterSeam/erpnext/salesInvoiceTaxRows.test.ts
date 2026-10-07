@@ -8,7 +8,7 @@ type Row = Record<string, unknown>;
 const ORG = 'org-1';
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
-function serviceClient(project: Row | null, orgCurrency = 'IDR', currencyRowGone = false): DispatchServiceClient {
+function serviceClient(project: Row | null, orgCurrency = 'IDR', currencyRowGone = false, extra: Record<string, Row[]> = {}): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }],
@@ -18,6 +18,7 @@ function serviceClient(project: Row | null, orgCurrency = 'IDR', currencyRowGone
     work_orders: [],
     sales_invoices: [],
     progress_claims: [],
+    ...extra,
   };
   return {
     from(table: string) {
@@ -256,5 +257,44 @@ describe('ordinary sales invoice tax rows (#856)', () => {
       doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
     })).rejects.toMatchObject({ code: 'commit-rejected' });
     expect(erp.fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('an ordinary invoice edit or amend is stated in its own currency (OD-BILL-1)', () => {
+  const MIRROR = { sales_invoices: [{ id: 'si-1', org_id: ORG, currency: 'USD', reference_number: null, work_order_id: null, project_id: 'proj-1', received_date: null }] };
+  const edit = (operation: AdapterCommand['operation'], record: Row = {}): AdapterCommand => ({
+    domain: 'revenue', operation, idempotencyKey: 'edit-bwo-key',
+    record: { id: 'si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'SYNTHETIC-SI-1', customerId: 'cust-1', projectId: 'proj-1', items: ITEMS, ...record },
+  });
+  const resolve = (cmd: AdapterCommand, extra: Record<string, Row[]> = MIRROR) => {
+    const erp = erpFetch(TEMPLATE);
+    return { erp, done: resolveErpDispatchAdapter({
+      serviceClient: serviceClient(VAT_OFF, 'IDR', false, extra), orgId: ORG, command: cmd,
+      fetchImpl: erp.fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    }) };
+  };
+
+  it.each([
+    ['an update', 'update' as const, {}],
+    ['an amend', 'transition' as const, { verb: 'amend' }],
+  ])('AC-BWO-002 %s carries the mirror row\'s currency, never the caller\'s or the project\'s', async (_label, operation, extra) => {
+    const cmd = edit(operation, { ...extra, currency: 'EUR' });
+    await resolve(cmd).done;
+    expect(cmd.record.currency).toBe('USD');
+    expect((siToBody(cmd.record, { refs: { customer: 'Synthetic Customer' } } as never) as Row).currency).toBe('USD');
+  });
+
+  it('AC-BWO-002 an edit whose invoice has no mirror row is refused before any ERPNext call', async () => {
+    const cmd = edit('update');
+    const { erp, done } = resolve(cmd, { sales_invoices: [] });
+    await expect(done).rejects.toMatchObject({ code: 'config-rejected', message: expect.stringContaining('which currency this invoice is in') });
+    expect(erp.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('AC-BWO-002 a submit carries no currency (it builds no body)', async () => {
+    const cmd = edit('transition', { verb: 'submit', currency: 'EUR' });
+    await resolve(cmd).done;
+    expect(cmd.record).not.toHaveProperty('currency');
   });
 });

@@ -129,7 +129,8 @@ describe('item catalog money preflight', () => {
       return Response.json({ data: [] });
     });
     await expect((async () => {
-      const adapter = await resolveErpDispatchAdapter({ serviceClient: client(), orgId: 'org-test',
+      // OD-BILL-1: an amend is stated in its mirror row's currency.
+      const adapter = await resolveErpDispatchAdapter({ serviceClient: client({ sales_invoices: { currency: 'USD' } }), orgId: 'org-test',
         command, apiKey: 'test', apiSecret: 'test', fetchImpl: fetchImpl as typeof fetch,
         doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
       });

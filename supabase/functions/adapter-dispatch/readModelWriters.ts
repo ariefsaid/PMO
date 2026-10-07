@@ -401,9 +401,20 @@ async function recordOutboundLineage(
  *  carries no PO link at all — unlike GR, there is no ERP-side or command-side PO reference to resolve
  *  from at write time; `po_id` stays whatever a later write sets, matching the column's own
  *  nullable/settlement-predecessor design, FR-PR-004b/004d). */
+/** #876 slice 2 (OQ-VWH-6): the PPh type an entered-amounts command carries, or null. Only an entered-amount
+ *  command — whose type the dispatch validated and persisted in the command record (`taxesFromAmounts`,
+ *  resolvePurchaseInvoiceTaxes) — can state it; a template-path bill keeps NULL (the type is the ERPNext payable
+ *  account). Never stated when nothing was withheld. Serves the create AND a recovery replay of one. */
+function enteredPphType(record: Record<string, unknown>, withheld: string | null | undefined): string | null {
+  const entered = record as { taxesFromAmounts?: unknown; pphType?: unknown };
+  return entered.taxesFromAmounts === true && (entered.pphType === 'pph23' || entered.pphType === 'pph4_2')
+    && Number(withheld ?? 0) !== 0 ? entered.pphType as string : null;
+}
+
 async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
   const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
   const docstatus = canonical.erp_docstatus as number | null | undefined;
+  // DD-EFK-1: efaktur_number/efaktur_date are PMO-owned; intentionally absent from mirror writes.
   const patch: Record<string, unknown> = {
     vi_number: canonical.vi_number ?? null,
     invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
@@ -433,13 +444,36 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (piTaxAmount !== null) patch.tax_amount = piTaxAmount;
   const piTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
   if (piTaxTemplate !== null) patch.tax_template = piTaxTemplate;
+  // #876: the bill's own currency (piFromDoc reads it off the ERP doc). Omitted when absent — NOT NULL, and the
+  // stamp trigger's org-default fill is the PMO-native fallback, never a fact about this bill.
+  const piCurrency = (canonical.currency as string | null | undefined) ?? null;
+  if (piCurrency !== null) patch.currency = piCurrency;
+  // #876 (0266, DD-VWH-1/7): the money header is all-or-nothing, the rule erpnextFeedDeps.ts' purchaseInvoiceFieldPatch
+  // applies. piFromDoc emits `withheld_amount` only when the ERP header was complete; without it `amount` may be the NET
+  // payable, so recording it as the gross (or pairing it with a stale withholding) is refused: a create throws, an update
+  // writes none of amount / tax_amount / tax_treatment / withheld_amount.
+  const piWithheld = (canonical.withheld_amount as string | null | undefined) ?? null;
+  if (piWithheld !== null) {
+    patch.withheld_amount = piWithheld;
+  } else {
+    delete patch.amount;
+    delete patch.tax_amount;
+    delete patch.tax_treatment;
+  }
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
     await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
+    if (piWithheld === null) {
+      throw new AppError('the purchase invoice read-back carried no withholding total; its money cannot be mirrored', 'BAD_REQUEST');
+    }
+    // #876 slice 2 (OQ-VWH-6): the PPh type is stored on every bill that withholds. ERPNext's header does not carry it,
+    // so only an entered-amount create can state it (see enteredPphType).
+    const pphType = enteredPphType(command.record as Record<string, unknown>, piWithheld);
     const { error } = await ctx.serviceClient.from('procurement_invoices').insert({
       id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId,
       ...patch,
+      ...(pphType ? { withheld_pph_type: pphType } : {}),
       // NOT NULL with no DB default (0196), so the create branch must always state it. ERPNext
       // returns `total_taxes_and_charges` on every Purchase Invoice (0 when the doc carries no
       // taxes), and PI_FROM_DOC_FIELDS requests it — '0.00' is the untaxed-document case, never
@@ -449,6 +483,11 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     if (error) throw new AppError(error.message, error.code);
     return;
   }
+  // #876 slice 2 (OQ-VWH-6): a recovery replay of an entered-amounts create can arrive as an update against the
+  // same command record — the type rides the marker exactly as on the create, and never without the money header
+  // (the all-or-nothing rule above).
+  const replayPphType = piWithheld !== null ? enteredPphType(command.record as Record<string, unknown>, piWithheld) : null;
+  if (replayPphType !== null) patch.withheld_pph_type = replayPphType;
   const { error } = await (
     ctx.serviceClient.from('procurement_invoices').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
       error: { message: string; code?: string } | null;
@@ -639,6 +678,7 @@ async function appendSalesInvoiceAuthor(ctx: ReadModelWriterCtx, salesInvoiceId:
 async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
   const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
   const docstatus = canonical.erp_docstatus as number | null | undefined;
+  // DD-EFK-1: efaktur_number/efaktur_date are PMO-owned; intentionally absent from mirror writes.
   const patch: Record<string, unknown> = {
     si_number: canonical.si_number ?? null,
     // customer_id/project_id are PMO-side links set ONLY on create (from command.record, below) —
@@ -689,8 +729,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // throws.
     const customerId = await resolveLinkOrNull(ctx, 'companies', record.customerId);
     const projectId = await resolveLinkOrNull(ctx, 'projects', record.projectId);
-    // #766: a claim invoice records the work order it bills (the dispatch set it from the claim). The
-    // same-project trigger (0193 §10) re-checks it; an absent work order writes no key at all.
+    // #766 + OD-BILL-1 (DD-BWO-8): a create records the work order it bills — a claim's (set from the claim) or the
+    // one an ordinary create names. The outbox fence (0262) checked its project, status and what is left before the
+    // ERP write, so the same-project trigger (0193 §10) cannot refuse it here; an absent work order writes no key.
     const workOrderId = await resolveLinkOrNull(ctx, 'work_orders', record.workOrderId);
     // project_id and customer_id are machine-set from the command record
     // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
@@ -1162,6 +1203,41 @@ export async function markTimesheetPushOutcome(
   if (error) throw new AppError(`timesheet_erp_mirror outcome write failed: ${error.message}`, 'DISPATCH_FAILED');
 }
 
+/**
+ * #775 phase B (ADR-0059 §6, ADR-0081) — the expense side mirror. The intent row exists already (0270 trigger);
+ * a landed posting marks it `pushed` with the ERP name. A landed `approval-cancel` also stamps the approval row
+ * cancelled, so the feed's later tombstone of that Journal Entry is recognised as PMO's own (no notice).
+ * Keyed on (org_id, posting_identity) — never `id` (the L-1 lesson: the mirror's own uuid is not the PMO key).
+ */
+const expensesWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const rec = command.record as { posting?: unknown; posting_identity?: unknown };
+    const identity = typeof rec.posting_identity === 'string' ? rec.posting_identity : '';
+    if (!identity) throw new AppError('expense posting command carries no posting identity', 'commit-rejected');
+    // The adapter sets `canonical.id` to the PMO record id (the subject uuid); the ERP document name travels in
+    // `erp_name` (bodies/expenseJournal.ts, bodies/expensePayment.ts). Without it there is nothing a dependent posting
+    // could cite — refuse rather than record a name ERPNext does not have.
+    const erpName = typeof canonical.erp_name === 'string' && canonical.erp_name ? canonical.erp_name : '';
+    if (!erpName) throw new AppError(`expense posting ${identity}: the ERP result carries no ERP document name`, 'commit-rejected');
+    const erpModified = (canonical.erp_modified as string | null | undefined) ?? null;
+    const now = new Date().toISOString();
+    const write = async (postingIdentity: string, patch: Record<string, unknown>): Promise<void> => {
+      const { error } = await (ctx.serviceClient.from('expense_posting_erp_mirror').update(patch)
+        .eq('org_id', ctx.orgId).eq('posting_identity', postingIdentity) as unknown as Promise<{
+        error: { message: string; code?: string } | null;
+      }>);
+      if (error) throw new AppError(`expense_posting_erp_mirror write failed: ${error.message}`, 'DISPATCH_FAILED');
+    };
+    await write(identity, {
+      push_state: 'pushed', push_error: null, erp_name: erpName, pushed_at: now,
+      erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null, erp_modified: erpModified,
+    });
+    if (rec.posting === 'approval-cancel') {
+      await write(identity.replace(/:approval-cancel$/, ':approval'), { erp_docstatus: 2, erp_cancelled_at: now, erp_modified: erpModified });
+    }
+  },
+};
+
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
@@ -1171,6 +1247,8 @@ export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   budget: budgetWriter,
   // P3b — the Posture-B side mirror (ADR-0059). Additive: no other domain's entry is touched.
   timesheets: timesheetsWriter,
+  // #775 phase B — the expense posting side mirror (ADR-0081). Additive.
+  expenses: expensesWriter,
 };
 
 /** The single lookup point — an unknown domain throws (no silent skip). */

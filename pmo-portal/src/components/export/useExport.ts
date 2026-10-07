@@ -14,20 +14,10 @@ import type { Column } from '@/src/components/ui';
 import { useToast } from '@/src/components/ui';
 import { buildExportRows, exportFilename, toCsv, toWorkbookBuffer, type ExportTable } from '@/src/lib/export';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { triggerBlobDownload } from '@/src/lib/download';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const CSV_MIME = 'text/csv;charset=utf-8';
-
-function triggerDownload(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
 
 export function useExport() {
   const [busy, setBusy] = useState(false);
@@ -50,7 +40,7 @@ export function useExport() {
       try {
         const { header, body } = buildExportRows(rows, columns);
         const buf = await toWorkbookBuffer({ sheetName: entity, header, body });
-        triggerDownload(new Blob([buf], { type: XLSX_MIME }), exportFilename(entity));
+        triggerBlobDownload(new Blob([buf], { type: XLSX_MIME }), exportFilename(entity));
       } catch (err) {
         reportFailure(err);
       } finally {
@@ -69,7 +59,7 @@ export function useExport() {
           format === 'csv'
             ? new Blob([toCsv(table)], { type: CSV_MIME })
             : new Blob([await toWorkbookBuffer({ sheetName: entity, ...table })], { type: XLSX_MIME });
-        triggerDownload(blob, exportFilename(entity, new Date(), format));
+        triggerBlobDownload(blob, exportFilename(entity, new Date(), format));
       } catch (err) {
         reportFailure(err);
       } finally {

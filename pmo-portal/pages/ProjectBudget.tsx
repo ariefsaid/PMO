@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
@@ -483,6 +484,10 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
 interface VersionCardProps {
   version: BudgetVersionWithItems;
   canWrite: boolean;
+  /** OD-BUDGET-6: whether this user may activate this Draft (a second person). */
+  canActivate: boolean;
+  /** Why Activate is withheld from a writer, when it is (shown in place of the button). */
+  activateBlockedReason?: string | null;
   /** Each callback STAGES a confirm at the page level — none writes on click. */
   onActivate: (id: string) => void;
   onArchive: (id: string) => void;
@@ -502,6 +507,8 @@ interface VersionCardProps {
 const VersionCard: React.FC<VersionCardProps> = ({
   version,
   canWrite,
+  canActivate,
+  activateBlockedReason,
   onActivate,
   onArchive,
   onClone,
@@ -533,8 +540,10 @@ const VersionCard: React.FC<VersionCardProps> = ({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {version.status === 'Draft' && (
             <>
-              <Button variant="success" size="sm" onClick={() => onActivate(version.id)}>
-                {t('financeCopy.activate', "Activate")}</Button>
+              {canActivate && (
+                <Button variant="success" size="sm" onClick={() => onActivate(version.id)}>
+                  {t('financeCopy.activate', "Activate")}</Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -542,6 +551,11 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 className="text-destructive-text hover:bg-destructive/10"
               >
                 {t('financeCopy.deleteDraft', "Delete draft")}</Button>
+              {activateBlockedReason && (
+                <p data-testid="activate-blocked-reason" className="basis-full text-[13px] text-muted-foreground">
+                  {activateBlockedReason}
+                </p>
+              )}
             </>
           )}
           {version.status === 'Active' && (
@@ -661,6 +675,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   // WRITE_ROLES (Admin·Exec·PM·Finance). RLS is the real authority.
   const can = usePermission();
   const canWrite = can('edit', 'budgetLine');
+  const { currentUser } = useAuth();
+  const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
   // The derived total (useProjectBudget) has no version of its own to carry a currency —
   // fall back to the org default until a version is selected (FR-L10N-020).
@@ -722,6 +738,22 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
       />
     );
   }
+
+  // OD-BUDGET-6 (UX only — activate_budget_version is the authority): a second person activates.
+  const canActivate =
+    !!selected &&
+    can('transition', 'budgetVersion', {
+      currentUserId,
+      record: { status: selected.status, created_by: selected.created_by },
+    });
+  const activateBlockedReason =
+    !selected || !canWrite || canActivate || selected.status !== 'Draft'
+      ? null
+      : selected.created_by == null
+        ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
+        : selected.created_by === currentUserId
+          ? t('financeCopy.activateDrafterBlocked', 'You drafted this version, so someone else must activate it.')
+          : null;
 
   // Human-readable label for a version id (confirm copy). Falls back to the id.
   const versionLabel = (id: string): string => {
@@ -984,6 +1016,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             key={selected.id}
             version={selected}
             canWrite={canWrite}
+            canActivate={canActivate}
+            activateBlockedReason={activateBlockedReason}
             onActivate={requestActivate}
             onArchive={requestArchive}
             onClone={requestClone}

@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ExcelJS from 'exceljs';
 import { ToastProvider } from '@/src/components/ui';
@@ -81,11 +82,15 @@ const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta
 
 function renderPage(node: React.ReactElement) {
   render(
-    <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
-        <ToastProvider>{node}</ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
+    // standard provider even though `useRevenue` itself is mocked here.
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter>
+          <ToastProvider>{node}</ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -177,6 +182,17 @@ describe('AC-L10N-052 an export carries each row\'s own ISO currency next to its
     expect(byNumber('SI-USD').getCell(col('Currency')).value).toBe('USD');
     expect(byNumber('SI-IDR').getCell(col('Currency')).value).toBe('IDR');
     expect(byNumber('SI-IDR').getCell(col('Amount')).value).toBe(2000000);
+  });
+
+  it('AC-EFK-004: the merged on-screen e-Faktur cell still exports as two columns (number, date)', async () => {
+    hoisted.invoices = [{ ...invoice, efaktur_number: '010.001-26.12345678', efaktur_date: '2026-09-28' }];
+    renderPage(<SalesInvoices />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
+    const { ws, col } = await exportedSheet();
+    expect(col('e-Faktur')).toBe(0); // the on-screen merged header never reaches the sheet
+    expect(ws.getRow(2).getCell(col('e-Faktur number')).value).toBe('010.001-26.12345678');
+    // the export seam writes an ISO date string as a real date cell
+    expect((ws.getRow(2).getCell(col('e-Faktur date')).value as Date).toISOString().slice(0, 10)).toBe('2026-09-28');
   });
 
   it('AC-L10N-052: the on-screen table gets no extra Currency column (export-only)', () => {

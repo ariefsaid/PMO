@@ -11,6 +11,7 @@ import {
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import { efakturRefusal } from '@/src/lib/efaktur';
 
 /**
  * Org-scoped sales invoices list over the repository seam (ADR-0017).
@@ -107,10 +108,13 @@ export function useRevenueMutations() {
     qc.invalidateQueries({ queryKey: ['incomingPayments'] });
     qc.invalidateQueries({ queryKey: ['incomingPayment'] });
     qc.invalidateQueries({ queryKey: ['revenueByProject'] });
+    // OD-BILL-1: an invoice moves its work order's billing and the dashboard's still-to-invoice.
+    qc.invalidateQueries({ queryKey: ['work-order-billing'] });
+    qc.invalidateQueries({ queryKey: ['unbilled-work-orders'] });
   };
 
   const create = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; workOrderId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
       repositories.revenue.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
@@ -160,6 +164,19 @@ export function useRevenueMutations() {
     onSuccess: invalidate,
   });
 
+  // DD-EFK-1: these PMO-owned facts are written directly even when revenue is ERP-owned.
+  const setEfaktur = useMutation({
+    mutationFn: ({ siId, efakturNumber, efakturDate }: {
+      siId: string; efakturNumber: string | null; efakturDate: string | null;
+    }) => repositories.revenue.setEfaktur(siId, { efakturNumber, efakturDate }),
+    onSuccess: invalidate,
+    // A known refusal (e.g. the invoice was cancelled meanwhile) means this row is stale: refetch it.
+    onError: (err) => {
+      if (efakturRefusal(err)) invalidate();
+    },
+  });
+
+
   const createPayment = useMutation({
     mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; date: string; intent?: CommandIntent }) =>
       repositories.revenue.createPayment(input, intent),
@@ -190,5 +207,5 @@ export function useRevenueMutations() {
     },
   });
 
-  return { create, setReceivedDate, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
+  return { create, setReceivedDate, setEfaktur, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
 }

@@ -13,6 +13,7 @@
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
+import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -53,6 +54,7 @@ import {
   updateCompany,
   updateCompanyShortName,
   setCompanyProjectNumberSegment,
+  setCompanyTaxDefaults,
   archiveCompany,
   deleteCompany,
   type CompanyRow,
@@ -139,6 +141,7 @@ import {
   createQuotation,
   createReceipt,
   createInvoice,
+  setProcurementInvoiceEfaktur,
   type ProcurementReceiptRow,
   type ProcurementInvoiceRow,
 } from '@/src/lib/db/procurementLifecycle';
@@ -207,6 +210,7 @@ import {
   transitionWorkOrder,
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
+import { listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import {
   listBoqItems, createBoqItem, updateBoqItem, deleteBoqItem, recordProgressAssessment,
   listProjectClaims, createProgressClaim, attachClaimEvidence, withdrawProgressClaim, getProjectBilling,
@@ -262,6 +266,8 @@ import {
   getOrgDownPaymentItem,
   setOrgDownPaymentItem,
   setOrgWithholdingAccount,
+  getOrgVendorTaxAccounts,
+  setOrgVendorTaxAccounts,
   getOrgProjectClassificationOptions,
   setOrgProjectClassificationOptions,
 } from '@/src/lib/db/orgs';
@@ -275,6 +281,7 @@ import {
   getRevenueByProject,
   submitSalesInvoiceSod,
   setSalesInvoiceReceivedDate,
+  setSalesInvoiceEfaktur,
 } from '@/src/lib/db/revenue';
 import { getManagementPackFacts, recordProjectProgress } from '@/src/lib/db/managementPack';
 import type {
@@ -297,6 +304,7 @@ import type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
+  ExpensePostingRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
@@ -422,6 +430,7 @@ const company: CompanyRepository = {
     await dispatchDomainCommand('companies', 'update', { id, ...input, erp_doc_kind: kind }, keyFor());
   },
   setProjectNumberSegment: (id, segment) => wrap(() => setCompanyProjectNumberSegment(id, segment)),
+  setTaxDefaults: (id, input) => wrap(() => setCompanyTaxDefaults(id, input)),
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
 };
@@ -551,11 +560,19 @@ const procurement: ProcurementRepository = {
             // ERP company, resolves its rows server-side and sends them (`resolvePurchaseTaxRows`).
             // No choice → nothing sent, and ERPNext applies its own default.
             ...(input.taxTemplate?.trim() ? { taxTemplate: input.taxTemplate.trim() } : {}),
+            // #876 slice 2 (DD-VWH-13/14) — or the VAT / PPh AMOUNTS the user entered. The dispatch turns them into fixed
+            // ERPNext rows on the org's tax accounts and refuses a command carrying both a template and amounts. The
+            // native tax facts above (and a standalone `withheldAmount` / `withheldPphType`) stay unforwarded.
+            ...(input.erpTaxAmounts
+              ? { vatAmount: input.erpTaxAmounts.vatAmount, withheldAmount: input.erpTaxAmounts.withheldAmount, pphType: input.erpTaxAmounts.pphType }
+              : {}),
             erp_doc_kind: 'purchase-invoice',
           },
           intent,
         ).then((res) => res.canonical as unknown as ProcurementInvoiceRow)
       : wrap(() => createInvoice(input)),
+  // DD-EFK-1: e-Faktur facts are PMO-owned, so this setter always stays direct even for external ERP domains.
+  setEfaktur: (invoiceId, values) => wrap(() => setProcurementInvoiceEfaktur(invoiceId, values.efakturNumber, values.efakturDate)),
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
@@ -609,6 +626,9 @@ const procurement: ProcurementRepository = {
       : wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
 };
 
+/** #912: the edge function makes two ERP calls bounded at 20 s each; leave room for both. */
+const INVOICE_PDF_INVOKE_TIMEOUT_MS = 45_000;
+
 const revenue: RevenueRepository = {
   // Read methods (ADR-0017)
   listInvoices: (params) => wrap(() => listSalesInvoices(params)),
@@ -644,6 +664,8 @@ const revenue: RevenueRepository = {
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
   setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
+  // DD-EFK-1: PMO-owned e-Faktur update never routes to ERPNext or creates an outbox command.
+  setEfaktur: (siId, values) => wrap(() => setSalesInvoiceEfaktur(siId, values.efakturNumber, values.efakturDate)),
   submitInvoice: (siId, intent) =>
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {
@@ -673,6 +695,16 @@ const revenue: RevenueRepository = {
           );
         })
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  downloadInvoicePdf: (siId) =>
+    wrap(async () => {
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<Blob>('external-invoice-pdf', { body: { salesInvoiceId: siId } }),
+        INVOICE_PDF_INVOKE_TIMEOUT_MS,
+      );
+      if (error) await throwInvokeError(error);
+      if (!(data instanceof Blob)) throw new AppError('The ERP did not return a PDF', 'ERP_UNREACHABLE');
+      return data;
+    }),
   cancelPayment: (ipId, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {
@@ -799,6 +831,8 @@ const workOrder: WorkOrderRepository = {
   setValue: (input) => wrap(() => setWorkOrderValue(input)),
   transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
+  billing: (projectId) => wrap(() => listWorkOrderBilling(projectId)),
+  unbilled: (limit) => wrap(() => getUnbilledWorkOrders(limit)),
 };
 
 /**
@@ -920,6 +954,8 @@ const orgFeature: OrgFeatureRepository = {
 const orgSettings: OrgSettingsRepository = {
   getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
   setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
+  getVendorTaxAccounts: () => wrap(() => getOrgVendorTaxAccounts()),
+  setVendorTaxAccounts: (input) => wrap(() => setOrgVendorTaxAccounts(input)),
   getDownPaymentItem: () => wrap(() => getOrgDownPaymentItem()),
   setDownPaymentItem: (item) => wrap(() => setOrgDownPaymentItem(item)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
@@ -965,6 +1001,8 @@ const integrationsImpl: IntegrationsRepository = {
   listErpProjects: async (query) => (await erpSetupRequest<{ projects: ErpProjectOption[] }>('list-projects', { query })).projects,
   linkErpProject: (projectId, erpProject) => erpSetupRequest<ErpProjectLink>('link-project', { projectId, erpProject }),
   employErpDomain: (domain) => erpSetupRequest<{ ok: true }>('employ-domain', { domain }),
+  saveExpenseAccount: (input) => erpSetupRequest<{ ok: true }>('save-expense-account', input),
+  clearExpenseAccount: (accountKey) => erpSetupRequest<{ ok: true }>('clear-expense-account', { accountKey }),
   onboardErpParties: () => erpSetupRequest<{ ok: true }>('onboard-parties'),
   getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
     return wrap(async () => {
@@ -1138,6 +1176,11 @@ const integrationsImpl: IntegrationsRepository = {
   },
 };
 
+const expensePostings: ExpensePostingRepository = {
+  listForClaim: (claimId) => wrap(() => listExpensePostings(claimId)),
+  listAccountMap: () => wrap(() => listExpenseAccountMap()),
+};
+
 const reports: ReportsRepository = {
   managementPack: (range) => wrap(() => getManagementPackFacts(range)),
   recordProgress: (input) => wrap(() => recordProjectProgress(input)),
@@ -1163,6 +1206,7 @@ export const repositories: Repositories = {
   procurementFiles,
   expenseClaim,
   expenseReceipts,
+  expensePostings,
   contact,
   meeting,
   userView,
@@ -1196,6 +1240,7 @@ export type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
+  ExpensePostingRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,

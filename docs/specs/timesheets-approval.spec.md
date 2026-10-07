@@ -176,6 +176,8 @@ OD-TS is silent; flag for confirmation (non-blocking for build start, pin before
   timesheets.user_id and p.manager_id = auth.uid())` to the existing own-or-privileged-role predicate
   (own-org, via `auth_org_id()`). A manager whose role is not in {Admin, Executive, PM, Finance} can then
   read their reports' submitted timesheets (without this their approval queue is empty).
+  `timesheet_entries_select` carries the same clause (migration 0268), so the manager also reads the
+  hours they are asked to approve.
 
 **RPC discipline / tenancy**
 - **FR-TS-009** — The system shall never accept a client-supplied `org_id` on any timesheet-module write;

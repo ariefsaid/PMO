@@ -1,5 +1,6 @@
 import type { RecordHistoryRepository } from './recordHistory';
-import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { OrgVendorTaxAccounts, ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
@@ -34,11 +35,13 @@ import type {
   SetWorkOrderValueInput,
   ProjectDrawdown,
 } from '@/src/lib/db/workOrders';
+import type { WorkOrderBillingRow, UnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import type {
   ExpenseClaimWithRefs, ExpenseClaimLineRow, ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch,
   ExpenseLineInput, ExpenseClaimStatus, ExpenseKind, ExpenseClaimRoute, ExpenseAdvanceAgingRow,
 } from '@/src/lib/db/expenseClaims';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
+import type { ExpenseAccountMapRow, ExpensePostingRow } from './expensePostings';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -75,6 +78,7 @@ import type {
   ProcurementDocumentRow,
 } from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import type { ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
 import type {
   MeetingRow,
   MeetingWithRefs,
@@ -189,6 +193,8 @@ export interface CompanyRepository {
   update(id: string, input: CompanyInput): Promise<void>;
   /** Update only the PMO-local client-number segment; never dispatches to an external native adapter. */
   setProjectNumberSegment(id: string, segment: string | null): Promise<void>;
+  /** #876 slice 2: set the vendor's default tax treatment (Admin/Finance; `set_vendor_tax_defaults`). */
+  setTaxDefaults(id: string, input: VendorTaxDefaultsInput): Promise<void>;
   /** Soft-archive a company (stamps archived_at). */
   archive(id: string): Promise<void>;
   /** Hard-delete a company; rejects with AppError code 23503 if referenced. */
@@ -377,6 +383,8 @@ export interface ProcurementRepository {
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
   ): Promise<ProcurementInvoiceRow>;
+  /** DD-EFK-1: edit the PMO-owned vendor e-Faktur facts through the guarded setter RPC. */
+  setEfaktur(invoiceId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
   create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
@@ -453,6 +461,8 @@ export interface RevenueRepository {
     customerId: string;
     projectId?: string | null;
     items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
+    /** OD-BILL-1: the work order this invoice bills ("Invoice this work order"). */
+    workOrderId?: string | null;
   }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
   /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
   createPayment(input: {
@@ -466,10 +476,15 @@ export interface RevenueRepository {
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
   /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
   setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
+  /** DD-EFK-1: edit the PMO-owned sales e-Faktur facts through the guarded setter RPC. */
+  setEfaktur(siId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
   /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
   submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
   /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
   cancelInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** #912: the ERP's own print-format PDF of a SUBMITTED, ERP-owned invoice (Admin/Finance; the edge
+   *  function `external-invoice-pdf` enforces role, tenancy and docstatus). */
+  downloadInvoicePdf(siId: string): Promise<Blob>;
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
@@ -577,6 +592,10 @@ export interface WorkOrderRepository {
   transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
   /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
+  /** OD-BILL-1: per-work-order billing for one project (view work_order_billing, RLS-scoped). */
+  billing(projectId: string): Promise<WorkOrderBillingRow[]>;
+  /** OD-BILL-1 / #786: what is still to invoice across the org's issued and closed work orders. */
+  unbilled(limit: number): Promise<UnbilledWorkOrders>;
 }
 
 /** Progress billing (#766): BoQ, assessments (operational), billing claims + evidence, the summary. */
@@ -699,6 +718,14 @@ export interface ExpenseReceiptRepository {
   cleanupObject(path: string): Promise<void>;
 }
 
+/** #775 phase B — read-only views of the expense posting side mirror and the account map (RLS-scoped, 0270). */
+export interface ExpensePostingRepository {
+  /** What one claim posted to ERPNext (FR-EXP-117). */
+  listForClaim(claimId: string): Promise<ExpensePostingRow[]>;
+  /** The org's expense account map (FR-EXP-116). Writes go through `integrations.saveExpenseAccount`. */
+  listAccountMap(): Promise<ExpenseAccountMapRow[]>;
+}
+
 /** #765 — the monthly management pack (ADR-0076). */
 export interface ReportsRepository {
   /** Facts for the pack from ONE SECURITY INVOKER RPC; RLS scopes the org. */
@@ -727,6 +754,7 @@ export interface Repositories {
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   expenseReceipts: ExpenseReceiptRepository;
+  expensePostings: ExpensePostingRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;
@@ -757,6 +785,9 @@ export interface OrgSettingsRepository {
   setProjectNumberPattern(value: string | null): Promise<void>;
   getWithholdingAccount(): Promise<string | null>;
   setWithholdingAccount(account: string | null): Promise<void>;
+  /** #876 slice 2: the ERPNext accounts a vendor bill's entered VAT / PPh post to (Admin writes). */
+  getVendorTaxAccounts(): Promise<OrgVendorTaxAccounts>;
+  setVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void>;
   getDownPaymentItem(): Promise<string | null>;
   setDownPaymentItem(item: string | null): Promise<void>;
   getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
@@ -954,6 +985,10 @@ export interface IntegrationsRepository {
   linkErpProject(projectId: string, erpProject: string): Promise<ErpProjectLink>;
   ensureErpProject(projectId: string): Promise<ErpProjectLink>;
   employErpDomain(domain: string): Promise<{ ok: true }>;
+  /** #775 phase B — save one key of the expense account map (validated against ERPNext server-side, FR-EXP-112). */
+  saveExpenseAccount(input: { accountKey: ExpenseAccountKey; erpAccount: string }): Promise<{ ok: true }>;
+  /** #775 phase B — remove one key of the expense account map. */
+  clearExpenseAccount(accountKey: ExpenseAccountKey): Promise<{ ok: true }>;
   onboardErpParties(): Promise<{ ok: true }>;
   /** Get the binding status for a specific tier. */
   getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;

@@ -1308,6 +1308,40 @@ provisioning and a historical load to it would put the go-live out of reach.
 the local Docker dev bed (`docs/environments.md` §ERPNext v15 dev bed). Provisioning, company setup,
 credentials and the historical load are charted in #474. *(Fact superseded 2026-09-02: `DD-OPS-10` — a v16 test instance now exists; the ruling itself stands.)*
 
+**[OD-ERP-3] ERPNext is not user-facing for RIS (owner, 2026-10-07).** No RIS user — accountant
+included — logs in to ERPNext; every workflow, accounting and audit included, runs in PMO. ERPNext is the
+headless ledger only. Sharpens `OD-SAR-PMO-IS-THE-UI` (which still allowed the Desk for audit): a need an
+ERPNext screen would meet is a **PMO gap**, filed as a PMO issue — never answered with an ERPNext login.
+ERPNext setup and data fixes are operator work (us), not RIS's.
+
+**[OD-ERP-4] What `OD-ERP-3` adds to PMO, and when (owner, 2026-10-07).** Go-live: vendor withholding (#876)
+and the e-Faktur number/date on invoices and bills (#893). First month-end (≈ early November): manual journal
+entries with maker ≠ approver, **built first** (#895) → bank book + reconciliation (#896), financial statements
+with the audit pack folded in (#897), tax registers (#898). Year-end: fixed-asset register (#899), year-end close
+with period lock and foreign-currency revaluation (#900). Map: "Month-end and year-end close in PMO when the ERP
+is headless" (#894). ERP setup (items, tax templates, accounts, asset categories, custom fields) stays operator
+work, not a PMO gap.
+
+**[DD-EFK-1] e-Faktur number and date are PMO-owned facts (Director, 2026-10-07).** Store these values only
+on the PMO sales-invoice and vendor-bill rows; never push them to ERPNext. ERPNext is headless for client users
+(OD-ERP-3), the reference is not a ledger fact and is usually assigned after invoice issuance, and changing a
+submitted ERP document would require `commitAmend`'s cancel-and-amend path — re-issuing an invoice just to attach
+a reference is wrong. The tax registers in #898 read the values from PMO. This excludes ERP custom fields, ERP
+mappings, onboarding changes, and outbox commands for e-Faktur; the ERP mirror writers (outbound read-model and
+inbound feed) never overwrite or null the two columns. Admin/Finance set them through one setter RPC per table,
+at any status except cancelled.
+
+**[DD-EFK-2] e-Faktur number and date: both or neither (Director, 2026-10-07).** A number without its date
+falls out of the monthly VAT register (#898 groups by the e-Faktur date), and a date without its number names no
+tax invoice. So a save carrying only one of the two is refused — inline in the e-Faktur dialog, by both setter
+RPCs (SQLSTATE 23514, DETAIL `efaktur-incomplete`), and by a table CHECK on `sales_invoices` and
+`procurement_invoices` so no other writer can split the pair. Clearing both stays valid (a non-VAT document).
+
+**[DD-PDF-1..11] The client invoice PDF is the ERP's own print, proxied on demand (#912, Director 2026-10-07).**
+Recorded in full in `docs/specs/invoice-pdf.spec.md` and ADR-0083: Admin/Finance only; submitted invoices only (PMO
+row AND the ERP's live status); document name from the machine-written link table, doctype fixed in code; the ERP's
+default print format; nothing stored in PMO; fixed error messages, never ERP text; no migration.
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
@@ -3013,6 +3047,7 @@ The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) alr
   template without withholding."): the vendor-invoice mirror allows a negative tax only on a negative amount (0196), so the ERP
   document would land and its mirror fail on every sweep replay. Rows are copied with `included_in_print_rate` (and `cost_center`
   when set) so an inclusive template is not applied on top. Revisit when PMO records withholding.
+  - **Superseded in part (2026-10-07, #876):** well-formed withholding templates are now sent — see DD-VWH-4.
 
 **DD-ENA-15a (Director, 2026-10-06, #654, under FR-ENA-015's #651 carve-out) — the external-integrations kill switch applies to ERPNext onboarding too.**
 `erpnext-onboard` resolves its credential through the shared `_shared/erpAuthPair.ts` (kill switch → Vault → env pair → refuse; an unreadable store refuses, never falls back), so a disabled integration cannot be onboarded. Behaviour delta from the pre-#651 path: onboarding with the switch off now fails `config-rejected` (422) instead of reading the env pair. A credential miss logs the failure class only (ADR-0072). Tests: AC-ENA-091, AC-ENA-090.
@@ -3025,3 +3060,62 @@ Keep the shipped `record_change_capture()` approach: an exact no-op returns befo
 
 **DD-UI-CSS-1 (Director, 2026-10-07, #864/#805) — a lazily-loaded stylesheet never joins the app's `utilities` layer.**
 The minutes editor's chunk re-emitted BlockNote's Tailwind utilities into `utilities`; loading after `index.css`, its `.hidden` beat the app's `max-[920px]:block` (same layer, same specificity, later wins) and hid the phone Back bar app-wide until reload. `index.css` now fixes the order `theme, base, components, minutes-editor, utilities` before the Tailwind import, and the editor CSS imports into `layer(minutes-editor)`. Any future lazy CSS gets its own layer below `utilities`. Guard: `minutesTailwind.css.test.ts`; journey: AC-LRC-008 waits for the editor before the phone Back click.
+
+**OD-BILL-1 (owner, 2026-10-07, #785/#786) — clients are billed by their PO/SO (the work order), never by tracker milestones.**
+Project-tracker milestones stay progress-only; they carry no amount and no invoice points at them. Billing hangs off the work order (the client's PO/SO): per-WO invoiced / paid / remaining, "Invoice this work order" (Draft, pre-filled with the remaining amount; partial allowed; the server refuses invoicing beyond the WO's value), the WO shows Paid when its invoices are fully paid. A milestone may optionally reference a work order when a project is tracked by PO — display only, the two stay separate records. Supersedes #785's milestone-amount design; #786's "still to invoice" reads the same per-WO remaining.
+
+**DD-BWO-1..12 (Director, 2026-10-07, #785/#786, under OD-BILL-1) — billing by work order.** Ruled as written in
+`docs/specs/progress-billing.spec.md` §7.1 and ADR-0080: a work order's billed total is its linked non-cancelled
+invoices at their billed work (DD-PBL-9; a down payment counts zero) plus its live unraised claims at gross; invoiced =
+submitted, not yet submitted = drafts + unraised claims, still to invoice = value excl. tax − both (DD-BWO-1) · Paid =
+billed work of Paid invoices, withheld tax counts as settled; the WO is Paid when nothing is left, nothing is in draft
+and every submitted invoice is Paid — derived, never stored (DD-BWO-2) · excl. tax in the WO's currency; an invoice
+with no amount or another currency makes the WO "can't total" and the refusal fails closed (DD-BWO-3) · one helper
+refuses (SQLSTATE BW001, HTTP 422) from a BEFORE INSERT trigger on the outbox (before any ERP write), a trigger on
+`sales_invoices` for every writer except the service-role mirror and a no-JWT load, and `create_progress_claim`; the
+mirror is never refused, an ERP-side overage shows as over-invoiced (DD-BWO-4) · a per-WO advisory xact lock, taken
+before reading, serialises billing writes; in-flight ERP commands count until mirrored; not a row lock because the
+claim RPC locks the project first (DD-BWO-5) · Admin/Finance, SoD unchanged (DD-BWO-6) · Closed WOs can be invoiced
+(DD-BWO-7) · an ordinary invoice create may name its WO (create only), PO reference from the WO (DD-BWO-8) · the
+assistant links the WO and defaults to what is left (amends DD-AIN-4) (DD-BWO-9) · shown on the Work orders tab and
+the Executive/Finance dashboards (DD-BWO-10) · invoices without a WO stay legal, project-level (DD-BWO-11) · the
+milestone→WO display link is a follow-up (DD-BWO-12). Plan: `docs/plans/2026-10-07-billing-by-work-order.md`.
+
+**DD-BWO-13 (Director, 2026-10-07, #785 rendered review)** — the Billing tab's "Claims raised, not yet submitted" (claims only, AC-PB-007/008) and the Work orders tab's "Not yet submitted" (drafts + unraised claims, DD-BWO-1) are different measures and carry different labels; they are not reconciled into one figure. A WO with nothing left but a draft outstanding reads "Awaiting submission", never "Fully invoiced".
+
+**OD-ROLE-1 (owner, 2026-10-07) — user-defined roles and permissions.**
+(1) The organisation's system Admin creates and edits roles and their permission matrix in the app (for the first client, the owner). (2) Granularity = module × action (view / create / edit / request / approve / delete / export) **with a scope per permission** (assigned projects only vs the whole organisation); field-level permissions (e.g. see cost but not margin) are an aspirational later step, charted as fog. (3) Not a go-live blocker — built after go-live; until then a requester-only user takes the closest built-in role and is not named as a project's PM (so no routed approval reaches them). Director defaults stated alongside: SoD (requester ≠ approver, value-setter rules) stays hard-wired whatever a role says; the built-in roles become editable presets; every permission is enforced server-side (RLS/RPC), the FE only mirrors it.
+
+**OD-ROLE-2 (owner, 2026-10-07, #904)** — "assigned projects" (the narrower permission scope under OD-ROLE-1) means projects whose **team list** includes the user. Each project has an explicit team list maintained on the project; the named project manager is always a member.
+
+**DD-VWH-1..9 (Director, 2026-10-07, #876, under OD-ERP-3/OD-ERP-4) — vendor withholding on ERP-owned bills.**
+Ruled as written in `docs/specs/vendor-withholding.spec.md` §2 and ADR-0082: a new `procurement_invoices.withheld_amount`
+(not null, default 0, sign-matched to `amount`, never larger); `amount` stays the gross bill and `tax_amount` stays VAT,
+net payable = gross − withheld, derived (DD-VWH-1) · read back from the ERPNext header: gross = grand_total + deducted,
+VAT = total taxes + deducted, withheld = deducted, outstanding verbatim; a payload without the field leaves withholding
+unknown (DD-VWH-2) · Paid = ERPNext outstanding zero, i.e. the net paid; withheld tax is owed to the tax office
+(DD-VWH-3) · DD-VI-3a is lifted for well-formed withholding templates; refused: any negative rate, any rate above 100%,
+a Deduct row not counted in the Total only, included in the item price, or on a non-liability account, Deduct rates
+summing to 100% or more (DD-VWH-4) · a mirrored bill's money and status refresh from any feed change carrying the whole
+money header — FR-ENA-116's paid-detection, built (DD-VWH-5) · the ledger shows VAT, Tax withheld (PPh) and Net payable
+under a withholding bill, nothing else changes (DD-VWH-6) · the column default is a fact for PMO-native bills; the
+mirror always states the value (DD-VWH-7) · no cost, actual, commitment or budget figure is reduced by withholding;
+never map a PPh payable account into a budget category (DD-VWH-8) · sales symmetry: client withholding stays on the
+receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2026-10-07-vendor-withholding.md`.
+
+**OD-VWH-1 (owner, 2026-10-07, #876)** — vendor tax is set up **in PMO**: each vendor company carries a default tax treatment (VAT rate; withholding type PPh 23 / PPh 4(2) and rate; or none). A vendor bill starts from that default and its tax amounts are **editable**, so the bill can capture exactly what the vendor's own invoice shows (including invoices made outside PMO and the ERP). For an ERP-connected org PMO sends those amounts to ERPNext as fixed tax rows, so no ERPNext tax template is required (templates stay optional). PMO never recomputes ERP-calculated figures, so PMO and the ERP cannot disagree by rounding.
+
+**OD-INV-PDF-1 (owner, 2026-10-07)** — producing the client-facing invoice PDF from PMO is a **go-live** item: for ERP-connected orgs PMO fetches the ERP's own print-format PDF of the submitted invoice (so it matches the books); a PMO-generated PDF for no-ERP orgs follows.
+
+**OD-NAR-1 (owner, 2026-10-07, #784) — no-ERP invoicing rulings.**
+(1) When a no-ERP org later connects an ERP, its open PMO invoices freeze read-only and the accountant loads the open balance into the ERP as one opening entry — **and PMO keeps a per-invoice tally of which invoices are recorded in the ERP and which are not** (e.g. carried in the opening balance vs pushed individually), so the two can always be reconciled. (2) No second person confirms a receipt: Finance/accounting records it as paid, capturing the **payment date** and, optionally, the **amount received when it differs from the amount invoiced** (short or over payment). (3) No senior-approver routing for large invoices — Admin/Finance approve any amount. (4) A VAT project with no recorded rate refuses the invoice until Finance records the rate. (5) "Invoice this work order" for no-ERP orgs is a follow-up after #784.
+
+**DD-EXP-12..22 + ADR-0081 ratified (Director, 2026-10-07, #775 phase B)** — as written in `docs/specs/expense-claims.spec.md` §10 and `docs/adr/0081-expense-postings-single-originator.md`: one originator (the PMO transition writes a posting intent; only the ERPNext sweep turns it into an ERP document; no client dispatch route), enabling the `expenses` domain is also the cut-off (nothing before it posts), JE anchored on `user_remark` (re-stamped on amend), Employee Payment Entries anchored on `reference_no` with paid_from/paid_to always sent and the approval JE referenced, an Admin account map refusing `Creditors` and untyped advance accounts, cancel only an approval JE after it posted. Also accepted: procurement/revenue Payment Entry polls stop reading party-type Employee entries (otherwise an employee's cash return could be adopted as a customer receipt); postings land within one sweep interval. The Admin enable switch lands only after #901. Plan: `docs/plans/2026-10-07-expense-claims-phase-b*.md`.
+
+**DD-VWH-10..14 (Director, 2026-10-07, #876 slice 2, under OD-VWH-1)** — (10) standalone (no-ERP) bills may also carry withholding: the create functions take a withheld amount; the slice-1 "standalone records zero" rule is amended with its test. (11) The vendor default tax treatment is three company columns (VAT rate; PPh type pph23 / pph4_2; PPh rate), editable only through a role-checked SECURITY DEFINER function (Admin/Finance), outside the companies ERP mirror guard. (12) Org account settings: input-VAT account, PPh 23 payable account, PPh 4(2) payable account — organisations columns on the `tax_prepaid_account` precedent (column grant, Admin only, audited), liability check on send. (13) The server builds ERPNext `Actual` tax rows from the bill's entered amounts and the org accounts; client-supplied tax rows are never passed through; a bill naming both a template and amounts is refused. (14) On an ERP-connected org the bill form asks for tax again (reverses #505's connected-org hiding for vendor bills): items carry the net, tax rows carry the entered amounts.
+
+**DD-VWH-15..22 ratified (Director, 2026-10-07, #876 slice 2)** — as proposed in `docs/specs/vendor-withholding.spec.md` slice-2 decisions and ADR-0084, with two Director calls on its open questions: **OQ-VWH-6** — the PPh type IS stored on every bill that withholds, standalone included, so a later no-ERP tax register can tell PPh 23 from PPh 4(2); **OQ-VWH-8** — the unused "Amount (optional)" field is hidden on ERP-connected bills (it was never sent). If plan Task 0 shows ERPNext applying a default template over an empty one, the build stops and comes back.
+
+**OD-BUDGET-6 (owner, 2026-10-07)** — the person who drafted a budget version cannot activate it; a second person activates (activation also pushes the budget to the ERP). PMO records who drafted each version (created on insert and on clone); a version with no recorded drafter (older or seeded) can be activated by Admin or Finance only.
+
+**OD-EXP-PB-1 (owner, 2026-10-07, #775 phase B)** — (1) assume the client ERP has no HRMS; anything an HR module would provide that phase B needs is built in PMO (core doctypes only, DD-EXP-9). (2) Accounts come from the client's own 2025 chart of accounts (client-specific; mapping held privately and entered by the Admin/operator at setup); where the chart has no fitting account (employee payable; a staff-only advance account) the operator adds one with the client's accountant before posting is enabled; claims tagged to a project post to the direct-cost account, untagged claims to the overhead account for their type. (3) claims approved before posting is enabled are not posted retroactively (opening balance covers them). (4) an entry whose recorded approver/payer has left is held with an action-required notice, never posted under them. (5) staff are paid from the company default cash account, else its default bank account.

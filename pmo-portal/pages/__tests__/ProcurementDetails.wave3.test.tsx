@@ -72,6 +72,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
+    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 
@@ -253,6 +254,9 @@ describe('AC-W3-N1: VI form does not offer "Paid" status; Mark as Paid is the so
 // AC-W3-D10 — Draft with no line items blocks Submit Request
 // ---------------------------------------------------------------------------
 describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => {
+  // The viewer (u-finance) is the requester: submit is the requester's act (OD-PROC-1), so the
+  // line-item gate is exercised for the person who can actually submit.
+  const REQUESTER = { requested_by_id: 'u-finance' };
   beforeEach(() => {
     mockEffectiveRole = 'Engineer';
     mockTransition.mockClear();
@@ -260,7 +264,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
   });
 
   it('AC-W3-D10: a Draft PR with NO line items shows the add-line-items gate message and no enabled Submit Request button', () => {
-    detailState.data = { ...baseProcurement, items: [], total_value: 0, currency: 'USD' };
+    detailState.data = { ...baseProcurement, ...REQUESTER, items: [], total_value: 0, currency: 'USD' };
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
@@ -279,6 +283,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
   it('AC-W3-D10: a Draft PR with ≥1 line item (total > 0) shows an enabled Submit Request', () => {
     detailState.data = {
       ...baseProcurement,
+      ...REQUESTER,
       total_value: 500, currency: 'USD',
       items: [
         {
@@ -310,6 +315,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     // blocked — the gate is `items.length === 0`, not `total_value > 0`.
     detailState.data = {
       ...baseProcurement,
+      ...REQUESTER,
       total_value: 0, currency: 'USD',
       items: [
         { id: 'it0', org_id: 'org-1', procurement_id: 'proc-w3', name: 'No-charge sample',

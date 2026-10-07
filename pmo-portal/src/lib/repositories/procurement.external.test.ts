@@ -26,6 +26,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', async (importOriginal) => {
     createQuotation: vi.fn(),
     createReceipt: vi.fn(),
     createInvoice: vi.fn(),
+    setProcurementInvoiceEfaktur: vi.fn(),
   };
 });
 vi.mock('@/src/lib/db/companies', () => ({
@@ -52,6 +53,7 @@ import {
   createQuotation,
   createReceipt,
   createInvoice,
+  setProcurementInvoiceEfaktur,
   ProcurementError,
 } from '@/src/lib/db/procurementLifecycle';
 import { createCompany, updateCompany } from '@/src/lib/db/companies';
@@ -67,6 +69,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   clearOwnershipCache();
   dispatchSpy = vi.spyOn(dispatchClient as never, 'dispatchDomainCommand' as never);
+});
+
+describe('AC-EFK-005 DD-EFK-1 vendor setter remains PMO-direct for externally owned procurement', () => {
+  it('calls the guarded PMO DAL setter and never dispatches e-Faktur facts', async () => {
+    vi.mocked(setProcurementInvoiceEfaktur).mockResolvedValue(undefined);
+    const result = await repositories.procurement.setEfaktur('vi-efaktur', {
+      efakturNumber: null, efakturDate: '2026-10-01',
+    });
+    expect(result).toBeUndefined();
+    expect(setProcurementInvoiceEfaktur).toHaveBeenCalledWith('vi-efaktur', null, '2026-10-01');
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('AC-ENA-001 cold ownership map — procurement writes stay on the direct DAL', () => {
@@ -287,6 +301,22 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(record).not.toHaveProperty('taxTreatment');
     expect(record).not.toHaveProperty('taxAmount');
     expect(record).not.toHaveProperty('taxes');
+  });
+
+  it('AC-VWH-032 forwards the entered VAT and PPh as amounts — never the native tax facts, never rows', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-876', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07',
+      taxTreatment: 'inclusive', taxAmount: 0, withheldAmount: 5, withheldPphType: 'pph4_2',
+      erpTaxAmounts: { vatAmount: 110000, withheldAmount: 20000, pphType: 'pph23' },
+    });
+    const record = dispatchSpy.mock.calls[0][2] as Record<string, unknown>;
+    expect(record).toMatchObject({ vatAmount: 110000, withheldAmount: 20000, pphType: 'pph23', erp_doc_kind: 'purchase-invoice' });
+    expect(record).not.toHaveProperty('taxAmount');
+    expect(record).not.toHaveProperty('taxTemplate');
+    expect(record).not.toHaveProperty('taxes');
+    expect(record).not.toHaveProperty('erpTaxAmounts');
+    expect(record).not.toHaveProperty('withheldPphType');
   });
 
   it('forwards the supplied vendor invoice reference and date to external dispatch (#764)', async () => {

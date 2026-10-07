@@ -1,7 +1,8 @@
 /**
  * #520 — on a flipped (ERPNext-owned) org the vendor-invoice capture lets the user choose the ERPNext
- * Purchase Taxes and Charges Template; the choice is staged through the confirm to the dispatch. ERPNext
- * default (no choice) is the pre-selected option. A PMO-owned org never sees the picker (it authors its own tax).
+ * Purchase Taxes and Charges Template; the choice is staged through the confirm to the dispatch.
+ * "Enter the tax amounts" is the pre-selected option (#876 slice 2, DD-VWH-15) — RecordCaptureForm.vendorTax.test.tsx
+ * owns it. A PMO-owned org never sees the picker (it authors its own tax).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -45,26 +46,16 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('RecordCaptureForm — ERPNext purchase tax template (#520)', () => {
-  it('AC-520-9 a flipped org offers the ERP templates, defaults to ERPNext default, and stages the chosen one', async () => {
+  it('AC-520-9 a flipped org offers the ERP templates and stages the chosen one', async () => {
     vi.spyOn(ownership, 'routeDomainWrite').mockReturnValue('external');
     const onStage = renderVI();
     const select = (await screen.findByTestId('vi-tax-template-select')) as HTMLSelectElement;
     await waitFor(() => expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'Input VAT 11', 'Input VAT 0']));
     expect(select.value).toBe('');
     await userEvent.selectOptions(select, 'Input VAT 11');
-    await userEvent.type(screen.getByTestId('vi-amount-input'), '100');
+    // #876 slice 2 (OQ-VWH-8): a flipped org's bill amount is no longer asked — ERPNext totals the items.
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(onStage).toHaveBeenCalledWith(expect.objectContaining({ kind: 'createVI', taxTemplate: 'Input VAT 11' }));
-  });
-
-  it('AC-520-9 leaving ERPNext default stages no template', async () => {
-    vi.spyOn(ownership, 'routeDomainWrite').mockReturnValue('external');
-    const onStage = renderVI();
-    await screen.findByTestId('vi-tax-template-select');
-    await userEvent.type(screen.getByTestId('vi-amount-input'), '100');
-    await userEvent.click(screen.getByTestId('btn-save-vi'));
-    expect(onStage).toHaveBeenCalledTimes(1);
-    expect(onStage.mock.calls[0][0]).not.toHaveProperty('taxTemplate');
   });
 
   it('AC-520-9 a PMO-owned org shows no template picker and reads no ERP templates', () => {

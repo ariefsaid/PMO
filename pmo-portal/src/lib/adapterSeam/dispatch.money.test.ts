@@ -1641,3 +1641,59 @@ describe('Luna r3 SHOULD-FIX 3 — a DETERMINISTIC probe/adoption failure is hel
     expect([...fake.rows.values()][0].state).toBe('committing');
   });
 });
+
+describe('AC-BWO-002 a sales-invoice command names its record by the canonical uuid text (OD-BILL-1)', () => {
+  const canonical = '0b6a1f8e-3c2d-4e5f-8a9b-0c1d2e3f4a5b';
+  const siCommand = (id: string, operation: AdapterCommand['operation'] = 'create'): AdapterCommand => ({
+    domain: 'revenue', operation, record: { id, erp_doc_kind: 'sales-invoice' }, idempotencyKey: 'key-si',
+  });
+
+  it.each([
+    ['no hyphens', canonical.replaceAll('-', '')],
+    ['braces', `{${canonical}}`],
+    ['upper case', canonical.toUpperCase()],
+    ['surrounding space', ` ${canonical}`],
+    ['not a uuid', 'si-1'],
+  ])('refuses a %s record id before any outbox read or ERP call', async (_label, id) => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn();
+    const readOutboxSpy = vi.spyOn(fake.deps, 'readOutbox');
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: siCommand(id),
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'commit-rejected', message: 'sales-invoice-record-id-not-canonical' });
+    expect(readOutboxSpy).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('refuses it on every sales-invoice operation, not only a create', async () => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn();
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: siCommand(canonical.toUpperCase(), 'update'),
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'commit-rejected', message: 'sales-invoice-record-id-not-canonical' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('dispatches a canonical record id', async () => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn(async () => ({ externalRecordId: 'SI-0001', canonical: { id: canonical } }));
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: siCommand(canonical),
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    });
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(result.externalRecordId).toBe('SI-0001');
+  });
+
+  it('leaves every other kind on its own record ids', async () => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } }));
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: { ...baseCommand, record: { id: 'pmo-1', erp_doc_kind: 'purchase-invoice' } },
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    });
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+});
