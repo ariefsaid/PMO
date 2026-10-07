@@ -56,7 +56,7 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
     if (Object.keys(errors).length > 0 || loading) return;
     void onSave({ efakturNumber: normalized.number, efakturDate: normalized.date }).catch((error: unknown) => {
       const classified = classifyMutationError(error);
-      // The setters' known refusals carry a stable DETAIL key (0270) — name them in the user's language.
+      // The setters' known refusals carry a stable DETAIL key (0271) — name them in the user's language.
       const refusal = efakturRefusal(error);
       if (!refusal) {
         setSaveError({ headline: classified.headline, detail: classified.detail });

@@ -1,6 +1,6 @@
 -- #893 / DD-EFK-1: e-Faktur references are PMO-owned facts. They are not ERP ledger fields and
 -- mirror writers must leave them untouched. Client writes go only through the two role/org-guarded RPCs.
--- Reversal: supabase/migrations/rollback/0270_efaktur_number_down.sql.
+-- Reversal: supabase/migrations/rollback/0271_efaktur_number_down.sql.
 --
 -- DD-EFK-2: both or neither. A number without its date falls out of the monthly VAT register, so the pair
 -- is held together by the table (any writer) and refused with a stable DETAIL by the setters (UI copy).
