@@ -390,6 +390,22 @@ describe('createInvoice', () => {
       }),
     ).rejects.toThrow('invoice error');
   });
+
+  it('AC-VWH-032 (DAL): createInvoice forwards a stated withholding and its PPh type (OQ-VWH-6); none and ERP amounts never reach the RPC', async () => {
+    makeRpcBuilder({ data: { id: 'invoice-4' }, error: null });
+    await createInvoice({ procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07', amount: 1000000,
+      taxTreatment: 'exclusive', taxAmount: 110000, withheldAmount: 20000, withheldPphType: 'pph23' });
+    expect(mockRpc.mock.calls[0][1]).toMatchObject({ p_withheld_amount: 20000, p_withheld_pph_type: 'pph23' });
+
+    mockRpc.mockClear();
+    makeRpcBuilder({ data: { id: 'invoice-5' }, error: null });
+    await createInvoice({ procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07', amount: 1000000,
+      taxTreatment: 'exclusive', taxAmount: 110000, erpTaxAmounts: { vatAmount: 1, withheldAmount: 1, pphType: 'pph23' } });
+    const args = mockRpc.mock.calls[0][1] as Record<string, unknown>;
+    expect('p_withheld_amount' in args).toBe(false);
+    expect('p_withheld_pph_type' in args).toBe(false);
+    expect(Object.keys(args).some((key) => /vat|pph|erp/i.test(key))).toBe(false);
+  });
 });
 
 // #505: captureVendorInvoice is the SECOND path that creates a vendor invoice (the atomic
@@ -421,6 +437,13 @@ describe('captureVendorInvoice', () => {
       p_tax_amount: 94.14,
     });
     expect(result).toMatchObject({ id: 'invoice-vi-1' });
+  });
+
+  it('AC-VWH-032 (DAL): captureVendorInvoice forwards a stated withholding and its PPh type', async () => {
+    makeRpcBuilder({ data: { id: 'invoice-vi-2' }, error: null });
+    await captureVendorInvoice({ procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07', amount: 2000000,
+      taxTreatment: 'exclusive', taxAmount: 220000, withheldAmount: 40000, withheldPphType: 'pph4_2' });
+    expect(mockRpc.mock.calls[0][1]).toMatchObject({ p_withheld_amount: 40000, p_withheld_pph_type: 'pph4_2' });
   });
 });
 

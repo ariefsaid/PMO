@@ -1,6 +1,6 @@
 # ADR-0084 — Vendor bill tax: the amounts entered in PMO are the bill's tax; on an ERP-connected org they are sent as fixed ERPNext rows; vendor defaults only pre-fill
 
-- **Status:** Proposed (planner, 2026-10-07, #876 slice 2) — for Director ratification with DD-VWH-15..22
+- **Status:** Accepted (Director, 2026-10-07, #876 slice 2) — ratified with DD-VWH-15..22
 - **Deciders:** owner (OD-VWH-1); Director (DD-VWH-10..14); planner proposals DD-VWH-15..22
 - **Amends:** ADR-0082 §5 (outbound) — the template path stays; an entered-amounts path is added beside it
 - **Related:** ADR-0048 (ERPNext is the accounting oracle), ADR-0055 (integration architecture), ADR-0058 (outbox),
@@ -53,7 +53,7 @@ Three forces:
 
 ## Consequences
 
-- Migration 0269 (reversible): three company columns + guard trigger + one definer function; three organization
+- Migration 0273 (reversible): three company columns + guard trigger + one definer function; three organization
   columns + audit trigger; `create_procurement_invoice` / `capture_vendor_invoice` re-created with one trailing
   parameter (signature change → the isolation-probe denominator and the client-RPC allow-list are re-derived); the
   procurement-invoice create audit records VAT and withheld.
@@ -61,8 +61,9 @@ Three forces:
   (the persisted rows are re-sent, AC-520-6 discipline).
 - A bill with zero VAT and no withholding sends an explicit empty tax table (spike-verified that ERPNext then applies
   no default template).
-- The withholding type is asked only where it is consumed (ERP-bound bills — it selects the payable account). A
-  standalone bill records the amount only (DD-VWH-18); the no-ERP tax register (#898) will need the type (OQ-VWH-6).
+- The PPh type is stored on every bill that withholds (DD-VWH-18, OQ-VWH-6 decided): on an ERP-bound bill it selects
+  the payable account, and a standalone bill records it with its withheld amount (0273's `withheld_pph_type`), so the
+  no-ERP tax register (#898) can read the type from the bill.
 - Server bound: tax withheld above the items total is refused before any ERP write — otherwise the mirror's
   `withheld ≤ amount` bound would refuse every replay (the DD-VI-3a failure class) (DD-VWH-22).
 - Future `companies` columns keep the incumbent grant behaviour (writable under the existing policy); only these three

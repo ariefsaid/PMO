@@ -346,6 +346,19 @@
         "projectRequired": "Pilih proyek.",
         "save": "Tambah"
       }
+    },
+    "vendorTaxAccounts": {
+      "heading": "Akun pajak tagihan vendor",
+      "helper": "Masukkan nama akun ERPNext yang persis. Kosongkan jika tidak digunakan.",
+      "inputVat": "Akun PPN Masukan",
+      "intro": "Akun ERPNext tempat PMO membukukan PPN dan pajak dipotong pada tagihan vendor. Wajib diisi sebelum tagihan dengan jumlah tersebut dapat dikirim ke ERPNext.",
+      "loadError": "Tidak dapat memuat akun pajak",
+      "notConfigured": "Belum dikonfigurasi",
+      "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
+      "pph23": "Akun Utang PPh 23",
+      "pph42": "Akun Utang PPh 4(2)",
+      "save": "Simpan akun",
+      "saved": "Akun pajak disimpan"
     }
   },
   "approvals": {
@@ -707,6 +720,24 @@
       "client": "Klien",
       "internal": "Internal",
       "vendor": "Vendor"
+    },
+    "vendorTax": {
+      "hint": "Mengisi otomatis tagihan baru dari vendor ini. Jumlahnya tetap dapat diubah di setiap tagihan.",
+      "none": "Tidak ada",
+      "notSet": "Belum diatur",
+      "onlyRoles": "Hanya Admin atau Finance yang dapat mengubahnya.",
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)",
+      "pphRate": "Tarif PPh (%)",
+      "pphRateError": "Masukkan tarif di atas 0 dan di bawah 100 dengan paling banyak 3 angka desimal.",
+      "save": "Simpan default",
+      "saved": "Default pajak vendor disimpan",
+      "summaryPph": "{{type}} sebesar {{rate}}%",
+      "summaryVat": "PPN {{rate}}%",
+      "title": "Default pajak vendor",
+      "vatRate": "Tarif PPN (%)",
+      "vatRateError": "Masukkan tarif 0 sampai 100 dengan paling banyak 3 angka desimal, atau kosongkan.",
+      "withholding": "Pemotongan pajak"
     }
   },
   "contactDetail": {
@@ -1662,13 +1693,26 @@
     },
     "erpTaxTemplate": {
       "label": "Templat pajak ERPNext",
-      "default": "Bawaan ERPNext",
-      "loadError": "Templat pajak ERPNext tidak dapat dimuat. Bawaan ERPNext akan digunakan."
+      "enterAmounts": "Masukkan jumlah pajak",
+      "loadError": "Templat pajak ERPNext tidak dapat dimuat. Masukkan jumlah pajaknya."
     },
     "withholding": {
       "netPayable": "Neto yang harus dibayar",
       "vat": "PPN",
       "withheld": "Pajak dipotong (PPh)"
+    },
+    "vendorTax": {
+      "erpRequiredHint": "Masukkan jumlah PPN dari faktur vendor (0 jika tidak ada) dan, jika ada pajak dipotong, jenis dan jumlahnya.",
+      "itemsNet": "Total item, sebelum pajak: {{amount}}",
+      "none": "Tidak ada",
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)",
+      "suggestedFrom": "Default vendor {{rate}}% dari {{base}}",
+      "vatAmount": "Jumlah PPN",
+      "withheldAmount": "Jumlah PPh",
+      "withheldError": "Masukkan pajak dipotong sebagai jumlah yang tidak melebihi jumlah faktur (isi jumlah faktur terlebih dahulu).",
+      "withholding": "Pajak dipotong",
+      "withheldAboveItems": "Pajak dipotong lebih besar dari total item sebelum pajak. Periksa jumlah PPh."
     }
   },
   "projectDetail": {

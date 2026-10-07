@@ -732,6 +732,6 @@ describe('AC-VWH-011: a vendor invoice row carries its VAT and tax withheld (#87
     // withheld_amount is NOT NULL (0266): a bill with nothing withheld comes back as 0, never absent.
     const [plain] = buildLedgerRows(makeDetail({ invoices: [{ ...vi, amount: 111000, tax_amount: 11000, withheld_amount: 0 }] }));
     expect(plain).toMatchObject({ amount: 111000, taxAmount: 11000, withheldAmount: 0 });
-    expect(withholdingFigures(plain.amount, plain.taxAmount, plain.withheldAmount)).toBeNull();
+    expect(withholdingFigures(plain.amount, plain.taxAmount, plain.withheldAmount, plain.taxTreatment)).toBeNull();
   });
 });

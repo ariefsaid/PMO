@@ -28,6 +28,10 @@ import {
 } from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
+import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
+import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
+import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
+import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -279,8 +283,13 @@ export interface StagedVI {
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
-  /** #520: the ERPNext Purchase Taxes and Charges Template chosen on a flipped org; absent = ERPNext default. */
+  /** #520: the ERPNext Purchase Taxes and Charges Template chosen on a flipped org. */
   taxTemplate?: string;
+  /** #876 slice 2: tax withheld on a standalone bill and its PPh type (OQ-VWH-6) — present only when > 0. */
+  withheldAmount?: number;
+  withheldPphType?: PphType;
+  /** #876 slice 2 (DD-VWH-13/14): the VAT / PPh entered for an ERP-bound bill ("Enter the tax amounts" mode). */
+  erpTaxAmounts?: ErpVendorTaxAmounts;
 }
 
 export type StagedRecord = StagedGR | StagedVI;
@@ -307,6 +316,10 @@ export interface RecordCaptureFormProps {
    * as before (direct `onCreate` + success toast). Only the GR/VI kinds use it.
    */
   onStage?: (staged: StagedRecord) => void;
+  /** #876 slice 2 (OD-VWH-1): the procurement's vendor — its default tax treatment pre-fills a vendor invoice. */
+  vendorId?: string | null;
+  /** #876 slice 2: the case's items total before tax — the base an ERP-bound bill's tax is pre-filled on. */
+  itemsNet?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -320,6 +333,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   invoices = [],
   onClose,
   onStage,
+  vendorId = null,
+  itemsNet = null,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -343,7 +358,6 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     setAmountStr(next);
     setAmountError(undefined);
   });
-  const taxAmountMask = useMoneyInputMask(taxAmountStr, setTaxAmountStr);
   // [PD-5]: predecessor FK for payment — optional, defaults to none.
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -368,12 +382,32 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     : pmoAuthorsTax
       ? taxFields.facts
       : ERP_AUTHORED_TAX;
-  const taxIncomplete = isVendorInvoice && parsedTax === null;
-  // #520: on a flipped org the ERP computes the tax, but the user chooses WHICH ERPNext template applies. '' is
-  // "ERPNext default" — the supplier's/company's own default, exactly what happens when nothing is sent.
+  // #520: on a flipped org the user chooses WHICH ERPNext template applies — or (#876 slice 2, DD-VWH-15) enters the
+  // tax AMOUNTS, which is '' in the template select and the default. "ERPNext default" is no longer offered.
   const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax;
   const [taxTemplate, setTaxTemplate] = useState('');
   const erpTaxTemplates = usePurchaseTaxTemplates(choosesErpTaxTemplate);
+  // OQ-VWH-8: the bill amount is never sent on the ERP path (ERPNext totals the items), so it is not asked there.
+  const showsAmount = cfg.showAmount && !choosesErpTaxTemplate;
+
+  // #876 slice 2 (OD-VWH-1, DD-VWH-17): the vendor's default pre-fills the AMOUNTS; every amount stays editable and
+  // the bill records exactly what is submitted (DD-VWH-13/19).
+  const vendorTax = useVendorTaxDefault(isVendorInvoice ? vendorId : null);
+  const nativeTax = useNativeVendorTax({
+    vendor: vendorTax, enabled: pmoAuthorsTax, amountRaw: amountStr, treatmentRaw: taxTreatmentStr,
+    vatRaw: taxAmountStr, setVatRaw: setTaxAmountStr, vatIsCalculated: taxFields.hasRate,
+  });
+  const taxAmountMask = useMoneyInputMask(taxAmountStr, (next) => {
+    nativeTax.markVatTouched();
+    setTaxAmountStr(next);
+  });
+  const entersErpAmounts = choosesErpTaxTemplate && taxTemplate === '';
+  const erpTax = useErpVendorTax({ vendor: vendorTax, enabled: entersErpAmounts, itemsNet });
+  const taxIncomplete = isVendorInvoice && (
+    parsedTax === null
+    || (pmoAuthorsTax && nativeTax.value === null)
+    // The server refuses a withheld above the items total (DD-VWH-22); the form says so before the send.
+    || (entersErpAmounts && (erpTax.amounts === null || erpTax.withheldAboveItems)));
 
   // OD-TAX-1 (#548): pre-select the org's `default_tax_treatment` — this form composes a NEW
   // invoice row, which is the only thing that setting is for. Enabled ONLY where PMO authors the
@@ -387,7 +421,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
     // #684 (AC-PLC-009): ONE parse of the amount draft, used for both the verdict and the write.
     // A value the numeric(14,2) column would have to round is refused here, before any write.
-    const amountParse = cfg.showAmount ? parseRecordAmount(amountStr) : ({ ok: true, amount: null } as const);
+    const amountParse = showsAmount ? parseRecordAmount(amountStr) : ({ ok: true, amount: null } as const);
     if (!amountParse.ok) {
       setAmountError(RECORD_AMOUNT_ERROR);
       return;
@@ -411,7 +445,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       } else {
         // #505: refuse to stage without the tax facts. Unreachable through the UI (Save VI is
         // disabled), but staging an incomplete VI would surface P0001 AFTER the user confirmed.
-        if (!parsedTax) return;
+        if (!parsedTax || taxIncomplete) return;
         // N1: status excludes Paid — the select never offers it.
         onStage({
           kind: 'createVI',
@@ -425,6 +459,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           taxAmount: parsedTax.taxAmount,
           ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
           ...(choosesErpTaxTemplate && taxTemplate ? { taxTemplate } : {}),
+          ...(pmoAuthorsTax && nativeTax.value?.pphType
+            ? { withheldAmount: nativeTax.value.withheldAmount, withheldPphType: nativeTax.value.pphType } : {}),
+          ...(entersErpAmounts && erpTax.amounts ? { erpTaxAmounts: erpTax.amounts } : {}),
         });
       }
       return;
@@ -559,7 +596,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       </div>
 
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
-      {cfg.showAmount && (
+      {showsAmount && (
         <div className="flex flex-col gap-1">
           <label
             htmlFor={`${formId}-amount`}
@@ -598,15 +635,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           onChange={setTaxTemplate}
           disabled={!erpTaxTemplates.data}
           helper={erpTaxTemplates.isError
-            ? t('procurementDetail.erpTaxTemplate.loadError', 'Could not load the ERPNext tax templates. The ERPNext default will apply.')
+            ? t('procurementDetail.erpTaxTemplate.loadError', 'Could not load the ERPNext tax templates. Enter the tax amounts instead.')
             : undefined}
           options={[
-            { value: '', label: t('procurementDetail.erpTaxTemplate.default', 'ERPNext default') },
+            { value: '', label: t('procurementDetail.erpTaxTemplate.enterAmounts', 'Enter the tax amounts') },
             ...(erpTaxTemplates.data ?? []).map((tpl) => ({ value: tpl.name, label: tpl.name })),
           ]}
           data-testid="vi-tax-template-select"
         />
       )}
+      {entersErpAmounts && <ErpTaxAmountFields formId={formId} tax={erpTax} />}
       {pmoAuthorsTax && <TaxRateFields fields={taxFields} />}
       {pmoAuthorsTax && (
         <div className="flex flex-wrap gap-3">
@@ -638,13 +676,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               onChange={taxAmountMask.onChange}
               placeholder="0.00"
               data-testid={VI_FIELD_TEST_IDS.taxAmount}
+              aria-describedby={nativeTax.vatSuggestion ? `${formId}-tax-amount-basis` : undefined}
               className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
+            <TaxSuggestedFrom id={`${formId}-tax-amount-basis`} suggestion={nativeTax.vatSuggestion} />
           </div>
         </div>
       )}
+      {pmoAuthorsTax && <NativeWithholdingField formId={formId} tax={nativeTax} />}
 
-      {taxIncomplete && (
+      {isVendorInvoice && parsedTax === null && (
         <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
           {VI_TAX_REQUIRED_HINT}
         </p>

@@ -53,6 +53,7 @@ import {
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
@@ -133,8 +134,12 @@ type PendingConfirm =
       taxRate?: number | null;
       taxBaseNumerator?: number;
       taxBaseDenominator?: number;
-      /** #520: the ERPNext purchase tax template chosen on a flipped org; absent = ERPNext default. */
+      /** #520: the ERPNext purchase tax template chosen on a flipped org. */
       taxTemplate?: string;
+      /** #876 slice 2: standalone tax withheld + its PPh type (only when > 0, OQ-VWH-6) and the ERP-bound entered amounts. */
+      withheldAmount?: number;
+      withheldPphType?: PphType;
+      erpTaxAmounts?: ErpVendorTaxAmounts;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -636,6 +641,9 @@ const ProcurementDetails: React.FC = () => {
           taxAmount: pendingConfirm.taxAmount,
           taxRate: pendingConfirm.taxRate, taxBaseNumerator: pendingConfirm.taxBaseNumerator, taxBaseDenominator: pendingConfirm.taxBaseDenominator,
           ...(pendingConfirm.taxTemplate ? { taxTemplate: pendingConfirm.taxTemplate } : {}),
+          ...(pendingConfirm.withheldAmount && pendingConfirm.withheldPphType
+            ? { withheldAmount: pendingConfirm.withheldAmount, withheldPphType: pendingConfirm.withheldPphType } : {}),
+          ...(pendingConfirm.erpTaxAmounts ? { erpTaxAmounts: pendingConfirm.erpTaxAmounts } : {}),
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);

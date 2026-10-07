@@ -1,5 +1,8 @@
 # Plan — flipped org: the user chooses the ERPNext purchase tax template (#520)
 
+Amended 2026-10-07 (#876 slice 2, DD-VWH-15): the bill form offers "Enter the tax amounts" (default) or a named
+template; "ERPNext default" is no longer offered.
+
 Lane: money path (procurement → ERPNext Purchase Invoice). No migration: the template list is read live
 from ERPNext and the choice travels in the dispatch command (outbox payload).
 

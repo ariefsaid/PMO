@@ -303,6 +303,22 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(record).not.toHaveProperty('taxes');
   });
 
+  it('AC-VWH-032 forwards the entered VAT and PPh as amounts — never the native tax facts, never rows', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-876', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-10-07',
+      taxTreatment: 'inclusive', taxAmount: 0, withheldAmount: 5, withheldPphType: 'pph4_2',
+      erpTaxAmounts: { vatAmount: 110000, withheldAmount: 20000, pphType: 'pph23' },
+    });
+    const record = dispatchSpy.mock.calls[0][2] as Record<string, unknown>;
+    expect(record).toMatchObject({ vatAmount: 110000, withheldAmount: 20000, pphType: 'pph23', erp_doc_kind: 'purchase-invoice' });
+    expect(record).not.toHaveProperty('taxAmount');
+    expect(record).not.toHaveProperty('taxTemplate');
+    expect(record).not.toHaveProperty('taxes');
+    expect(record).not.toHaveProperty('erpTaxAmounts');
+    expect(record).not.toHaveProperty('withheldPphType');
+  });
+
   it('forwards the supplied vendor invoice reference and date to external dispatch (#764)', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createInvoice({

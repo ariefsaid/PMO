@@ -61,6 +61,25 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     expect(body).toEqual({ supplier: 'Spike Supplier', items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 150000 }] });
   });
 
+  it('AC-VWH-034 amounts mode sends the server-built rows with an EMPTY template (an empty table is "no tax")', () => {
+    const rows = [{ charge_type: 'Actual', account_head: 'Input VAT - SC', description: 'VAT', tax_amount: 110000, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0 }];
+    expect(piToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 1000000 }], taxes: rows, taxesFromAmounts: true }), CTX))
+      .toMatchObject({ taxes_and_charges: '', taxes: rows });
+    expect(piToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 1000000 }], taxes: [], taxesFromAmounts: true }), CTX))
+      .toMatchObject({ taxes_and_charges: '', taxes: [] });
+  });
+
+  it('AC-VWH-034 rows without the server marker or a template are never sent', () => {
+    const body = piToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 1 }], taxes: [{ charge_type: 'Actual' }] }), CTX) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('taxes');
+    expect(body).not.toHaveProperty('taxes_and_charges');
+  });
+
+  it('AC-VWH-034 an ERPNext bill with no template mirrors tax_template null, never an empty string (DD-VWH-21)', () => {
+    expect(piFromDoc({ name: 'ACC-PINV-2026-00900', grand_total: 1, taxes_and_charges: '' }).tax_template).toBeNull();
+    expect(piFromDoc({ name: 'ACC-PINV-2026-00901', grand_total: 1, taxes_and_charges: 'PPN 11 - RIS' }).tax_template).toBe('PPN 11 - RIS');
+  });
+
   it('purchaseInvoice.ts rejects empty items (FR-ENA-042, the 500-TypeError guard)', () => {
     expect(() => piToBody(rec({ items: [] }), CTX)).toThrow(/at least one line item/);
   });
