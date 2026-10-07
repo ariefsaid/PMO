@@ -169,3 +169,47 @@ entry wedge.
 - The agent tier and all pgTAP/RLS proofs keep working unchanged: reads (incl. agent reads)
   always hit Supabase; only the write path of externally-owned domains changes.
 - Data-locality asymmetry (ClickUp US SaaS vs self-hosted ERP) is a stated client-facing fact.
+
+## Addendum — 2026-10-07: PMO-native revenue when no ERP owns it (#784, OD-REEL-1)
+
+**Status:** Proposed (Director sign-off with `docs/specs/no-erp-revenue.spec.md`, DD-NAR-1..14).
+
+### Context
+
+§1 says PMO runs fully standalone with every domain PMO-owned, but revenue never had a standalone write path: the
+sales-invoice tables shipped flip-shaped (0123, "OQ-SAR-6 deferred") and every revenue write without an ERP was refused
+at the repository. The owner ruled (OD-REEL-1) that PMO must invoice without an ERP. §5A's money principle ("money that
+has happened is externally-owned, always") describes a client that employs an ERP; it never covered one that has none.
+
+### Decision
+
+1. **Ownership.** While an org has no `revenue` row in `external_domain_ownership`, PMO is the system of record for its
+   sales invoices and customer receipts. The money principle of §5A applies from the moment an ERP employs revenue, not
+   before. No new ownership state exists: absence of the row is the native state, exactly as for every other domain.
+2. **Same tables, one marker.** PMO-native invoices and receipts are rows of `sales_invoices` / `incoming_payments`
+   with `pmo_native = true`, written only by SECURITY DEFINER RPCs that enforce role, SoD (approver ∉ author set,
+   current Admin/Finance standing) and balance rules. Every reader of those tables keeps working; no PMO code learns a
+   second shape.
+3. **One paid oracle.** For native rows PMO itself is the ledger of record, so its RPCs maintain
+   `erp_outstanding_amount` (recomputed from live receipts under the invoice row lock) and the coarse `status`. This
+   keeps DD-WO-3's single oracle: there is still one column that says what is owed.
+4. **Crossing, revenue row of the §5 table.** For revenue, the crossing that is built is the **flip**: employing revenue
+   makes the ERP the owner from that moment (Posture A for documents raised after connect), which is what OD-XING-1
+   records as "what the tree already does". PMO-native rows from before connect are **frozen history**: listed and
+   readable, never pushed (OD-XING-1 default), never adopted (ADR-0059 §5), and every native write on them is refused
+   while the ERP owns revenue (RPC check + the mirror guards, which now pin the native columns). Employing revenue is
+   refused while a native Draft is open, so no unapprovable draft is left holding a work order's headroom (0262).
+   §5A's "sales invoices remain PMO-SoT, Posture B" line describes a side-mirror that does not exist for revenue; until
+   one is built, this paragraph governs the sales-invoice row of the §5 table.
+5. **Reversal.** Removing the `revenue` row re-opens native writes on the same rows; nothing is converted in either
+   direction, so the crossing is reversible for native rows.
+
+### Consequences
+
+- Open native receipts-to-be at connect (Unpaid PMO invoices) are not settled in PMO after connect. The client's
+  accountant carries them into the ERP as one opening entry (OD-XING-1 option 3); loading them as individual ERP
+  invoices would have the feed adopt them into PMO a second time. Owner question 1 in the spec.
+- A no-ERP org's invoices count everywhere invoices count (revenue by project, management pack, work-order billing),
+  because they are the same rows with the same statuses.
+- The client-INSERT seam left by 0176/0178 stays; rows it produces are not native and cannot be approved or settled.
+- Future work that adds a revenue side-mirror (true Posture B for revenue) supersedes point 4 of this addendum.

@@ -1308,6 +1308,13 @@ provisioning and a historical load to it would put the go-live out of reach.
 the local Docker dev bed (`docs/environments.md` §ERPNext v15 dev bed). Provisioning, company setup,
 credentials and the historical load are charted in #474. *(Fact superseded 2026-09-02: `DD-OPS-10` — a v16 test instance now exists; the ruling itself stands.)*
 
+**[DD-NAR-1..15] PMO-native customer invoicing when no ERP owns revenue (#784, Director 2026-10-07).** Recorded in
+full in `docs/specs/no-erp-revenue.spec.md` §3: PMO owns revenue when no ERP row says otherwise; same tables with a
+`pmo_native` marker written only by four RPCs; no new status (Partly paid is display); Paid stamped from a recomputed
+balance; approver ≠ author, role + membership read at approval time; Admin/Finance only (DD-NAR-15, owner ruling);
+project required, tax from the project; corrections by cancelling; at connect the `OD-XING-1` flip applies (PMO rows
+frozen, never pushed). ADR-0055 addendum 2026-10-07 makes §5A defer to `OD-XING-1`.
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
