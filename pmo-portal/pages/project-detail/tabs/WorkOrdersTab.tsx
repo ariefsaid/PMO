@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -60,17 +60,24 @@ export interface WorkOrdersTabProps {
   currency: string;
   /** The project's client — the invoice customer (OD-BILL-1). No client, no "Invoice" button. */
   clientId?: string | null;
+  /** A work order to bring into view on arrival (`?wo=` from a dashboard link): highlighted, scrolled to, focused. */
+  focusWorkOrderId?: string | null;
 }
 
-/** OD-BILL-1: the billing pill per derived state ('not-billable' renders a dash, no pill). */
+/** OD-BILL-1: the billing pill per derived state ('not-billable' renders a dash, no pill). Workflow family (DESIGN.md):
+ *  a draft someone still has to submit is needs-you (`warn`). */
 const BILLING_VARIANT: Record<Exclude<WorkOrderBillingState, 'not-billable'>, StatusVariant> = {
   'not-invoiced': 'draft',
   'partly-invoiced': 'progress',
+  'awaiting-submission': 'warn',
   'fully-invoiced': 'progress',
   paid: 'won',
   'over-invoiced': 'overdue',
   incomplete: 'warn',
-}
+};
+/** The billing state is a property of the money, not the work order: it sits on a quiet `secondary` chip so it never
+ *  reads as the work order's own status mark beside it (an Issued work order and a partly invoiced one share a hue). */
+const BILLING_CHIP = 'rounded-sm bg-secondary px-1.5 py-0.5';
 
 const STATUS_VARIANT: Record<WorkOrderStatus, StatusVariant> = {
   Draft: 'draft',
@@ -85,7 +92,7 @@ interface PendingTransition {
   to: WorkOrderStatus;
 }
 
-const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null }) => {
+const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { toast } = useToast();
@@ -115,8 +122,19 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   );
   const totals = summarizeProjectWorkOrderBilling(billing.data ?? []);
   const [invoiceFor, setInvoiceFor] = useState<{ row: WorkOrderRow; remaining: number } | null>(null);
-  // Every billing figure is normalised excl. tax (DD-BWO-3), so each carries the shared basis label (OD-TAX-1).
-  const excl = <TaxBasisLabel treatment="exclusive" showDetails={false} testId="wo-billing-basis" />;
+  // Every billing figure is normalised excl. tax (DD-BWO-3): ONE shared basis label qualifies a whole cell (OD-TAX-1).
+  const excl = <TaxBasisLabel treatment="exclusive" showDetails={false} testId="wo-billing-basis" className="whitespace-nowrap" />;
+
+  // ── Arriving from a dashboard link (`?wo=`): bring that work order into view once its row exists.
+  const focusedOnce = useRef(false);
+  useEffect(() => {
+    if (!focusWorkOrderId || focusedOnce.current || !rows.some((r) => r.id === focusWorkOrderId)) return;
+    const anchor = document.querySelector<HTMLElement>(`[data-wo-anchor="${CSS.escape(focusWorkOrderId)}"]`);
+    if (!anchor) return;
+    focusedOnce.current = true;
+    anchor.scrollIntoView({ block: 'center' });
+    anchor.focus({ preventScroll: true });
+  }, [focusWorkOrderId, rows]);
 
   const billingLabel = (state: Exclude<WorkOrderBillingState, 'not-billable'>): string => {
     switch (state) {
@@ -124,6 +142,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         return t('projectDetail.workOrders.billing.status.notInvoiced', 'Not invoiced');
       case 'partly-invoiced':
         return t('projectDetail.workOrders.billing.status.partlyInvoiced', 'Partly invoiced');
+      case 'awaiting-submission':
+        return t('projectDetail.workOrders.billing.status.awaitingSubmission', 'Awaiting submission');
       case 'fully-invoiced':
         return t('projectDetail.workOrders.billing.status.fullyInvoiced', 'Fully invoiced');
       case 'paid':
@@ -152,46 +172,76 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       }
       const state = deriveWorkOrderBillingState(row.status, f);
       if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>—</span>;
+      const money = (amount: number) => formatCurrencyCents(amount, f.currency);
+      const line = 'text-[11px] tabular text-muted-foreground';
       return (
         <div className="flex flex-col items-start gap-0.5 whitespace-normal" data-testid={`wo-billing-${row.id}`}>
-          <StatusPill variant={BILLING_VARIANT[state]}>{billingLabel(state)}</StatusPill>
-          {state !== 'incomplete' && (
-            <>
-              <span className="text-[11px] tabular text-muted-foreground">
-                {t('projectDetail.workOrders.billing.lineInvoiced', {
-                  defaultValue: 'Invoiced {{invoiced}} · paid {{paid}}',
-                  invoiced: formatCurrencyCents(f.invoiced, f.currency),
-                  paid: formatCurrencyCents(f.paid, f.currency),
-                  interpolation: { escapeValue: false },
-                })}{' '}
-                {excl}
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <StatusPill variant={BILLING_VARIANT[state]} className={BILLING_CHIP}>{billingLabel(state)}</StatusPill>
+            {state !== 'incomplete' && excl}
+          </span>
+          {state === 'incomplete' ? (
+            // DD-BWO-3: say which invoice stops the total, when the cause could be read.
+            (f.problems ?? []).map((p) => (
+              <span key={p.recordId} className={line}>
+                {p.cause === 'no-amount'
+                  ? t('projectDetail.workOrders.billing.cause.noAmount', {
+                      defaultValue: '{{number}} has no amount',
+                      number: p.number ?? t('projectDetail.workOrders.billing.cause.anInvoice', 'An invoice'),
+                      interpolation: { escapeValue: false },
+                    })
+                  : t('projectDetail.workOrders.billing.cause.otherCurrency', {
+                      defaultValue: '{{number}} is in {{currency}}',
+                      number: p.number ?? t('projectDetail.workOrders.billing.cause.anInvoice', 'An invoice'),
+                      currency: p.currency ?? '?',
+                      interpolation: { escapeValue: false },
+                    })}
               </span>
-              {/* Drafts and unraised claims use up the work order before they are invoiced: shown, so a work order
-                  that is "full" only because of a draft never reads as invoiced (AC-BWO-003). */}
-              {Math.round(f.pending * 100) > 0 && (
-                <span className="text-[11px] tabular text-muted-foreground">
-                  {t('projectDetail.workOrders.billing.lineDraft', {
-                    defaultValue: 'In draft {{amount}}',
-                    amount: formatCurrencyCents(f.pending, f.currency),
-                    interpolation: { escapeValue: false },
-                  })}{' '}
-                  {excl}
-                </span>
-              )}
+            ))
+          ) : (
+            <>
               <span className="text-[11px] font-semibold tabular">
                 {state === 'over-invoiced'
                   ? t('projectDetail.workOrders.billing.lineOver', {
                       defaultValue: 'Over by {{amount}}',
-                      amount: formatCurrencyCents(-f.remaining, f.currency),
+                      amount: money(-f.remaining),
                       interpolation: { escapeValue: false },
                     })
                   : t('projectDetail.workOrders.billing.lineRemaining', {
                       defaultValue: 'Still to invoice {{amount}}',
-                      amount: formatCurrencyCents(Math.max(f.remaining, 0), f.currency),
+                      amount: money(Math.max(f.remaining, 0)),
                       interpolation: { escapeValue: false },
-                    })}{' '}
-                {excl}
+                    })}
               </span>
+              <span className={line}>
+                {t('projectDetail.workOrders.billing.lineInvoiced', {
+                  defaultValue: 'Invoiced {{invoiced}} · paid {{paid}}',
+                  invoiced: money(f.invoiced),
+                  paid: money(f.paid),
+                  interpolation: { escapeValue: false },
+                })}
+              </span>
+              {/* Drafts and unraised claims use up the work order before they are invoiced: shown, so a work order
+                  that is "full" only because of a draft never reads as invoiced (AC-BWO-003, DD-BWO-1). */}
+              {Math.round(f.pending * 100) > 0 && (
+                <span className={line}>
+                  {t('projectDetail.workOrders.billing.lineNotSubmitted', {
+                    defaultValue: 'Not yet submitted {{amount}}',
+                    amount: money(f.pending),
+                    interpolation: { escapeValue: false },
+                  })}
+                </span>
+              )}
+              {/* An incl.-PPN order value is not what these figures add up to: show the net they reconcile against. */}
+              {row.tax_treatment === 'inclusive' && (
+                <span className={line}>
+                  {t('projectDetail.workOrders.billing.lineNet', {
+                    defaultValue: 'Net value {{amount}}',
+                    amount: money(f.orderNet),
+                    interpolation: { escapeValue: false },
+                  })}
+                </span>
+              )}
             </>
           )}
         </div>
@@ -293,16 +343,21 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       header: t('projectDetail.workOrders.column.number', 'WO number'),
       cell: (row) => (
         <div className="flex flex-col">
-          <span className="font-semibold tabular">
+          {/* The arrival target for a `?wo=` link: programmatically focusable, never in the Tab order. */}
+          <span
+            className="font-semibold tabular rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-wo-anchor={row.id}
+            tabIndex={-1}
+          >
             {row.wo_number ??
               t('projectDetail.workOrders.notYetIssued', 'Not issued yet')}
           </span>
           {/* The scope rides under the WO number (not its own column) so Billing and Invoice stay in view beside
               the record panel; it wraps to two lines rather than widening the table. */}
-          <span className="line-clamp-2 max-w-56 whitespace-normal">{row.title}</span>
+          <span className="line-clamp-2 max-w-56 whitespace-normal" title={row.title}>{row.title}</span>
           {/* Folded status: only while the table is too narrow for the Status column (below), and never on a
-              mobile card, which already lists Status as a field. */}
-          <span className="mt-0.5 max-md:hidden @2xl:hidden">
+              record card (mobile, or a column too narrow for the table), which already lists Status as a field. */}
+          <span className="mt-0.5 max-md:hidden @2xl:hidden [[data-dt-cards]_&]:hidden">
             <StatusPill variant={STATUS_VARIANT[row.status]}>{statusLabel(row.status)}</StatusPill>
           </span>
           {row.client_po_number && (
@@ -458,12 +513,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     panel four IDR billions do not fit one row, so the fourth wraps instead of colliding. */}
                 <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
                   {([
+                    ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
                     ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
                     ['wo-billing-total-paid', t('projectDetail.workOrders.billing.paid', 'Paid'), totals.paid],
                     ...(totals.inDraft > 0
-                      ? [['wo-billing-total-draft', t('projectDetail.workOrders.billing.inDraft', 'In draft'), totals.inDraft] as const]
+                      ? [['wo-billing-total-draft', t('projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted'), totals.inDraft] as const]
                       : []),
-                    ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
                   ] as const).map(([testId, label, value]) => (
                     <div key={testId} data-testid={testId}>
                       <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
@@ -497,11 +552,16 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           )}
         </CardHead>
         <CardPad>
+          {/* Beside the record panel at 1024px the column is ~350px and the table needs ~530px: below Tailwind's `@xl`
+              container size (36rem = 576px) of its own width it becomes the record cards (AC-TBL-CARDS-001) instead of
+              scrolling Invoice out of sight. */}
           <DataTable<WorkOrderRow>
             className="@container"
+            cardBelow={576}
             rows={rows}
             columns={columns}
             rowKey={(row) => row.id}
+            selectedKey={focusWorkOrderId ?? undefined}
             state={tableState}
             emptyTitle={t('projectDetail.workOrders.empty.title', 'No work orders on this project yet')}
             emptySub={t(

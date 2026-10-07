@@ -925,7 +925,9 @@
       "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",
       "error": "Gagal memuat yang belum ditagih",
       "incomplete": "Work Order yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
-      "title": "Belum ditagih per Work Order"
+      "title": "Belum ditagih per Work Order",
+      "incompleteMore": "dan {{n}} lainnya",
+      "clientPo": "PO klien {{po}}"
     },
     "subtitle": {
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
@@ -1722,7 +1724,7 @@
         "exclTax": "belum termasuk PPN",
         "gap": "Pekerjaan selesai, belum ditagih",
         "noAssessment": "Belum ada penilaian",
-        "notSubmitted": "Diterbitkan, belum di-submit",
+        "notSubmitted": "Klaim diterbitkan, belum dikirim",
         "remaining": "Kontrak belum ditagih",
         "title": "Ringkasan penagihan"
       }
@@ -2355,7 +2357,11 @@
           "itemCode": "Kode item",
           "submit": "Buat draf faktur",
           "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
-          "title": "Tagih Work Order ini"
+          "title": "Tagih Work Order ini",
+          "createFailed": "Draf faktur tidak dapat dibuat",
+          "cancel": "Batal",
+          "clientPo": "PO klien pada faktur",
+          "clientPoNone": "Tidak ada pada Work Order ini"
         },
         "paid": "Dibayar",
         "status": {
@@ -2364,7 +2370,8 @@
           "notInvoiced": "Belum ditagih",
           "overInvoiced": "Tagihan berlebih",
           "paid": "Lunas",
-          "partlyInvoiced": "Ditagih sebagian"
+          "partlyInvoiced": "Ditagih sebagian",
+          "awaitingSubmission": "Menunggu dikirim"
         },
         "stillToInvoice": "Sisa untuk ditagih",
         "summaryNote": "Work Order yang diterbitkan dan ditutup, dikurangi yang sudah ditagih atau masih draf.",
@@ -2374,8 +2381,14 @@
           "createdSub": "{{number}} — kirimkan dari Faktur Penjualan."
         },
         "unavailable": "Tidak tersedia",
-        "lineDraft": "Masih draf {{amount}}",
-        "inDraft": "Masih draf"
+        "notSubmitted": "Belum dikirim",
+        "lineNotSubmitted": "Belum dikirim {{amount}}",
+        "lineNet": "Nilai neto {{amount}}",
+        "cause": {
+          "noAmount": "{{number}} tidak memiliki jumlah",
+          "otherCurrency": "{{number}} dalam {{currency}}",
+          "anInvoice": "Sebuah faktur"
+        }
       },
       "clientPo": "PO klien",
       "column": {

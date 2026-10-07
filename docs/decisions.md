@@ -3045,3 +3045,5 @@ claim RPC locks the project first (DD-BWO-5) · Admin/Finance, SoD unchanged (DD
 assistant links the WO and defaults to what is left (amends DD-AIN-4) (DD-BWO-9) · shown on the Work orders tab and
 the Executive/Finance dashboards (DD-BWO-10) · invoices without a WO stay legal, project-level (DD-BWO-11) · the
 milestone→WO display link is a follow-up (DD-BWO-12). Plan: `docs/plans/2026-10-07-billing-by-work-order.md`.
+
+**DD-BWO-13 (Director, 2026-10-07, #785 rendered review)** — the Billing tab's "Claims raised, not yet submitted" (claims only, AC-PB-007/008) and the Work orders tab's "Not yet submitted" (drafts + unraised claims, DD-BWO-1) are different measures and carry different labels; they are not reconciled into one figure. A WO with nothing left but a draft outstanding reads "Awaiting submission", never "Fully invoiced".

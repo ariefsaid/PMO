@@ -35,6 +35,8 @@ vi.mock('../InvoiceWorkOrderModal', () => ({
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
 
 const wo = (over: Partial<WorkOrderRow> = {}): WorkOrderRow => ({
   id: 'wo-1', org_id: 'org-1', project_id: 'p1', wo_number: 'WO-1', client_po_number: 'PO-77', title: 'Phase 1 fabrication',
@@ -48,9 +50,11 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
   workOrderId: 'wo-1', projectId: 'p1', status: 'Issued', currency: 'USD', orderNet: 500_000, invoiced: 330_000,
   pending: 90_000, paid: 100_000, remaining: 80_000, figuresComplete: true, lineCount: 6, unpaidCount: 3, ...over,
 });
-const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1') => {
+const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null) => {
   h.role = role;
-  return render(<ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} /></ToastProvider>);
+  return render(
+    <ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} /></ToastProvider>,
+  );
 };
 
 beforeEach(() => {
@@ -64,13 +68,66 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
     const cell = screen.getByTestId('wo-billing-wo-1');
     expect(within(cell).getByText('Partly invoiced')).toBeInTheDocument();
-    expect(cell).toHaveTextContent('Invoiced $330,000.00 · paid $100,000.00 excl. PPN');
-    expect(cell).toHaveTextContent('Still to invoice $80,000.00 excl. PPN');
+    expect(cell).toHaveTextContent('Invoiced $330,000.00 · paid $100,000.00');
+    expect(cell).toHaveTextContent('Still to invoice $80,000.00');
+    expect(within(cell).getByTestId('wo-billing-basis')).toHaveTextContent('excl. PPN');
+  });
+
+  it('AC-BWO-004 one "excl. PPN" qualifies the whole billing cell — not one per figure — and it never wraps', () => {
+    renderTab();
+    const basis = within(screen.getByTestId('wo-billing-wo-1')).getAllByTestId('wo-billing-basis');
+    expect(basis).toHaveLength(1);
+    expect(basis[0]).toHaveClass('whitespace-nowrap');
+  });
+
+  it('AC-BWO-004 what is still to invoice leads the billing cell, ahead of invoiced and paid', () => {
+    renderTab();
+    const text = screen.getByTestId('wo-billing-wo-1').textContent ?? '';
+    expect(text.indexOf('Still to invoice')).toBeGreaterThan(-1);
+    expect(text.indexOf('Still to invoice')).toBeLessThan(text.indexOf('Invoiced'));
+  });
+
+  it('AC-BWO-004 the billing state reads as its own chip, never the same mark as the work order status beside it', () => {
+    renderTab();
+    const billingPill = within(screen.getByTestId('wo-billing-wo-1')).getByText('Partly invoiced');
+    const statusPill = within(screen.getAllByRole('row')[1]).getAllByText('Issued')[0];
+    expect(billingPill).toHaveClass('bg-secondary');
+    expect(statusPill).not.toHaveClass('bg-secondary');
+  });
+
+  it('AC-BWO-004 an incl.-PPN work order shows the net value its billing figures reconcile against', () => {
+    h.list.data = [wo({ order_value: 555_000, tax_treatment: 'inclusive', tax_amount: 55_000 })];
+    h.billing.data = [bill({ orderNet: 500_000 })];
+    renderTab();
+    expect(screen.getByTestId('wo-billing-wo-1')).toHaveTextContent('Net value $500,000.00');
+  });
+
+  it('AC-BWO-004 an excl.-PPN work order needs no net line — its order value already is the net', () => {
+    renderTab();
+    expect(screen.getByTestId('wo-billing-wo-1')).not.toHaveTextContent('Net value');
+  });
+
+  it("AC-BWO-004 a work order that can't be totalled names the invoice and the cause", () => {
+    h.billing.data = [bill({
+      figuresComplete: false,
+      problems: [
+        { recordId: 'si-9', number: 'ACC-SINV-9', cause: 'no-amount', currency: 'USD' },
+        { recordId: 'si-7', number: 'ACC-SINV-7', cause: 'other-currency', currency: 'EUR' },
+        { recordId: 'pc-1', number: null, cause: 'no-amount', currency: 'USD' },
+      ],
+    })];
+    renderTab();
+    const cell = screen.getByTestId('wo-billing-wo-1');
+    expect(within(cell).getByText("Can't total")).toBeInTheDocument();
+    expect(cell).toHaveTextContent('ACC-SINV-9 has no amount');
+    expect(cell).toHaveTextContent('ACC-SINV-7 is in EUR');
+    expect(cell).toHaveTextContent('An invoice has no amount');
   });
 
   it.each([
     ['Paid', bill({ invoiced: 500_000, pending: 0, paid: 500_000, remaining: 0, unpaidCount: 0 }), 'Paid'],
     ['Fully invoiced', bill({ invoiced: 500_000, pending: 0, remaining: 0, unpaidCount: 2 }), 'Fully invoiced'],
+    ['Awaiting submission', bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 }), 'Awaiting submission'],
     ['Not invoiced', bill({ invoiced: 0, pending: 0, paid: 0, remaining: 500_000, lineCount: 0, unpaidCount: 0 }), 'Not invoiced'],
     ["Can't total", bill({ figuresComplete: false }), "Can't total"],
   ])('AC-BWO-004 shows %s', (_label, row, pill) => {
@@ -79,19 +136,38 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(screen.getByTestId('wo-billing-wo-1')).getByText(pill)).toBeInTheDocument();
   });
 
-  it("AC-BWO-003 a work order that is full only because of a draft not yet submitted shows the draft amount, never a bare 'Fully invoiced'", () => {
+  it("AC-BWO-003 a work order covered only by a draft reads Awaiting submission with the draft amount — never 'Fully invoiced'", () => {
     h.billing.data = [bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 })];
     renderTab();
     const cell = screen.getByTestId('wo-billing-wo-1');
-    expect(within(cell).getByText('Fully invoiced')).toBeInTheDocument();
-    expect(cell).toHaveTextContent('In draft $500,000.00 excl. PPN');
-    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('$500,000.00excl. PPN');
+    expect(within(cell).getByText('Awaiting submission')).toBeInTheDocument();
+    expect(within(cell).queryByText('Fully invoiced')).toBeNull();
+    expect(cell).toHaveTextContent('Not yet submitted $500,000.00');
+    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('Not yet submitted$500,000.00excl. PPN');
+  });
+
+  it('AC-BWO-003 the awaiting-submission pill reads in Bahasa', async () => {
+    h.billing.data = [bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 })];
+    await financeTestI18n.changeLanguage('id');
+    try {
+      h.role = 'Finance';
+      render(<FinanceI18nTestProvider><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider>);
+      expect(within(screen.getByTestId('wo-billing-wo-1')).getByText('Menunggu dikirim')).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  it('AC-BWO-003 the summary leads with what is still to invoice', () => {
+    renderTab();
+    const labels = within(screen.getByTestId('wo-billing-summary')).getAllByRole('term').map((dt) => dt.textContent);
+    expect(labels[0]).toBe('Still to invoice');
   });
 
   it('AC-BWO-003 with nothing in draft, no draft line or total is shown', () => {
     h.billing.data = [bill({ pending: 0, remaining: 170_000 })];
     renderTab();
-    expect(screen.getByTestId('wo-billing-wo-1')).not.toHaveTextContent('In draft');
+    expect(screen.getByTestId('wo-billing-wo-1')).not.toHaveTextContent('Not yet submitted');
     expect(screen.queryByTestId('wo-billing-total-draft')).toBeNull();
   });
 
@@ -100,7 +176,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
     const cell = screen.getByTestId('wo-billing-wo-1');
     expect(within(cell).getByText('Over-invoiced')).toBeInTheDocument();
-    expect(cell).toHaveTextContent('Over by $1,000.00 excl. PPN');
+    expect(cell).toHaveTextContent('Over by $1,000.00');
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
@@ -200,5 +276,57 @@ describe('WorkOrdersTab — billing stays in view beside the record panel (OD-BI
     expect(header('Status')).toHaveClass('hidden', '@2xl:table-cell');
     expect(header('Order date')).toHaveClass('hidden', '@4xl:table-cell');
     for (const always of ['WO number', 'Order value', 'Billing', 'Actions']) expect(header(always)).not.toHaveClass('hidden');
+  });
+
+  it('AC-BWO-004 in a column too narrow for its columns (1024px beside the record panel) the work orders become record cards — Invoice reachable, no sideways scroll', () => {
+    // The geometry itself is proven in the browser (e2e AC-BWO-004 work-order billing geometry); here, the switch.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      () => ({ width: 346, height: 0, top: 0, left: 0, right: 346, bottom: 0, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect,
+    );
+    try {
+      renderTab();
+      expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+      expect(screen.queryByRole('table')).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'Invoice' })).toHaveLength(1);
+      // The card lists Status as a field: the copy folded under the WO number stays hidden there.
+      const folded = within(screen.getByTestId('dt-card-branch')).getAllByText('Issued')
+        .map((el) => el.closest('.\\@2xl\\:hidden'))
+        .find(Boolean);
+      expect(folded).toHaveClass('[[data-dt-cards]_&]:hidden');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('AC-BWO-004 where the columns fit (1280px), it stays a table', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      () => ({ width: 602, height: 0, top: 0, left: 0, right: 602, bottom: 0, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect,
+    );
+    try {
+      renderTab();
+      expect(screen.getByRole('table')).toBeInTheDocument();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});
+
+describe('WorkOrdersTab — arriving from a dashboard link to one work order (#786 Discover)', () => {
+  it('AC-UNB-005 the linked work order is highlighted, scrolled into view and focused', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2', title: 'Phase 2 install' })];
+    h.billing.data = [bill(), bill({ workOrderId: 'wo-2' })];
+    renderTab('Finance', 'c-1', 'wo-2');
+    const target = screen.getByText('WO-2').closest('[data-wo-anchor]') as HTMLElement;
+    await vi.waitFor(() => expect(target).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(target.closest('tr')).toHaveClass('bg-primary/[0.07]');
+    expect(screen.getByText('WO-1').closest('tr')).not.toHaveClass('bg-primary/[0.07]');
+  });
+
+  it('AC-UNB-005 an unknown or absent work order id leaves focus alone', () => {
+    renderTab('Finance', 'c-1', 'wo-missing');
+    expect(document.activeElement).toBe(document.body);
   });
 });

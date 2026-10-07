@@ -6,6 +6,11 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { formatCurrencyCents } from '@/src/lib/format';
 
+/** Straight to the work order on its project's Work orders tab — highlighted, scrolled to and focused there. */
+const workOrderHref = (projectId: string, workOrderId: string) =>
+  `/projects/${projectId}/work-orders?wo=${encodeURIComponent(workOrderId)}`;
+const LINK = 'min-w-0 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring';
+
 /**
  * What is still to invoice on the client's POs (OD-BILL-1, #786 AC-UNB-005). Totals per currency (never converted,
  * DD-MMP-5) are computed server-side by get_unbilled_work_orders, so they are not bounded by max_rows. Work orders that
@@ -45,23 +50,48 @@ const StillToInvoiceBody: React.FC = () => {
               ))}
             </ul>
             {data.incompleteCount > 0 && (
-              <p data-testid="still-to-invoice-incomplete" className="text-[12px] text-muted-foreground">
-                {t('dashboard.stillToInvoice.incomplete', {
-                  defaultValue: 'Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}',
-                  n: data.incompleteCount,
-                })}
-              </p>
+              <div data-testid="still-to-invoice-incomplete" className="text-[12px] text-muted-foreground">
+                <p>
+                  {t('dashboard.stillToInvoice.incomplete', {
+                    defaultValue: 'Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}',
+                    n: data.incompleteCount,
+                  })}
+                </p>
+                {/* Each one links to where it can be fixed: the cell there names the invoice and the cause. */}
+                {data.incomplete.length > 0 && (
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {data.incomplete.map((wo) => (
+                      <li key={wo.workOrderId}>
+                        <Link to={workOrderHref(wo.projectId, wo.workOrderId)} className={LINK}>
+                          <span className="font-medium text-foreground">{wo.woNumber ?? wo.title}</span>
+                          {wo.woNumber && <span> · {wo.title}</span>}
+                          <span> · {wo.projectName}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {data.incompleteCount > data.incomplete.length && data.incomplete.length > 0 && (
+                  <p className="mt-0.5">
+                    {t('dashboard.stillToInvoice.incompleteMore', {
+                      defaultValue: 'and {{n}} more',
+                      n: data.incompleteCount - data.incomplete.length,
+                    })}
+                  </p>
+                )}
+              </div>
             )}
             <ul className="flex flex-col divide-y divide-border" data-testid="still-to-invoice-rows">
               {data.rows.map((row) => (
                 <li key={row.workOrderId} className="flex items-baseline justify-between gap-3 py-2">
-                  <Link
-                    to={`/projects/${row.projectId}/work-orders`}
-                    className="min-w-0 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-                  >
-                    <span className="block truncate font-medium">{row.woNumber ?? row.title}</span>
+                  <Link to={workOrderHref(row.projectId, row.workOrderId)} className={LINK}>
+                    <span className="block truncate font-medium" title={row.woNumber ?? row.title}>{row.woNumber ?? row.title}</span>
+                    {row.woNumber && <span className="block truncate text-[12px]" title={row.title}>{row.title}</span>}
                     <span className="block truncate text-[12px] text-muted-foreground">
                       {row.projectName}
+                      {row.clientPoNumber
+                        ? ` · ${t('dashboard.stillToInvoice.clientPo', { defaultValue: 'Client PO {{po}}', po: row.clientPoNumber, interpolation: { escapeValue: false } })}`
+                        : ''}
                       {row.daysSinceClosed !== null
                         ? ` · ${t('dashboard.stillToInvoice.daysSinceClosed', { defaultValue: 'Days since closed: {{days}}', days: row.daysSinceClosed })}`
                         : ''}

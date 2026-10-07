@@ -5,6 +5,7 @@ vi.mock('../supabase/client.ts', () => ({ supabase: { functions: { invoke: h.inv
 
 import { dispatchTaskCommand, dispatchDomainCommand, classifyDispatchError } from './dispatchClient.ts';
 import { AppError } from '../appError.ts';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 beforeEach(() => {
   h.invoke.mockReset();
@@ -156,5 +157,25 @@ describe('classifyDispatchError — pure network/structured-code classification 
   it('an HTTP failure with an UNKNOWN structured code → undefined code (not surfaced as a known classification)', () => {
     const out = classifyDispatchError(httpError({ error: 'SOME_NEW_CODE' }), { error: 'SOME_NEW_CODE' });
     expect(out.code).toBeUndefined();
+  });
+});
+
+/**
+ * AC-BWO-004 (#785 Discover): the database's own refusals reach the dialog with their code. A 422 `{ error: 'BW001' }` (the
+ * work-order over-invoice fence) or `{ error: '55000' }` (a withdrawn claim raises no invoice) used to lose its code here,
+ * so the dialog fell back to "Update failed" and printed the raw English database text.
+ */
+describe('invokeDispatch — the database refusals keep their code (AC-BWO-004)', () => {
+  const httpRefusal = (body: Record<string, string>) =>
+    new FunctionsHttpError(new Response(JSON.stringify(body), { status: 422, headers: { 'Content-Type': 'application/json' } }));
+
+  it.each([
+    ['BW001', 'this invoice would bill 100000.00 against work order WO-3: only 40000.00 is still to invoice'],
+    ['55000', 'progress claim PC-1 was withdrawn; it raises no invoice'],
+  ])('AC-BWO-004 a 422 %s refusal becomes an AppError carrying that code', async (code, message) => {
+    h.invoke.mockResolvedValue({ data: null, error: httpRefusal({ error: code, message }) });
+    const err = await dispatchDomainCommand('revenue', 'create', { id: 'si-1' }, { idempotencyKey: 'k-1' }).catch((e) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.code).toBe(code);
   });
 });

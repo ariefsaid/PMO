@@ -7,7 +7,8 @@ import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
  * authority on what may be invoiced — `canInvoiceWorkOrder` only decides whether to OFFER the button.
  */
 export type WorkOrderBillingState =
-  | 'not-billable' | 'incomplete' | 'over-invoiced' | 'not-invoiced' | 'paid' | 'fully-invoiced' | 'partly-invoiced';
+  | 'not-billable' | 'incomplete' | 'over-invoiced' | 'not-invoiced' | 'paid' | 'awaiting-submission' | 'fully-invoiced'
+  | 'partly-invoiced';
 
 const cents = (value: number): number => Math.round(value * 100);
 const BILLABLE: ReadonlySet<WorkOrderStatus> = new Set<WorkOrderStatus>(['Issued', 'Closed']);
@@ -19,6 +20,8 @@ export function deriveWorkOrderBillingState(status: WorkOrderStatus, f: WorkOrde
   if (cents(f.invoiced) + cents(f.pending) <= 0) return 'not-invoiced';
   // DD-BWO-2: Paid = nothing left, nothing in draft, every submitted invoice Paid.
   if (cents(f.remaining) === 0 && cents(f.pending) === 0 && f.unpaidCount === 0) return 'paid';
+  // Nothing left, but some of it only in a draft or an unraised claim: not invoiced until someone submits it (#785).
+  if (cents(f.remaining) === 0 && cents(f.pending) > 0) return 'awaiting-submission';
   if (cents(f.remaining) === 0) return 'fully-invoiced';
   return 'partly-invoiced';
 }

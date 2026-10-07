@@ -14,7 +14,10 @@ describe('deriveWorkOrderBillingState (OD-BILL-1)', () => {
     ['partly invoiced', bill(), 'partly-invoiced'],
     ['not invoiced', bill({ invoiced: 0, pending: 0, paid: 0, remaining: 500_000, lineCount: 0, unpaidCount: 0 }), 'not-invoiced'],
     ['fully invoiced, some unpaid', bill({ invoiced: 500_000, pending: 0, remaining: 0, unpaidCount: 2 }), 'fully-invoiced'],
-    ['fully invoiced with a draft', bill({ invoiced: 450_000, pending: 50_000, remaining: 0, unpaidCount: 0 }), 'fully-invoiced'],
+    // #785 Discover: nothing left only because a draft (or an unraised claim) uses it up is not "fully invoiced" — the
+    // draft has not been submitted, so it is awaiting submission (DD-BWO-1: not yet submitted = drafts + unraised claims).
+    ['used up partly by a draft', bill({ invoiced: 450_000, pending: 50_000, remaining: 0, unpaidCount: 0 }), 'awaiting-submission'],
+    ['covered only by a draft', bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 }), 'awaiting-submission'],
     ['paid', bill({ invoiced: 500_000, pending: 0, paid: 500_000, remaining: 0, unpaidCount: 0 }), 'paid'],
     ['over-invoiced', bill({ remaining: -1_000 }), 'over-invoiced'],
     ['cannot total', bill({ figuresComplete: false }), 'incomplete'],

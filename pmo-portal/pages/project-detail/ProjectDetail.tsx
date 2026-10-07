@@ -230,7 +230,12 @@ const ProjectDetail: React.FC = () => {
       {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
       {tab === 'tasks' && <TasksTab projectId={project.id} />}
       {tab === 'work-orders' && (
-        <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null} />
+        <WorkOrdersTab
+          projectId={project.id}
+          currency={project.currency}
+          clientId={project.client_id ?? null}
+          focusWorkOrderId={new URLSearchParams(location.search).get('wo')}
+        />
       )}
       {tab === 'billing' && canSeeBilling && (
         <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}

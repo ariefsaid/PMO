@@ -925,7 +925,9 @@
       "empty": "Nothing left to invoice on issued work orders",
       "error": "Couldn't load what is still to invoice",
       "incomplete": "Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}",
-      "title": "Still to invoice on work orders"
+      "title": "Still to invoice on work orders",
+      "incompleteMore": "and {{n}} more",
+      "clientPo": "Client PO {{po}}"
     },
     "subtitle": {
       "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
@@ -1722,7 +1724,7 @@
         "exclTax": "excl. PPN",
         "gap": "Work done, not yet billed",
         "noAssessment": "No assessment yet",
-        "notSubmitted": "Raised, not yet submitted",
+        "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
         "title": "Billing summary"
       }
@@ -2355,7 +2357,11 @@
           "itemCode": "Item code",
           "submit": "Create draft invoice",
           "subtitle": "Creates a draft invoice in ERPNext for the project's client. A different Finance or Admin user submits it.",
-          "title": "Invoice this work order"
+          "title": "Invoice this work order",
+          "createFailed": "Couldn't create the draft invoice",
+          "cancel": "Cancel",
+          "clientPo": "Client PO on the invoice",
+          "clientPoNone": "None on this work order"
         },
         "paid": "Paid",
         "status": {
@@ -2364,7 +2370,8 @@
           "notInvoiced": "Not invoiced",
           "overInvoiced": "Over-invoiced",
           "paid": "Paid",
-          "partlyInvoiced": "Partly invoiced"
+          "partlyInvoiced": "Partly invoiced",
+          "awaitingSubmission": "Awaiting submission"
         },
         "stillToInvoice": "Still to invoice",
         "summaryNote": "Issued and closed work orders, less what has been invoiced or drafted against them.",
@@ -2374,8 +2381,14 @@
           "createdSub": "{{number}} — submit it from Sales Invoices."
         },
         "unavailable": "Unavailable",
-        "lineDraft": "In draft {{amount}}",
-        "inDraft": "In draft"
+        "notSubmitted": "Not yet submitted",
+        "lineNotSubmitted": "Not yet submitted {{amount}}",
+        "lineNet": "Net value {{amount}}",
+        "cause": {
+          "noAmount": "{{number}} has no amount",
+          "otherCurrency": "{{number}} is in {{currency}}",
+          "anInvoice": "An invoice"
+        }
       },
       "clientPo": "Client PO",
       "column": {

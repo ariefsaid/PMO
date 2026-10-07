@@ -120,4 +120,56 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
     expect(screen.getByText('ERP item')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Item code/)).toBeNull();
   });
+
+  it('AC-BWO-004 the dialog opens on the first empty required field — the ERP item picker — not the pre-filled description', async () => {
+    h.connected = true;
+    renderModal();
+    await vi.waitFor(() => expect(screen.getByRole('combobox', { name: 'ERP item' })).toHaveFocus());
+    expect(screen.getByLabelText('Description')).not.toHaveFocus();
+  });
+
+  it('AC-BWO-004 the dialog opens on the item code when it is typed rather than picked', async () => {
+    renderModal();
+    await vi.waitFor(() => expect(screen.getByLabelText(/Item code/)).toHaveFocus());
+  });
+
+  it("AC-BWO-004 shows, read-only, the client PO reference the ERP invoice will carry", () => {
+    render(
+      <InvoiceWorkOrderModal workOrder={{ ...WO, client_po_number: 'MSW-PO-2604' }} projectId="p1" clientId="c-1" remaining={1}
+        onClose={vi.fn()} onCreated={onCreated} />,
+    );
+    const po = screen.getByTestId('invoice-wo-client-po');
+    expect(po).toHaveTextContent('Client PO on the invoice');
+    expect(po).toHaveTextContent('MSW-PO-2604');
+    expect(po.querySelector('input, textarea, select, button')).toBeNull();
+  });
+
+  it('AC-BWO-004 says so when the work order has no client PO to carry', () => {
+    renderModal();
+    expect(screen.getByTestId('invoice-wo-client-po')).toHaveTextContent('None on this work order');
+  });
+
+  it('AC-BWO-004 a create that fails for any other reason is headed as a failed create, never "Update failed"', async () => {
+    h.mutateAsync.mockRejectedValue(new AppError('The external system could not be reached', 'external-unreachable'));
+    renderModal();
+    await userEvent.type(screen.getByLabelText(/Item code/), 'SVC');
+    await submit();
+    const region = await screen.findByTestId('entity-modal-save-error');
+    expect(region).toHaveTextContent("Couldn't create the draft invoice");
+    expect(region).not.toHaveTextContent('Update failed');
+  });
+
+  it('AC-BWO-004 the Cancel button reads in Bahasa', async () => {
+    await financeTestI18n.changeLanguage('id');
+    try {
+      render(
+        <FinanceI18nTestProvider>
+          <InvoiceWorkOrderModal workOrder={WO} projectId="p1" clientId="c-1" remaining={1} onClose={vi.fn()} onCreated={onCreated} />
+        </FinanceI18nTestProvider>,
+      );
+      expect(screen.getByRole('button', { name: 'Batal' })).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
 });

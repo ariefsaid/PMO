@@ -108,7 +108,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
       } catch (err) {
         // The dialog is the one place the failure is shown (no second toast); classifying here records the single
         // save_failed event (ADR-0067).
-        const { headline, detail } = classifyMutationError(
+        const { headline, detail, classification } = classifyMutationError(
           err,
           { BW001: t('projectDetail.workOrders.billing.modal.errorHeadline', 'That would invoice past the work order') },
           { module: 'projects', operation: 'create' },
@@ -117,7 +117,10 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
         // figures): say it in the user's language, with the amount this dialog was opened with.
         const isRefusal = (err as { code?: unknown } | null)?.code === 'BW001';
         setSaveError({
-          headline,
+          // This dialog creates; the shared fallback headline ("Update failed") says the wrong thing here.
+          headline: classification === 'unclassified'
+            ? t('projectDetail.workOrders.billing.modal.createFailed', "Couldn't create the draft invoice")
+            : headline,
           detail: isRefusal
             ? t('projectDetail.workOrders.billing.modal.errors.refused', {
                 defaultValue:
@@ -140,6 +143,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
         "Creates a draft invoice in ERPNext for the project's client. A different Finance or Admin user submits it.",
       )}
       submitLabel={t('projectDetail.workOrders.billing.modal.submit', 'Create draft invoice')}
+      cancelLabel={t('projectDetail.workOrders.billing.modal.cancel', 'Cancel')}
       onSubmit={handleSubmit}
       submitError={saveError}
       onClose={onClose}
@@ -148,6 +152,14 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
+      {/* DD-BWO-8: the work order's client PO goes on the ERP invoice. Shown, read-only, so the user knows what the client
+          will see — never an input (it is the work order's, not this invoice's). */}
+      <p data-testid="invoice-wo-client-po" className="mb-3 text-[12.5px] text-muted-foreground">
+        {t('projectDetail.workOrders.billing.modal.clientPo', 'Client PO on the invoice')}
+        <span className="ml-2 font-semibold tabular text-foreground">
+          {workOrder.client_po_number || t('projectDetail.workOrders.billing.modal.clientPoNone', 'None on this work order')}
+        </span>
+      </p>
       <FormGrid>
         {erpItems.connected ? (
           <Combobox
@@ -170,12 +182,6 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
             required
           />
         )}
-        <TextField
-          id={descriptionField.id}
-          label={t('projectDetail.workOrders.billing.modal.description', 'Description')}
-          value={descriptionField.value}
-          onChange={descriptionField.onChange}
-        />
         <NumberField
           id={amountField.id}
           label={t('projectDetail.workOrders.billing.modal.amount', 'Amount (excl. PPN)')}
@@ -192,6 +198,14 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
             remaining: remainingText,
             interpolation: { escapeValue: false },
           })}
+        />
+        {/* Full width: the line description leads with the work order number, which must stay readable. */}
+        <TextField
+          id={descriptionField.id}
+          fullWidth
+          label={t('projectDetail.workOrders.billing.modal.description', 'Description')}
+          value={descriptionField.value}
+          onChange={descriptionField.onChange}
         />
       </FormGrid>
     </EntityFormModal>

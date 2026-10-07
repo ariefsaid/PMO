@@ -73,6 +73,11 @@ vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
 vi.mock('../tabs/BillingTab', () => ({ default: () => <div data-testid="tab-billing">Billing</div> }));
+vi.mock('../tabs/WorkOrdersTab', () => ({
+  default: ({ focusWorkOrderId }: { focusWorkOrderId?: string | null }) => (
+    <div data-testid="tab-work-orders">{`focus:${focusWorkOrderId ?? 'none'}`}</div>
+  ),
+}));
 vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
 // ProjectSCurve reads useTasks (ADR-0032) and renders inside ProjectDetail → mock it.
 vi.mock('@/src/hooks/useTasks', () => ({
@@ -168,5 +173,15 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
   it('AC-W2-IA-004: an unknown tab falls back to Overview (no crash)', () => {
     renderAt('/projects/p1/unknown-tab');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
+  });
+
+  it('AC-UNB-005: /projects/:id/work-orders?wo=<id> opens the Work orders tab and hands it the work order to bring into view', () => {
+    renderAt('/projects/p1/work-orders?wo=wo-2');
+    expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:wo-2');
+  });
+
+  it('AC-UNB-005: without ?wo= the Work orders tab focuses nothing', () => {
+    renderAt('/projects/p1/work-orders');
+    expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:none');
   });
 });

@@ -232,3 +232,106 @@ describe('AC-A11Y-MODAL-001: the background cannot be tabbed into while the dial
     shell.remove();
   });
 });
+
+/**
+ * AC-A11Y-MODAL-002 (#785 Discover pass): after DISCARD on a dirty form, focus landed on <body>. The discard confirm
+ * holds its own share of the background `inert`, and both dialogs leave in the same commit — so the form's restore
+ * focused a trigger that was still inert (a silent no-op). Focus must return to the trigger on EVERY close path.
+ */
+describe('AC-A11Y-MODAL-002: focus returns to the trigger on every close path', () => {
+  const Opener: React.FC = () => {
+    const [open, setOpen] = useState(false);
+    const [value, setValue] = useState('');
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>Open form</button>
+        {open && (
+          <EntityFormModal
+            open
+            title="New contact"
+            submitLabel="Create contact"
+            onSubmit={(e) => e.preventDefault()}
+            onClose={() => { setOpen(false); setValue(''); }}
+            dirty={value !== ''}
+          >
+            <TextField id="restore-name" label="Full name" value={value} onChange={setValue} />
+          </EntityFormModal>
+        )}
+      </>
+    );
+  };
+
+  // jsdom does not implement `inert`; browsers make focus() on an inert element a silent no-op (HTML spec, "inert"
+  // subtrees are not focusable). Emulate exactly that rule so the test sees what a browser does.
+  const nativeFocus = HTMLElement.prototype.focus;
+  const withShell = async (run: (user: ReturnType<typeof userEvent.setup>) => Promise<void>) => {
+    const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement, opts?: FocusOptions) {
+      if (this.closest('[inert]')) return;
+      nativeFocus.call(this, opts);
+    });
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    const user = userEvent.setup();
+    const view = render(<Opener />, { container: shell });
+    try {
+      await user.click(screen.getByRole('button', { name: 'Open form' }));
+      await flushMount();
+      await run(user);
+    } finally {
+      view.unmount();
+      shell.remove();
+      focusSpy.mockRestore();
+    }
+  };
+  const trigger = () => screen.getByRole('button', { name: 'Open form' });
+
+  it.each([
+    ['Cancel on a clean form', async (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: 'Cancel' }))],
+    ['Esc on a clean form', async (user: ReturnType<typeof userEvent.setup>) => user.keyboard('{Escape}')],
+    ['the close icon on a clean form', async (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: 'Close' }))],
+    ['Discard after Cancel on a dirty form', async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByLabelText('Full name'), 'Jane');
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    }],
+    ['Discard after Esc on a dirty form', async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByLabelText('Full name'), 'Jane');
+      await user.keyboard('{Escape}');
+      await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    }],
+  ])('AC-A11Y-MODAL-002 %s returns focus to the trigger, never <body>', async (_label, close) => {
+    await withShell(async (user) => {
+      await close(user);
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await waitFor(() => expect(trigger()).toHaveFocus());
+      expect(document.activeElement).not.toBe(document.body);
+    });
+  });
+
+  it('AC-A11Y-MODAL-002 Keep editing returns focus into the form, and a later Discard still restores the trigger', async () => {
+    await withShell(async (user) => {
+      await user.type(screen.getByLabelText('Full name'), 'Jane');
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      await user.click(await screen.findByRole('button', { name: 'Keep editing' }));
+      expect(screen.getByRole('dialog', { name: 'New contact' }).contains(document.activeElement)).toBe(true);
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      await user.click(await screen.findByRole('button', { name: 'Discard' }));
+      await waitFor(() => expect(trigger()).toHaveFocus());
+    });
+  });
+});
+
+describe('AC-A11Y-FORM-003: a form whose first field is a picker opens on the picker', () => {
+  it('AC-A11Y-FORM-003 the Combobox trigger, not the next text box, takes focus on open', async () => {
+    const { Combobox } = await import('../Combobox');
+    render(
+      <EntityFormModal open title="New invoice" submitLabel="Create" onSubmit={(e) => e.preventDefault()} onClose={() => {}}>
+        <Combobox label="ERP item" value={null} onChange={() => {}} loadOptions={async () => []} required />
+        <TextField id="inv-desc" label="Description" value="WO-1 — Phase 1" onChange={() => {}} />
+      </EntityFormModal>,
+    );
+    await flushMount();
+    expect(screen.getByRole('combobox', { name: 'ERP item' })).toHaveFocus();
+  });
+});
