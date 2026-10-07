@@ -21,7 +21,12 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
   ('02620000-0000-0000-0000-0000000000c9', '02620000-0000-0000-0000-000000000002', 'BWO X',        'Ongoing Project', 10000, 'exclusive', 0, null);
 insert into work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount, closed_at, cancelled_at) values
   ('02620000-0000-0000-0000-0000000000d1', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'D One',   'Issued',    'WO-D-1', 1000, 'exclusive', 0, null, null),
-  ('02620000-0000-0000-0000-0000000000d2', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'D Two',   'Closed',    'WO-D-2',  500, 'exclusive', 0, now() - interval '3 days', null),
+  ('02620000-0000-0000-0000-0000000000d2', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'D Two',   'Closed',    'WO-D-2',  500, 'exclusive', 0,
+   -- Closed 3 Jakarta days ago, at an hour whose UTC date is a day off from Jakarta's date-difference: 03:00 Jakarta
+   -- (still the previous UTC day) when Jakarta and UTC share today's date, else 12:00. The UTC count is never 3.
+   ((((now() at time zone 'Asia/Jakarta')::date - 3)
+     + case when (now() at time zone 'UTC')::date = (now() at time zone 'Asia/Jakarta')::date then time '03:00' else time '12:00' end)
+    at time zone 'Asia/Jakarta'), null),
   ('02620000-0000-0000-0000-0000000000d3', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'D Three', 'Issued',    'WO-D-3',  400, 'exclusive', 0, null, null),
   ('02620000-0000-0000-0000-0000000000d4', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'D Four',  'Draft',     null,      900, 'exclusive', 0, null, null),
   ('02620000-0000-0000-0000-0000000000d5', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'D Five',  'Cancelled', 'WO-D-5',  800, 'exclusive', 0, null, now()),

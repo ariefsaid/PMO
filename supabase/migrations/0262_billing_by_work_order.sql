@@ -166,7 +166,7 @@ begin
     -- what the views count (mirrored invoices + unraised claims), minus the record being written
     select l.record_id::text as record_id, l.billed, l.currency
       from public.work_order_billing_lines l
-     where l.work_order_id = p_work_order_id and l.record_id::text <> lower(p_record_id)
+     where l.org_id = p_org_id and l.work_order_id = p_work_order_id and l.record_id::text <> lower(p_record_id)
     union all
     -- ERP commands still in flight (not yet mirrored, or an edit/amend not yet read back). A claim's own command is
     -- excluded: the claim already counts at gross. A command with no line array rebuilds no body and moves no money.
@@ -178,11 +178,17 @@ begin
        and jsonb_typeof(o.payload -> 'items') = 'array'
        and (o.operation in ('create', 'update') or (o.operation = 'transition' and o.payload ->> 'verb' = 'amend'))
        and lower(o.pmo_record_id) <> lower(p_record_id)
+       -- Joined on the uuid so the primary keys can seek. The CASE (evaluated in order) turns an id that is not a uuid's
+       -- text into NULL instead of a cast error — the same rows the text comparison matched, and only those.
        and not exists (select 1 from public.progress_claims pc
-                        where pc.id::text = lower(o.pmo_record_id) and pc.org_id = p_org_id)
+                        where pc.id = case when lower(o.pmo_record_id) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                                           then lower(o.pmo_record_id)::uuid end
+                          and pc.org_id = p_org_id)
        and lower(coalesce(nullif(btrim(o.payload ->> 'workOrderId'), ''),
                           (select si.work_order_id::text from public.sales_invoices si
-                            where si.id::text = lower(o.pmo_record_id) and si.org_id = p_org_id))) = p_work_order_id::text
+                            where si.id = case when lower(o.pmo_record_id) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                                               then lower(o.pmo_record_id)::uuid end
+                              and si.org_id = p_org_id))) = p_work_order_id::text
   ), per_record as (
     -- an invoice with an edit in flight counts at the larger of its mirrored and its pending amount
     select record_id, max(billed) as billed,
