@@ -433,10 +433,29 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (piTaxAmount !== null) patch.tax_amount = piTaxAmount;
   const piTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
   if (piTaxTemplate !== null) patch.tax_template = piTaxTemplate;
+  // #876: the bill's own currency (piFromDoc reads it off the ERP doc). Omitted when absent — NOT NULL, and the
+  // stamp trigger's org-default fill is the PMO-native fallback, never a fact about this bill.
+  const piCurrency = (canonical.currency as string | null | undefined) ?? null;
+  if (piCurrency !== null) patch.currency = piCurrency;
+  // #876 (0266, DD-VWH-1/7): the money header is all-or-nothing, the rule erpnextFeedDeps.ts' purchaseInvoiceFieldPatch
+  // applies. piFromDoc emits `withheld_amount` only when the ERP header was complete; without it `amount` may be the NET
+  // payable, so recording it as the gross (or pairing it with a stale withholding) is refused: a create throws, an update
+  // writes none of amount / tax_amount / tax_treatment / withheld_amount.
+  const piWithheld = (canonical.withheld_amount as string | null | undefined) ?? null;
+  if (piWithheld !== null) {
+    patch.withheld_amount = piWithheld;
+  } else {
+    delete patch.amount;
+    delete patch.tax_amount;
+    delete patch.tax_treatment;
+  }
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
     await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
+    if (piWithheld === null) {
+      throw new AppError('the purchase invoice read-back carried no withholding total; its money cannot be mirrored', 'BAD_REQUEST');
+    }
     const { error } = await ctx.serviceClient.from('procurement_invoices').insert({
       id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId,
       ...patch,

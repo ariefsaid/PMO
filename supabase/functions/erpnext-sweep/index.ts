@@ -77,7 +77,7 @@ import { CONTACT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam
 import { CUSTOMER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
 import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expenseJournal.ts';
 import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
-import { KIND_DOMAIN, KIND_MIRROR_TABLE, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
@@ -213,7 +213,9 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
  *  discriminator where the kind shares a doctype (BLOCK A1). Exported for direct unit testing. */
 export function sweepFieldsForKind(kind: ErpDocKind): string[] {
   const fields = new Set<string>(FROM_DOC_FIELDS_BY_KIND[kind] ?? []);
-  for (const routing of kind === 'contact' ? ['name', 'modified', 'docstatus'] : ['name', 'modified', 'docstatus', 'amended_from']) fields.add(routing);
+  const routingFields = ['name', 'modified', 'docstatus'];
+  if (DOCTYPE_REGISTRY[kind].submittable) routingFields.push('amended_from');
+  for (const routing of routingFields) fields.add(routing);
   if (PAYMENT_TYPE_BY_KIND[kind]) fields.add('payment_type');
   // #775 phase B (FR-EXP-113): the party/key discriminator's own fields — the per-row `admits` reads them.
   for (const field of pollDiscriminatorForKind(kind)?.fields ?? []) fields.add(field);
@@ -2324,7 +2326,7 @@ async function readErpFiscalYearsLive(
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
       ERP_PROBE_TIMEOUT_MS,
     );
-  } catch (_err) {
+  } catch {
     throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
   }
   if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');

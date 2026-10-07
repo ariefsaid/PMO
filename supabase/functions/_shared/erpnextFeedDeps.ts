@@ -37,6 +37,7 @@ import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
+import { derivePiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/piStatus.ts';
 import { WITHHOLDING_REVIEW_FIELD } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 // FR-BFY-038: the bare `budget_version_id` parser + the fiscal-year half of a year-qualified budget identity.
 import { budgetVersionIdOf, fiscalYearOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
@@ -158,6 +159,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       const patch = {
         ...mirrorStatusPatch(kind, canonical, sourceModMs),
         ...(await revenueFieldPatch(serviceClient, orgId, kind, canonical)),
+        ...purchaseInvoiceFieldPatch(kind, canonical),
         ...(await employeeFieldPatch(serviceClient, orgId, kind, pmoRecordId, canonical)),
       };
       const { error } = await (scopeMirrorQuery(serviceClient.from(table).update(patch), kind, lookupColumn, orgId, pmoRecordId) as unknown as Promise<{
@@ -595,6 +597,31 @@ function isPmoSoTKind(kind: ErpDocKind): boolean {
  *  never be written as NULL over live data (the update is a repair, not a wholesale overwrite). */
 function putIfPresent(patch: Record<string, unknown>, key: string, value: unknown): void {
   if (value !== undefined && value !== null) patch[key] = value;
+}
+
+/**
+ * #876 (DD-VWH-5, FR-VWH-005) — FR-ENA-116's paid-detection, built. A mirrored Purchase Invoice's money and derived
+ * status follow ERPNext on every inbound change that carries the WHOLE money header (`piFromDoc`: gross `amount`, VAT
+ * `tax_amount`, `withheld_amount`, `erp_outstanding_amount`). All-or-nothing: a webhook carrying only part of it (an
+ * operator-configured field subset) writes none of it, so a partial payload can never record a net total as the gross,
+ * pair a new gross with a stale withholding, or flip a settled bill back to Received. `tax_treatment` rides with
+ * `amount` (readModelWriters.ts' rule: 'inclusive' is a fact about a gross that includes VAT). Before this, a bill's
+ * money was written only by its own dispatch, so a bill paid in ERPNext never showed Paid in PMO.
+ */
+function purchaseInvoiceFieldPatch(kind: ErpDocKind, canonical: PmoRecord): Record<string, unknown> {
+  if (kind !== 'purchase-invoice') return {};
+  const amount = canonical.amount as string | null | undefined;
+  const taxAmount = canonical.tax_amount as string | null | undefined;
+  const withheld = canonical.withheld_amount as string | null | undefined;
+  const outstanding = canonical.erp_outstanding_amount as string | null | undefined;
+  if (amount == null || taxAmount == null || withheld == null || outstanding == null) return {};
+  // The template the VAT/withholding was computed under rides with those figures; absent ⇒ omitted, never nulled.
+  const taxTemplate = canonical.tax_template as string | null | undefined;
+  return {
+    amount, tax_amount: taxAmount, withheld_amount: withheld, tax_treatment: 'inclusive',
+    erp_outstanding_amount: outstanding, status: derivePiStatus(outstanding),
+    ...(taxTemplate != null ? { tax_template: taxTemplate } : {}),
+  };
 }
 
 /**

@@ -4,7 +4,7 @@
 - **ADR:** `docs/adr/0082-vendor-withholding-gross-amount-and-withheld-column.md`
 - **Decisions:** DD-VWH-1..9 (spec §2; appended to `docs/decisions.md` by Task 21)
 - **Lane:** money path → **Director-dispatched** (not the ADW). Builder model: opus for Tasks 5–12, sonnet for 13–19.
-- **Migration slot:** `0266` only (+ `supabase/migrations/rollback/0266_vendor_invoice_withholding_down.sql`).
+- **Migration slot:** `0266` only (+ `supabase/migrations/rollback/0269_vendor_invoice_withholding_down.sql`).
 - **Worktree:** `$WT` = the issue worktree the Director creates off `origin/dev`. Agents run no git.
 
 ## 1. Design in one screen
@@ -37,9 +37,9 @@ list request); the outbound create adds ≤ (number of Deduct rows) GETs, never 
 
 | File | Change |
 |---|---|
-| `supabase/migrations/0266_vendor_invoice_withholding.sql` | NEW — column, bounds, mirror-guard line, on-database grant assert |
-| `supabase/migrations/rollback/0266_vendor_invoice_withholding_down.sql` | NEW — reverse |
-| `supabase/tests/0266_vendor_withholding.test.sql` | NEW — AC-VWH-008/009 |
+| `supabase/migrations/0269_vendor_invoice_withholding.sql` | NEW — column, bounds, mirror-guard line, on-database grant assert |
+| `supabase/migrations/rollback/0269_vendor_invoice_withholding_down.sql` | NEW — reverse |
+| `supabase/tests/0269_vendor_withholding.test.sql` | NEW — AC-VWH-008/009 |
 | `pmo-portal/src/lib/supabase/database.types.ts` | regenerated (never hand-edited) |
 | `pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseInvoice.ts` | `piFromDoc` derivation + field list |
 | `pmo-portal/src/lib/adapterSeam/erpnext/bodies/bodies.test.ts` | AC-VWH-004 |
@@ -70,7 +70,7 @@ list request); the outbound create adds ≤ (number of Deduct rows) GETs, never 
 | AC-VWH-005 | `e2e/serial/AC-VWH-005-vendor-withholding.spec.ts` (served e2e, bench) | 0, 19 |
 | AC-VWH-006 | `readModelWriters.money.test.ts` (Deno) | 9, 10 |
 | AC-VWH-007 | `_shared/erpnextFeedDeps.test.ts` (Deno) | 11, 12 |
-| AC-VWH-008/009 | `supabase/tests/0266_vendor_withholding.test.sql` (pgTAP) | 1, 2 |
+| AC-VWH-008/009 | `supabase/tests/0269_vendor_withholding.test.sql` (pgTAP) | 1, 2 |
 | AC-VWH-010 | `src/lib/vendorWithholding.test.ts` (Vitest) | 15 |
 | AC-VWH-011 | `src/lib/db/procurementLedger.test.ts` (Vitest) | 16 |
 | AC-VWH-012 | `pages/procurement/ProcurementLedger.test.tsx` (RTL) | 17, 18 |
@@ -125,10 +125,10 @@ the gross is refused" becomes untrue and the Director rules.
 
 ## Task 1 — pgTAP, red: schema, bounds, privileges, guard (AC-VWH-008, AC-VWH-009) (~4 min)
 
-Create `supabase/tests/0266_vendor_withholding.test.sql`:
+Create `supabase/tests/0269_vendor_withholding.test.sql`:
 
 ```sql
--- 0266_vendor_withholding.test.sql — 0266_vendor_invoice_withholding.sql (#876, ADR-0082).
+-- 0269_vendor_withholding.test.sql — 0269_vendor_invoice_withholding.sql (#876, ADR-0082).
 -- Owns AC-VWH-008 (shape + bounds) and AC-VWH-009 (not client-writable, native = 0, mirror guard).
 begin;
 select plan(19);
@@ -230,15 +230,15 @@ rollback;
 ```
 
 **Verify red** (column does not exist yet):
-`cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0266_vendor_withholding.test.sql'`
+`cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_withholding.test.sql'`
 → fails (`column "withheld_amount" ... does not exist`).
 
 ## Task 2 — Migration 0266, green (AC-VWH-008, AC-VWH-009) (~5 min)
 
-Create `supabase/migrations/0266_vendor_invoice_withholding.sql`:
+Create `supabase/migrations/0269_vendor_invoice_withholding.sql`:
 
 ```sql
--- 0266_vendor_invoice_withholding.sql — #876: vendor withholding (PPh 23 / PPh 4(2)) on ERP-owned bills.
+-- 0269_vendor_invoice_withholding.sql — #876: vendor withholding (PPh 23 / PPh 4(2)) on ERP-owned bills.
 --
 -- ADR-0082, DD-VWH-1 / DD-VWH-7. One additive column, its bounds, one line in the procurement mirror guard.
 --   • withheld_amount — income tax withheld from the vendor on this bill (ERPNext Purchase Invoice header
@@ -255,7 +255,7 @@ Create `supabase/migrations/0266_vendor_invoice_withholding.sql`:
 -- modifies them. Before applying beyond local, list the target ERPNext's Purchase Invoices with
 -- taxes_and_charges_deducted <> 0 that PMO mirrors, and re-mirror any found.
 --
--- Rollback: supabase/migrations/rollback/0266_vendor_invoice_withholding_down.sql (revert the #876 edge functions
+-- Rollback: supabase/migrations/rollback/0269_vendor_invoice_withholding_down.sql (revert the #876 edge functions
 -- first — they write this column).
 
 -- §1 — the column and its bounds.
@@ -330,15 +330,15 @@ end $$;
 notify pgrst, 'reload schema';
 ```
 
-**Verify green:** `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0266_vendor_withholding.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql'`
+**Verify green:** `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_withholding.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql'`
 → both files pass (19/19 and the unchanged AC-VTAX file). Then `cd "$WT/pmo-portal" && npm run check:migrations`.
 
 ## Task 3 — Rollback file + rehearsal (~4 min)
 
-Create `supabase/migrations/rollback/0266_vendor_invoice_withholding_down.sql`:
+Create `supabase/migrations/rollback/0269_vendor_invoice_withholding_down.sql`:
 
 ```sql
--- Rollback for 0266_vendor_invoice_withholding.sql (#876). Revert the #876 edge functions FIRST (they write
+-- Rollback for 0269_vendor_invoice_withholding.sql (#876). Revert the #876 edge functions FIRST (they write
 -- withheld_amount). Restores 0196 §4's mirror-guard body, then drops the constraint and the column. Bills mirrored
 -- with withholding keep their GROSS `amount`; re-mirror them if the rollback is permanent.
 create or replace function public.procurement_invoices_native_mirror_guard() returns trigger
@@ -388,7 +388,7 @@ notify pgrst, 'reload schema';
 ```bash
 cd "$WT" && scripts/with-db-lock.sh bash -c "supabase db reset && psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -qAt <<'SQL'
 begin;
-\i supabase/migrations/rollback/0266_vendor_invoice_withholding_down.sql
+\i supabase/migrations/rollback/0269_vendor_invoice_withholding_down.sql
 select count(*) from information_schema.columns where table_schema='public' and table_name='procurement_invoices' and column_name='withheld_amount';
 select position('withheld_amount' in pg_get_functiondef('public.procurement_invoices_native_mirror_guard'::regproc));
 rollback;
@@ -1406,7 +1406,7 @@ Every mutation must turn the named test RED; record each (file, mutation, red te
 | M3 | `purchaseInvoice.ts`: `amount: headerComplete ? addMoney(grandTotal, deducted) : grandTotal` → `amount: grandTotal` | AC-VWH-004 (gross) | `npx vitest run src/lib/adapterSeam/erpnext/bodies/bodies.test.ts` |
 | M4 | `readModelWriters.ts`: delete `withheld_amount: piWithheld ?? '0.00',` | AC-VWH-006 "states 0.00" | `deno test readModelWriters.money.test.ts` |
 | M5 | `erpnextFeedDeps.ts`: delete `withheld == null ||` from the all-or-nothing guard | AC-VWH-007 "WITHOUT the whole money header" (first partial) | `deno test ../_shared/erpnextFeedDeps.test.ts` |
-| M6 | 0266: delete the `or new.withheld_amount …` guard line | AC-VWH-009 "mirror guard pins" | `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0266_vendor_withholding.test.sql'` |
+| M6 | 0266: delete the `or new.withheld_amount …` guard line | AC-VWH-009 "mirror guard pins" | `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_withholding.test.sql'` |
 | M7 | 0266: delete `and sign(withheld_amount) = sign(amount)` | AC-VWH-008 "sign parity" | same as M6 |
 | M8 | `vendorWithholding.ts`: `netPayable: (cents(amount) - cents(withheldAmount)) / 100` → `netPayable: amount` | AC-VWH-010 | `npx vitest run src/lib/vendorWithholding.test.ts` |
 | M9 | `erpSalesTaxRows.ts`: `if (rate < 0)` → `if (rate < -100)` | AC-VWH-013 | `npx vitest run src/lib/adapterSeam/erpnext/erpSalesTaxRows.test.ts` |
@@ -1459,7 +1459,7 @@ cd "$WT/pmo-portal" && ../scripts/with-test-lock.sh npm run typecheck \
   && ../scripts/with-test-lock.sh npx vitest run --changed origin/dev
 cd "$WT/supabase/functions/adapter-dispatch" && deno test readModelWriters.money.test.ts readModelWriters.crossOrg.test.ts
 cd "$WT/supabase/functions/erpnext-sweep" && deno test ../_shared/erpnextFeedDeps.test.ts
-cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0266_vendor_withholding.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql supabase/tests/erpnext_money_flip_rls.test.sql'
+cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0269_vendor_withholding.test.sql supabase/tests/vendor_invoice_tax_treatment.test.sql supabase/tests/erpnext_money_flip_rls.test.sql'
 ```
 Plus Task 19's e2e run (AC-VWH-005, AC-ENA-053, AC-WHT-002). All green, outputs pasted in the PR body.
 

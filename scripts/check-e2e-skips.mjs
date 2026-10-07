@@ -39,6 +39,12 @@ export const ALLOWED_SKIPS = [
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
     verified: '2026-10-05',
   },
+  {
+    file: 'serial/AC-VWH-005-vendor-withholding.spec.ts',
+    reason: 'Vendor withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
+    verified: '2026-10-07',
+  },
   // ── Served lane absent: config.toml sets [edge_runtime] enabled = false in CI *and* local, so
   // nothing serves functions/v1 unless scripts/serve-functions.sh is running (it exports
   // SUPABASE_FUNCTIONS_URL). These run in the served lane and skip everywhere else.
