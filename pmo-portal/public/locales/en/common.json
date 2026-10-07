@@ -1843,6 +1843,9 @@
         "emptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
         "error": "Couldn’t load the billing claims",
         "errorSub": "Retry, or reopen the project.",
+        "errors": {
+          "claimWithdrawn": "This claim was withdrawn — its invoice can't be raised."
+        },
         "evidenceNeeded": "Attach evidence before raising",
         "kind": {
           "downPayment": "Down payment",

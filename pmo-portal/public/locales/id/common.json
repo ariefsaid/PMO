@@ -1843,6 +1843,9 @@
         "emptySub": "Satu tagihan menagih uang muka atau kuantitas yang selesai, sebagai satu faktur ERP.",
         "error": "Tagihan tidak dapat dimuat",
         "errorSub": "Coba lagi, atau buka ulang proyek.",
+        "errors": {
+          "claimWithdrawn": "Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan."
+        },
         "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
         "kind": {
           "downPayment": "Uang muka",
