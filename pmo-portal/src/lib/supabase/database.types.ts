@@ -1669,6 +1669,7 @@ export type Database = {
           against_voucher_type: string | null
           amount: number | null
           as_of: string
+          delinked: boolean
           due_date: string | null
           erp_docstatus: number | null
           erp_modified: string
@@ -1685,6 +1686,7 @@ export type Database = {
           against_voucher_type?: string | null
           amount?: number | null
           as_of?: string
+          delinked?: boolean
           due_date?: string | null
           erp_docstatus?: number | null
           erp_modified: string
@@ -1701,6 +1703,7 @@ export type Database = {
           against_voucher_type?: string | null
           amount?: number | null
           as_of?: string
+          delinked?: boolean
           due_date?: string | null
           erp_docstatus?: number | null
           erp_modified?: string
