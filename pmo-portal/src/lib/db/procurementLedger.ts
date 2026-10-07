@@ -68,7 +68,8 @@ export interface LedgerRow {
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
   /** #876 (DD-VWH-6) — vendor invoice only: VAT on the bill (`tax_amount`) and the tax withheld (`withheld_amount`).
-   *  Present only on rows that carry a withholding fact, so every other row is byte-identical to before. */
+   *  `withheld_amount` is NOT NULL (0266), so every Invoice row carries both (0 = nothing withheld; the breakdown renders
+   *  only when non-zero, `withholdingFigures`). Absent on every other ledger type. */
   taxAmount?: number | null;
   withheldAmount?: number | null;
   /** Status label for the StatusPill. */

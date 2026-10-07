@@ -597,9 +597,12 @@ function purchaseInvoiceFieldPatch(kind: ErpDocKind, canonical: PmoRecord): Reco
   const withheld = canonical.withheld_amount as string | null | undefined;
   const outstanding = canonical.erp_outstanding_amount as string | null | undefined;
   if (amount == null || taxAmount == null || withheld == null || outstanding == null) return {};
+  // The template the VAT/withholding was computed under rides with those figures; absent ⇒ omitted, never nulled.
+  const taxTemplate = canonical.tax_template as string | null | undefined;
   return {
     amount, tax_amount: taxAmount, withheld_amount: withheld, tax_treatment: 'inclusive',
     erp_outstanding_amount: outstanding, status: derivePiStatus(outstanding),
+    ...(taxTemplate != null ? { tax_template: taxTemplate } : {}),
   };
 }
 

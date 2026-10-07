@@ -54,6 +54,8 @@ const SENT_ROWS = [{ charge_type: 'On Net Total', account_head: 'Input VAT - SC'
 
 /** #876: the ERPNext Account `root_type` the withholding check reads (one GET per Deduct row). */
 const ACCOUNTS: Record<string, string> = { 'PPh 23 - SC': 'Liability', 'PPh 4(2) - SC': 'Liability', 'Discount - SC': 'Income' };
+/** Accounts the bench answers with 403, its body naming the account (the leak a refusal must not repeat). */
+const FORBIDDEN_ACCOUNTS = ['Hidden PPh - SC'];
 
 /**
  * An ERPNext fake that answers the template list with real filter + paging semantics (name/company/disabled,
@@ -84,9 +86,12 @@ function erpFetch(templates: Row[] = TEMPLATES, docs: Row[] = templates, account
     }
     if (path.startsWith('/api/resource/Account/')) {
       const name = path.slice('/api/resource/Account/'.length);
+      if (FORBIDDEN_ACCOUNTS.includes(name)) {
+        return Response.json({ exc_type: 'PermissionError', exception: `frappe.exceptions.PermissionError: No permission for Account ${name}` }, { status: 403 });
+      }
       return name in accounts
         ? Response.json({ data: { name, root_type: accounts[name] } })
-        : new Response('{"exc_type":"DoesNotExistError"}', { status: 404 });
+        : Response.json({ exc_type: 'DoesNotExistError', exception: `frappe.exceptions.DoesNotExistError: Account ${name} not found` }, { status: 404 });
     }
     if (init?.method === 'POST') {
       const body = JSON.parse(String(init.body)) as Row;
@@ -239,6 +244,8 @@ describe('vendor withholding templates (#876)', () => {
     ['a Deduct row counted in valuation', [STANDARD.taxes[0], { ...PPH23, category: 'Valuation and Total' }], 'a withholding row must count toward the invoice total only'],
     ['a Deduct row included in the item price', [STANDARD.taxes[0], { ...PPH23, included_in_print_rate: 1 }], 'a withholding row cannot be included in the item price'],
     ['a Deduct row on a non-liability account', [STANDARD.taxes[0], { ...PPH23, account_head: 'Discount - SC' }], 'a withholding row must post to a tax-payable (liability) account'],
+    ['a Deduct row whose account does not exist (404)', [STANDARD.taxes[0], { ...PPH23, account_head: 'Missing PPh - SC' }], 'a withholding row must post to a tax-payable (liability) account'],
+    ['a Deduct row whose account the ERP user cannot read (403)', [STANDARD.taxes[0], { ...PPH23, account_head: 'Hidden PPh - SC' }], 'a withholding row must post to a tax-payable (liability) account'],
     ['withholding rates adding up to 100%', [{ ...PPH23, rate: 60 }, { ...PPH23, account_head: 'PPh 4(2) - SC', rate: 40 }], 'its withholding rates add up to 100% or more'],
   ] as Array<[string, Row[], string]>)('AC-VWH-003 a template with %s is refused (config-rejected) before any ERPNext write', async (_label, taxes, reason) => {
     const erp = erpFetch([{ ...STANDARD, taxes }]);

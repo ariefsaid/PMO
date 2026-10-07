@@ -58,6 +58,8 @@ export function piFromDoc(doc: unknown): PmoRecord {
     reference_number: (d.bill_no as string | null) ?? null,
     amount: headerComplete ? addMoney(grandTotal, deducted) : grandTotal,
     erp_outstanding_amount: mirrorMoney(d.outstanding_amount),
+    // #876: the doc's own currency (as siFromDoc, OD-CR-5) — the mirror states it, never the org default.
+    currency: (d.currency as string | null) ?? null,
     // #505 / DD-XING-4: the header tax facts. `tax_rate` is deliberately NOT derived (the per-rate breakdown lives on
     // the `taxes` CHILD table the list endpoint cannot return).
     tax_amount: headerComplete ? addMoney(totalTaxes, deducted) : totalTaxes,
@@ -74,4 +76,4 @@ export function piFromDoc(doc: unknown): PmoRecord {
  * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
  * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
  */
-export const PI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'posting_date', 'bill_no', 'bill_date', 'grand_total', 'outstanding_amount', 'total_taxes_and_charges', 'taxes_and_charges_deducted', 'taxes_and_charges'] as const;
+export const PI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'posting_date', 'bill_no', 'bill_date', 'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges_deducted', 'taxes_and_charges'] as const;

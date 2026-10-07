@@ -16,7 +16,7 @@
  */
 import { AppError } from '../../appError.ts';
 import { AdapterError } from '../contract.ts';
-import { erpnextRequest, getDoc, listDocsByFilters, type ErpClientDeps } from './client.ts';
+import { ErpError, erpnextRequest, getDoc, listDocsByFilters, type ErpClientDeps } from './client.ts';
 
 export interface ErpPurchaseTaxRow {
   charge_type: 'On Net Total';
@@ -38,6 +38,17 @@ function malformedWithholding(templateName: string, reason: string): AppError {
     `The purchase tax template "${templateName}" withholds tax in a way PMO cannot record: ${reason}. Ask your ERP administrator to correct the template (or pick another), then record the invoice again.`,
     'config-rejected',
   );
+}
+
+/** A withholding row's ledger account; a missing (404) or unreadable (403) one reads as unknown, so the caller refuses it
+ *  neutrally — ERPNext's own error text names the account. Anything else (5xx, network) propagates as before. */
+async function readAccount(deps: ErpClientDeps, account: string): Promise<{ root_type?: unknown } | null> {
+  try {
+    return (await getDoc(deps, 'Account', account)) as { root_type?: unknown } | null;
+  } catch (err) {
+    if (err instanceof ErpError && (err.status === 404 || err.status === 403)) return null;
+    throw err;
+  }
 }
 
 /** The picker's options: the company's enabled purchase tax templates (names only), paged to the end. */
@@ -81,7 +92,7 @@ export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: strin
     if (addDeduct === 'Deduct') {
       if (category !== 'Total') throw malformedWithholding(templateName, 'a withholding row must count toward the invoice total only');
       if (included === 1) throw malformedWithholding(templateName, 'a withholding row cannot be included in the item price');
-      const ledger = (await getDoc(deps, 'Account', account)) as { root_type?: unknown } | null;
+      const ledger = await readAccount(deps, account);
       if (ledger?.root_type !== 'Liability') {
         throw malformedWithholding(templateName, 'a withholding row must post to a tax-payable (liability) account');
       }

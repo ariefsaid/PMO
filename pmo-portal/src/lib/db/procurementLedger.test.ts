@@ -13,6 +13,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { buildLedgerRows } from './procurementLedger';
+import { withholdingFigures } from '../vendorWithholding';
 import type { ProcurementDetail } from './procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -685,7 +686,7 @@ describe('FR-L10N-020: LedgerRow.currency — each source record stamps its own 
 });
 
 describe('AC-VWH-011: a vendor invoice row carries its VAT and tax withheld (#876)', () => {
-  it('AC-VWH-011 the Invoice row carries tax_amount and withheld_amount; a row without them is unchanged', () => {
+  it('AC-VWH-011 the Invoice row carries tax_amount and withheld_amount; a bill with nothing withheld shows no breakdown', () => {
     const vi = {
       id: 'vi-876', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-2026-0876', status: 'Received',
       invoice_date: '2026-10-07', created_at: '2026-10-07T08:00:00Z', po_id: null, reference_number: 'INV-876',
@@ -693,8 +694,9 @@ describe('AC-VWH-011: a vendor invoice row carries its VAT and tax withheld (#87
     };
     const [row] = buildLedgerRows(makeDetail({ invoices: [vi] }));
     expect(row).toMatchObject({ type: 'Invoice', amount: 1110000, taxAmount: 110000, withheldAmount: 20000, currency: 'IDR' });
-    const [plain] = buildLedgerRows(makeDetail({ invoices: [{ ...vi, tax_amount: undefined, withheld_amount: undefined }] }));
-    expect(plain).not.toHaveProperty('taxAmount');
-    expect(plain).not.toHaveProperty('withheldAmount');
+    // withheld_amount is NOT NULL (0266): a bill with nothing withheld comes back as 0, never absent.
+    const [plain] = buildLedgerRows(makeDetail({ invoices: [{ ...vi, amount: 111000, tax_amount: 11000, withheld_amount: 0 }] }));
+    expect(plain).toMatchObject({ amount: 111000, taxAmount: 11000, withheldAmount: 0 });
+    expect(withholdingFigures(plain.amount, plain.taxAmount, plain.withheldAmount)).toBeNull();
   });
 });

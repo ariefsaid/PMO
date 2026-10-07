@@ -1571,7 +1571,7 @@
       "loadError": "Templat pajak ERPNext tidak dapat dimuat. Bawaan ERPNext akan digunakan."
     },
     "withholding": {
-      "netPayable": "Jumlah neto dibayar",
+      "netPayable": "Neto yang harus dibayar",
       "vat": "PPN",
       "withheld": "Pajak dipotong (PPh)"
     }

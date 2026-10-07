@@ -107,6 +107,7 @@ Deno.test({
         erp_docstatus: 1,
         erp_modified: '2026-07-12 10:00:00.000000',
         erp_amended_from: null,
+        withheld_amount: '0.00',
       },
       { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
     );
@@ -142,7 +143,7 @@ Deno.test({
         id: 'pmo-pi-505-1', vi_number: 'ACC-PINV-2026-00505', invoice_date: '2026-08-20',
         reference_number: 'BILL-505', amount: '111000.00', erp_outstanding_amount: '111000.00',
         erp_docstatus: 1, erp_modified: '2026-08-20 10:00:00.000000',
-        tax_amount: '11000.00', tax_template: 'Indonesia PPN 11% - RIS',
+        tax_amount: '11000.00', tax_template: 'Indonesia PPN 11% - RIS', withheld_amount: '0.00',
       },
       { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-505-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
     );
@@ -165,7 +166,7 @@ Deno.test({
       {
         id: 'pmo-pi-505-2', vi_number: 'ACC-PINV-2026-00506', invoice_date: '2026-08-20',
         amount: '5000.00', erp_outstanding_amount: '5000.00', erp_docstatus: 0,
-        erp_modified: '2026-08-20 10:00:00.000000',
+        erp_modified: '2026-08-20 10:00:00.000000', withheld_amount: '0.00',
       },
       { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-505-2', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
     );
@@ -186,7 +187,7 @@ Deno.test({
       {
         id: 'pmo-pi-505-3', vi_number: 'ACC-PINV-2026-00507', invoice_date: '2026-08-20',
         amount: '5000.00', erp_outstanding_amount: '0.00', erp_docstatus: 1,
-        erp_modified: '2026-08-20 11:00:00.000000',
+        erp_modified: '2026-08-20 11:00:00.000000', withheld_amount: '0.00',
       },
       { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-505-3', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00507', verb: 'submit' } },
     );
@@ -397,7 +398,7 @@ Deno.test({
     const writer = getReadModelWriter('procurement');
     await writer.upsert(
       { serviceClient: client as never, orgId: 'org-1' },
-      { id: 'pmo-pi-1', vi_number: 'ACC-PINV-2026-00001', amount: '150000.00', erp_outstanding_amount: '150000.00', erp_docstatus: 1, erp_modified: '2026-07-12 10:00:00.000000' },
+      { id: 'pmo-pi-1', vi_number: 'ACC-PINV-2026-00001', amount: '150000.00', erp_outstanding_amount: '150000.00', erp_docstatus: 1, erp_modified: '2026-07-12 10:00:00.000000', withheld_amount: '0.00' },
       { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
     );
     const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
@@ -1238,29 +1239,71 @@ Deno.test({
 });
 
 Deno.test({
-  name: 'AC-VWH-006 a PI create whose canonical carries no withholding states 0.00 — it never relies on the column default',
+  name: 'AC-VWH-006 a PI create whose canonical carries no withholding is refused — never a guessed 0.00, never a write',
   fn: async () => {
     const { client, calls } = makeFakeClient();
-    await getReadModelWriter('procurement').upsert(
-      { serviceClient: client as never, orgId: 'org-1' },
-      { id: 'pmo-pi-876-2', vi_number: 'ACC-PINV-2026-00879', amount: '5000.00', erp_outstanding_amount: '5000.00', erp_docstatus: 0 },
-      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-876-2', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
-    );
-    const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
-    assertEquals(row.withheld_amount, '0.00');
+    let code: unknown;
+    try {
+      await getReadModelWriter('procurement').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-pi-876-2', vi_number: 'ACC-PINV-2026-00879', amount: '5000.00', tax_amount: '0.00', erp_outstanding_amount: '5000.00', erp_docstatus: 0 },
+        { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-876-2', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+      );
+    } catch (err) {
+      code = (err as { code?: string }).code;
+    }
+    assertEquals(code, 'BAD_REQUEST', 'an incomplete money header must refuse the create');
+    assert(!calls.some((c) => c.method === 'insert' && c.table === 'procurement_invoices'), 'no mirror row may be written');
   },
 });
 
 Deno.test({
-  name: 'AC-VWH-006 a PI update omits withheld_amount when the canonical does not carry it (never zeroes a recorded withholding)',
+  name: 'AC-VWH-006 a PI update without the withholding writes none of the money header (amount, VAT, treatment, withheld all omitted)',
   fn: async () => {
     const { client, calls } = makeFakeClient();
     await getReadModelWriter('procurement').upsert(
       { serviceClient: client as never, orgId: 'org-1' },
-      { id: 'pmo-pi-876-3', vi_number: 'ACC-PINV-2026-00880', amount: '5000.00', erp_outstanding_amount: '0.00', erp_docstatus: 1 },
+      { id: 'pmo-pi-876-3', vi_number: 'ACC-PINV-2026-00880', amount: '5000.00', tax_amount: '500.00', erp_outstanding_amount: '0.00', erp_docstatus: 1 },
       { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-876-3', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00880', verb: 'submit' } },
     );
     const patch = calls.find((c) => c.method === 'update' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
-    assert(!('withheld_amount' in patch), 'an absent withholding must be omitted, not written');
+    for (const key of ['withheld_amount', 'amount', 'tax_amount', 'tax_treatment']) {
+      assert(!(key in patch), `${key} must be omitted when the withholding is unknown (a net total must never land as the gross)`);
+    }
+    assertEquals(patch.status, 'Paid', 'the lifecycle still follows ERPNext');
+  },
+});
+
+Deno.test({
+  name: 'AC-VWH-006 a PI update with the whole header writes gross, VAT, treatment and withheld together',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-876-4', vi_number: 'ACC-PINV-2026-00881', amount: '1110000.00', tax_amount: '110000.00', withheld_amount: '20000.00', erp_outstanding_amount: '0.00', erp_docstatus: 1 },
+      { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-876-4', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00881', verb: 'submit' } },
+    );
+    const patch = calls.find((c) => c.method === 'update' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assertEquals(patch.amount, '1110000.00');
+    assertEquals(patch.tax_amount, '110000.00');
+    assertEquals(patch.withheld_amount, '20000.00');
+    assertEquals(patch.tax_treatment, 'inclusive');
+  },
+});
+
+Deno.test({
+  name: 'AC-VWH-005 a created PI mirror states the bill currency from the ERP doc — never the org default',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        id: 'pmo-pi-876-5', vi_number: 'ACC-PINV-2026-00882', amount: '1110000.00', tax_amount: '110000.00',
+        withheld_amount: '20000.00', erp_outstanding_amount: '1090000.00', erp_docstatus: 1, currency: 'IDR',
+      },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-876-5', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
+    assertEquals(row.currency, 'IDR');
   },
 });

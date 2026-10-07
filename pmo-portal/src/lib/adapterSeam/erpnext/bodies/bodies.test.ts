@@ -234,6 +234,13 @@ describe('erpnext/bodies — fromDoc canonical mapping (decimal-string money, he
     expect(PI_FROM_DOC_FIELDS as readonly string[]).toContain('taxes_and_charges_deducted');
   });
 
+  // #876: the bill's currency is the ERP doc's, so the mirror never inherits the org default by accident.
+  it('AC-VWH-005 piFromDoc mirrors the bill currency verbatim and PI_FROM_DOC_FIELDS requests it', () => {
+    expect(piFromDoc({ name: 'ACC-PINV-2026-00879', grand_total: 1090000, currency: 'IDR' }).currency).toBe('IDR');
+    expect(piFromDoc({ name: 'ACC-PINV-2026-00880', grand_total: 1090000 }).currency).toBeNull();
+    expect(PI_FROM_DOC_FIELDS as readonly string[]).toContain('currency');
+  });
+
   it('peFromDoc maps paid_amount -> amount exactly; absent optional -> null', () => {
     const canonical = peFromDoc({ name: 'ACC-PAY-2026-00001', paid_amount: 150000, reference_no: null, docstatus: 1, modified: '2026-07-11 10:00:00.000000' });
     expect(canonical).toMatchObject({ id: 'ACC-PAY-2026-00001', pay_number: 'ACC-PAY-2026-00001', amount: '150000.00', reference_number: null });

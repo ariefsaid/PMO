@@ -1040,11 +1040,28 @@ Deno.test('AC-VWH-007 a mirrored bill change carrying its money header refreshes
   assert(p.tax_treatment === 'inclusive', 'the marker rides with the gross amount');
 });
 
+Deno.test('AC-VWH-007 a bill change carrying its money header also refreshes the tax template it was taxed under; an absent template is never written', async () => {
+  const doc = {
+    name: 'ACC-PINV-2026-00876', docstatus: 1, modified: '2026-10-07 11:00:00.000000',
+    grand_total: 1090000, total_taxes_and_charges: 90000, taxes_and_charges_deducted: 20000, outstanding_amount: 0,
+  };
+  const withTemplate = fakeServiceClient({});
+  await createErpFeedDeps(withTemplate.client, 'org-1', 'purchase-invoice')
+    .updateMirror('pmo-pi-1', piFromDoc({ ...doc, taxes_and_charges: 'PPN 11 + PPh 23 - RIS' }), Date.parse('2026-10-07T11:00:00.000Z'));
+  const p = withTemplate.calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update')!.patch!;
+  assert(p.tax_template === 'PPN 11 + PPh 23 - RIS', `template refreshed: ${JSON.stringify(p)}`);
+  const without = fakeServiceClient({});
+  await createErpFeedDeps(without.client, 'org-1', 'purchase-invoice')
+    .updateMirror('pmo-pi-1', piFromDoc(doc), Date.parse('2026-10-07T11:00:00.000Z'));
+  const q = without.calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update')!.patch!;
+  assert(!('tax_template' in q), `an absent template must be omitted, never nulled: ${JSON.stringify(q)}`);
+});
+
 Deno.test('AC-VWH-007 a bill change WITHOUT the whole money header leaves money and status untouched (a header missing the deducted total, or a lifecycle-only webhook)', async () => {
   const partials = [
     // The dangerous one: the NET grand total with no deducted figure — writing it would record the net as the gross.
     { name: 'ACC-PINV-2026-00876', docstatus: 1, modified: '2026-10-07 11:00:00.000000',
-      grand_total: 1090000, total_taxes_and_charges: 90000, outstanding_amount: 0 },
+      grand_total: 1090000, total_taxes_and_charges: 90000, outstanding_amount: 0, taxes_and_charges: 'PPN 11 + PPh 23 - RIS' },
     { name: 'ACC-PINV-2026-00876', docstatus: 1, modified: '2026-10-07 11:00:00.000000', outstanding_amount: 0 },
   ];
   for (const doc of partials) {
@@ -1052,7 +1069,7 @@ Deno.test('AC-VWH-007 a bill change WITHOUT the whole money header leaves money 
     const deps = createErpFeedDeps(client, 'org-1', 'purchase-invoice');
     await deps.updateMirror('pmo-pi-1', piFromDoc(doc), Date.parse('2026-10-07T11:00:00.000Z'));
     const p = calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update')!.patch!;
-    for (const key of ['amount', 'tax_amount', 'withheld_amount', 'erp_outstanding_amount', 'status', 'tax_treatment']) {
+    for (const key of ['amount', 'tax_amount', 'withheld_amount', 'erp_outstanding_amount', 'status', 'tax_treatment', 'tax_template']) {
       assert(!(key in p), `a partial payload must not write ${key}: ${JSON.stringify(p)}`);
     }
   }

@@ -22,6 +22,9 @@
 alter table public.procurement_invoices
   add column if not exists withheld_amount numeric(14,2) not null default 0;
 
+-- Re-runnable like the column above: drop-then-add, so a second run re-asserts the bounds instead of failing (42710).
+alter table public.procurement_invoices
+  drop constraint if exists procurement_invoices_withheld_amount_bounds;
 alter table public.procurement_invoices
   add constraint procurement_invoices_withheld_amount_bounds
   check (withheld_amount > '-Infinity'::numeric and withheld_amount < 'Infinity'::numeric

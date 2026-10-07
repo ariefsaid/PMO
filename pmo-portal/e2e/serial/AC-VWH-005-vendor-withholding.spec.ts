@@ -1,12 +1,12 @@
-// @e2e-isolation: serial — flips the shared org's procurement ownership, its ERPNext binding and its default currency (org-global state).
+// @e2e-isolation: serial — flips the shared org's procurement ownership and its ERPNext binding (org-global state).
 /**
  * AC-VWH-005 — vendor withholding (#876, ADR-0082) through the REAL served `adapter-dispatch` and `erpnext-sweep`
  * against the local ERPNext bench. Never `page.route` (money-command rule).
  *
  * Stated money facts, so the oracle is not an accident of fixtures:
- *  - currency IDR (VWH_CURRENCY): the bench company "PMO Smoke Co" bills in IDR (asserted), and for this test the PMO
- *    org's default currency is IDR (set here, restored after), so the procurement and the mirrored bill are IDR —
- *    the seed org defaults to USD;
+ *  - currency IDR (SAR_CURRENCY): the bench company "PMO Smoke Co" bills in IDR (asserted) and the procurement states
+ *    IDR; the mirrored bill carries the ERP doc's own currency, so the org's default (USD in the seed) never decides it
+ *    and this test never touches `organizations`;
  *  - VAT flag: the bill's VAT is the chosen template's PPN 11% Add row and nothing else. The project VAT flag
  *    (`projects.subject_to_vat`, OD-TAX-4) gates SALES invoices only, and this procurement has no project, so no
  *    flag is consulted (stated here so the oracle is not an accident of a project default);
@@ -21,6 +21,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { SAR_CURRENCY } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -35,8 +36,6 @@ const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
 
-/** The bench's billing currency (company 'PMO Smoke Co'); the org and its procurement state it for this journey. */
-const VWH_CURRENCY = 'IDR';
 const COMPANY = 'PMO Smoke Co';
 const TAX_PARENT = 'Duties and Taxes - PSC';
 const VAT_ACCOUNT = 'Spike PPN Masukan - PSC';
@@ -108,15 +107,6 @@ async function dispatch(token: string, record: Doc): Promise<{ status: number; b
 
 interface Seed { companyId: string; procurementId: string | null; piRecordId: string; peRecordId: string }
 
-/** Sets the org's operating currency, returning the prior one so the finally block can restore it. */
-async function setOrgCurrency(admin: SupabaseClient, currency: string): Promise<string> {
-  const { data: org, error: orgErr } = await admin.from('organizations').select('default_currency').eq('id', ORG_ID).single();
-  if (orgErr || !org) throw new Error(`read org currency failed: ${orgErr?.message}`);
-  const { error: currencyErr } = await admin.from('organizations').update({ default_currency: currency }).eq('id', ORG_ID);
-  if (currencyErr) throw new Error(`set org currency failed: ${currencyErr.message}`);
-  return (org as { default_currency: string }).default_currency;
-}
-
 /** Seeds into `s` as it goes, so cleanup removes whatever was created even when a later step throws. */
 async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
   const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -129,7 +119,7 @@ async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
   );
   if (refErr) throw new Error(`seed external_refs failed: ${refErr.message}`);
   const { data: proc, error: procErr } = await admin.from('procurements')
-    .insert({ org_id: ORG_ID, title: `AC-VWH-005 case ${suffix}`, vendor_id: companyId, status: 'Ordered', currency: VWH_CURRENCY })
+    .insert({ org_id: ORG_ID, title: `AC-VWH-005 case ${suffix}`, vendor_id: companyId, status: 'Ordered', currency: SAR_CURRENCY })
     .select('id').single();
   if (procErr || !proc) throw new Error(`seed procurements failed: ${procErr?.message}`);
   s.procurementId = (proc as { id: string }).id;
@@ -166,7 +156,7 @@ test('AC-VWH-005 a bill with PPh withheld is recorded gross with VAT and withhol
   const token = signIn.session.access_token;
 
   // Bench facts this journey states rather than assumes.
-  expect((await readDoc('Company', COMPANY)).default_currency, 'the bench company bills in IDR').toBe(VWH_CURRENCY);
+  expect((await readDoc('Company', COMPANY)).default_currency, 'the bench company bills in IDR').toBe(SAR_CURRENCY);
   expect(await readDoc('Account', TAX_PARENT)).toMatchObject({ is_group: 1, root_type: 'Liability' });
   await ensureDoc('Account', VAT_ACCOUNT, { account_name: 'Spike PPN Masukan', parent_account: TAX_PARENT, company: COMPANY, account_type: 'Tax', is_group: 0 });
   await ensureDoc('Account', PPH_ACCOUNT, { account_name: 'Spike PPh 23 Payable', parent_account: TAX_PARENT, company: COMPANY, account_type: 'Tax', is_group: 0 });
@@ -175,7 +165,6 @@ test('AC-VWH-005 a bill with PPh withheld is recorded gross with VAT and withhol
     .toEqual(TEMPLATE_ROWS.map((r) => [r.account_head, r.rate, r.add_deduct_tax, r.category]));
 
   const s: Seed = { companyId: crypto.randomUUID(), procurementId: null, piRecordId: crypto.randomUUID(), peRecordId: crypto.randomUUID() };
-  const priorCurrency = await setOrgCurrency(admin, VWH_CURRENCY);
   try {
     await seed(admin, s);
     // 1. Record the bill with the withholding template (IDR 1,000,000 net).
@@ -186,7 +175,7 @@ test('AC-VWH-005 a bill with PPh withheld is recorded gross with VAT and withhol
     expect(pi.status, `PI dispatch failed: ${pi.body.message}`).toBe(200);
     const piName = pi.body.externalRecordId!;
     expect(await readDoc('Purchase Invoice', piName)).toMatchObject({
-      docstatus: 1, currency: VWH_CURRENCY, net_total: 1000000, taxes_and_charges_added: 110000,
+      docstatus: 1, currency: SAR_CURRENCY, net_total: 1000000, taxes_and_charges_added: 110000,
       taxes_and_charges_deducted: 20000, grand_total: 1090000, outstanding_amount: 1090000,
     });
 
@@ -205,7 +194,7 @@ test('AC-VWH-005 a bill with PPh withheld is recorded gross with VAT and withhol
     expect(recordedErr).toBeNull();
     expect(recorded).toMatchObject({
       amount: 1110000, tax_amount: 110000, withheld_amount: 20000, erp_outstanding_amount: 1090000,
-      status: 'Received', currency: VWH_CURRENCY, tax_template: TEMPLATE,
+      status: 'Received', currency: SAR_CURRENCY, tax_template: TEMPLATE,
     });
 
     // 4. Pay the vendor the NET.
@@ -230,6 +219,5 @@ test('AC-VWH-005 a bill with PPh withheld is recorded gross with VAT and withhol
     expect(settled).toMatchObject({ status: 'Paid', erp_outstanding_amount: 0, amount: 1110000, tax_amount: 110000, withheld_amount: 20000 });
   } finally {
     await cleanup(admin, s);
-    await setOrgCurrency(admin, priorCurrency);
   }
 });
