@@ -3340,6 +3340,8 @@
     "total": "Total",
     "addBudgetLineItem": "+ Tambah item anggaran",
     "activate": "Aktifkan",
+    "activateDrafterBlocked": "Anda menyusun versi ini, jadi orang lain yang harus mengaktifkannya.",
+    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
     "deleteDraft": "Hapus draf",
     "archive": "Arsipkan",
     "cloneToRevise": "Salin untuk revisi",

@@ -853,6 +853,7 @@ export type Database = {
         Row: {
           activated_at: string | null
           created_at: string
+          created_by: string | null
           currency: string
           id: string
           import_batch_id: string | null
@@ -867,6 +868,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           created_at?: string
+          created_by?: string | null
           currency?: string
           id?: string
           import_batch_id?: string | null
@@ -881,6 +883,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           created_at?: string
+          created_by?: string | null
           currency?: string
           id?: string
           import_batch_id?: string | null
@@ -893,6 +896,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "budget_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "budget_versions_org_id_fkey"
             columns: ["org_id"]
