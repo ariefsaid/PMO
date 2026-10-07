@@ -14,16 +14,19 @@ function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
 
-/** A minimal fake client matching the two reads the fn issues: the bindings
+/** A minimal fake client matching the reads the fn issues: the bindings
  *  (`.from(t).select(c).eq(...)`) and the per-org domain ownership (`.from(t).select(c).eq(...).in(...)`,
- *  Luna BLOCK 9). Each table answers its own scripted result. */
+ *  Luna BLOCK 9), plus the #916 watermark-recency read (`.from('external_sync_watermarks')
+ *  .select(c).eq(...).in('org_id', [...])`) that orders the orgs least-recently-swept first. Each
+ *  table answers its own scripted result. */
 function fakeClient(
   bindings: { data: unknown; error: { code?: string; message: string } | null },
   ownership: { data: unknown; error: { code?: string; message: string } | null } = { data: [], error: null },
+  watermarks: { data: unknown; error: { code?: string; message: string } | null } = { data: [], error: null },
 ): SupabaseClient {
   return {
     from: (table: string) => {
-      const result = table === 'external_domain_ownership' ? ownership : bindings;
+      const result = table === 'external_domain_ownership' ? ownership : table === 'external_sync_watermarks' ? watermarks : bindings;
       const builder = {
         eq: () => builder,
         in: () => Promise.resolve(result),
@@ -95,6 +98,116 @@ Deno.test('BLOCK 9: an ownership READ failure fail-safes the tick to [] (never s
     const orgs = await listEmployingOrgsLive(client);
     assert(orgs.length === 0, 'expected the tick to fail-safe to no orgs rather than sweep with unknown ownership');
     assert(logs.length === 1, `expected the ownership load failure to be logged, got ${logs.length}`);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+// ── #916 fix round: FAIR org order across ticks (the invocation shares ONE clock) ──────────────────
+
+const binding = (orgId: string) => ({
+  org_id: orgId, site_url: 'http://localhost:8080', secret_ref: `ref-${orgId}`,
+  config: { company: 'Acme' }, activated_at: '2026-07-01T00:00:00Z',
+});
+
+Deno.test('#916: orgs are ordered LEAST-RECENTLY-SWEPT first (an idle org walks before the org that just swept)', async () => {
+  // The whole invocation shares one elapsed-time budget: once an early org's walk spends it, every
+  // later org's doctype walk is skipped THAT TICK. A fixed order therefore starves tail orgs
+  // forever. The poll-watermark rows are the sweep's own completion stamps: org-B's most recent
+  // completion is far older than org-A's, so org-B must walk FIRST despite loading second.
+  const client = fakeClient(
+    { data: [binding('org-A'), binding('org-B')], error: null },
+    { data: [{ org_id: 'org-A', domain: 'revenue' }, { org_id: 'org-B', domain: 'revenue' }], error: null },
+    {
+      data: [
+        { org_id: 'org-A', domain: 'revenue::Sales Invoice', updated_at: '2026-08-01T10:00:00Z' },
+        { org_id: 'org-B', domain: 'revenue::Sales Invoice', updated_at: '2026-07-01T10:00:00Z' },
+      ],
+      error: null,
+    },
+  );
+  const orgs = await listEmployingOrgsLive(client);
+  assert(
+    JSON.stringify(orgs.map((o) => o.orgId)) === JSON.stringify(['org-B', 'org-A']),
+    `expected the stale org first, got ${JSON.stringify(orgs.map((o) => o.orgId))}`,
+  );
+});
+
+Deno.test('#916: an org with NO poll watermark (never swept) sorts first', async () => {
+  const client = fakeClient(
+    { data: [binding('org-A'), binding('org-B')], error: null },
+    { data: [{ org_id: 'org-A', domain: 'revenue' }, { org_id: 'org-B', domain: 'revenue' }], error: null },
+    { data: [{ org_id: 'org-A', domain: 'revenue::Sales Invoice', updated_at: '2020-01-01T00:00:00Z' }], error: null },
+  );
+  const orgs = await listEmployingOrgsLive(client);
+  assert(
+    orgs[0].orgId === 'org-B',
+    `expected the never-swept org first, got ${JSON.stringify(orgs.map((o) => o.orgId))}`,
+  );
+});
+
+Deno.test('#916: ledger-mirror rows are NOT sweep completions — an org whose only recency is a ledger:: row still counts as never-swept', async () => {
+  // The ledger feed shares the watermark TABLE but not the doctype walk: its `ledger::` rows must
+  // not masquerade as sweep recency, or a ledger-active org could keep jumping the queue while its
+  // doctypes starve. org-A has ONLY a fresh ledger row; org-B a STALE poll row — org-A (never swept)
+  // must still sort first.
+  const client = fakeClient(
+    { data: [binding('org-A'), binding('org-B')], error: null },
+    { data: [{ org_id: 'org-A', domain: 'revenue' }, { org_id: 'org-B', domain: 'revenue' }], error: null },
+    {
+      data: [
+        { org_id: 'org-A', domain: 'ledger::gl_entries', updated_at: '2026-08-01T10:00:00Z' },
+        { org_id: 'org-B', domain: 'revenue::Sales Invoice', updated_at: '2020-01-01T00:00:00Z' },
+      ],
+      error: null,
+    },
+  );
+  const orgs = await listEmployingOrgsLive(client);
+  assert(
+    orgs[0].orgId === 'org-A',
+    `expected the ledger-only org to count as never-swept (first), got ${JSON.stringify(orgs.map((o) => o.orgId))}`,
+  );
+});
+
+Deno.test('#916: equal recency keeps the loaded order (stable) — a fresh install sweeps exactly as before', async () => {
+  const client = fakeClient(
+    { data: [binding('org-A'), binding('org-B')], error: null },
+    { data: [{ org_id: 'org-A', domain: 'revenue' }, { org_id: 'org-B', domain: 'revenue' }], error: null },
+    {
+      data: [
+        { org_id: 'org-B', domain: 'revenue::Sales Invoice', updated_at: '2026-08-01T10:00:00Z' },
+        { org_id: 'org-A', domain: 'revenue::Sales Invoice', updated_at: '2026-08-01T10:00:00Z' },
+      ],
+      error: null,
+    },
+  );
+  const orgs = await listEmployingOrgsLive(client);
+  assert(
+    JSON.stringify(orgs.map((o) => o.orgId)) === JSON.stringify(['org-A', 'org-B']),
+    `expected ties to keep the loaded order, got ${JSON.stringify(orgs.map((o) => o.orgId))}`,
+  );
+});
+
+Deno.test('#916: a recency READ FAILURE degrades to the loaded order (logged) — ordering is an optimization, the sweep still runs', async () => {
+  const logs: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => { logs.push(args); };
+  try {
+    const client = fakeClient(
+      { data: [binding('org-A'), binding('org-B')], error: null },
+      { data: [{ org_id: 'org-A', domain: 'revenue' }, { org_id: 'org-B', domain: 'revenue' }], error: null },
+      { data: null, error: { code: '57014', message: 'statement timeout' } },
+    );
+    const orgs = await listEmployingOrgsLive(client);
+    assert(orgs.length === 2, 'the recency failure must NOT skip the tick (no fail-safe to [] here)');
+    assert(
+      JSON.stringify(orgs.map((o) => o.orgId)) === JSON.stringify(['org-A', 'org-B']),
+      `expected the loaded order on a recency failure, got ${JSON.stringify(orgs.map((o) => o.orgId))}`,
+    );
+    assert(
+      logs.some((args) => String(args[0]).includes('external_sync_watermarks recency load failed')),
+      `expected the recency failure to be logged, got ${JSON.stringify(logs)}`,
+    );
   } finally {
     console.error = originalError;
   }

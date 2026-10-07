@@ -58,6 +58,14 @@ export interface SweepCursorDeps {
    *  those kinds (the sweep's `KINDS_NEEDING_FULL_DOC`), so no other poll pays an extra round-trip.
    *  Applied AFTER dedupe + `filterRow`, so exactly the emitted rows are hydrated. */
   hydrateDoc?: (name: string) => Promise<Record<string, unknown>>;
+  /** #916: the page budget for ONE call — the walk stops starting new pages once this many pages have
+   *  been fetched, and `nextCursor` is the max `modified` SEEN so far. Because the listing order is the
+   *  total order `modified asc, name asc` and the caller's cursor filter is INCLUSIVE, the next call
+   *  (next tick) resumes exactly at that boundary: nothing after the cut is skipped, and the tied
+   *  boundary rows it re-delivers re-apply idempotently. This is what makes a full-year backfill
+   *  resumable instead of one CPU-limit-dying pass. Absent ⇒ UNBOUNDED (the pre-#916 behavior — the
+   *  sweep fn passes its shipped budget explicitly; the onboarding probe reads unbounded). */
+  maxPages?: number;
 }
 
 const DEFAULT_PAGE_SIZE = 500;
@@ -101,14 +109,15 @@ function listPath(
 /**
  * List ERP changes since the `modified >= cursor` watermark (inclusive). Pages until a short page;
  * dedupes by ERP `name` (a name surfacing on two pages is emitted exactly once — FR-ENA-081);
- * `nextCursor` = max `modified` observed. A `null` cursor (fresh org) issues NO `modified` filter
+ * `nextCursor` = max `modified` observed; `listedCount` = rows FETCHED across pages (before dedupe
+ * and before any `filterRow` drop — the walk's true cost, what a per-tick budget must count). A `null` cursor (fresh org) issues NO `modified` filter
  * (a full backfill). Each emitted `SweepChange` carries `erp_docstatus`/`erp_amended_from` on its
  * canonical record (enriched here) for the lineage apply to route cancel/amend.
  */
 export async function listErpChangesSinceWatermark(
   deps: SweepCursorDeps,
   cursor: string | null,
-): Promise<{ changes: SweepChange[]; nextCursor: string | null }> {
+): Promise<{ changes: SweepChange[]; nextCursor: string | null; listedCount: number }> {
   const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
   // Union the caller's fields with the routing-required ones (deduped, order-stable).
   const fields = Array.from(new Set([...deps.fields, ...REQUIRED_FIELDS.filter(field => deps.doctype !== 'Contact' || field !== 'amended_from')]));
@@ -120,15 +129,39 @@ export async function listErpChangesSinceWatermark(
 
   const byName = new Map<string, { row: Record<string, unknown>; modified: string }>();
   let nextCursor: string | null = null;
+  // #916 budget undercount: the number of rows FETCHED, summed before dedupe and before any
+  // `filterRow` drop. The per-tick document budget counts this — a row the walk listed costs the
+  // walk exactly as much whether it applies, is filtered, or fails to apply.
+  let listedCount = 0;
   let limitStart = 0;
+  const maxPages = deps.maxPages ?? Number.POSITIVE_INFINITY;
+  let pagesFetched = 0;
+  // #916 tie-wedge escape: the PERSISTED cursor is `modified` ONLY. A bulk ERP write can tie MORE
+  // rows on one `modified` than one tick's page budget reads; without the escape, every tick would
+  // re-issue `modified >= cursor`, re-read the same first rows, observe max-modified == cursor, and
+  // never advance — a permanent wedge. So when the budget is spent AND the max `modified` seen still
+  // equals the starting cursor (this tick would otherwise make ZERO cursor progress), keep paging
+  // PAST the budget until a row with a later `modified` appears (then the ordinary budget stop
+  // resumes) or the source drains (a short/empty page). Bounded: it fires only on the zero-progress
+  // path, and the safety counter below still caps the loop.
+  const startCursor = cursor !== null && cursor !== '' ? cursor : null;
   // Guard: a pathological server that returns full pages forever cannot loop us indefinitely.
   for (let safety = 0; safety < 1000; safety += 1) {
+    // #916 page budget: stop STARTING new pages once spent — UNLESS the tie-wedge escape above is
+    // holding (max modified read == the starting cursor: stopping would persist a cursor that makes
+    // no progress). The inclusive `modified >=` cursor makes the next call resume exactly at
+    // max-modified-seen (see `maxPages` above).
+    const budgetSpent = pagesFetched >= maxPages;
+    const tieWedged = budgetSpent && startCursor !== null && nextCursor === startCursor;
+    if (budgetSpent && !tieWedged) break;
     const body = await erpnextRequest(deps.client, {
       method: 'GET',
       path: listPath(deps.doctype, filters, fields, pageSize, limitStart),
     });
+    pagesFetched += 1;
     const page = (body as { data?: Array<Record<string, unknown>> } | null)?.data;
     if (!Array.isArray(page) || page.length === 0) break;
+    listedCount += page.length;
     for (const row of page) {
       const name = String(row.name);
       const modified = String(row.modified);
@@ -161,5 +194,5 @@ export async function listErpChangesSinceWatermark(
     };
     changes.push({ record: enriched, sourceModMs: Date.parse(modified) });
   }
-  return { changes, nextCursor };
+  return { changes, nextCursor, listedCount };
 }
