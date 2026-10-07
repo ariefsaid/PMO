@@ -863,6 +863,8 @@ describe('Luna B12 — require_project_on_si applies to every SI body-building o
               }
               // #766: these invoices are not progress claims — no claim row exists for the record id.
               if (table === 'progress_claims') return { data: null, error: null };
+              // OD-BILL-1: an edit or amend is stated in its mirror row's currency.
+              if (table === 'sales_invoices') return { data: { org_id: 'org-1', currency: 'USD' }, error: null };
               // Every link row belongs to org-1 (the caller's org) — the tenancy pre-flight is not
               // what these tests are about.
               return { data: { org_id: 'org-1' }, error: null };

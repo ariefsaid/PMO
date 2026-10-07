@@ -107,10 +107,13 @@ export function useRevenueMutations() {
     qc.invalidateQueries({ queryKey: ['incomingPayments'] });
     qc.invalidateQueries({ queryKey: ['incomingPayment'] });
     qc.invalidateQueries({ queryKey: ['revenueByProject'] });
+    // OD-BILL-1: an invoice moves its work order's billing and the dashboard's still-to-invoice.
+    qc.invalidateQueries({ queryKey: ['work-order-billing'] });
+    qc.invalidateQueries({ queryKey: ['unbilled-work-orders'] });
   };
 
   const create = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; workOrderId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
       repositories.revenue.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));

@@ -1,16 +1,23 @@
 # Feature: Expense claims and cash advances (#775)
 
-> **Status:** Draft for Director sign-off (2026-10-06). Plan: `docs/plans/2026-10-06-expense-claims.md` (+ part2…part6).
-> ADR: `docs/adr/0078-expense-claims-ride-spend-routing-and-core-erp-doctypes.md`.
+> **Status:** Phase A signed off and merged (migration 0247). **Phase B (§10) drafted 2026-10-07 for Director sign-off.**
+> Plans: phase A `docs/plans/2026-10-06-expense-claims.md` (+ part2…part6); phase B
+> `docs/plans/2026-10-07-expense-claims-phase-b.md` (+ part2…part6).
+> ADRs: `docs/adr/0078-expense-claims-ride-spend-routing-and-core-erp-doctypes.md`;
+> `docs/adr/0081-expense-postings-single-originator.md` (phase B).
 > **Grounds (read, not re-derived):** `docs/decisions.md` OD-PROC-5 (claims are their own flow, never inside
 > `procurements`, sharing only the approve → Finance → paid tail), OD-PROC-1/OD-PROC-8 (SoD outside the Admin
-> skip), OD-SAR-PMO-IS-THE-UI (ERPNext is headless; accountants work in PMO), DD-APR-1..5 + ADR-0075 (spend approval
-> routing, #803 — `spend_approval_route` is the one rule; its reuse contract names this issue), ADR-0019
-> (server-enforced SoD), ADR-0055/0059 (ERPNext owns money; PMO-run processes are Posture B — PMO SoT, side-mirrored),
-> ADR-0058 + `docs/money-path-primer.md` (outbox/sweep), #804 / migration 0229 (`Special expenses` budget category).
+> skip), OD-SAR-PMO-IS-THE-UI and OD-ERP-3 (ERPNext is headless; nobody at the client logs in to it), DD-APR-1..5 +
+> ADR-0075 (spend approval routing, #803 — `spend_approval_route` is the one rule; its reuse contract names this
+> issue), ADR-0019 (server-enforced SoD), ADR-0055/0059 (ERPNext owns money; PMO-run processes are Posture B — PMO SoT,
+> side-mirrored), ADR-0058 + `docs/money-path-primer.md` (outbox/sweep), OD-XING-1 (nothing before the binding is
+> pushed by default), #804 / migration 0229 (`Special expenses` budget category).
+> **Phase B grounds:** `docs/spikes/2026-10-07-erpnext-employee-expense-postings.md` (live v15 bench, every body and
+> anchor below was observed there).
 > **Builds on (merged on `dev`):** #803 — `supabase/migrations/0243_spend_approval_routing.sql`
 > (`spend_approval_route`, `holds_spend_approval_authority`, `spend_approvers`, `get_procurement_approval_routes`);
-> #788 — migration `0237` (`notify_workflow_user`).
+> #788 — migration `0237` (`notify_workflow_user`); P3b — migrations `0136` (`erp_employees`) and `0148`
+> (`confirm_erp_employee_link`).
 
 ## 1. Job story
 
@@ -23,12 +30,8 @@ were a recurring year-end reclass.
 
 | Phase | Delivers | This spec |
 |---|---|---|
-| **A — PMO process** (this build) | Claims and advances: entry with project + budget category + lines + receipts; approval through the #803 routing; settlement by Finance (claims net against advances); advance returns; advance aging; notifications. Runs fully standalone. | §4–§9, every AC below |
-| **B — ERPNext side-mirror** (follow-on issue) | Approved claims and paid advances/claims posted to ERPNext through core doctypes (DD-EXP-9). Needed before field cost reaches the ledger-based project actuals of an ERP-connected client. | §10 only (shape + the spike that unblocks it) |
-
-Phase B is not planned task-by-task here: its document bodies and idempotency anchors must be read off a live bench
-first (the P3b/P3c precedent — every ERP kind so far was spike-frozen before it was built). Inventing them would be
-inventing requirements. §10 names the spike and its exact questions.
+| **A — PMO process** (merged) | Claims and advances: entry with project + budget category + lines + receipts; approval through the #803 routing; settlement by Finance (claims net against advances); advance returns; advance aging; notifications. Runs fully standalone. | §4–§9, AC-EXP-001..070 |
+| **B — ERPNext side-mirror** (this amendment) | Approved claims and paid advances/claims posted to ERPNext through core doctypes (DD-EXP-9), so field cost reaches the ledger-based project actuals of an ERP-connected client. | §10, AC-EXP-100..140 |
 
 **Why phase A alone does not finish the job story for an ERP-connected client:** that client's project actuals are
 read from the mirrored ERPNext ledger (`erp_gl_entry_mirror` → `erp_actuals_snapshot`). Until phase B posts the
@@ -77,6 +80,8 @@ claim, PMO shows the claim and its effect on budget headroom, but the ledger fig
   derives its idempotency key from them later (the DD-APR-6 / DD-WO-5 shape).
 - **DD-EXP-11 — One currency.** A claim is in the org's default currency, stamped server-side; the client never
   sends it. Foreign-currency claims are out of scope.
+
+Phase B decisions (DD-EXP-12..22) are in §10.2.
 
 ## 4. Functional requirements (EARS)
 
@@ -318,9 +323,14 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`.
   the PM approves it from the record, Finance pays it with a reference, and the Engineer sees it Paid.
 
 ## 7. Out of scope
-- ERPNext posting (phase B, §10). Foreign-currency claims (DD-EXP-11). Entry on behalf of another person (Q2).
-  Per-diem/mileage rate tables. Payroll recovery of advances. Counting claims in the dashboard committed-spend
-  definition (OD-BUDGET-2; Q5). Bulk approve. A project-detail Expenses tab (the list filters by project).
+- Foreign-currency claims (DD-EXP-11). Entry on behalf of another person (Q2). Per-diem/mileage rate tables. Payroll
+  recovery of advances. Counting claims in the dashboard committed-spend definition (OD-BUDGET-2; Q5). Bulk approve. A
+  project-detail Expenses tab (the list filters by project).
+- Phase B: HRMS `Expense Claim` / `Employee Advance` documents (DD-EXP-9); reversing a **Paid** claim or advance in
+  ERPNext (Paid is terminal in PMO, FR-EXP-020); back-posting events that happened before the org employed the
+  `expenses` domain (OD-XING-1 default); an operator screen to re-attribute a posting whose actor was offboarded (Q9);
+  per-line descriptions on the Journal Entry; returns recorded before migration 0263 as `expense_advance_returns` rows
+  (they remain audit events only).
 
 ## 8. Traceability
 
@@ -346,11 +356,12 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`.
 | AC-EXP-065 | Unit (RTL) | `pmo-portal/src/components/shell/__tests__/NotificationBell.test.tsx` |
 | AC-EXP-066 | Unit (RTL) | `pmo-portal/pages/expenses/ExpenseReceiptsCard.test.tsx` |
 | AC-EXP-070 | E2E | `pmo-portal/e2e/AC-EXP-070-expense-claim-journey.spec.ts` |
+| AC-EXP-100–140 | see §10.6 | phase B |
 
 ## 9. Open questions for the owner (each has the default the build uses)
 - **Q1 (ops fact). Is the HRMS app installed on the client's ERPNext site?** *Default: assume not. It does not change
-  the build — DD-EXP-9 uses core doctypes either way. The phase B spike records the answer for the bench and the
-  client site.*
+  the build — DD-EXP-9 uses core doctypes either way. Phase B's pre-enable checklist re-runs the spike's §8 checks on
+  the client site before the `expenses` domain is employed there.*
 - **Q2. May Finance enter a claim for field staff who have no PMO login?** *Default: no. Every claimant files their
   own; field staff get a login (Engineer role sees only their own claims).*
 - **Q3. Which budget category does routine field travel and accommodation charge to?** *Default: the claimant picks;
@@ -361,28 +372,317 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`.
   project cost through the ledger once phase B ships.*
 - **Q6. Should special expenses need your own signature?** *Default: no special workflow (your ruling). If you want
   to see them first, name yourself as a senior-set or project approver in Administration › Accounting.*
+- **Q7 (ops fact). Which ERPNext accounts does the client use for employee expenses?** *Default: the operator creates
+  one Liability account of type Payable named `Employee Payable - <abbr>` under Accounts Payable, uses the stock
+  `Employee Advances - <abbr>` (Asset, type Payable) for advances, and maps each expense type to the client's own
+  expense account; an Admin enters them in Administration › Accounting › Expense account map.*
+- **Q8. Claims approved before the client switched expense posting on.** *Default (OD-XING-1 option 2): nothing that
+  happened before the switch is posted. If such a claim is paid after the switch, its payment posts against the
+  employee payable account with no link to an approval entry, so the operator must carry the claim in the opening
+  balance of that account.*
+- **Q9. A posting whose approver or payer has since left the company.** *Default: the posting is refused, recorded as
+  failed and raised as an action-required notice (the timesheet precedent: an offboarded person's authority does not
+  keep posting). Postings normally land within one sweep tick, so this needs someone to leave in that window; no
+  re-attribution screen is built until it happens.*
+- **Q10. Which account are staff paid from?** *Default: the connected company's default cash account, else its default
+  bank account — the same account supplier payments already use.*
 
-## 10. Phase B — ERPNext side-mirror (shape only; planned after the spike)
+## 10. Phase B — ERPNext side-mirror
+
+### 10.1 Shape
 
 Posture B (ADR-0059): PMO stays the system of record for the claim; ERPNext receives the accounting consequence
-through the existing outbox (`external_command_outbox`, ADR-0058) and `adapter-dispatch`.
+through the existing outbox (`external_command_outbox`, ADR-0058). Every body and anchor below was observed on a live
+v15 bench (`docs/spikes/2026-10-07-erpnext-employee-expense-postings.md`).
 
-| PMO event | ERPNext document (core doctypes, DD-EXP-9) |
-|---|---|
-| Claim → Approved | Journal Entry, submitted: Dr the expense account of each line (row `project` + cost center); Cr employee payable (`party_type = Employee`) for the full amount. The advance-applied part is only known at payment, so it is cleared there. |
-| Claim → Paid | Payment Entry `Pay`, party Employee, for the cash part (`amount − advance_applied`) against employee payable; and, when `advance_applied > 0`, a Journal Entry Dr employee payable / Cr employee advance for `advance_applied` (both rows party Employee). |
-| Advance → Paid | Payment Entry `Pay`, party Employee, paid to the employee advance account. |
-| Advance return | Payment Entry `Receive`, party Employee, from the employee advance account. |
+| PMO event | Posting (`posting`) | ERPNext document (core doctypes, DD-EXP-9) |
+|---|---|---|
+| Claim → Approved | `approval` | Journal Entry, submitted: Dr the mapped expense account of each expense type present (sum of that type's lines), each row with the claim's ERP project and the binding cost center; Cr employee payable for the full amount, party `Employee`. |
+| Claim → Paid, `amount − advance_applied > 0` | `claim-payment` | Payment Entry `Pay`, party `Employee`, `paid_from` = cash/bank, `paid_to` = employee payable, for the cash part; `references` = the approval Journal Entry. |
+| Claim → Paid, `advance_applied > 0` | `settlement` | Journal Entry: Dr employee payable (party `Employee`, `reference_type/name` = the approval Journal Entry) / Cr employee advance (party `Employee`) for `advance_applied`. |
+| Advance → Paid | `advance-payment` | Payment Entry `Pay`, party `Employee`, `paid_from` = cash/bank, `paid_to` = employee advance. |
+| Advance return recorded | `advance-return` | Payment Entry `Receive`, party `Employee`, `paid_from` = employee advance, `paid_to` = cash/bank. |
+| Claim Approved → Cancelled (after its approval was queued) | `approval-cancel` | Cancel of the approval Journal Entry (`docstatus 2`). |
 
-Party = the claimant's confirmed ERP Employee link (the P3b `confirm_erp_employee_link`, 0148). Accounts come from an
-Admin-maintained map (the `budget_category_account_map` / `BudgetAccountMap` pattern) keyed by expense type, plus
-two org-level accounts (employee payable, employee advance).
+### 10.2 Director decisions (phase B — proposed 2026-10-07 by eng-planner, for Director ratification into `docs/decisions.md`)
 
-**Spike questions (must be answered on a live bench, with and without HRMS, before phase B is planned — plan Task 46):**
-1. Does `Journal Entry` accept `party_type = Employee` on both a payable and an asset (advance) account with no HRMS
-   present, and does HRMS, when present, add validation that refuses it?
-2. Which free-text field on `Journal Entry` survives validate + submit + re-fetch verbatim and is REST-filterable
-   (candidates: `user_remark`, `cheque_no`)? That is the ADR-0058 anchor. Is it mutable after submit (C-1)?
-3. For `Payment Entry` with `party_type = Employee` and no HRMS: how is `paid_to` resolved, and must PMO send it?
-4. Does a JE row's `project` reach the GL Entry so the existing `erp_gl_entry_mirror` → actuals path sees it?
-5. What does a cancelled JE / PE look like through the existing sweep (docstatus 2) — enough for the mirror?
+- **DD-EXP-12 — One originator: a durable intent written in the event's own transaction, driven only by the sweep.**
+  A trigger on `expense_claims` (status changes) and on the new `expense_advance_returns` writes a `pending` row into the
+  side mirror `expense_posting_erp_mirror` in the same transaction as the PMO event. The ERPNext sweep is the only
+  component that turns an intent into an ERP document; `adapter-dispatch` has no `expenses` route and refuses the
+  domain. Recorded as ADR-0081. *Why:* every Posture-B defect class of P3b came from two originators (the browser and
+  the sweep) — the absent-queue, the foreground/sweep race, the lost mirror update. A claim needs no sub-minute posting.
+- **DD-EXP-13 — The `expenses` domain; employment is explicit.** A new PMO domain `expenses` (Posture B, no RLS flip).
+  An intent is written only while the org has an activated ERPNext binding **and** an `external_domain_ownership` row
+  for `expenses` on the `erpnext` tier. Events before that are never posted (OD-XING-1 default, Q8).
+- **DD-EXP-14 — Three ERP kinds, deterministic keys.** `expense-journal` (Journal Entry, anchor `user_remark`,
+  immutable — reissue-capable), `expense-payment` (Payment Entry `Pay`, anchor `reference_no`, mutable — held on an
+  inconclusive recovery, C-1), `expense-receipt` (Payment Entry `Receive`, same). Key =
+  `<prefix>:<subject uuid>:<state stamp as epoch ms>` with prefixes `expj` (approval), `exps` (settlement), `expx`
+  (approval cancel), `expp` (claim payment), `expa` (advance payment), `expr` (advance return). Subject = the claim, the
+  advance, or the return row.
+- **DD-EXP-15 — Everything is resolved before the outbox row exists, and frozen into its payload.** Employee, accounts,
+  ERP project, cost center, cash account, approval Journal Entry name, posting date. A replay sends exactly the body
+  the digest was taken over; an intent whose outbox row exists is replayed, never re-decided.
+- **DD-EXP-16 — The account map is written only through a validating server action.** `expense_account_map` holds 7
+  keys (`employee_payable`, `employee_advance`, and one per expense type). Clients can read it, never write it; Admin
+  saves go through `external-set-company` (`save-expense-account` / `clear-expense-account`), which reads the account
+  from ERPNext and refuses it unless it fits (FR-EXP-112). The same rule re-runs before every posting.
+- **DD-EXP-17 — Each cash return is its own row.** `record_expense_advance_return` additionally writes an
+  `expense_advance_returns` row; each row is the subject of one `advance-return` posting.
+- **DD-EXP-18 — Only an approval is ever cancelled, and only after it posted.** Paid is terminal, so PMO never cancels
+  a Payment Entry or a settlement. An `approval-cancel` waits until the approval Journal Entry is posted (the approval
+  is always posted first, then cancelled), which also satisfies the spike's cancel order (no dependent document can
+  exist on an approval of a claim that was cancelled before payment).
+- **DD-EXP-19 — Never adopt; poll only what is ours.** A Journal Entry or Employee Payment Entry created in ERPNext
+  directly is acknowledged and skipped (no notice: payroll and other native employee entries are normal). The procurement
+  and revenue Payment Entry polls stop reading Employee entries (a revenue-domain org would otherwise have adopted an
+  employee cash return as a customer receipt); the Journal Entry poll admits only rows whose `user_remark` is a PMO key.
+- **DD-EXP-20 — Posting date = the org-timezone date of the event's stamp** (`approved_at`, `paid_at`, the return's
+  `recorded_at`, `cancelled_at`).
+- **DD-EXP-21 — The ERP Employee master is polled for an org that employs `timesheets` or `expenses`.**
+- **DD-EXP-22 — `expenses` becomes employable from the Admin setup screen only in the release that carries the cancel
+  path and lands after #901**, so no org can post approvals that PMO could not later cancel cleanly.
+
+### 10.3 Functional requirements (EARS)
+
+**Intent (server, migration 0263)**
+- **FR-EXP-100** While an org employs the `expenses` domain (DD-EXP-13), when one of the §10.1 events commits, the
+  system shall write in the same transaction one `pending` intent per posting into `expense_posting_erp_mirror` with the
+  posting, its subject, the event's stamp and the event's actor (approver, payer, return recorder, or the cancelling
+  caller). While it does not, the system shall write none.
+- **FR-EXP-101** When a claim is paid, the system shall write `claim-payment` only when `amount − advance_applied > 0`
+  and `settlement` only when `advance_applied > 0`. When a claim moves Approved → Cancelled, the system shall write
+  `approval-cancel` only when the claim has an `approval` intent.
+- **FR-EXP-102** When a cash return is recorded, the system shall store it as a row of `expense_advance_returns`
+  (advance, amount, reference, recorder, time, org-timezone date) in the same transaction that adds it to
+  `returned_amount`; every phase-A rule of FR-EXP-041 is unchanged.
+
+**Driving (sweep)**
+- **FR-EXP-103** The system shall turn an intent into an ERP document only in the ERPNext sweep. When
+  `adapter-dispatch` receives a command in the `expenses` domain, it shall refuse it (400 `UNSUPPORTED_DOMAIN`).
+- **FR-EXP-104** Before each fresh attempt, the sweep shall re-read from the database, through
+  `expense_posting_for_push`, the record's kind and status, the stamp the intent was written with, the amounts, and the
+  recorded actor's current standing (active member of the same org; approval rank or Admin for `approval`; Finance or
+  Admin for every other posting). When any check fails, it shall record the intent `failed` with the reason, raise an
+  action-required notice and send nothing.
+- **FR-EXP-105** The system shall key every posting with the DD-EXP-14 key and run it through the ADR-0058 outbox (the
+  outbox row is attributed to the recorded actor); a Journal Entry carries the key in `user_remark`, a Payment Entry in
+  `reference_no`. When an outbox row already exists for an intent's key, the sweep shall replay that row from its frozen
+  payload (re-authorizing the recorded actor) and shall not re-decide it.
+- **FR-EXP-106** Before any ERP write, the system shall resolve, and refuse the attempt (intent `failed`, reason named)
+  when it cannot: the claimant's **confirmed** ERP Employee (`employee-unlinked`); every account key the posting needs
+  (`expense-account-unmapped`); the ERP project of a claim that has a project (`project-unmapped`); the binding's cash,
+  else bank, account for a Payment Entry (`expense-cash-account-unconfigured`); each account passing FR-EXP-112
+  (`expense-account-invalid`); the ERP company currency equal to the claim currency (`config-rejected`).
+- **FR-EXP-107** Journal Entry bodies shall put `project` and `cost_center` only on expense rows, put `party_type
+  Employee` + `party` on every payable and advance row, and refuse an unbalanced or zero entry before any write.
+  Payment Entry bodies shall always carry `paid_from`, `paid_to`, `party_type Employee`, `party`, `paid_amount =
+  received_amount`, and `reference_date` = the posting date.
+- **FR-EXP-108** When PMO builds an amended Journal Entry, the body shall carry the posting's key in `user_remark`
+  again (ERPNext does not copy it, spike §2).
+- **FR-EXP-109** The posting date shall be the org-timezone date of the event's stamp (DD-EXP-20).
+- **FR-EXP-110** While a claim has an `approval` intent that is not yet posted, its `claim-payment` and `settlement`
+  shall stay `pending`; once posted, both shall reference the approval Journal Entry (the Payment Entry through
+  `references`, the settlement through its payable row). When the claim has no `approval` intent (approved before
+  employment), both shall post without a reference.
+- **FR-EXP-111** An `approval-cancel` shall stay `pending` until the approval Journal Entry is posted, then cancel it;
+  when ERPNext already shows it cancelled, the intent shall be recorded done without a write.
+- **FR-EXP-112** The system shall accept an account for a key only when ERPNext reports it as a leaf, enabled account
+  of the binding's company whose currency (when stated) is the company currency, and: `employee_payable` — root type
+  Liability, account type Payable, and not the company's default payable account (`Creditors`), refused outright when
+  that default is unknown; `employee_advance` — root type Asset, account type Payable (a blank type is refused); an
+  expense type — root type Expense.
+- **FR-EXP-113** Inbound, the system shall mirror only lifecycle for the three kinds (docstatus, modified, amended
+  from, cancel time), never adopt an ERP document it did not post, raise an action-required notice when a posted
+  document is cancelled in ERPNext unless PMO's own `approval-cancel` did it, and poll: Employee Payment Entries only
+  for the expense kinds, non-Employee Payment Entries only for the procurement and revenue kinds, Journal Entries only
+  when `user_remark` is an expense key.
+- **FR-EXP-114** The ERP Employee master shall be polled for an org that employs `timesheets` or `expenses`.
+- **FR-EXP-115** Each intent shall carry `push_state ∈ {pending, failed, held, pushed}`, the classified reason and
+  the ERP document name. An intent whose outbox command ran out of attempts, or whose Payment Entry recovery was
+  inconclusive, shall be `held`. `pushed`, `held` and ERPNext-cancelled intents shall never be re-driven.
+
+**Admin and record page (UX only — the server is the authority)**
+- **FR-EXP-116** Administration › Accounting shall show **Expense account map** — the 7 keys, each mapped account or
+  a "Not mapped" warning — with Save and Clear for Admins; a refusal from the server shall be shown in the form.
+- **FR-EXP-117** `/expenses/:claimId` shall show **Ledger postings** — each intent's label, state, ERP document name
+  and reason — to every viewer of the claim, and nothing when the claim has none.
+- **FR-EXP-118** An Admin shall be able to employ the `expenses` domain from ERP setup only once FR-EXP-111 has
+  shipped and #901 is on `dev` (DD-EXP-22).
+
+### 10.4 Non-functional requirements (phase B)
+- **NFR-EXP-010 (tenancy)** The three new tables FORCE RLS; their `org_id` has no default and is written explicitly by
+  the trigger, the RPC or the service-role writer; `authenticated` holds SELECT only (scoped like the parent claim, or
+  the org for the account map), `anon` nothing.
+- **NFR-EXP-011 (reversible)** Migration `0263` only, with `supabase/migrations/rollback/0263_expense_postings_down.sql`.
+- **NFR-EXP-012 (definer surface)** No new client-callable function: the gate is SECURITY INVOKER and executable only
+  by `service_role`; the two trigger functions are SECURITY DEFINER with EXECUTE revoked from `public`, `anon`,
+  `authenticated`, `service_role`. The migration ends with an in-database assertion of this ACL shape (hosted grant
+  defaults), and the 0178 allow-list count stays 59.
+- **NFR-EXP-013 (bounded)** At most 200 intents per org per sweep tick (index-served); before its write a posting
+  makes at most one ERP read per distinct account it needs (≤ 7, usually 2–3), one company read, and for a cancel one
+  Journal Entry read; the poll discriminators are server-side filters.
+- **NFR-EXP-014 (a11y/i18n)** Both new UI sections are on the launch-scope i18n gate (en + id); state is text.
+
+### 10.5 Acceptance criteria (Given/When/Then)
+
+**Intent — `supabase/tests/0263_expense_postings_enqueue.test.sql`**
+- **AC-EXP-100** *Given* org A with an activated ERPNext binding and the `expenses` domain employed, and org C with
+  the binding but no `expenses` row, *when* a PM approves E1's Submitted claim in each, *then* A holds exactly one
+  `approval` intent, `pending`, with `state_stamp` = the claim's `approved_at` and `actor_id` = the PM, and C holds
+  none. (FR-EXP-100) — *mutation-worthy*
+- **AC-EXP-101** *Given* org A, E1's paid 500 advance and two Approved claims of 800 and 300 (the 300 on a second paid
+  1000 advance), *when* Finance pays them, *then* the 800 claim has `claim-payment` and `settlement` intents, the 300
+  claim has only `settlement`, and *when* Finance pays a 200 advance, *then* it has one `advance-payment` intent.
+  (FR-EXP-100/101) — *mutation-worthy*
+- **AC-EXP-103** *Given* org A, *when* Finance cancels an Approved claim that has an `approval` intent, *then* an
+  `approval-cancel` intent exists with `actor_id` = that Finance user; *when* the claimant cancels a Submitted claim,
+  or Finance cancels an Approved claim with no `approval` intent, *then* none. (FR-EXP-101)
+
+**Returns — `supabase/tests/0263_expense_advance_returns.test.sql`**
+- **AC-EXP-102** *Given* org A and E1's paid 500 advance, *when* Finance F1 records a 100 return with reference "CB-1",
+  *then* `returned_amount` is 100, one `expense_advance_returns` row holds 100, "CB-1", recorder F1 and today's
+  Asia/Jakarta date, and one `advance-return` intent names that row; *when* F1 records 450, *then* P0001 and no new row.
+  (FR-EXP-102, FR-EXP-041)
+
+**ACL — `supabase/tests/0263_expense_postings_acl.test.sql`**
+- **AC-EXP-104** *Then* `authenticated` holds SELECT and no INSERT/UPDATE/DELETE on the three new tables and `anon`
+  holds nothing; E1 sees the intents and returns of their own advance, E2 sees none of them, a PM sees every intent,
+  org B's Admin sees none; a member of org A reads org A's account map and org B's Admin reads none of it; `anon` and
+  `authenticated` cannot execute `expense_posting_for_push`, `org_employs_expense_postings` or the enqueue functions and
+  `service_role` can execute the first two; the account map's key CHECK admits exactly the `expense_type` labels plus
+  `employee_payable` and `employee_advance`. (NFR-EXP-010/012)
+
+**Gate — `supabase/tests/0263_expense_posting_gate.test.sql`**
+- **AC-EXP-105** *Given* an `approval` intent for a claim with lines Travel 100 + 50 and Meals 25 approved at
+  `2026-10-07 18:30:00+00` in an Asia/Jakarta org, *when* the service role reads the gate, *then* it returns amount
+  `175.00`, lines `[{Meals, 25.00}, {Travel, 150.00}]`, posting date `2026-10-08` and that the claim has an approval
+  intent; *given* an approval intent whose recorded approver is disabled, *then* 42501 `expense-posting-actor-inactive`;
+  *given* a `claim-payment` intent whose recorded actor is an Engineer, *then* 42501
+  `expense-posting-actor-not-authorized`; *when* the intent's stamp no longer equals the claim's, *then* P0001
+  `expense-posting-precondition-failed`; *when* org B's id is passed, *then* P0002; *when* an authenticated user calls
+  it, *then* 42501 permission denied. (FR-EXP-104, FR-EXP-109) — *mutation-worthy*
+
+**Adapter seam (Vitest, `pmo-portal/src/lib/adapterSeam/erpnext/`)**
+- **AC-EXP-110** `expensePostingKey.test.ts` — each posting maps to its prefix; the key is
+  `<prefix>:<lowercase uuid>:<epoch ms>`; the PostgREST, SQL and offset spellings of one instant yield one key; a
+  missing or unparseable stamp throws `commit-rejected`; the outbox identity of `approval-cancel` is the approval's.
+  (FR-EXP-105)
+- **AC-EXP-111** `bodies/expenseJournal.test.ts` — an approval body has one debit row per type with project and cost
+  center and one Employee credit row with neither; an overhead approval has no project key; a settlement body's payable
+  row carries `reference_type: 'Journal Entry'` and the approval name; an unbalanced, zero, short or malformed body
+  throws before any call. (FR-EXP-107)
+- **AC-EXP-112** `adapter.expenseJournalAmend.test.ts` — an amend of an `expense-journal` creates the new document
+  with `amended_from` and `user_remark` = the command's key. (FR-EXP-108) — *mutation-worthy*
+- **AC-EXP-113** `bodies/expensePayment.test.ts` — every payment body carries `paid_from`, `paid_to`,
+  `party_type: 'Employee'`, `reference_date`; a claim payment carries one Journal Entry reference for the full amount,
+  an advance payment and a return carry none; a direction that contradicts the kind, a missing account and a zero
+  amount throw. (FR-EXP-107)
+- **AC-EXP-114** `expenseKinds.test.ts` — the three kinds' doctype, anchor and reissue policy; `KIND_DOMAIN` maps
+  them to `expenses`; `kindFromDoctype('Payment Entry')` is unchanged and `kindFromDoctypeAndPaymentType` (and the
+  webhook decoder) route an Employee entry to the expense kinds; the three are company-scoped;
+  `sweepKindsForOrg(['expenses'])` includes the Employee master; the poll discriminators of FR-EXP-113; the never-adopt
+  code is terminal. (FR-EXP-113/114)
+- **AC-EXP-115** `expensePostingResolve.test.ts` — each refusal of FR-EXP-106 with its code and no ERP read before it;
+  a payment waits while the approval is unposted, references it once posted, is refused when ERPNext cancelled the
+  approval, and has no reference (and no approval read) when there is no approval intent; a cancel waits, is done when
+  ERPNext already shows docstatus 2, else is ready; a ready result carries exactly the accounts the posting needs.
+  (FR-EXP-106/110/111) — *mutation-worthy*
+- **AC-EXP-116** `recoveryProbe.employee.test.ts` — an Employee composite probe adopts the unique candidate citing the
+  approval Journal Entry, adopts a unique no-reference candidate when the posting cites none, holds on two candidates,
+  and a Supplier probe is unchanged. (FR-EXP-105)
+- **AC-EXP-117** `expensePostingCommand.test.ts` — the command for each posting: kind, operation, outbox identity,
+  key, frozen payload fields (including the composite-probe fields of a Payment Entry); a cancel is a `transition`
+  with `verb: 'cancel'` on the approval's ERP name; a missing reference refuses the build. (FR-EXP-105/110/111)
+- **AC-EXP-118** `expenseAccountRules.test.ts` — FR-EXP-112's rule for every key: refuses `Creditors - X` as
+  `employee_payable` (and any payable when the company default is unknown), a blank-typed advance account, a group, a
+  disabled account, another company's account, a foreign-currency account and the wrong root type; accepts the spike's
+  accounts. (FR-EXP-112) — *mutation-worthy*
+- **AC-EXP-127** `expensePostingCommand.test.ts` — a built `approval-cancel` run through the adapter issues exactly one
+  `PUT …/Journal Entry/<approval name>` with `docstatus 2`, then re-reads it. (FR-EXP-111)
+
+**Edge functions (Deno)**
+- **AC-EXP-120** `supabase/functions/external-set-company/setup.test.ts` — an Admin saving `employee_payable` =
+  `Creditors - EX`, or an untyped advance account, gets 422 and nothing is written; a valid account is upserted
+  (trimmed) with the actor and audited; `clear-expense-account` deletes the key; a Project Manager gets 403; an unknown
+  key gets 400. (FR-EXP-112, DD-EXP-16) — *mutation-worthy*
+- **AC-EXP-121** `supabase/functions/erpnext-sweep/expensePostingBackstop.test.ts` — a gate refusal is recorded
+  `failed` and nothing is driven; a resolver refusal likewise with its code; a wait leaves the intent untouched;
+  already-done is recorded `pushed` with the ERP name; a ready intent is driven once; an intent with an outbox row is
+  replayed without running the gate; a row that throws is recorded per row and the queue drains.
+  (FR-EXP-104/105/106/110)
+- **AC-EXP-122** `supabase/functions/erpnext-sweep/expensePollDiscriminators.test.ts` — the `payment` and
+  `incoming-payment` polls filter `party_type != Employee`, the expense Payment Entry polls `= Employee` in their
+  direction, the Journal Entry poll `user_remark like exp%` and its row filter admits only expense keys of the binding's
+  company; each poll requests the fields its filters read. (FR-EXP-113)
+- **AC-EXP-123** `supabase/functions/adapter-dispatch/expensesRefused.test.ts` — a well-formed `expenses` command from
+  an authenticated user gets 400 `UNSUPPORTED_DOMAIN` and touches no outbox and no ERP. (FR-EXP-103) —
+  *mutation-worthy*
+- **AC-EXP-124** `supabase/functions/adapter-dispatch/readModelWriters.expenses.test.ts` — a landed posting marks its
+  intent `pushed` with the ERP name; a landed cancel marks the cancel `pushed` and the approval cancelled; a command
+  without a posting identity throws. (FR-EXP-115)
+- **AC-EXP-125** `supabase/functions/adapter-dispatch/authGuard.expenses.test.ts` — an `expenses` command by an active
+  Project Manager passes the role half (delegated to the gate); an inactive actor and a kind of another domain are
+  refused. (FR-EXP-104)
+- **AC-EXP-126** `supabase/functions/_shared/erpnextFeedDeps.expenses.test.ts` — a native Journal Entry for the expense
+  kind has no adopt strategy, throws `native-expense-posting-not-adopted` and writes nothing; a cancel of a posted
+  approval raises `expense-posting-desk-cancelled` unless an `approval-cancel` intent exists. (FR-EXP-113)
+- **AC-EXP-128** `supabase/functions/external-set-company/setup.test.ts` — `employ-domain` with `expenses` probes
+  Journal Entry, Payment Entry and Employee read access and records the ownership. (FR-EXP-118)
+
+**Front end (Vitest)**
+- **AC-EXP-130** `pages/admin/ExpenseAccountMap.test.tsx` — 7 rows render with mapped accounts or "Not mapped"; an
+  Admin's Save sends the key and the trimmed account; the server's refusal shows in the form; a non-Admin sees no
+  actions. (FR-EXP-116)
+- **AC-EXP-131** `pages/expenses/ExpensePostingsCard.test.tsx` — one row per intent with label, state text and ERP name;
+  a failed intent shows its reason; an ERPNext-cancelled posting says so; no intents renders nothing; a failed read
+  renders the error state. (FR-EXP-117)
+- **AC-EXP-132** `src/lib/repositories/expensePostings.test.ts` — the postings read filters by claim and orders by
+  creation; the account-map read maps keys; both throw with the error code. (FR-EXP-116/117)
+
+**Cross-stack (Playwright, served lane against the local bench)**
+- **AC-EXP-140** `e2e/serial/AC-EXP-140-expense-postings-erp.spec.ts` — *given* an org in IDR with an `expenses`
+  binding, a project in IDR with `subject_to_vat` stated, the account map, and the Engineer's confirmed Employee link,
+  *when* the Engineer takes a 50,000 advance (approved and paid), files a 150,000 Travel claim settling it, the PM
+  approves, Finance pays and the sweep runs, *then* ERPNext holds one approval Journal Entry whose `user_remark` is the
+  approval key and whose Travel row carries the project, one Payment Entry `Pay` of 100,000 from cash to employee payable
+  referencing that Journal Entry, one settlement Journal Entry of 50,000 and one advance Payment Entry of 50,000 to the
+  advance account, and all four intents are `pushed`; *when* the sweep runs again, *then* ERPNext holds no further
+  documents and the GL mirror holds the Travel debit with the project. (FR-EXP-100..110)
+
+### 10.6 Traceability (phase B)
+
+| AC | Owning layer | Test file |
+|---|---|---|
+| AC-EXP-100, 101, 103 | pgTAP | `supabase/tests/0263_expense_postings_enqueue.test.sql` |
+| AC-EXP-102 | pgTAP | `supabase/tests/0263_expense_advance_returns.test.sql` |
+| AC-EXP-104 | pgTAP | `supabase/tests/0263_expense_postings_acl.test.sql` |
+| AC-EXP-105 | pgTAP | `supabase/tests/0263_expense_posting_gate.test.sql` |
+| AC-EXP-110 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.test.ts` |
+| AC-EXP-111 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/bodies/expenseJournal.test.ts` |
+| AC-EXP-112 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/adapter.expenseJournalAmend.test.ts` |
+| AC-EXP-113 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.test.ts` |
+| AC-EXP-114 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/expenseKinds.test.ts` |
+| AC-EXP-115 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.test.ts` |
+| AC-EXP-116 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.employee.test.ts` |
+| AC-EXP-117, 127 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.test.ts` |
+| AC-EXP-118 | Unit | `pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.test.ts` |
+| AC-EXP-120, 128 | Deno | `supabase/functions/external-set-company/setup.test.ts` |
+| AC-EXP-121 | Deno | `supabase/functions/erpnext-sweep/expensePostingBackstop.test.ts` |
+| AC-EXP-122 | Deno | `supabase/functions/erpnext-sweep/expensePollDiscriminators.test.ts` |
+| AC-EXP-123 | Deno | `supabase/functions/adapter-dispatch/expensesRefused.test.ts` |
+| AC-EXP-124 | Deno | `supabase/functions/adapter-dispatch/readModelWriters.expenses.test.ts` |
+| AC-EXP-125 | Deno | `supabase/functions/adapter-dispatch/authGuard.expenses.test.ts` |
+| AC-EXP-126 | Deno | `supabase/functions/_shared/erpnextFeedDeps.expenses.test.ts` |
+| AC-EXP-130 | Unit (RTL) | `pmo-portal/pages/admin/ExpenseAccountMap.test.tsx` |
+| AC-EXP-131 | Unit (RTL) | `pmo-portal/pages/expenses/ExpensePostingsCard.test.tsx` |
+| AC-EXP-132 | Unit | `pmo-portal/src/lib/repositories/expensePostings.test.ts` |
+| AC-EXP-140 | E2E (serial, served) | `pmo-portal/e2e/serial/AC-EXP-140-expense-postings-erp.spec.ts` |
+
+### 10.7 Dependency
+
+**#901 (the GL mirror does not re-read cancelled rows)** must be on `dev` before part 6 (the `expenses` employ switch)
+lands. Before #901, a cancelled approval Journal Entry would stay live in `erp_gl_entry_mirror` and overstate project
+actuals. Parts 2–5 build the whole path including the cancel, but are inert without the employ switch, so they may land
+first; phase B is correct either way because no org can employ `expenses` until part 6.

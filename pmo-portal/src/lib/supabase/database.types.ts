@@ -599,6 +599,13 @@ export type Database = {
             foreignKeyName: "boq_items_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "boq_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -4267,6 +4274,13 @@ export type Database = {
             foreignKeyName: "progress_claims_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "progress_claims_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -5334,6 +5348,13 @@ export type Database = {
             foreignKeyName: "sales_invoices_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -5919,6 +5940,77 @@ export type Database = {
           project_id: string | null
           recovery: number | null
           status: string | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_order_billing: {
+        Row: {
+          closed_at: string | null
+          currency: string | null
+          figures_complete: boolean | null
+          invoiced: number | null
+          line_count: number | null
+          order_net: number | null
+          org_id: string | null
+          paid: number | null
+          pending: number | null
+          project_id: string | null
+          remaining: number | null
+          status: Database["public"]["Enums"]["work_order_status"] | null
+          title: string | null
+          unpaid_count: number | null
+          wo_number: string | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_order_billing_lines: {
+        Row: {
+          billed: number | null
+          currency: string | null
+          org_id: string | null
+          paid: boolean | null
+          record_id: string | null
+          submitted: boolean | null
+          work_order_id: string | null
         }
         Relationships: [
           {
@@ -5995,6 +6087,17 @@ export type Database = {
         Returns: undefined
       }
       assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
+      assert_work_order_invoiceable: {
+        Args: {
+          p_billed: number
+          p_currency: string
+          p_org_id: string
+          p_project_id: string
+          p_record_id: string
+          p_work_order_id: string
+        }
+        Returns: undefined
+      }
       attach_claim_evidence: {
         Args: { p_claim_id: string; p_document_id: string }
         Returns: undefined
@@ -6609,6 +6712,7 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
+      get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       grant_sales_invoice_submit_clearance: {
         Args: { p_actor_id: string; p_clearance_id: string; p_si_id: string }
@@ -6707,6 +6811,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      invoice_command_line_total: { Args: { p_payload: Json }; Returns: number }
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
@@ -6750,6 +6855,10 @@ export type Database = {
           seq: number
           source: string
         }[]
+      }
+      lock_work_order_billing: {
+        Args: { p_work_order_id: string }
+        Returns: undefined
       }
       log_audit: {
         Args: {

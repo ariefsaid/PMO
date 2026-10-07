@@ -47,6 +47,10 @@ const { procState, tsState } = vi.hoisted(() => ({
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
+  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: populated, isPending: false, isError: false, refetch: vi.fn() }),

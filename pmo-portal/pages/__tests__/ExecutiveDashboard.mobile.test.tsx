@@ -58,6 +58,10 @@ const dashState: {
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 // BoardPackAction (#765) reads the management pack via react-query; these tests render without a QueryClient.
+// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
+  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: () => null }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
