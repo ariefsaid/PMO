@@ -11,6 +11,7 @@ import {
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import { efakturRefusal } from '@/src/lib/efaktur';
 
 /**
  * Org-scoped sales invoices list over the repository seam (ADR-0017).
@@ -169,6 +170,10 @@ export function useRevenueMutations() {
       siId: string; efakturNumber: string | null; efakturDate: string | null;
     }) => repositories.revenue.setEfaktur(siId, { efakturNumber, efakturDate }),
     onSuccess: invalidate,
+    // A known refusal (e.g. the invoice was cancelled meanwhile) means this row is stale: refetch it.
+    onError: (err) => {
+      if (efakturRefusal(err)) invalidate();
+    },
   });
 
 

@@ -89,10 +89,11 @@ export type IncomingPaymentStatus = IncomingPaymentRow['status'];
 interface PostgrestErrorLike {
   message: string;
   code?: string;
+  details?: string | null;
 }
 
 function throwWrite(error: PostgrestErrorLike): never {
-  throw new AppError(error.message, error.code);
+  throw new AppError(error.message, error.code, error.details ?? undefined);
 }
 
 /**

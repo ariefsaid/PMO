@@ -191,6 +191,28 @@ describe('EntityFormModal: dirty-discard confirm', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
+  it('a caller-supplied discardCopy (e.g. translated) replaces the default discard prompt', async () => {
+    const onClose = vi.fn();
+    render(
+      <EntityFormModal
+        {...baseProps}
+        dirty
+        onClose={onClose}
+        cancelLabel="Batal"
+        discardCopy={{ title: 'Buang perubahan?', description: 'Perubahan akan hilang.', confirmLabel: 'Buang', cancelLabel: 'Lanjut mengedit' }}
+      >
+        <TextField label="Name" value="x" onChange={() => {}} />
+      </EntityFormModal>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Batal' }));
+    expect(await screen.findByText('Buang perubahan?')).toBeInTheDocument();
+    expect(screen.getByText('Perubahan akan hilang.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lanjut mengedit' })).toBeInTheDocument();
+    expect(screen.queryByText('Discard your changes?')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Buang' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('with the discard dialog open, the form-modal trap is suspended so Tab stays inside the ConfirmDialog', async () => {
     render(
       <EntityFormModal {...baseProps} dirty onClose={vi.fn()}>

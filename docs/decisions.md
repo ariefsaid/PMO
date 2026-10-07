@@ -1331,6 +1331,12 @@ mappings, onboarding changes, and outbox commands for e-Faktur; the ERP mirror w
 inbound feed) never overwrite or null the two columns. Admin/Finance set them through one setter RPC per table,
 at any status except cancelled.
 
+**[DD-EFK-2] e-Faktur number and date: both or neither (Director, 2026-10-07).** A number without its date
+falls out of the monthly VAT register (#898 groups by the e-Faktur date), and a date without its number names no
+tax invoice. So a save carrying only one of the two is refused — inline in the e-Faktur dialog, by both setter
+RPCs (SQLSTATE 23514, DETAIL `efaktur-incomplete`), and by a table CHECK on `sales_invoices` and
+`procurement_invoices` so no other writer can split the pair. Clearing both stays valid (a non-VAT document).
+
 **⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
 PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
 ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the

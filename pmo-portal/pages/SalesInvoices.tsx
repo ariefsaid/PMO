@@ -24,6 +24,7 @@ import {
   type RowMenuItem,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
+import { EfakturCell } from '@/src/components/EfakturCell';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -262,18 +263,6 @@ const SalesInvoices: React.FC = () => {
       exportValue: (inv) => inv.received_date ?? '',
     },
     {
-      key: 'efaktur_number',
-      header: t('efaktur.number', 'e-Faktur number'),
-      cell: (inv) => inv.efaktur_number ?? '—',
-      exportValue: (inv) => inv.efaktur_number ?? '',
-    },
-    {
-      key: 'efaktur_date',
-      header: t('efaktur.date', 'e-Faktur date'),
-      cell: (inv) => inv.efaktur_date ? formatDateOnly(inv.efaktur_date) : '—',
-      exportValue: (inv) => inv.efaktur_date ?? '',
-    },
-    {
       key: 'due_date',
       header: t('financeCopy.dueDate', "Due Date"),
       cell: (inv) => {
@@ -282,10 +271,21 @@ const SalesInvoices: React.FC = () => {
       },
       exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
     },
+    {
+      // One cell for the pair (number over a muted date): two columns pushed the row ⋯ off the 1440 view.
+      key: 'efaktur',
+      header: t('efaktur.column', 'e-Faktur'),
+      cell: (inv) => <EfakturCell number={inv.efaktur_number} date={inv.efaktur_date} />,
+    },
   ];
 
-  // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only).
-  const exportColumns = withCurrencyColumn(columns, 'amount', (r) => r.currency);
+  // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). The
+  // e-Faktur pair shares one cell on screen but stays two sortable columns in the download.
+  const exportColumns = withCurrencyColumn(columns, 'amount', (r) => r.currency).flatMap((col): Column<SalesInvoiceRow>[] =>
+    col.key !== 'efaktur' ? [col] : [
+      { key: 'efaktur_number', header: t('efaktur.number', 'e-Faktur number'), cell: (inv) => inv.efaktur_number, exportValue: (inv) => inv.efaktur_number ?? '' },
+      { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
+    ]);
 
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
@@ -295,7 +295,7 @@ const SalesInvoices: React.FC = () => {
     if (canRecordReceipt && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
     if (canRecordEfaktur && inv.status !== 'Cancelled')
-      items.push({ label: t('efaktur.edit', 'Edit e-Faktur'), onClick: () => setEfakturTarget(inv) });
+      items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(inv) });
     if (canCancel && inv.status !== 'Cancelled')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(inv), danger: true });
     // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record
@@ -466,6 +466,7 @@ const SalesInvoices: React.FC = () => {
 
       {efakturTarget && (
         <EfakturModal
+          recordLabel={efakturTarget.si_number ?? efakturTarget.id}
           number={efakturTarget.efaktur_number}
           date={efakturTarget.efaktur_date}
           loading={setEfaktur.isPending}

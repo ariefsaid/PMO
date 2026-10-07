@@ -40,14 +40,14 @@ const invoice = (id: string, status: SalesInvoiceRow['status'], number: string |
   efaktur_number: number, efaktur_date: date,
 });
 
-/** The text of `siNumber`'s cell under the column headed `header`. */
-function cellText(siNumber: string, header: string): string {
+/** `siNumber`'s cell under the column headed `header`. */
+function cellOf(siNumber: string, header: string): HTMLElement {
   const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
   const col = headers.indexOf(header);
   expect(col).toBeGreaterThanOrEqual(0);
   const row = screen.getByText(siNumber).closest('tr');
   if (!row) throw new Error(`no table row for ${siNumber}`);
-  return within(row).getAllByRole('cell')[col].textContent?.trim() ?? '';
+  return within(row).getAllByRole('cell')[col];
 }
 
 function renderAs(role: Role) {
@@ -64,16 +64,24 @@ beforeEach(() => {
 });
 
 describe('SalesInvoices e-Faktur details', () => {
-  it('AC-EFK-004 displays stored values as date-only and shows an honest dash when empty', () => {
+  it('AC-EFK-004 shows number + date in ONE e-Faktur cell after Due Date, and an honest dash when empty', () => {
     renderAs('Finance');
-    expect(cellText('SI-one', 'e-Faktur number')).toBe('010.001-26.12345678');
-    // the e-Faktur date is its own fact, not the invoice date (2026-10-01)
-    expect(cellText('SI-one', 'e-Faktur date')).toBe(formatDateOnly('2026-09-28'));
-    expect(cellText('SI-two', 'e-Faktur number')).toBe('—');
-    expect(cellText('SI-two', 'e-Faktur date')).toBe('—');
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
+    // one merged column (a second one pushed the row ⋯ trigger out of the 1440 view), placed after Due Date
+    expect(headers).not.toContain('e-Faktur number');
+    expect(headers).not.toContain('e-Faktur date');
+    expect(headers.indexOf('e-Faktur')).toBe(headers.indexOf('Due Date') + 1);
+
+    const cell = cellOf('SI-one', 'e-Faktur');
+    const number = within(cell).getByText('010.001-26.12345678');
+    expect(number).toHaveClass('font-mono'); // machine-ID style, as Invoice #
+    // the e-Faktur date is its own fact (not the 2026-10-01 invoice date), as a muted second line
+    const date = within(cell).getByText(formatDateOnly('2026-09-28'));
+    expect(date).toHaveClass('text-muted-foreground');
+    expect(cellOf('SI-two', 'e-Faktur').textContent?.trim()).toBe('—');
   });
 
-  it('AC-EFK-004 offers edit to Finance/Admin across Draft, Submitted, and Paid but not PM/Executive', () => {
+  it('AC-EFK-004 offers Record e-Faktur to Finance/Admin across Draft, Submitted, and Paid but not PM/Executive', () => {
     h.invoices = [invoice('draft', 'Draft', null, null), invoice('issued', 'Submitted', null, null), invoice('paid', 'Paid', null, null)];
     for (const role of ['Finance', 'Admin'] as const) {
       const { unmount } = renderAs(role);
@@ -81,7 +89,7 @@ describe('SalesInvoices e-Faktur details', () => {
         const row = screen.getByText(`SI-${id}`).closest('tr');
         if (!row) throw new Error(`no table row for SI-${id}`);
         fireEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
-        expect(screen.getByRole('menuitem', { name: 'Edit e-Faktur' })).toBeInTheDocument();
+        expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
         fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
       }
@@ -95,13 +103,13 @@ describe('SalesInvoices e-Faktur details', () => {
     h.invoices = [invoice('cancelled', 'Cancelled', '010-01', '2026-10-01')];
     renderAs('Finance');
     expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Edit e-Faktur' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
   });
 
   it('AC-EFK-004 saves trimmed values through setEfaktur and keeps a classified failure in the open dialog', async () => {
     renderAs('Finance');
     fireEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit e-Faktur' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
     fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: ' 010.001-26.12345678 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(h.setEfaktur).toHaveBeenCalledWith({
@@ -111,7 +119,7 @@ describe('SalesInvoices e-Faktur details', () => {
 
     h.setEfaktur.mockRejectedValueOnce(Object.assign(new Error('save refused'), { code: '42501' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit e-Faktur' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('alert', { name: 'Save failed' })).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();

@@ -27,6 +27,7 @@ import {
 } from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import { efakturRefusal } from '@/src/lib/efaktur';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useBudget pattern, AC-816)
@@ -178,6 +179,10 @@ export function useProcurementMutations(id: string) {
     mutationFn: ({ invoiceId, efakturNumber, efakturDate }) =>
       repositories.procurement.setEfaktur(invoiceId, { efakturNumber, efakturDate }),
     onSuccess: invalidateDetail,
+    // A known refusal (e.g. the bill was cancelled in ERPNext meanwhile) means this row is stale: refetch it.
+    onError: (err) => {
+      if (efakturRefusal(err)) invalidateDetail();
+    },
   });
 
   return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, pendingPush };

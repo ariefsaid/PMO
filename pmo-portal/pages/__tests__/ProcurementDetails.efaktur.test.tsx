@@ -179,12 +179,14 @@ describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
     const row = screen.getByText('VI-2601100001').closest('tr');
     if (!row) throw new Error('no ledger row for the vendor invoice');
     await user.click(within(row).getByRole('button', { name: 'Row actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Edit e-Faktur' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
     await user.type(screen.getByLabelText('e-Faktur number'), '010.001-26.12345678');
+    // DD-EFK-2: the number is recorded together with its date
+    await user.type(screen.getByLabelText('e-Faktur date'), '2026-09-28');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(spies.setEfaktur).toHaveBeenCalledWith({
-      invoiceId: 'vi-1', efakturNumber: '010.001-26.12345678', efakturDate: null,
+      invoiceId: 'vi-1', efakturNumber: '010.001-26.12345678', efakturDate: '2026-09-28',
     }));
     await waitFor(() => expect(spies.toast).toHaveBeenCalledWith('e-Faktur details saved', 'VI-2601100001', 'success'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

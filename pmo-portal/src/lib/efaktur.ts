@@ -4,8 +4,30 @@ export interface EfakturInput {
 }
 
 export interface EfakturErrors {
-  number?: 'invalid';
-  date?: 'future' | 'invalid';
+  /** `missing`: a date was given without its number (DD-EFK-2, both or neither). */
+  number?: 'invalid' | 'missing';
+  /** `missing`: a number was given without its date (DD-EFK-2, both or neither). */
+  date?: 'future' | 'invalid' | 'missing';
+}
+
+/** The setters' known refusals, keyed by the stable DETAIL they raise (0265). */
+export type EfakturRefusal = 'cancelled' | 'incomplete' | 'future-date';
+
+const REFUSAL_BY_DETAIL: Record<string, EfakturRefusal> = {
+  'efaktur-cancelled': 'cancelled',
+  'efaktur-incomplete': 'incomplete',
+  'efaktur-future-date': 'future-date',
+};
+
+/**
+ * Which known setter refusal `error` is, read from its check-violation code + DETAIL — never from the
+ * message text, which is diagnostics and may be reworded. Unknown errors return null.
+ */
+export function efakturRefusal(error: unknown): EfakturRefusal | null {
+  if (!error || typeof error !== 'object') return null;
+  const { code, details } = error as { code?: unknown; details?: unknown };
+  if (code !== '23514' || typeof details !== 'string') return null;
+  return REFUSAL_BY_DETAIL[details] ?? null;
 }
 
 /** Normalize optional text/date controls before a write; blank values are valid and become NULL. */
@@ -30,6 +52,9 @@ export function validateEfakturValues(
       errors.date = 'future';
     }
   }
+  // DD-EFK-2: both or neither — a number without its date falls out of the monthly VAT register.
+  if (number && !values.date) errors.date = 'missing';
+  if (values.date && !number && !errors.number) errors.number = 'missing';
   return errors;
 }
 

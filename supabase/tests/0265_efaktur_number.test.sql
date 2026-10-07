@@ -1,6 +1,6 @@
 -- 0265_efaktur_number.test.sql — PMO-owned e-Faktur facts (DD-EFK-1).
 begin;
-select plan(39);
+select plan(49);
 -- Deterministic dates: the fixture orgs keep their day in UTC and so does this session, so
 -- current_date below IS the org-local today. The timezone block further down moves both apart.
 set local timezone = 'UTC';
@@ -37,6 +37,20 @@ insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice
   ('11120000-0000-0000-0000-0000000026f2','11120000-0000-0000-0000-000000002652','11120000-0000-0000-0000-0000000026c2','VI-OTHER',current_date,'Received',100,'exclusive',0,'USD');
 update procurement_invoices set erp_docstatus = 2, erp_cancelled_at = now()
  where id = '11120000-0000-0000-0000-0000000026e7';
+
+-- DD-EFK-2: the refusal's SQLSTATE + DETAIL as one text value, so the FE's detail-keyed copy is proven
+-- (throws_ok checks the code and message only). Rolled back with the rest of this file.
+create function public._efk_refusal(p_sql text) returns text language plpgsql as $f$
+declare v_state text; v_detail text;
+begin
+  execute p_sql;
+  return 'no error';
+exception when others then
+  get stacked diagnostics v_state = returned_sqlstate, v_detail = pg_exception_detail;
+  return v_state || ':' || coalesce(v_detail, '');
+end;
+$f$;
+grant execute on function public._efk_refusal(text) to authenticated;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11120000-0000-0000-0000-0000000026a1","role":"authenticated"}';
@@ -103,6 +117,33 @@ select throws_ok($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0
 set local request.jwt.claims = '{"sub":"11120000-0000-0000-0000-0000000026d1","role":"authenticated"}';
 select throws_ok($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-16',current_date) $$,
   '42501', null, 'AC-EFK-002 disabled Finance is refused');
+
+-- DD-EFK-2: both or neither — a number without its date (or a date without its number) is refused
+-- with a stable DETAIL the UI maps to copy; clearing both stays valid (asserted above).
+set local request.jwt.claims = '{"sub":"11120000-0000-0000-0000-0000000026a1","role":"authenticated"}';
+select is(_efk_refusal($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e1','010-30',null) $$),
+  '23514:efaktur-incomplete', 'DD-EFK-2 a sales e-Faktur number without its date is refused');
+select is(_efk_refusal($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e1',null,current_date) $$),
+  '23514:efaktur-incomplete', 'DD-EFK-2 a sales e-Faktur date without its number is refused');
+select is(_efk_refusal($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-31',null) $$),
+  '23514:efaktur-incomplete', 'DD-EFK-2 a supplier e-Faktur number without its date is refused');
+select is(_efk_refusal($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','  ',current_date) $$),
+  '23514:efaktur-incomplete', 'DD-EFK-2 a supplier e-Faktur date with a blank number is refused');
+select is(_efk_refusal($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e3','010-32',current_date) $$),
+  '23514:efaktur-cancelled', 'AC-EFK-001 the cancelled-record refusal carries a stable detail');
+select is(_efk_refusal($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e7','010-33',current_date) $$),
+  '23514:efaktur-cancelled', 'AC-EFK-002 the cancelled-vendor-bill refusal carries a stable detail');
+select is(_efk_refusal($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e1','010-34',current_date + 1) $$),
+  '23514:efaktur-future-date', 'AC-EFK-001 the future-date refusal carries a stable detail');
+select is(_efk_refusal($$ select set_procurement_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-35',current_date + 1) $$),
+  '23514:efaktur-future-date', 'AC-EFK-002 the future-date refusal carries a stable detail');
+-- The table itself holds the pair together: a privileged writer that bypasses the setters is refused too.
+reset role;
+select throws_ok($$ update sales_invoices set efaktur_number='010-36', efaktur_date=null where id='11120000-0000-0000-0000-0000000026e2' $$,
+  '23514', null, 'DD-EFK-2 the sales_invoices CHECK refuses a number without its date');
+select throws_ok($$ update procurement_invoices set efaktur_number=null, efaktur_date=current_date where id='11120000-0000-0000-0000-0000000026e6' $$,
+  '23514', null, 'DD-EFK-2 the procurement_invoices CHECK refuses a date without its number');
+set local role authenticated;
 
 -- "Not in the future" is judged on the ORG's calendar (the 0247 pattern), never the session's.
 -- Each half puts the session 26 hours away from the org, so a current_date check fails it on any clock.

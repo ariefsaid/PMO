@@ -32,6 +32,7 @@ export type TaxTreatment = 'inclusive' | 'exclusive';
 interface RpcErrorLike {
   message: string;
   code?: string;
+  details?: string | null;
 }
 
 /**
@@ -43,16 +44,19 @@ interface RpcErrorLike {
  */
 export class ProcurementError extends Error {
   readonly code?: string;
-  constructor(message: string, code?: string) {
+  /** The Postgres DETAIL, when the raiser set a stable machine key there (e.g. `efaktur-cancelled`). */
+  readonly details?: string;
+  constructor(message: string, code?: string, details?: string) {
     super(message);
     this.name = 'ProcurementError';
     this.code = code;
+    if (details) this.details = details;
   }
 }
 
-/** Throws a ProcurementError that preserves both message and code. */
+/** Throws a ProcurementError that preserves message, code and DETAIL. */
 function throwRpc(error: RpcErrorLike): never {
-  throw new ProcurementError(error.message, error.code);
+  throw new ProcurementError(error.message, error.code, error.details ?? undefined);
 }
 
 export type ProcurementItemRow = Tables<'procurement_items'>;

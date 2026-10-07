@@ -62,4 +62,35 @@ describe('PMO-owned e-Faktur mutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['procurement', 'org-1', 'proc-1'] });
     expect(result.current.pendingPush.status).toBe('idle');
   });
+
+  it('AC-EFK-004 a known setter refusal (the row went stale) refetches the sales list; an unknown failure does not', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const { result } = renderHook(() => useRevenueMutations(), { wrapper: makeWrapper(queryClient) });
+
+    mocks.salesSetEfaktur.mockRejectedValueOnce(Object.assign(new Error('x'), { code: '23514', details: 'efaktur-cancelled' }));
+    await act(async () => {
+      await result.current.setEfaktur.mutateAsync({ siId: 'si-1', efakturNumber: '010-01', efakturDate: '2026-10-01' }).catch(() => undefined);
+    });
+    expect(invalidate.mock.calls.map(([arg]) => arg?.queryKey)).toContainEqual(['salesInvoices']);
+
+    invalidate.mockClear();
+    mocks.salesSetEfaktur.mockRejectedValueOnce(Object.assign(new Error('x'), { code: '42501' }));
+    await act(async () => {
+      await result.current.setEfaktur.mutateAsync({ siId: 'si-1', efakturNumber: '010-01', efakturDate: '2026-10-01' }).catch(() => undefined);
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('AC-EFK-005 a known setter refusal refetches the procurement detail behind the ledger', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: makeWrapper(queryClient) });
+
+    mocks.procurementSetEfaktur.mockRejectedValueOnce(Object.assign(new Error('x'), { code: '23514', details: 'efaktur-cancelled' }));
+    await act(async () => {
+      await result.current.setEfaktur.mutateAsync({ invoiceId: 'vi-1', efakturNumber: '010-01', efakturDate: '2026-10-01' }).catch(() => undefined);
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['procurement', 'org-1', 'proc-1'] });
+  });
 });

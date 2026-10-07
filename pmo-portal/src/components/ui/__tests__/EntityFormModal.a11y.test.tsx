@@ -24,6 +24,14 @@ describe('EntityFormModal disabled-submit reason (G6)', () => {
     expect(reason!.textContent).toMatch(/required/i);
   });
 
+  it('AC-W6-G6: a caller-supplied disabledReason replaces the default required-fields hint', () => {
+    render(<EntityFormModal {...base} submitDisabled disabledReason="Fix the highlighted value to save." />);
+    const submit = screen.getByRole('button', { name: 'Create deal' });
+    const reason = document.getElementById(submit.getAttribute('aria-describedby')!);
+    expect(reason!.textContent).toBe('Fix the highlighted value to save.');
+    expect(screen.queryByText(/required fields/i)).not.toBeInTheDocument();
+  });
+
   it('AC-W6-G6: an enabled submit has no aria-describedby reason', () => {
     render(<EntityFormModal {...base} submitDisabled={false} />);
     const submit = screen.getByRole('button', { name: 'Create deal' });

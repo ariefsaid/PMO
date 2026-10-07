@@ -153,6 +153,14 @@ describe('AC-EFK-004 sales e-Faktur DAL', () => {
       args: { p_si_id: 'si-efaktur', p_efaktur_number: '010.001', p_efaktur_date: null },
     }]);
   });
+  it('AC-EFK-004 keeps the refusal DETAIL on the thrown error so the dialog can name the refusal', async () => {
+    const refusal = { message: 'an e-Faktur number and its date must be recorded together', code: '23514', details: 'efaktur-incomplete' };
+    // the shared mock is typed for the success shape; this one call answers with a PostgREST error
+    h.rpc.mockImplementationOnce((() => Promise.resolve({ data: null, error: refusal })) as never);
+    await expect(setSalesInvoiceEfaktur('si-efaktur', '010.001', null)).rejects.toMatchObject({
+      code: '23514', details: 'efaktur-incomplete',
+    });
+  });
 });
 
 describe('db/revenue getRevenueByProject — net of tax, per currency, paged', () => {

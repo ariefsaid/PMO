@@ -2,7 +2,7 @@
  * ProcurementLedger — the Documents tab case ledger (Slice 2).
  *
  * One chronological DataTable for all 7 procurement record types:
- *   Date · Type · System # · External ref · Group ref · Amount · Status · File
+ *   Date · Type · System # · External ref · Group ref · e-Faktur · Amount · Status · File
  *
  * Three filter chips (All / Financial / Has file) — `<button aria-pressed>` per
  * DESIGN.md §6 filter-chips spec. Mobile reflow via the existing DataTable md→card
@@ -32,6 +32,7 @@ import {
 } from '@/src/components/ui';
 import type { Column, RowMenuItem } from '@/src/components/ui';
 import { EfakturModal, type EfakturSaveValues } from '@/src/components/EfakturModal';
+import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import type { RecordKind } from './RecordCaptureForm';
@@ -79,13 +80,9 @@ const GroupRefHeader: React.FC = () => {
   const { t } = useTranslation();
   return <>{t('procurementDetail.groupRef.label', 'Group ref')}</>;
 };
-const EfakturNumberHeader: React.FC = () => {
+const EfakturHeader: React.FC = () => {
   const { t } = useTranslation();
-  return <>{t('efaktur.number', 'e-Faktur number')}</>;
-};
-const EfakturDateHeader: React.FC = () => {
-  const { t } = useTranslation();
-  return <>{t('efaktur.date', 'e-Faktur date')}</>;
+  return <>{t('efaktur.column', 'e-Faktur')}</>;
 };
 
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
@@ -138,14 +135,14 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
       ),
   },
   {
-    key: 'efakturNumber',
-    header: <EfakturNumberHeader />,
-    cell: (row) => row.efakturNumber ?? <span className="text-[12px] text-muted-foreground">—</span>,
-  },
-  {
-    key: 'efakturDate',
-    header: <EfakturDateHeader />,
-    cell: (row) => row.efakturDate ? formatBusinessDate(row.efakturDate) : <span className="text-[12px] text-muted-foreground">—</span>,
+    // One cell for the pair (number over a muted date): two columns pushed the row ⋯ off the 1440 view.
+    // Only a vendor invoice carries an e-Faktur — every other record type renders nothing here (no dash,
+    // and no empty label on its mobile card).
+    key: 'efaktur',
+    header: <EfakturHeader />,
+    cell: (row) => row.type === 'Invoice'
+      ? <EfakturCell number={row.efakturNumber ?? null} date={row.efakturDate ?? null} />
+      : null,
   },
   {
     key: 'amount',
@@ -367,7 +364,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         rowKey={(row) => row.id}
         rowMenu={canRecordEfaktur && onSetEfaktur ? (row): RowMenuItem[] | undefined => {
           if (row.type !== 'Invoice' || row.efakturLocked) return undefined;
-          return [{ label: t('efaktur.edit', 'Edit e-Faktur'), onClick: () => setEfakturTarget(row) }];
+          return [{ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) }];
         } : undefined}
         state={tableState}
         emptyTitle={emptyTitle}
@@ -377,6 +374,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 
       {efakturTarget && onSetEfaktur && (
         <EfakturModal
+          recordLabel={efakturTarget.systemNumber ?? efakturTarget.recordId}
           number={efakturTarget.efakturNumber ?? null}
           date={efakturTarget.efakturDate ?? null}
           loading={efakturSaving}

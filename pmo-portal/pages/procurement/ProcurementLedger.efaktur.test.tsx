@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProcurementLedger } from './ProcurementLedger';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -40,15 +40,25 @@ const paymentRow: LedgerRow = {
   efakturNumber: null, efakturDate: null,
 };
 
-/** The text of `rowLabel`'s cell under the column headed `header`. */
-function cellText(rowLabel: string, header: string): string {
+/** `rowLabel`'s cell under the column headed `header`. */
+function cellOf(rowLabel: string, header: string): HTMLElement {
   const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
   const col = headers.indexOf(header);
   expect(col).toBeGreaterThanOrEqual(0);
   const row = screen.getByText(rowLabel).closest('tr');
   if (!row) throw new Error(`no table row for ${rowLabel}`);
-  return within(row).getAllByRole('cell')[col].textContent?.trim() ?? '';
+  return within(row).getAllByRole('cell')[col];
 }
+
+/** Stubs `matchMedia` so the shared DataTable renders its <768px card branch. */
+function mockMobile() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+  })));
+}
+
+afterEach(() => vi.unstubAllGlobals());
 
 function renderLedger(props: Partial<React.ComponentProps<typeof ProcurementLedger>> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -63,13 +73,28 @@ function renderLedger(props: Partial<React.ComponentProps<typeof ProcurementLedg
 }
 
 describe('ProcurementLedger e-Faktur details', () => {
-  it('AC-EFK-005 displays e-Faktur facts on vendor invoices and dashes on other record types', () => {
+  it('AC-EFK-005 shows the vendor invoice number + date in ONE e-Faktur cell; other record types render none', () => {
     renderLedger();
-    expect(cellText('VI-1', 'e-Faktur number')).toBe('010.001-26.12345678');
-    // the e-Faktur date is its own fact, not the invoice date (2026-10-01)
-    expect(cellText('VI-1', 'e-Faktur date')).toBe(formatDateOnly('2026-09-28'));
-    expect(cellText('PAY-1', 'e-Faktur number')).toBe('—');
-    expect(cellText('PAY-1', 'e-Faktur date')).toBe('—');
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
+    expect(headers).not.toContain('e-Faktur number');
+    expect(headers).not.toContain('e-Faktur date');
+    const cell = cellOf('VI-1', 'e-Faktur');
+    expect(within(cell).getByText('010.001-26.12345678')).toHaveClass('font-mono');
+    // the e-Faktur date is its own fact, not the invoice date (2026-10-01), as a muted second line
+    expect(within(cell).getByText(formatDateOnly('2026-09-28'))).toHaveClass('text-muted-foreground');
+    // a payment carries no e-Faktur: blank, not a dash
+    expect(cellOf('PAY-1', 'e-Faktur').textContent).toBe('');
+  });
+
+  it('AC-EFK-005 an invoice with no e-Faktur yet shows a dash; on mobile only the invoice card carries the e-Faktur line', () => {
+    mockMobile();
+    renderLedger({ rows: [{ ...invoiceRow, efakturNumber: null, efakturDate: null }, paymentRow] });
+    const cards = Array.from(screen.getByTestId('dt-card-branch').querySelectorAll(':scope > li'));
+    const invoiceCard = cards.find((c) => c.textContent?.includes('VI-1'))!;
+    const paymentCard = cards.find((c) => c.textContent?.includes('PAY-1'))!;
+    const labels = (card: Element) => Array.from(card.querySelectorAll('dt')).map((dt) => dt.textContent);
+    expect(labels(invoiceCard)).toContain('e-Faktur');
+    expect(labels(paymentCard)).not.toContain('e-Faktur');
   });
 
   it('AC-EFK-005 offers the Admin/Finance edit action only for non-cancelled invoices and saves selected id', async () => {
@@ -77,7 +102,7 @@ describe('ProcurementLedger e-Faktur details', () => {
     renderLedger({ canRecordEfaktur: true, onSetEfaktur });
     expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit e-Faktur' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
     fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: ' 010.001-26.12345678 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onSetEfaktur).toHaveBeenCalledWith('vi-1', {

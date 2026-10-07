@@ -2,6 +2,9 @@
 -- mirror writers must leave them untouched. Client writes go only through the two role/org-guarded RPCs.
 -- Reversal: supabase/migrations/rollback/0265_efaktur_number_down.sql.
 --
+-- DD-EFK-2: both or neither. A number without its date falls out of the monthly VAT register, so the pair
+-- is held together by the table (any writer) and refused with a stable DETAIL by the setters (UI copy).
+--
 -- "Date not in the future" is checked in the RPCs against the org-local today, not as a table CHECK:
 -- a CHECK on the date would be a time-dependent schema constraint.
 alter table public.sales_invoices
@@ -25,6 +28,13 @@ alter table public.procurement_invoices
       and efaktur_number ~ '^[0-9.-]+$'
     )
   );
+
+alter table public.sales_invoices
+  add constraint sales_invoices_efaktur_complete_check
+    check ((efaktur_number is null) = (efaktur_date is null));
+alter table public.procurement_invoices
+  add constraint procurement_invoices_efaktur_complete_check
+    check ((efaktur_number is null) = (efaktur_date is null));
 
 comment on column public.sales_invoices.efaktur_number is 'PMO-owned e-Faktur reference; never synchronized to ERPNext (DD-EFK-1).';
 comment on column public.sales_invoices.efaktur_date is 'PMO-owned e-Faktur date; never synchronized to ERPNext (DD-EFK-1).';
@@ -60,7 +70,12 @@ begin
     raise exception 'not authorized' using errcode = '42501';
   end if;
   if v_row.status = 'Cancelled' then
-    raise exception 'cannot record e-Faktur facts on a cancelled sales invoice' using errcode = '23514';
+    raise exception 'cannot record e-Faktur facts on a cancelled sales invoice'
+      using errcode = '23514', detail = 'efaktur-cancelled';
+  end if;
+  if (v_number is null) <> (p_efaktur_date is null) then
+    raise exception 'an e-Faktur number and its date must be recorded together'
+      using errcode = '23514', detail = 'efaktur-incomplete';
   end if;
   if v_number is not null and (char_length(v_number) > 32 or v_number !~ '^[0-9.-]+$') then
     raise exception 'invalid e-Faktur number' using errcode = '23514';
@@ -69,7 +84,8 @@ begin
   -- an Asia/Jakarta morning's own date until 07:00 local.
   if p_efaktur_date is not null and p_efaktur_date > (now() at time zone coalesce(
        (select o.default_timezone from public.organizations o where o.id = v_row.org_id), 'UTC'))::date then
-    raise exception 'e-Faktur date cannot be in the future' using errcode = '23514';
+    raise exception 'e-Faktur date cannot be in the future'
+      using errcode = '23514', detail = 'efaktur-future-date';
   end if;
   update public.sales_invoices
      set efaktur_number = v_number, efaktur_date = p_efaktur_date
@@ -104,7 +120,12 @@ begin
     raise exception 'not authorized' using errcode = '42501';
   end if;
   if v_row.erp_docstatus = 2 or v_row.erp_cancelled_at is not null then
-    raise exception 'cannot record e-Faktur facts on a cancelled vendor bill' using errcode = '23514';
+    raise exception 'cannot record e-Faktur facts on a cancelled vendor bill'
+      using errcode = '23514', detail = 'efaktur-cancelled';
+  end if;
+  if (v_number is null) <> (p_efaktur_date is null) then
+    raise exception 'an e-Faktur number and its date must be recorded together'
+      using errcode = '23514', detail = 'efaktur-incomplete';
   end if;
   if v_number is not null and (char_length(v_number) > 32 or v_number !~ '^[0-9.-]+$') then
     raise exception 'invalid e-Faktur number' using errcode = '23514';
@@ -113,7 +134,8 @@ begin
   -- an Asia/Jakarta morning's own date until 07:00 local.
   if p_efaktur_date is not null and p_efaktur_date > (now() at time zone coalesce(
        (select o.default_timezone from public.organizations o where o.id = v_row.org_id), 'UTC'))::date then
-    raise exception 'e-Faktur date cannot be in the future' using errcode = '23514';
+    raise exception 'e-Faktur date cannot be in the future'
+      using errcode = '23514', detail = 'efaktur-future-date';
   end if;
   update public.procurement_invoices
      set efaktur_number = v_number, efaktur_date = p_efaktur_date
@@ -129,9 +151,9 @@ grant execute on function public.set_sales_invoice_efaktur(uuid, text, date) to 
 grant execute on function public.set_procurement_invoice_efaktur(uuid, text, date) to authenticated;
 
 comment on function public.set_sales_invoice_efaktur(uuid, text, date) is
-  'DD-EFK-1: Admin/Finance records PMO-owned e-Faktur facts for any non-cancelled sales invoice.';
+  'DD-EFK-1/2: Admin/Finance records PMO-owned e-Faktur facts (number and date together) for any non-cancelled sales invoice.';
 comment on function public.set_procurement_invoice_efaktur(uuid, text, date) is
-  'DD-EFK-1: Admin/Finance records PMO-owned supplier e-Faktur facts for any non-cancelled vendor bill.';
+  'DD-EFK-1/2: Admin/Finance records PMO-owned supplier e-Faktur facts (number and date together) for any non-cancelled vendor bill.';
 
 -- ACL invariant: neither PUBLIC nor anon may execute any new function from this migration.
 do $$
