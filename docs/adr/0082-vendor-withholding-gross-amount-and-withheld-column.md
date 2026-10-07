@@ -44,7 +44,11 @@ PMO today cannot hold this:
    builds FR-ENA-116's paid-detection for every connected bill, withholding or not.
 5. **Outbound.** A chosen template with Deduct rows is sent with its rows intact when well-formed (Deduct rows: rate
    0–100, category `Total`, not included in the item price, on a liability account; withholding rates sum below 100%;
-   no negative rate anywhere). Anything else is refused before any ERP write.
+   no negative rate anywhere). Anything else is refused before any ERP write. *(Amended 2026-10-08, #915: a create
+   naming neither a template nor amounts — the path where ERPNext would apply the company's own default Purchase Taxes
+   and Charges Template — now looks that default up and runs it through the same validator BEFORE any ERP write; a
+   malformed default is refused with the chosen path's own `config-rejected` wording naming the template. No default
+   found → the bill still posts untaxed, as AC-520-2/DD-VWH-15 keep.)*
 6. **Cost stays gross.** Project cost and budget actuals never read `procurement_invoices`; they sum the GL mirror by
    mapped expense account, where the expense is debited at the net total and the withholding credits a liability.
    Nothing in PMO subtracts withholding from a cost, commitment or budget figure.
@@ -62,7 +66,9 @@ PMO today cannot hold this:
 - The per-type split (PPh 23 vs PPh 4(2)) is not stored on the bill. The tax registers (#898) read it from the GL mirror
   per tax-payable account, the ledger being the oracle.
 - A bill already mirrored before 0266 with deductions (an ERPNext default template) keeps its old figures until ERPNext
-  next modifies it. Deploy precondition: count such bills on the target ERPNext and re-mirror any found.
+  next modifies it. Deploy precondition: count such bills on the target ERPNext and re-mirror any found. *(2026-10-08,
+  #915: the unvalidated-default half of this gap is closed — a default template is now validated before the bill
+  posts; only bills mirrored before that fix remain, per the precondition above.)*
 - Operator rule: a PPh payable account must never be mapped into a budget category (it would net withholding against
   cost in actuals).
 

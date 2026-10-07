@@ -16,6 +16,7 @@ import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, Pmo
 import { AdapterError } from '../contract.ts';
 import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
+import { findDefaultPurchaseTaxTemplate, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { routeEdit } from './transitionPolicy.ts';
 
 export const ERPNEXT_TIER = 'erpnext';
@@ -282,6 +283,10 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
   const bodyFns = requireBodyFns(deps, kind);
+  // #915 fix round — the replacement is settled BEFORE the cancel (the point of no return): when the
+  // replacement body would POST with no tax fields, the company's CURRENT default template is validated
+  // first, so a malformed default refuses with nothing cancelled and nothing POSTed.
+  await assertAmendReplacementTaxesValid(command, deps, kind, bodyFns);
   // 1. cancel the old doc (an amend always cancels-then-recreates; the old name becomes a tombstone).
   await cancelDoc(deps.client, entry.doctype, oldExternalRecordId);
   // ⚑ HIGH-1 (audit round 5) — FROM HERE ON THE PREDECESSOR IS ALREADY A TOMBSTONE. The cancel and the
@@ -295,6 +300,31 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   return await amendFrom(command, deps, oldExternalRecordId, entry, bodyFns).catch((error: unknown) => {
     throw describeAbandonedAmend(error, oldExternalRecordId, entry);
   });
+}
+
+/**
+ * #915 fix round — the amend's replacement is a Purchase Invoice POST like any other: ERPNext applies
+ * the company's CURRENT default Purchase Taxes and Charges Template when the body carries neither
+ * `taxes_and_charges` nor `taxes` (an edit/amend carries none — `piToBody` only sends tax fields for a
+ * chosen template or entered amounts). So BEFORE the predecessor is cancelled (⚑ HIGH-1: a refusal
+ * after the cancel strands a tombstone), the replacement body is built exactly as `amendFrom` will
+ * build it and, when it carries no taxes, the current default is validated through the SAME resolver a
+ * chosen template gets (`resolvePurchaseTaxRows` — a malformed default refuses `config-rejected` with
+ * the chosen path's exact wording, naming the template, never the company). A valid default — or none —
+ * leaves the replacement untouched: PMO never inlines the default here, ERPNext applies it at POST time.
+ */
+async function assertAmendReplacementTaxesValid(
+  command: AdapterCommand, deps: ErpAdapterDeps, kind: ErpDocKind, bodyFns: DoctypeBodyFns,
+): Promise<void> {
+  if (kind !== 'purchase-invoice') return;
+  const company = deps.ctx.config.company;
+  if (typeof company !== 'string' || !company) return;
+  const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
+  const body = bodyFns.toBody(record, deps.ctx) as Record<string, unknown>;
+  if (body.taxes_and_charges !== undefined || body.taxes !== undefined) return;
+  const template = await findDefaultPurchaseTaxTemplate(deps.client, company);
+  if (!template) return;
+  await resolvePurchaseTaxRows(deps.client, company, template);
 }
 
 /** The post-cancel half of `commitAmend` (create → submit → re-fetch), split out ONLY so the window
