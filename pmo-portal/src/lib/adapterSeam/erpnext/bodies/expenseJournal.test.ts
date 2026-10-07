@@ -61,6 +61,8 @@ describe('expenseJournalToBody (AC-EXP-111)', () => {
 
   it('AC-EXP-111 fromDoc maps the lifecycle fields', () => {
     expect(expenseJournalFromDoc({ name: 'ACC-JV-2026-00002', docstatus: 1, modified: '2026-10-07 14:07:45', amended_from: null, user_remark: 'expj:x' }))
-      .toEqual({ id: 'ACC-JV-2026-00002', erp_docstatus: 1, erp_modified: '2026-10-07 14:07:45', erp_amended_from: null, user_remark: 'expj:x' });
+      .toEqual({ id: 'ACC-JV-2026-00002', erp_name: 'ACC-JV-2026-00002', erp_docstatus: 1, erp_modified: '2026-10-07 14:07:45', erp_amended_from: null, user_remark: 'expj:x' });
+    // The adapter replaces `id` with the PMO record id on every command result; the ERP name must survive in its
+    // own field or the side mirror records the claim uuid as the document (found by AC-EXP-140).
   });
 });

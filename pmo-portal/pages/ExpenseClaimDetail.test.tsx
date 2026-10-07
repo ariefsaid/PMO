@@ -35,6 +35,8 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
+// #775 phase B — the Ledger postings card is proven by its own test (AC-EXP-131); it needs a QueryClient this page test does not mount.
+vi.mock('./expenses/ExpensePostingsCard', () => ({ ExpensePostingsCard: () => null }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
 

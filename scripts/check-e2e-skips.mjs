@@ -93,6 +93,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-10-06',
   },
   {
+    file: 'serial/AC-EXP-140-expense-postings-erp.spec.ts',
+    reason: 'Expense posting ledger proof needs the served functions lane (it drives erpnext-sweep) and the throwaway ERPNext bench (its goal oracle is the ERP documents and the GL mirror); the bench is not provisioned in CI.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',
+    verified: '2026-10-07',
+  },
+  {
     file: 'serial/AC-BWO-003-invoice-work-order-erp.spec.ts',
     reason: 'Work-order billing proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle includes the ERP Sales Invoice list for the PO); the bench is not provisioned in CI.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',

@@ -50,6 +50,9 @@ export function expensePaymentFromDoc(doc: unknown): PmoRecord {
   const d = doc as Record<string, unknown>;
   return {
     id: String(d.name),
+    // The adapter replaces `id` with the PMO record id on every command result; the side-mirror writer reads the
+    // ERP document name from here (found by AC-EXP-140).
+    erp_name: String(d.name),
     erp_docstatus: (d.docstatus as number | null | undefined) ?? null,
     erp_modified: (d.modified as string | null | undefined) ?? null,
     erp_amended_from: (d.amended_from as string | null | undefined) ?? null,

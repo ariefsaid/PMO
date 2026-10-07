@@ -15,6 +15,7 @@ import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwne
 import type { IntegrationBinding, IntegrationHealth } from '@/src/lib/repositories/types';
 import { AppError } from '@/src/lib/appError';
 import { withErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
+import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
 
 const erpSetup = vi.hoisted(() => ({
   getErpSetup: vi.fn(async () => ({defaults:{company:'Example Company',default_receivable_account:null,default_activity_type:null},domains:[],unmappedProjects:[{id:'project-2',name:'Example Delivery',code:'SYNTH-2'}],budgetMappedCategories:[],unlinkedEmployeeCount:2})),
@@ -1758,6 +1759,24 @@ describe('ERP domain setup actions', () => {
     fireEvent.click(within(unavailable.closest('section')!).getByRole('button',{name:'Retry'}));
     expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
     expect(erpSetup.getErpSetup).toHaveBeenCalledTimes(2);
+  });
+  it('AC-EXP-128 the expenses domain is offered exactly when its release guard (#901) is open', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    wrapWithRole('Admin',<IntegrationsView/>);
+    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
+    const select=screen.getByRole('combobox', {name:'Domain'});
+    const offered=within(select).queryByRole('option',{name:'Expenses'});
+    if (!EXPENSES_EMPLOYABLE) {
+      expect(offered).toBeNull();
+      return;
+    }
+    expect(offered).not.toBeNull();
+    fireEvent.change(select,{target:{value:'expenses'}});
+    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('expenses'));
   });
   it('Admin confirms a domain assignment and can run the existing party onboarding action', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};

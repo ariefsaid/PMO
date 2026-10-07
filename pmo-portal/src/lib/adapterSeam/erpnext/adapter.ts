@@ -501,6 +501,9 @@ export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
       ERPNEXT_REVENUE_DOMAIN,
       ERPNEXT_TIMESHEETS_DOMAIN,
       ERPNEXT_BUDGET_DOMAIN,
+      // #775 phase B — expense postings (ADR-0081). Reached only through the erpnext-sweep pass; adapter-dispatch
+      // still has no `expenses` route, and an org can employ it only through the release-guarded Admin switch.
+      ERPNEXT_EXPENSES_DOMAIN,
     ]),
     commit: (command: AdapterCommand) => commitErpCommand(command, deps),
     // The modified-poll sweep is the change-feed convergence authority (design decision #9) — its

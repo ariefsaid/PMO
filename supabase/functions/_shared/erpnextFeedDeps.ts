@@ -73,6 +73,9 @@ export { ERPNEXT_TIER };
  * catch downstream — but it must be caught HERE, at the query, not papered over by the caller.
  */
 function pmoRecordLookupColumn(kind: ErpDocKind): string {
+  // #775 phase B — the expense side mirror (0263 §3) is keyed by `posting_identity` (`<subject>:<posting>`),
+  // which is exactly the outbox / external_refs identity of every posting PMO lands.
+  if (KIND_DOMAIN[kind] === 'expenses') return 'posting_identity';
   if (kind === 'timesheet') return 'timesheet_id';
   if (kind === 'budget') return 'budget_version_id';
   return 'id';
@@ -181,7 +184,8 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
     // P3c FR-BUD-140 — `budget` gets the IDENTICAL exclusion, for the identical reason: PMO is the SoT
     // for the budget figure (OD-BUDGET-1), so a Desk-created ERP Budget must NEVER be adopted. See
     // `mintMirrorRow`'s `domain === 'budget'` branch below for the throw.
-    ...(kind === 'timesheet' || kind === 'budget' ? {} : {
+    // #775 phase B — the expense kinds take the IDENTICAL exclusion (never adopt, FR-EXP-113).
+    ...(kind === 'timesheet' || kind === 'budget' || KIND_DOMAIN[kind] === 'expenses' ? {} : {
       adoptAtomically: {
         newPmoRecordId: () => crypto.randomUUID(),
         claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),
@@ -226,6 +230,11 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       // and PMO's version stays exactly as it is (this writer never touches budget_versions).
       if (kind === 'budget') {
         await surfaceActionRequired(serviceClient, orgId, 'budget-desk-cancelled', { pmoRecordId });
+      }
+      // #775 phase B (FR-EXP-113) — a posted expense document cancelled in ERPNext. PMO's own approval-cancel is
+      // expected and silent; anything else is a human acting in a headless ERP and must be surfaced.
+      if (domain === 'expenses') {
+        await surfaceExpenseDeskCancelUnlessOurs(serviceClient, orgId, pmoRecordId);
       }
       // Luna BLOCK A4 (feed side): ERPNext auto-unlinks a Receive Payment Entry's `references` when the
       // Sales Invoice it cites cancels (AC-SAR-022) — PMO's `incoming_payments.sales_invoice_id` is
@@ -400,6 +409,15 @@ async function mintMirrorRow(
       'native-budget-not-adopted',
     );
   }
+  // #775 phase B (FR-EXP-113, DD-EXP-19) — never adopt. An unmapped Journal Entry / Employee Payment Entry was not
+  // posted by PMO (payroll, a manual entry): mint nothing, raise no notice (these are normal ERP activity), and
+  // throw the classified terminal code so the feed acks and moves on.
+  if (domain === 'expenses') {
+    throw new AppError(
+      `native ERPNext document "${String(canonical.id ?? '')}" is not adopted — PMO posts expense entries itself (FR-EXP-113)`,
+      'native-expense-posting-not-adopted',
+    );
+  }
   // Revenue domain inbound adopt (sales-invoice / incoming-payment) — mint the FULL canonical
   // row + erp_modified stamp (the 0103 lesson: NOT just name/status). Resolve customer_id from
   // external_refs (companies domain). For incoming-payment, also resolve sales_invoice_id.
@@ -570,7 +588,7 @@ function cancelStatusPatch(kind: ErpDocKind): Record<string, unknown> {
  *  Their mirror's `erp_cancelled_at` is a never-fight-the-operator TOMBSTONE (the sweep backstop's
  *  candidate exclusion), not merely a lifecycle mirror — see `mirrorStatusPatch` (MEDIUM-G). */
 function isPmoSoTKind(kind: ErpDocKind): boolean {
-  return kind === 'timesheet' || kind === 'budget';
+  return kind === 'timesheet' || kind === 'budget' || KIND_DOMAIN[kind] === 'expenses';
 }
 
 /** Add `key: value` only when the inbound change actually carries the value — an absent field must
@@ -827,6 +845,18 @@ export async function surfaceActionRequired(
   }
 }
 
+/** #775 phase B — raise `expense-posting-desk-cancelled` unless PMO queued this cancel itself. Only an approval
+ *  can be cancelled by PMO (`<claim>:approval-cancel`); a cancel of any other posting is never PMO's. */
+async function surfaceExpenseDeskCancelUnlessOurs(serviceClient: SupabaseClient, orgId: string, postingIdentity: string): Promise<void> {
+  if (postingIdentity.endsWith(':approval')) {
+    const { data, error } = await serviceClient.from('expense_posting_erp_mirror').select('id')
+      .eq('org_id', orgId).eq('posting_identity', `${postingIdentity}-cancel`).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    if (data) return;
+  }
+  await surfaceActionRequired(serviceClient, orgId, 'expense-posting-desk-cancelled', { postingIdentity });
+}
+
 /** Human-readable body text per action-required reason — kept out of the caller sites so a new reason
  *  is a one-line addition here, never a copy-pasted notification insert. */
 function describeActionRequired(actionRequired: string, detail: Record<string, unknown>): string {
@@ -857,6 +887,12 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `ERPNext Contact ${String(detail.erpName ?? '').replace(/^Contact:/, '')} was NOT synced to PMO (${detail.reason ?? 'refused'}) — resolve its company links or duplicate in ERPNext; later contact changes are unaffected.`;
     case 'budget-push-failed':
       return `PMO could not push the activated budget to ERPNext (${detail.reason ?? 'unknown error'}) — ERPNext is still enforcing the previous budget (or none) for this project.`;
+    case 'expense-posting-desk-cancelled':
+      return `An expense posting PMO made in ERPNext was cancelled directly in ERPNext — the claim in PMO is unchanged; review the ledger.`;
+    case 'expense-posting-failed':
+      return `An expense claim could not be posted to ERPNext (${detail.reason ?? 'unknown reason'}) — fix the cause; the next sweep retries it.`;
+    case 'expense-posting-held':
+      return `An expense posting to ERPNext needs an operator (${detail.reason ?? 'unknown reason'}) — it is not retried automatically.`;
     default:
       return `Action required: ${actionRequired}`;
   }

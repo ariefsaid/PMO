@@ -6,6 +6,8 @@ import {
 import { isCompanyScopedKind } from './companyScope';
 import { ERPNEXT_EXPENSES_DOMAIN } from './adapter';
 import { DOCTYPE_BODIES } from './doctypeBodies';
+import { decodeErpWebhookEvent } from './webhookEvent';
+import { terminalApplyReason } from './feedErrorPolicy';
 
 const KINDS = ['expense-journal', 'expense-payment', 'expense-receipt'] as const;
 const CLAIM = '0b7a8c2e-1111-4222-8333-444455556666';
@@ -63,5 +65,20 @@ describe('expense kinds (AC-EXP-114)', () => {
     expect(je.admits({ user_remark: `expj:${CLAIM}:1791367200123` })).toBe(true);
     expect(je.admits({ user_remark: 'expense reclass' })).toBe(false);
     expect(pollDiscriminatorForKind('sales-invoice')).toBeNull();
+  });
+});
+
+describe('expense kinds inbound (AC-EXP-114)', () => {
+  it('AC-EXP-114 a webhook for an Employee Payment Entry decodes to the expense kind; a Customer/Supplier one is unchanged', () => {
+    expect(decodeErpWebhookEvent({ doctype: 'Payment Entry', name: 'PE-9', payment_type: 'Receive', party_type: 'Employee' })?.kind)
+      .toBe('expense-receipt');
+    expect(decodeErpWebhookEvent({ doctype: 'Payment Entry', name: 'PE-7', doc: { payment_type: 'Pay', party_type: 'Employee' } })?.kind)
+      .toBe('expense-payment');
+    expect(decodeErpWebhookEvent({ doctype: 'Payment Entry', name: 'PE-8', payment_type: 'Receive', party_type: 'Customer' })?.kind)
+      .toBe('incoming-payment');
+    expect(decodeErpWebhookEvent({ doctype: 'Payment Entry', name: 'PE-6', payment_type: 'Pay' })?.kind).toBe('payment');
+  });
+  it('AC-EXP-114 the never-adopt code is terminal (acked, not retried)', () => {
+    expect(terminalApplyReason({ code: 'native-expense-posting-not-adopted' })).toBe('native-expense-posting-not-adopted');
   });
 });

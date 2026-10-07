@@ -14,8 +14,10 @@ import {
 } from '@/src/components/ui';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
+import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
 
-const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets'];
+// #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
+const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
 const COMPANY_DEFAULTS = [
   'company',
   'default_payable_account',
@@ -145,6 +147,7 @@ export function ErpSetupChecklist(
     procurement: t('integrations.erpSetup.domainNames.procurement', 'Procurement'),
     revenue: t('integrations.erpSetup.domainNames.revenue', 'Revenue'),
     timesheets: t('integrations.erpSetup.domainNames.timesheets', 'Timesheets'),
+    expenses: t('integrations.erpSetup.domainNames.expenses', 'Expenses'),
   };
   const domainText = (value: string) => domainNames[value] ?? domainLabel(value);
   const actionLink =

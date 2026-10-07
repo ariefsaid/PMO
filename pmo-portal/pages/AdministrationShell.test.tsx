@@ -118,6 +118,8 @@ vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
   panelMounts.accounting += 1;
   return <div>Budget account map panel</div>;
 } }));
+// #775 phase B — proven by its own test (AC-EXP-130); kept off the network here like its BudgetAccountMap sibling.
+vi.mock('./admin/ExpenseAccountMap', () => ({ default: () => null }));
 vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
   AgentCostMetrics: () => <div>Agent cost metrics</div>,
 }));

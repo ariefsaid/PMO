@@ -5,6 +5,42 @@
     }
   },
   "admin": {
+    "expenseMap": {
+      "change": "Change {{key}}",
+      "clear": "Clear {{key}}",
+      "confirmClear": {
+        "confirm": "Clear",
+        "description": "Postings that need this account will stop until it is mapped again.",
+        "title": "Clear {{key}}?"
+      },
+      "description": "The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.",
+      "error": {
+        "title": "Couldn't load the expense account map"
+      },
+      "form": {
+        "account": "ERP account",
+        "legend": "Account",
+        "placeholder": "e.g. Employee Payable - ABC",
+        "required": "An ERP account is required.",
+        "save": "Save account",
+        "subtitle": "ERPNext checks the account before it is saved"
+      },
+      "key": {
+        "accommodation": "Accommodation",
+        "employeeAdvance": "Employee advances",
+        "employeePayable": "Employee payable",
+        "localTransport": "Local transport",
+        "meals": "Meals",
+        "other": "Other",
+        "travel": "Travel"
+      },
+      "map": "Map {{key}}",
+      "title": "Expense account map",
+      "toast": {
+        "saved": "Expense account saved"
+      },
+      "unmapped": "Not mapped — expense posting stops"
+    },
     "access": {
       "checking": "Checking your Administration access…",
       "checkEntry": "Check Administration access",
@@ -939,6 +975,26 @@
     }
   },
   "expenses": {
+    "postings": {
+      "errorSub": "The claim itself is unaffected. Try again.",
+      "errorTitle": "Couldn't load ledger postings",
+      "kind": {
+        "advancePayment": "Advance payout",
+        "advanceReturn": "Cash returned",
+        "approval": "Approval journal",
+        "approvalCancel": "Approval cancelled",
+        "claimPayment": "Cash payment",
+        "settlement": "Advance settlement"
+      },
+      "state": {
+        "cancelledInErp": "Cancelled in ERPNext",
+        "failed": "Failed",
+        "held": "Needs an operator",
+        "pending": "Queued",
+        "pushed": "Posted"
+      },
+      "title": "Ledger postings"
+    },
     "actions": {
       "approve": "Approve",
       "cancel": "Cancel",
@@ -3174,7 +3230,8 @@
         "companies": "Companies",
         "procurement": "Procurement",
         "revenue": "Revenue",
-        "timesheets": "Timesheets"
+        "timesheets": "Timesheets",
+        "expenses": "Expenses"
       }
     }
   },

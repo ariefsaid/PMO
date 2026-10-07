@@ -76,6 +76,7 @@ import type {
   ProcurementDocumentRow,
 } from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import type { ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
 import type {
   MeetingRow,
   MeetingWithRefs,
@@ -961,6 +962,10 @@ export interface IntegrationsRepository {
   linkErpProject(projectId: string, erpProject: string): Promise<ErpProjectLink>;
   ensureErpProject(projectId: string): Promise<ErpProjectLink>;
   employErpDomain(domain: string): Promise<{ ok: true }>;
+  /** #775 phase B — save one key of the expense account map (validated against ERPNext server-side, FR-EXP-112). */
+  saveExpenseAccount(input: { accountKey: ExpenseAccountKey; erpAccount: string }): Promise<{ ok: true }>;
+  /** #775 phase B — remove one key of the expense account map. */
+  clearExpenseAccount(accountKey: ExpenseAccountKey): Promise<{ ok: true }>;
   onboardErpParties(): Promise<{ ok: true }>;
   /** Get the binding status for a specific tier. */
   getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;

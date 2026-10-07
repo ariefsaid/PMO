@@ -38,6 +38,6 @@ describe('expensePaymentToBody (AC-EXP-113)', () => {
 
   it('AC-EXP-113 fromDoc maps name, lifecycle, reference_no and the paid amount', () => {
     expect(expensePaymentFromDoc({ name: 'ACC-PAY-2026-00233', docstatus: 1, modified: 'm', amended_from: null, reference_no: 'expp:x', paid_amount: 100 }))
-      .toEqual({ id: 'ACC-PAY-2026-00233', erp_docstatus: 1, erp_modified: 'm', erp_amended_from: null, reference_number: 'expp:x', amount: mirrorMoney(100) });
+      .toEqual({ id: 'ACC-PAY-2026-00233', erp_name: 'ACC-PAY-2026-00233', erp_docstatus: 1, erp_modified: 'm', erp_amended_from: null, reference_number: 'expp:x', amount: mirrorMoney(100) });
   });
 });
