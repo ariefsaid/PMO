@@ -616,11 +616,14 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
   if (!command.idempotencyKey) {
     throw toDispatchError(new AdapterError('commit-rejected', 'missing-idempotency-key'));
   }
-  // OD-BILL-1: an invoice is identified everywhere downstream (the outbox fence, the one-in-flight index, external_refs,
-  // the claim it may raise) by its uuid compared as TEXT — so only the canonical spelling is accepted. The database
-  // refuses any other spelling too (0262); this answers it before the outbox is touched.
-  if (command.record.erp_doc_kind === 'sales-invoice' && !CANONICAL_UUID.test(String(command.record.id))) {
-    throw toDispatchError(new AdapterError('commit-rejected', 'sales-invoice-record-id-not-canonical'));
+  // OD-BILL-1 + #784: every revenue command — every erp_doc_kind (sales-invoice, incoming-payment, …) — is
+  // identified everywhere downstream by its uuid compared as TEXT (the outbox fence, the one-in-flight index,
+  // external_refs, the native receipt RPCs' ownership checks), so only the canonical spelling is accepted. The
+  // database refuses any other spelling too (the uuid PKs answer it); this answers it before the outbox is
+  // touched. The served boundary and `checkRevenueErpPathTarget` re-assert the shape upstream.
+  if (command.domain === 'revenue' && !CANONICAL_UUID.test(String(command.record.id))) {
+    throw toDispatchError(new AdapterError('commit-rejected',
+      command.record.erp_doc_kind === 'sales-invoice' ? 'sales-invoice-record-id-not-canonical' : 'revenue-record-id-not-canonical'));
   }
   const outboxRecordId = deps.outboxRecordId ?? command.record.id;
   let row = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey);

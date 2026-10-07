@@ -502,6 +502,11 @@ begin
   if not v_rc.pmo_native then
     raise exception 'receipts recorded in the ERP are cancelled there' using errcode = 'P0001', detail = 'not-pmo-native';
   end if;
+  -- Serialise with an ERP take-over of revenue (§7) BEFORE reading who owns it — the same org-row lock
+  -- create_native_sales_invoice takes from before its own ownership read. The take-over either commits first
+  -- (this cancel then refuses below) or waits for it. After the org row, the locks go invoice → receipt
+  -- (record_native_receipt locks only the invoice), then the receipt is re-read.
+  perform 1 from public.organizations o where o.id = v_rc.org_id for share;
   if public.domain_externally_owned(v_rc.org_id, 'revenue') then
     raise exception 'customer invoices for this organisation are raised in the connected ERP, not in PMO'
       using errcode = '42501', detail = 'erp-owns-revenue';
@@ -702,6 +707,10 @@ begin
     raise exception 'not authorized' using errcode = '42501';
   end if;
   -- 0270: a PMO invoice is frozen while an ERP owns revenue (DD-NAR-11).
+  -- Serialise with an ERP take-over of revenue (§7) BEFORE reading who owns it — the same org-row lock every
+  -- PMO revenue writer takes from before its own ownership read, so a take-over either commits first (this
+  -- writer then refuses: frozen) or waits for it.
+  perform 1 from public.organizations o where o.id = v_row.org_id for share;
   if v_row.pmo_native and public.domain_externally_owned(v_row.org_id, 'revenue') then
     raise exception 'customer invoices for this organisation are raised in the connected ERP, not in PMO'
       using errcode = '42501', detail = 'erp-owns-revenue';

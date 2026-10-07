@@ -212,6 +212,23 @@ describe('#784 a revenue create always names a new record', () => {
   });
 });
 
+describe('#784 a revenue command names its record by its canonical uuid', () => {
+  it('an incoming-payment create whose record.id is not a uuid is refused 422 before any ERP call or outbox/ref write', async () => {
+    const result = await dispatch({ domain: 'revenue', operation: 'create',
+      record: { id: 'not-a-uuid', erp_doc_kind: 'incoming-payment', customerId: CUSTOMER_ID, paid_amount: 100 } });
+    assertRefusedBeforeAnyWrite(result);
+    assert(/canonical uuid/i.test(result.body), result.body);
+  });
+
+  it('a sales-invoice create with a non-uuid record.id is refused too — every erp_doc_kind', async () => {
+    const result = await dispatch({ domain: 'revenue', operation: 'create',
+      record: { id: 'invoice-7', erp_doc_kind: 'sales-invoice', customerId: CUSTOMER_ID, projectId: PROJECT_ID,
+        items: [{ item_code: 'SVC', qty: 1, rate: 1 }] } });
+    assertRefusedBeforeAnyWrite(result);
+    assert(/canonical uuid/i.test(result.body), result.body);
+  });
+});
+
 // ── The guards directly: the retry exemption, the controls, and fail-closed lookups ──────────────────────
 
 /** Service-role read seam over the two revenue tables, external_refs and the outbox. */
@@ -288,6 +305,18 @@ describe('#784 guards — retry exemption, controls and fail-closed lookups', ()
     const client = fakeClient({ rows: { sales_invoices: { [NATIVE_SI]: true } } });
     assertEquals((await checkRevenueErpPathTarget(client,
       { domain: 'procurement', operation: 'create', record: { id: NATIVE_SI, erp_doc_kind: 'purchase-invoice' } })).ok, true);
+    assertEquals(client.reads.length, 0);
+  });
+
+  it('a revenue command whose record.id is not a canonical uuid is refused before the row lookups', async () => {
+    const client = fakeClient({ rows: { sales_invoices: { [NATIVE_SI]: true } } });
+    for (const kind of ['incoming-payment', 'sales-invoice']) {
+      const res = await checkRevenueErpPathTarget(client,
+        { domain: 'revenue', operation: 'create', record: { id: 'not-a-uuid', erp_doc_kind: kind } });
+      assertEquals(res.ok, false);
+      assertEquals(res.status, 422);
+    }
+    // Refused on the id's shape alone — neither revenue table is read.
     assertEquals(client.reads.length, 0);
   });
 

@@ -209,6 +209,13 @@ export async function checkCreateTargetUnmapped(
  *  fixed-width opacity, not a particular UUID version. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** #784 — the uuid-shaped identity a PMO revenue row is keyed on. Served-boundary and guard-level shape
+ *  check for a revenue `record.id`; the pure path (`dispatchMoneyWrite`) re-asserts the strictly canonical
+ *  spelling, which is what every downstream TEXT comparison of the id relies on. */
+export function isCanonicalUuid(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
 /**
  * P3b FR-TSP-041 (ADR-0059 §4) — the DETERMINISTIC Posture-B key: `'<prefix>:<uuid>:<state stamp>'`.
  *
@@ -322,7 +329,9 @@ const REVENUE_ROW_TABLES = ['sales_invoices', 'incoming_payments'] as const;
 interface RevenueRow { table: (typeof REVENUE_ROW_TABLES)[number]; pmoNative: boolean }
 
 /** Every revenue row whose id is `id`, read with the service role (RLS-blind, so another org's row counts too).
- *  A non-uuid id cannot be a row of either table, so it is not looked up. `'lookup-failed'` fails closed. */
+ *  A non-uuid id cannot be a row of either table, so it is not looked up — a revenue command's own `record.id`
+ *  is canonical by the time it reaches here (the guard below refuses the rest first); the shape skip remains
+ *  for the `salesInvoiceId` a receipt cites. `'lookup-failed'` fails closed. */
 async function revenueRowsFor(client: GuardLookupClient, id: string): Promise<RevenueRow[] | 'lookup-failed'> {
   if (!UUID_RE.test(id)) return [];
   const rows: RevenueRow[] = [];
@@ -348,6 +357,12 @@ export async function checkRevenueErpPathTarget(
   command: GuardCommand,
 ): Promise<TransitionBindingResult> {
   if (command.domain !== 'revenue') return OK;
+  // #784 — every revenue command (every erp_doc_kind) names its record by the canonical uuid the revenue
+  // tables key it on. Anything else is refused here — before the row lookups, before the outbox and before
+  // any ERP call; index.ts answers the same shape at the served boundary.
+  if (!isCanonicalUuid(String(command.record.id))) {
+    return { ok: false, status: 422, message: 'revenue record.id must be a canonical UUID' };
+  }
   const cited = (command.record as { salesInvoiceId?: unknown }).salesInvoiceId;
   const ids = [String(command.record.id), ...(typeof cited === 'string' && cited.length > 0 ? [cited] : [])];
   for (const id of ids) {

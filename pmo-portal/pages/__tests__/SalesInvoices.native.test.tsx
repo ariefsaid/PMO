@@ -166,16 +166,17 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
   it('AC-NAR-004 once an ERP owns revenue, a PMO invoice reads as recorded before connect and offers no Approve or Cancel', async () => {
     h.route = 'external';
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 1_110_000 })];
-    const user = userEvent.setup();
     renderPage();
     const row = rowFor('INV-2610070001');
     // M-3: a compact badge; the full sentence stays available as its tooltip and to a screen reader.
     const badge = within(row).getByText('Pre-ERP');
     expect(badge.closest('[title]')).toHaveAttribute('title', 'Recorded in PMO before the ERP was connected');
     expect(within(row).getByText(/Recorded in PMO before the ERP was connected/)).toHaveClass('sr-only');
-    await openMenu(user, row);
-    expect(screen.queryByRole('menuitem', { name: 'Cancel' })).toBeNull();
+    // #784 (fix round): the frozen row's last affordance — "Record received date" — is gone too, so the row
+    // offers no row menu at all: nothing to Approve, Cancel or date-stamp from PMO while the ERP owns revenue.
+    expect(within(row).queryByRole('button', { name: 'Row actions' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Cancel' })).toBeNull();
   });
   it('AC-NAR-003 (DD-NAR-17) a PMO invoice paid beyond its gross reads Paid and shows the overpaid excess', () => {
     h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 0, overpaid_amount: 90_000 })];
@@ -343,6 +344,24 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const user = userEvent.setup();
     renderPage();
     await openMenu(user, rowFor('Acme Energy'));
+    expect(screen.queryByRole('menuitem', { name: 'Record received date' })).toBeNull();
+  });
+
+  it('AC-NAR-003 while PMO owns revenue a PMO invoice still offers "Record received date"', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
+    const user = userEvent.setup();
+    renderPage();
+    await openMenu(user, rowFor('INV-2610070001'));
+    expect(screen.getByRole('menuitem', { name: 'Record received date' })).toBeInTheDocument();
+  });
+
+  it('AC-NAR-004 (DD-NAR-11) a frozen PMO invoice offers no "Record received date" once the ERP owns revenue', async () => {
+    h.route = 'external';
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
+    renderPage();
+    const row = rowFor('INV-2610070001');
+    // The frozen row keeps no PMO affordances — its received date is the ERP's history now; the RPC refuses it too.
+    expect(within(row).queryByRole('button', { name: 'Row actions' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Record received date' })).toBeNull();
   });
 

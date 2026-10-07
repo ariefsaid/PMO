@@ -372,7 +372,9 @@ const SalesInvoices: React.FC = () => {
     // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).
     // M-7: not on a Draft — the client cannot have received an invoice that has not been issued.
-    if (canRecordReceipt && inv.status !== 'Cancelled' && inv.status !== 'Draft')
+    // #784 (DD-NAR-11): not on a frozen row — once an ERP owns revenue, a PMO invoice's fields are
+    // the ERP's history; `set_sales_invoice_received_date` refuses it server-side too.
+    if (canRecordReceipt && !frozen && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
     // A Paid PMO invoice is not cancellable (FR-NAR-009); an ERP one follows the ERP.
     if (canCancel && !frozen && inv.status !== 'Cancelled' && !(inv.pmo_native && inv.status === 'Paid'))

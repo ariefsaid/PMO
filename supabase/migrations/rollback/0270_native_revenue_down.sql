@@ -2,7 +2,20 @@
 --   select count(*) from public.sales_invoices where pmo_native;    -- must be 0
 --   select count(*) from public.incoming_payments where pmo_native; -- must be 0
 -- Dropping the columns with PMO rows present would leave them indistinguishable from mirror rows (and would drop the
--- DD-NAR-16 ERP opening stamps Finance reconciles against).
+-- DD-NAR-16 ERP opening stamps Finance reconciles against). The guard below ENFORCES that precondition before any
+-- DDL: it raises while a PMO-native row exists, so the script refuses to run until the rows are resolved (the
+-- pre-condition queries above are how an operator checks before starting).
+
+do $rollback_precondition$
+begin
+  if exists (select 1 from public.sales_invoices where pmo_native)
+     or exists (select 1 from public.incoming_payments where pmo_native) then
+    raise exception
+      'rollback precondition unmet: PMO-native invoices or receipts exist — approve, cancel or reverse them (0270) before dropping the native revenue columns'
+      using errcode = '55006';  -- object_in_use
+  end if;
+end
+$rollback_precondition$;
 
 -- §7
 drop trigger if exists external_domain_ownership_revenue_employable on public.external_domain_ownership;
