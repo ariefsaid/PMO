@@ -5,7 +5,7 @@
 // Verify: cd supabase/functions/erpnext-sweep && deno test expensePostingBackstopLive.test.ts --config deno.json --allow-env --allow-net --allow-read
 
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { expensePostingBackstopDepsLive } = await import('./index.ts');
+const { expensePostingBackstopDepsLive, moneyWriteReplayOptions } = await import('./index.ts');
 type OrgBinding = Parameters<typeof expensePostingBackstopDepsLive>[1];
 type IntentRow = Parameters<ReturnType<typeof expensePostingBackstopDepsLive>['findOutbox']>[0];
 
@@ -87,6 +87,11 @@ const outboxRow = (id: string, state: string, over: Partial<OutboxRow> = {}): Ou
 const deps = (client: unknown, eligible: Array<string | OutboxRow> = []) =>
   expensePostingBackstopDepsLive(client as never, ORG_BINDING,
     eligible.map((e) => (typeof e === 'string' ? outboxRow(e, 'pending') : e)));
+Deno.test('AC-EXP-121 fresh money-write deps options carry replay false', () => {
+  assertEquals(moneyWriteReplayOptions(true), { replay: false }, 'persistPayload identifies a fresh command');
+  assertEquals(moneyWriteReplayOptions(false), { replay: true }, 'recovered frozen commands remain replay builds');
+});
+
 const GATE_TRUTH = {
   mirror_id: 'mirror-1', posting: 'approval', posting_identity: `${CLAIM}:approval`, subject_id: CLAIM, claim_id: CLAIM,
   claim_number: 'EXP-1', claimant_id: 'u-claimant', project_id: null, currency: 'IDR', amount: '100.00', lines: [],

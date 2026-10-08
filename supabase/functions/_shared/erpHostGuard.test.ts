@@ -83,6 +83,26 @@ Deno.test('host guard refuses a non-NotFound A lookup error', async () => {
   }
 });
 
+Deno.test('host guard falls back to hostname checks when resolver API is absent', async () => {
+  (Deno as unknown as { resolveDns?: unknown }).resolveDns = undefined;
+  try {
+    assertEquals(await isPrivateOrReservedHost('public-host.example.com'), false);
+    assertEquals(await isPrivateOrReservedHost('127.0.0.1'), true);
+  } finally {
+    Deno.resolveDns = originalResolveDns;
+  }
+});
+
+Deno.test('host guard falls back when DNS resolution is not supported', async () => {
+  Deno.resolveDns = (() => Promise.reject(new DOMException('unsupported', 'NotSupported'))) as typeof Deno.resolveDns;
+  try {
+    assertEquals(await isPrivateOrReservedHost('public-host.example.com'), false);
+    assertEquals(await isPrivateOrReservedHost('10.0.0.1'), true);
+  } finally {
+    Deno.resolveDns = originalResolveDns;
+  }
+});
+
 Deno.test('host guard refuses when DNS resolution fails', async () => {
   Deno.resolveDns = (() => Promise.reject(new Error('dns unavailable'))) as typeof Deno.resolveDns;
   try {

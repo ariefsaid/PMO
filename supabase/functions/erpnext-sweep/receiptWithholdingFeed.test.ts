@@ -48,7 +48,14 @@ function fakeDb() {
         order: () => builder, contains: () => builder, ilike: () => builder,
         insert: (payload: unknown) => { ops.push({ table, op: 'insert', payload }); return Promise.resolve({ data: null, error: null }); },
         update: (payload: unknown) => { ops.push({ table, op: 'update', payload }); return builder; },
-        upsert: (payload: unknown) => { ops.push({ table, op: 'upsert', payload }); return Promise.resolve({ data: null, error: null }); },
+        upsert: (payload: unknown) => {
+          ops.push({ table, op: 'upsert', payload });
+          const cursor = (payload as { watermark_cursor?: string | null }).watermark_cursor;
+          const error = table === 'external_sync_watermarks' && cursor === null
+            ? { code: '23502', message: 'null value in column "watermark_cursor" violates not-null constraint' }
+            : null;
+          return Promise.resolve({ data: null, error });
+        },
         limit: () => Promise.resolve({ data: [], error: null }),
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
         then: (resolve: (v: unknown) => void) => resolve(result),
@@ -95,7 +102,8 @@ Deno.test('AC-WHT-003: a receipt with unconfirmable withholding still syncs, is 
     assert(result.error === undefined, `the Payment Entry poll must not fail: ${result.error}`);
 
     const advance = db.ops.find((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'
-      && String((o.payload as { domain?: string }).domain).endsWith('Payment Entry'));
+      && String((o.payload as { domain?: string }).domain).endsWith('Payment Entry')
+      && Boolean((o.payload as { watermark_cursor?: string | null }).watermark_cursor));
     assert(!!advance, 'the Payment Entry cursor must advance');
     assert((advance!.payload as { watermark_cursor?: string }).watermark_cursor === '2026-10-01 10:00:00',
       `the cursor must move past both receipts, got ${JSON.stringify(advance!.payload)}`);

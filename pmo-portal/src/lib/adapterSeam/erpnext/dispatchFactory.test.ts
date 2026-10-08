@@ -1141,7 +1141,7 @@ describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
     };
   }
 
-  async function resolveAdapter(command: ReturnType<typeof paymentCommand>, tables: Record<string, unknown>, fetchImpl: typeof fetch) {
+  async function resolveAdapter(command: ReturnType<typeof paymentCommand>, tables: Record<string, unknown>, fetchImpl: typeof fetch, replay = false) {
     return resolveErpDispatchAdapter({
       serviceClient: paymentServiceClient(tables),
       orgId: 'org-1',
@@ -1149,6 +1149,7 @@ describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
       fetchImpl,
       apiKey: 'k',
       apiSecret: 's',
+      replay,
       doctypeBodies: {
         payment: {
           toBody: (rec: PmoRecord, ctx: { refs: Record<string, string | null> }) => ({ party: ctx.refs.supplier, paid_amount: rec.paid_amount, references: rec.references ?? [] }),
@@ -1224,6 +1225,21 @@ describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
     await expect(resolveAdapter(paymentCommand({ invoiceId: 'inv-other-case' }), HAPPY_TABLES, fetchImpl))
       .rejects.toSatisfy((err: AppError) => err.code === 'commit-rejected' && /ACC-PINV-2026-00911/.test(err.message));
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('replay with refreshed zero outstanding builds the adapter and reaches the recovery probe', async () => {
+    const command = paymentCommand();
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 })) as unknown as typeof fetch;
+    const tables = {
+      ...HAPPY_TABLES,
+      'procurement_invoices:inv-1': { ...PAYMENT_ROWS['procurement_invoices:inv-1'], erp_outstanding_amount: 0 },
+    };
+    const adapter = await resolveAdapter(command, tables, fetchImpl, true);
+    await adapter.commit(command as never).catch(() => {});
+    expect(fetchImpl).toHaveBeenCalled();
+    expect((command.record as { references?: unknown[] }).references).toEqual([
+      { reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-2026-00910', allocated_amount: 1090000 },
+    ]);
   });
 
   it('FR-VPAY-006a — paid_amount above the bill\'s outstanding refuses naming the bill', async () => {

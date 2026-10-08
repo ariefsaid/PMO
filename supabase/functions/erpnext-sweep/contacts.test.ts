@@ -103,7 +103,7 @@ Deno.test("AC-CON-001 sweep defers unmapped Contact adoption during unresolved o
     assert(Boolean(result.error), `must defer ${state}`);
     assert(db.rows.contacts.length === 0, 'no competing mirror');
     assert(!db.rows.external_refs.some(r => r.external_record_id === 'Contact:CON-1'), 'no competing mapping');
-    assert(!db.writes.some(w => w.table === 'external_sync_watermarks' && w.row.domain === 'companies::Contact'), 'deferred Contact remains pollable');
+    assert(!db.writes.some(w => w.table === 'external_sync_watermarks' && w.row.domain === 'companies::Contact' && Boolean(w.row.watermark_cursor)), 'deferred Contact remains pollable; the attempt timestamp is not a cursor advance');
     assert(db.rows.notifications.length === 0, `transient deferral raises no notice (${state})`);
   }
 });
@@ -178,7 +178,7 @@ Deno.test("AC-CON-003 #828 a Contact seen before its parent is adopted halts una
   assert(Boolean(first.result.error), "unmapped parent halts the doctype");
   assert(first.db.rows.contacts.length === 0, "not adopted yet");
   assert(first.db.rows.notifications.length === 0, "routine unmapped parent is silent");
-  assert(!first.db.writes.some((w) => w.table === "external_sync_watermarks" && w.row.domain === "companies::Contact"), "watermark did not move past it");
+  assert(!first.db.writes.some((w) => w.table === "external_sync_watermarks" && w.row.domain === "companies::Contact" && Boolean(w.row.watermark_cursor)), "watermark cursor did not move past it; attempt timestamp may be recorded");
   // Later tick: the Customer has now been adopted; the same Contact (watermark unmoved) is picked up.
   const second = await runContactSweep();
   assert(!second.result.error, `later tick failed: ${second.result.error}`);
@@ -188,6 +188,6 @@ Deno.test("AC-CON-003 #828 a Contact seen before its parent is adopted halts una
 Deno.test("AC-CON-003 #828 a DB error while applying a Contact still halts and the watermark does not move", async () => {
   const { result, db } = await runContactSweep({ companies: [{ id: "company-1", org_id: ORG }] }, undefined, undefined, { failTable: "contacts" });
   assert(Boolean(result.error), "a DB fault halts the doctype");
-  assert(!db.writes.some((w) => w.table === "external_sync_watermarks" && w.row.domain === "companies::Contact"), "watermark did not move");
+  assert(!db.writes.some((w) => w.table === "external_sync_watermarks" && w.row.domain === "companies::Contact" && Boolean(w.row.watermark_cursor)), "watermark cursor did not move; attempt timestamp may be recorded");
   assert(db.rows.notifications.length === 0, "a fault is not an action-required notice");
 });

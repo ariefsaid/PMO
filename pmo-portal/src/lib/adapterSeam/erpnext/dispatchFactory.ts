@@ -506,6 +506,8 @@ async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs:
     throw new AppError(`vendor payment: paid_amount "${String(record.paid_amount)}" must be a positive figure`, 'commit-rejected');
   }
 
+  const replay = deps.replay === true;
+
   // The bill row — org-scoped, fail closed on a missing row (a stale invoiceId is never a silent skip).
   const { data: bill, error } = await deps.serviceClient.from('procurement_invoices')
     .select('procurement_id,erp_outstanding_amount,vi_number,currency')
@@ -519,6 +521,18 @@ async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs:
   if (billRow.procurement_id !== procurementId) {
     throw new AppError(`vendor payment: bill ${billName} belongs to a different procurement case`, 'commit-rejected');
   }
+  // On recovery, ERP may already have applied this payment and refreshed the bill outstanding to
+  // zero. Preserve the bill/case anchor and mapping checks, but do not re-run mutable balance checks.
+  if (replay) {
+    const piExternalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', invoiceId);
+    if (!piExternalId) {
+      throw new AppError(`vendor payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
+    }
+    refs.pi = piExternalId;
+    record.references = [{ reference_doctype: 'Purchase Invoice', reference_name: piExternalId, allocated_amount: amount }];
+    return { refs };
+  }
+
   // Spec §1 (multi-currency is OUT; OBS-VPAY-003): paid_amount is company-currency money and
   // erp_outstanding_amount is the bill's currency — cross-currency the amount gate below compares
   // figures that are not in the same unit. The bill must be in the binding company's currency: the

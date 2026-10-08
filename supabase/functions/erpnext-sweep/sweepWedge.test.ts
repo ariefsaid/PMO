@@ -58,7 +58,14 @@ function fakeDb() {
         contains: () => builder,
         insert: (payload: unknown) => { ops.push({ table, op: 'insert', payload }); return Promise.resolve({ data: null, error: null }); },
         update: (payload: unknown) => { ops.push({ table, op: 'update', payload }); return builder; },
-        upsert: (payload: unknown) => { ops.push({ table, op: 'upsert', payload }); return Promise.resolve({ data: null, error: null }); },
+        upsert: (payload: unknown) => {
+          ops.push({ table, op: 'upsert', payload });
+          const cursor = (payload as { watermark_cursor?: string | null }).watermark_cursor;
+          const error = table === 'external_sync_watermarks' && cursor === null
+            ? { code: '23502', message: 'null value in column "watermark_cursor" violates not-null constraint' }
+            : null;
+          return Promise.resolve({ data: null, error });
+        },
         limit: () => Promise.resolve(empty),
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
         then: (resolve: (v: unknown) => void) => resolve(empty),
@@ -104,7 +111,8 @@ Deno.test('HIGH-A: a Desk-created Budget is ACKED and SKIPPED — the watermark 
     const result = await sweepOrgDoctypesLive(db.client, orgBinding(['budget']));
     assert(result.error === undefined, `a never-adopt document is an EXPECTED outcome, not a sweep failure: ${result.error}`);
     assert(result.applied === 0, 'nothing is adopted from a Desk-created Budget (FR-BUD-140)');
-    const advance = db.ops.find((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert');
+    const advance = db.ops.find((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'
+      && Boolean((o.payload as { watermark_cursor?: string | null }).watermark_cursor));
     assert(
       !!advance,
       'HIGH-A: the watermark MUST advance past a never-adopt document — otherwise every later change '
@@ -158,8 +166,9 @@ Deno.test('HIGH-A: a transient failure INSIDE the apply still halts that doctype
     const result = await sweepOrgDoctypesLive(db.client, orgBinding(['budget']));
     assert(!!result.error, 'a transient DB failure must surface as a sweep error');
     assert(
-      !db.ops.some((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'),
-      'a transient failure must NOT advance the watermark — the change has to be re-listed next tick',
+      !db.ops.some((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'
+        && Boolean((o.payload as { watermark_cursor?: string | null }).watermark_cursor)),
+      'a transient failure must NOT advance the cursor — the change has to be re-listed next tick (the attempt timestamp may advance)',
     );
   } finally {
     erp.restore();
