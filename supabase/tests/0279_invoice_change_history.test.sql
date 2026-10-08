@@ -4,7 +4,7 @@
 -- Migration under test: 0279_invoice_change_history.sql.
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(14);
 
 insert into organizations (id, name) values
   ('02790000-0000-0000-0000-000000000001','AC-CHG-920 invoice history org');
@@ -40,19 +40,37 @@ select is((select changes from record_changes where entity_type = 'sales_invoice
   and entity_id = '02790000-0000-0000-0000-0000000000e1' and changes ? 'efaktur_number'),
   '{"efaktur_number":{"old":null,"new":"010.001-26.12345678"},"efaktur_date":{"old":null,"new":"2026-10-01"}}'::jsonb,
   'AC-CHG-920 event carries only the e-Faktur number and date changes');
+select lives_ok($$ select public.set_sales_invoice_received_date(
+  '02790000-0000-0000-0000-0000000000e1','2026-10-03') $$,
+  'AC-CHG-920 authenticated Finance records the sales invoice received date');
+select is((select count(*)::int from record_changes where entity_type = 'sales_invoice'
+  and entity_id = '02790000-0000-0000-0000-0000000000e1' and changes ? 'received_date'),
+  1, 'AC-CHG-920 received-date RPC writes exactly one history event');
+select is((select actor_id from record_changes where entity_type = 'sales_invoice'
+  and entity_id = '02790000-0000-0000-0000-0000000000e1' and changes ? 'received_date'),
+  '02790000-0000-0000-0000-0000000000a1'::uuid, 'AC-CHG-920 received-date event attributes the authenticated caller');
 reset role;
 
--- ERP mirror: service role, no caller JWT (the claims set above would otherwise persist)
+-- Service-role body rebuild: updating the author is a backend read-model write, not a user-attributed event.
 set local request.jwt.claims = '{}';
 set local role service_role;
-update sales_invoices set status = 'Paid', erp_outstanding_amount = 0, received_date = '2026-10-03' where id = '02790000-0000-0000-0000-0000000000e1';
+update sales_invoices set author_user_id = '02790000-0000-0000-0000-0000000000a1'
+  where id = '02790000-0000-0000-0000-0000000000e1';
+reset role;
+select is((select count(*)::int from record_changes where entity_type = 'sales_invoice'
+  and entity_id = '02790000-0000-0000-0000-0000000000e1' and op = 'update'),
+  2, 'AC-CHG-920 service-role author rebuild does not add a misleading System event');
+
+-- ERP mirror: service role, no caller JWT (the claims set above would otherwise persist)
+set local role service_role;
+update sales_invoices set status = 'Paid', erp_outstanding_amount = 0, received_date = '2026-10-04' where id = '02790000-0000-0000-0000-0000000000e1';
 update procurement_invoices set status = 'Scheduled', erp_outstanding_amount = 50,
   withheld_amount = 10, withheld_pph_type = 'pph23' where id = '02790000-0000-0000-0000-0000000000e2';
 reset role;
 select is((select count(*)::int from record_changes where entity_type in ('sales_invoice','procurement_invoice')
   and entity_id in ('02790000-0000-0000-0000-0000000000e1','02790000-0000-0000-0000-0000000000e2')
   and op = 'update'),
-  1, 'AC-CHG-920 ERP mirror refreshes add no history beyond the PMO e-Faktur edit');
+  2, 'AC-CHG-920 ERP mirror refreshes add no history beyond the two PMO edits');
 select is((select captured ->> 'efaktur_number' from record_history_config where entity_type = 'sales_invoice'),
   'text', 'AC-CHG-920 sales invoice e-Faktur number is captured');
 select is((select captured ->> 'received_date' from record_history_config where entity_type = 'sales_invoice'),

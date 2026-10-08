@@ -42,7 +42,7 @@ begin
     v_new := to_jsonb(new);
     for v_col in select jsonb_object_keys(v_cfg.captured) loop
       if current_setting('role', true) is distinct from 'service_role'
-         or not ((v_cfg.table_name = 'sales_invoices' and v_col = 'received_date')
+         or not ((v_cfg.table_name = 'sales_invoices' and v_col in ('received_date', 'author_user_id'))
                  or (v_cfg.table_name = 'procurement_invoices' and v_col in ('withheld_amount', 'withheld_pph_type'))) then
         if v_old -> v_col is distinct from v_new -> v_col then
           v_changes := v_changes || jsonb_build_object(v_col,

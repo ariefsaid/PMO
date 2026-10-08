@@ -1,8 +1,12 @@
--- Reverses #920: remove invoice capture, registry entries and their visibility arms. Existing history rows
--- remain append-only; the shared history tables and other entities are untouched.
+-- Reverses #920: remove invoice capture, registry entries and their visibility arms. This down migration
+-- drops captured sales/vendor invoice history because the restored visibility function cannot read it;
+-- the shared history tables and other entities are untouched.
 drop trigger if exists sales_invoices_zz_record_change on public.sales_invoices;
 drop trigger if exists procurement_invoices_zz_record_change on public.procurement_invoices;
 delete from public.record_history_config where entity_type in ('sales_invoice', 'procurement_invoice');
+-- Remove rows before restoring record_history_visible: its rollback definition has no invoice arms, so
+-- retaining these types would make every authenticated record_changes read raise an exception.
+delete from public.record_changes where entity_type in ('sales_invoice', 'procurement_invoice');
 
 create or replace function public.record_change_capture() returns trigger
   language plpgsql security definer set search_path = public as $$
@@ -82,3 +86,14 @@ begin
         using errcode = 'P0001';
   end case;
 end $$;
+
+-- Rollback invariant: no retained row may ask the restored visibility function to handle an invoice type.
+do $rollback_history_check$
+begin
+  if exists (select 1 from public.record_changes
+             where entity_type in ('sales_invoice', 'procurement_invoice')) then
+    raise exception '0279 rollback left invoice change history rows behind'
+      using errcode = 'P0001';
+  end if;
+end
+$rollback_history_check$;
