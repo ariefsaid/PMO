@@ -43,7 +43,7 @@ function CompaniesList() {
   const navigate = useNavigate();
   return (
     <div>
-      <button type="button" onClick={() => openRecord('/companies/company-1')}>
+      <button type="button" data-list-return-focus="companies:company-1" onClick={() => openRecord('/companies/company-1')}>
         Open company
       </button>
       <button type="button" onClick={() => openRecord('https://outside.example/path')}>
@@ -185,6 +185,17 @@ describe('useReturnNavigate', () => {
 });
 
 describe('useListReturn', () => {
+  it('SH-2: restores focus to the originating row activation control after the list is ready', async () => {
+    renderAt('/companies');
+    const trigger = screen.getByRole('button', { name: 'Open company' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
+    const restoredTrigger = screen.getByRole('button', { name: 'Open company' });
+    fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
+    await waitFor(() => expect(restoredTrigger).toHaveFocus());
+  });
+
   it('AC #879: a tab marker is cleared on list return and does not poison the next record navigation', () => {
     renderAt('/companies/company-1', true, { pmoTabSwitch: true });
     const main = screen.getByRole('main');

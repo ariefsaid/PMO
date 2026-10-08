@@ -28,6 +28,8 @@ describe('Toast accessibility and timing', () => {
 
     act(() => fire('Error', 'Try again later', 'error'));
     act(() => vi.advanceTimersByTime(15_000));
+    expect(screen.getByRole('alert')).toHaveTextContent('Ask your administrator for Print access');
+    act(() => screen.getByRole('button', { name: 'Dismiss notification' }).click());
     expect(screen.getByRole('alert')).toHaveTextContent('Try again later');
   });
 

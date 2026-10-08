@@ -1,4 +1,5 @@
 import { listRecordHistory, type RecordHistoryQuery } from '@/src/lib/db/recordChanges';
+import { supabase } from '@/src/lib/supabase/client';
 import { toAppError } from '@/src/lib/appError';
 
 /** `{ old, new }` for a captured column; `{ changed: true }` for a flagged one (no values stored). */
@@ -38,11 +39,35 @@ export interface HistoryPage {
 
 const DEFAULT_LIMIT = 50;
 
+export type HistoryNameKind = 'purchase_request' | 'rfq' | 'purchase_order' | 'payment' | 'sales_invoice' | 'procurement_invoice';
 export interface RecordHistoryRepository {
   list(q: RecordHistoryQuery): Promise<HistoryPage>;
+  /** Resolve only event IDs on the visible history page; RLS scopes every query to the caller's org. */
+  lookupNames(ids: Partial<Record<HistoryNameKind, string[]>>): Promise<Record<string, Map<string, string>>>;
 }
 
 export const recordHistoryRepository: RecordHistoryRepository = {
+  async lookupNames(ids) {
+    const result: Record<string, Map<string, string>> = {};
+    const bounded = (ids: string[] | undefined) => [...new Set(ids ?? [])].filter(Boolean).slice(0, 50);
+    const specs = [
+      ['purchase_request', 'purchase_requests', 'pr_number'], ['rfq', 'rfqs', 'rfq_number'],
+      ['purchase_order', 'purchase_orders', 'po_number'], ['payment', 'payments', 'pay_number'],
+      ['sales_invoice', 'sales_invoices', 'pmo_number'], ['procurement_invoice', 'procurement_invoices', 'vi_number'],
+    ] as const;
+    await Promise.all(specs.map(async ([kind, table, numberColumn]) => {
+      const recordIds = bounded(ids[kind]);
+      if (recordIds.length === 0) return;
+      const { data, error } = await supabase.from(table).select(`id,${numberColumn},reference_number`).in('id', recordIds);
+      if (error) throw toAppError(error);
+      const rows = (data ?? []) as unknown as Array<{ id: string; reference_number?: string | null; [key: string]: unknown }>;
+      result[kind] = new Map(rows.flatMap((row): [string, string][] => {
+        const value = row[numberColumn] || row.reference_number || '';
+        return typeof value === 'string' && value ? [[row.id, value]] : [];
+      }));
+    }));
+    return result;
+  },
   async list(q) {
     const limit = q.limit ?? DEFAULT_LIMIT;
     let rows;

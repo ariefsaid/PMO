@@ -105,6 +105,21 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     }
   }, [open]);
 
+  // A successful mutation can conditionally unmount the dialog without an open=false render.
+  // Defer restoration until the separate inert effect has released the app shell.
+  useEffect(() => () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    triggerRef.current = null;
+    window.setTimeout(() => {
+      const target = trigger.isConnected
+        ? trigger
+        : document.querySelector<HTMLElement>('#budget-version-select') ??
+          document.querySelector<HTMLElement>('[data-app-shell="root"] main');
+      target?.focus({ preventScroll: true });
+    }, 0);
+  }, []);
+
   // AC-A11Y-MODAL-001: the app behind the dialog goes `inert` while it is open (`aria-modal` alone
   // is advisory — a screen reader could still browse the page). Declared AFTER the focus effect on
   // purpose: on open the trigger is captured before the shell becomes inert; on close every cleanup

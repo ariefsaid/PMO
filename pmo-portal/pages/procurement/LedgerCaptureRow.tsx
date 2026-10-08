@@ -86,7 +86,10 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   // Honest doorway: hide when canWrite=false OR terminal status
   if (!canWrite || nextKind === null) return null;
 
-  const label = CAPTURE_LABELS[nextKind];
+  const label = nextKind === 'purchase_request' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
+    : nextKind === 'rfq' ? t('procurementLedger.types.rfq', 'RFQ')
+      : nextKind === 'purchase_order' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
+        : nextKind === 'payment' ? t('procurementLedger.types.payment', 'Payment') : CAPTURE_LABELS[nextKind];
   const paymentBlocked = nextKind === 'payment' && isApprover && !groupRefIsPmoAuthored();
 
   return (
@@ -105,9 +108,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
           className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-2px)] border-[1.5px] border-dashed border-primary/35 bg-primary/[0.04] px-4 py-3"
         >
           <span className="text-[13px] text-muted-foreground">
-            + Capture{' '}
-            <span className="font-semibold text-[hsl(var(--nav-active-text))]">{label}</span>
-            {' '}— the next record for this phase.
+            {t('procurementLedger.capture.next', '+ Capture {{record}} — the next record for this phase.', { record: label })}
           </span>
           <button
             type="button"
@@ -118,7 +119,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
             className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <Icon name="plus" className="size-3.5" />
-            Capture {label}
+            {t('procurementLedger.capture.action', 'Capture {{record}}', { record: label })}
           </button>
           {paymentBlocked && (
             <span id="ledger-payment-sod-reason" className="basis-full text-right text-[12px] text-muted-foreground">

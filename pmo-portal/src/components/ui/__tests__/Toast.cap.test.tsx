@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { ToastProvider, useToast } from '../Toast';
 
@@ -11,9 +11,11 @@ import { ToastProvider, useToast } from '../Toast';
 
 // A tiny harness that exposes the imperative toast() API to the test.
 let fire: (title: string, sub?: string) => void;
+let fireWarning: (title: string, sub?: string) => void;
 const Harness: React.FC = () => {
   const { toast } = useToast();
   fire = (title, sub) => toast(title, sub, 'success');
+  fireWarning = (title, sub) => toast(title, sub, 'warning');
   return null;
 };
 
@@ -44,6 +46,19 @@ describe('AC-IXD-WP-005: Toast caps to one visible, auto-dismissing within 3–5
     const toasts = screen.getAllByRole('status');
     expect(toasts).toHaveLength(1);
     expect(toasts[0]).toHaveTextContent('Moved to Ordered');
+  });
+
+  it('TO-1: keeps an undismissed warning visible and queues routine success until dismissal', () => {
+    render(<ToastProvider><Harness /></ToastProvider>);
+    act(() => {
+      fireWarning('Review required', 'Check the failed transfer');
+      fire('Saved', 'routine success');
+    });
+    expect(screen.getByText('Review required')).toBeInTheDocument();
+    expect(screen.getByText('Check the failed transfer')).toBeInTheDocument();
+    expect(screen.queryByText('routine success')).toBeNull();
+    act(() => fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' })));
+    expect(screen.getByText('routine success')).toBeInTheDocument();
   });
 
   it('AC-IXD-WP-005: a fired toast auto-dismisses within 3–5s', () => {

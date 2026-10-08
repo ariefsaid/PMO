@@ -153,6 +153,18 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   });
 
+  it('SH-3: restores focus to a still-connected trigger after conditional unmount', async () => {
+    const trigger = document.createElement('button');
+    trigger.textContent = 'Create version';
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const { unmount } = render(<ConfirmDialog {...baseProps} />);
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
+
   it('AC-CONFIRM-005: restores focus to the trigger on close', async () => {
     const trigger = document.createElement('button');
     trigger.textContent = 'open';

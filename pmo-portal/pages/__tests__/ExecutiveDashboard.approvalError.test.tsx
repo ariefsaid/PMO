@@ -73,6 +73,9 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/components/ui/useIsDesktop', () => ({
   useIsDesktop: () => false,
 }));
+vi.mock('@/src/components/reports/BoardPackAction', () => ({
+  BoardPackAction: () => <button type="button">Board pack</button>,
+}));
 
 import ExecutiveDashboard from '../ExecutiveDashboard';
 

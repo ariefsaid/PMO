@@ -144,7 +144,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
       return;
     }
     if (parsed <= 0) {
-      setEditAmountError('Amount must be greater than 0');
+      setEditAmountError(t('financeCopy.amountMustBeGreaterThanZero', 'Amount must be greater than 0'));
       return;
     }
     setEditAmountError(null);
@@ -172,7 +172,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
       return;
     }
     if (amount <= 0) {
-      setNewAmountError('Amount must be greater than 0');
+      setNewAmountError(t('financeCopy.amountMustBeGreaterThanZero', 'Amount must be greater than 0'));
       return;
     }
     setNewAmountError(null);
@@ -784,13 +784,15 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     if (!c) return;
     try {
       switch (c.kind) {
-        case 'create':
-          await mutations.createVersion.mutateAsync({ projectId, name: c.name });
+        case 'create': {
+          const created = await mutations.createVersion.mutateAsync({ projectId, name: c.name });
+          setSelectedId(created.id);
           setShowNewVersionForm(false);
           setNewVersionName('');
           setPendingConfirm(null);
           toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), c.name, 'success');
           break;
+        }
         case 'activate': {
           const { pushState } = await mutations.activate.mutateAsync(c.id);
           setPendingConfirm(null);
@@ -882,14 +884,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     [K in PendingBudgetConfirm['kind']]: (c: Extract<PendingBudgetConfirm, { kind: K }>) => string;
   };
   const confirmDescriptions: ConfirmDescriptions = {
-    create: (c) => `This creates a new Draft budget version named "${c.name}".`,
-    activate: (c) =>
-      `This makes ${c.label} the live active budget and supersedes the current active version.`,
-    clone: (c) => `This copies ${c.label} into a new editable Draft.`,
-    archive: (c) =>
-      `This removes ${c.label} as the active budget. You can clone it later to revise.`,
-    deleteDraft: (c) => `This permanently deletes the draft ${c.label}. This cannot be undone.`,
-    deleteLineItem: () => 'This permanently removes the line item from the draft. This cannot be undone.',
+    create: (c) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: c.name }),
+    activate: (c) => t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
+    clone: (c) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: c.label }),
+    archive: (c) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label }),
+    deleteDraft: (c) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: c.label }),
+    deleteLineItem: () => t('financeCopy.confirmDeleteLineItemDescription', 'This permanently removes the line item from the draft. This cannot be undone.'),
   };
   const describeConfirm = (c: PendingBudgetConfirm): string =>
     // Safe: the union is keyed by `kind`, so the handler at c.kind accepts c.
@@ -995,7 +995,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           {versions.map((v) => (
             // A4/N1/N2: status in text (not color only), no em-dash, no emoji
             <option key={v.id} value={v.id}>
-              {`v${v.version} · ${v.name} (${v.status})`}
+              {`v${v.version} · ${v.name} (${budgetStatusLabel(v.status, t)})`}
             </option>
           ))}
         </select>

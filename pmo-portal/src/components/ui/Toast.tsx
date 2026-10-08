@@ -58,9 +58,11 @@ const ToastCtx = createContext<ToastApi | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [item, setItem] = useState<ToastData | null>(null);
+  const queue = useRef<ToastData[]>([]);
   const [statusAnnouncement, setStatusAnnouncement] = useState('');
   const [alertAnnouncement, setAlertAnnouncement] = useState('');
   const seq = useRef(0);
+  const itemRef = useRef<ToastData | null>(null);
   const lastAnnouncement = useRef<{ urgent: boolean; message: string } | null>(null);
 
   const toast = useCallback((title: string, subOrKind?: string, kind?: ToastKind) => {
@@ -68,7 +70,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       value === 'info' || value === 'success' || value === 'warning' || value === 'error';
     const resolvedKind = kind ?? (isKind(subOrKind) ? subOrKind : 'info');
     const sub = kind || !isKind(subOrKind) ? subOrKind : undefined;
-    setItem({ id: ++seq.current, kind: resolvedKind, title, sub });
+    const next = { id: ++seq.current, kind: resolvedKind, title, sub };
+    if (itemRef.current?.kind === 'warning' || itemRef.current?.kind === 'error') {
+      queue.current = [...queue.current, next];
+      return;
+    }
+    itemRef.current = next;
+    setItem(next);
   }, []);
 
   // These regions are persistent for the lifetime of the provider. Content is added only
@@ -98,7 +106,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAlertAnnouncement(urgent ? message : '');
   }, [item]);
 
-  const dismiss = useCallback(() => setItem(null), []);
+  const dismiss = useCallback(() => {
+    const [next, ...rest] = queue.current;
+    queue.current = rest;
+    itemRef.current = next ?? null;
+    setItem(next ?? null);
+  }, []);
 
   return (
     <ToastCtx.Provider value={{ toast }}>
