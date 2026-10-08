@@ -43,11 +43,26 @@ export function sumSlipMoney(values: readonly string[]): bigint | null {
   }
   return total;
 }
-export function bupotRefusal(error: unknown): { key: string; remedy: 'reload' | 'inspect' | 'edit' | 'retry' } {
+export type BupotRemedy = 'reload' | 'inspect' | 'edit' | 'retry';
+export function bupotRefusal(error: unknown): { key: string; remedy: BupotRemedy } {
   const source = error && typeof error === 'object' ? error as { code?: unknown; details?: unknown; detail?: unknown } : {};
   const detail = String(source.details ?? source.detail ?? '');
-  if (detail === 'bupot-stale' || source.code === '40001') return { key: 'stale', remedy: 'reload' };
-  if (detail === 'bupot-number-conflict' || detail === 'bupot-bill-covered' || detail === 'bupot-intent-conflict' || source.code === '23505') return { key: 'conflict', remedy: 'inspect' };
-  if (detail.startsWith('bupot-invalid') || detail.startsWith('bupot-ineligible') || detail === 'bupot-amount-mismatch' || detail === 'bupot-type-confirmation') return { key: 'invalidFacts', remedy: 'edit' };
+  const refusals: Record<string, { key: string; remedy: BupotRemedy }> = {
+    'bupot-not-permitted': { key: 'notPermitted', remedy: 'inspect' },
+    'bupot-not-found': { key: 'notFound', remedy: 'reload' },
+    'bupot-invalid-facts': { key: 'invalidFacts', remedy: 'edit' },
+    'bupot-ineligible-bill': { key: 'ineligibleBill', remedy: 'edit' },
+    'bupot-amount-mismatch': { key: 'amountMismatch', remedy: 'edit' },
+    'bupot-type-confirmation': { key: 'typeConfirmation', remedy: 'edit' },
+    'bupot-bill-limit': { key: 'billLimit', remedy: 'edit' },
+    'bupot-number-conflict': { key: 'conflict', remedy: 'inspect' },
+    'bupot-bill-covered': { key: 'conflict', remedy: 'inspect' },
+    'bupot-intent-conflict': { key: 'conflict', remedy: 'inspect' },
+    'bupot-stale': { key: 'stale', remedy: 'reload' },
+    'bupot-voided': { key: 'voided', remedy: 'reload' },
+  };
+  if (refusals[detail]) return refusals[detail];
+  if (source.code === '40001') return refusals['bupot-stale'];
+  if (source.code === '23505') return refusals['bupot-bill-covered'];
   return { key: 'retrySameIntent', remedy: 'retry' };
 }

@@ -484,7 +484,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     record_efaktur: allow(REVENUE_WRITE),
   },
   vendorWithholdingSlip: {
-    view: allow(MASTER_DATA),
+    // Any authenticated org role may read source-visible evidence; server RLS remains authoritative.
+    view: () => true,
     create: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
     edit: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
     archive: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,

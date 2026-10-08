@@ -1,6 +1,9 @@
 -- AC-BUPOT-001/003/004/005/008/009/012: gap coverage through shipped RPCs and reader seams.
 begin;
+set local timezone = 'Etc/GMT+12';
 select no_plan();
+select isnt((now() at time zone 'Pacific/Kiritimati')::date, current_date,
+  'AC-BUPOT-001 test fixture guarantees org-local and session dates differ');
 
 insert into organizations(id,name,default_currency,default_timezone) values
  ('91120000-0000-0000-0000-000000000001','Bupot gap org A','IDR','Pacific/Kiritimati'),
@@ -61,8 +64,12 @@ select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_
 select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000075','91120000-0000-0000-0000-000000000031','GAP-CANCELLED',current_date,date_trunc('month',current_date)::date,'pph23',1000,700,array['91120000-0000-0000-0000-000000000058'::uuid],'{}')$$),'23514|bupot-ineligible-bill','AC-BUPOT-003 a bill on a cancelled procurement is rejected');
 select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000076','91120000-0000-0000-0000-000000000031','GAP-TYPE',current_date,date_trunc('month',current_date)::date,'pph4_2',1000,200,array['91120000-0000-0000-0000-000000000052'::uuid],'{}')$$),'23514|bupot-ineligible-bill','AC-BUPOT-004 a known PPh type conflict is refused');
 select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000077','91120000-0000-0000-0000-000000000031','GAP-EXTRANEOUS-DECLARATION',current_date,date_trunc('month',current_date)::date,'pph23',1000,200,array['91120000-0000-0000-0000-000000000052'::uuid],array['91120000-0000-0000-0000-000000000052'::uuid])$$),'23514|bupot-type-confirmation','AC-BUPOT-004 declaration set cannot include a known-type bill');
-select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000067','91120000-0000-0000-0000-000000000031','GAP-BAD-NUMBER',current_date,date_trunc('month',current_date)::date,'pph23',1000,100,array['91120000-0000-0000-0000-000000000051'::uuid],'{}')$$),'NO_ERROR','AC-BUPOT-003 Paid bills remain eligible');
-select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000068','91120000-0000-0000-0000-000000000031','GAP-BAD-NUMBER',current_date,date_trunc('month',current_date)::date,'pph23',1000,200,array['91120000-0000-0000-0000-000000000052'::uuid],'{}')$$),'23505|bupot-number-conflict','AC-BUPOT-005 active number is unique after normalization');
+select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000067','91120000-0000-0000-0000-000000000031','GAP-ORG-TODAY',(now() at time zone 'Pacific/Kiritimati')::date,date_trunc('month',(now() at time zone 'Pacific/Kiritimati')::date)::date,'pph23',1000,100,array['91120000-0000-0000-0000-000000000051'::uuid],'{}')$$),'NO_ERROR','AC-BUPOT-001 org-local today is accepted and the Paid bill remains eligible despite differing session current_date');
+select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000096','91120000-0000-0000-0000-000000000031','GAP-ORG-TOMORROW',(now() at time zone 'Pacific/Kiritimati')::date+1,date_trunc('month',(now() at time zone 'Pacific/Kiritimati')::date)::date,'pph23',1000,100,array['91120000-0000-0000-0000-000000000051'::uuid],'{}')$$),'23514|bupot-invalid-facts','AC-BUPOT-001 org-local tomorrow is refused');
+set constraints all immediate;
+select pass('AC-BUPOT-002 deferred snapshot trigger accepts the complete real-RPC record at commit boundary');
+set constraints all deferred;
+select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000068','91120000-0000-0000-0000-000000000031',' gap-org-today ',current_date,date_trunc('month',current_date)::date,'pph23',1000,200,array['91120000-0000-0000-0000-000000000052'::uuid],'{}')$$),'23505|bupot-number-conflict','AC-BUPOT-005 active number is unique after normalization');
 select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000070','91120000-0000-0000-0000-000000000031','GAP-REUSE',current_date,date_trunc('month',current_date)::date,'pph23',1000,100,array['91120000-0000-0000-0000-000000000051'::uuid],'{}')$$),'23505|bupot-bill-covered','AC-BUPOT-005 active bill reservation refuses a second slip');
 select is(pg_temp.bupot_detail($$select * from public.record_vendor_withholding_slip('91120000-0000-0000-0000-000000000074','91120000-0000-0000-0000-000000000031','GAP-LIMIT',current_date,date_trunc('month',current_date)::date,'pph23',1000,1,array(select gen_random_uuid() from generate_series(1,101)),'{}')$$),'23514|bupot-bill-limit','AC-BUPOT-003 more than 100 selected bill IDs are refused');
 reset role;

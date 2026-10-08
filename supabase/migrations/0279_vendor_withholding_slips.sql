@@ -87,7 +87,8 @@ create or replace function public.assert_vendor_withholding_slip_integrity() ret
 language plpgsql security definer set search_path=pg_catalog,public as $$
 declare sid uuid; h public.vendor_withholding_slips%rowtype; n integer; s numeric; bad boolean;
 begin
- sid := case when tg_table_name='vendor_withholding_slips' then coalesce(new.id,old.id) else coalesce(new.slip_id,old.slip_id) end;
+ if tg_table_name='vendor_withholding_slips' then sid:=coalesce(new.id,old.id);
+ else sid:=coalesce(new.slip_id,old.slip_id); end if;
  select * into h from public.vendor_withholding_slips where id=sid;
  if not found then return null; end if;
  select count(*),coalesce(sum(withheld_at_record),0),bool_or(org_id<>h.org_id or currency<>h.currency or (pph_type_at_record is not null and pph_type_at_record<>h.pph_type))

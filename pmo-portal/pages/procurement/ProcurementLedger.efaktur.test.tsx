@@ -111,11 +111,15 @@ describe('ProcurementLedger e-Faktur details', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('AC-EFK-005 hides edit for cancelled vendor invoices and non-Finance/Admin users', () => {
+  it('AC-EFK-005 keeps slip history available while hiding e-Faktur edits for cancelled invoices and non-Finance/Admin users', () => {
     const cancelled = renderLedger({ canRecordEfaktur: true, rows: [{ ...invoiceRow, efakturLocked: true }] });
-    expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
+    expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /bukti potong history/i })).toBeInTheDocument();
     cancelled.unmount();
     renderLedger({ canRecordEfaktur: false });
-    expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
+    expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /bukti potong history/i })).toBeInTheDocument();
   });
 });

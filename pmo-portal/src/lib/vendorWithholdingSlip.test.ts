@@ -19,6 +19,9 @@ describe('AC-BUPOT-013 exact slip money', () => {
   });
   it('maps stable refusal detail without displaying machine values', () => {
     expect(bupotRefusal({ code: '40001', details: 'bupot-stale' })).toEqual({ key: 'stale', remedy: 'reload' });
+    expect(bupotRefusal({ code: '23514', details: 'bupot-ineligible-bill' })).toEqual({ key: 'ineligibleBill', remedy: 'edit' });
+    expect(bupotRefusal({ code: '23514', details: 'bupot-bill-limit' })).toEqual({ key: 'billLimit', remedy: 'edit' });
+    expect(bupotRefusal({ code: '42501', details: 'bupot-not-permitted' })).toEqual({ key: 'notPermitted', remedy: 'inspect' });
     expect(bupotRefusal({ code: '08006' })).toEqual({ key: 'retrySameIntent', remedy: 'retry' });
   });
 });

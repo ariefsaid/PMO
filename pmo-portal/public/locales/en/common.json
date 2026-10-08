@@ -22,6 +22,21 @@
     "keepEditing": "Keep editing",
     "saved": "e-Faktur details saved"
   },
+  "bupot": {
+    "loading": "Loading bukti potong…", "loadError": "Bukti potong unavailable", "unavailable": "Unavailable",
+    "view": "View bukti potong", "record": "Record bukti potong", "history": "Bukti potong history",
+    "state": { "slipped": "Slipped", "needsReview": "Needs review", "unavailable": "Unavailable", "notRecorded": "Not recorded", "notRequired": "Not required", "returnReview": "Return review" },
+    "select": "Select", "selectBill": "Select bill {{bill}}", "bill": "Bill", "withheld": "Withheld", "type": "PPh type",
+    "confirmUnknown": "Confirm {{bill}} as {{type}}", "unknownType": "Unknown — confirm from slip", "recordTitle": "Record bukti potong",
+    "vendor": "Vendor", "slipNumber": "Issued slip number", "slipDate": "Slip date", "taxPeriod": "Tax period", "taxBase": "Tax base", "withheldAmount": "Issued withheld amount",
+    "typeWarning": "Confirm the PPh type from the issued external slip. PMO does not issue or cancel tax documents.", "candidates": "Eligible bills",
+    "selectedTotal": "Selected total: {{currency}} {{amount}}", "loadMore": "Load more bills", "reconciliation": "Selection {{sum}} · Slip {{amount}} · Difference {{difference}}",
+    "amountMismatch": "The slip amount must exactly equal selected bill withholding.", "startingBillSelected": "Starting bill selected",
+    "refusal": { "stale": "This slip changed. Reload it before saving.", "conflict": "A slip number or bill is already covered. Inspect existing slip history.", "invalidFacts": "Review the entered facts and selected bills.", "retrySameIntent": "The result is uncertain. Retry with this same slip intent.", "ineligibleBill": "One or more bills are no longer eligible.", "amountMismatch": "The issued amount does not match selected bills.", "typeConfirmation": "Confirm the unknown bill types.", "billLimit": "A slip can cover at most 100 bills.", "notPermitted": "You do not have permission to record this slip.", "notFound": "The slip or bill is no longer available.", "voided": "This slip has already been voided." },
+    "remedy": { "reload": "Reload and review the latest slip facts.", "inspect": "Inspect existing coverage before recording another slip.", "edit": "Edit the facts and try again.", "retry": "Retry this same request; do not start a new slip." },
+    "detailTitle": "Bukti potong details", "status": "Status", "openCase": "Open case", "voidReason": "Void reason", "loadMoreSlips": "Load more history", "void": "Void PMO entry", "correct": "Correct metadata", "voidWarning": "This only removes PMO coverage. It does not cancel a DJP document.",
+    "reason": "Reason", "confirmVoid": "Void this PMO entry?", "reload": "Reload", "close": "Close", "save": "Save changes", "correctionReason": "Correction reason"
+  },
   "budget": {
     "category": {
       "specialExpenses": "Special expenses"
@@ -4007,7 +4022,8 @@
       "pmo_number": "PMO invoice number",
       "native_lines": "Invoice lines",
       "withheld_amount": "Tax withheld",
-      "withheld_pph_type": "Withholding tax type"
+      "withheld_pph_type": "Withholding tax type",
+      "slip_number": "Slip number", "slip_date": "Slip date", "tax_period": "Tax period", "pph_type": "PPh type", "tax_base": "Tax base", "invoice_count": "Bill count", "voided_at": "Voided at", "voided_by": "Voided by", "slip_id": "Bukti potong", "withheld_at_record": "Withheld at record", "pph_type_at_record": "PPh type at record", "type_source": "Type source", "released_at": "Released at"
     },
     "kind": {
       "project": "Project",
@@ -4023,12 +4039,16 @@
       "company": "Company",
       "contact": "Contact",
       "sales_invoice": "Sales invoice",
-      "procurement_invoice": "Vendor bill"
+      "procurement_invoice": "Vendor bill",
+      "vendor_withholding_slip": "Bukti potong",
+      "vendor_withholding_slip_bill": "Bukti potong bill link"
     },
     "withholdingType": {
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)"
     },
+    "typeSource": { "bill": "Bill type", "declared": "Declared from slip" },
+    "slipStatus": { "active": "Active", "void": "Void" },
     "filter": {
       "all": "All",
       "project": "Project"

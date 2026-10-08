@@ -137,6 +137,8 @@ import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStats
 import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
+import type { RecordSlipInput, CorrectSlipInput, VoidSlipInput, SlipWriteResult } from '@/src/lib/vendorWithholdingSlip';
+import type { BillCursor, BillPage, SlipCursor, SlipDetail, SlipPage } from '@/src/lib/db/vendorWithholdingSlips';
 
 /**
  * The identity of ONE user INTENT to write an externally-owned record (BLOCK 2, ADR-0058).
@@ -737,8 +739,19 @@ export interface ReportsRepository {
 }
 
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
+export interface VendorWithholdingSlipsRepository {
+  record(input: RecordSlipInput): Promise<SlipWriteResult>;
+  correct(input: CorrectSlipInput): Promise<SlipWriteResult>;
+  void(input: VoidSlipInput): Promise<SlipWriteResult>;
+  listSlips(params?: { vendorId?: string; taxPeriod?: string; invoiceId?: string; cursor?: SlipCursor; limit?: number }): Promise<SlipPage>;
+  listBills(params?: { vendorId?: string; pphType?: string; currency?: string; invoiceIds?: string[]; candidatesOnly?: boolean; cursor?: BillCursor; limit?: number }): Promise<BillPage>;
+  coverage(invoiceIds: string[]): Promise<BillPage['rows']>;
+  get(slipId: string): Promise<SlipDetail>;
+}
+
 export interface Repositories {
   recordHistory: RecordHistoryRepository;
+  vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
   company: CompanyRepository;
   document: DocumentRepository;
