@@ -155,6 +155,35 @@ afterEach(() => resetActiveLocale());
 // ---------------------------------------------------------------------------
 // Core states (AC-726, NFR-BV-UI-001)
 // ---------------------------------------------------------------------------
+describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
+  it('renders all six confirmation descriptions in Bahasa in an id locale session', async () => {
+    await financeTestI18n.changeLanguage('id');
+    const cases = [
+      { versions: [activeVersion], trigger: /Versi baru/i, fill: true, confirm: /Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
+      { versions: [draftVersion], trigger: /^Aktifkan$/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
+      { versions: [activeVersion], trigger: /Salin untuk revisi/i, confirm: /Salin versi/i, body: 'Ini menyalin Version 1 (v1) menjadi Draf baru' },
+      { versions: [activeVersion], trigger: /^Arsipkan$/i, confirm: /Arsipkan versi/i, body: 'Ini menonaktifkan Version 1 (v1) sebagai anggaran aktif' },
+      { versions: [draftVersion], trigger: /Hapus draf/i, confirm: /Hapus draf/i, body: 'Ini menghapus draf Draft v2 (v2) secara permanen' },
+      { versions: [draftVersion], trigger: /Hapus item anggaran/i, confirm: /^Hapus$/i, body: 'Ini menghapus item anggaran dari draf secara permanen' },
+    ];
+    for (const scenario of cases) {
+      budgetState.data = 0;
+      versionsState.data = scenario.versions;
+      const view = renderPage();
+      if (scenario.fill) {
+        await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
+        await userEvent.type(screen.getByPlaceholderText(/nama versi/i), 'Anggaran baru');
+      } else {
+        await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
+      }
+      if (scenario.fill) await userEvent.click(screen.getByRole('button', { name: scenario.confirm }));
+      const dialog = screen.queryByRole('dialog') ?? screen.getByRole('alertdialog');
+      expect(dialog).toHaveTextContent(scenario.body);
+      view.unmount();
+    }
+  });
+});
+
 describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
   it('uses the AA primary-text token for the active version-card action', () => {
     budgetState.data = activeVersion.total;
@@ -181,6 +210,17 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     const region = screen.getByRole('region', { name: 'Budget version line items, scrollable horizontally' });
     expect(region).toHaveAttribute('tabindex', '0');
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('BU-3: amount validation message is Indonesian in an id locale session', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    await userEvent.click(screen.getByText(/Tambah item anggaran/i));
+    await userEvent.type(screen.getByPlaceholderText(/Jumlah/i), '0');
+    await userEvent.click(screen.getByRole('button', { name: /^Simpan$/i }));
+    expect(await screen.findByText('Jumlah harus lebih besar dari 0')).toBeInTheDocument();
   });
 
   it('AC-L10N-B01 renders the actual Indonesian empty state from the shipped catalogue', async () => {
@@ -503,6 +543,21 @@ describe('ProjectBudget Archived version actions', () => {
 // New version form in non-empty (versions list) state
 // ---------------------------------------------------------------------------
 describe('ProjectBudget New version form (versions list state)', () => {
+  it('BU-1: newly created version becomes the selected version', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    mockCreateVersion.mockImplementationOnce(async () => {
+      versionsState.data = [activeVersion, { ...draftVersion, id: 'v-new', name: 'Budget v2', version: 2 }];
+      return { id: 'v-new' };
+    });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New version/i }));
+    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v2');
+    await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
+    expect(screen.getByRole('combobox', { name: /version/i })).toHaveValue('v-new');
+  });
+
   it('shows + New version button in list state', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
@@ -678,6 +733,18 @@ describe('ProjectBudget New version form (empty state)', () => {
 // ---------------------------------------------------------------------------
 describe('ProjectBudget version selector (budget-dropdown)', () => {
   // T1/T2: AC-BD-01 — labelled selector present when ≥1 version exists
+  it('BU-3: Indonesian selector option labels are Draf, Aktif, and Diarsipkan', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion, archivedVersion];
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    const selector = screen.getByRole('combobox', { name: /versi/i });
+    const optionLabels = Array.from((selector as HTMLSelectElement).options).map((option) => option.textContent ?? '');
+    expect(optionLabels.some((label) => label.includes('(Draf)'))).toBe(true);
+    expect(optionLabels.some((label) => label.includes('(Aktif)'))).toBe(true);
+    expect(optionLabels.some((label) => label.includes('(Diarsipkan)'))).toBe(true);
+  });
+
   it('AC-BD-01: renders a labelled "Version" combobox with ≥1 version', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion, draftVersion];

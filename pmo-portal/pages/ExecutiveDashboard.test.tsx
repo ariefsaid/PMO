@@ -7,6 +7,8 @@ import { ToastProvider } from '@/src/components/ui/Toast';
 import { formatCurrency } from '@/src/lib/format';
 
 const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn() }));
+const desktop = vi.hoisted(() => ({ value: true }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop.value }));
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
@@ -101,6 +103,7 @@ const renderPage = () =>
   );
 
 beforeEach(() => {
+  desktop.value = true;
   dashState.isPending = false; dashState.isError = false; dashState.data = populated;
 });
 
@@ -153,6 +156,22 @@ describe('ExecutiveDashboard states', () => {
     };
     renderPage();
     expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
+  });
+});
+
+describe('ExecutiveDashboard design polish', () => {
+  it('DA-1: actionable warning link uses the accessible warning-foreground token', () => {
+    renderPage();
+    const warningLink = screen.getByRole('link', { name: /View 1 at-risk projects/i });
+    expect(warningLink).toHaveClass('text-warning-foreground');
+    expect(warningLink).not.toHaveClass('text-warning');
+  });
+
+  it('DA-3: mobile dashboard renders the Board pack action', () => {
+    desktop.value = false;
+    renderPage();
+    expect(screen.getByRole('button', { name: /board pack/i })).toBeInTheDocument();
+    desktop.value = true;
   });
 });
 

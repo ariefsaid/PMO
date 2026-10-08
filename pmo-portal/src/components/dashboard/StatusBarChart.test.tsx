@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { chartTheme, tintStatusFill, STATUS_BAR_TINT } from '@/src/components/ui/chartTheme';
 import { procurementStatusTone } from './procurementStatusTone';
 import { StatusBarChart } from './StatusBarChart';
@@ -24,6 +25,18 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     // top status by count = Paid (5), total = 9
     expect(region).toHaveAccessibleName(/9 requests/i);
     expect(region).toHaveAccessibleName(/most in Paid/i);
+  });
+
+  it('DA-2: exposes only the visual as an image and keeps drill-down legend links independently reachable', () => {
+    render(
+      <MemoryRouter><StatusBarChart data={data} toneFor={procurementStatusTone} label="Procurement by status" noun="requests" hrefFor={(status) => `/procurement?status=${status}`} /></MemoryRouter>,
+    );
+    const chart = screen.getByRole('img', { name: /Procurement by status/i });
+    expect(chart).toBeInTheDocument();
+    expect(chart.querySelector('a')).toBeNull();
+    expect(screen.getByRole('link', { name: /Draft/i })).toHaveAttribute('href', '/procurement?status=Draft');
+    expect(screen.getByRole('link', { name: /Ordered/i })).toHaveAttribute('href', '/procurement?status=Ordered');
+    expect(screen.getByRole('link', { name: /Paid/i })).toHaveAttribute('href', '/procurement?status=Paid');
   });
 
   it('renders a dot+text legend entry per status (color-not-only)', () => {
