@@ -18,8 +18,19 @@
  * sweep edge fn (Deno) — relative imports only, structural seams.
  */
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
-import { erpnextRequest, type ErpClientDeps } from './client.ts';
+import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { publishSnapshot, type SnapshotServiceClient } from './actualsSnapshot.ts';
+
+/** The response-body cap for the AR/AP ageing report RPC (#918). `frappe.desk.query_report.run` is
+ *  UNPAGED — the v15 detail report returns one row PER VOUCHER with no `limit_page_length` — so the
+ *  response's size is set by the org's ledger, not by this repo's pagination, and the shared 5 MiB
+ *  default would refuse a large-but-legitimate report and drop refreshAging into the mirror
+ *  fallback as if the report had failed. A serialized voucher row (party/currency/voucher_no/dates/
+ *  outstanding + range1..5) runs ~0.5 KiB, so 5 MiB refuses at roughly 10k open vouchers — well
+ *  inside range for a busy contract org. 5× the default (~50k open vouchers on one report) keeps
+ *  the ceiling far above anything a legitimate AP/AR report produces while still bounding one
+ *  response: the client refuses mid-stream past the cap regardless of Content-Length (#918). */
+export const AGING_REPORT_MAX_BYTES = ERP_RESPONSE_MAX_BYTES * 5;
 
 /** `erp_payment_ledger_mirror`'s uuid PRIMARY KEY (0101 §2) — the KEYSET cursor + stable order. */
 const PLE_MIRROR_SCAN_ORDER = 'id';
@@ -86,6 +97,7 @@ export function runQueryReport(client: ErpClientDeps, reportName: AgingReportNam
     method: 'POST',
     path: '/api/method/frappe.desk.query_report.run',
     body: { report_name: reportName, filters },
+    maxResponseBytes: AGING_REPORT_MAX_BYTES,
   });
 }
 
