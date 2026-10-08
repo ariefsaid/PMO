@@ -272,7 +272,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Procurement' }));
     expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', {
       replace: true,
-      state: capturedState,
+      // #879: the tab-switch marker rides alongside — pmoListReturn (the goal: return
+      // context survives the tab switch) is still forwarded intact.
+      state: { ...capturedState, pmoTabSwitch: true },
     });
   });
 

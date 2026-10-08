@@ -10,6 +10,7 @@ import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import type { ProjectHeaderInput } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -119,7 +120,12 @@ const ProjectDetail: React.FC = () => {
     trackProjectTabViewed(next);
     // list-working-set-return (#682): forward the current router state so a captured
     // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
-    navigate(`/projects/${projectId}/${next}`, { replace: true, state: location.state });
+    // #879: mark the navigation as an in-page tab switch so AppShell's route-focus
+    // effect keeps focus in the tab bar (WCAG 2.4.3); Tabs moves focus to the new tab.
+    navigate(`/projects/${projectId}/${next}`, {
+      replace: true,
+      state: withTabSwitchNavState(location.state),
+    });
   };
 
   // Back to the Projects index (AC-NAV-007/AC-LRC-003): `returnToList` navigates to the
