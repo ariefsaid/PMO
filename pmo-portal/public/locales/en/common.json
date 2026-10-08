@@ -1617,6 +1617,9 @@
     },
     "approvalNotes": "Approval notes",
     "backToProcurement": "Procurement",
+    "paymentBillRequired": "Select the vendor invoice this payment closes.",
+    "paymentApproverCannotPay": "Separation of duties: the approver cannot pay their own procurement.",
+    "withholdingNeedsAmount": "Enter the bill amount to calculate the vendor withholding.",
     "confirm": {
       "approveBody": "Approve <money/>?",
       "cancelTitle": "Cancel this request?",

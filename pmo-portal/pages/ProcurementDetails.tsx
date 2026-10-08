@@ -1052,6 +1052,7 @@ const ProcurementDetails: React.FC = () => {
                 );
               }}
               invoices={p.invoices}
+              isApprover={isApprover}
             />
           </Card>
         )}

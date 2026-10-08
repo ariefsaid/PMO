@@ -262,6 +262,8 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
         receivedAmount: 750,
       }),
     );
+    expect(await screen.findByText('Payment created')).toBeInTheDocument();
+    expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 
   it('AC-PLC-009: rejects en-US payment amounts with excess precision before creating', async () => {

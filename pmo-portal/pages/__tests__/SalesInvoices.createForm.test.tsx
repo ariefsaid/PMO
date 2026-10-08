@@ -262,6 +262,8 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
       // BLOCK 2 (ADR-0058): the form session's command identity rides along with the body.
       intent: { id: expect.any(String), idempotencyKey: expect.any(String) },
     });
+    expect(await screen.findByText('Invoice created')).toBeInTheDocument();
+    expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 
   it('AC-PLC-009: rejects an en-US sales-invoice rate with excess precision before creating', async () => {

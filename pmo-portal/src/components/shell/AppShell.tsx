@@ -107,13 +107,14 @@ export const AppShell: React.FC<AppShellProps> = ({
   // Skip focus only when the marker is present AND both locations are within the same
   // project/procurement record. Router history can retain that state on later real
   // navigations, so the marker alone must never suppress the route-focus move.
-  // Deps are pathname + state, NOT the location object: a search/hash-only navigation
-  // (Approvals scope switch, M365 param cleanup) is not a route change and must keep
-  // the pre-#879 behaviour of not re-running this effect — the marker rides in
-  // location.state, so both parts are needed to see marked tab switches.
+  // Focus and scroll are route-change behavior: state-only updates (including list
+  // search/filter updates that clear one-shot return state) must not steal focus.
+  // The state at the pathname transition is still read to preserve #879 tab switches.
   const mounted = useRef(false);
   const previousPathname = useRef(location.pathname);
   const { pathname, state } = location;
+  const stateRef = useRef(state);
+  stateRef.current = state;
   useEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
@@ -126,9 +127,9 @@ export const AppShell: React.FC<AppShellProps> = ({
       previousRecordBase?.[0] !== undefined &&
       previousRecordBase[0] === currentRecordBase?.[0];
     previousPathname.current = pathname;
-    if (!isTabSwitchNavState(state) || !sameRecordBase) mainRef.current?.focus();
+    if (!isTabSwitchNavState(stateRef.current) || !sameRecordBase) mainRef.current?.focus();
     mainRef.current?.scrollTo?.({ top: 0 });
-  }, [pathname, state]);
+  }, [pathname]);
 
   // C3: Focus management for the drawer.
   // On open: capture the current focus target (the hamburger), then move focus

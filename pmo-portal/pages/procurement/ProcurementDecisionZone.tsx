@@ -616,6 +616,11 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           the tax fields carry no `required` attribute (the select's empty option is the unanswered
           state), so this line is the programmatic explanation. */}
       <FieldError id={amtErrorId}>{amtError}</FieldError>
+      {pmoAuthorsTax && !amtStr && vendorTax?.pphType && withheldInvalid && (
+        <p role="status" className="text-[12px] text-muted-foreground">
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+        </p>
+      )}
       {!tax && (
         <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
           {VI_TAX_REQUIRED_HINT}

@@ -157,6 +157,13 @@ describe('standalone bill (PMO authors the tax) — AC-VWH-030', () => {
     expect(withheld).toHaveValue(formatMoneyInputValue(19999));
   });
 
+  it('explains why a default withholding cannot be saved before a bill amount is entered', async () => {
+    renderVI({ vendorId: 'vendor-1' });
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    expect(await screen.findByText('Enter the bill amount to calculate the vendor withholding.')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
+  });
+
   it('AC-VWH-030 the withheld error waits for engagement: a pristine form shows none', async () => {
     renderVI({ vendorId: 'vendor-1' });
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
