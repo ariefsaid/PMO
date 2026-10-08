@@ -3996,7 +3996,18 @@
       "rejection_notes": "Catatan penolakan",
       "email": "Email",
       "phone": "Telepon",
-      "notes": "Catatan"
+      "notes": "Catatan",
+      "efaktur_number": "Nomor e-Faktur",
+      "efaktur_date": "Tanggal e-Faktur",
+      "received_date": "Tanggal diterima",
+      "author_user_id": "Penulis faktur",
+      "approved_by_id": "Disetujui oleh",
+      "approved_at": "Waktu persetujuan",
+      "pmo_native": "Dibuat di PMO",
+      "pmo_number": "Nomor faktur PMO",
+      "native_lines": "Baris faktur",
+      "withheld_amount": "Pajak dipotong",
+      "withheld_pph_type": "Jenis pajak potong"
     },
     "kind": {
       "project": "Proyek",
@@ -4010,7 +4021,13 @@
       "payment": "Pembayaran",
       "task": "Tugas",
       "company": "Perusahaan",
-      "contact": "Kontak"
+      "contact": "Kontak",
+      "sales_invoice": "Faktur penjualan",
+      "procurement_invoice": "Tagihan vendor"
+    },
+    "withholdingType": {
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)"
     },
     "filter": {
       "all": "Semua",

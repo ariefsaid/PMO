@@ -33,6 +33,13 @@ export const FIELD_KINDS: Record<string, Record<string, HistoryKind>> = {
   rfq: { ...PURCHASE_DOC, rfq_number: 'text' },
   purchase_order: { ...PURCHASE_DOC, po_number: 'text' },
   payment: { ...PURCHASE_DOC, invoice_id: 'ref', pay_number: 'text' },
+  sales_invoice: {
+    efaktur_number: 'text', efaktur_date: 'date', received_date: 'date', author_user_id: 'ref',
+    approved_by_id: 'ref', approved_at: 'timestamp', pmo_native: 'bool', pmo_number: 'text', native_lines: 'text',
+  },
+  procurement_invoice: {
+    efaktur_number: 'text', efaktur_date: 'date', withheld_amount: 'money', withheld_pph_type: 'enum',
+  },
   task: {
     project_id: 'ref', assignee_id: 'ref', milestone_id: 'ref', parent_task_id: 'ref', meeting_id: 'ref', name: 'text',
     status: 'enum', priority: 'enum', start_date: 'date', end_date: 'date', archived_at: 'timestamp',
@@ -56,6 +63,8 @@ export type RefSource = 'profiles' | 'companies' | 'tasks' | 'milestones' | 'pro
 export const REF_SOURCE: Record<string, RefSource> = {
   project_manager_id: 'profiles',
   requested_by_id: 'profiles',
+  author_user_id: 'profiles',
+  approved_by_id: 'profiles',
   assignee_id: 'profiles',
   client_id: 'companies',
   end_client_id: 'companies',
@@ -103,9 +112,9 @@ export function humanizeColumn(column: string): string {
 /** Kind-filter groups for the project History (Q7): chip label key → entity types it narrows to. */
 export const KIND_FILTERS: { key: string; label: string; types: string[] | null }[] = [
   { key: 'all', label: 'All', types: null },
-  { key: 'project', label: 'Project', types: ['project'] },
+  { key: 'project', label: 'Project', types: ['project', 'sales_invoice'] },
   { key: 'budget', label: 'Budget', types: ['budget_version', 'budget_line_item'] },
   { key: 'workOrders', label: 'Work orders', types: ['work_order'] },
-  { key: 'procurement', label: 'Procurement', types: ['procurement', 'purchase_request', 'rfq', 'purchase_order', 'payment'] },
+  { key: 'procurement', label: 'Procurement', types: ['procurement', 'purchase_request', 'rfq', 'purchase_order', 'payment', 'procurement_invoice'] },
   { key: 'tasks', label: 'Tasks', types: ['task'] },
 ];
