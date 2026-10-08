@@ -34,6 +34,7 @@ import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
+import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
@@ -489,7 +490,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       // DD-VPAY-3: on a flipped org the payment MUST name its bill — refused here, locally, before
       // any dispatch call (the server gate is the authority; this is the form not throwing blind).
       if (paymentBillRequired && !invoiceId) {
-        setBillError('Select the vendor invoice this payment closes.');
+        setBillError(t('procurementDetail.paymentBillRequired', 'Select the vendor invoice this payment closes.'));
         setSubmitting(false);
         return;
       }
@@ -732,7 +733,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
                 const raw = selected?.erp_outstanding_amount;
                 const outstanding = typeof raw === 'string' ? Number(raw) : raw;
                 if (typeof outstanding === 'number' && Number.isFinite(outstanding)) {
-                  setAmountStr(String(outstanding));
+                  setAmountStr(formatMoneyInputValue(outstanding));
                   setAmountError(undefined);
                 }
               }
@@ -743,6 +744,12 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           />
           <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
         </div>
+      )}
+
+      {isVendorInvoice && pmoAuthorsTax && !amountStr && vendorTax?.pphType && taxIncomplete && (
+        <p role="status" className="text-[12px] text-muted-foreground">
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+        </p>
       )}
 
       {/* Action row */}

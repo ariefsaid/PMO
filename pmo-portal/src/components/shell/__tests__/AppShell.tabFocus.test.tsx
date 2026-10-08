@@ -60,6 +60,31 @@ describe('#879 AppShell route-focus exemption for tab switches', () => {
     tree.unmount();
   });
 
+  it('keeps search focus when list-return state is cleared by typing, but focuses main on a pathname change', () => {
+    const SearchProbe = () => {
+      const navigate = useNavigate();
+      return (
+        <>
+          <input aria-label="Search companies" onChange={() => navigate('/companies', { replace: true })} />
+          <button type="button" onClick={() => navigate('/projects')}>real-route</button>
+        </>
+      );
+    };
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/companies', state: { listReturn: true, scrollRestore: 100 } }]}>
+        <AppShell rail={null} header={null}><div>x</div></AppShell>
+        <SearchProbe />
+      </MemoryRouter>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Search companies' });
+    const main = screen.getByRole('main');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'vendor' } });
+    expect(input).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'real-route' }));
+    expect(main).toHaveFocus();
+  });
+
   it('AC #879: a search-param-only navigation (same pathname, e.g. Approvals scope switch) does NOT move focus to main', () => {
     // Approvals.selectScope does `setSearchParams(params, { replace: true })` — same
     // pathname, new search. That is NOT a route change: the route-focus effect must not

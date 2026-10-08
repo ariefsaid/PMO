@@ -460,7 +460,7 @@ const IncomingPayments: React.FC = () => {
           onClose={() => setFormTarget(null)}
           onCreate={async (input, intent) => {
             await createPayment.mutateAsync({ ...input, intent });
-            toast(t('financeCopy.paymentCreated', 'Payment created'), input.customerId, 'success');
+            toast(t('financeCopy.paymentCreated', 'Payment created'), undefined, 'success');
             setFormTarget(null);
           }}
         />

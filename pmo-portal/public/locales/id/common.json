@@ -1617,6 +1617,9 @@
     },
     "approvalNotes": "Catatan persetujuan",
     "backToProcurement": "Pengadaan",
+    "paymentBillRequired": "Pilih faktur vendor yang ditutup oleh pembayaran ini.",
+    "paymentApproverCannotPay": "Pemisahan tugas: penyetuju tidak dapat membayar pengadaan yang disetujuinya sendiri.",
+    "withholdingNeedsAmount": "Masukkan jumlah tagihan untuk menghitung pemotongan pajak vendor.",
     "confirm": {
       "approveBody": "Setujui <money/>?",
       "cancelTitle": "Batalkan permintaan ini?",

@@ -220,6 +220,8 @@ export interface ProcurementLedgerProps {
   efakturSaving?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
+  /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
+  isApprover?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +238,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   onSetEfaktur,
   efakturSaving = false,
   invoices = [],
+  isApprover = false,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
@@ -409,6 +412,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           existingTypes={existingTypes}
           canWrite={canWrite}
           invoices={invoices}
+          isApprover={isApprover}
           busy={captureBusy}
           onCreate={handleCreate}
         />
