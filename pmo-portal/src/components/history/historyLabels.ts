@@ -119,3 +119,60 @@ export function filteredEmptyLabels(t: TFunction): Record<string, string> {
     tasks: t('history.filteredEmpty.tasks', 'No task changes'),
   };
 }
+
+/**
+ * The merged audit_events lines (#880, AC-CHG-024), by internal action code — the catalogue key spells
+ * the code with underscores (i18next reads dots as nesting). This is every non-delete code that
+ * survives `list_record_history`'s audit window (the `.delete` codes and the per-record no-change
+ * writes — create/transition echoes the capture already shows — are excluded server-side); any code
+ * missing here falls back to the humanised code (see `auditActionLabel`), never the raw dotted form.
+ */
+export function auditActionLabels(t: TFunction): Record<string, string> {
+  return {
+    'm365.connection.revoked': t('history.action.m365_connection_revoked', 'Microsoft 365 connection revoked'),
+    'integration.activate': t('history.action.integration_activate', 'ERP integration activated'),
+    'integration.disconnect': t('history.action.integration_disconnect', 'ERP integration disconnected'),
+    'integration.set_company': t('history.action.integration_set_company', 'ERP company mapping set'),
+    'integration.site_url_set': t('history.action.integration_site_url_set', 'ERP site URL set'),
+    'integration.trap_recovery': t('history.action.integration_trap_recovery', 'ERP sync recovered'),
+    'integration.connect.cleanup': t('history.action.integration_connect_cleanup', 'ERP connection cleaned up'),
+    'integration.connect.finalize': t('history.action.integration_connect_finalize', 'ERP connection finalized'),
+    'project_document.create': t('history.action.project_document_create', 'Project document created'),
+    'project_document.update': t('history.action.project_document_update', 'Project document updated'),
+    'project_document.transition': t('history.action.project_document_transition', 'Project document status changed'),
+    'progress_claim.create': t('history.action.progress_claim_create', 'Progress claim created'),
+    'progress_claim.withdraw': t('history.action.progress_claim_withdraw', 'Progress claim withdrawn'),
+    'progress_claim.evidence.attach': t('history.action.progress_claim_evidence_attach', 'Progress claim evidence attached'),
+    'procurement_invoice.create': t('history.action.procurement_invoice_create', 'Vendor invoice created'),
+    'procurement.approval_route': t('history.action.procurement_approval_route', 'Approval route recorded'),
+    'incoming_payment.create': t('history.action.incoming_payment_create', 'Incoming payment recorded'),
+    'incoming_payment.cancel': t('history.action.incoming_payment_cancel', 'Incoming payment cancelled'),
+    'expense_advance.return': t('history.action.expense_advance_return', 'Expense advance returned'),
+    'expense_claim.transition': t('history.action.expense_claim_transition', 'Expense claim status changed'),
+    'expense_claim.approval_route': t('history.action.expense_claim_approval_route', 'Approval route recorded'),
+    'timesheet.create': t('history.action.timesheet_create', 'Timesheet created'),
+    'spend_approver.add': t('history.action.spend_approver_add', 'Spend approver added'),
+    'spend_approver.remove': t('history.action.spend_approver_remove', 'Spend approver removed'),
+    'sales_invoice.transition': t('history.action.sales_invoice_transition', 'Customer invoice status changed'),
+    'credits.grant': t('history.action.credits_grant', 'Credits granted'),
+    'company.tax_defaults.change': t('history.action.company_tax_defaults_change', 'Company tax defaults changed'),
+    'org.withholding_account.change': t('history.action.org_withholding_account_change', 'Withholding accounts changed'),
+    'org.vendor_tax_accounts.change': t('history.action.org_vendor_tax_accounts_change', 'Vendor tax accounts changed'),
+    'org.tax_default.change': t('history.action.org_tax_default_change', 'Tax defaults changed'),
+    'org.down_payment_item.change': t('history.action.org_down_payment_item_change', 'Down-payment items changed'),
+    'meeting.grant.create': t('history.action.meeting_grant_create', 'Meeting access granted'),
+    'meeting.grant.revoke': t('history.action.meeting_grant_revoke', 'Meeting access revoked'),
+  };
+}
+
+/**
+ * The text of one audit line: the translated label for a known code; otherwise the code read as
+ * words (`brand_new.code_here` → "Brand new code here") — readable, never the raw dotted code.
+ */
+export function auditActionLabel(t: TFunction, action: string | null): string {
+  if (!action) return t('history.auditRecorded', 'Recorded event');
+  const known = auditActionLabels(t)[action];
+  if (known) return known;
+  const words = action.replace(/[._]+/g, ' ').trim().toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : action;
+}
