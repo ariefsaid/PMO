@@ -7,6 +7,7 @@ import React from 'react';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { ToastProvider } from '@/src/components/ui';
 import ApprovalsPage from './Approvals';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ---------------------------------------------------------------------------
 // Shared hook state (mutated per test)
@@ -329,7 +330,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     await waitFor(() => expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(2));
     expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'ts-1' });
     expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'ts-2' });
-    expect(await screen.findByText(/2 approved/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /2 approved/i)).toBeInTheDocument();
   });
 
   it('AC-912: scope=all select-all selects only timesheets, never the procurement row', async () => {
@@ -513,7 +514,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     renderPage();
 
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
-    expect(await screen.findByText(/could not be pushed|update failed/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /could not be pushed|update failed/i)).toBeInTheDocument();
   });
 
   it('I-13 a Retry that SUCCEEDS says so too', async () => {
@@ -524,7 +525,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     renderPage();
 
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
-    expect(await screen.findByText(/pushed to ERPNext/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /pushed to ERPNext/i)).toBeInTheDocument();
   });
 
   // ⚑ I-12 — axe `landmark-unique`: `<section aria-label="Employee links awaiting confirmation">`

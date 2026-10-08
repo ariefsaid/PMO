@@ -18,6 +18,12 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { axeViolations } from '@/src/components/__tests__/axe';
 
+function pageAlertsMatching(message: RegExp) {
+  return screen.getAllByRole('alert').filter(
+    (alert) => alert.getAttribute('aria-atomic') !== 'true' && message.test(alert.textContent ?? ''),
+  );
+}
+
 const { listState, mutations, isOperatorState } = vi.hoisted(() => ({
   listState: {
     data: [
@@ -211,9 +217,7 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     isOperatorState.value = false;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
     const { container } = renderComposed('/administration/usage');
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/Operator-only/i),
-    );
+    await waitFor(() => expect(pageAlertsMatching(/Operator-only/i)).toHaveLength(1));
     await expectNoBlockingViolations(container);
     // The denial never mounts the Operator panel/query.
     expect(container.querySelector('[data-testid="administration-panel-usage"]')).toBeNull();
@@ -226,8 +230,8 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     const { container } = renderComposed('/administration/usage');
     await waitFor(() => expect(screen.getByText(/checking your Administration access/i)).toBeInTheDocument());
     await expectNoBlockingViolations(container);
-    // Pending shows a status, not a denial alert and not the panel.
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // Pending shows a status, not a denial message and not the panel.
+    expect(pageAlertsMatching(/Operator-only/i)).toHaveLength(0);
     expect(container.querySelector('[data-testid="administration-panel-usage"]')).toBeNull();
   });
 

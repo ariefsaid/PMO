@@ -146,7 +146,7 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/amount|decimal/i);
+    expect(await screen.findByText(/amount|decimal/i, { selector: 'span[role="alert"]' })).toHaveTextContent(/amount|decimal/i);
     expect(onStage).not.toHaveBeenCalled();
   });
 

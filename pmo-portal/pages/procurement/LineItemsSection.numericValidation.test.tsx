@@ -78,8 +78,8 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), 'abc');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '10');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    // An inline error must appear.
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // An inline error must appear in this add row.
+    expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -90,7 +90,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '0');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '10');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -101,7 +101,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '-1');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '10');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -112,7 +112,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     // quantity left blank
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '10');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -125,7 +125,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), 'xyz');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -136,7 +136,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '0');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -147,7 +147,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
     // rate left blank
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -160,7 +160,8 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '6');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '142.50');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(within(row).getByLabelText(/new item quantity/i)).not.toHaveAttribute('aria-invalid', 'true');
+    expect(within(row).getByLabelText(/new item unit price/i)).not.toHaveAttribute('aria-invalid', 'true');
     expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.5 });
   });
 
@@ -173,7 +174,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '1.234');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/unit price|decimal/i);
+    expect(within(row).getByRole('alert')).toHaveTextContent(/unit price|decimal/i);
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -200,7 +201,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
       await userEvent.type(within(row).getByLabelText(/new item unit price/i), '10');
       await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(/quantity/i);
+      expect(within(row).getByRole('alert')).toHaveTextContent(/quantity/i);
       expect(onAdd).not.toHaveBeenCalled();
     },
   );
@@ -214,7 +215,8 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '5');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
 
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(within(row).getByLabelText(/new item quantity/i)).not.toHaveAttribute('aria-invalid', 'true');
+    expect(within(row).getByLabelText(/new item unit price/i)).not.toHaveAttribute('aria-invalid', 'true');
     expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 1234, rate: 5 });
   });
 
@@ -227,7 +229,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.type(qty, '0.005');
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/quantity/i);
+    expect(within(qty.closest('tr')!).getByRole('alert')).toHaveTextContent(/quantity/i);
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
@@ -253,7 +255,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.clear(qty);
     await userEvent.type(qty, 'bad');
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(qty.closest('tr')!).getByRole('alert')).toBeInTheDocument();
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
@@ -286,7 +288,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     await userEvent.clear(rate);
     await userEvent.type(rate, '0');
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(within(rate.closest('tr')!).getByRole('alert')).toBeInTheDocument();
     expect(onUpdate).not.toHaveBeenCalled();
   });
 });

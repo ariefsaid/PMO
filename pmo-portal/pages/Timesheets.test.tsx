@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import Timesheets from './Timesheets';
 
@@ -213,7 +215,7 @@ describe('CW-6: Timesheets no longer hosts its own approvals queue', () => {
 });
 
 describe('Timesheets returned-for-changes edge state', () => {
-  it('renders the returned-week ErrBanner (role=status) when the week is Rejected', () => {
+  it('renders the returned-week ErrBanner (role=status) when the week is Rejected', async () => {
     const today = new Date();
     const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
@@ -233,7 +235,7 @@ describe('Timesheets returned-for-changes edge state', () => {
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    expect(screen.getByRole('status')).toHaveTextContent(/returned for changes/i);
+    expect(await findPageAnnouncement('status', /returned for changes/i)).toHaveTextContent(/returned for changes/i);
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
 });
@@ -609,7 +611,7 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
     await userEvent.type(mon, '8');
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/rls denied/i));
+    expect(await findToastAnnouncement('alert', /rls denied/i)).toHaveTextContent(/rls denied/i);
     // Edit retained — the cell still holds 8.
     expect((screen.getByLabelText('Acme Internal Platform, Mon hours') as HTMLInputElement).value).toBe('8');
   });
@@ -702,7 +704,7 @@ describe('AC-W3-F5: timesheet row delete restores row on server failure', () => 
     expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeInTheDocument();
 
     // A warning toast must have appeared.
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(await findToastAnnouncement('alert', /delete failed on server/i)).toBeInTheDocument();
 
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });

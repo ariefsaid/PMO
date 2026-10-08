@@ -303,9 +303,9 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
-    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
-    expect(screen.getByRole('status')).toHaveTextContent(/ERPNext/i);
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.getByRole('alert')).toHaveTextContent(/activated/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/ERPNext/i);
     resetState();
   });
 
@@ -321,11 +321,11 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
-    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
-    expect(screen.getByRole('status')).toHaveTextContent(/no budget lines/i);
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.getByRole('alert')).toHaveTextContent(/activated/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/no budget lines/i);
     // …and it does NOT tell the operator to retry a push that was never attempted.
-    expect(screen.getByRole('status')).not.toHaveTextContent(/retry/i);
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/retry/i);
     resetState();
   });
 
@@ -589,7 +589,7 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     await userEvent.type(screen.getByPlaceholderText(/Amount/i), '1.234');
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(await screen.findByText(/valid|decimal/i, { selector: 'span[role="alert"]' })).toHaveTextContent(/valid|decimal/i);
     expect(mockCreateLineItem).not.toHaveBeenCalled();
   });
 

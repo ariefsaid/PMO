@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
@@ -248,7 +249,7 @@ describe('Companies create / edit form (AC-CO-003 / AC-CO-004)', () => {
     await userEvent.click(screen.getByRole('button', { name: /New company/i }));
     await userEvent.type(screen.getByLabelText(/Company name/i), 'Blocked Co');
     await userEvent.click(screen.getByRole('button', { name: /^Create company$/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 
@@ -305,7 +306,7 @@ describe('Companies delete (AC-CO-006)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
     // the in-use message is surfaced via a warning toast (centralized "Still in use" headline,
     // ADR-0017) advising Archive instead
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /Still in use/i);
     expect(toast).toHaveTextContent(/Still in use/i);
     expect(toast).toHaveTextContent(/Archive it instead/i);
   });

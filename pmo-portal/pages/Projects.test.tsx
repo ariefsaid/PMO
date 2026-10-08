@@ -484,7 +484,7 @@ describe('Projects index — New project create + gating', () => {
     const listbox = await screen.findByRole('listbox', { name: /compan/i });
     await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
     await userEvent.click(within(dialog).getByRole('button', { name: /^Create project$/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await screen.findByRole('alert');
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });

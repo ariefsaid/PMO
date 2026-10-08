@@ -114,7 +114,7 @@ describe('AC-B-0-6: line-item update failure surfaces a warning toast', () => {
 
     // A warning toast must appear (not silent)
     await waitFor(() => {
-      const toast = screen.queryByRole('status');
+      const toast = screen.queryByRole('alert');
       expect(toast).toBeTruthy();
     });
   });
@@ -141,7 +141,7 @@ describe('AC-B-0-6: line-item create failure surfaces a warning toast', () => {
 
     // A warning toast must appear
     await waitFor(() => {
-      const toast = screen.queryByRole('status');
+      const toast = screen.queryByRole('alert');
       expect(toast).toBeTruthy();
     });
   });

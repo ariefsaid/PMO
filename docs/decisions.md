@@ -3131,3 +3131,13 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2
 **OD-BUDGET-6 (owner, 2026-10-07)** — the person who drafted a budget version cannot activate it; a second person activates (activation also pushes the budget to the ERP). PMO records who drafted each version (created on insert and on clone); a version with no recorded drafter (older or seeded) can be activated by Admin or Finance only.
 
 **OD-EXP-PB-1 (owner, 2026-10-07, #775 phase B)** — (1) assume the client ERP has no HRMS; anything an HR module would provide that phase B needs is built in PMO (core doctypes only, DD-EXP-9). (2) Accounts come from the client's own 2025 chart of accounts (client-specific; mapping held privately and entered by the Admin/operator at setup); where the chart has no fitting account (employee payable; a staff-only advance account) the operator adds one with the client's accountant before posting is enabled; claims tagged to a project post to the direct-cost account, untagged claims to the overhead account for their type. (3) claims approved before posting is enabled are not posted retroactively (opening balance covers them). (4) an entry whose recorded approver/payer has left is held with an action-required notice, never posted under them. (5) staff are paid from the company default cash account, else its default bank account.
+
+## DD-TOAST-1 — warning/error persistence and readable toast timing (Director, #926)
+
+Warning and error toasts persist until dismissed because they carry remedies a user must be able to
+read or copy. Info and success toasts auto-dismiss after `max(4 seconds, 60 ms × displayed characters)`,
+capped at 10 seconds. Hovering or keyboard-focusing a toast pauses its timer. Every toast has a visible,
+keyboard-reachable dismiss control. The provider keeps one polite `role="status"` region and one
+assertive `role="alert"` region mounted empty, then inserts each message into the appropriate region;
+creating the live region and populated text together is not reliable for screen-reader announcements.
+Existing toast callers remain compatible; `error` is added as a kind alongside info/success/warning.

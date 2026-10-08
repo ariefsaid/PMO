@@ -12,6 +12,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 const { listState, mutations } = vi.hoisted(() => ({
   listState: {
@@ -134,7 +135,7 @@ describe('AdminUsers — Disable/Re-enable (AC-INV-004)', () => {
     await userEvent.click(confirmBtn);
 
     await waitFor(() => expect(mutations.setStatus.mutateAsync).toHaveBeenCalled());
-    expect(await screen.findByText(/only admin|lockout|can't disable|cannot disable/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /only admin|lockout|can't disable|cannot disable/i)).toBeInTheDocument();
   });
 
   it('a disabled user shows a "Re-enable" action and a visible disabled StatusPill', async () => {

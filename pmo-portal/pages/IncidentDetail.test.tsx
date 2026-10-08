@@ -6,6 +6,7 @@ import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ── The single-incident hook + mutations are mocked; the page is the unit. ──
 const { detailState, mutations } = vi.hoisted(() => ({
@@ -182,8 +183,8 @@ describe('IncidentDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: /start investigating/i }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /start investigating/i }));
-    // A classified warning toast (role=status) appears — the failure is surfaced, not swallowed.
-    const toast = await screen.findByRole('status');
+    // A classified warning toast (role=alert) appears — the failure is surfaced, not swallowed.
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 

@@ -91,6 +91,13 @@ async function fillRequired() {
   await userEvent.click(option);
 }
 
+function expectEstimatedValueError() {
+  const field = screen.getByLabelText(/estimated value/i);
+  expect(field).toHaveAttribute('aria-invalid', 'true');
+  const errorIds = (field.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+  expect(errorIds.some((id) => document.getElementById(id)?.tagName === 'SPAN' && document.getElementById(id)?.getAttribute('role') === 'alert')).toBe(true);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   setActiveLocale(EN_LOCALE);
@@ -106,7 +113,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     // Leave value blank.
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByLabelText(/estimated value/i)).not.toHaveAttribute('aria-invalid', 'true');
   });
 
   it('AC-W3-NUM-001: alphabetic value ("abc") shows an inline error and blocks submit', async () => {
@@ -114,9 +121,8 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), 'abc');
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
-    // Inline FieldError must appear (F8: the value error is also listed in the
-    // top error-summary, so there are 2 role="alert" regions — assert >=1).
-    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    // The field's own FieldError is announced and linked; the provider's empty toast region is unrelated.
+    expectEstimatedValueError();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -125,7 +131,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '12x');
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
-    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    expectEstimatedValueError();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -134,7 +140,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '-5');
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
-    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    expectEstimatedValueError();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
