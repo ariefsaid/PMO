@@ -5,6 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
+/** Locate the rendered toast copy (not its separate, screen-reader-only live announcement). */
+export function visibleToast(page: Page, text: string | RegExp): Locator {
+  return page.locator('[data-toast="visible"]').filter({ hasText: text });
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

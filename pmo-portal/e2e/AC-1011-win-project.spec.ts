@@ -1,6 +1,6 @@
 // @e2e-isolation: dedicated-row — owns P012 (40000000-...-012); dedicated expendable Tender Submitted seed row.
 import { test, expect } from '@playwright/test';
-import { login, openPipelineCard } from './helpers';
+import { login, openPipelineCard, visibleToast } from './helpers';
 
 // AC-1011 — Win a deal end-to-end (single curated journey).
 //
@@ -46,7 +46,7 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   // The user sees the win acknowledged (success toast) before moving on — wait for it so the
   // transition has committed + the caches invalidated before we navigate away (natural journey:
   // you read the confirmation, then go look at your projects).
-  await expect(page.getByRole('status').filter({ hasText: /Won, Pending KoM/i })).toBeVisible({
+  await expect(visibleToast(page, /Won, Pending KoM/i)).toBeVisible({
     timeout: 15_000,
   });
 
