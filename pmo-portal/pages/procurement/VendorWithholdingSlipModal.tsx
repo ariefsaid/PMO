@@ -66,7 +66,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
   const parsedBase = localizedCents(base);
   const selectedAmount = sum === null ? null : formatSlipCents(sum);
   const exactMatch = sum !== null && entered !== null && sum === (parseDecimalCents(entered) ?? -1);
-  const canSubmit = Boolean(number.trim() && slipDate && slipDate <= today() && parsedBase && entered && exactMatch && selectedBills.length > 0 && selectedBills.length <= 100 && selectedBills.every(({ bill, declared }) => bill.withheld_pph_type === pphType && (bill.withheld_pph_type !== null || declared)) && parseMonth(period) && period <= `${today().slice(0, 7)}-01` && (parseDecimalCents(entered) ?? -1) <= (parseDecimalCents(parsedBase) ?? -1));
+  const canSubmit = Boolean(number.trim() && slipDate && slipDate <= today() && parsedBase && entered && exactMatch && selectedBills.length > 0 && selectedBills.length <= 100 && selectedBills.every(({ bill, declared }) => (bill.withheld_pph_type === null ? declared : bill.withheld_pph_type === pphType)) && parseMonth(period) && period <= `${today().slice(0, 7)}-01` && (parseDecimalCents(entered) ?? -1) <= (parseDecimalCents(parsedBase) ?? -1));
 
   // The initiating bill is retained even if the candidate page changes or it has already moved out of the page.
   const toggle = (bill: BillRow, checked: boolean) => setSelected((old) => {

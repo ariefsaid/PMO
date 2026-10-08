@@ -75,6 +75,23 @@ describe('AC-BUPOT-017 capture form', () => {
     await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ taxBase: '100000.00', withheldAmount: '20000.00' })));
   });
 
+  it('AC-BUPOT-017 records a slip covering an unknown-type bill once Finance confirms its type', async () => {
+    h.save.mockReset().mockResolvedValue(undefined);
+    h.data = { pages: [{ rows: [bill, { ...bill, invoice_id: 'invoice-unknown', withheld_amount: '30000.00', withheld_pph_type: null }] }] };
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: /select bill invoice-unknown/i }));
+    fireEvent.change(screen.getByLabelText(/issued slip number/i), { target: { value: 'DJ-UNKNOWN-1' } });
+    fireEvent.change(screen.getByLabelText(/tax base/i), { target: { value: '100000' } });
+    fireEvent.change(screen.getByLabelText(/issued withheld amount/i), { target: { value: '50000' } });
+    const record = screen.getByRole('button', { name: /record bukti potong/i });
+    expect(record).toBeDisabled(); // an unknown type must be confirmed before it can be recorded
+    fireEvent.click(screen.getByRole('checkbox', { name: /confirm as PPh 23 from issued slip/i }));
+    expect(record).toBeEnabled();
+    fireEvent.click(record);
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({
+      invoiceIds: ['invoice-a', 'invoice-unknown'], declaredInvoiceIds: ['invoice-unknown'], withheldAmount: '50000.00' })));
+  });
+
   it('retains the stable capture intent across a refused attempt', async () => {
     h.data = { pages: [{ rows: [bill] }] };
     h.save.mockRejectedValueOnce({ code: '23514', details: 'bupot-amount-mismatch' });
