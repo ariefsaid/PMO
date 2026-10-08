@@ -116,6 +116,7 @@ declare v_org uuid:=public.auth_org_id(); v_actor uuid:=auth.uid(); v_tz text; v
 begin
  perform public.assert_is_active_member();
  if v_actor is null or public.auth_role() not in ('Admin','Finance') then raise exception using errcode='42501',detail='bupot-not-permitted'; end if;
+ if coalesce(cardinality(p_invoice_ids),0)>100 then raise exception using errcode='23514',detail='bupot-bill-limit'; end if;
  if v_org is null or p_slip_id is null or p_vendor_id is null or p_slip_date is null or p_tax_period is null
     or p_pph_type is null or p_pph_type not in ('pph23','pph4_2') or p_slip_number is null or length(btrim(p_slip_number)) not between 1 and 100
     or btrim(p_slip_number) ~ '[[:cntrl:]]' or p_tax_base is null or p_withheld_amount is null
