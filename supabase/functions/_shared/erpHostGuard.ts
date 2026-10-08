@@ -47,6 +47,19 @@ function isPrivateAddress(value: string): boolean {
   return false;
 }
 
+let resolverFallbackWarned = false;
+
+function warnResolverFallback(): void {
+  if (resolverFallbackWarned) return;
+  resolverFallbackWarned = true;
+  console.warn('[erp-host-guard] DNS resolution is unavailable; applying hostname-text checks only');
+}
+
+function isResolverUnavailable(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : '';
+  return name === 'NotSupported' || name === 'PermissionDenied';
+}
+
 /** Return true on refusal. DNS failures fail closed; both A and AAAA are checked. */
 export async function isPrivateOrReservedHost(hostname: string): Promise<boolean> {
   let host = hostname.toLowerCase();
@@ -57,10 +70,15 @@ export async function isPrivateOrReservedHost(hostname: string): Promise<boolean
 
   // Public address literals do not need DNS (and querying them as names would fail).
   if (ipv4Octets(host) || host.includes(':')) return false;
+  const resolver = (globalThis as typeof globalThis & { Deno?: { resolveDns?: (host: string, type: 'A' | 'AAAA') => Promise<string[]> } }).Deno?.resolveDns;
+  if (typeof resolver !== 'function') {
+    warnResolverFallback();
+    return false;
+  }
   try {
     const resolve = async (recordType: 'A' | 'AAAA'): Promise<string[]> => {
       try {
-        return await Deno.resolveDns(host, recordType);
+        return await resolver(host, recordType);
       } catch (error) {
         if (error instanceof Deno.errors.NotFound) return [];
         throw error;
@@ -68,7 +86,11 @@ export async function isPrivateOrReservedHost(hostname: string): Promise<boolean
     };
     const [a, aaaa] = await Promise.all([resolve('A'), resolve('AAAA')]);
     return a.length === 0 && aaaa.length === 0 || [...a, ...aaaa].some(isPrivateAddress);
-  } catch {
+  } catch (error) {
+    if (isResolverUnavailable(error)) {
+      warnResolverFallback();
+      return false;
+    }
     return true;
   }
 }

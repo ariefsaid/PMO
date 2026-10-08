@@ -104,7 +104,8 @@ Deno.test('HIGH-A: a Desk-created Budget is ACKED and SKIPPED — the watermark 
     const result = await sweepOrgDoctypesLive(db.client, orgBinding(['budget']));
     assert(result.error === undefined, `a never-adopt document is an EXPECTED outcome, not a sweep failure: ${result.error}`);
     assert(result.applied === 0, 'nothing is adopted from a Desk-created Budget (FR-BUD-140)');
-    const advance = db.ops.find((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert');
+    const advance = db.ops.find((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'
+      && (o.payload as { watermark_cursor?: string | null }).watermark_cursor !== null);
     assert(
       !!advance,
       'HIGH-A: the watermark MUST advance past a never-adopt document — otherwise every later change '
@@ -158,8 +159,9 @@ Deno.test('HIGH-A: a transient failure INSIDE the apply still halts that doctype
     const result = await sweepOrgDoctypesLive(db.client, orgBinding(['budget']));
     assert(!!result.error, 'a transient DB failure must surface as a sweep error');
     assert(
-      !db.ops.some((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'),
-      'a transient failure must NOT advance the watermark — the change has to be re-listed next tick',
+      !db.ops.some((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'
+        && (o.payload as { watermark_cursor?: string | null }).watermark_cursor !== null),
+      'a transient failure must NOT advance the cursor — the change has to be re-listed next tick (the attempt timestamp may advance)',
     );
   } finally {
     erp.restore();

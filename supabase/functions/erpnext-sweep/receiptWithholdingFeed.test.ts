@@ -95,7 +95,8 @@ Deno.test('AC-WHT-003: a receipt with unconfirmable withholding still syncs, is 
     assert(result.error === undefined, `the Payment Entry poll must not fail: ${result.error}`);
 
     const advance = db.ops.find((o) => o.table === 'external_sync_watermarks' && o.op === 'upsert'
-      && String((o.payload as { domain?: string }).domain).endsWith('Payment Entry'));
+      && String((o.payload as { domain?: string }).domain).endsWith('Payment Entry')
+      && (o.payload as { watermark_cursor?: string | null }).watermark_cursor !== null);
     assert(!!advance, 'the Payment Entry cursor must advance');
     assert((advance!.payload as { watermark_cursor?: string }).watermark_cursor === '2026-10-01 10:00:00',
       `the cursor must move past both receipts, got ${JSON.stringify(advance!.payload)}`);
