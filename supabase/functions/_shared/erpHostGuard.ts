@@ -58,16 +58,16 @@ export async function isPrivateOrReservedHost(hostname: string): Promise<boolean
   // Public address literals do not need DNS (and querying them as names would fail).
   if (ipv4Octets(host) || host.includes(':')) return false;
   try {
-    const a = await Deno.resolveDns(host, 'A');
-    let aaaa: string[];
-    try {
-      aaaa = await Deno.resolveDns(host, 'AAAA');
-    } catch (error) {
-      // No AAAA record is normal for IPv4-only hosts; other resolver failures refuse.
-      if (error instanceof Deno.errors.NotFound) aaaa = [];
-      else throw error;
-    }
-    return [...a, ...aaaa].some(isPrivateAddress);
+    const resolve = async (recordType: 'A' | 'AAAA'): Promise<string[]> => {
+      try {
+        return await Deno.resolveDns(host, recordType);
+      } catch (error) {
+        if (error instanceof Deno.errors.NotFound) return [];
+        throw error;
+      }
+    };
+    const [a, aaaa] = await Promise.all([resolve('A'), resolve('AAAA')]);
+    return a.length === 0 && aaaa.length === 0 || [...a, ...aaaa].some(isPrivateAddress);
   } catch {
     return true;
   }

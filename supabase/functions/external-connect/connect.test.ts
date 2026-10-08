@@ -726,13 +726,14 @@ describe('external-connect — EDGE_JWT_ISSUER override (#659)', () => {
 
 /** Swap the module DNS mock for one guard scenario; restore the module mock afterwards. */
 async function withDns(
-  records: { A?: string[]; AAAA?: string[] } | 'failure',
+  records: { A?: string[] | 'failure'; AAAA?: string[] | 'failure' } | 'failure',
   run: () => Promise<void>,
 ): Promise<void> {
   const moduleMock = Deno.resolveDns;
   Deno.resolveDns = ((hostname: string, recordType: string) => {
     if (records === 'failure') return Promise.reject(new Error('dns unavailable'));
     const answer = records[recordType as 'A' | 'AAAA'];
+    if (answer === 'failure') return Promise.reject(new Error('dns unavailable'));
     if (!answer) return Promise.reject(new Deno.errors.NotFound('no record'));
     return Promise.resolve(answer);
   }) as typeof Deno.resolveDns;
@@ -779,6 +780,47 @@ describe('external-connect — ERPNext host guard (#751)', () => {
           });
           assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
           assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+          assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
+        }));
+    });
+  }
+
+  it('#751 accepts an IPv6-only site when A is absent and AAAA is public', async () => {
+    await withDns({ AAAA: ['2001:4860:4860::8888'] }, () =>
+      withFetchMock(
+        [
+          ...prelude(),
+          supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+          supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
+          erp(HOST, '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
+        ],
+        async () => {
+          const res = await handleConnectRequest(await request());
+          assertEquals(res.status, 200);
+          assertEquals(await res.json(), { ok: true, binding: { secret_ref: 'erpnext_token_org-1_1', status: 'active' } });
+        },
+      ));
+  });
+
+  const refusalScenarios: Array<[
+    string,
+    { A?: string[] | 'failure'; AAAA?: string[] | 'failure' },
+  ]> = [
+    ['both address types are absent', {}],
+    ['AAAA is private when A is absent', { AAAA: ['fc00::1'] }],
+    ['A lookup has a non-NotFound error', { A: 'failure', AAAA: ['2001:4860:4860::8888'] }],
+  ];
+  for (const [scenario, records] of refusalScenarios) {
+    it(`#751 refuses a hostname when ${scenario}`, async () => {
+      await withDns(records, () =>
+        withFetchMock(prelude(), async ({ calls }) => {
+          const res = await handleConnectRequest(await request());
+          assertEquals(res.status, 422);
+          assertEquals(await res.json(), {
+            error: 'config-rejected',
+            message: 'Private or reserved addresses are not allowed',
+          });
+          assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
           assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
         }));
     });
