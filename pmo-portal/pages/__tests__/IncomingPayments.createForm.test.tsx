@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
@@ -262,7 +263,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
         receivedAmount: 750,
       }),
     );
-    expect(await screen.findAllByText('Payment created')).not.toHaveLength(0);
+    expect(await findToastAnnouncement('status', 'Payment created')).toBeInTheDocument();
     expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 
