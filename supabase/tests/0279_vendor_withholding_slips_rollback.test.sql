@@ -1,8 +1,38 @@
 -- The rollback is exercised transactionally against the local schema; rollback restores 0279 afterward.
 begin;
-select plan(4);
+select plan(6);
 -- The database test runner mounts only the current test file into its container, so exercise
 -- the rollback statements inline (kept in lock-step with migrations/rollback/0279_vendor_withholding_slips_down.sql).
+-- The rollback's precondition refuses while any slip exists (recorded tax evidence is never dropped
+-- as a side effect). Prove it with one bare row (FK/trigger checks bypassed inside this transaction).
+savepoint guard_probe;
+set local session_replication_role = replica;
+insert into public.vendor_withholding_slips
+  (id, org_id, vendor_id, slip_number, slip_date, tax_period, pph_type, currency, tax_base, withheld_amount,
+   invoice_count, created_by, create_payload)
+values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'GUARD-PROBE', date '2026-10-01', date '2026-10-01', 'pph23', 'IDR',
+        100, 2, 1, gen_random_uuid(), '{}'::jsonb);
+set local session_replication_role = origin;
+select throws_ok($guard$DO $rollback_precondition$
+BEGIN
+  IF to_regclass('public.vendor_withholding_slips') IS NOT NULL
+     AND EXISTS (SELECT 1 FROM public.vendor_withholding_slips) THEN
+    RAISE EXCEPTION 'rollback refused: vendor withholding slips exist — export and remove them first'
+      USING ERRCODE = '55006';
+  END IF;
+END
+$rollback_precondition$$guard$, '55006', null,
+  'rollback precondition refuses while a vendor withholding slip exists');
+rollback to savepoint guard_probe;
+select lives_ok($guard$DO $rollback_precondition$
+BEGIN
+  IF to_regclass('public.vendor_withholding_slips') IS NOT NULL
+     AND EXISTS (SELECT 1 FROM public.vendor_withholding_slips) THEN
+    RAISE EXCEPTION 'rollback refused: vendor withholding slips exist — export and remove them first'
+      USING ERRCODE = '55006';
+  END IF;
+END
+$rollback_precondition$$guard$, 'rollback precondition passes when no slip exists');
 DROP FUNCTION IF EXISTS public.get_vendor_withholding_slip(uuid);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer);

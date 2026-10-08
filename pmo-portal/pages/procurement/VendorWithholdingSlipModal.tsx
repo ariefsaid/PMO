@@ -72,7 +72,9 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, open, loading = 
     }
   };
 
-  return <EntityFormModal open={open} title={t('bupot.recordTitle', 'Record bukti potong')} subtitle={`${t('bupot.vendor', 'Vendor')}: ${vendorId} · ${invoice.currency}`} submitLabel={t('bupot.record', 'Record bukti potong')} onSubmit={submit} onClose={onClose} loading={loading} dirty submitDisabled={!canSubmit} submitError={submitError} width="lg">
+  return <EntityFormModal open={open} title={t('bupot.recordTitle', 'Record bukti potong')} submitLabel={t('bupot.record', 'Record bukti potong')} onSubmit={submit} onClose={onClose} loading={loading} dirty submitDisabled={!canSubmit} submitError={submitError} width="lg">
+    <div className="[&_dt]:!text-foreground">
+    <p className="mb-3 text-sm text-foreground">{t('bupot.vendor', 'Vendor')}: {vendorId} · {invoice.currency}</p>
     <div className="grid gap-3 sm:grid-cols-2">
       <TextField label={t('bupot.slipNumber', 'Issued slip number')} value={number} onChange={setNumber} required maxLength={100} />
       <TextField label={t('bupot.slipDate', 'Slip date')} type="date" value={slipDate} onChange={setSlipDate} required />
@@ -81,12 +83,13 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, open, loading = 
       <TextField label={`${t('bupot.taxBase', 'Tax base')} (${invoice.currency})`} value={base} onChange={setBase} onBlur={() => setBase((v) => parsePositiveSlipMoney(v) ?? v)} inputMode="decimal" required />
       <TextField label={`${t('bupot.withheldAmount', 'Issued withheld amount')} (${invoice.currency})`} value={amount} onChange={setAmount} inputMode="decimal" required />
     </div>
-    <p className="mt-2 text-xs text-muted-foreground">{t('bupot.typeWarning', 'Confirm the PPh type from the issued external slip. PMO does not issue or cancel tax documents.')}</p>
+    <p className="mt-2 text-xs text-foreground">{t('bupot.typeWarning', 'Confirm the PPh type from the issued external slip. PMO does not issue or cancel tax documents.')}</p>
     <div className="mt-4 flex items-center justify-between gap-3"><h3 className="font-semibold">{t('bupot.candidates', 'Eligible bills')}</h3><span className="text-sm tabular-nums">{t('bupot.selectedTotal', 'Selected total: {{currency}} {{amount}}', { currency: invoice.currency, amount: selectedAmount ?? '—' })}</span></div>
     {candidateQuery.isError ? <p role="alert" className="text-sm text-destructive">{t('bupot.loadError', 'Unable to load eligible bills')} <Button variant="outline" onClick={() => void candidateQuery.refetch()}>{t('admin.retry', 'Retry')}</Button></p> : <DataTable rows={candidates} columns={columns} rowKey={(bill) => bill.invoice_id} state={candidateQuery.isLoading ? 'loading' : candidates.length ? undefined : 'empty'} />}
     {candidateQuery.hasNextPage && <Button type="button" variant="outline" onClick={() => void candidateQuery.fetchNextPage()} disabled={candidateQuery.isFetchingNextPage}>{t('bupot.loadMore', 'Load more bills')}</Button>}
     <p className="mt-3 text-sm" aria-live="polite">{t('bupot.reconciliation', 'Selection {{sum}} · Slip {{amount}} · Difference {{difference}}', { sum: selectedAmount ?? '—', amount: entered ?? '—', difference: sum !== null && entered ? formatSlipCents(sum - parseDecimalCents(entered)!) : '—' })}</p>
     {!exactMatch && amount && <FieldError>{t('bupot.amountMismatch', 'The slip amount must exactly equal selected bill withholding.')}</FieldError>}
     {starting && <p className="sr-only">{t('bupot.startingBillSelected', 'Starting bill selected')}</p>}
+    </div>
   </EntityFormModal>;
 }

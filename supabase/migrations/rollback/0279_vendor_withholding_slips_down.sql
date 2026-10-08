@@ -1,4 +1,15 @@
 -- Reversible rollback for 0279. Export retained evidence operationally before any hosted reversal.
+-- Precondition: refuse before any DDL while a withholding slip exists (recorded tax evidence must
+-- be exported and removed deliberately, never dropped as a side effect of a rollback).
+DO $rollback_precondition$
+BEGIN
+  IF to_regclass('public.vendor_withholding_slips') IS NOT NULL
+     AND EXISTS (SELECT 1 FROM public.vendor_withholding_slips) THEN
+    RAISE EXCEPTION 'rollback refused: vendor withholding slips exist — export and remove them first'
+      USING ERRCODE = '55006';
+  END IF;
+END
+$rollback_precondition$;
 DROP FUNCTION IF EXISTS public.get_vendor_withholding_slip(uuid);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer);
