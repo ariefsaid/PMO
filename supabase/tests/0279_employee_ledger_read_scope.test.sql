@@ -1,4 +1,4 @@
--- 0281: Employee-party PLE balances are visible only to spend-approval authority; other parties retain member reads.
+-- 0279: Employee-party PLE balances are visible only to spend-approval authority; other parties retain member reads.
 begin;
 create extension if not exists pgtap;
 select plan(7);
