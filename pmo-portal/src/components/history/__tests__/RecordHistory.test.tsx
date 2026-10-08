@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BahasaProvider } from '@/test/bahasa';
 import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format';
 
-const { repo, listProcurementsByProject, listBudgetVersions } = vi.hoisted(() => ({
+const { repo, listProcurementsByProject, listBudgetVersions, procDetail } = vi.hoisted(() => ({
   repo: {
     recordHistory: { list: vi.fn() },
     profile: { listOrgProfiles: vi.fn() },
@@ -18,10 +18,20 @@ const { repo, listProcurementsByProject, listBudgetVersions } = vi.hoisted(() =>
   },
   listProcurementsByProject: vi.fn(),
   listBudgetVersions: vi.fn(),
+  procDetail: { data: undefined as Record<string, unknown> | undefined },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurementsByProject }));
 vi.mock('@/src/lib/db/budgets', () => ({ listBudgetVersions }));
+// #878: the procurement History names its document children (PR / RFQ / PO / payment) from the SAME
+// cached detail query the page itself uses — the hook stays disabled off a procurement History.
+vi.mock('@/src/hooks/useProcurementDetail', () => ({
+  useProcurementDetail: (id: string | undefined) => ({
+    data: id ? procDetail.data : undefined,
+    isPending: false,
+    isError: false,
+  }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
 import { RecordHistory } from '../RecordHistory';
@@ -135,14 +145,31 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     expect(screen.getByText('Some new column')).toBeInTheDocument();
   });
 
-  it('renders an audit line as a "did X" line', async () => {
+  it('renders an audit line as a translated "did X" label; an unknown code reads humanised, never raw (#880, AC-CHG-024)', async () => {
     repo.recordHistory.list.mockResolvedValue({
-      events: [ev(0, { source: 'audit', seq: null, op: null, action: 'project_document.create', actorId: 'u2', changes: {} })],
+      events: [
+        ev(2, { source: 'audit', seq: null, op: null, action: 'project_document.create', actorId: 'u2', changes: {} }),
+        ev(1, { source: 'audit', seq: null, op: null, action: 'brand_new.code_here', actorId: 'u2', changes: {} }),
+      ],
       nextCursor: null,
     });
     renderIt();
-    expect(await screen.findByText('project_document.create')).toBeInTheDocument();
-    expect(screen.getByText('Sam Lead')).toBeInTheDocument();
+    expect(await screen.findByText('Project document created')).toBeInTheDocument();
+    expect(screen.getByText('Brand new code here')).toBeInTheDocument();
+    // both audit rows name their actor (same actor on each row → getAllByText)
+    expect(screen.getAllByText('Sam Lead')).toHaveLength(2);
+    // the internal codes themselves never render — not for known actions, not for unknown ones
+    expect(screen.queryByText(/project_document\.create|brand_new\.code_here/)).toBeNull();
+  });
+
+  it('a known audit action reads in Bahasa too (#880, AC-CHG-024)', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { source: 'audit', seq: null, op: null, action: 'procurement.approval_route', actorId: 'u2', changes: {} })],
+      nextCursor: null,
+    });
+    renderIt({}, true);
+    expect(await screen.findByText('Rute persetujuan dicatat')).toBeInTheDocument();
+    expect(screen.queryByText(/procurement\.approval_route/)).toBeNull();
   });
 
   it('shows the absolute time to the minute, in the row and its tooltip', async () => {
@@ -291,6 +318,33 @@ describe('RecordHistory — child records and references on the project History 
     });
     renderIt();
     expect(await screen.findByText('Acme Corp → PLN')).toBeInTheDocument();
+  });
+});
+
+describe('RecordHistory — purchase documents on the procurement History (#878, AC-CHG-023)', () => {
+  it('names each document child from the procurement detail; the project lists stay unloaded', async () => {
+    procDetail.data = {
+      purchase_requests: [{ id: 'doc1', pr_number: 'PR-878', reference_number: 'Ref A' }],
+      rfqs: [],
+      purchase_orders: [{ id: 'doc2', po_number: 'PO-878', reference_number: null }],
+      payments: [{ id: 'doc3', pay_number: null, reference_number: 'PAY-1' }],
+    };
+    repo.recordHistory.list.mockResolvedValue({
+      events: [
+        ev(3, { entityType: 'purchase_order', entityId: 'doc2', op: 'insert', changes: { amount: { old: 1, new: 2 } } }),
+        ev(2, { entityType: 'purchase_request', entityId: 'doc1', op: 'insert' }),
+        ev(1, { entityType: 'payment', entityId: 'doc3', op: 'insert' }),
+      ],
+      nextCursor: null,
+    });
+    renderIt({ entityType: 'procurement', entityId: 'proc1', includeChildren: true });
+    expect(await screen.findByText('Purchase order · PO-878')).toBeInTheDocument();
+    expect(screen.getByText('Purchase request · PR-878 Ref A')).toBeInTheDocument();
+    // no pay_number: the reference alone names it — never a bare "Unavailable" when a number exists
+    expect(screen.getByText('Payment · PAY-1')).toBeInTheDocument();
+    // a procurement History does not load the project's own lists
+    expect(repo.task.list).not.toHaveBeenCalled();
+    expect(listProcurementsByProject).not.toHaveBeenCalled();
   });
 });
 
