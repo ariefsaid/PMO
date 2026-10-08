@@ -73,9 +73,9 @@ export function useVendorWithholdingSlipMutations() {
       client.invalidateQueries({ queryKey: ['record-history', orgId] }),
     ]);
   };
-  const record = useMutation({ mutationFn: (input: RecordSlipInput) => repositories.vendorWithholdingSlips.record(input), onSuccess: invalidate });
-  const correct = useMutation({ mutationFn: (input: CorrectSlipInput) => repositories.vendorWithholdingSlips.correct(input), onSuccess: invalidate });
-  const voidSlip = useMutation({ mutationFn: (input: VoidSlipInput) => repositories.vendorWithholdingSlips.void(input), onSuccess: invalidate });
+  const record = useMutation({ mutationFn: (input: RecordSlipInput) => repositories.vendorWithholdingSlips.record(input), onSettled: invalidate });
+  const correct = useMutation({ mutationFn: (input: CorrectSlipInput) => repositories.vendorWithholdingSlips.correct(input), onSettled: invalidate });
+  const voidSlip = useMutation({ mutationFn: (input: VoidSlipInput) => repositories.vendorWithholdingSlips.void(input), onSettled: invalidate });
   return { record, correct, void: voidSlip };
 }
 
