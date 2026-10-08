@@ -67,14 +67,39 @@ export function Tabs<V extends string = string>({
     });
   }, [value]);
 
+  // Roving focus (WAI-ARIA tabs pattern): DOM focus moves to the newly-activated tab
+  // (synchronously, before onChange → navigate commits). #879: the AppShell route-focus
+  // effect runs after commit; tab-switch navigations carry the `pmoTabSwitch` marker so
+  // it skips its <main> yank and this focus survives (WCAG 2.4.3).
+  const focusTab = (v: V) => {
+    const root = listRef.current;
+    if (!root) return;
+    const id = tabId(idBase, v);
+    const tabs = root.querySelectorAll<HTMLElement>('[role="tab"]');
+    for (const t of tabs) {
+      if (t.id === id) {
+        t.focus();
+        return;
+      }
+    }
+  };
+
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const isNext = e.key === 'ArrowRight';
+    const isPrev = e.key === 'ArrowLeft';
+    const isHome = e.key === 'Home';
+    const isEnd = e.key === 'End';
+    if (!isNext && !isPrev && !isHome && !isEnd) return;
     e.preventDefault();
     const idx = items.findIndex((t) => t.value === value);
-    const next =
-      e.key === 'ArrowRight'
-        ? items[(idx + 1) % items.length]
-        : items[(idx - 1 + items.length) % items.length];
+    const next = isNext
+      ? items[(idx + 1) % items.length]
+      : isPrev
+        ? items[(idx - 1 + items.length) % items.length]
+        : isHome
+          ? items[0]
+          : items[items.length - 1];
+    focusTab(next.value);
     onChange(next.value);
   };
 
