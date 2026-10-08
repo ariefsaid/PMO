@@ -713,49 +713,6 @@ export type Database = {
           },
         ]
       }
-      budget_version_editors: {
-        Row: {
-          budget_version_id: string
-          first_edited_at: string
-          org_id: string
-          user_id: string
-        }
-        Insert: {
-          budget_version_id: string
-          first_edited_at?: string
-          org_id: string
-          user_id: string
-        }
-        Update: {
-          budget_version_id?: string
-          first_edited_at?: string
-          org_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "budget_version_editors_budget_version_id_fkey"
-            columns: ["budget_version_id"]
-            isOneToOne: false
-            referencedRelation: "budget_versions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "budget_version_editors_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "budget_version_editors_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       budget_projections: {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
@@ -814,6 +771,49 @@ export type Database = {
           {
             foreignKeyName: "budget_projections_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_version_editors: {
+        Row: {
+          budget_version_id: string
+          first_edited_at: string
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          budget_version_id: string
+          first_edited_at?: string
+          org_id: string
+          user_id: string
+        }
+        Update: {
+          budget_version_id?: string
+          first_edited_at?: string
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_version_editors_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_editors_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_editors_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
