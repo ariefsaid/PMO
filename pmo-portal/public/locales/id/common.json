@@ -2509,12 +2509,15 @@
             "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
             "amountPositive": "Jumlah harus lebih dari nol.",
             "itemRequired": "Pilih item ERP.",
-            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya."
+            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refusedNative": "Tidak ada yang disimpan. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "lineRequired": "Masukkan kode item atau deskripsi."
           },
           "item": "Item ERP",
           "itemCode": "Kode item",
           "submit": "Buat draf faktur",
           "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
+          "subtitleNative": "Membuat draf faktur di PMO untuk disetujui oleh orang Finance/Admin kedua.",
           "title": "Tagih Work Order ini",
           "createFailed": "Draf faktur tidak dapat dibuat",
           "cancel": "Batal",
@@ -2536,7 +2539,9 @@
         "summaryTitle": "Penagihan per Work Order",
         "toast": {
           "created": "Draf faktur dibuat",
-          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan."
+          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan.",
+          "nativeCreated": "Draf faktur dibuat di PMO",
+          "nativeCreatedSub": "{{wo}} — orang Finance/Admin kedua menyetujuinya dari Faktur Penjualan."
         },
         "unavailable": "Tidak tersedia",
         "notSubmitted": "Belum dikirim",

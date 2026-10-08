@@ -2509,12 +2509,15 @@
             "amountOver": "Only {{remaining}} is still to invoice on this work order.",
             "amountPositive": "The amount must be more than zero.",
             "itemRequired": "Choose the ERP item.",
-            "refused": "Nothing was written to ERPNext. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left."
+            "refused": "Nothing was written to ERPNext. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left.",
+            "refusedNative": "Nothing was saved. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left.",
+            "lineRequired": "Enter an item code or a description."
           },
           "item": "ERP item",
           "itemCode": "Item code",
           "submit": "Create draft invoice",
           "subtitle": "Creates a draft invoice in ERPNext for the project's client. A different Finance or Admin user submits it.",
+          "subtitleNative": "Creates a draft invoice in PMO for a second Finance/Admin person to approve.",
           "title": "Invoice this work order",
           "createFailed": "Couldn't create the draft invoice",
           "cancel": "Cancel",
@@ -2536,7 +2539,9 @@
         "summaryTitle": "Billing against work orders",
         "toast": {
           "created": "Draft invoice created",
-          "createdSub": "{{number}} — submit it from Sales Invoices."
+          "createdSub": "{{number}} — submit it from Sales Invoices.",
+          "nativeCreated": "Draft invoice created in PMO",
+          "nativeCreatedSub": "{{wo}} — a second Finance/Admin person approves it from Sales Invoices."
         },
         "unavailable": "Unavailable",
         "notSubmitted": "Not yet submitted",

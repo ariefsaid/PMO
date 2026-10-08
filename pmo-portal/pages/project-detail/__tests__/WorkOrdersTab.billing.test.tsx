@@ -10,7 +10,8 @@ import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 const h = vi.hoisted(() => ({
   list: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
-  route: 'external' as 'external' | 'pmo',
+  mode: 'erp' as 'erp' | 'native' | undefined,
+  routeReady: true,
   role: 'Finance' as string,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
@@ -22,15 +23,18 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
-vi.mock('@/src/lib/adapterSeam/ownershipCache', async (orig) => ({
-  ...(await orig<typeof import('@/src/lib/adapterSeam/ownershipCache')>()),
-  routeDomainWrite: () => h.route,
-}));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('../InvoiceWorkOrderModal', () => ({
-  default: ({ workOrder, remaining, clientId }: { workOrder: { id: string }; remaining: number; clientId: string }) => (
-    <div data-testid="invoice-modal">{`${workOrder.id}|${remaining}|${clientId}`}</div>
+  default: ({ workOrder, remaining, clientId, onCreated }: { workOrder: { id: string }; remaining: number; clientId: string; onCreated: (n: string) => void }) => (
+    <div data-testid="invoice-modal">
+      {`${workOrder.id}|${remaining}|${clientId}`}
+      {/* The two realities the real modal reports: the ERP named the invoice; a PMO Draft has no number yet. */}
+      <button onClick={() => onCreated('ACC-SINV-1')}>modal-created-numbered</button>
+      <button onClick={() => onCreated('')}>modal-created-unnamed</button>
+    </div>
   ),
 }));
 
@@ -60,7 +64,8 @@ const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focu
 beforeEach(() => {
   h.list.data = [wo()];
   h.billing = { data: [bill()], isPending: false, isError: false, refetch: vi.fn() };
-  h.route = 'external';
+  h.mode = 'erp';
+  h.routeReady = true;
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
@@ -194,8 +199,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it.each([
     ['a Project Manager', () => {}, 'Project Manager' as Role, 'c-1'],
+    ['an Engineer', () => {}, 'Engineer' as Role, 'c-1'],
     ['no project client', () => {}, 'Finance' as Role, null],
-    ['revenue not on ERPNext', () => { h.route = 'pmo'; }, 'Finance' as Role, 'c-1'],
     ['nothing left', () => { h.billing.data = [bill({ remaining: 0, pending: 0 })]; }, 'Finance' as Role, 'c-1'],
     ['a Draft work order', () => { h.list.data = [wo({ status: 'Draft' })]; h.billing.data = [bill({ status: 'Draft', invoiced: 0, pending: 0, remaining: 500_000, lineCount: 0 })]; }, 'Finance' as Role, 'c-1'],
     ['figures that cannot be totalled', () => { h.billing.data = [bill({ figuresComplete: false })]; }, 'Finance' as Role, 'c-1'],
@@ -203,6 +208,43 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     arrange();
     renderTab(role, clientId);
     expect(screen.queryByRole('button', { name: 'Invoice' })).toBeNull();
+  });
+
+  it('#913 an undecidable revenue mode (undefined — the routing cache is not synced yet) offers no Invoice action', () => {
+    h.mode = undefined;
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'Invoice' })).toBeNull();
+  });
+
+  it('#913 ownership loaded but repository route not ready offers no Invoice action', () => {
+    h.routeReady = false;
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'Invoice' })).toBeNull();
+  });
+
+  it('#913 an org where PMO owns revenue gets Invoice too — the same dialog, the same remaining', async () => {
+    h.mode = 'native';
+    renderTab();
+    await userEvent.click(screen.getByRole('button', { name: 'Invoice' }));
+    expect(screen.getByTestId('invoice-modal')).toHaveTextContent('wo-1|80000|c-1');
+  });
+
+  it('#913 an ERP-owned org reports the created draft by its ERP number', async () => {
+    renderTab();
+    await userEvent.click(screen.getByRole('button', { name: 'Invoice' }));
+    await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Draft invoice created');
+    expect(screen.getByRole('status')).toHaveTextContent('ACC-SINV-1 — submit it from Sales Invoices.');
+  });
+
+  it('#913 a PMO-native draft is named by its work order and routed to a second person for approval', async () => {
+    h.mode = 'native';
+    renderTab();
+    await userEvent.click(screen.getByRole('button', { name: 'Invoice' }));
+    await userEvent.click(screen.getByRole('button', { name: 'modal-created-unnamed' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Draft invoice created in PMO');
+    expect(screen.getByRole('status')).toHaveTextContent('WO-1 — a second Finance/Admin person approves it from Sales Invoices.');
+    expect(screen.getByRole('status')).not.toHaveTextContent('ERPNext');
   });
 
   it('AC-UNB-002 the project totals add Issued and Closed work orders; an over-invoiced one adds nothing left', () => {
