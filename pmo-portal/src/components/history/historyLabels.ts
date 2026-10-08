@@ -122,7 +122,7 @@ export function filteredEmptyLabels(t: TFunction): Record<string, string> {
 
 /**
  * The merged audit_events lines (#880, AC-CHG-024), by internal action code — the catalogue key spells
- * the code with underscores (i18next reads dots as nesting). This is every non-delete code that
+ * the code with underscores (i18next reads dots as nesting). This covers the non-delete codes a History-tab root can show that
  * survives `list_record_history`'s audit window (the `.delete` codes and the per-record no-change
  * writes — create/transition echoes the capture already shows — are excluded server-side); any code
  * missing here falls back to the humanised code (see `auditActionLabel`), never the raw dotted form.
