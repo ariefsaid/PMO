@@ -99,6 +99,8 @@
     {"table":"timesheet_erp_mirror","has_org":true,"pk":"id"},
     {"table":"timesheets","has_org":true,"pk":"id"},
     {"table":"user_views","has_org":true,"pk":"id"},
+    {"table":"vendor_withholding_slips","has_org":true,"pk":"id"},
+    {"table":"vendor_withholding_slip_bills","has_org":true,"pk":"id"},
     {"table":"work_orders","has_org":true,"pk":"id"}
   ],
   "definer_functions": [
@@ -187,6 +189,9 @@
     "rate_limit_hit(text,integer,integer)",
     "read_vault_secret(text)",
     "record_expense_advance_return(uuid,numeric,text)",
+    "record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])",
+    "correct_vendor_withholding_slip(uuid,integer,text,date,date,text)",
+    "void_vendor_withholding_slip(uuid,integer,text)",
     "record_native_receipt(uuid,numeric,numeric,numeric,text,date)",
     "record_outbox_ref(uuid,integer,text,text,text,text)",
     "record_timesheet_command_held(uuid,uuid,timestamp with time zone,text,uuid,integer)",
