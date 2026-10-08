@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { getPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 /**
@@ -261,6 +262,8 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
       // BLOCK 2 (ADR-0058): the form session's command identity rides along with the body.
       intent: { id: expect.any(String), idempotencyKey: expect.any(String) },
     });
+    expect(await screen.findByText('Invoice created')).toBeInTheDocument();
+    expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 
   it('AC-PLC-009: rejects an en-US sales-invoice rate with excess precision before creating', async () => {
@@ -276,7 +279,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await user.type(rate, '1.234');
     await user.click(screen.getByRole('button', { name: 'Create invoice' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/rate|decimal/i);
+    expect(getPageAnnouncement('alert', /rate|decimal/i).textContent).toMatch(/rate|decimal/i);
     expect(hoisted.createMutate).not.toHaveBeenCalled();
   });
 

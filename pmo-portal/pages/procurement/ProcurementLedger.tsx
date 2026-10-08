@@ -205,6 +205,8 @@ export interface ProcurementLedgerProps {
   onRecordWithholdingSlip?: (invoice: ProcurementInvoiceRow) => void;
   onViewWithholdingSlip?: (slipId: string) => void;
   onWithholdingHistory?: (invoiceId: string) => void;
+  /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
+  isApprover?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +231,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   onRecordWithholdingSlip,
   onViewWithholdingSlip,
   onWithholdingHistory,
+  isApprover = false,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
@@ -424,6 +427,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           existingTypes={existingTypes}
           canWrite={canWrite}
           invoices={invoices}
+          isApprover={isApprover}
           busy={captureBusy}
           onCreate={handleCreate}
         />

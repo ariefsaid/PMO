@@ -185,6 +185,20 @@ describe('useReturnNavigate', () => {
 });
 
 describe('useListReturn', () => {
+  it('AC #879: a tab marker is cleared on list return and does not poison the next record navigation', () => {
+    renderAt('/companies/company-1', true, { pmoTabSwitch: true });
+    const main = screen.getByRole('main');
+    fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
+    expect(main).toHaveFocus();
+    const listState = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(listState.pmoTabSwitch).toBeUndefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open company' }));
+    expect(main).toHaveFocus();
+    const recordState = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(recordState.pmoTabSwitch).toBeUndefined();
+  });
+
   it('FR-LRC-003: captures the list URL and scroll before opening the canonical record path', () => {
     renderAt('/companies?type=Client&q=harbor&campaign=source');
     const main = sizeMainScroll();

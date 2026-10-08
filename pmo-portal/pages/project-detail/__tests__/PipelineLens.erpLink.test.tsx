@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -82,7 +83,7 @@ describe('PipelineLens mark-won links the ERP Project (AC-SETUP-001)', () => {
   it('AC-SETUP-001 a win stays successful and says ERP linking needs a retry when it fails', async () => {
     synchronizeErpProject.mockResolvedValue('pending');
     await markWon();
-    const notice = await screen.findByText(/ERP linking needs attention/i);
+    const notice = await findToastAnnouncement('alert', /ERP linking needs attention/i);
     // The warning must still confirm what happened — the win itself landed.
     expect(notice).toHaveTextContent(/Moved to Won, Pending KoM/);
     expect(transitionProject).toHaveBeenCalledTimes(1);

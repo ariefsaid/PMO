@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
+import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import {
   PANEL_PREFS_CHANGED_EVENT,
   readPanelMode,
@@ -101,15 +102,34 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   // Move focus to main on route change (a11y: focus-on-route-change) and reset
   // scroll. Skip the very first mount so we don't yank focus on load.
+  // #879 (WCAG 2.4.3): record pages encode the active tab in the URL, so an arrow-key
+  // tab switch is also a pathname change — but it is NOT a route change to the user.
+  // Skip focus only when the marker is present AND both locations are within the same
+  // project/procurement record. Router history can retain that state on later real
+  // navigations, so the marker alone must never suppress the route-focus move.
+  // Focus and scroll are route-change behavior: state-only updates (including list
+  // search/filter updates that clear one-shot return state) must not steal focus.
+  // The state at the pathname transition is still read to preserve #879 tab switches.
   const mounted = useRef(false);
+  const previousPathname = useRef(location.pathname);
+  const { pathname, state } = location;
+  const stateRef = useRef(state);
+  stateRef.current = state;
   useEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
+      previousPathname.current = pathname;
       return;
     }
-    mainRef.current?.focus();
+    const previousRecordBase = previousPathname.current.match(/^\/(projects|procurement)\/([^/]+)/u);
+    const currentRecordBase = pathname.match(/^\/(projects|procurement)\/([^/]+)/u);
+    const sameRecordBase =
+      previousRecordBase?.[0] !== undefined &&
+      previousRecordBase[0] === currentRecordBase?.[0];
+    previousPathname.current = pathname;
+    if (!isTabSwitchNavState(stateRef.current) || !sameRecordBase) mainRef.current?.focus();
     mainRef.current?.scrollTo?.({ top: 0 });
-  }, [location.pathname]);
+  }, [pathname]);
 
   // C3: Focus management for the drawer.
   // On open: capture the current focus target (the hamburger), then move focus

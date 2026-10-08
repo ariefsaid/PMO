@@ -14,9 +14,15 @@ import {
 } from '../_shared/testing/edgeTestKit.ts';
 
 const env = installEdgeEnv();
+const originalResolveDns = Deno.resolveDns;
+Deno.resolveDns = ((hostname: string, recordType: string) => {
+  if (recordType === 'A') return Promise.resolve(['8.8.8.8']);
+  if (recordType === 'AAAA') return Promise.resolve(['2001:4860:4860::8888']);
+  return Promise.reject(new Error('unexpected DNS query'));
+}) as typeof Deno.resolveDns;
 const auth = await createJwtAuthority(env.SUPABASE_URL);
 setTestJwks(createTestJwksResolver(auth));
-afterAll(() => env.restore());
+afterAll(() => { env.restore(); Deno.resolveDns = originalResolveDns; });
 const objectHeaders = { 'content-type': 'application/vnd.pgrst.object+json' };
 const profile = () =>
   supabaseSelect('profiles', (call) => {
@@ -201,5 +207,77 @@ describe('external-items shipped handler', () => {
       assertEquals(response.status, 422);
       assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
     });
+  });
+});
+
+// ── #751: the binding's host is judged by the ADDRESS it resolves to, not just its text ──
+
+/** Swap the module DNS mock for one guard scenario; restore the module mock afterwards. */
+async function withDns(
+  records: { A?: string[]; AAAA?: string[] } | 'failure',
+  run: () => Promise<void>,
+): Promise<void> {
+  const moduleMock = Deno.resolveDns;
+  Deno.resolveDns = ((hostname: string, recordType: string) => {
+    if (records === 'failure') return Promise.reject(new Error('dns unavailable'));
+    const answer = records[recordType as 'A' | 'AAAA'];
+    if (!answer) return Promise.reject(new Deno.errors.NotFound('no record'));
+    return Promise.resolve(answer);
+  }) as typeof Deno.resolveDns;
+  try {
+    await run();
+  } finally {
+    Deno.resolveDns = moduleMock;
+  }
+}
+
+describe('external-items — host guard (#751)', () => {
+  const HOST = 'rebind.erp.test';
+  const routes = () => [
+    profile(),
+    supabaseSelect('external_org_bindings', (call) => {
+      assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
+      assertEquals(call.url.searchParams.get('external_tier'), 'eq.erpnext');
+      return jsonResponse(
+        { secret_ref: 'test-ref', site_url: `https://${HOST}`, status: 'active', activated_at: '2026-10-05', config: {} },
+        { headers: objectHeaders },
+      );
+    }),
+  ];
+
+  const resolvingPrivate: Array<[string, { A?: string[]; AAAA?: string[] }]> = [
+    ['the loopback (127.0.0.1)', { A: ['127.0.0.1'] }],
+    ['a private 10/8 address (10.x)', { A: ['10.1.2.3'] }],
+    ['a link-local address (169.254.x)', { A: ['169.254.169.254'] }],
+    ['an IPv4-mapped loopback (::ffff:127.0.0.1)', { A: ['203.0.113.9'], AAAA: ['::ffff:127.0.0.1'] }],
+  ];
+  for (const [where, records] of resolvingPrivate) {
+    it(`#751 refuses a binding whose site name resolves to ${where} — no Vault read, no ERP call`, async () => {
+      await withDns(records, () =>
+        withFetchMock(routes(), async ({ calls }) => {
+          const response = await handleItemsRequest(await request({ purpose: 'sales' }));
+          assertEquals(response.status, 422);
+          assertEquals(await response.json(), {
+            error: 'config-rejected',
+            message: 'ERPNext site URL is not permitted',
+          });
+          assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/rpc/read_vault_secret').length, 0);
+          assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
+        }));
+    });
+  }
+
+  it('#751 fails closed when the resolver errors — no Vault read, no ERP call', async () => {
+    await withDns('failure', () =>
+      withFetchMock(routes(), async ({ calls }) => {
+        const response = await handleItemsRequest(await request({ purpose: 'sales' }));
+        assertEquals(response.status, 422);
+        assertEquals(await response.json(), {
+          error: 'config-rejected',
+          message: 'ERPNext site URL is not permitted',
+        });
+        assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/rpc/read_vault_secret').length, 0);
+        assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
+      }));
   });
 });

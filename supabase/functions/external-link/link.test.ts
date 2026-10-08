@@ -33,12 +33,18 @@ import {
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
 const env = installEdgeEnv();
+const originalResolveDns = Deno.resolveDns;
+Deno.resolveDns = ((hostname: string, recordType: string) => {
+  if (recordType === 'A') return Promise.resolve(['8.8.8.8']);
+  if (recordType === 'AAAA') return Promise.resolve(['2001:4860:4860::8888']);
+  return Promise.reject(new Error('unexpected DNS query'));
+}) as typeof Deno.resolveDns;
 const auth = await createJwtAuthority(env.SUPABASE_URL);
 
 // Install test JWKS resolver (no background intervals)
 setTestJwks(createTestJwksResolver(auth));
 
-afterAll(() => env.restore());
+afterAll(() => { env.restore(); Deno.resolveDns = originalResolveDns; });
 
 async function authed(body: unknown, sub = 'user-1') {
   const jwt = await auth.mintJwt({ sub });
@@ -966,5 +972,99 @@ describe('external-link — ERPNext branch', () => {
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
+  });
+});
+// ── #751: the binding's host is judged by the ADDRESS it resolves to, not just its text ──
+
+/** Swap the module DNS mock for one guard scenario; restore the module mock afterwards. */
+async function withDns(
+  records: { A?: string[]; AAAA?: string[] } | 'failure',
+  run: () => Promise<void>,
+): Promise<void> {
+  const moduleMock = Deno.resolveDns;
+  Deno.resolveDns = ((hostname: string, recordType: string) => {
+    if (records === 'failure') return Promise.reject(new Error('dns unavailable'));
+    const answer = records[recordType as 'A' | 'AAAA'];
+    if (!answer) return Promise.reject(new Deno.errors.NotFound('no record'));
+    return Promise.resolve(answer);
+  }) as typeof Deno.resolveDns;
+  try {
+    await run();
+  } finally {
+    Deno.resolveDns = moduleMock;
+  }
+}
+
+describe('external-link — ERPNext host guard (#751)', () => {
+  const HOST = 'rebind.erp.test';
+  const routes = () => [
+    supabaseSelect('profiles', () =>
+      jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+    supabaseSelect('platform_operators', () => new Response('null', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })),
+    supabaseSelect('external_org_bindings', () =>
+      jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: `https://${HOST}` }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+    supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+  ];
+
+  const resolvingPrivate: Array<[string, { A?: string[]; AAAA?: string[] }]> = [
+    ['the loopback (127.0.0.1)', { A: ['127.0.0.1'] }],
+    ['a private 10/8 address (10.x)', { A: ['10.1.2.3'] }],
+    ['a link-local address (169.254.x)', { A: ['169.254.169.254'] }],
+    ['an IPv4-mapped loopback (::ffff:127.0.0.1)', { A: ['203.0.113.9'], AAAA: ['::ffff:127.0.0.1'] }],
+  ];
+  for (const [where, records] of resolvingPrivate) {
+    it(`#751 refuses a binding whose site name resolves to ${where} — no PATCH, no audit, no ERP call`, async () => {
+      await withDns(records, () =>
+        withFetchMock(routes(), async ({ calls }) => {
+          const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+          assertEquals(res.status, 422);
+          assertEquals(await res.json(), {
+            error: 'config-rejected',
+            message: 'Private or reserved addresses are not allowed',
+          });
+          assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+          assertEquals(rpcCall(calls, 'log_audit').length, 0);
+          assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
+        }));
+    });
+  }
+
+  it('#751 accepts a binding whose site name resolves PUBLIC (sslip.io-style real ERP) and links', async () => {
+    await withFetchMock(
+      [
+        ...routes(),
+        erp(HOST, '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
+        { label: 'update company config', method: 'PATCH', pathname: '/rest/v1/external_org_bindings', response: () => jsonResponse([]) },
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), { ok: true, companyId: 'ACME' });
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+      },
+    );
+  });
+
+  it('#751 fails closed when the resolver errors — no PATCH, no audit, no ERP call', async () => {
+    await withDns('failure', () =>
+      withFetchMock(routes(), async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, 422);
+        assertEquals(await res.json(), {
+          error: 'config-rejected',
+          message: 'Private or reserved addresses are not allowed',
+        });
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+        assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
+      }));
   });
 });

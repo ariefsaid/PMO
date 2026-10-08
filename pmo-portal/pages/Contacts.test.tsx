@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
@@ -359,7 +360,7 @@ describe('Contacts row actions (AC-CRM-030)', () => {
     await openRowMenu('Jane Doe');
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete contact/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });

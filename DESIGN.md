@@ -525,8 +525,13 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
     token; AC-A11Y-FIELD-001 binds it to the component and proves AA contrast on background/popover.
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
-- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
-  right, slide-in (`.toast-anim`).
+- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary` for info, `success` for ok,
+  `warning` for warning, `destructive` for error), bottom-right, slide-in (`.toast-anim`).
+  **Toast timing (DD-TOAST-1):** warning and error messages persist until dismissed because they
+  carry remedies. Info and success auto-dismiss after `max(4s, 60ms × displayed characters)`, capped
+  at 10s. Hover or keyboard focus pauses that timer. Every toast has a visible, keyboard-reachable
+  dismiss control. The provider mounts its polite `role="status"` and assertive `role="alert"` live
+  regions once, empty, then inserts each announcement into the existing region.
 - **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
   near-white text, `lg`-derived radius, `0 8px 24px / 0.4` shadow, max 280px; bold title + `tabular`
   key/value rows; `tooltip-muted` for de-emphasised body. (The tooltip surface is constant-dark in both

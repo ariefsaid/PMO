@@ -47,7 +47,7 @@ test('AC-AUTHF-005: request reset → Mailpit → /update-password → set passw
   await page.goto('/reset-password');
   await page.getByLabel(/email/i).fill(email);
   await page.getByRole('button', { name: /send reset link/i }).click();
-  await expect(page.getByRole('status')).toContainText(/check your email|reset link/i);
+  await expect(page.getByRole('status').filter({ hasText: /check your email|reset link/i })).toContainText(/check your email|reset link/i);
 
   // 2. Pull the link from Mailpit (inbox NOT cleared here) and follow it → /update-password set-password form.
   const link = await pollMailpitForAuthLink(email);

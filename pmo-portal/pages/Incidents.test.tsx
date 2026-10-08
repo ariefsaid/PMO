@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
@@ -297,7 +298,7 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
     await userEvent.type(within(dialog).getByLabelText(/Type/i), 'Spill');
     await userEvent.selectOptions(within(dialog).getByLabelText(/Severity/i), 'High');
     await userEvent.click(within(dialog).getByRole('button', { name: /^File incident$/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });
@@ -360,7 +361,7 @@ describe('Incidents — status workflow (AC-IN-004)', () => {
     await userEvent.click(within(openRow).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Start investigating/i }));
     await userEvent.click(screen.getByRole('button', { name: /Start investigating/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });

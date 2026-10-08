@@ -22,6 +22,9 @@ import { ToastProvider } from '@/src/components/ui';
 import { RecordCaptureForm, type CreatePaymentInput } from '../RecordCaptureForm';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { formatMoneyInputValue } from '@/src/lib/format';
 
 afterEach(() => clearOwnershipCache());
 
@@ -34,15 +37,21 @@ const BILL: ProcurementInvoiceRow = {
 function renderPayment(invoices: ProcurementInvoiceRow[] = [BILL]) {
   const onCreate = vi.fn().mockResolvedValue(undefined);
   render(
-    <ToastProvider>
-      <RecordCaptureForm kind="payment" invoices={invoices} onCreate={onCreate} onClose={vi.fn()} />
-    </ToastProvider>,
+    <FinanceI18nTestProvider>
+      <ToastProvider>
+        <RecordCaptureForm kind="payment" invoices={invoices} onCreate={onCreate} onClose={vi.fn()} />
+      </ToastProvider>
+    </FinanceI18nTestProvider>,
   );
   return onCreate;
 }
 
 describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => {
-  beforeEach(() => setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]));
+  beforeEach(async () => {
+    await financeTestI18nReady;
+    await financeTestI18n.changeLanguage('en');
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+  });
 
   it('no status select is offered (DD-VPAY-8)', () => {
     renderPayment();
@@ -53,7 +62,24 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
     renderPayment();
     expect((screen.getByTestId('payment-amount-input') as HTMLInputElement).value).toBe('');
     await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
-    expect((screen.getByTestId('payment-amount-input') as HTMLInputElement).value).toBe('1090000');
+    expect((screen.getByTestId('payment-amount-input') as HTMLInputElement).value).toBe(formatMoneyInputValue(1090000));
+  });
+
+  it('shows the required-bill error in Indonesian', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderPayment();
+    await userEvent.type(screen.getByTestId('payment-amount-input'), '1090000');
+    await userEvent.click(screen.getByTestId('payment-save-btn'));
+    expect(await screen.findByText('Pilih faktur vendor yang ditutup oleh pembayaran ini.')).toBeInTheDocument();
+  });
+
+  it('prefills and submits the exact outstanding amount in Indonesian number format', async () => {
+    await financeTestI18n.changeLanguage('id');
+    const onCreate = renderPayment();
+    await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
+    expect(screen.getByTestId('payment-amount-input')).toHaveValue(formatMoneyInputValue(1090000));
+    await userEvent.click(screen.getByTestId('payment-save-btn'));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ amount: 1090000 })));
   });
 
   it('submitting without a bill is refused locally — no dispatch call (DD-VPAY-3)', async () => {

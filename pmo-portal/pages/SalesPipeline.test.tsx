@@ -6,6 +6,7 @@ import React from 'react';
 import SalesPipeline from './SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { formatCurrency } from '@/src/lib/format';
 
 // Oracle stages from spec §3.8 — Won/Lost are NOT in the funnel band.
@@ -160,10 +161,10 @@ describe('SalesPipeline states (AC-SP-203)', () => {
     loaders.forEach((l) => expect(l).toHaveAttribute('aria-busy', 'true'));
   });
 
-  it('AC-SP-203: error renders an alert + Retry that calls refetch', () => {
+  it('AC-SP-203: error renders an alert + Retry that calls refetch', async () => {
     pipelineState.isError = true; pipelineState.data = undefined;
     renderPage();
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(await findPageAnnouncement('alert', /Couldn't load the sales pipeline/i)).toHaveTextContent(/Couldn't load the sales pipeline/i);
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(pipelineState.refetch).toHaveBeenCalled();
   });

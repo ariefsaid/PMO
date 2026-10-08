@@ -78,7 +78,7 @@ describe('AC-CODE-002 ProjectFormModal', () => {
     const { onSubmit } = renderModal();
     await userEvent.type(screen.getByLabelText(/project name/i), 'Site Upgrade');
     await selectClient();
-    expect(screen.getByRole('status')).toHaveTextContent(/proposing/i);
+    expect(screen.getByText(/proposing/i, { selector: '[role="status"]' })).toHaveTextContent(/proposing/i);
     await waitFor(() => expect(reject).toBeTypeOf('function'));
     reject(new Error('project_number_client_segment_required'));
     expect(await screen.findByText(/selected company needs a client number segment/i)).toBeInTheDocument();

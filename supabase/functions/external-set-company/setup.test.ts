@@ -15,6 +15,12 @@ import {
 } from "../_shared/testing/edgeTestKit.ts";
 import { EXPENSES_EMPLOYABLE } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseEnablement.ts";
 const env = installEdgeEnv();
+const originalResolveDns = Deno.resolveDns;
+Deno.resolveDns = ((hostname: string, recordType: string) => {
+  if (recordType === 'A') return Promise.resolve(['8.8.8.8']);
+  if (recordType === 'AAAA') return Promise.resolve(['2001:4860:4860::8888']);
+  return Promise.reject(new Error('unexpected DNS query'));
+}) as typeof Deno.resolveDns;
 const authority = await createJwtAuthority(env.SUPABASE_URL);
 setTestJwks(createTestJwksResolver(authority));
 const binding = {

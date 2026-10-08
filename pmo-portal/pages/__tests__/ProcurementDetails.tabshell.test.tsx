@@ -205,7 +205,11 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
   it('clicking a tab navigates (replace) to its deep-link, forwarding location.state', async () => {
     renderAt('/procurement/proc-001');
     await userEvent.click(screen.getByRole('tab', { name: /Vendor quotes/ }));
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', { replace: true, state: null });
+    // #879: the navigation carries the tab-switch marker (AppShell route-focus exemption).
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', {
+      replace: true,
+      state: { pmoTabSwitch: true },
+    });
   });
 
   it('ArrowRight moves selection to the next tab (roving keyboard nav), forwarding location.state', async () => {
@@ -213,7 +217,11 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
     const overview = screen.getByRole('tab', { name: 'Overview' });
     overview.focus();
     await userEvent.keyboard('{ArrowRight}');
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', { replace: true, state: null });
+    // #879: the navigation carries the tab-switch marker (AppShell route-focus exemption).
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', {
+      replace: true,
+      state: { pmoTabSwitch: true },
+    });
   });
 
   it('the active panel is a role=tabpanel labelled by the active tab (a11y wiring)', () => {

@@ -575,7 +575,7 @@ const SalesInvoices: React.FC = () => {
               items: input.lineItems,
               intent,
             });
-            toast(t('financeCopy.invoiceCreated', 'Invoice created'), input.customerId, 'success');
+            toast(t('financeCopy.invoiceCreated', 'Invoice created'), undefined, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (_id, _input) => {

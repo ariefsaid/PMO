@@ -19,6 +19,9 @@ export function contactDb(seed: Record<string, Row[]> = {}, opts: { failTable?: 
         const selected = (rows[table] ?? []).filter((r) =>
           filters.every(([k, v]) => value(r, k) === v) && inFilters.every(([k, vs]) => vs.includes(value(r, k)))
         );
+        if (op === "insert" && table === "external_sync_watermarks" && patch.watermark_cursor === null) {
+          return { data: [] as Row[], error: { message: 'null value in column "watermark_cursor" violates not-null constraint', code: "23502" } };
+        }
         if (op !== "select") {
           writes.push({ table, op, row: patch });
           if (op === "insert") (rows[table] ??= []).push({ ...patch });

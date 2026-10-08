@@ -33,6 +33,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
+import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
@@ -348,8 +349,13 @@ const ProcurementDetails: React.FC = () => {
   // pile up in history. The shell route is `/procurement/:procurementId/:tab?`.
   // list-working-set-return (#682): forward the current router state so a captured
   // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
+  // #879: mark the navigation as an in-page tab switch so AppShell's route-focus
+  // effect keeps focus in the tab bar (WCAG 2.4.3); Tabs moves focus to the new tab.
   const setTab = (next: ProcTab) =>
-    navigate(`/procurement/${procurementId}/${next}`, { replace: true, state: location.state });
+    navigate(`/procurement/${procurementId}/${next}`, {
+      replace: true,
+      state: withTabSwitchNavState(location.state),
+    });
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {
@@ -1063,6 +1069,7 @@ const ProcurementDetails: React.FC = () => {
               onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
               onWithholdingHistory={(invoiceId) => setSlipHistoryInvoiceId(invoiceId)}
+              isApprover={isApprover}
             />
           </Card>
         )}

@@ -66,7 +66,7 @@ test('AC-PLC-007: a phone user saves language, number format and timezone and se
   await saveButton(page).scrollIntoViewIfNeeded();
   await expect(saveButton(page)).toBeInViewport();
   await saveButton(page).click();
-  await expect(page.getByRole('status')).toHaveText('Preferensi disimpan');
+  await expect(page.getByRole('status').filter({ hasText: 'Preferensi disimpan' })).toHaveText('Preferensi disimpan');
 
   // Applied in this session, no reload: Bahasa labels, English digits, the chosen zone.
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
@@ -96,7 +96,7 @@ test.afterEach(async ({ page }) => {
   await timezoneCombobox(page).click();
   await page.getByRole('listbox').getByRole('option', { name: /organization default|default organisasi/i }).click();
   await saveButton(page).click();
-  await expect(page.getByRole('status')).toHaveText('Preferences saved');
+  await expect(page.getByRole('status').filter({ hasText: 'Preferences saved' })).toHaveText('Preferences saved');
 
   // Prove the restore persisted rather than trusting the success message.
   await page.reload();

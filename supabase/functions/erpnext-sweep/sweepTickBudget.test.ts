@@ -125,6 +125,7 @@ function stubErpPages(
  *  never a duplicate adopt), and every claim is recorded for the no-duplicates proof. */
 function statefulFakeDb() {
   const watermarks = new Map<string, string>();
+  const watermarkUpserts: Array<{ domain: string; watermark_cursor: string | null }> = [];
   // Recency stamps: a strictly-increasing value per upsert (real clocks can tie two upserts inside
   // one tick; the ORDER between ticks is what the fair-order test pins, not the wall time).
   let stampSeq = 0;
@@ -149,7 +150,11 @@ function statefulFakeDb() {
       b.update = () => b;
       b.upsert = (payload: unknown) => {
         if (table === 'external_sync_watermarks') {
-          const p = payload as { domain: string; watermark_cursor: string };
+          const p = payload as { domain: string; watermark_cursor: string | null };
+          watermarkUpserts.push(p);
+          if (p.watermark_cursor === null) {
+            return Promise.resolve({ data: null, error: { code: '23502', message: 'null value in column "watermark_cursor" violates not-null constraint' } });
+          }
           watermarks.set(p.domain, p.watermark_cursor);
           wmUpdatedAt.set(p.domain, new Date(Date.UTC(2026, 0, 1, 0, 0, stampSeq++)).toISOString());
         }
@@ -191,7 +196,7 @@ function statefulFakeDb() {
     },
     rpc: () => Promise.resolve({ data: null, error: null }),
   };
-  return { client: client as unknown as SupabaseClient, watermarks, refUpserts };
+  return { client: client as unknown as SupabaseClient, watermarks, watermarkUpserts, refUpserts };
 }
 
 const employeeDoc = (i: number) => ({
@@ -228,6 +233,24 @@ const deskBudgetDoc = (name: string, modified: string) => ({
   modified,
   docstatus: 1,
   amended_from: null,
+});
+
+// ── A never-swept doctype gets its first attempt stamp and walk ─────────────────────────────────────
+
+Deno.test('a never-swept org/doctype gets a non-null empty attempt cursor and walks on its first tick', async () => {
+  const db = statefulFakeDb();
+  const env = stubEnv();
+  const erp = stubErpPages({ Employee: [employeeDoc(0)] });
+  try {
+    const result = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets']));
+    assert(result.error === undefined, `first sweep must succeed rather than fail its attempt stamp: ${result.error}`);
+    assert(erp.of('Employee').length > 0, 'the never-swept Employee doctype must be polled on its first tick');
+    assert(db.watermarkUpserts.some((row) => row.domain === 'timesheets::Employee' && row.watermark_cursor === ''),
+      `the first attempt stamp must use the schema default empty cursor, got ${JSON.stringify(db.watermarkUpserts)}`);
+  } finally {
+    erp.restore();
+    env.restore();
+  }
 });
 
 // ── The bounding test: more documents than the per-tick budget ─────────────────────────────────────
@@ -370,6 +393,38 @@ Deno.test('#916: an exhausted whole-tick time budget stops the walk; the skipped
 });
 
 // ── The shipped budget VALUES (nothing type-checks their relationship — the money-path-primer rule) ─
+
+Deno.test('#916: a repeatedly halted 3000-row doctype yields to a healthy sibling by tick 2', async () => {
+  const backlog = Array.from({ length: 3000 }, (_, i) => timesheetDoc(i));
+  const db = statefulFakeDb();
+  const env = stubEnv();
+  let activeDoctype = '';
+  const erp = stubErpPages({ Timesheet: backlog, Employee: [employeeDoc(0)] }, (doctype) => { activeDoctype = doctype; });
+  const originalFrom = db.client.from.bind(db.client);
+  (db.client as unknown as { from: (t: string) => unknown }).from = (table: string) => {
+    if (table === 'external_ref_lineage' && activeDoctype === 'Timesheet') {
+      // deno-lint-ignore no-explicit-any
+      const b: any = {};
+      b.select = () => b;
+      b.eq = () => b;
+      b.limit = () => Promise.resolve({ data: null, error: { message: 'transient failure', code: '08006' } });
+      return b;
+    }
+    return originalFrom(table);
+  };
+  try {
+    const opts = { nowMs: () => 0, tickStartMs: 0, tickTimeBudgetMs: 60_000, tickMaxDocs: 1000 };
+    const first = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets']), undefined, opts);
+    assert(!!first.error, 'the first doctype attempt should report its persistent apply failure');
+    assert(erp.of('Employee').length === 0, 'the listed backlog consumes the first tick budget');
+    const second = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets']), undefined, opts);
+    assert(erp.of('Employee').length > 0, 'the healthy Employee doctype runs by tick 2 instead of being starved');
+    assert(!!second.error, 'the failed Timesheet is still surfaced when it gets its later turn');
+  } finally {
+    erp.restore();
+    env.restore();
+  }
+});
 
 Deno.test('#916: the shipped tick budgets are coherent and well under the edge CPU limit', () => {
   assert(SWEEP_LIST_MAX_PAGES === 2, `the per-doctype listing quantum is 2 pages (≤1000 docs), got ${SWEEP_LIST_MAX_PAGES}`);

@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -102,9 +103,7 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
   it('AC-IXD-WP-004: a routine Advance shows a quiet success toast', async () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Advance to/i }));
-    await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/Moved to Negotiation/i);
-    });
+    expect(await findToastAnnouncement('status', /Moved to Negotiation/i)).toBeInTheDocument();
   });
 
   it('AC-IXD-WP-004: "Mark lost" STILL opens a destructive confirm before writing', async () => {
