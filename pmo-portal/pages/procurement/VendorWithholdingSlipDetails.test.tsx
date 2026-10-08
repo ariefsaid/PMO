@@ -1,3 +1,4 @@
+import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,7 +15,7 @@ vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => 
 import { VendorWithholdingSlipDetails } from './VendorWithholdingSlipDetails';
 
 const header = {
-  id: 'slip-1', slip_number: 'TAX-2026-1', slip_date: '2026-10-09', tax_period: '2026-10-01',
+  id: 'slip-1', slip_number: 'TAX-2026-1', slip_date: '2020-10-09', tax_period: '2020-10-01',
   pph_type: 'pph23', currency: 'IDR', tax_base: '500000.00', withheld_amount: '20000.00',
   status: 'active', validation_state: 'reconciled', revision: 7, void_reason: null,
 };
@@ -45,6 +46,35 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     if (overrides.validation_state === 'reconciled') { expect(screen.getByText('Reconciled')).toBeInTheDocument(); expect(screen.queryByText('Needs review', { selector: 'dt' })).not.toBeInTheDocument(); }
   });
 
+  it('AC-BUPOT-021 focuses the detail heading on arrival and restores the originating button on Close', async () => {
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    const onClose = vi.fn();
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      return <><button onClick={() => setOpen(true)}>Open slip</button>{open && <VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={() => { onClose(); setOpen(false); }} />}</>;
+    }
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open slip' });
+    opener.focus();
+    fireEvent.click(opener);
+    const heading = await screen.findByRole('heading', { name: 'Bukti potong details', level: 2 });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(scroll).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('AC-BUPOT-018 exposes recorded/current/difference for a changed bill and its legitimate remedy', () => {
+    state.detail.data = { header: { ...header, validation_state: 'needs-review', linked_withheld_at_record: '20000.00', linked_withheld_current: '21000.00', difference: '1000.00' }, bills: [{ invoice_id: 'invoice-1', procurement_id: 'case-2', vi_number: 'VI-002', withheld_at_record: '20000.00', withheld_current: '21000.00', difference: '1000.00', currency: 'IDR' }] };
+    renderPanel();
+    expect(screen.getByText('Bill withholding changed. Verify the source; void and record a replacement if needed.')).toBeInTheDocument();
+    expect(screen.getAllByText('Current')[0].parentElement).toHaveTextContent(/IDR.?21,000\.00/);
+    expect(screen.getAllByText('Difference')[0].parentElement).toHaveTextContent(/IDR.?1,000\.00/);
+    expect(screen.queryByRole('button', { name: 'Correct metadata' })).not.toBeInTheDocument();
+  });
+
   it('shows unavailable with an actionable Reload rather than fabricated facts', () => {
     state.detail.data = null; state.detail.isError = true;
     renderPanel();
@@ -59,7 +89,21 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     fireEvent.change(screen.getByLabelText(/Issued slip number/), { target: { value: 'TAX-CORRECTED' } });
     fireEvent.change(screen.getByLabelText(/Correction reason/), { target: { value: 'Corrected transcription' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(state.correct).toHaveBeenCalledWith({ slipId: 'slip-1', expectedRevision: 7, slipNumber: 'TAX-CORRECTED', slipDate: '2026-10-09', taxPeriod: '2026-10-01', reason: 'Corrected transcription' }));
+    await waitFor(() => expect(state.correct).toHaveBeenCalledWith({ slipId: 'slip-1', expectedRevision: 7, slipNumber: 'TAX-CORRECTED', slipDate: '2020-10-09', taxPeriod: '2020-10-01', reason: 'Corrected transcription' }));
+  });
+
+  it('AC-BUPOT-018 prevents future slip dates and tax periods during metadata correction', async () => {
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Correct metadata' }));
+    await screen.findByLabelText(/Issued slip number/);
+    const dialog = screen.getByRole('dialog', { name: 'Correct metadata' });
+    fireEvent.change(dialog.querySelector('input[type="date"]')!, { target: { value: '2099-01-02' } });
+    const futureMonth = dialog.querySelector('input[type="month"]')!;
+    fireEvent.change(futureMonth, { target: { value: '2099-01' } });
+    fireEvent.blur(futureMonth);
+    expect(screen.getByText('Choose a tax month no later than the current month.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(state.correct).not.toHaveBeenCalled();
   });
 
   it('requires confirmation and a reason before voiding; copy does not claim the tax-office document is cancelled', async () => {

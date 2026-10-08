@@ -20,6 +20,9 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
   const [date, setDate] = useState('');
   const [period, setPeriod] = useState('');
   const [reason, setReason] = useState('');
+  const [correctionDatesTouched, setCorrectionDatesTouched] = useState(false);
+  const isCorrectionDateValid = Boolean(date && date <= new Date().toISOString().slice(0, 10));
+  const isCorrectionPeriodValid = Boolean(/^\d{4}-\d{2}-01$/.test(period) && period <= `${new Date().toISOString().slice(0, 7)}-01`);
   const [error, setError] = useState<string | null>(null);
   const [correctionError, setCorrectionError] = useState<{ headline: string; detail?: string; action?: React.ReactNode } | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -33,7 +36,8 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
   const header = query.data.header as unknown as Header;
   const bills = query.data.bills as unknown as Bill[];
   const correct = async (event: React.FormEvent) => {
-    event.preventDefault(); setError(null); setCorrectionError(null);
+    event.preventDefault(); setError(null); setCorrectionError(null); setCorrectionDatesTouched(true);
+    if (!isCorrectionDateValid || !isCorrectionPeriodValid) return;
     try { await mutations.correct.mutateAsync({ slipId, expectedRevision: header.revision, slipNumber: number, slipDate: date, taxPeriod: period, reason } satisfies CorrectSlipInput); setShowCorrection(false); }
     catch (e) {
       const refusal = bupotRefusal(e);
@@ -60,9 +64,9 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
         {header.validation_state === 'needs-review' && <p className="sm:col-span-2 rounded border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground">{t('bupot.reviewReason', 'Bill withholding changed. Verify the source; void and record a replacement if needed.')}</p>}
         {header.validation_state === 'unavailable' && <p className="sm:col-span-2 rounded border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground">{t('bupot.sourceUnavailable', 'Source data is unavailable. Coverage cannot be verified.')}</p>}
         {header.validation_state !== 'unavailable' && <>
-          <Fact label={t('bupot.recordedTotal', 'Recorded')} value={header.linked_withheld_at_record ? `${header.currency} ${header.linked_withheld_at_record}` : '—'} />
-          <Fact label={t('bupot.currentTotal', 'Current')} value={header.linked_withheld_current ? `${header.currency} ${header.linked_withheld_current}` : '—'} />
-          <Fact label={t('bupot.difference', 'Difference')} value={header.difference ? `${header.currency} ${header.difference}` : '—'} />
+          <Fact label={t('bupot.recordedTotal', 'Recorded')} value={header.linked_withheld_at_record != null ? formatCurrencyCents(Number(header.linked_withheld_at_record), header.currency) : '—'} />
+          <Fact label={t('bupot.currentTotal', 'Current')} value={header.linked_withheld_current != null ? formatCurrencyCents(Number(header.linked_withheld_current), header.currency) : '—'} />
+          <Fact label={t('bupot.difference', 'Difference')} value={header.difference != null ? formatCurrencyCents(Number(header.difference), header.currency) : '—'} />
         </>}
       </dl>
       <h3 className="mt-5 font-semibold">{t('bupot.bill', 'Linked bills')} ({bills.length})</h3>
@@ -73,15 +77,15 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
       {header.status === 'void' && <p className="mt-3 text-sm text-foreground">{t('bupot.voidReason', 'Void reason')}: {header.void_reason || '—'}</p>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}<Button variant="outline" onClick={() => { void query.refetch(); onReload?.(); }}>{t('bupot.reload', 'Reload')}</Button></p>}
       {canWrite && header.status === 'active' && <div className="mt-4 flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => { setNumber(header.slip_number); setDate(header.slip_date); setPeriod(header.tax_period); setReason(''); setShowCorrection(true); }}>{t('bupot.correct', 'Correct metadata')}</Button>
+        {header.validation_state !== 'needs-review' && header.validation_state !== 'unavailable' && <Button variant="outline" onClick={() => { setNumber(header.slip_number); setDate(header.slip_date); setPeriod(header.tax_period); setReason(''); setShowCorrection(true); }}>{t('bupot.correct', 'Correct metadata')}</Button>}
         <Button variant="destructive" onClick={() => { setReason(''); setShowVoid(true); }}>{t('bupot.void', 'Void PMO entry')}</Button>
       </div>}
       <div className="mt-5"><RecordHistory entityType="vendor_withholding_slip" entityId={slipId} includeChildren /></div>
     </CardPad>
-    <EntityFormModal open={showCorrection} title={t('bupot.correct', 'Correct metadata')} submitLabel={t('bupot.save', 'Save changes')} onSubmit={correct} onClose={() => setShowCorrection(false)} loading={mutations.correct.isPending} dirty submitError={correctionError}>
+    <EntityFormModal open={showCorrection} title={t('bupot.correct', 'Correct metadata')} submitLabel={t('bupot.save', 'Save changes')} onSubmit={correct} onClose={() => setShowCorrection(false)} loading={mutations.correct.isPending} dirty submitDisabled={correctionDatesTouched && (!isCorrectionDateValid || !isCorrectionPeriodValid)} submitError={correctionError}>
       <TextField label={t('bupot.slipNumber', 'Issued slip number')} value={number} onChange={setNumber} required />
-      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" value={date} onChange={setDate} required />
-      <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} required />
+      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" max={new Date().toISOString().slice(0, 10)} value={date} onChange={setDate} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionDateValid ? t('bupot.invalidSlipDate', 'Choose a slip date no later than today.') : undefined} required />
+      <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionPeriodValid ? t('bupot.invalidTaxPeriod', 'Choose a tax month no later than the current month.') : undefined} required />
       <TextField label={t('bupot.correctionReason', 'Correction reason')} value={reason} onChange={setReason} required />
     </EntityFormModal>
     <ConfirmDialog open={showVoid} title={t('bupot.confirmVoid', 'Void this PMO entry?')} description={<div className="space-y-3"><p>{t('bupot.voidWarning', 'This only removes PMO coverage. It does not cancel a DJP document.')}</p>{error && <p role="alert" className="text-destructive">{error}<Button variant="outline" onClick={() => { void query.refetch(); setShowVoid(false); }}>{t('bupot.reload', 'Reload')}</Button></p>}<TextField label={t('bupot.reason', 'Reason')} value={reason} onChange={setReason} required /></div>} confirmLabel={t('bupot.void', 'Void PMO entry')}  tone="destructive" loading={mutations.void.isPending} confirmDisabled={!reason.trim()} onConfirm={() => voidEntry()} onCancel={() => setShowVoid(false)} />

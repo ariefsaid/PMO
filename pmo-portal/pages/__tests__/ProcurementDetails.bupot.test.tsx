@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipModal', () => ({ VendorWithholdingSlipModal: ({ invoice, onSave }: { invoice: { id: string }; onSave: (input: { slipId: string }) => void }) => <div role="dialog" aria-label="Record modal"><span>{invoice.id}</span><button onClick={() => onSave({ slipId: 'new-slip' })}>Save evidence</button></div> }));
-vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose }: { slipId: string; onClose: () => void }) => <div data-testid="slip-detail">Details: {slipId}<button onClick={onClose}>Close slip</button></div> }));
+vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string) => void }) => <div data-testid="slip-detail">Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId)}>Open bill in case</button></div> }));
 vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void }) => <section aria-label="Bill row"><span>{invoices[0]?.vi_number}</span><button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record evidence for bill</button><button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [] }), useProjectOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'requester', org_id: 'org-1' } }) }));
@@ -68,10 +68,24 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/proc-001?keep=1&tabHint=history'));
   });
 
-  it('opens a retained slip from the bill history entry point, including void entries', () => {
+  it('AC-BUPOT-020 opens a linked bill in its case Documents tab with the same slip selected', async () => {
+    renderAt('/procurement/proc-001?bupot=slip-from-url');
+    fireEvent.click(screen.getByRole('button', { name: 'Open bill in case' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/documents?bupot=slip-from-url'));
+    expect(screen.getByRole('tab', { name: /^Documents/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-from-url');
+  });
+
+  it('opens a retained slip from the bill history entry point, including void entries', async () => {
     renderAt('/procurement/proc-001/documents');
-    fireEvent.click(screen.getByRole('button', { name: 'Bill history' }));
+    const historyOpener = screen.getByRole('button', { name: 'Bill history' });
+    historyOpener.focus();
+    fireEvent.click(historyOpener);
+    expect(await screen.findByRole('heading', { name: 'Bukti potong history', level: 2 })).toHaveFocus();
     expect(screen.getByText(/TAX-HISTORY · void/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(historyOpener).toHaveFocus());
+    fireEvent.click(historyOpener);
     fireEvent.click(screen.getByRole('button', { name: 'View bukti potong' }));
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-history');
   });

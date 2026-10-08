@@ -39,12 +39,23 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
   const candidates = useMemo(() => (candidateQuery.data?.pages ?? []).flatMap((page) => page.rows), [candidateQuery.data]);
   const starting = selected[invoice.id];
   useEffect(() => {
+    if (!open) { initialized.current = false; return; }
     const candidate = candidates.find((bill) => bill.invoice_id === invoice.id);
-    if (!initialized.current && candidate) {
+    if (!initialized.current) {
       initialized.current = true;
-      setSelected((old) => ({ ...old, [invoice.id]: { bill: candidate, declared: false } }));
+      // The initiating invoice is already in the parent detail projection. Seed it independently
+      // of candidate pagination so a later page cannot determine whether it starts selected.
+      const startingBill: BillRow = candidate ?? {
+        invoice_id: invoice.id, vendor_id: vendorId, currency: invoice.currency,
+        withheld_amount: String(invoice.withheld_amount), withheld_pph_type: invoice.withheld_pph_type,
+        invoice_date: invoice.invoice_date, procurement_id: invoice.procurement_id,
+        vi_number: invoice.vi_number, reference_number: invoice.reference_number,
+      } as BillRow;
+      setSelected((old) => ({ ...old, [invoice.id]: { bill: startingBill, declared: false } }));
+    } else if (candidate) {
+      setSelected((old) => old[invoice.id] ? { ...old, [invoice.id]: { ...old[invoice.id], bill: candidate } } : old);
     }
-  }, [candidates, invoice.id]);
+  }, [candidates, invoice, open, vendorId]);
   const selectedBills = Object.values(selected);
   const sum = sumSlipMoney(selectedBills.map(({ bill }) => bill.withheld_amount));
   const localizedCents = (raw: string) => {

@@ -293,6 +293,7 @@ const ProcurementDetails: React.FC = () => {
   const erpItems = useErpItemOptions('purchase');
   const [recordSlipInvoice, setRecordSlipInvoice] = useState<ProcurementDetail['invoices'][number] | null>(null);
   const [slipHistoryInvoiceId, setSlipHistoryInvoiceId] = useState<string | null>(null);
+  const historyReturnFocus = React.useRef<HTMLElement | null>(null);
   const setBupotSelection = (slipId: string | null) => {
     const params = new URLSearchParams(location.search);
     if (slipId) params.set('bupot', slipId); else params.delete('bupot');
@@ -1068,7 +1069,7 @@ const ProcurementDetails: React.FC = () => {
               canWriteWithholdingSlip={canWriteWithholdingSlip}
               onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
-              onWithholdingHistory={(invoiceId) => setSlipHistoryInvoiceId(invoiceId)}
+              onWithholdingHistory={(invoiceId) => { historyReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setSlipHistoryInvoiceId(invoiceId); }}
               isApprover={isApprover}
             />
           </Card>
@@ -1118,7 +1119,7 @@ const ProcurementDetails: React.FC = () => {
       {recordSlipInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
         invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
       />}
-      {slipHistoryInvoiceId && <VendorWithholdingSlipHistory invoiceId={slipHistoryInvoiceId} onClose={() => setSlipHistoryInvoiceId(null)} onView={(id) => { setSlipHistoryInvoiceId(null); setBupotSelection(id); }} />}
+      {slipHistoryInvoiceId && <VendorWithholdingSlipHistory invoiceId={slipHistoryInvoiceId} onClose={() => { setSlipHistoryInvoiceId(null); requestAnimationFrame(() => historyReturnFocus.current?.focus()); }} onView={(id) => { setSlipHistoryInvoiceId(null); setBupotSelection(id); }} />}
       {new URLSearchParams(location.search).get('bupot') && <VendorWithholdingSlipDetails
         slipId={new URLSearchParams(location.search).get('bupot')!}
         canWrite={may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
@@ -1235,7 +1236,10 @@ function VendorWithholdingSlipRecordForm({ invoice, vendorId, vendorName, onClos
 function VendorWithholdingSlipHistory({ invoiceId, onClose, onView }: { invoiceId: string; onClose: () => void; onView: (id: string) => void }) {
   const { t } = useTranslation();
   const query = useVendorWithholdingRegister({ invoiceId });
-  return <Card className="mt-3"><CardHead><div className="flex justify-between"><span>{t('bupot.history', 'Bukti potong history')}</span><Button variant="outline" onClick={onClose}>{t('bupot.close', 'Close')}</Button></div></CardHead><CardPad>
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
+  React.useLayoutEffect(() => { headingRef.current?.focus(); headingRef.current?.scrollIntoView?.({ block: 'nearest' }); }, []);
+  const close = onClose;
+  return <Card className="mt-3"><CardHead><div className="flex justify-between"><h2 ref={headingRef} tabIndex={-1} className="font-semibold text-foreground">{t('bupot.history', 'Bukti potong history')}</h2><Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button></div></CardHead><CardPad>
     {query.isLoading ? <ListState variant="loading" rows={2} /> : query.isError ? <ListState variant="error" title={t('bupot.loadError', 'Bukti potong unavailable')} onRetry={() => void query.refetch()} retryLabel={t('bupot.retry', 'Retry')} /> : (query.data?.pages ?? []).flatMap((page) => page.rows).length === 0 ? <ListState variant="empty" title={t('bupot.noBillHistory', 'No withholding slips recorded for this bill.')} /> : <ul>{(query.data?.pages ?? []).flatMap((page) => page.rows).map((slip) => <li key={slip.slip_id} className="flex justify-between gap-2 py-2"><span className="break-all">{slip.slip_number} · {slip.status}</span><Button variant="outline" onClick={() => onView(slip.slip_id)}>{t('bupot.view', 'View bukti potong')}</Button></li>)}</ul>}
     {query.hasNextPage && <Button variant="outline" onClick={() => void query.fetchNextPage()}>{t('bupot.loadMoreSlips', 'Load more history')}</Button>}
   </CardPad></Card>;

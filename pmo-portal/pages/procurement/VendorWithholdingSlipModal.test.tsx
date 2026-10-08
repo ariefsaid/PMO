@@ -33,6 +33,31 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(screen.queryByText(/Selected total: IDR 20000/)).not.toBeInTheDocument();
   });
 
+  it('AC-BUPOT-017 initializes the starting bill before its candidate page arrives and keeps deselection across paging', async () => {
+    const startingInvoice = { ...invoice, vi_number: 'VI-START', procurement_id: 'case-a', invoice_date: '2026-10-01' } as ProcurementInvoiceRow;
+    h.data = { pages: [] };
+    const view = render(<VendorWithholdingSlipModal invoice={startingInvoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    const firstPageBill = { ...bill, invoice_id: 'invoice-other', vi_number: 'VI-OTHER', procurement_id: 'case-b', withheld_amount: '30000.00' };
+    h.data = { pages: [{ rows: [firstPageBill] }] };
+    view.rerender(<VendorWithholdingSlipModal invoice={startingInvoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    expect(screen.getByRole('checkbox', { name: /select bill VI-OTHER/i })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText(/Selected bills \(1\)/)).toBeInTheDocument();
+    h.data = { pages: [{ rows: [firstPageBill] }, { rows: [{ ...bill, vi_number: 'VI-START', procurement_id: 'case-a' }] }] };
+    view.rerender(<VendorWithholdingSlipModal invoice={startingInvoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    const startingCheckbox = screen.getByRole('checkbox', { name: /select bill VI-START/i });
+    expect(startingCheckbox).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(startingCheckbox);
+    view.rerender(<VendorWithholdingSlipModal invoice={startingInvoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    expect(screen.getByRole('checkbox', { name: /select bill VI-START/i })).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByRole('checkbox', { name: /select bill VI-OTHER/i }));
+    fireEvent.change(screen.getByLabelText(/issued slip number/i), { target: { value: 'DJ-PAGED-1' } });
+    fireEvent.change(screen.getByLabelText(/tax base/i), { target: { value: '50000' } });
+    fireEvent.change(screen.getByLabelText(/issued withheld amount/i), { target: { value: '30000' } });
+    fireEvent.click(screen.getByRole('button', { name: /record bukti potong/i }));
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ invoiceIds: ['invoice-other'] })));
+    expect(screen.getByText(/Selected bills \(1\)/)).toBeInTheDocument();
+  });
+
   it('AC-BUPOT-017 parses id-ID grouping at the form boundary and submits canonical exact decimals', async () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
     h.data = { pages: [{ rows: [bill] }] };
