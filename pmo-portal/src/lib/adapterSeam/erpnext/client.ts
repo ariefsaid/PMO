@@ -215,10 +215,11 @@ export interface ErpRequestOptions {
   path: string;
   body?: unknown;
   /** Per-call response-body cap in bytes (#918), defaulting to `ERP_RESPONSE_MAX_BYTES` (5 MiB).
-   *  Most endpoints are single-doc or paginated (≤500 rows/request) and never need this; the ONE
-   *  caller whose endpoint is unbounded by pagination — onboarding's party pull
-   *  (`limit_page_length=0`, all of an org's suppliers + customers) — raises it to its own named
-   *  ceiling (`ERP_PARTY_PULL_MAX_BYTES`, onboarding.ts). */
+   *  Most endpoints are single-doc or paginated (≤500 rows/request) and never need this; the callers
+   *  whose endpoint is unbounded by pagination — onboarding's party pull (`limit_page_length=0`,
+   *  all of an org's suppliers + customers → `ERP_PARTY_PULL_MAX_BYTES`, onboarding.ts) and the
+   *  unpaged AR/AP ageing report RPC (one row per voucher → `AGING_REPORT_MAX_BYTES`,
+   *  agingSnapshot.ts) — raise it to their own named ceilings. */
   maxResponseBytes?: number;
 }
 
@@ -295,15 +296,29 @@ async function readBodyText(res: Response, maxBytes: number): Promise<string | n
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done || !value) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => undefined);
-      throw new BodyTooLargeError(maxBytes);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new BodyTooLargeError(maxBytes);
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } finally {
+    // #918 fix-round: every exit from the read loop — cap refusal (cancel), a deadline abort
+    // mid-body (read rejects), or success — releases the reader. `cancel()` closes the stream but
+    // does NOT unlock it, and a rejected read leaves the lock held forever, pinning the response
+    // stream (and with it the connection the pool lent it) against reuse. `releaseLock()` is a safe
+    // no-op on an already-detached reader; the guard keeps an exotic runtime's throw from masking
+    // the original outcome.
+    try {
+      reader.releaseLock();
+    } catch {
+      // already released — nothing to do.
+    }
   }
   const bytes = new Uint8Array(total);
   let offset = 0;
@@ -341,7 +356,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
   };
 
   const timeoutMs = deps.timeoutMs ?? ERP_REQUEST_TIMEOUT_MS;
-  // #918: the response-body cap, per call (onboarding's unbounded party pull raises it) or the default.
+  // #918: the response-body cap, per call (the unpaged endpoints raise it) or the default.
   const maxBodyBytes = opts.maxResponseBytes ?? ERP_RESPONSE_MAX_BYTES;
 
   let attempt = 0;

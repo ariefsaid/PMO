@@ -669,5 +669,50 @@ describe('erpnext/client', () => {
       const widened = fetchDeps(async () => new Response(bigish, { status: 200, headers: { 'Content-Type': 'application/json' } }));
       await expect(erpnextRequest(widened, { method: 'GET', path: '/api/resource/Supplier/SUP-1' })).resolves.toEqual(JSON.parse(bigish));
     });
+
+    it('unlocks the body stream after an over-cap refusal — the read loop always releases its reader (#918 fix-round)', async () => {
+      let body: ReadableStream<Uint8Array> | undefined;
+      const pulls = { count: 0 };
+      const deps = fetchDeps(async () => {
+        // 8 × 1 MiB then close — finite, yet 3 MiB past the 5 MiB default cap, so the client's
+        // streaming read must refuse (cancel) mid-body. (`cancel()` closes the stream; only
+        // `releaseLock()` unlocks it — the assertion below pins that the lock does not leak.)
+        body = new ReadableStream<Uint8Array>({
+          pull(c) {
+            pulls.count += 1;
+            if (pulls.count > 8) return c.close();
+            c.enqueue(new Uint8Array(1024 * 1024).fill(0x41));
+          },
+        });
+        return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+      });
+      const err = await getDoc({ ...deps, maxRetries: 0 }, 'Supplier', 'X').catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ErpError);
+      expect(err).toMatchObject({ code: 'external-unreachable', retryable: false });
+      expect(body?.locked).toBe(false);
+      expect(pulls.count).toBeLessThanOrEqual(7); // still stops reading at the cap, as before
+    });
+
+    it('unlocks the body stream when the deadline aborts a stalled body read (#918 fix-round)', async () => {
+      let body: ReadableStream<Uint8Array> | undefined;
+      const deps: ErpClientDeps = {
+        ...withProbeBudget(
+          // Same shape as stalledBodyFetch() (headers land, body never completes, the client's
+          // signal errors the stream) — but the stream is captured so the lock can be asserted.
+          fetchDeps((_url, init) => {
+            body = new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode('{"data":{"name":'));
+                init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason ?? new Error('aborted')));
+              },
+            });
+            return Promise.resolve(new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } }));
+          }),
+        ),
+        timeoutMs: 50,
+      };
+      await expect(getDoc(deps, 'Supplier', 'X')).rejects.toMatchObject({ name: 'ErpError', code: 'external-unreachable' });
+      expect(body?.locked).toBe(false);
+    });
   });
 });
