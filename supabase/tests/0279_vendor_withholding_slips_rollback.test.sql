@@ -1,8 +1,8 @@
--- The rollback is exercised transactionally against the local schema; rollback restores 0278 afterward.
+-- The rollback is exercised transactionally against the local schema; rollback restores 0279 afterward.
 begin;
 select plan(4);
 -- The database test runner mounts only the current test file into its container, so exercise
--- the rollback statements inline (kept in lock-step with migrations/rollback/0278_*_down.sql).
+-- the rollback statements inline (kept in lock-step with migrations/rollback/0279_vendor_withholding_slips_down.sql).
 DROP FUNCTION IF EXISTS public.get_vendor_withholding_slip(uuid);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer);
@@ -33,6 +33,8 @@ BEGIN
   WHEN 'task' THEN RETURN EXISTS(SELECT 1 FROM public.tasks WHERE id=p_entity_id);
   WHEN 'company' THEN RETURN EXISTS(SELECT 1 FROM public.companies WHERE id=p_entity_id);
   WHEN 'contact' THEN RETURN EXISTS(SELECT 1 FROM public.contacts WHERE id=p_entity_id);
+  WHEN 'sales_invoice' THEN RETURN EXISTS(SELECT 1 FROM public.sales_invoices WHERE id=p_entity_id);
+  WHEN 'procurement_invoice' THEN RETURN EXISTS(SELECT 1 FROM public.procurement_invoices WHERE id=p_entity_id);
   ELSE RAISE EXCEPTION 'record_history_visible: no visibility arm for entity type %',p_entity_type USING errcode='P0001';
  END CASE;
 END $$;
@@ -46,7 +48,7 @@ ALTER TABLE public.procurement_invoices DROP CONSTRAINT IF EXISTS bupot_invoices
 NOTIFY pgrst,'reload schema';
 select ok(to_regclass('public.vendor_withholding_slips') is null and to_regclass('public.vendor_withholding_slip_bills') is null,'rollback removes only the feature tables');
 select ok(to_regprocedure('public.record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])') is null,'rollback removes the three writer RPCs');
-select ok((select count(*)=12 from public.record_history_config),'rollback restores the prior history catalog');
+select ok((select count(*)=14 from public.record_history_config),'rollback restores the prior history catalog');
 select ok(has_function_privilege('authenticated','public.set_procurement_invoice_efaktur(uuid,text,date)','EXECUTE'),'rollback leaves the incumbent e-Faktur writer grant intact');
 select * from finish();
 rollback;

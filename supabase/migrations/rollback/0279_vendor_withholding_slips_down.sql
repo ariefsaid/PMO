@@ -1,4 +1,4 @@
--- Reversible rollback for 0278. Export retained evidence operationally before any hosted reversal.
+-- Reversible rollback for 0279. Export retained evidence operationally before any hosted reversal.
 DROP FUNCTION IF EXISTS public.get_vendor_withholding_slip(uuid);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer);
 DROP FUNCTION IF EXISTS public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer);
@@ -29,6 +29,8 @@ BEGIN
   WHEN 'task' THEN RETURN EXISTS(SELECT 1 FROM public.tasks WHERE id=p_entity_id);
   WHEN 'company' THEN RETURN EXISTS(SELECT 1 FROM public.companies WHERE id=p_entity_id);
   WHEN 'contact' THEN RETURN EXISTS(SELECT 1 FROM public.contacts WHERE id=p_entity_id);
+  WHEN 'sales_invoice' THEN RETURN EXISTS(SELECT 1 FROM public.sales_invoices WHERE id=p_entity_id);
+  WHEN 'procurement_invoice' THEN RETURN EXISTS(SELECT 1 FROM public.procurement_invoices WHERE id=p_entity_id);
   ELSE RAISE EXCEPTION 'record_history_visible: no visibility arm for entity type %',p_entity_type USING errcode='P0001';
  END CASE;
 END $$;

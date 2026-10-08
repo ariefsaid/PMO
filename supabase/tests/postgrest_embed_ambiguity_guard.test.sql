@@ -25,7 +25,7 @@
 -- condition that MAKES qualification mandatory, at the moment that condition is introduced.
 
 begin;
-select plan(3);
+select plan(4);
 
 -- The known-ambiguous set. Every pair here REQUIRES `alias:target!constraint_name(cols)` in any
 -- PostgREST embed. Verified qualified in the DAL as of 2026-07-29.
@@ -83,7 +83,10 @@ select set_eq(
             -- 0275 (#784): sales_invoices carries author_user_id (0124) and approved_by_id, both ->
             -- auth.users. auth.users is not in a PostgREST-exposed schema, so no client embed of it
             -- can exist and none can become ambiguous; listed so the pair is a known one.
-            ('sales_invoices -> users') $$,
+            ('sales_invoices -> users'),
+            -- 0279: a slip header references profiles as both creator and void actor. The new slip
+            -- repository must qualify profile embeds with the intended constraint name.
+            ('vendor_withholding_slips -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '
@@ -116,6 +119,14 @@ select set_eq(
   'embed in the DAL must be qualified as !projects_client_id_fkey or !projects_end_client_id_fkey. '
   'Adding a third would demand another review of both call sites.'
 );
+
+select set_eq(
+  $$ select conname::text from pg_constraint
+      where conrelid = 'public.vendor_withholding_slips'::regclass
+        and confrelid = 'public.profiles'::regclass
+        and contype = 'f' $$,
+  $$ values ('vendor_withholding_slips_created_by_fkey'), ('vendor_withholding_slips_voided_by_fkey') $$,
+  'AC-EMBED-004 slip profile relationships retain distinct creator and void-actor constraints');
 
 select * from finish();
 rollback;
