@@ -64,7 +64,7 @@ create table public.vendor_withholding_slip_bills (
   foreign key(org_id,slip_id) references public.vendor_withholding_slips(org_id,id) on delete restrict,
   foreign key(org_id,invoice_id) references public.procurement_invoices(org_id,id) on delete restrict,
   foreign key(org_id,procurement_id) references public.procurements(org_id,id) on delete restrict,
-  check ((type_source='declared' and pph_type_at_record is null) or type_source='bill')
+  check ((type_source='declared' and pph_type_at_record is null) or (type_source='bill' and pph_type_at_record is not null))
 );
 create unique index vendor_withholding_slip_bills_active_invoice_uq on public.vendor_withholding_slip_bills(org_id,invoice_id) where released_at is null;
 create index vendor_withholding_slip_bills_slip_idx on public.vendor_withholding_slip_bills(org_id,slip_id,invoice_id);
@@ -92,7 +92,11 @@ begin
  if not found then return null; end if;
  select count(*),coalesce(sum(withheld_at_record),0),bool_or(org_id<>h.org_id or currency<>h.currency or (pph_type_at_record is not null and pph_type_at_record<>h.pph_type))
  into n,s,bad from public.vendor_withholding_slip_bills where slip_id=sid;
- if n<>h.invoice_count or n<1 or s<>h.withheld_amount or coalesce(bad,false) then raise exception 'invalid retained slip snapshots' using errcode='23514'; end if;
+ if n<>h.invoice_count or n<1 or s<>h.withheld_amount or coalesce(bad,false)
+    or exists(select 1 from public.vendor_withholding_slip_bills b where b.slip_id=sid
+      and ((b.type_source='bill' and b.pph_type_at_record is distinct from h.pph_type)
+        or (b.type_source='declared' and b.pph_type_at_record is not null)))
+ then raise exception 'invalid retained slip snapshots' using errcode='23514'; end if;
  if (h.status='active' and exists(select 1 from public.vendor_withholding_slip_bills where slip_id=sid and released_at is not null))
  or (h.status='void' and exists(select 1 from public.vendor_withholding_slip_bills where slip_id=sid and released_at is distinct from h.voided_at)) then raise exception 'invalid slip release state' using errcode='23514'; end if;
  return null;
@@ -242,6 +246,126 @@ end $$;
 revoke all on function public.record_history_visible(text,uuid) from public,anon;
 grant execute on function public.record_history_visible(text,uuid) to authenticated,service_role;
 
+-- Register grains remain invoker-visible through the underlying source-table RLS.
+create or replace view public.vendor_withholding_slip_register
+with (security_invoker = true) as
+with link_totals as (
+ select b.slip_id, count(*)::integer visible_count,
+        sum(b.withheld_at_record) snapshot_total,
+        sum(i.withheld_amount) current_total,
+        bool_or(i.id is null or p.id is null) source_missing,
+        bool_or(i.withheld_amount is distinct from b.withheld_at_record
+          or p.vendor_id is distinct from h.vendor_id
+          or i.currency is distinct from h.currency
+          or (b.pph_type_at_record is not null and i.withheld_pph_type is distinct from b.pph_type_at_record)
+          or (b.pph_type_at_record is null and i.withheld_pph_type is not null and i.withheld_pph_type is distinct from h.pph_type)
+          or coalesce(i.erp_docstatus,0)=2 or i.erp_cancelled_at is not null or p.status='Cancelled') mismatch,
+        bool_or(b.type_source='declared') declared
+ from public.vendor_withholding_slip_bills b
+ join public.vendor_withholding_slips h on h.id=b.slip_id and h.org_id=b.org_id
+ left join public.procurement_invoices i on i.id=b.invoice_id and i.org_id=b.org_id
+ left join public.procurements p on p.id=b.procurement_id and p.org_id=b.org_id
+ group by b.slip_id
+)
+select h.id slip_id,h.vendor_id,h.slip_number,h.slip_date,h.tax_period,h.pph_type,h.currency,
+ h.tax_base,h.withheld_amount,h.status,
+ case when h.status='void' then 'void'
+      when coalesce(l.visible_count,0)<>h.invoice_count or coalesce(l.source_missing,false) then 'unavailable'
+      when coalesce(l.mismatch,false) or l.snapshot_total<>h.withheld_amount or l.current_total<>h.withheld_amount then 'needs-review'
+      else 'reconciled' end validation_state,
+ h.invoice_count,coalesce(l.visible_count,0) visible_invoice_count,
+ case when coalesce(l.visible_count,0)=h.invoice_count and not coalesce(l.source_missing,false) then l.snapshot_total end linked_withheld_at_record,
+ case when coalesce(l.visible_count,0)=h.invoice_count and not coalesce(l.source_missing,false) then l.current_total end linked_withheld_current,
+ case when coalesce(l.visible_count,0)=h.invoice_count and not coalesce(l.source_missing,false) then h.withheld_amount-l.current_total end difference,
+ coalesce(l.declared,false) has_declared_type,h.created_by,h.created_at,h.revision,h.updated_at,h.voided_by,h.voided_at
+from public.vendor_withholding_slips h left join link_totals l on l.slip_id=h.id;
+
+create or replace view public.vendor_withholding_bill_register
+with (security_invoker = true) as
+with active_link as (
+ select b.*,h.slip_number,h.slip_date,h.tax_period,h.pph_type,h.status slip_status,h.invoice_count,
+        count(*) over(partition by h.id) visible_count,
+        bool_or(i.withheld_amount is distinct from b.withheld_at_record or p.vendor_id is distinct from h.vendor_id
+          or i.currency is distinct from h.currency
+          or (b.pph_type_at_record is not null and i.withheld_pph_type is distinct from b.pph_type_at_record)
+          or (b.pph_type_at_record is null and i.withheld_pph_type is not null and i.withheld_pph_type is distinct from h.pph_type)
+          or coalesce(i.erp_docstatus,0)=2 or i.erp_cancelled_at is not null or p.status='Cancelled') over(partition by h.id) mismatch
+ from public.vendor_withholding_slip_bills b
+ join public.vendor_withholding_slips h on h.id=b.slip_id and h.org_id=b.org_id and h.status='active' and b.released_at is null
+ join public.procurement_invoices i on i.id=b.invoice_id and i.org_id=b.org_id
+ join public.procurements p on p.id=b.procurement_id and p.org_id=b.org_id
+)
+select i.id invoice_id,i.procurement_id,p.project_id,p.vendor_id,i.vi_number,i.reference_number,i.invoice_date,
+ date_trunc('month',i.invoice_date)::date invoice_month,i.currency,i.withheld_pph_type,i.withheld_amount,
+ i.erp_docstatus,i.erp_cancelled_at,p.status case_status,
+ a.slip_id active_slip_id,a.slip_number,a.slip_date,a.tax_period,
+ coalesce(a.pph_type_at_record,a.pph_type) resolved_pph_type,a.type_source,a.withheld_at_record linked_withheld_at_record,
+ case when a.slip_id is not null and (a.visible_count<>a.invoice_count) then 'unavailable'
+      when a.slip_id is not null and (a.mismatch or i.withheld_amount<=0) then 'needs-review'
+      when a.slip_id is not null then 'slipped'
+      when i.withheld_amount=0 then 'not-required'
+      when i.withheld_amount<0 then 'return-review'
+      else 'not-recorded' end coverage_state,
+ case when a.slip_id is null then '{}'::text[] else array_remove(array[
+   case when i.withheld_amount is distinct from a.withheld_at_record then 'amount-changed' end,
+   case when p.vendor_id is distinct from (select vendor_id from public.vendor_withholding_slips where id=a.slip_id) then 'vendor-changed' end,
+   case when i.withheld_pph_type is distinct from coalesce(a.pph_type_at_record,a.pph_type) then 'type-changed' end,
+   case when i.currency is distinct from a.currency then 'currency-changed' end,
+   case when coalesce(i.erp_docstatus,0)=2 or i.erp_cancelled_at is not null then 'bill-cancelled' end,
+   case when p.status='Cancelled' then 'case-cancelled' end],null) end review_reasons
+from public.procurement_invoices i join public.procurements p on p.id=i.procurement_id and p.org_id=i.org_id
+left join active_link a on a.invoice_id=i.id and a.org_id=i.org_id;
+
+create or replace function public.list_vendor_withholding_slips(
+ p_vendor_id uuid default null,p_tax_period date default null,p_invoice_id uuid default null,
+ p_before_period date default null,p_before_id uuid default null,p_limit integer default 50)
+returns setof public.vendor_withholding_slip_register language plpgsql stable security invoker
+set search_path=pg_catalog,public as $$
+begin
+ if (p_before_period is null)<>(p_before_id is null) then raise exception using errcode='22023'; end if;
+ return query select r.* from public.vendor_withholding_slip_register r
+ where (p_vendor_id is null or r.vendor_id=p_vendor_id) and (p_tax_period is null or r.tax_period=p_tax_period)
+ and (p_invoice_id is null or exists(select 1 from public.vendor_withholding_slip_bills b where b.slip_id=r.slip_id and b.invoice_id=p_invoice_id))
+ and (p_before_period is null or (r.tax_period,r.slip_id)<(p_before_period,p_before_id))
+ order by r.tax_period desc,r.slip_id desc limit greatest(1,least(coalesce(p_limit,50),100));
+end $$;
+
+create or replace function public.list_vendor_withholding_bills(
+ p_vendor_id uuid default null,p_pph_type text default null,p_currency text default null,p_invoice_ids uuid[] default null,
+ p_candidates_only boolean default false,p_after_date date default null,p_after_id uuid default null,
+ p_after_null_date boolean default false,p_limit integer default 50)
+returns setof public.vendor_withholding_bill_register language plpgsql stable security invoker
+set search_path=pg_catalog,public as $$
+begin
+ if (p_after_id is null and (p_after_date is not null or p_after_null_date)) or (p_after_id is not null and not p_after_null_date and p_after_date is null) then raise exception using errcode='22023'; end if;
+ if coalesce(cardinality(p_invoice_ids),0)>100 then raise exception using errcode='22023'; end if;
+ return query select r.* from public.vendor_withholding_bill_register r
+ where (p_vendor_id is null or r.vendor_id=p_vendor_id) and (p_pph_type is null or r.withheld_pph_type=p_pph_type or r.withheld_pph_type is null)
+ and (p_currency is null or r.currency=p_currency) and (p_invoice_ids is null or r.invoice_id=any(p_invoice_ids))
+ and (not p_candidates_only or (r.withheld_amount>0 and coalesce(r.erp_docstatus,0)<>2 and r.erp_cancelled_at is null and r.case_status<>'Cancelled' and r.active_slip_id is null))
+ and (p_after_id is null or (not p_after_null_date and ((r.invoice_date>p_after_date) or (r.invoice_date=p_after_date and r.invoice_id>p_after_id) or r.invoice_date is null)) or (p_after_null_date and r.invoice_date is null and r.invoice_id>p_after_id))
+ order by r.invoice_date asc nulls last,r.invoice_id asc limit greatest(1,least(coalesce(p_limit,50),100));
+end $$;
+
+create or replace function public.get_vendor_withholding_slip(p_slip_id uuid)
+returns jsonb language plpgsql stable security invoker set search_path=pg_catalog,public as $$
+declare h public.vendor_withholding_slip_register%rowtype; b jsonb;
+begin
+ select * into h from public.vendor_withholding_slip_register where slip_id=p_slip_id;
+ if not found then raise exception using errcode='P0002',detail='bupot-not-found'; end if;
+ select coalesce(jsonb_agg(jsonb_build_object('invoice_id',r.invoice_id,'procurement_id',r.procurement_id,'vi_number',r.vi_number,'invoice_date',r.invoice_date,'currency',r.currency,'withheld_at_record',l.withheld_at_record::text,'pph_type_at_record',l.pph_type_at_record,'type_source',l.type_source,'released_at',l.released_at,'coverage_state',r.coverage_state) order by r.invoice_id),'[]'::jsonb)
+ into b from public.vendor_withholding_slip_bills l left join public.vendor_withholding_bill_register r on r.invoice_id=l.invoice_id where l.slip_id=p_slip_id;
+ return jsonb_build_object('header',to_jsonb(h)-'tax_base'-'withheld_amount'||jsonb_build_object('tax_base',h.tax_base::text,'withheld_amount',h.withheld_amount::text),'bills',b);
+end $$;
+revoke all on function public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer) from public,anon;
+revoke all on function public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer) from public,anon;
+revoke all on function public.get_vendor_withholding_slip(uuid) from public,anon;
+grant execute on function public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer) to authenticated;
+grant execute on function public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer) to authenticated;
+grant execute on function public.get_vendor_withholding_slip(uuid) to authenticated;
+
+-- Register APIs are invoker surfaces; writers remain authenticated-only definer RPCs.
+
 do $$ begin
  if not (select relrowsecurity and relforcerowsecurity from pg_class where oid='public.vendor_withholding_slips'::regclass)
     or not (select relrowsecurity and relforcerowsecurity from pg_class where oid='public.vendor_withholding_slip_bills'::regclass) then
@@ -254,8 +378,22 @@ do $$ begin
  end if;
  if has_function_privilege('anon','public.record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])','EXECUTE')
     or has_function_privilege('service_role','public.record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])','EXECUTE')
-    or not has_function_privilege('authenticated','public.record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])','EXECUTE') then
+    or not has_function_privilege('authenticated','public.record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])','EXECUTE')
+    or has_function_privilege('anon','public.correct_vendor_withholding_slip(uuid,integer,text,date,date,text)','EXECUTE')
+    or has_function_privilege('service_role','public.correct_vendor_withholding_slip(uuid,integer,text,date,date,text)','EXECUTE')
+    or not has_function_privilege('authenticated','public.correct_vendor_withholding_slip(uuid,integer,text,date,date,text)','EXECUTE')
+    or has_function_privilege('anon','public.void_vendor_withholding_slip(uuid,integer,text)','EXECUTE')
+    or has_function_privilege('service_role','public.void_vendor_withholding_slip(uuid,integer,text)','EXECUTE')
+    or not has_function_privilege('authenticated','public.void_vendor_withholding_slip(uuid,integer,text)','EXECUTE') then
    raise exception '0278: unexpected writer execute grants';
+ end if;
+ if not has_function_privilege('authenticated','public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer)','EXECUTE')
+    or not has_function_privilege('authenticated','public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer)','EXECUTE')
+    or not has_function_privilege('authenticated','public.get_vendor_withholding_slip(uuid)','EXECUTE')
+    or has_function_privilege('anon','public.list_vendor_withholding_slips(uuid,date,uuid,date,uuid,integer)','EXECUTE')
+    or has_function_privilege('anon','public.list_vendor_withholding_bills(uuid,text,text,uuid[],boolean,date,uuid,boolean,integer)','EXECUTE')
+    or has_function_privilege('anon','public.get_vendor_withholding_slip(uuid)','EXECUTE') then
+   raise exception '0278: unexpected reader execute grants';
  end if;
  if (select count(*) from pg_trigger where tgname in ('vendor_withholding_slips_integrity','vendor_withholding_slip_bills_integrity','vendor_withholding_slips_zz_record_change','vendor_withholding_slip_bills_zz_record_change') and not tgisinternal)<>4 then
    raise exception '0278: required deferred integrity/history triggers missing';
