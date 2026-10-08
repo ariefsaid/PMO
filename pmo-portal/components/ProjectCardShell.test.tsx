@@ -70,6 +70,16 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(headText.indexOf('Client Example')).toBeLessThan(headText.indexOf('PRJ-685'));
   });
 
+  it('PL-1: mobile project title retains the full name and wraps without truncation utilities', () => {
+    const fullName = 'Integrated maintenance planning for regional facilities and remote teams';
+    render(<ProjectCardShell {...baseProps} name={fullName} variant="kanban" />);
+    const title = screen.getByText(fullName);
+    expect(title).toBeVisible();
+    expect(title).toHaveTextContent(fullName);
+    expect(title.className).toContain('break-words');
+    expect(title.className).not.toMatch(/truncate|line-clamp/);
+  });
+
   it('AC-KTR-002: preserves the grid title button, clamp, and status placement', () => {
     render(<ProjectCardShell {...baseProps} />);
     const gridName = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });

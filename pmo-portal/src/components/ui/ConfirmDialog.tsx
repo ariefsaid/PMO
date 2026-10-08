@@ -29,6 +29,8 @@ export interface ConfirmDialogProps {
   /** Gate the confirm button — for a dialog that hosts a required input (e.g. an attestation reason).
    *  Cancel/Esc/scrim are NEVER blocked by this: the escape hatch stays open. */
   confirmDisabled?: boolean;
+  /** Consumer-owned focus destination if the opener is removed while the dialog is open. */
+  restoreFocusFallback?: () => HTMLElement | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -64,6 +66,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   tone = 'default',
   loading = false,
   confirmDisabled = false,
+  restoreFocusFallback,
   onConfirm,
   onCancel,
 }) => {
@@ -78,6 +81,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   // The element focused before the dialog opened — restored on close.
   const triggerRef = useRef<HTMLElement | null>(null);
+  const restoreFocusFallbackRef = useRef(restoreFocusFallback);
+  restoreFocusFallbackRef.current = restoreFocusFallback;
 
   // Esc to close (blocked while loading to avoid orphaning an in-flight mutation).
   useEffect(() => {
@@ -104,6 +109,21 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       triggerRef.current = null;
     }
   }, [open]);
+
+  // A successful mutation can conditionally unmount the dialog without an open=false render.
+  // Defer restoration until the separate inert effect has released the app shell.
+  useEffect(() => () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    triggerRef.current = null;
+    window.setTimeout(() => {
+      const target = trigger.isConnected
+        ? trigger
+        : restoreFocusFallbackRef.current?.() ??
+          document.querySelector<HTMLElement>('[data-app-shell="root"] main');
+      target?.focus({ preventScroll: true });
+    }, 0);
+  }, []);
 
   // AC-A11Y-MODAL-001: the app behind the dialog goes `inert` while it is open (`aria-modal` alone
   // is advisory — a screen reader could still browse the page). Declared AFTER the focus effect on

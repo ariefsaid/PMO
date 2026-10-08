@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   /** null = ownership still loading; otherwise derived from `route`. */
   ownershipLoaded: true,
   userId: 'u-fin2',
+  role: 'Finance' as 'Finance' | 'Project Manager',
   toast: vi.fn(),
 }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: async () => [] }) }));
@@ -44,7 +45,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
     { value: 'proj-4', label: 'Delta Archived', sub: 'DAR-01', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: true },
   ] }),
 }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' }, role: 'Finance' }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => h.route) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({
   data: !h.ownershipLoaded ? undefined : h.route === 'external' ? [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }] : [],
@@ -66,6 +67,7 @@ const nativeInvoice = (over: Partial<SalesInvoiceRow> = {}): SalesInvoiceRow => 
   tax_base_numerator: 11, tax_base_denominator: 12, erp_outstanding_amount: null, status: 'Draft',
   erp_docstatus: null, erp_modified: null, erp_amended_from: null, erp_cancelled_at: null,
   created_at: '2026-10-07T00:00:00Z', author_user_id: 'u-fin1', author_user_ids: ['u-fin1'],
+  native_lines: [{ item_code: 'SVC', description: 'Site survey', qty: 2, rate: 500_000, amount: 1_000_000 }],
   erp_payment_terms_days: null, erp_due_date: null, received_date: null, ...over,
 }) as SalesInvoiceRow;
 
@@ -89,7 +91,7 @@ beforeEach(() => { queryClient = new QueryClient({ defaultOptions: { queries: { 
 const page = () => (
   <QueryClientProvider client={queryClient}>
   <FinanceI18nTestProvider>
-    <ImpersonationProvider realRole="Finance">
+    <ImpersonationProvider realRole={h.role}>
       <MemoryRouter>
         <ToastProvider>
           <SalesInvoices />
@@ -113,6 +115,7 @@ beforeEach(async () => {
   h.route = 'pmo';
   h.ownershipLoaded = true;
   h.userId = 'u-fin2';
+  h.role = 'Finance';
   h.toast.mockClear();
   await financeTestI18n.changeLanguage('en');
 });
@@ -150,8 +153,39 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     renderPage();
     await openMenu(user, rowFor('Acme Energy'));
     await user.click(screen.getByRole('menuitem', { name: 'Approve' }));
+    expect(screen.getByText('Site survey')).toBeInTheDocument();
+    expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue to approve' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submitMutate).toHaveBeenCalledWith({ siId: 'si-n1', intent: expect.objectContaining({ id: expect.any(String) }) });
+  });
+
+  it('AC-SI-1 a native issued invoice exposes its read-only lines and totals from the list', async () => {
+    h.invoices.data = [nativeInvoice({
+      status: 'Unpaid', pmo_number: 'INV-2610070001',
+      native_lines: [{ item_code: 'SVC', description: 'Site survey', qty: 2, rate: 500_000, amount: 1_000_000 }],
+    })];
+    renderPage();
+    const user = userEvent.setup();
+    await openMenu(user, rowFor('INV-2610070001'));
+    await user.click(screen.getByRole('menuitem', { name: 'View invoice' }));
+    expect(screen.getByText('Site survey')).toBeInTheDocument();
+    expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
+    expect(screen.getByText('Total due')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
+  });
+
+  it('keeps invoice details available to a reader but does not offer Continue to approve', async () => {
+    h.role = 'Project Manager';
+    h.invoices.data = [nativeInvoice()];
+    const user = userEvent.setup();
+    renderPage();
+    await openMenu(user, rowFor('Acme Energy'));
+    await user.click(screen.getByRole('menuitem', { name: 'View invoice' }));
+    expect(screen.getByText('Site survey')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
   });
 
   it('AC-NAR-002 the author of a PMO Draft is not offered "Approve"', async () => {
@@ -280,6 +314,45 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(within(list).getByRole('option', { name: /Alpha Platform/ })).toBeInTheDocument();
     expect(within(list).queryByRole('option', { name: /Gamma Other Client/ })).toBeNull();
     expect(within(list).queryByRole('option', { name: /Delta Archived/ })).toBeNull();
+  });
+
+  it('AC-SI-2 multiple invalid lines report and focus the first invalid line', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
+    await user.type(screen.getByLabelText('Description'), 'First line');
+    await user.clear(screen.getByLabelText(/Qty|Quantity/));
+    await user.type(screen.getByLabelText(/Qty|Quantity/), '0');
+    await user.click(screen.getByRole('button', { name: 'Add line item' }));
+    await user.click(screen.getByRole('button', { name: 'Add line item' }));
+    await user.type(screen.getAllByLabelText('Description')[2], 'Third line');
+    await user.clear(screen.getAllByLabelText(/Qty|Quantity/)[2]);
+    await user.type(screen.getAllByLabelText(/Qty|Quantity/)[2], '0');
+    await user.click(screen.getByRole('button', { name: 'Create invoice' }));
+    const firstLineError = await screen.findByRole('link', { name: 'Line 1: Quantity must be positive.' });
+    expect(screen.getByRole('alert', { name: 'Form errors' })).toContainElement(firstLineError);
+    await user.click(firstLineError);
+    expect(document.activeElement).toBe(document.getElementById('sales-invoice-line-0-qty'));
+  });
+
+  it('AC-SI-2 each invoice correction link focuses the actual project and line control', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Beta Norates');
+    await user.type(screen.getByLabelText('Description'), 'Site survey');
+    await user.clear(screen.getByLabelText(/Qty|Quantity/));
+    await user.type(screen.getByLabelText(/Qty|Quantity/), '0');
+    await user.click(screen.getByRole('button', { name: 'Create invoice' }));
+    const projectLink = await screen.findByRole('link', { name: /This project has no VAT rate recorded/ });
+    await user.click(projectLink);
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Project' }));
+    const lineLink = screen.getByRole('link', { name: /Quantity must be positive/ });
+    await user.click(lineLink);
+    expect(document.activeElement).toBe(document.getElementById('sales-invoice-line-0-qty'));
   });
 
   it('DD-TAX-4a (I-2) a VAT project with no recorded rate is flagged in the form before submit, with a way to record it', async () => {

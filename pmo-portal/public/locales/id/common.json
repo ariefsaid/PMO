@@ -1,6 +1,7 @@
 {
   "toast": {
-    "dismiss": "Tutup notifikasi"
+    "dismiss": "Tutup notifikasi",
+    "more": "+{{count}} lainnya"
   },
   "efaktur": {
     "title": "Catat detail e-Faktur",
@@ -53,6 +54,13 @@
   },
   "admin": {
     "expenseMap": {
+      "notReady": "Hubungkan ERPNext sebelum memetakan akun pengeluaran. Pengiriman pengeluaran belum aktif.",
+      "error": {
+        "saveHeadline": "Akun pengeluaran tidak dapat disimpan",
+        "accountRemedy": "Periksa nama dan jenis akun di ERPNext, lalu coba lagi. Isian Anda tetap ada.",
+        "unknownRemedy": "Periksa koneksi Anda, lalu coba lagi. Isian Anda tetap ada."
+      },
+      "openIntegrations": "Buka integrasi",
       "change": "Ubah {{key}}",
       "clear": "Hapus {{key}}",
       "confirmClear": {
@@ -372,6 +380,8 @@
       }
     },
     "vendorTaxAccounts": {
+      "remoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
+      "reloadSaved": "Muat ulang nilai tersimpan",
       "heading": "Akun pajak tagihan vendor",
       "helper": "Masukkan nama akun ERPNext yang persis. Kosongkan jika tidak digunakan.",
       "inputVat": "Akun PPN Masukan",
@@ -764,6 +774,7 @@
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)",
       "pphRate": "Tarif PPh (%)",
+      "pphRateHelper": "Wajib jika pemotongan pajak dipilih. Masukkan tarif lebih dari 0 dan kurang dari 100%.",
       "pphRateError": "Masukkan tarif di atas 0 dan di bawah 100 dengan paling banyak 3 angka desimal.",
       "save": "Simpan default",
       "saved": "Default pajak vendor disimpan",
@@ -1618,6 +1629,14 @@
     },
     "viewToggleLabel": "Tampilan pengadaan"
   },
+  "procurementLedger": {
+    "title": "Buku besar kasus",
+    "filter": { "label": "Filter catatan", "all": "Semua", "financial": "Keuangan", "hasFile": "Dengan berkas" },
+    "date": "Tanggal", "typeHeader": "Jenis", "systemNumber": "Nomor sistem", "externalRef": "Ref eksternal", "amount": "Jumlah", "file": "Berkas",
+    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak memiliki baris.",
+    "types": { "purchaseRequest": "Permintaan Pembelian", "purchaseOrder": "Pesanan Pembelian", "payment": "Pembayaran", "rfq": "RFQ" },
+    "capture": { "action": "Catat {{record}}", "next": "+ Catat {{record}} — dokumen berikutnya untuk tahap ini." }
+  },
   "procurementDetail": {
     "accessDenied": {
       "sub": "Permintaan pengadaan ini tidak ada atau tidak terlihat untuk role Anda. Jika Anda yang mengajukannya, buka dari permintaan Anda sendiri.",
@@ -1636,6 +1655,29 @@
       "selectQuote": "Pilih penawaran",
       "submitRequest": "Ajukan permintaan"
     },
+    "vendorInvoice": {
+      "enterDetails": "Masukkan detail faktur untuk menandai tahap vendor ditagih:",
+      "invoiceNumber": "No. faktur",
+      "optional": "opsional",
+      "invoicePlaceholder": "cth. INV-2291",
+      "amountOptional": "Jumlah (opsional)",
+      "invoiceStatus": "Status faktur",
+      "received": "Diterima",
+      "scheduled": "Dijadwalkan",
+      "invoiceDate": "Tanggal faktur",
+      "taxTreatment": "Perlakuan pajak",
+      "taxTreatmentPlaceholder": "Pilih perlakuan pajak",
+      "taxInclusive": "Inklusif — termasuk PPN",
+      "taxExclusive": "Eksklusif — PPN ditambahkan",
+      "taxTreatmentHelper": "Inklusif: PPN sudah termasuk dalam jumlah tagihan. Eksklusif: PPN ditambahkan ke jumlah tersebut.",
+      "taxAmount": "Jumlah pajak",
+      "confirmMarkInvoiced": "Konfirmasi & tandai ditagih"
+    },
+    "externalRefOptional": "Referensi eksternal (opsional)",
+    "amountOptional": "Jumlah (opsional)",
+    "savePayment": "Simpan pembayaran",
+    "paymentRecorded": "Pembayaran dicatat",
+    "captureRecorded": "{{label}} dicatat",
     "approvalNotes": "Catatan persetujuan",
     "backToProcurement": "Pengadaan",
     "paymentBillRequired": "Pilih faktur vendor yang ditutup oleh pembayaran ini.",
@@ -3428,6 +3470,9 @@
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
   "financeCopy": {
+    "viewInvoice": "Lihat faktur",
+    "invoiceDetailsTitle": "Detail faktur",
+    "continueToApprove": "Lanjutkan untuk menyetujui",
     "nativeSalesInvoicesDescription": "Faktur klien yang dibuat, disetujui, dan dilunasi di PMO.",
     "nativeNewInvoiceSubtitle": "Membuat draf. Pengguna Finance atau Admin lain yang menyetujuinya.",
     "nativeProjectRequired": "Proyek wajib diisi: proyek menentukan PPN faktur.",
@@ -3477,6 +3522,13 @@
     "statusDraft": "Draf",
     "statusActive": "Aktif",
     "statusArchived": "Diarsipkan",
+    "amountMustBeGreaterThanZero": "Jumlah harus lebih besar dari 0",
+    "confirmCreateDescription": "Ini membuat versi anggaran Draf baru bernama \"{{name}}\".",
+    "confirmActivateDescription": "Ini menjadikan {{version}} sebagai anggaran aktif dan menggantikan versi yang saat ini aktif.",
+    "confirmCloneDescription": "Ini menyalin {{version}} menjadi Draf baru yang dapat diubah.",
+    "confirmArchiveDescription": "Ini menonaktifkan {{version}} sebagai anggaran aktif. Anda dapat menyalinnya nanti untuk membuat revisi.",
+    "confirmDeleteDraftDescription": "Ini menghapus draf {{version}} secara permanen. Tindakan ini tidak dapat dibatalkan.",
+    "confirmDeleteLineItemDescription": "Ini menghapus item anggaran dari draf secara permanen. Tindakan ini tidak dapat dibatalkan.",
     "category": "Kategori",
     "description": "Deskripsi",
     "fiscalYear": "Tahun fiskal",
@@ -3869,6 +3921,8 @@
     "filterLocation": "Filter menurut lokasi"
   },
   "managementPack": {
+    "actions": "Tindakan",
+    "retry": "Coba lagi",
     "title": "Laporan manajemen bulanan",
     "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
     "from": "Dari",

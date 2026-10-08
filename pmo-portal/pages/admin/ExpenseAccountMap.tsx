@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -20,6 +21,8 @@ import { repositories } from '@/src/lib/repositories';
 import type { ExpenseAccountMapRow } from '@/src/lib/repositories/expensePostings';
 import { EXPENSE_ACCOUNT_KEYS, type ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
+import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
+import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 
 /**
  * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 7 keys an expense posting needs.
@@ -32,6 +35,13 @@ const QUERY_KEY = ['expense-account-map'] as const;
 const ExpenseAccountMap: React.FC = () => {
   const { t } = useTranslation();
   const canManage = usePermission()('manage', 'integration');
+  const navigate = useNavigate();
+  const binding = useErpnextBinding();
+  const ownership = useExternalDomainOwnership();
+  const expensesActive = Boolean(EXPENSES_EMPLOYABLE && binding.data?.status === 'active'
+    && ownership.data?.some((row) => row.externalTier === 'erpnext' && row.domain === 'expenses'));
+  const readinessResolved = !binding.isPending && !ownership.isPending;
+  const isReady = expensesActive && !binding.isError && !ownership.isError;
   const { toast } = useToast();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<ExpenseAccountKey | null>(null);
@@ -88,10 +98,16 @@ const ExpenseAccountMap: React.FC = () => {
       setEditing(null);
     } catch (err) {
       // The server's FR-EXP-112 refusal names the account and the rule — show it verbatim in the form.
-      const { headline } = classifyMutationError(err);
-      const detail = err instanceof Error ? err.message : '';
-      setSaveError({ headline, detail });
-      toast(headline, detail, 'warning');
+      const code = (err as { code?: unknown } | null)?.code;
+      const connectionRefusal = code === 'CONFIG_REJECTED' || code === 'ERP_NOT_CONNECTED' || code === 'integration-not-connected';
+      setSaveError({
+        headline: t('admin.expenseMap.error.saveHeadline', 'Couldn’t save the expense account'),
+        detail: connectionRefusal
+          ? t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts. Expense posting is not active.')
+          : code === 'config-rejected'
+            ? t('admin.expenseMap.error.accountRemedy', 'Check the account name and type in ERPNext, then try again. Your entry is kept.')
+            : t('admin.expenseMap.error.unknownRemedy', 'Check your connection and try again. Your entry is kept.'),
+      });
     }
   };
 
@@ -115,6 +131,12 @@ const ExpenseAccountMap: React.FC = () => {
           'The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.',
         )}
       </p>
+      {readinessResolved && !isReady && (
+        <div role="status" className="mt-3 rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+          <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts. Expense posting is not active.')}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
+        </div>
+      )}
       {/* AC-MOBILE-OVERFLOW-001 — each row wraps (`flex-wrap`, `break-words`), so a long account name never pushes
           past 390px. */}
       <ul className="mt-3.5 flex flex-col">
@@ -132,16 +154,16 @@ const ExpenseAccountMap: React.FC = () => {
                   ? <span className="break-words">{account}</span>
                   // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
                   // unmapped key stops nothing: say so plainly instead of warning.
-                  : EXPENSES_EMPLOYABLE
+                  : isReady
                     ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped — expense posting stops')}</StatusPill>
                     : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
                 {canManage && (
                   <>
-                    <Button variant="ghost" size="sm" onClick={() => { setSaveError(null); setEditing(key); }}>
+                    {(isReady || account) && <Button variant="ghost" size="sm" disabled={!isReady} onClick={() => { setSaveError(null); setEditing(key); }}>
                       {account
                         ? t('admin.expenseMap.change', { defaultValue: 'Change {{key}}', key: label(key) })
                         : t('admin.expenseMap.map', { defaultValue: 'Map {{key}}', key: label(key) })}
-                    </Button>
+                    </Button>}
                     {account && (
                       <Button variant="ghost" size="sm" onClick={() => setClearing(key)}>
                         {t('admin.expenseMap.clear', { defaultValue: 'Clear {{key}}', key: label(key) })}

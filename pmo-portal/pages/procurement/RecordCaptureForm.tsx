@@ -21,7 +21,6 @@ import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
 import {
   TAX_TREATMENT_OPTIONS,
-  TAX_TREATMENT_PLACEHOLDER,
   VI_TAX_REQUIRED_HINT,
   taxIsPmoAuthored,
   ERP_AUTHORED_TAX,
@@ -517,7 +516,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       }
 
       await onCreate(input);
-      toast(`${label} recorded`, refNum ?? undefined, 'success');
+      toast(isPayment ? t('procurementDetail.paymentRecorded', 'Payment recorded') : t('procurementDetail.captureRecorded', '{{label}} recorded', { label }), refNum ?? undefined, 'success');
       onClose();
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -547,7 +546,11 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           htmlFor={`${formId}-ref`}
           className="text-[12px] font-semibold text-muted-foreground"
         >
-          {cfg.refLabel} <span className="font-normal">(optional)</span>
+          {kind === 'payment'
+            ? t('procurementDetail.externalRefOptional', 'External ref (optional)')
+            : kind === 'vendor_invoice'
+              ? t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')
+              : cfg.refLabel} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
         </label>
         <input
           id={`${formId}-ref`}
@@ -592,7 +595,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             htmlFor={`${formId}-date`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            {cfg.dateLabel}
+            {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date') : cfg.dateLabel}
           </label>
           <input
             id={`${formId}-date`}
@@ -609,10 +612,14 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           <div className="min-w-[140px] flex-1">
             <SelectField
               id={`${formId}-status`}
-              label="Status"
+              label={isVendorInvoice ? t('procurementDetail.vendorInvoice.invoiceStatus', 'Invoice status') : t('procurementDetail.status', 'Status')}
               value={status}
               onChange={setStatus}
-              options={statusOptions}
+              options={statusOptions.map((option) => isVendorInvoice
+                ? { ...option, label: option.value === 'Received'
+                  ? t('procurementDetail.vendorInvoice.received', 'Received')
+                  : t('procurementDetail.vendorInvoice.scheduled', 'Scheduled') }
+                : option)}
               data-testid={cfg.statusTestId}
             />
           </div>
@@ -626,7 +633,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             htmlFor={`${formId}-amount`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            Amount <span className="font-normal">(optional)</span>
+            {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)') : t('procurementDetail.amountOptional', 'Amount (optional)')}
           </label>
           <input
             id={`${formId}-amount`}
@@ -675,11 +682,17 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           <div className="min-w-[180px] flex-1">
             <SelectField
               id={`${formId}-tax-treatment`}
-              label="Tax treatment"
+              label={t('procurementDetail.vendorInvoice.taxTreatment', 'Tax treatment')}
               value={taxTreatmentStr}
               onChange={setTaxTreatmentStr}
-              placeholder={TAX_TREATMENT_PLACEHOLDER}
-              options={TAX_TREATMENT_OPTIONS}
+              placeholder={t('procurementDetail.vendorInvoice.taxTreatmentPlaceholder', 'Select tax treatment')}
+              helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}
+              options={TAX_TREATMENT_OPTIONS.map((option) => ({
+                ...option,
+                label: option.value === 'inclusive'
+                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
+                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+              }))}
               data-testid={VI_FIELD_TEST_IDS.taxTreatment}
             />
           </div>
@@ -688,7 +701,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               htmlFor={`${formId}-tax-amount`}
               className="text-[12px] font-semibold text-muted-foreground"
             >
-              Tax amount
+              {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
             </label>
             <input
               id={`${formId}-tax-amount`}
@@ -763,7 +776,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={taxIncomplete}
           data-testid={cfg.saveTestId}
         >
-          {cfg.saveLabel}
+          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save VI') : cfg.saveLabel}
         </Button>
         <Button
           type="button"
@@ -773,7 +786,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={isBusy}
           data-testid={cfg.cancelTestId}
         >
-          Cancel
+          {t('financeCopy.cancel', 'Cancel')}
         </Button>
       </div>
     </form>

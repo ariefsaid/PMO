@@ -40,7 +40,7 @@ describe('VendorTaxDefaultsCard (#876 slice 2, OD-VWH-1)', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('VAT rate (%)'), '11');
     await user.selectOptions(screen.getByLabelText('Withholding'), 'pph23');
-    await user.type(screen.getByLabelText('PPh rate (%)'), '2');
+    await user.type(screen.getByLabelText(/PPh rate/), '2');
     await user.click(screen.getByRole('button', { name: 'Save defaults' }));
     expect(h.setTaxDefaults).toHaveBeenCalledWith('vendor-1', { vatRate: 11, pphType: 'pph23', pphRate: 2 });
   });
@@ -74,10 +74,12 @@ describe('VendorTaxDefaultsCard (#876 slice 2, OD-VWH-1)', () => {
     renderCard();
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText('Withholding'), 'pph23');
-    // The rate field is pristine and empty — no eager error (the disabled Save is the gate).
+    // The rate field is pristine and empty — no eager error, but its dependency is explicit immediately.
+    expect(screen.getByText('Required when withholding is selected. Enter a rate above 0 and below 100%.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/PPh rate/)).toHaveAttribute('aria-required', 'true');
     expect(screen.queryByText('Enter a rate above 0 and below 100 with no more than 3 decimal places.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Save defaults' })).toBeDisabled();
-    await user.type(screen.getByLabelText('PPh rate (%)'), '0');
+    await user.type(screen.getByLabelText(/PPh rate/), '0');
     expect(screen.getByText('Enter a rate above 0 and below 100 with no more than 3 decimal places.')).toBeInTheDocument();
   });
 

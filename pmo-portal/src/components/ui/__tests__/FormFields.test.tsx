@@ -26,6 +26,22 @@ afterEach(() => resetActiveLocale());
 // ---------------------------------------------------------------------------
 
 describe('TextField: label + a11y wiring', () => {
+  it('AC-WO-1 preserves valid open money drafts when the number locale changes in either direction', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    const Harness = () => {
+      const [amount, setAmount] = React.useState('150.000');
+      return <NumberField label="Amount" localeAware value={amount} onChange={setAmount} />;
+    };
+    const { rerender } = render(<Harness />);
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    rerender(<Harness />);
+    expect(screen.getByLabelText('Amount')).toHaveValue('150,000');
+
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    rerender(<Harness />);
+    expect(screen.getByLabelText('Amount')).toHaveValue('150.000');
+  });
+
   it('renders a visible <label> associated to the input via htmlFor/id', () => {
     render(<TextField label="Opportunity name" value="" onChange={() => {}} />);
     const input = screen.getByLabelText('Opportunity name');

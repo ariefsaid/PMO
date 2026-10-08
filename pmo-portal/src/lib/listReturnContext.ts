@@ -11,6 +11,8 @@ export interface ListReturnContext {
   path: string;
   /** Best-effort main-scroll offset captured from that list entry. */
   scrollTop?: number;
+  /** Owner-scoped stable activation target, e.g. `projects:<record-id>`. */
+  focusTarget?: string;
 }
 
 declare const validatedReturnNavigation: unique symbol;
@@ -118,6 +120,12 @@ function validatedListPath(value: unknown, list: ListName): string | undefined {
   return `${url.pathname}${url.search}`;
 }
 
+function validFocusTarget(value: unknown, list: ListName): string | undefined {
+  if (typeof value !== 'string' || value.length > 160) return undefined;
+  const match = value.match(/^([a-z]+):([A-Za-z0-9_-]{1,128})$/u);
+  return match?.[1] === list ? value : undefined;
+}
+
 function validScrollTop(value: unknown): number | undefined {
   return typeof value === 'number' &&
     Number.isFinite(value) &&
@@ -132,6 +140,7 @@ export function createListReturnContext(
   list: ListName,
   path: string,
   scrollTop?: number,
+  focusTarget?: string,
 ): ListReturnContext | undefined {
   const safePath = validatedListPath(path, list);
   if (!safePath) return undefined;
@@ -140,6 +149,7 @@ export function createListReturnContext(
     list,
     path: safePath,
     ...(safeScrollTop === undefined ? {} : { scrollTop: safeScrollTop }),
+    ...(validFocusTarget(focusTarget, list) ? { focusTarget: validFocusTarget(focusTarget, list) } : {}),
   };
 }
 
@@ -160,6 +170,7 @@ export function readListReturnContext(
     candidate.list,
     typeof candidate.path === 'string' ? candidate.path : '',
     candidate.scrollTop as number | undefined,
+    candidate.focusTarget as string | undefined,
   );
 }
 
@@ -172,7 +183,7 @@ export function withListReturnContext(
   delete next[LIST_RETURN_CONTEXT_KEY];
   delete next[TAB_SWITCH_NAV_STATE_KEY];
   const validated = listName(context?.list)
-    ? createListReturnContext(context.list, context.path, context.scrollTop)
+    ? createListReturnContext(context.list, context.path, context.scrollTop, context.focusTarget)
     : undefined;
   if (validated) next[LIST_RETURN_CONTEXT_KEY] = validated;
   return next;
@@ -192,13 +203,14 @@ export function withListScrollRestore(
   delete next[LIST_SCROLL_RESTORE_STATE_KEY];
   delete next[TAB_SWITCH_NAV_STATE_KEY];
   const validated = context && listName(context.list)
-    ? createListReturnContext(context.list, context.path, context.scrollTop)
+    ? createListReturnContext(context.list, context.path, context.scrollTop, context.focusTarget)
     : undefined;
   if (validated?.scrollTop !== undefined) {
     next[LIST_SCROLL_RESTORE_STATE_KEY] = {
       list: validated.list,
       path: validated.path,
       scrollTop: validated.scrollTop,
+      ...(validated.focusTarget ? { focusTarget: validated.focusTarget } : {}),
     };
   }
   return next;

@@ -123,6 +123,37 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(h.createPaymentMutate).not.toHaveBeenCalled();
   });
 
+  it('IP-1: each invalid-receipt summary link focuses its invoice, amount, or date control', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    await user.click(screen.getByRole('combobox', { name: 'Customer' }));
+    await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
+
+    // No invoice is selected and the zero-valued amounts are left untouched. Set a non-empty
+    // future date so it fails validation while satisfying the form's non-empty submit readiness.
+    const date = screen.getByLabelText(/payment date/i);
+    fireEvent.change(date, { target: { value: '2999-01-01' } });
+    const submit = screen.getByRole('button', { name: 'Record payment' });
+    // A native max-date constraint suppresses browser click-submit before React can validate;
+    // dispatch the form's submit event to exercise the page's own summary and focus behavior.
+    fireEvent.submit(submit.closest('form')!);
+
+    const summary = document.querySelector<HTMLElement>('[aria-label="Form errors"]');
+    expect(summary).not.toBeNull();
+    const cases = [
+      [/Choose the invoice this receipt settles\./, screen.getByRole('combobox', { name: /Sales Invoice/ })],
+      [/Paid amount must be positive/i, screen.getByLabelText(/Paid Amount/)],
+      [/Received amount must be positive/i, screen.getByLabelText(/Received Amount/)],
+      [/payment date cannot be in the future/i, date],
+    ] as const;
+    for (const [message, control] of cases) {
+      const link = within(summary!).getByRole('link', { name: message });
+      await user.click(link);
+      expect(document.activeElement).toBe(control);
+    }
+  });
+
   it('AC-NAR-003 an open PMO invoice is offered by its PMO number', async () => {
     h.invoices.data = [{
       id: 'si-1', customer_id: 'cust-1', si_number: null, pmo_number: 'INV-2610070001', pmo_native: true,

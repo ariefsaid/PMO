@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ListState, Button } from '@/src/components/ui';
 import { useRecordHistory } from '@/src/hooks/useRecordHistory';
-import type { HistoryEvent, FieldChange } from '@/src/lib/repositories/recordHistory';
+import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repositories/recordHistory';
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';
@@ -175,7 +175,17 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
   const events = useMemo(() => q.data?.pages.flatMap((p) => p.events) ?? [], [q.data]);
   const companyIdsKey = companyIdsOf(events).join(',');
   const companyIds = useMemo(() => (companyIdsKey ? companyIdsKey.split(',') : []), [companyIdsKey]);
-  const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds });
+  const recordIdsByType = useMemo(() => {
+    const ids: Partial<Record<HistoryNameKind, string[]>> = {};
+    for (const event of events) {
+      if (['purchase_request', 'rfq', 'purchase_order', 'payment', 'sales_invoice', 'procurement_invoice'].includes(event.entityType)) {
+        const kind = event.entityType as HistoryNameKind;
+        (ids[kind] ??= []).push(event.entityId);
+      }
+    }
+    return ids;
+  }, [events]);
+  const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
 

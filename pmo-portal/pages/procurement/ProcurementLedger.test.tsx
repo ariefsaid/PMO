@@ -9,6 +9,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Stubs — vi.hoisted keeps mock factories before the import block
@@ -208,6 +209,19 @@ const BASE_PROPS = {
   canWrite: true,
   invoices: [] as Parameters<typeof ProcurementLedger>[0]['invoices'],
 };
+
+describe('PR-1 Bahasa rendered-copy contract', () => {
+  it('renders translated filters, headers, record types, and capture action', () => {
+    render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient()}><ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft' })} rows={SAMPLE_ROWS} /></QueryClientProvider></MemoryRouter></BahasaProvider>);
+    expect(screen.getByRole('group', { name: 'Filter catatan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Semua' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keuangan' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Tanggal' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Jenis' })).toBeInTheDocument();
+    expect(screen.getByText('Pembayaran')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Catat Permintaan Pembelian/i })).toBeInTheDocument();
+  });
+});
 
 describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
   it('renders a table or card list with all rows', () => {

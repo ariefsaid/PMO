@@ -13,6 +13,7 @@ import { useBudgetVersions } from '@/src/hooks/useBudget';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import type { NameSource, RefSource } from './historyFields';
+import type { HistoryNameKind } from '@/src/lib/repositories/recordHistory';
 
 /** id → display name, per source list. A miss renders "Unavailable" (never a raw uuid). */
 export type RefMaps = Record<RefSource | NameSource, Map<string, string>>;
@@ -35,8 +36,9 @@ export function useHistoryRefs(args: {
   entityId: string;
   enabled: boolean;
   companyIds: string[];
+  recordIdsByType?: Partial<Record<HistoryNameKind, string[]>>;
 }): RefMaps {
-  const { entityType, entityId, enabled, companyIds } = args;
+  const { entityType, entityId, enabled, companyIds, recordIdsByType = {} } = args;
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
@@ -59,6 +61,13 @@ export function useHistoryRefs(args: {
   // #878: on a procurement History the four purchase documents are named from the SAME cached detail
   // query the page itself uses; the hook stays idle (undefined id → disabled) off a procurement.
   const procDetail = useProcurementDetail(enabled && entityType === 'procurement' ? entityId : undefined);
+  const nameIdsKey = Object.entries(recordIdsByType).map(([kind, ids]) => `${kind}:${(ids ?? []).join(',')}`).join('|');
+  const eventNames = useQuery({
+    queryKey: ['record-history-names', orgId, nameIdsKey],
+    queryFn: () => repositories.recordHistory.lookupNames(recordIdsByType),
+    enabled: Boolean(orgId) && enabled && Boolean(nameIdsKey),
+    staleTime: 5 * 60_000,
+  });
 
   const activeCompanyIds = useMemo(() => new Set((companies.data ?? []).map((c) => c.id)), [companies.data]);
   const missingCompanyIds = companies.isSuccess ? companyIds.filter((id) => !activeCompanyIds.has(id)) : [];
@@ -87,13 +96,15 @@ export function useHistoryRefs(args: {
         versions.flatMap((v) => v.line_items).map((li) => [li.id, li.description || budgetCategoryLabel(li.category, t)]),
       ),
       // The document number, else the reference — the words a purchase reader knows the row by.
-      purchaseRequests: new Map((docs?.purchase_requests ?? []).map((d) => [d.id, joinName(d.pr_number, d.reference_number)])),
-      rfqs: new Map((docs?.rfqs ?? []).map((d) => [d.id, joinName(d.rfq_number, d.reference_number)])),
-      purchaseOrders: new Map((docs?.purchase_orders ?? []).map((d) => [d.id, joinName(d.po_number, d.reference_number)])),
-      payments: new Map((docs?.payments ?? []).map((d) => [d.id, joinName(d.pay_number, d.reference_number)])),
+      purchaseRequests: new Map([...(docs?.purchase_requests ?? []).map((d) => [d.id, joinName(d.pr_number, d.reference_number)] as [string, string]), ...(eventNames.data?.purchase_request ?? new Map())]),
+      rfqs: new Map([...(docs?.rfqs ?? []).map((d) => [d.id, joinName(d.rfq_number, d.reference_number)] as [string, string]), ...(eventNames.data?.rfq ?? new Map())]),
+      purchaseOrders: new Map([...(docs?.purchase_orders ?? []).map((d) => [d.id, joinName(d.po_number, d.reference_number)] as [string, string]), ...(eventNames.data?.purchase_order ?? new Map())]),
+      payments: new Map([...(docs?.payments ?? []).map((d) => [d.id, joinName(d.pay_number, d.reference_number)] as [string, string]), ...(eventNames.data?.payment ?? new Map())]),
+      salesInvoices: eventNames.data?.sales_invoice ?? new Map(),
+      procurementInvoices: eventNames.data?.procurement_invoice ?? new Map(),
     };
   }, [
     t, archivedCompanies, profiles.data, companies.data, tasks.data, milestones.data, procurements.data,
-    workOrders.data, budgetVersions.data, procDetail.data,
+    workOrders.data, budgetVersions.data, procDetail.data, eventNames.data,
   ]);
 }
