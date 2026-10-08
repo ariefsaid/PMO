@@ -1,4 +1,4 @@
--- Rollback 0279_budget_version_editors.sql.
+-- Rollback 0280_budget_version_editors.sql.
 create or replace function public.activate_budget_version(version_id uuid)
   returns void language plpgsql security definer set search_path = public as $$
 declare v_project uuid; v_org uuid; v_status budget_status; v_drafter uuid;

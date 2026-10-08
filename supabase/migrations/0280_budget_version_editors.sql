@@ -1,5 +1,5 @@
--- 0279_budget_version_editors.sql — DD-BUDGET-7: every version editor is excluded from activation.
--- Reversal: rollback/0279_budget_version_editors_down.sql.
+-- 0280_budget_version_editors.sql — DD-BUDGET-7: every version editor is excluded from activation.
+-- Reversal: rollback/0280_budget_version_editors_down.sql.
 
 create table public.budget_version_editors (
   org_id uuid not null references public.organizations(id) on delete cascade,
