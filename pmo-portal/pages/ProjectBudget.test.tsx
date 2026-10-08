@@ -5,6 +5,7 @@ import { axe } from 'jest-axe';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
@@ -287,7 +288,7 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
     resetState();
   });
 
@@ -303,9 +304,8 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
-    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
-    expect(screen.getByRole('status')).toHaveTextContent(/ERPNext/i);
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/ERPNext/i);
     resetState();
   });
 
@@ -321,11 +321,10 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
-    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
-    expect(screen.getByRole('status')).toHaveTextContent(/no budget lines/i);
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/no budget lines/i);
     // …and it does NOT tell the operator to retry a push that was never attempted.
-    expect(screen.getByRole('status')).not.toHaveTextContent(/retry/i);
+    expect(toast).not.toHaveTextContent(/retry/i);
     resetState();
   });
 
@@ -589,7 +588,7 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     await userEvent.type(screen.getByPlaceholderText(/Amount/i), '1.234');
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(await screen.findByText(/valid|decimal/i, { selector: 'span[role="alert"]' })).toHaveTextContent(/valid|decimal/i);
     expect(mockCreateLineItem).not.toHaveBeenCalled();
   });
 

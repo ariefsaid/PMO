@@ -14,7 +14,7 @@
  * this round happened to find, so a fifth path cannot regress it quietly.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -76,6 +76,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecisio
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: () => undefined }) }));
 import ApprovalsPage from '../Approvals';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 const renderPage = () =>
   render(
@@ -114,7 +115,7 @@ describe('Approvals — the ERP push retry never speaks the adapter\'s vocabular
     const { container } = renderPage();
 
     await user.click(await screen.findByRole('button', { name: /retry/i }));
-    await waitFor(() => expect(screen.getByText(/could not be pushed/i)).toBeInTheDocument());
+    expect(await findToastAnnouncement('alert', /could not be pushed/i)).toBeInTheDocument();
     expect(container.textContent ?? '').not.toMatch(RAW_ADAPTER_TOKEN);
   });
 
@@ -124,7 +125,7 @@ describe('Approvals — the ERP push retry never speaks the adapter\'s vocabular
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: /retry/i }));
-    expect(await screen.findByText(/only an APPROVED timesheet|not approved/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /only an APPROVED timesheet|not approved/i)).toBeInTheDocument();
   });
 
   it('NEW-2 a transport failure is still reported as transport, not as something to fix on this screen', async () => {
@@ -135,6 +136,6 @@ describe('Approvals — the ERP push retry never speaks the adapter\'s vocabular
     await user.click(await screen.findByRole('button', { name: /retry/i }));
     // The badge already said it about the PERSISTED state; the toast must now say it about THIS
     // attempt — two statements of the same honest cause, not one plus a leaked token.
-    await waitFor(() => expect(screen.getAllByText(/could not be reached/i).length).toBeGreaterThan(1));
+    expect(await findToastAnnouncement('alert', /could not be reached/i)).toBeInTheDocument();
   });
 });

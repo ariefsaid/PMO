@@ -70,6 +70,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import DocumentsTab from './DocumentsTab';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // d1 Draft (authored by pm-1), d2 Issued (authored by pm-1, awaiting approval),
 // d3 Approved (authored by admin-1), d4 Rejected (authored by pm-1).
@@ -271,7 +272,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
     await userEvent.type(within(dialog).getByLabelText(/Title/i), 'Blocked Doc');
     await userEvent.selectOptions(within(dialog).getByLabelText(/Category/i), 'Drawing');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Add document$/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 
@@ -439,9 +440,9 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const oversize = new File(['x'], 'too-big.pdf', { type: 'application/pdf' });
     Object.defineProperty(oversize, 'size', { value: 6 * 1024 * 1024 });
     await userEvent.upload(fileInput, oversize);
-    expect(screen.getByRole('alert')).toHaveTextContent('File exceeds 5 MB limit');
+    expect(screen.getByText('File exceeds 5 MB limit')).toHaveTextContent('File exceeds 5 MB limit');
     await userEvent.click(screen.getByRole('button', { name: /Remove failed upload for Site Plan/i }));
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('File exceeds 5 MB limit')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
   });
 

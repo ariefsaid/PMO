@@ -54,7 +54,7 @@ describe('Toast', () => {
 
   it('warning kind maps to the warning stripe', () => {
     render(<ToastView kind="warning" title="Heads up" />);
-    expect(screen.getByText('Heads up').closest('[role="status"]')!.className).toContain(
+    expect(screen.getByText('Heads up').closest('[role="alert"]')!.className).toContain(
       'border-l-warning'
     );
   });

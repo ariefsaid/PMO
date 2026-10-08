@@ -5,6 +5,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
 
 /**
@@ -158,7 +159,7 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     // Goal 1: the confirm dialog CLOSES (was stuck with the bug)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 3_000 });
     // Goal 2: aggregate success toast appears
-    expect(await screen.findByText(/timesheets? approved/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /timesheets? approved/i)).toBeInTheDocument();
   });
 
   it('select-all selects only the approvable rows', async () => {
@@ -184,8 +185,8 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve 2$/i }));
     await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2));
     // aggregate toast reports the split, not two separate toasts
-    expect(await screen.findByText(/1 approved/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 failed/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /1 approved/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /1 failed/i)).toBeInTheDocument();
   });
 
   it('Clear exits selection mode', async () => {

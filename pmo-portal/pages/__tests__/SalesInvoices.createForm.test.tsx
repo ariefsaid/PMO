@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { getPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 /**
@@ -276,7 +277,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await user.type(rate, '1.234');
     await user.click(screen.getByRole('button', { name: 'Create invoice' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/rate|decimal/i);
+    expect(getPageAnnouncement('alert', /rate|decimal/i).textContent).toMatch(/rate|decimal/i);
     expect(hoisted.createMutate).not.toHaveBeenCalled();
   });
 

@@ -85,7 +85,7 @@ for (const { param, label, confirmation, raw } of [
       await expect(approval).toContainText(/connect your (own|individual) microsoft 365 account/i);
       await expect(approval).not.toContainText(/your account is connected/i);
     } else {
-      await expect(page.getByRole('alert')).toContainText(/could not be connected.*try again/i);
+      await expect(page.getByRole('alert').filter({ hasText: /could not be connected.*try again/i })).toContainText(/could not be connected.*try again/i);
       if (raw) await expect(page.locator('body')).not.toContainText(raw);
     }
 

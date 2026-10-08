@@ -10,6 +10,7 @@ import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // A Postgres-coded error that classifyMutationError maps to a specific headline.
 const pgPermissionError = Object.assign(new Error('permission denied for table timesheets'), {
@@ -120,8 +121,6 @@ describe('Timesheets error classification (W2-8)', () => {
     await user.click(allSubmitBtns[allSubmitBtns.length - 1]);
 
     // The toast headline must be classified (42501 → "You don't have permission to do that.")
-    await waitFor(() => {
-      expect(screen.getByText(/you don't have permission to do that/i)).toBeInTheDocument();
-    });
+    expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { getPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -350,7 +351,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.isError = true;
     renderAt('/projects/p1');
     expect(screen.queryByText(/Project not found/i)).toBeNull();
-    expect(screen.getByRole('alert')).toHaveTextContent(/Couldn.t load this project/i);
+    const alert = getPageAnnouncement('alert', /Couldn.t load this project/i);
+    expect(within(alert).getByText(/Couldn.t load this project/i)).toBeInTheDocument();
     // The escape route stays; and Retry re-runs the by-id read.
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
     // #707: like the loading / not-found states, the error state's Back bar is phone-only.

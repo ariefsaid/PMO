@@ -12,6 +12,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { BahasaProvider } from '@/test/bahasa';
 import { RAW_ADAPTER_TOKEN } from '@/src/lib/adapterSeam/pushErrorCopy';
 import type { BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
@@ -94,6 +95,18 @@ const NO_PUSH: BudgetPushStatusRow = {
 };
 
 const pushStatus = (over: Partial<BudgetPushStatusRow>): BudgetPushStatusRow => ({ ...NO_PUSH, ...over });
+
+async function findPageAlert(message: RegExp): Promise<HTMLElement> {
+  let result!: HTMLElement;
+  await waitFor(() => {
+    const matches = screen.getAllByRole('alert').filter((alert) =>
+      alert.getAttribute('aria-atomic') !== 'true' && message.test(alert.textContent ?? ''),
+    );
+    expect(matches, `expected one page alert matching ${String(message)}`).toHaveLength(1);
+    result = matches[0];
+  });
+  return result;
+}
 
 const renderPage = (role: Role = 'Finance') => {
   realRole = role;
@@ -526,7 +539,7 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: /retry the push/i }));
     await waitFor(() => expect(retryMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR));
-    expect(await screen.findByText(/budget pushed to ERPNext/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /budget pushed to ERPNext/i)).toBeInTheDocument();
   });
 
   it('HIGH-D a retry that fails again says so, and leaves the banner in place', async () => {
@@ -536,7 +549,7 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: /retry the push/i }));
     await waitFor(() => expect(retryMock).toHaveBeenCalled());
-    expect(await screen.findByText(/did not complete/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /did not complete/i)).toBeInTheDocument();
     expect(screen.getByText(/still enforcing the previous budget/i)).toBeInTheDocument();
   });
 
@@ -552,7 +565,7 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: /retry the push/i }));
     await waitFor(() => expect(retryMock).toHaveBeenCalled());
-    expect(await screen.findByText(/no budget lines/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /no budget lines/i)).toBeInTheDocument();
     expect(screen.queryByText(/now enforcing the active budget/i)).not.toBeInTheDocument();
   });
 
@@ -576,7 +589,7 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: /retry the push/i }));
     await waitFor(() => expect(retryMock).toHaveBeenCalled());
-    expect(await screen.findByText(/may need fixing first/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /may need fixing first/i)).toBeInTheDocument();
   });
 
   it('H-3 banners an Active version with NO activation stamp, and names the route out (a retry cannot mint one)', async () => {
@@ -607,9 +620,9 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
   it('I-14 offers NO retry for an ERP-side cause a retry can never fix, and says what must change', async () => {
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'failed', pushError: 'budget-multi-fiscal-year' })]);
     renderPage();
-    await screen.findByRole('alert');
+    const alert = await findPageAlert(/split the budget/i);
+    expect(alert.textContent).toMatch(/split the budget/i);
     expect(screen.queryByRole('button', { name: /retry the push/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/split the budget/i)).toBeInTheDocument();
   });
 
   it('NEW-6 names the unmapped categories as the operator\'s to-do list, not just the bare error code', async () => {
@@ -675,7 +688,7 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     ]);
     renderPage();
     await user.click(await screen.findByRole('button', { name: /retry the push/i }));
-    await waitFor(() => expect(screen.getByText(/nothing on this screen needs fixing/i)).toBeInTheDocument());
+    expect(await findToastAnnouncement('alert', /nothing on this screen needs fixing/i)).toBeInTheDocument();
     expect(screen.queryByText(/then retry/i)).not.toBeInTheDocument();
   });
 
@@ -687,15 +700,15 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
       pushStatus({ pushState: 'failed', pushError: 'budget-category-unmapped', fiscalYear: ERP_FISCAL_YEAR }),
     ]);
     renderPage();
-    const alert = await screen.findByRole('alert');
-    expect(within(alert).getByText(new RegExp(`fiscal year ${ERP_FISCAL_YEAR}`, 'i'))).toBeInTheDocument();
+    const alert = await findPageAlert(new RegExp(`fiscal year ${ERP_FISCAL_YEAR}`, 'i'));
+    expect(alert.textContent).toMatch(new RegExp(`fiscal year ${ERP_FISCAL_YEAR}`, 'i'));
   });
 
   it('NEW-5 says nothing about a year when the status carries none, rather than inventing one', async () => {
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'never-pushed' })]);
     renderPage();
-    const alert = await screen.findByRole('alert');
-    expect(within(alert).queryByText(/fiscal year/i)).not.toBeInTheDocument();
+    const alert = await findPageAlert(/never reached ERPNext/i);
+    expect(alert.textContent).not.toMatch(/fiscal year/i);
   });
 
   // ── I-5/I-15: no raw kebab-case adapter token may reach the DOM. The prior version of this file
@@ -708,7 +721,7 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
   ])('I-5 the push error %s never reaches the DOM as a raw token', async (pushError) => {
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'failed', pushError })]);
     const { container } = renderPage();
-    await screen.findByRole('alert');
+    await findPageAlert(/ERPNext is (?:not enforcing|still enforcing)/i);
     expect(container.textContent ?? '').not.toMatch(RAW_ADAPTER_TOKEN);
   });
 });
@@ -735,7 +748,7 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
     await user.type(field, '1.234');
     await user.click(screen.getByRole('button', { name: /save/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(await screen.findByText(/valid|decimal/i, { selector: 'span[role="alert"]' })).toHaveTextContent(/valid|decimal/i);
     expect(upsertEtcMock).not.toHaveBeenCalled();
   });
 
@@ -769,7 +782,7 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
     await user.type(field, '-5');
     await user.click(screen.getByRole('button', { name: /save/i }));
 
-    const message = await screen.findByRole('alert');
+    const message = await screen.findByText(/valid, non-negative/i, { selector: 'span[role="alert"]' });
     expect(message).toHaveTextContent(/valid, non-negative/i);
     expect(field).toHaveAttribute('aria-invalid', 'true');
     expect(field.getAttribute('aria-describedby') ?? '').toContain(message.id);
@@ -827,20 +840,20 @@ describe('BudgetProjection — a held push has an in-app route out (MED-2)', () 
     renderPage('Admin');
     await user.click(await screen.findByRole('button', { name: /release the hold/i }));
     await waitFor(() => expect(releaseHoldMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR));
-    expect(await screen.findByText(/hold released/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /hold released/i)).toBeInTheDocument();
   });
 
   it('MED-2 a non-Admin is NOT offered it — the RPC is Admin-only and the surface never promises more', async () => {
     pushStatusMock.mockResolvedValue([heldStatus()]);
     renderPage('Project Manager');
-    await screen.findByRole('alert');
+    await findPageAlert(/ERPNext is (?:not enforcing|still enforcing)/i);
     expect(screen.queryByRole('button', { name: /release the hold/i })).not.toBeInTheDocument();
   });
 
   it('MED-2 it is offered ONLY for a held command — a plain failure has nothing to release', async () => {
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'failed', pushError: 'budget-category-unmapped' })]);
     renderPage('Admin');
-    await screen.findByRole('alert');
+    await findPageAlert(/ERPNext is (?:not enforcing|still enforcing)/i);
     expect(screen.queryByRole('button', { name: /release the hold/i })).not.toBeInTheDocument();
   });
 
@@ -850,7 +863,7 @@ describe('BudgetProjection — a held push has an in-app route out (MED-2)', () 
     pushStatusMock.mockResolvedValue([heldStatus()]);
     renderPage('Admin');
     await user.click(await screen.findByRole('button', { name: /release the hold/i }));
-    expect(await screen.findByText(/permission/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /permission/i)).toBeInTheDocument();
   });
 });
 
@@ -881,7 +894,7 @@ describe('BudgetProjection — the Release affordance is offered only where it c
       }),
     ]);
     renderPage('Admin');
-    await screen.findByRole('alert');
+    await findPageAlert(/ERPNext is (?:not enforcing|still enforcing)/i);
     expect(
       screen.queryByRole('button', { name: /release the hold/i }),
       'the release would throw "there is no held ERP command to release"',
@@ -908,7 +921,7 @@ describe('BudgetProjection — the Release affordance is offered only where it c
         pushStatus({ pushState: 'held', pushError: code, fiscalYear: ERP_FISCAL_YEAR, holdReleasable: false }),
       ]);
       renderPage('Admin');
-      const alert = await screen.findByRole('alert');
+      const alert = await findPageAlert(/ERPNext is (?:not enforcing|still enforcing)/i);
       expect(alert.textContent ?? '').not.toMatch(RAW_ADAPTER_TOKEN);
       expect(alert.textContent ?? '').not.toContain(code);
     },
@@ -950,16 +963,16 @@ describe('BudgetProjection — per-year push status and per-year actions (AC-BFY
     pushStatusMock.mockResolvedValue([PUSHED_2026(), FAILED_2027()]);
     renderPage();
     expect(await screen.findByText(/ERPNext is enforcing this budget/i)).toBeInTheDocument();
-    const alert = await screen.findByRole('alert');
-    expect(within(alert).getByText(/fiscal year 2027/i)).toBeInTheDocument();
+    const alert = await findPageAlert(/fiscal year 2027/i);
+    expect(alert.textContent).toMatch(/fiscal year 2027/i);
   });
 
   it('AC-BFY-026: a year with NO mirror row at all still renders, as an explicit never-pushed row', async () => {
     pushStatusMock.mockResolvedValue([PUSHED_2026(), pushStatus({ pushState: 'never-pushed', fiscalYear: '2027' })]);
     renderPage();
-    const alert = await screen.findByRole('alert');
-    expect(within(alert).getByText(/not enforcing any budget/i)).toBeInTheDocument();
-    expect(within(alert).getByText(/fiscal year 2027/i)).toBeInTheDocument();
+    const alert = await findPageAlert(/not enforcing any budget/i);
+    expect(alert.textContent).toMatch(/not enforcing any budget/i);
+    expect(alert.textContent).toMatch(/fiscal year 2027/i);
   });
 
   it("AC-BFY-026: Retry dispatches for the ROW's fiscal year, never the project as a whole", async () => {
@@ -988,8 +1001,8 @@ describe('BudgetProjection — per-year push status and per-year actions (AC-BFY
       FAILED_2027(),
     ]);
     renderPage();
-    const alerts = await screen.findAllByRole('alert');
-    expect(alerts).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByRole('alert').filter((alert) => alert.getAttribute('aria-atomic') !== 'true')).toHaveLength(2));
+    const alerts = screen.getAllByRole('alert').filter((alert) => alert.getAttribute('aria-atomic') !== 'true');
     // The SECOND banner's retry acts on the second year — one shared handler would send the first.
     await user.click(within(alerts[1]).getByRole('button', { name: /retry the push/i }));
     await waitFor(() => expect(retryMock).toHaveBeenCalledWith('proj-1', '2027'));

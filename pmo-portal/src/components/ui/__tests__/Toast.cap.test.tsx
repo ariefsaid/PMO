@@ -58,10 +58,10 @@ describe('AC-IXD-WP-005: Toast caps to one visible, auto-dismissing within 3–5
     });
     expect(screen.getByRole('status')).toBeInTheDocument();
 
-    // Within the 3–5s window it disappears on its own (no user action).
+    // Within the 3–5s window the live region is cleared on its own (no user action).
     act(() => {
       vi.advanceTimersByTime(5_000);
     });
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 });

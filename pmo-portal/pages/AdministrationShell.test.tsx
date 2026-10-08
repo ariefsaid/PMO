@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 
 const { roleState, operatorState, listState, mutations, panelMounts } = vi.hoisted(() => ({
   roleState: { value: 'Admin' as Role },
@@ -239,7 +240,7 @@ describe('Administration route-backed shell', () => {
   it('AC-ADMIA-002: a non-Operator direct Usage or Features URL is denied without mounting its panel', async () => {
     for (const section of ['usage', 'features']) {
       const view = renderShell(`/administration/${section}`, 'Admin', false);
-      expect(await screen.findByRole('alert')).toHaveTextContent(/Operator-only/i);
+      expect(await findPageAnnouncement('alert', /Operator-only/i)).toHaveTextContent(/Operator-only/i);
       expect(screen.queryByTestId(`administration-panel-${section}`)).not.toBeInTheDocument();
       expect(section === 'usage' ? panelMounts.usage : panelMounts.features).toBe(0);
       view.unmount();
@@ -326,7 +327,7 @@ describe('Administration route-backed shell', () => {
     operatorState.error = true;
     renderShell('/administration/usage', 'Engineer', true);
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/could not verify.*access/i);
+    expect(await findPageAnnouncement('alert', /could not verify.*access/i)).toHaveTextContent(/could not verify.*access/i);
     expect(screen.queryByTestId('administration-panel-usage')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(operatorState.retry).toHaveBeenCalledOnce();

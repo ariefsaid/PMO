@@ -17,6 +17,8 @@ import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { findPageAnnouncement, queryPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 
 const { getTaxDefault, setTaxDefault } = vi.hoisted(() => ({
   getTaxDefault: vi.fn(),
@@ -81,7 +83,7 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
     await waitFor(() => expect(select().value).toBe('exclusive'));
     await userEvent.selectOptions(select(), 'inclusive');
     await waitFor(() => expect(setTaxDefault).toHaveBeenCalled());
-    expect(await screen.findByText(/permission|not allowed|access/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /permission|not allowed|access/i)).toBeInTheDocument();
   });
 
   it.each<Role>(['Project Manager', 'Finance', 'Executive', 'Engineer'])(
@@ -106,7 +108,7 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
   it('#695: a rejected default read shows an error with Retry, not a skeleton that never resolves', async () => {
     getTaxDefault.mockRejectedValue(new Error('network down'));
     renderPanel('Admin');
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn.t load the default tax treatment/i);
+    expect(await findPageAnnouncement('alert', /Couldn.t load the default tax treatment/i)).toHaveTextContent(/Couldn.t load the default tax treatment/i);
     expect(screen.queryByTestId('org-tax-default-loading')).not.toBeInTheDocument();
     expect(screen.queryByTestId('org-tax-default-select')).not.toBeInTheDocument();
 
@@ -114,7 +116,7 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
     getTaxDefault.mockResolvedValue('inclusive');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(select().value).toBe('inclusive'));
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(queryPageAnnouncement('alert', /Couldn.t load the default tax treatment/i)).toBeNull();
   });
 
   it('#695: a failed BACKGROUND refetch after a good read keeps the working control — the error replaces nothing', async () => {
@@ -125,14 +127,14 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
     await userEvent.selectOptions(select(), 'inclusive');
     await waitFor(() => expect(getTaxDefault).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(setTaxDefault).toHaveBeenCalledWith('inclusive'));
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Couldn.t load the default tax treatment/i)).not.toBeInTheDocument();
     expect(select()).toBeInTheDocument();
   });
 
   it('#695: a read that resolves with NO value is an error with Retry, not a skeleton that never resolves', async () => {
     getTaxDefault.mockResolvedValue(null);
     renderPanel('Admin');
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn.t load the default tax treatment/i);
+    expect(await findPageAnnouncement('alert', /Couldn.t load the default tax treatment/i)).toHaveTextContent(/Couldn.t load the default tax treatment/i);
     expect(screen.queryByTestId('org-tax-default-loading')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });

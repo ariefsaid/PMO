@@ -48,7 +48,7 @@ test('AC-L10N-060: switching to Bahasa Indonesia re-renders money and dates, and
   await saveButton(page, { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Profil & preferensi');
-  await expect(page.getByRole('status')).toHaveText(/preferences saved|preferensi disimpan/i);
+  await expect(page.getByRole('status').filter({ hasText: /preferences saved|preferensi disimpan/i })).toHaveText(/preferences saved|preferensi disimpan/i);
 
   // 2. Persistence: reload keeps both the selection and the document language Indonesian.
   await page.reload();

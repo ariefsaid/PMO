@@ -39,9 +39,9 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     const input = await screen.findByRole('textbox', { name: /project number pattern/i });
     expect(input).toHaveValue('PRJ-{YY}-{SEQ4}');
     fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/include \{SEQ4\} exactly once/i, { selector: '[role="alert"]' })).not.toBeInTheDocument();
     fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}' } });
-    expect(screen.getByRole('alert')).toHaveTextContent(/include \{SEQ4\} exactly once/i);
+    expect(screen.getByText(/include \{SEQ4\} exactly once/i, { selector: '[role="alert"]' })).toHaveTextContent(/include \{SEQ4\} exactly once/i);
     expect(screen.getByRole('button', { name: /save pattern/i })).toBeDisabled();
     fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
     const save = screen.getByRole('button', { name: /save pattern/i });

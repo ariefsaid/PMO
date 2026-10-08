@@ -1,4 +1,7 @@
 {
+  "toast": {
+    "dismiss": "Tutup notifikasi"
+  },
   "efaktur": {
     "title": "Catat detail e-Faktur",
     "number": "Nomor e-Faktur",
