@@ -23,13 +23,18 @@ const ACTIVATED_BINDING = {
   config: { company: 'PMO Smoke Co', default_payable_account: 'Creditors - PSC' },
 };
 
-/** `<table>:<id>` -> the row's REAL org_id. org-1 is the caller; org-2 is a DIFFERENT tenant. */
-const TWO_ORG_ROWS: Record<string, { org_id: string }> = {
+/** `<table>:<id>` -> the row's REAL org_id. org-1 is the caller; org-2 is a DIFFERENT tenant.
+ *  #910: the vi-1 bill row carries the case anchor + mirrored outstanding the payment gate reads,
+ *  and the mock below resolves its procurement external_ref — a payment create now (DD-VPAY-3/7)
+ *  refuses without a real-shaped bill behind it. The §1 currency gate (OBS-VPAY-003) additionally
+ *  reads the org's `default_currency` and the bill's mirrored `currency` — both same-currency here. */
+const TWO_ORG_ROWS: Record<string, { org_id: string } & Record<string, unknown>> = {
+  'organizations:org-1': { org_id: 'org-1', default_currency: 'IDR' },
   'procurements:proc-1': { org_id: 'org-1' },
   'procurements:proc-org2': { org_id: 'org-2' },
   'companies:vendor-1': { org_id: 'org-1' },
   'companies:vendor-org2': { org_id: 'org-2' },
-  'procurement_invoices:vi-1': { org_id: 'org-1' },
+  'procurement_invoices:vi-1': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00001', currency: 'IDR' },
   'procurement_invoices:vi-org2': { org_id: 'org-2' },
 };
 
@@ -47,7 +52,12 @@ function serviceClient(): DispatchServiceClient {
           limit: () => chain,
           maybeSingle: async () => {
             if (table === 'external_org_bindings') return { data: ACTIVATED_BINDING, error: null };
-            if (table === 'external_refs') return { data: null, error: null };
+            if (table === 'external_refs') {
+              // #910: the payment gate resolves the bill's ERP name (procurement domain, vi-1) —
+              // every other external_refs read stays empty (byte-for-byte neighbours).
+              const mapped = filters.domain === 'procurement' && filters.pmo_record_id === 'vi-1';
+              return { data: mapped ? { external_record_id: 'ACC-PINV-2026-00001' } : null, error: null };
+            }
             if (table === 'procurements' && filters.id && !('org_id' in filters)) {
               // the org pre-flight's own `select('org_id').eq('id', …)` read
               return { data: TWO_ORG_ROWS[`procurements:${filters.id}`] ?? null, error: null };
@@ -120,7 +130,9 @@ describe('B10 — procurement commands get the SAME cross-org link pre-flight as
   });
 
   it('B10 — same-org procurement links resolve normally: the adapter is built', async () => {
-    const adapter = await resolve({ erp_doc_kind: 'payment', procurementId: 'proc-1', invoiceId: 'vi-1' });
+    // #910: the record carries the fields a real payment create now wires (DD-VPAY-1) — the tenancy
+    // goal is unchanged (same-org links pass the pre-flight and the adapter is built).
+    const adapter = await resolve({ erp_doc_kind: 'payment', procurementId: 'proc-1', invoiceId: 'vi-1', paid_amount: 1090000, date: '2026-10-08' });
     expect(adapter.tier).toBe(ERPNEXT_TIER);
   });
 

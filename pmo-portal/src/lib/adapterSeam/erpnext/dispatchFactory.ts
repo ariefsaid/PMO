@@ -463,6 +463,105 @@ async function resolveRevenueRefs(
 }
 
 // ============================================================================
+// #910 — the vendor-payment refs pass (FR-VPAY-003/004/006, DD-VPAY-3/4/7)
+// ============================================================================
+
+/** Resolve refs for a procurement `payment` command — the bill anchor + the allocation — and gate
+ *  the amount against the bill's mirrored ERP outstanding. Luna BLOCK 5's twin for the PAY side:
+ *
+ *  - The bill anchor is REQUIRED (DD-VPAY-3): no `invoiceId`, an unmapped bill, or a bill on another
+ *    case refuses `commit-rejected` BEFORE any ERP write/outbox insert. Supplier advances (no bill)
+ *    stay out pending OQ-VPAY-1.
+ *  - The ERP `Purchase Invoice` name resolves from `external_refs` (procurement domain) and
+ *    `references[]` is built SERVER-side from it — any caller-supplied rows are discarded, so the
+ *    payload can never allocate the payment against a bill it did not name.
+ *  - The amount gate (DD-VPAY-7) reads `procurement_invoices.erp_outstanding_amount` — the same
+ *    mirrored oracle the ledger shows. A `null` outstanding refuses (never "uncapped"), and so does
+ *    `paid_amount` above it or ≤ 0.
+ *  - The currency gate (spec §1 / OBS-VPAY-003): `paid_amount` is company-currency money while
+ *    `erp_outstanding_amount` is the BILL's currency — cross-currency the amount gate above is
+ *    unsound, so the bill must be in the binding company's currency (the org's `default_currency`,
+ *    0187). An unmirrored bill currency (`XXX`/null) or an unreadable org currency refuses fail-
+ *    closed; only a PROVEN match passes. One extra service-role read (organizations), payments only.
+ *
+ *  Cost (NFR-VPAY-001): at most three service-role DB reads (bill row, external-ref lookup, the
+ *  case-supplier read `resolveProcurementOrderRefs` already shares) and ZERO ERP reads. Runs inside
+ *  the factory — before the outbox insert — so a refused payment leaves no outbox row. The supplier
+ *  itself resolves in `resolveProcurementOrderRefs` (its kind gate now includes `payment`), and the
+ *  cross-org case is already refused by `assertCommandLinksSameOrg` (this re-read is same-org by
+ *  construction; a vanished row fails closed below).
+ */
+async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs: Record<string, string | null> }> {
+  const refs: Record<string, string | null> = {};
+  const record = deps.command.record as { erp_doc_kind?: string; procurementId?: string; invoiceId?: unknown; paid_amount?: unknown; references?: unknown };
+  if (record.erp_doc_kind !== 'payment' || deps.command.operation !== 'create') return { refs };
+
+  const procurementId = typeof record.procurementId === 'string' ? record.procurementId : '';
+  const invoiceId = typeof record.invoiceId === 'string' && record.invoiceId.trim() !== '' ? record.invoiceId : null;
+  if (!invoiceId || !procurementId) {
+    throw new AppError('vendor payment: the bill it settles is required (select the vendor invoice this payment closes)', 'commit-rejected');
+  }
+  const amount = Number(record.paid_amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new AppError(`vendor payment: paid_amount "${String(record.paid_amount)}" must be a positive figure`, 'commit-rejected');
+  }
+
+  // The bill row — org-scoped, fail closed on a missing row (a stale invoiceId is never a silent skip).
+  const { data: bill, error } = await deps.serviceClient.from('procurement_invoices')
+    .select('procurement_id,erp_outstanding_amount,vi_number,currency')
+    .eq('org_id', deps.orgId).eq('id', invoiceId).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  if (!bill) {
+    throw new AppError(`vendor payment: bill '${invoiceId}' was not found in this org`, 'commit-rejected');
+  }
+  const billRow = bill as { procurement_id: string | null; erp_outstanding_amount: number | string | null; vi_number: string | null; currency: string | null };
+  const billName = billRow.vi_number ?? invoiceId;
+  if (billRow.procurement_id !== procurementId) {
+    throw new AppError(`vendor payment: bill ${billName} belongs to a different procurement case`, 'commit-rejected');
+  }
+  // Spec §1 (multi-currency is OUT; OBS-VPAY-003): paid_amount is company-currency money and
+  // erp_outstanding_amount is the bill's currency — cross-currency the amount gate below compares
+  // figures that are not in the same unit. The bill must be in the binding company's currency: the
+  // org's default_currency (0187_money_currency_seam — "the org's single v1 currency", set at
+  // onboarding / ERPNext Connect). Fail closed: an unreadable org row or a non-ISO value refuses,
+  // an unmirrored bill currency (null, or 0187's 'XXX' "no currency" placeholder) refuses — only a
+  // PROVEN match reaches the amount gate.
+  const { data: orgRow, error: orgError } = await deps.serviceClient.from('organizations')
+    .select('default_currency').eq('id', deps.orgId).maybeSingle();
+  if (orgError || !orgRow) {
+    throw new AppError('vendor payment: the org currency could not be read — cannot verify the bill is in the company currency', 'commit-rejected');
+  }
+  const orgCurrency = (orgRow as { default_currency?: unknown }).default_currency;
+  if (typeof orgCurrency !== 'string' || !/^[A-Z]{3}$/.test(orgCurrency)) {
+    throw new AppError('vendor payment: the org currency is not set — set it before paying a bill', 'commit-rejected');
+  }
+  const billCurrency = billRow.currency;
+  if (!billCurrency || billCurrency === 'XXX') {
+    throw new AppError(`vendor payment: bill ${billName} has no mirrored currency yet — record the bill's ERP push first`, 'commit-rejected');
+  }
+  if (billCurrency !== orgCurrency) {
+    throw new AppError(`This bill is in ${billCurrency}; paying a foreign-currency bill from PMO is not supported yet — pay it in ERPNext.`, 'commit-rejected');
+  }
+  if (billRow.erp_outstanding_amount === null || billRow.erp_outstanding_amount === undefined) {
+    throw new AppError(`vendor payment: bill ${billName} has no mirrored ERP outstanding yet — record the bill's ERP push first`, 'commit-rejected');
+  }
+  if (amount > Number(billRow.erp_outstanding_amount)) {
+    throw new AppError(`vendor payment: paid_amount ${amount} exceeds bill ${billName}'s outstanding ${billRow.erp_outstanding_amount}`, 'commit-rejected');
+  }
+
+  // The bill's ERP Purchase Invoice name (procurement domain). Unmapped ⇒ the bill never reached
+  // ERPNext — there is nothing to allocate against, so refuse (never a party: undefined PE).
+  const piExternalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', invoiceId);
+  if (!piExternalId) {
+    throw new AppError(`vendor payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
+  }
+  refs.pi = piExternalId;
+  // DISCARD caller-supplied references entirely; build ONLY from the resolved bill (DD-VPAY-2).
+  record.references = [{ reference_doctype: 'Purchase Invoice', reference_name: piExternalId, allocated_amount: amount }];
+  return { refs };
+}
+
+// ============================================================================
 // P3b (FR-TSP-050..055) — the Posture-B timesheet ref pre-flight
 // ============================================================================
 
@@ -616,10 +715,17 @@ async function resolveProcurementOrderRefs(
   const record = deps.command.record as { erp_doc_kind?: string; procurementId?: string; items?: unknown[]; date?: string };
   const kind = record.erp_doc_kind;
   const procurementId = record.procurementId;
-  if ((kind !== 'purchase-order' && kind !== 'goods-receipt' && kind !== 'purchase-invoice') || !procurementId) return { refs };
+  // #910 (FR-VPAY-002): `payment` joins the supplier resolution — the case's vendor mapping is the
+  // ONLY party source a vendor payment has (the command never carries a supplier, and the vendorId
+  // fallback at the ctx spread can never fire for one).
+  if ((kind !== 'purchase-order' && kind !== 'goods-receipt' && kind !== 'purchase-invoice' && kind !== 'payment') || !procurementId) return { refs };
 
   const supplierName = await resolveCaseSupplierName(deps.serviceClient, deps.orgId, procurementId);
   if (supplierName) refs.supplier = supplierName;
+
+  // #910: a payment resolves the case supplier ONLY — it has no line items, so the case-item
+  // fallback below must never graft items onto a payment command (or its outbox payload).
+  if (kind === 'payment') return { refs };
 
   let resolvedItems: ResolvedLineItem[] | undefined;
   const hasOwnItems = Array.isArray(record.items) && record.items.length > 0;
@@ -1370,6 +1476,9 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
+  // #910: the vendor-payment gate (bill anchor + amount vs outstanding) — before the outbox snapshot,
+  // so a refused payment leaves no outbox row and touches no ERP.
+  const { refs: paymentRefs } = await resolvePaymentRefs(deps);
   // #856: ordinary-invoice tax rows read ERPNext, so they wait for the project gate and the PMO source reads (all fail closed before any ERP call).
   if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceCurrency(deps, binding, deps.command.record as Record<string, unknown>);
   if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceTaxes(deps, binding, deps.command.record as Record<string, unknown>);
@@ -1425,7 +1534,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...paymentRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
     },

@@ -10,20 +10,24 @@ import { login } from './helpers';
  *
  * Natural journey: an executive lands on their dashboard, sees the Board pack control, and tries
  * it — the app must NOT pretend it generated something.
+ *
+ * #765 + OD-NAR-2 (2026-10-08): with Revenue on (now the default when no ERP owns revenue) the control
+ * DOES the thing — it opens the management pack at /reports. The disabled "coming soon" branch (Revenue
+ * off, or a role that cannot see the pack) is owned by the unit test AC-MMP-015 in BoardPackAction.test.tsx.
+ * The goal oracle is unchanged: never a fake "Generating…" success.
  */
-test('AC-IXD-DASH-003: Board pack is a disabled "coming soon" affordance — no fake success', async ({
+test('AC-IXD-DASH-003: Board pack opens the management pack — no fake success', async ({
   page,
 }) => {
   await login(page, 'exec@acme.test');
   await page.goto('/');
 
-  // The capability is discoverable (not removed) but visibly not-yet-available.
+  // The seed org has Revenue on (OD-NAR-2 default) and the executive may see the pack, so the control is
+  // live and really opens the management pack.
   const boardPack = page.getByRole('button', { name: /Board pack/i });
-  await expect(boardPack).toBeVisible();
-  await expect(boardPack).toBeDisabled();
-  // The accessible name carries the honest reason (mirrors the doc/admin "coming soon" pattern).
-  await expect(boardPack).toHaveAccessibleName(/coming soon/i);
-
-  // A disabled button cannot be clicked into a fake "Generating…" success toast.
+  await expect(boardPack).toBeEnabled();
+  await boardPack.click();
+  await expect(page).toHaveURL(/\/reports/);
+  // Never a fake "Generating…" success toast.
   await expect(page.getByText(/Generating board pack/i)).toHaveCount(0);
 });

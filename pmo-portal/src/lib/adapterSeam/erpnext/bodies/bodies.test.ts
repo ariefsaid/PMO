@@ -5,7 +5,7 @@
  * proved necessary; the adapter/binding config supplies everything ERPNext itself won't default.
  */
 import { describe, expect, it } from 'vitest';
-import type { PmoRecord } from '../../contract.ts';
+import { AdapterError, type PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { piToBody, piFromDoc, PI_FROM_DOC_FIELDS } from './purchaseInvoice.ts';
 import { peToBody, peFromDoc } from './paymentEntry.ts';
@@ -84,9 +84,14 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     expect(() => piToBody(rec({ items: [] }), CTX)).toThrow(/at least one line item/);
   });
 
+  // #910 (DD-VPAY-6): the R9 §2 frozen core is EXTENDED — the body now ALSO always carries
+  // posting_date/reference_date (= rec.date; a Bank-typed paid_from + the stamped reference_no
+  // anchor needs reference_date) and refuses a binding that names no cash/bank account, instead of
+  // silently sending `undefined` and dying as an opaque ERPNext mandatory-field error. The frozen
+  // goal is unchanged: exactly the fields the R9 spike proved necessary, nothing invented.
   it('R9 §2 paymentEntry.ts (frozen core): adapter supplies paid_from/paid_to from binding config', () => {
     const body = peToBody(
-      rec({ paid_amount: 150000, references: [{ reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-2026-00002', allocated_amount: 150000 }] }),
+      rec({ paid_amount: 150000, date: '2026-07-11', references: [{ reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-2026-00002', allocated_amount: 150000 }] }),
       CTX,
     );
     expect(body).toEqual({
@@ -97,18 +102,108 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
       received_amount: 150000, // defaults to paid_amount when absent (R9 §2)
       paid_from: 'Cash - PSC',
       paid_to: 'Creditors - PSC',
+      posting_date: '2026-07-11', // #910 (DD-VPAY-6): always sent now, = rec.date
+      reference_date: '2026-07-11',
       references: [{ reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-2026-00002', allocated_amount: 150000 }],
     });
   });
 
+  // ── #910 AC-VPAY-002 / FR-VPAY-007 — the always-send + fail-closed accounts body ──────────────
+
+  it('AC-VPAY-002 the body always carries payment_type/party_type/party/amounts/accounts/posting_date/reference_date', () => {
+    const body = peToBody(rec({ paid_amount: 1090000, date: '2026-10-08' }), CTX) as Record<string, unknown>;
+    expect(body).toEqual({
+      payment_type: 'Pay',
+      party_type: 'Supplier',
+      party: 'Spike Supplier', // ctx.refs.supplier — resolved server-side (Task 2), never from the payload
+      paid_amount: 1090000,
+      received_amount: 1090000, // mirrors paid_amount (same figure; the binding company currency governs)
+      paid_from: 'Cash - PSC', // default_cash_account ?? default_bank_account
+      paid_to: 'Creditors - PSC',
+      posting_date: '2026-10-08',
+      reference_date: '2026-10-08',
+      references: [],
+    });
+  });
+
+  it('AC-VPAY-002 a Bank-typed default posts with reference_date (a Bank paid_from + the stamped reference_no needs it)', () => {
+    const ctx: ErpCtx = { ...CTX, config: { ...CTX.config, default_cash_account: null, default_bank_account: 'Bank - PSC' } };
+    const body = peToBody(rec({ paid_amount: 100, date: '2026-10-08' }), ctx) as Record<string, unknown>;
+    expect(body.paid_from).toBe('Bank - PSC');
+    expect(body.reference_date).toBe('2026-10-08');
+    expect(body.posting_date).toBe('2026-10-08');
+  });
+
+  function expectCommitRejected(run: () => unknown, pattern: RegExp): void {
+    try {
+      run();
+      expect.unreachable('the body must refuse, never build');
+    } catch (err) {
+      expect(err).toBeInstanceOf(AdapterError);
+      expect((err as AdapterError).code).toBe('commit-rejected');
+      expect((err as AdapterError).message).toMatch(pattern);
+    }
+  }
+
+  it('AC-VPAY-002 a binding with NEITHER cash nor bank refuses naming the Administration → Accounting setting', () => {
+    const ctx: ErpCtx = { ...CTX, config: { ...CTX.config, default_cash_account: null, default_bank_account: null } };
+    expectCommitRejected(() => peToBody(rec({ paid_amount: 100, date: '2026-10-08' }), ctx), /default_cash_account|default_bank_account/);
+  });
+
+  it('AC-VPAY-002 a binding with no default_payable_account refuses naming the setting', () => {
+    const ctx: ErpCtx = { ...CTX, config: { ...CTX.config, default_payable_account: null } };
+    expectCommitRejected(() => peToBody(rec({ paid_amount: 100, date: '2026-10-08' }), ctx), /default_payable_account/);
+  });
+
+  it('AC-VPAY-002 paid_amount absent or ≤ 0 is refused — never sent as undefined', () => {
+    expectCommitRejected(() => peToBody(rec({ date: '2026-10-08' }), CTX), /paid_amount/);
+    expectCommitRejected(() => peToBody(rec({ paid_amount: 0, date: '2026-10-08' }), CTX), /paid_amount/);
+    expectCommitRejected(() => peToBody(rec({ paid_amount: -5, date: '2026-10-08' }), CTX), /paid_amount/);
+  });
+
+  it('AC-VPAY-002 the withheld bill pays the NET outstanding (1,090,000), never the 1,110,000 gross', () => {
+    // AC-VWH-005's figures: gross 1,110,000, VAT 110,000, PPh 20,000 → ERPNext outstanding 1,090,000.
+    // The amount is the caller's (the form defaults it to erp_outstanding_amount); the body echoes it verbatim.
+    const body = peToBody(
+      rec({
+        paid_amount: 1090000,
+        date: '2026-10-08',
+        references: [{ reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-2026-00876', allocated_amount: 1090000 }],
+      }),
+      CTX,
+    ) as Record<string, unknown>;
+    expect(body.paid_amount).toBe(1090000);
+    expect(body.received_amount).toBe(1090000);
+  });
+
+  it('AC-VPAY-002 a payload received_amount is IGNORED — received_amount always equals paid_amount (FR-VPAY-007)', () => {
+    // FR-VPAY-007 pins received_amount = paid_amount (same figure; the binding company currency
+    // governs). The command carries no currency pair, so a caller-supplied "received" figure could
+    // only be a silent FX claim — the payload's copy is discarded and the builder echoes paid_amount.
+    const body = peToBody(rec({ paid_amount: 1090000, received_amount: 77, date: '2026-10-08' }), CTX) as Record<string, unknown>;
+    expect(body.paid_amount).toBe(1090000);
+    expect(body.received_amount).toBe(1090000);
+  });
+
+  it('AC-VPAY-002 server-resolved allocation wins: refs.pi builds references[] when the payload carried none', () => {
+    // DD-VPAY-2: the dispatch resolves the bill's ERP name; the body builder prefers it over an empty default.
+    const ctx: ErpCtx = { ...CTX, refs: { ...CTX.refs, pi: 'ACC-PINV-2026-00910' } };
+    const body = peToBody(rec({ paid_amount: 1090000, date: '2026-10-08' }), ctx) as Record<string, unknown>;
+    expect(body.references).toEqual([
+      { reference_doctype: 'Purchase Invoice', reference_name: 'ACC-PINV-2026-00910', allocated_amount: 1090000 },
+    ]);
+  });
+
   it('paymentEntry.ts falls back paid_from to default_bank_account when no cash account is configured', () => {
     const ctx: ErpCtx = { ...CTX, config: { ...CTX.config, default_cash_account: null, default_bank_account: 'Bank - PSC' } };
-    const body = peToBody(rec({ paid_amount: 100 }), ctx) as Record<string, unknown>;
+    // #910: rec.date now rides along (DD-VPAY-6 always-send posting/reference dates).
+    const body = peToBody(rec({ paid_amount: 100, date: '2026-07-11' }), ctx) as Record<string, unknown>;
     expect(body.paid_from).toBe('Bank - PSC');
   });
 
   it('paymentEntry.ts unreferenced payment submits fine with references defaulting to []', () => {
-    const body = peToBody(rec({ paid_amount: 50000 }), CTX) as Record<string, unknown>;
+    // #910: rec.date rides along (DD-VPAY-6); refs.pi absent ⇒ still an unreferenced (on-account) body.
+    const body = peToBody(rec({ paid_amount: 50000, date: '2026-07-11' }), CTX) as Record<string, unknown>;
     expect(body.references).toEqual([]);
   });
 

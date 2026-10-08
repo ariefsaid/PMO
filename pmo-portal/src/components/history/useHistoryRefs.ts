@@ -8,6 +8,7 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
+import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useBudgetVersions } from '@/src/hooks/useBudget';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
@@ -55,6 +56,9 @@ export function useHistoryRefs(args: {
   const workOrders = useProjectWorkOrders(projectId);
   const procurements = useProjectProcurements(projectId || null);
   const budgetVersions = useBudgetVersions(projectId);
+  // #878: on a procurement History the four purchase documents are named from the SAME cached detail
+  // query the page itself uses; the hook stays idle (undefined id → disabled) off a procurement.
+  const procDetail = useProcurementDetail(enabled && entityType === 'procurement' ? entityId : undefined);
 
   const activeCompanyIds = useMemo(() => new Set((companies.data ?? []).map((c) => c.id)), [companies.data]);
   const missingCompanyIds = companies.isSuccess ? companyIds.filter((id) => !activeCompanyIds.has(id)) : [];
@@ -70,6 +74,7 @@ export function useHistoryRefs(args: {
 
   return useMemo(() => {
     const versions = budgetVersions.data ?? [];
+    const docs = procDetail.data;
     return {
       profiles: new Map((profiles.data ?? []).map((p) => [p.id, p.full_name ?? ''])),
       companies: new Map([...(companies.data ?? []).map((c) => [c.id, companyDisplayName(c)] as [string, string]), ...archivedCompanies]),
@@ -81,9 +86,14 @@ export function useHistoryRefs(args: {
       budgetLines: new Map(
         versions.flatMap((v) => v.line_items).map((li) => [li.id, li.description || budgetCategoryLabel(li.category, t)]),
       ),
+      // The document number, else the reference — the words a purchase reader knows the row by.
+      purchaseRequests: new Map((docs?.purchase_requests ?? []).map((d) => [d.id, joinName(d.pr_number, d.reference_number)])),
+      rfqs: new Map((docs?.rfqs ?? []).map((d) => [d.id, joinName(d.rfq_number, d.reference_number)])),
+      purchaseOrders: new Map((docs?.purchase_orders ?? []).map((d) => [d.id, joinName(d.po_number, d.reference_number)])),
+      payments: new Map((docs?.payments ?? []).map((d) => [d.id, joinName(d.pay_number, d.reference_number)])),
     };
   }, [
     t, archivedCompanies, profiles.data, companies.data, tasks.data, milestones.data, procurements.data,
-    workOrders.data, budgetVersions.data,
+    workOrders.data, budgetVersions.data, procDetail.data,
   ]);
 }

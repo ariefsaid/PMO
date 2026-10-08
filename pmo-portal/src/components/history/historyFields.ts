@@ -66,14 +66,32 @@ export const REF_SOURCE: Record<string, RefSource> = {
   parent_task_id: 'tasks',
 };
 
-/** Child entity type → the project list that names the record (project History). Others read "Unavailable". */
-export type NameSource = 'tasks' | 'procurements' | 'workOrders' | 'budgetVersions' | 'budgetLines';
+/**
+ * Child entity type → the list that names the record. On a project History the project's own lists
+ * name tasks / procurements / work orders / budget rows; on a PROCUREMENT History the four purchase
+ * documents (#878: filed under their procurement, 0277) are named from the same cached procurement
+ * detail the page itself uses. Others read "Unavailable".
+ */
+export type NameSource =
+  | 'tasks'
+  | 'procurements'
+  | 'workOrders'
+  | 'budgetVersions'
+  | 'budgetLines'
+  | 'purchaseRequests'
+  | 'rfqs'
+  | 'purchaseOrders'
+  | 'payments';
 export const RECORD_NAME_SOURCE: Record<string, NameSource> = {
   task: 'tasks',
   procurement: 'procurements',
   work_order: 'workOrders',
   budget_version: 'budgetVersions',
   budget_line_item: 'budgetLines',
+  purchase_request: 'purchaseRequests',
+  rfq: 'rfqs',
+  purchase_order: 'purchaseOrders',
+  payment: 'payments',
 };
 
 /** `contract_value` → "Contract value": the label fallback so an unlabelled column never renders blank. */

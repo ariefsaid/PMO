@@ -250,6 +250,42 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'payment' }), expect.any(Object));
   });
 
+  it('AC-VPAY-005 createPayment dispatches EXACTLY the #910 wire record — paid_amount, no amount/status/referenceNumber — under the caller\'s intent', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PAY-2026-00001', canonical: { id: 'pmo-1' } });
+    // DD-VPAY-1: the form's `amount` becomes the wire `paid_amount`; `referenceNumber`/`status` are
+    // dropped (the ERP docstatus is the only status truth, DD-VPAY-8; the reference stays PMO-side,
+    // OQ-VPAY-4). The BLOCK-2 `intent` is the command identity: same id + idempotencyKey on retry.
+    const intent = { id: 'intent-id-1', idempotencyKey: 'intent-key-1' } as never;
+    await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-10-08', 1090000, intent);
+    expect(createPayment).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    const [domain, operation, record, dispatchedIntent] = dispatchSpy.mock.calls[0] as [string, string, Record<string, unknown>, unknown];
+    expect(domain).toBe('procurement');
+    expect(operation).toBe('create');
+    expect(record).toEqual({
+      id: 'intent-id-1', // dispatchCreate's identity merge — the caller's intent, never a fresh one
+      procurementId: 'proc-1',
+      invoiceId: 'inv-1',
+      paid_amount: 1090000,
+      date: '2026-10-08',
+      erp_doc_kind: 'payment',
+    });
+    expect('amount' in record).toBe(false);
+    expect('status' in record).toBe(false);
+    expect('referenceNumber' in record).toBe(false);
+    expect(dispatchedIntent).toEqual({ idempotencyKey: 'intent-key-1' });
+  });
+
+  it('AC-VPAY-005 the NATIVE createPayment route keeps today\'s DAL argument list byte-for-byte', async () => {
+    // Cold map again for THIS case: the non-flipped org must be untouched by the #910 remap.
+    setDomainOwnership([]);
+    clearOwnershipCache();
+    vi.mocked(createPayment).mockResolvedValue({ id: 'pay-1' } as never);
+    await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);
+    expect(createPayment).toHaveBeenCalledWith('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+
   it('createQuotation dispatches externally with erp_doc_kind quotation', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'PUR-SQTN-2026-00001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createQuotation('proc-1', 'vendor-1', 100, '2026-07-11');
