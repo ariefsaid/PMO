@@ -1,6 +1,7 @@
 import React from 'react';
 import { formatMoneyInputDraft, numberSymbols, parseMoneyInput } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatMoneyInputValue } from '@/src/lib/format';
 
 /**
  * The shared locale-aware money-entry mask (#684, FR-PLC-010). Groups a valid or partially typed
@@ -20,7 +21,19 @@ export function useMoneyInputMask(
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 } {
   const ref = React.useRef<HTMLInputElement>(null);
+  const activeNumberLocale = getNumberLocale();
+  const previousDraft = React.useRef({ locale: getNumberLocale(), value });
   const pendingCaret = React.useRef<{ value: string; start: number; end: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    const locale = activeNumberLocale;
+    const previous = previousDraft.current;
+    if (enabled && previous.locale !== locale) {
+      const canonical = parseMoneyInput(previous.value, previous.locale);
+      if (canonical !== null) onChange(formatMoneyInputValue(canonical, locale));
+    }
+    previousDraft.current = { locale, value };
+  }, [activeNumberLocale, enabled, onChange, value]);
 
   React.useLayoutEffect(() => {
     const pending = pendingCaret.current;

@@ -31,6 +31,11 @@ describe('Combobox: closed state + a11y on the trigger', () => {
     expect(screen.getByText('Select a company…')).toBeInTheDocument();
   });
 
+  it('AC-SI-2 exposes the stable form id on the focusable trigger', () => {
+    render(<Combobox id="sales-invoice-form-projectId" label="Project" value={null} onChange={() => {}} loadOptions={loadOk} />);
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveAttribute('id', 'sales-invoice-form-projectId');
+  });
+
   it('renders the selected option label as a chip when value is set', () => {
     render(
       <Combobox

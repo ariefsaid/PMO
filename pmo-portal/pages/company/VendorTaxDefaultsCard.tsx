@@ -98,6 +98,8 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
               {pphType !== '' && (
                 <TextField
                   label={t('companyDetail.vendorTax.pphRate', 'PPh rate (%)')}
+                  required
+                  helper={t('companyDetail.vendorTax.pphRateHelper', 'Required when withholding is selected. Enter a rate above 0 and below 100%.')}
                   value={pphRaw}
                   onChange={(next) => { setPphTouched(true); setPphRaw(next); }}
                   inputMode="decimal"

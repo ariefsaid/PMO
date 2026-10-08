@@ -47,6 +47,13 @@
   },
   "admin": {
     "expenseMap": {
+      "notReady": "Connect ERPNext before mapping expense accounts. Expense posting is not active.",
+      "error": {
+        "saveHeadline": "Couldn’t save the expense account",
+        "accountRemedy": "Check the account name and type in ERPNext, then try again. Your entry is kept.",
+        "unknownRemedy": "Check your connection and try again. Your entry is kept."
+      },
+      "openIntegrations": "Open integrations",
       "change": "Change {{key}}",
       "clear": "Clear {{key}}",
       "confirmClear": {
@@ -366,6 +373,8 @@
       }
     },
     "vendorTaxAccounts": {
+      "remoteChanged": "The saved accounts changed. Your edits are kept; reload the saved values to discard them.",
+      "reloadSaved": "Reload saved values",
       "heading": "Vendor bill tax accounts",
       "helper": "Enter the exact ERPNext account name. Leave blank if not used.",
       "inputVat": "Input VAT account",
@@ -758,6 +767,7 @@
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)",
       "pphRate": "PPh rate (%)",
+      "pphRateHelper": "Required when withholding is selected. Enter a rate above 0 and below 100%.",
       "pphRateError": "Enter a rate above 0 and below 100 with no more than 3 decimal places.",
       "save": "Save defaults",
       "saved": "Vendor tax defaults saved",
@@ -1630,6 +1640,29 @@
       "selectQuote": "Select Quote",
       "submitRequest": "Submit Request"
     },
+    "vendorInvoice": {
+      "enterDetails": "Enter invoice details to mark as Vendor Invoiced:",
+      "invoiceNumber": "Invoice #",
+      "optional": "optional",
+      "invoicePlaceholder": "e.g. INV-2291",
+      "amountOptional": "Amount (optional)",
+      "invoiceStatus": "Invoice status",
+      "received": "Received",
+      "scheduled": "Scheduled",
+      "invoiceDate": "Invoice date",
+      "taxTreatment": "Tax treatment",
+      "taxTreatmentPlaceholder": "Select tax treatment",
+      "taxInclusive": "Inclusive — VAT included",
+      "taxExclusive": "Exclusive — VAT added",
+      "taxTreatmentHelper": "Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.",
+      "taxAmount": "Tax amount",
+      "confirmMarkInvoiced": "Confirm & mark invoiced"
+    },
+    "externalRefOptional": "External ref (optional)",
+    "amountOptional": "Amount (optional)",
+    "savePayment": "Save Payment",
+    "paymentRecorded": "Payment recorded",
+    "captureRecorded": "{{label}} recorded",
     "approvalNotes": "Approval notes",
     "backToProcurement": "Procurement",
     "paymentBillRequired": "Select the vendor invoice this payment closes.",
@@ -3422,6 +3455,9 @@
     "title": "Allow {{client}} to access your PMO account?"
   },
   "financeCopy": {
+    "viewInvoice": "View invoice",
+    "invoiceDetailsTitle": "Invoice details",
+    "continueToApprove": "Continue to approve",
     "nativeSalesInvoicesDescription": "Client invoices raised, approved and settled in PMO.",
     "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",
     "nativeProjectRequired": "Project is required: it decides the invoice's VAT.",

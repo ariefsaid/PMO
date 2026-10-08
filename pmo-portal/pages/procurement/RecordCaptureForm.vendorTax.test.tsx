@@ -183,6 +183,27 @@ describe('standalone bill (PMO authors the tax) — AC-VWH-030', () => {
   });
 });
 
+describe('vendor invoice Bahasa copy (PR-2/PR-3)', () => {
+  beforeEach(() => { vi.spyOn(ownership, 'routeDomainWrite').mockReturnValue('pmo'); });
+
+  it('shows localized invoice, status, tax treatment, and helper copy', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderVI({ vendorId: 'vendor-1' });
+    expect(screen.getByLabelText(/No\. faktur/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Status faktur')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Diterima' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Dijadwalkan' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Tanggal faktur')).toBeInTheDocument();
+    expect(screen.getByLabelText('Perlakuan pajak')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Inklusif — termasuk PPN' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Eksklusif — PPN ditambahkan' })).toBeInTheDocument();
+    expect(screen.getByText(/Inklusif: PPN sudah termasuk dalam jumlah tagihan/)).toBeInTheDocument();
+    expect(screen.getByText('Jumlah pajak')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Simpan VI' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Batal' })).toBeInTheDocument();
+  });
+});
+
 describe('ERP-connected bill (amounts sent as fixed rows) — AC-VWH-031', () => {
   beforeEach(() => { vi.spyOn(ownership, 'routeDomainWrite').mockReturnValue('external'); });
 
@@ -260,7 +281,12 @@ describe('ERP-connected bill (amounts sent as fixed rows) — AC-VWH-031', () =>
     await financeTestI18n.changeLanguage('id');
     renderVI({ vendorId: 'vendor-1', itemsNet: 1000000 });
     expect(await screen.findByLabelText('Jumlah PPN')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Masukkan jumlah pajak' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/No\. faktur/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Status faktur')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Diterima' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Dijadwalkan' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Tanggal faktur')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Simpan VI' })).toBeInTheDocument();
     expect(screen.getByTestId('vi-items-net').textContent).toMatch(/^Total item, sebelum pajak: /);
     await waitFor(() => expect(screen.getAllByTestId('vi-tax-suggested-from')[0].textContent).toMatch(/^Default vendor 11% dari /));
   });

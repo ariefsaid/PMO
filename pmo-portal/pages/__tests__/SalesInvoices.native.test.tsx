@@ -66,6 +66,7 @@ const nativeInvoice = (over: Partial<SalesInvoiceRow> = {}): SalesInvoiceRow => 
   tax_base_numerator: 11, tax_base_denominator: 12, erp_outstanding_amount: null, status: 'Draft',
   erp_docstatus: null, erp_modified: null, erp_amended_from: null, erp_cancelled_at: null,
   created_at: '2026-10-07T00:00:00Z', author_user_id: 'u-fin1', author_user_ids: ['u-fin1'],
+  native_lines: [{ item_code: 'SVC', description: 'Site survey', qty: 2, rate: 500_000, amount: 1_000_000 }],
   erp_payment_terms_days: null, erp_due_date: null, received_date: null, ...over,
 }) as SalesInvoiceRow;
 
@@ -150,8 +151,27 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     renderPage();
     await openMenu(user, rowFor('Acme Energy'));
     await user.click(screen.getByRole('menuitem', { name: 'Approve' }));
+    expect(screen.getByText('Site survey')).toBeInTheDocument();
+    expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue to approve' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submitMutate).toHaveBeenCalledWith({ siId: 'si-n1', intent: expect.objectContaining({ id: expect.any(String) }) });
+  });
+
+  it('AC-SI-1 a native issued invoice exposes its read-only lines and totals from the list', async () => {
+    h.invoices.data = [nativeInvoice({
+      status: 'Unpaid', pmo_number: 'INV-2610070001',
+      native_lines: [{ item_code: 'SVC', description: 'Site survey', qty: 2, rate: 500_000, amount: 1_000_000 }],
+    })];
+    renderPage();
+    const user = userEvent.setup();
+    await openMenu(user, rowFor('INV-2610070001'));
+    await user.click(screen.getByRole('menuitem', { name: 'View invoice' }));
+    expect(screen.getByText('Site survey')).toBeInTheDocument();
+    expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
+    expect(screen.getByText('Total due')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
   });
 
   it('AC-NAR-002 the author of a PMO Draft is not offered "Approve"', async () => {
@@ -280,6 +300,24 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(within(list).getByRole('option', { name: /Alpha Platform/ })).toBeInTheDocument();
     expect(within(list).queryByRole('option', { name: /Gamma Other Client/ })).toBeNull();
     expect(within(list).queryByRole('option', { name: /Delta Archived/ })).toBeNull();
+  });
+
+  it('AC-SI-2 each invoice correction link focuses the actual project and line control', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Beta Norates');
+    await user.type(screen.getByLabelText('Description'), 'Site survey');
+    await user.clear(screen.getByLabelText(/Qty|Quantity/));
+    await user.type(screen.getByLabelText(/Qty|Quantity/), '0');
+    await user.click(screen.getByRole('button', { name: 'Create invoice' }));
+    const projectLink = await screen.findByRole('link', { name: /This project has no VAT rate recorded/ });
+    await user.click(projectLink);
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Project' }));
+    const lineLink = screen.getByRole('link', { name: /Quantity must be positive/ });
+    await user.click(lineLink);
+    expect(document.activeElement).toBe(document.getElementById('sales-invoice-line-0-qty'));
   });
 
   it('DD-TAX-4a (I-2) a VAT project with no recorded rate is flagged in the form before submit, with a way to record it', async () => {

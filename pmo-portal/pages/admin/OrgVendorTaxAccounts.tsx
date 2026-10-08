@@ -3,7 +3,7 @@
  * organizations UPDATE policy + column grants, 0273; `can('manage','orgAccounting')` mirrors it, UX only). The dispatch
  * checks each in ERPNext on send and refuses naming the setting (ADR-0084 §4).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
@@ -26,17 +26,48 @@ export default function OrgVendorTaxAccounts() {
   const [pph23, setPph23] = useState('');
   const [pph42, setPph42] = useState('');
   const [error, setError] = useState<string>();
+  const [remoteChanged, setRemoteChanged] = useState(false);
+  const hydrated = useRef(false);
+  const savedBaseline = useRef<Accounts | null>(null);
+  const draft = useCallback((): Accounts => ({ inputVatAccount: inputVat.trim() || null, pph23PayableAccount: pph23.trim() || null, pph42PayableAccount: pph42.trim() || null }), [inputVat, pph23, pph42]);
   const queryKey = [QUERY_KEY, currentUser?.org_id];
   const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getVendorTaxAccounts(), enabled: !!currentUser });
   useEffect(() => {
     if (!query.isSuccess) return;
-    setInputVat(query.data.inputVatAccount ?? '');
-    setPph23(query.data.pph23PayableAccount ?? '');
-    setPph42(query.data.pph42PayableAccount ?? '');
-  }, [query.data, query.isSuccess]);
+    const remote: Accounts = {
+      inputVatAccount: query.data.inputVatAccount ?? null,
+      pph23PayableAccount: query.data.pph23PayableAccount ?? null,
+      pph42PayableAccount: query.data.pph42PayableAccount ?? null,
+    };
+    if (!hydrated.current) {
+      hydrated.current = true;
+      savedBaseline.current = remote;
+      setInputVat(remote.inputVatAccount ?? '');
+      setPph23(remote.pph23PayableAccount ?? '');
+      setPph42(remote.pph42PayableAccount ?? '');
+      return;
+    }
+    const baseline = savedBaseline.current;
+    const local = draft();
+    const isDirty = !!baseline && JSON.stringify(local) !== JSON.stringify({
+      inputVatAccount: baseline.inputVatAccount ?? null,
+      pph23PayableAccount: baseline.pph23PayableAccount ?? null,
+      pph42PayableAccount: baseline.pph42PayableAccount ?? null,
+    });
+    if (isDirty) {
+      if (JSON.stringify(remote) !== JSON.stringify(baseline)) setRemoteChanged(true);
+      return;
+    }
+    savedBaseline.current = remote;
+    setInputVat(remote.inputVatAccount ?? '');
+    setPph23(remote.pph23PayableAccount ?? '');
+    setPph42(remote.pph42PayableAccount ?? '');
+  }, [draft, inputVat, pph23, pph42, query.data, query.isSuccess]);
   const mutation = useMutation({
     mutationFn: (value: Accounts) => repositories.orgSettings.setVendorTaxAccounts(value),
-    onSuccess: () => {
+    onSuccess: (_result, value) => {
+      savedBaseline.current = value;
+      setRemoteChanged(false);
       void qc.invalidateQueries({ queryKey });
       toast(t('admin.vendorTaxAccounts.saved', 'Tax accounts saved'), undefined, 'success');
     },
@@ -71,10 +102,23 @@ export default function OrgVendorTaxAccounts() {
             onSubmit={(event) => {
               event.preventDefault();
               setError(undefined);
-              mutation.mutate({ inputVatAccount: inputVat.trim() || null, pph23PayableAccount: pph23.trim() || null, pph42PayableAccount: pph42.trim() || null });
+              mutation.mutate(draft());
             }}
             className="space-y-3"
           >
+            {remoteChanged && (
+              <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+                <p>{t('admin.vendorTaxAccounts.remoteChanged', 'The saved accounts changed. Your edits are kept; reload the saved values to discard them.')}</p>
+                <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
+                  const remote = query.data;
+                  if (!remote) return;
+                  const values = { inputVatAccount: remote.inputVatAccount ?? null, pph23PayableAccount: remote.pph23PayableAccount ?? null, pph42PayableAccount: remote.pph42PayableAccount ?? null };
+                  savedBaseline.current = values;
+                  setInputVat(values.inputVatAccount ?? ''); setPph23(values.pph23PayableAccount ?? ''); setPph42(values.pph42PayableAccount ?? '');
+                  setRemoteChanged(false);
+                }}>{t('admin.vendorTaxAccounts.reloadSaved', 'Reload saved values')}</Button>
+              </div>
+            )}
             <TextField label={t('admin.vendorTaxAccounts.inputVat', 'Input VAT account')} value={inputVat} onChange={setInputVat}
               maxLength={140} disabled={mutation.isPending} helper={helper} />
             <TextField label={t('admin.vendorTaxAccounts.pph23', 'PPh 23 payable account')} value={pph23} onChange={setPph23}

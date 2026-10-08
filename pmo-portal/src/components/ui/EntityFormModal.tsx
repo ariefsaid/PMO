@@ -367,7 +367,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                 >
                   <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
+                    <div className="text-[13px] font-semibold text-destructive-text">
                       {t('entityForm.fixFields', 'Fix {{count}} fields before saving', { count: errorSummary!.length })}
                     </div>
                     {errorSummary!.map((item) => (
@@ -378,7 +378,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                           e.preventDefault();
                           document.getElementById(item.fieldId)?.focus();
                         }}
-                        className="block text-[12.5px] text-destructive hover:underline"
+                        className="block min-h-6 py-1 text-[12.5px] text-destructive-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-6 [@media(pointer:coarse)]:min-h-11"
                       >
                         {item.message}
                       </a>
