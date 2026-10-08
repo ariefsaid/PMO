@@ -40,6 +40,8 @@ export const FIELD_KINDS: Record<string, Record<string, HistoryKind>> = {
   procurement_invoice: {
     efaktur_number: 'text', efaktur_date: 'date', withheld_amount: 'money', withheld_pph_type: 'enum',
   },
+  vendor_withholding_slip: { vendor_id: 'ref', slip_number: 'text', slip_date: 'date', tax_period: 'date', pph_type: 'enum', currency: 'text', tax_base: 'money', withheld_amount: 'money', invoice_count: 'number', status: 'enum', voided_at: 'timestamp', voided_by: 'ref' },
+  vendor_withholding_slip_bill: { slip_id: 'ref', invoice_id: 'ref', procurement_id: 'ref', withheld_at_record: 'money', pph_type_at_record: 'enum', type_source: 'enum', currency: 'text', released_at: 'timestamp' },
   task: {
     project_id: 'ref', assignee_id: 'ref', milestone_id: 'ref', parent_task_id: 'ref', meeting_id: 'ref', name: 'text',
     status: 'enum', priority: 'enum', start_date: 'date', end_date: 'date', archived_at: 'timestamp',

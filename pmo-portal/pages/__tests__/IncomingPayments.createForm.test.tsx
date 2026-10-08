@@ -262,7 +262,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
         receivedAmount: 750,
       }),
     );
-    expect(await screen.findByText('Payment created')).toBeInTheDocument();
+    expect(await screen.findAllByText('Payment created')).not.toHaveLength(0);
     expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 

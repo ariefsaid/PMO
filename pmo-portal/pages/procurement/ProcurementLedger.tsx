@@ -45,6 +45,9 @@ import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import { withholdingFigures } from '@/src/lib/vendorWithholding';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSlips';
+import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
+import type { BillRow } from '@/src/lib/db/vendorWithholdingSlips';
 
 // ---------------------------------------------------------------------------
 // Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
@@ -147,32 +150,6 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
       : null,
   },
   {
-    key: 'amount',
-    header: 'Amount',
-    align: 'num',
-    // OD-TAX-1 §2: a vendor invoice's total states its basis (0196's NOT NULL marker). The other
-    // ledger types carry no treatment column at all, so `taxTreatment` is null for them and the
-    // label renders nothing — a PO amount is not silently re-labelled with the invoice's basis.
-    // #876 (DD-VWH-6): a vendor invoice with tax withheld adds VAT · Tax withheld (PPh) · Net payable under its gross
-    // total; every other row renders exactly as before.
-    cell: (row) => {
-      if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
-      const total = (
-        <span className="inline-flex items-baseline justify-end gap-1.5">
-          <span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span>
-          <TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} />
-        </span>
-      );
-      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
-      return figures ? (
-        <div className="inline-flex flex-col items-end gap-0.5">
-          {total}
-          <WithholdingBreakdown figures={figures} currency={row.currency} />
-        </div>
-      ) : total;
-    },
-  },
-  {
     key: 'status',
     header: 'Status',
     cell: (row) => (
@@ -220,6 +197,14 @@ export interface ProcurementLedgerProps {
   efakturSaving?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
+  withholdingCoverage?: Record<string, BillRow>;
+  withholdingCoverageLoading?: boolean;
+  withholdingCoverageError?: boolean;
+  canWriteWithholdingSlip?: boolean;
+  onRetryWithholdingCoverage?: () => void;
+  onRecordWithholdingSlip?: (invoice: ProcurementInvoiceRow) => void;
+  onViewWithholdingSlip?: (slipId: string) => void;
+  onWithholdingHistory?: (invoiceId: string) => void;
   /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
   isApprover?: boolean;
 }
@@ -228,7 +213,7 @@ export interface ProcurementLedgerProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
+const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   detail,
   rows,
   procurementId,
@@ -238,11 +223,22 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   onSetEfaktur,
   efakturSaving = false,
   invoices = [],
+  withholdingCoverage = {},
+  withholdingCoverageLoading = false,
+  withholdingCoverageError = false,
+  canWriteWithholdingSlip = false,
+  onRetryWithholdingCoverage,
+  onRecordWithholdingSlip,
+  onViewWithholdingSlip,
+  onWithholdingHistory,
   isApprover = false,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const { t } = useTranslation();
+  const resolvedWithholdingCoverage = withholdingCoverage;
+  const slipCoverageLoading = withholdingCoverageLoading;
+  const slipCoverageError = withholdingCoverageError;
 
   // Mutations for the capture row (invalidate the detail query on success)
   const mutations = useProcurementRecordMutations(procurementId);
@@ -270,9 +266,21 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     [canWrite, procurementId, uploadedById],
   );
 
+  const amountColumn = useMemo<Column<LedgerRow>>(() => ({
+    key: 'amount', header: 'Amount', align: 'num',
+    cell: (row) => {
+      if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
+      const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
+      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
+      const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
+      const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={resolvedWithholdingCoverage[row.recordId]} isLoading={slipCoverageLoading} isError={slipCoverageError} canWrite={canWriteWithholdingSlip} onRetry={onRetryWithholdingCoverage} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
+      return figures ? <div className="inline-flex flex-col items-end gap-0.5">{total}<WithholdingBreakdown figures={figures} currency={row.currency} />{slipCell}</div> : slipCell ? <div className="inline-flex flex-col items-end gap-0.5">{total}{slipCell}</div> : total;
+    },
+  }), [canWriteWithholdingSlip, invoices, onRecordWithholdingSlip, onRetryWithholdingCoverage, onViewWithholdingSlip, onWithholdingHistory, resolvedWithholdingCoverage, slipCoverageError, slipCoverageLoading]);
+
   const columns = useMemo<Column<LedgerRow>[]>(
-    () => [...STATIC_COLUMNS, fileColumn],
-    [fileColumn],
+    () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
+    [amountColumn, fileColumn],
   );
 
   // The set of record types already present in the ledger — drives the capture
@@ -376,10 +384,17 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
-        rowMenu={canRecordEfaktur && onSetEfaktur ? (row): RowMenuItem[] | undefined => {
-          if (row.type !== 'Invoice' || row.efakturLocked) return undefined;
-          return [{ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) }];
-        } : undefined}
+        rowMenu={(row): RowMenuItem[] | undefined => {
+          if (row.type !== 'Invoice') return undefined;
+          const items: RowMenuItem[] = [];
+          if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
+          const coverage = resolvedWithholdingCoverage[row.recordId];
+          const invoice = invoices.find((item) => item.id === row.recordId);
+          if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
+          else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
+          items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
+          return items.length ? items : undefined;
+        }}
         state={tableState}
         emptyTitle={emptyTitle}
         emptySub={emptySub}
@@ -422,6 +437,23 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       </CardPad>
     </div>
   );
+};
+
+function WithholdingCoverageBridge(props: ProcurementLedgerProps) {
+  const query = useVendorWithholdingCoverage((props.invoices ?? []).map((invoice) => invoice.id));
+  return <ProcurementLedgerContent
+    {...props}
+    withholdingCoverage={Object.fromEntries((query.data ?? []).map((row) => [row.invoice_id, row]))}
+    withholdingCoverageLoading={query.isLoading}
+    withholdingCoverageError={query.isError}
+    onRetryWithholdingCoverage={props.onRetryWithholdingCoverage ?? (() => void query.refetch())}
+  />;
+}
+
+export const ProcurementLedger: React.FC<ProcurementLedgerProps> = (props) => {
+  if (props.withholdingCoverage) return <ProcurementLedgerContent {...props} />;
+  if (props.onRecordWithholdingSlip) return <WithholdingCoverageBridge {...props} />;
+  return <ProcurementLedgerContent {...props} withholdingCoverage={{}} withholdingCoverageLoading={false} withholdingCoverageError={false} />;
 };
 
 ProcurementLedger.displayName = 'ProcurementLedger';

@@ -13,6 +13,7 @@
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
+import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
@@ -1207,6 +1208,7 @@ const reports: ReportsRepository = {
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   recordHistory: recordHistoryRepository,
+  vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project,
   company,
   document,
@@ -1271,4 +1273,5 @@ export type {
   ErpSnapshotsRepository,
   ReportsRepository,
   IntegrationsRepository,
+  VendorWithholdingSlipsRepository,
 } from './types';

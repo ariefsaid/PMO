@@ -68,6 +68,7 @@ export type Entity =
   | 'userView'
   | 'salesInvoice'
   | 'procurementInvoice'
+  | 'vendorWithholdingSlip'
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
@@ -87,6 +88,8 @@ export interface PolicyContext {
   currentUserId?: string | null;
   /** The record under consideration — for status/ownership-conditional rules. */
   record?: {
+    /** Feature-local view-as fence for evidence writes; callers compare effective and real roles. */
+    viewOnly?: boolean;
     status?: string | null;
     assignee_id?: string | null;
     /** Author id — for the document-edit author rule (A-7). */
@@ -482,6 +485,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   procurementInvoice: {
     // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
     record_efaktur: allow(REVENUE_WRITE),
+  },
+  vendorWithholdingSlip: {
+    // Any authenticated org role may read source-visible evidence; server RLS remains authoritative.
+    view: () => true,
+    create: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
+    edit: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
+    archive: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
   },
   incomingPayment: {
     // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);

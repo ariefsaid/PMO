@@ -151,6 +151,12 @@ vi.mock('@/src/components/ui/useIsDesktop', () => ({
   useIsDesktop: () => mockIsDesktop,
 }));
 
+vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
+  useVendorWithholdingCoverage: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useVendorWithholdingRegister: () => ({ data: { pages: [] }, isLoading: false, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn() }),
+  useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
+}));
+
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------

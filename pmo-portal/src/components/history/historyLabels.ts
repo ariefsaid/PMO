@@ -84,6 +84,19 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     native_lines: t('history.field.native_lines', 'Invoice lines'),
     withheld_amount: t('history.field.withheld_amount', 'Tax withheld'),
     withheld_pph_type: t('history.field.withheld_pph_type', 'Withholding tax type'),
+    slip_number: t('history.field.slip_number', 'Slip number'),
+    slip_date: t('history.field.slip_date', 'Slip date'),
+    tax_period: t('history.field.tax_period', 'Tax period'),
+    pph_type: t('history.field.pph_type', 'PPh type'),
+    tax_base: t('history.field.tax_base', 'Tax base'),
+    invoice_count: t('history.field.invoice_count', 'Bill count'),
+    voided_at: t('history.field.voided_at', 'Voided at'),
+    voided_by: t('history.field.voided_by', 'Voided by'),
+    slip_id: t('history.field.slip_id', 'Bukti potong'),
+    withheld_at_record: t('history.field.withheld_at_record', 'Withheld at record'),
+    pph_type_at_record: t('history.field.pph_type_at_record', 'PPh type at record'),
+    type_source: t('history.field.type_source', 'Type source'),
+    released_at: t('history.field.released_at', 'Released at'),
   };
 }
 
@@ -103,6 +116,8 @@ export function kindLabels(t: TFunction): Record<string, string> {
     contact: t('history.kind.contact', 'Contact'),
     sales_invoice: t('history.kind.sales_invoice', 'Sales invoice'),
     procurement_invoice: t('history.kind.procurement_invoice', 'Vendor bill'),
+    vendor_withholding_slip: t('history.kind.vendor_withholding_slip', 'Bukti potong'),
+    vendor_withholding_slip_bill: t('history.kind.vendor_withholding_slip_bill', 'Bukti potong bill link'),
   };
 }
 

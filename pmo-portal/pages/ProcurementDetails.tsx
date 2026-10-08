@@ -28,6 +28,7 @@ import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/usePr
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useVendorWithholdingRegister, useVendorWithholdingSlipMutations } from '@/src/hooks/useVendorWithholdingSlips';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
@@ -39,6 +40,8 @@ import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { VendorWithholdingSlipModal } from './procurement/VendorWithholdingSlipModal';
+import { VendorWithholdingSlipDetails } from './procurement/VendorWithholdingSlipDetails';
 import {
   ProcurementDecisionZone,
   type VendorInvoiceCapture,
@@ -277,7 +280,7 @@ const ProcurementDetails: React.FC = () => {
   const tab = tabFromParam(tabParam);
   // ADR-0016: write affordances gate on the REAL JWT role (not the impersonated
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
-  const { realRole } = useEffectiveRole();
+  const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -288,6 +291,14 @@ const ProcurementDetails: React.FC = () => {
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
   const erpItems = useErpItemOptions('purchase');
+  const [recordSlipInvoice, setRecordSlipInvoice] = useState<ProcurementDetail['invoices'][number] | null>(null);
+  const [slipHistoryInvoiceId, setSlipHistoryInvoiceId] = useState<string | null>(null);
+  const setBupotSelection = (slipId: string | null) => {
+    const params = new URLSearchParams(location.search);
+    if (slipId) params.set('bupot', slipId); else params.delete('bupot');
+    const query = params.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ''}${location.hash}`, { replace: !slipId });
+  };
 
   // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
   // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
@@ -450,7 +461,9 @@ const ProcurementDetails: React.FC = () => {
   const canManageFiles = may('create', 'procFile');
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
   const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
+  const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
   const currentUserId = currentUser?.id ?? null;
+
 
   // Shared classified-toast helper for the CRUD section mutations.
   const onMutationError = (err: unknown) => {
@@ -1052,6 +1065,10 @@ const ProcurementDetails: React.FC = () => {
                 );
               }}
               invoices={p.invoices}
+              canWriteWithholdingSlip={canWriteWithholdingSlip}
+              onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
+              onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
+              onWithholdingHistory={(invoiceId) => setSlipHistoryInvoiceId(invoiceId)}
               isApprover={isApprover}
             />
           </Card>
@@ -1097,6 +1114,17 @@ const ProcurementDetails: React.FC = () => {
           />
         )}
       </div>
+
+      {recordSlipInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
+        invoice={recordSlipInvoice} vendorId={p.vendor_id} onClose={() => setRecordSlipInvoice(null)}
+      />}
+      {slipHistoryInvoiceId && <VendorWithholdingSlipHistory invoiceId={slipHistoryInvoiceId} onClose={() => setSlipHistoryInvoiceId(null)} onView={(id) => { setSlipHistoryInvoiceId(null); setBupotSelection(id); }} />}
+      {new URLSearchParams(location.search).get('bupot') && <VendorWithholdingSlipDetails
+        slipId={new URLSearchParams(location.search).get('bupot')!}
+        canWrite={may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
+        onClose={() => setBupotSelection(null)}
+        onOpenProcurement={(id, slipId) => navigate(`/procurement/${id}?bupot=${encodeURIComponent(slipId)}`)}
+      />}
 
       {/* Approval / rejection notes */}
       {p.approval_notes && (
@@ -1199,5 +1227,18 @@ const ProcurementDetails: React.FC = () => {
   );
 };
 
+function VendorWithholdingSlipRecordForm({ invoice, vendorId, onClose }: { invoice: ProcurementDetail['invoices'][number]; vendorId: string; onClose: () => void }) {
+  const mutation = useVendorWithholdingSlipMutations();
+  return <VendorWithholdingSlipModal invoice={invoice} vendorId={vendorId} open loading={mutation.record.isPending} onClose={onClose} onSave={(input) => mutation.record.mutateAsync(input)} />;
+}
+
+function VendorWithholdingSlipHistory({ invoiceId, onClose, onView }: { invoiceId: string; onClose: () => void; onView: (id: string) => void }) {
+  const { t } = useTranslation();
+  const query = useVendorWithholdingRegister({ invoiceId });
+  return <Card className="mt-3"><CardHead><div className="flex justify-between"><span>{t('bupot.history', 'Bukti potong history')}</span><Button variant="outline" onClick={onClose}>{t('bupot.close', 'Close')}</Button></div></CardHead><CardPad>
+    {query.isLoading ? <p role="status">{t('bupot.loading', 'Loading bukti potong…')}</p> : query.isError ? <p role="alert">{t('bupot.loadError', 'Bukti potong unavailable')} <Button onClick={() => void query.refetch()}>{t('admin.retry', 'Retry')}</Button></p> : <ul>{(query.data?.pages ?? []).flatMap((page) => page.rows).map((slip) => <li key={slip.slip_id} className="flex justify-between gap-2 py-2"><span className="break-all">{slip.slip_number} · {slip.status}</span><Button variant="outline" onClick={() => onView(slip.slip_id)}>{t('bupot.view', 'View bukti potong')}</Button></li>)}</ul>}
+    {query.hasNextPage && <Button variant="outline" onClick={() => void query.fetchNextPage()}>{t('bupot.loadMoreSlips', 'Load more history')}</Button>}
+  </CardPad></Card>;
+}
 
 export default ProcurementDetails;
