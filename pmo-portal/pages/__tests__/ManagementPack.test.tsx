@@ -10,7 +10,7 @@ import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   userId: 'u-fin',
-  query: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown },
+  query: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
   exportTable: vi.fn(),
 }));
 
@@ -47,7 +47,7 @@ const renderPage = () =>
 beforeEach(() => {
   h.role = 'Finance';
   h.userId = 'u-fin';
-  h.query = { data: buildManagementPack(facts), isPending: false, isError: false, error: null };
+  h.query = { data: buildManagementPack(facts), isPending: false, isError: false, error: null, refetch: vi.fn() };
   h.exportTable.mockReset();
 });
 
@@ -80,14 +80,14 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
 
 describe('AC-MMP-013 honest states', () => {
   it('AC-MMP-013: loading shows no figures', () => {
-    h.query = { data: undefined, isPending: true, isError: false, error: null };
+    h.query = { data: undefined, isPending: true, isError: false, error: null, refetch: vi.fn() };
     renderPage();
     expect(screen.queryAllByTestId(/^pack-cell-/)).toHaveLength(0);
     expect(screen.queryByText('No projects to report')).toBeNull();
   });
 
   it('AC-MMP-013: a failed load shows the error and no figures', () => {
-    h.query = { data: undefined, isPending: false, isError: true, error: new Error('boom') };
+    h.query = { data: undefined, isPending: false, isError: true, error: new Error('boom'), refetch: vi.fn() };
     renderPage();
     expect(screen.getByText("Couldn't load the management pack")).toBeInTheDocument();
     expect(screen.queryAllByTestId(/^pack-cell-/)).toHaveLength(0);
@@ -95,15 +95,38 @@ describe('AC-MMP-013 honest states', () => {
   });
 
   it('AC-MMP-013: a refused window explains the allowed range', () => {
-    h.query = { data: undefined, isPending: false, isError: true, error: Object.assign(new Error('w'), { code: '22023' }) };
+    h.query = { data: undefined, isPending: false, isError: true, error: Object.assign(new Error('w'), { code: '22023' }), refetch: vi.fn() };
     renderPage();
     expect(screen.getByText('Choose a start month on or before the as-at month, at most 24 months apart.')).toBeInTheDocument();
   });
 
   it('AC-MMP-013: no projects shows the empty message', () => {
-    h.query = { data: buildManagementPack({ ...facts, projects: [], invoiced: [] }), isPending: false, isError: false, error: null };
+    h.query = { data: buildManagementPack({ ...facts, projects: [], invoiced: [] }), isPending: false, isError: false, error: null, refetch: vi.fn() };
     renderPage();
     expect(screen.getByText('No projects to report')).toBeInTheDocument();
+  });
+});
+
+describe('Management pack design polish', () => {
+  it('RE-1: the actions column has an accessible Actions header name', () => {
+    renderPage();
+    const header = screen.getByRole('columnheader', { name: 'Actions' });
+    expect(header).toBeInTheDocument();
+    expect(header.querySelector('.sr-only')).toHaveTextContent('Actions');
+  });
+
+  it('RE-2: transport errors can retry, but invalid-range errors cannot', async () => {
+    const refetch = vi.fn();
+    h.query = { data: undefined, isPending: false, isError: true, error: new Error('network unavailable'), refetch };
+    const transportView = renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledOnce();
+    transportView.unmount();
+
+    h.query = { data: undefined, isPending: false, isError: true, error: Object.assign(new Error('invalid range'), { code: '22023' }), refetch };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(refetch).toHaveBeenCalledOnce();
   });
 });
 

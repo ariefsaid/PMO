@@ -92,7 +92,9 @@ export type NameSource =
   | 'purchaseRequests'
   | 'rfqs'
   | 'purchaseOrders'
-  | 'payments';
+  | 'payments'
+  | 'salesInvoices'
+  | 'procurementInvoices';
 export const RECORD_NAME_SOURCE: Record<string, NameSource> = {
   task: 'tasks',
   procurement: 'procurements',
@@ -103,6 +105,8 @@ export const RECORD_NAME_SOURCE: Record<string, NameSource> = {
   rfq: 'rfqs',
   purchase_order: 'purchaseOrders',
   payment: 'payments',
+  sales_invoice: 'salesInvoices',
+  procurement_invoice: 'procurementInvoices',
 };
 
 /** `contract_value` → "Contract value": the label fallback so an unlabelled column never renders blank. */

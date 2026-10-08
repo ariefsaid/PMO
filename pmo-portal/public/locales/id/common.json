@@ -1,6 +1,7 @@
 {
   "toast": {
-    "dismiss": "Tutup notifikasi"
+    "dismiss": "Tutup notifikasi",
+    "more": "+{{count}} lainnya"
   },
   "efaktur": {
     "title": "Catat detail e-Faktur",
@@ -1621,6 +1622,14 @@
       "table": "Tabel"
     },
     "viewToggleLabel": "Tampilan pengadaan"
+  },
+  "procurementLedger": {
+    "title": "Buku besar kasus",
+    "filter": { "label": "Filter catatan", "all": "Semua", "financial": "Keuangan", "hasFile": "Dengan berkas" },
+    "date": "Tanggal", "typeHeader": "Jenis", "systemNumber": "Nomor sistem", "externalRef": "Ref eksternal", "amount": "Jumlah", "file": "Berkas",
+    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak memiliki baris.",
+    "types": { "purchaseRequest": "Permintaan Pembelian", "purchaseOrder": "Pesanan Pembelian", "payment": "Pembayaran", "rfq": "RFQ" },
+    "capture": { "action": "Catat {{record}}", "next": "+ Catat {{record}} — dokumen berikutnya untuk tahap ini." }
   },
   "procurementDetail": {
     "accessDenied": {
@@ -3507,6 +3516,13 @@
     "statusDraft": "Draf",
     "statusActive": "Aktif",
     "statusArchived": "Diarsipkan",
+    "amountMustBeGreaterThanZero": "Jumlah harus lebih besar dari 0",
+    "confirmCreateDescription": "Ini membuat versi anggaran Draf baru bernama \"{{name}}\".",
+    "confirmActivateDescription": "Ini menjadikan {{version}} sebagai anggaran aktif dan menggantikan versi yang saat ini aktif.",
+    "confirmCloneDescription": "Ini menyalin {{version}} menjadi Draf baru yang dapat diubah.",
+    "confirmArchiveDescription": "Ini menonaktifkan {{version}} sebagai anggaran aktif. Anda dapat menyalinnya nanti untuk membuat revisi.",
+    "confirmDeleteDraftDescription": "Ini menghapus draf {{version}} secara permanen. Tindakan ini tidak dapat dibatalkan.",
+    "confirmDeleteLineItemDescription": "Ini menghapus item anggaran dari draf secara permanen. Tindakan ini tidak dapat dibatalkan.",
     "category": "Kategori",
     "description": "Deskripsi",
     "fiscalYear": "Tahun fiskal",
@@ -3899,6 +3915,8 @@
     "filterLocation": "Filter menurut lokasi"
   },
   "managementPack": {
+    "actions": "Tindakan",
+    "retry": "Coba lagi",
     "title": "Laporan manajemen bulanan",
     "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
     "from": "Dari",

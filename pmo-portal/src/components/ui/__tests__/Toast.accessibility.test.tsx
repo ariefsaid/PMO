@@ -29,6 +29,9 @@ describe('Toast accessibility and timing', () => {
     act(() => fire('Error', 'Try again later', 'error'));
     act(() => vi.advanceTimersByTime(15_000));
     expect(screen.getByRole('alert')).toHaveTextContent('Try again later');
+    expect(screen.getByText('+1 more')).toBeInTheDocument();
+    act(() => screen.getByRole('button', { name: 'Dismiss notification' }).click());
+    expect(screen.getByRole('alert')).toHaveTextContent('Ask your administrator for Print access');
   });
 
   it('auto-dismisses info and success after max(4s, 60ms per character), capped at 10s', () => {

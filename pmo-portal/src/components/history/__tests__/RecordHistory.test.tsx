@@ -9,7 +9,7 @@ import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format
 
 const { repo, listProcurementsByProject, listBudgetVersions, procDetail } = vi.hoisted(() => ({
   repo: {
-    recordHistory: { list: vi.fn() },
+    recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
     profile: { listOrgProfiles: vi.fn() },
     company: { list: vi.fn(), get: vi.fn() },
     task: { list: vi.fn() },
@@ -55,6 +55,7 @@ const renderIt = (props: Partial<React.ComponentProps<typeof RecordHistory>> = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  repo.recordHistory.lookupNames.mockResolvedValue({});
   repo.profile.listOrgProfiles.mockResolvedValue([
     { id: 'u1', full_name: 'Dana PM' }, { id: 'u2', full_name: 'Sam Lead' },
   ]);
@@ -74,6 +75,45 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('HI-1: resolves only procurement child event IDs on the loaded History page', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [
+      ev(4, { entityType: 'purchase_request', entityId: 'pr-child', changes: {} }),
+      ev(3, { entityType: 'rfq', entityId: 'rfq-child', changes: {} }),
+      ev(2, { entityType: 'purchase_order', entityId: 'po-child', changes: {} }),
+      ev(1, { entityType: 'payment', entityId: 'pay-child', changes: {} }),
+    ], nextCursor: null });
+    repo.recordHistory.lookupNames.mockResolvedValue({
+      purchase_request: new Map([['pr-child', 'PR-0001']]),
+      rfq: new Map([['rfq-child', 'RFQ-0001']]),
+      purchase_order: new Map([['po-child', 'PO-0001']]),
+      payment: new Map([['pay-child', 'PAY-0001']]),
+    });
+    renderIt({ includeChildren: true });
+    expect(await screen.findByText('Purchase request · PR-0001')).toBeInTheDocument();
+    expect(screen.getByText('RFQ · RFQ-0001')).toBeInTheDocument();
+    expect(screen.getByText('Purchase order · PO-0001')).toBeInTheDocument();
+    expect(screen.getByText('Payment · PAY-0001')).toBeInTheDocument();
+    expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({
+      purchase_request: ['pr-child'], rfq: ['rfq-child'], purchase_order: ['po-child'], payment: ['pay-child'],
+    });
+  });
+
+  it('HI-2: names invoice event records from only the event IDs on the visible page', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [
+      ev(2, { entityType: 'sales_invoice', entityId: 'si-1', changes: {} }),
+      ev(1, { entityType: 'procurement_invoice', entityId: 'vi-1', changes: {} }),
+    ], nextCursor: null });
+    repo.recordHistory.lookupNames.mockResolvedValue({
+      sales_invoice: new Map([['si-1', 'SI-2026-01']]),
+      procurement_invoice: new Map([['vi-1', 'VI-2026-01']]),
+    });
+    renderIt({ includeChildren: true, kindFilters: true });
+    expect(await screen.findByText('Sales invoice · SI-2026-01')).toBeInTheDocument();
+    expect(screen.getByText('Vendor bill · VI-2026-01')).toBeInTheDocument();
+    expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({
+      sales_invoice: ['si-1'], procurement_invoice: ['vi-1'],
+    });
+  });
   const events = [
     ev(6, { actorId: null, changes: { status: { old: 'Leads', new: 'Ongoing Project' } } }),
     ev(5, { actorId: 'ghost', op: 'insert', changes: {} }),

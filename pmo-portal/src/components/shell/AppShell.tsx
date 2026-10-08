@@ -127,7 +127,9 @@ export const AppShell: React.FC<AppShellProps> = ({
       previousRecordBase?.[0] !== undefined &&
       previousRecordBase[0] === currentRecordBase?.[0];
     previousPathname.current = pathname;
-    if (!isTabSwitchNavState(stateRef.current) || !sameRecordBase) mainRef.current?.focus();
+    const sameRecordTabSwitch = isTabSwitchNavState(stateRef.current) && sameRecordBase;
+    if (sameRecordTabSwitch) return;
+    mainRef.current?.focus();
     mainRef.current?.scrollTo?.({ top: 0 });
   }, [pathname]);
 

@@ -43,7 +43,7 @@ const ManagementPack: React.FC = () => {
     backlog: t('managementPack.col.backlog', 'Backlog'),
   };
   const range = { from: monthInputToIso(params.get('from') ?? ''), to: monthInputToIso(params.get('to') ?? '') };
-  const { data: pack, isPending, isError, error } = useManagementPack(range);
+  const { data: pack, isPending, isError, error, refetch } = useManagementPack(range);
   const { exportTable, busy } = useExport();
   const [progressFor, setProgressFor] = useState<PackRow | null>(null);
   const projectIds = useMemo(
@@ -178,7 +178,7 @@ const ManagementPack: React.FC = () => {
     },
     {
       key: 'actions',
-      header: '',
+      header: <span className="sr-only">{t('managementPack.actions', 'Actions')}</span>,
       cell: (row) =>
         canRecord(row) ? (
           <Button variant="outline" onClick={() => setProgressFor(row)}>
@@ -271,6 +271,8 @@ const ManagementPack: React.FC = () => {
           sub={invalidRange
             ? t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')
             : t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}
+          onRetry={!invalidRange ? () => { void refetch(); } : undefined}
+          retryLabel={t('managementPack.retry', 'Retry')}
         />
       )}
       {state === 'empty' && (

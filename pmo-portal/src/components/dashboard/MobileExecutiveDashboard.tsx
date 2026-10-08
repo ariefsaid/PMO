@@ -38,6 +38,8 @@ export interface MobileExecutiveDashboardProps {
    * The band shows "—" instead of a fabricated 0 count (AC-W2-4-06).
    */
   approvalError?: boolean;
+  /** Quiet dashboard doorway shown in the mobile heading area. */
+  headingAction?: React.ReactNode;
   /** Rendered below the above-fold section (charts, pipeline, etc.). */
   belowFold: React.ReactNode;
 }
@@ -138,7 +140,7 @@ const AtRiskBlock: React.FC<{
           <span className="tabular mt-[3px] block text-[17px] font-bold">
             {activeProjects}
           </span>
-          <span className="mt-1 block text-[11px] font-semibold text-primary">
+          <span className="mt-1 block text-[11px] font-semibold text-primary-text">
             View →
           </span>
         </Link>
@@ -154,7 +156,7 @@ const AtRiskBlock: React.FC<{
           <span className="tabular mt-[3px] block text-[17px] font-bold">
             {formatCurrency(totalSpend, currency)}
           </span>
-          <span className="mt-1 block text-[11px] font-semibold text-primary">
+          <span className="mt-1 block text-[11px] font-semibold text-primary-text">
             Breakdown →
           </span>
         </Link>
@@ -273,6 +275,7 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
   data,
   approvalCount,
   approvalError,
+  headingAction,
   belowFold,
 }) => {
   const orgCurrency = useOrgCurrency();
@@ -280,6 +283,7 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
 
   return (
     <div className="space-y-3">
+      {headingAction && <div className="flex justify-end">{headingAction}</div>}
       {/* Section 1: Needs attention — Projects at risk */}
       <section aria-label="Needs attention">
         <Overline className="mb-2">Needs attention</Overline>

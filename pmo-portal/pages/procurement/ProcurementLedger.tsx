@@ -75,6 +75,23 @@ const FILTER_CHIPS: FilterChipDef[] = [
   { value: 'financial', label: 'Financial' },
   { value: 'has-file', label: 'Has file' },
 ];
+const LedgerHeader: React.FC<{ translationKey: string; fallback: string }> = ({ translationKey, fallback }) => {
+  const { t } = useTranslation();
+  const value = translationKey === 'procurementLedger.date' ? t('procurementLedger.date', 'Date')
+    : translationKey === 'procurementLedger.typeHeader' ? t('procurementLedger.typeHeader', 'Type')
+      : translationKey === 'procurementLedger.systemNumber' ? t('procurementLedger.systemNumber', 'System #')
+        : translationKey === 'procurementLedger.externalRef' ? t('procurementLedger.externalRef', 'External ref')
+          : translationKey === 'procurementLedger.amount' ? t('procurementLedger.amount', 'Amount')
+            : t('procurementLedger.file', 'File');
+  return <>{value || fallback}</>;
+};
+const LedgerTypeLabel: React.FC<{ type: LedgerRow['type'] }> = ({ type }) => {
+  const { t } = useTranslation();
+  const label = type === 'PR' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
+    : type === 'PO' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
+      : type === 'Payment' ? t('procurementLedger.types.payment', 'Payment') : type;
+  return <>{label}</>;
+};
 
 // ---------------------------------------------------------------------------
 // Static column definitions (all except File — that one needs canWrite context)
@@ -93,7 +110,7 @@ const EfakturHeader: React.FC = () => {
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
-    header: 'Date',
+    header: <LedgerHeader translationKey="procurementLedger.date" fallback="Date" />,
     cell: (row) => (
       <span className="text-[13px] text-muted-foreground">
         {formatBusinessDate(row.date)}
@@ -102,16 +119,16 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'type',
-    header: 'Type',
+    header: <LedgerHeader translationKey="procurementLedger.typeHeader" fallback="Type" />,
     cell: (row) => (
       <StatusPill variant="neutral">
-        {row.type}
+        <LedgerTypeLabel type={row.type} />
       </StatusPill>
     ),
   },
   {
     key: 'systemNumber',
-    header: 'System #',
+    header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
         <span className="font-mono text-[12.5px] font-semibold">{row.systemNumber}</span>
@@ -121,7 +138,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'externalRef',
-    header: 'External ref',
+    header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
         <span className="font-mono text-[12.5px] text-muted-foreground">{row.externalRef}</span>
@@ -239,6 +256,11 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   const resolvedWithholdingCoverage = withholdingCoverage;
   const slipCoverageLoading = withholdingCoverageLoading;
   const slipCoverageError = withholdingCoverageError;
+  const filterLabels: Record<LedgerFilter, string> = {
+    all: t('procurementLedger.filter.all', 'All'),
+    financial: t('procurementLedger.filter.financial', 'Financial'),
+    'has-file': t('procurementLedger.filter.hasFile', 'Has file'),
+  };
 
   // Mutations for the capture row (invalidate the detail query on success)
   const mutations = useProcurementRecordMutations(procurementId);
@@ -248,7 +270,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   const fileColumn = useMemo<Column<LedgerRow>>(
     () => ({
       key: 'file',
-      header: 'File',
+      header: <LedgerHeader translationKey="procurementLedger.file" fallback="File" />,
       cell: (row) => (
         <LedgerFileCell
           type={row.type}
@@ -267,7 +289,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   );
 
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
-    key: 'amount', header: 'Amount', align: 'num',
+    key: 'amount', header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
       if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
       const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
@@ -346,11 +368,11 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
     <div data-testid="procurement-ledger">
       {/* Toolbar: card-head + filter chips */}
       <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
-        <span className="text-[13px] font-semibold">Case ledger</span>
+        <span className="text-[13px] font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
         {/* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */}
         <div
           role="group"
-          aria-label="Filter records"
+          aria-label={t('procurementLedger.filter.label', 'Filter records')}
           className="flex flex-wrap gap-1.5"
         >
           {FILTER_CHIPS.map((chip) => {
@@ -372,7 +394,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
                   .filter(Boolean)
                   .join(' ')}
               >
-                {chip.label}
+                {filterLabels[chip.value]}
               </button>
             );
           })}
@@ -432,7 +454,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           onCreate={handleCreate}
         />
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Every record appears once, chronological. Empty record types have no row.
+          {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>
       </CardPad>
     </div>

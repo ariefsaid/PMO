@@ -11,7 +11,7 @@
  *
  * Owning layer: Vitest/RTL — the focus stealer lives here (AppShell).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
@@ -46,6 +46,8 @@ describe('#879 AppShell route-focus exemption for tab switches', () => {
     );
     const main = screen.getByRole('main');
     const tab = screen.getByRole('button', { name: 'switch-tab' });
+    const scrollTo = vi.fn();
+    Object.defineProperty(main, 'scrollTo', { configurable: true, value: scrollTo });
     tab.focus();
     expect(tab).toHaveFocus();
     expect(main).not.toHaveFocus();
@@ -57,6 +59,7 @@ describe('#879 AppShell route-focus exemption for tab switches', () => {
     // …but focus was NOT yanked to main: it stays in the tab bar.
     expect(tab).toHaveFocus();
     expect(main).not.toHaveFocus();
+    expect(scrollTo).not.toHaveBeenCalled();
     tree.unmount();
   });
 

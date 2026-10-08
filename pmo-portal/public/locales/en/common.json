@@ -1,6 +1,7 @@
 {
   "toast": {
-    "dismiss": "Dismiss notification"
+    "dismiss": "Dismiss notification",
+    "more": "+{{count}} more"
   },
   "efaktur": {
     "title": "Record e-Faktur details",
@@ -1621,6 +1622,14 @@
       "table": "Table"
     },
     "viewToggleLabel": "Procurement view"
+  },
+  "procurementLedger": {
+    "title": "Case ledger",
+    "filter": { "label": "Filter records", "all": "All", "financial": "Financial", "hasFile": "Has file" },
+    "date": "Date", "typeHeader": "Type", "systemNumber": "System #", "externalRef": "External ref", "amount": "Amount", "file": "File",
+    "ledgerNote": "Every record appears once, chronological. Empty record types have no row.",
+    "types": { "purchaseRequest": "Purchase Request", "purchaseOrder": "Purchase Order", "payment": "Payment", "rfq": "RFQ" },
+    "capture": { "action": "Capture {{record}}", "next": "+ Capture {{record}} — the next record for this phase." }
   },
   "procurementDetail": {
     "accessDenied": {
@@ -3507,6 +3516,13 @@
     "statusDraft": "Draft",
     "statusActive": "Active",
     "statusArchived": "Archived",
+    "amountMustBeGreaterThanZero": "Amount must be greater than 0",
+    "confirmCreateDescription": "This creates a new Draft budget version named \"{{name}}\".",
+    "confirmActivateDescription": "This makes {{version}} the live active budget and supersedes the current active version.",
+    "confirmCloneDescription": "This copies {{version}} into a new editable Draft.",
+    "confirmArchiveDescription": "This removes {{version}} as the active budget. You can clone it later to revise.",
+    "confirmDeleteDraftDescription": "This permanently deletes the draft {{version}}. This cannot be undone.",
+    "confirmDeleteLineItemDescription": "This permanently removes the line item from the draft. This cannot be undone.",
     "category": "Category",
     "description": "Description",
     "fiscalYear": "Fiscal year",
@@ -3899,6 +3915,8 @@
     "filterLocation": "Filter by location"
   },
   "managementPack": {
+    "actions": "Actions",
+    "retry": "Retry",
     "title": "Monthly management pack",
     "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
     "from": "From",

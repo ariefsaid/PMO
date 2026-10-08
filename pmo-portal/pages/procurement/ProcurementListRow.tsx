@@ -189,6 +189,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
         <div className="min-w-0 flex-1">
           <Link
             to={`/procurement/${row.id}`}
+            data-list-return-focus={`procurement:${row.id}`}
             onClick={(e) => {
               // Native modified/new-tab clicks keep the plain href (no return context to carry
               // into a separate browsing context) — only a plain left-click is intercepted to
