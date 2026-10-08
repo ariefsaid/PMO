@@ -33,12 +33,18 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
 const env = installEdgeEnv();
+const originalResolveDns = Deno.resolveDns;
+Deno.resolveDns = ((hostname: string, recordType: string) => {
+  if (recordType === 'A') return Promise.resolve(['8.8.8.8']);
+  if (recordType === 'AAAA') return Promise.resolve(['2001:4860:4860::8888']);
+  return Promise.reject(new Error('unexpected DNS query'));
+}) as typeof Deno.resolveDns;
 const auth = await createJwtAuthority(env.SUPABASE_URL);
 
 // Install test JWKS resolver (no background intervals)
 setTestJwks(createTestJwksResolver(auth));
 
-afterAll(() => env.restore());
+afterAll(() => { env.restore(); Deno.resolveDns = originalResolveDns; });
 
 async function authed(body: unknown, sub = 'user-1') {
   const jwt = await auth.mintJwt({ sub });
@@ -713,5 +719,98 @@ describe('external-connect — EDGE_JWT_ISSUER override (#659)', () => {
     } finally {
       Deno.env.set('SUPABASE_URL', original);
     }
+  });
+});
+
+// ── #751: the admin-nominated host is judged by the ADDRESS it resolves to, not just its text ──
+
+/** Swap the module DNS mock for one guard scenario; restore the module mock afterwards. */
+async function withDns(
+  records: { A?: string[]; AAAA?: string[] } | 'failure',
+  run: () => Promise<void>,
+): Promise<void> {
+  const moduleMock = Deno.resolveDns;
+  Deno.resolveDns = ((hostname: string, recordType: string) => {
+    if (records === 'failure') return Promise.reject(new Error('dns unavailable'));
+    const answer = records[recordType as 'A' | 'AAAA'];
+    if (!answer) return Promise.reject(new Deno.errors.NotFound('no record'));
+    return Promise.resolve(answer);
+  }) as typeof Deno.resolveDns;
+  try {
+    await run();
+  } finally {
+    Deno.resolveDns = moduleMock;
+  }
+}
+
+describe('external-connect — ERPNext host guard (#751)', () => {
+  const HOST = 'rebind.erp.test';
+  const request = async () =>
+    authed({
+      tier: 'erpnext',
+      credential: { siteUrl: `https://${HOST}`, apiKey: 'api-key', apiSecret: 'api-secret' },
+    });
+  const prelude = () => [
+    supabaseSelect('profiles', () =>
+      jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+    supabaseSelect('platform_operators', () => new Response('null', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })),
+  ];
+
+  const resolvingPrivate: Array<[string, { A?: string[]; AAAA?: string[] }]> = [
+    ['the loopback (127.0.0.1)', { A: ['127.0.0.1'] }],
+    ['a private 10/8 address (10.x)', { A: ['10.1.2.3'] }],
+    ['a link-local address (169.254.x)', { A: ['169.254.169.254'] }],
+    ['an IPv4-mapped loopback (::ffff:127.0.0.1)', { A: ['203.0.113.9'], AAAA: ['::ffff:127.0.0.1'] }],
+  ];
+  for (const [where, records] of resolvingPrivate) {
+    it(`#751 refuses a site name resolving to ${where} — no Vault write, no ERP probe`, async () => {
+      await withDns(records, () =>
+        withFetchMock(prelude(), async ({ calls }) => {
+          const res = await handleConnectRequest(await request());
+          assertEquals(res.status, 422);
+          assertEquals(await res.json(), {
+            error: 'config-rejected',
+            message: 'Private or reserved addresses are not allowed',
+          });
+          assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+          assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+          assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
+        }));
+    });
+  }
+
+  it('#751 accepts a site name that resolves PUBLIC (sslip.io-style real ERP) end to end', async () => {
+    await withFetchMock(
+      [
+        ...prelude(),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
+        erp(HOST, '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
+      ],
+      async () => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), { ok: true, binding: { secret_ref: 'erpnext_token_org-1_1', status: 'active' } });
+      },
+    );
+  });
+
+  it('#751 fails closed when the resolver errors — no Vault write, no ERP probe', async () => {
+    await withDns('failure', () =>
+      withFetchMock(prelude(), async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 422);
+        assertEquals(await res.json(), {
+          error: 'config-rejected',
+          message: 'Private or reserved addresses are not allowed',
+        });
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+        assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
+      }));
   });
 });

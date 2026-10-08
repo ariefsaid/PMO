@@ -41,6 +41,7 @@ import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { isAdminOrOperator, type AdminOrOperatorClient } from '../_shared/adminOrOperator.ts';
 import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface ConnectBody {
   tier: 'clickup' | 'erpnext';
@@ -184,7 +185,7 @@ async function validateErpNextCredentials(
   }
 
   const hostname = parsedUrl.hostname;
-  if (isPrivateOrReservedHost(hostname)) {
+  if (await isPrivateOrReservedHost(hostname)) {
     throw new AppError('Private or reserved addresses are not allowed', 'config-rejected');
   }
 
@@ -219,54 +220,6 @@ async function validateErpNextCredentials(
     if (err instanceof AppError) throw err;
     throw new AppError('Invalid ERPNext credentials', 'config-rejected');
   }
-}
-
-/** Check if a hostname resolves to or is a private/loopback/link-local/metadata address. */
-function isPrivateOrReservedHost(hostname: string): boolean {
-  // Normalize: remove brackets from IPv6 addresses, remove port, lowercase
-  let host = hostname.toLowerCase();
-  if (host.startsWith('[') && host.endsWith(']')) {
-    host = host.slice(1, -1); // Remove brackets from [::1] format
-  }
-  host = host.split(':')[0]; // Remove port if present
-
-  // Localhost and loopback
-  if (host === 'localhost' || host === 'localhost.localdomain') return true;
-  if (host === '::1' || host.startsWith('127.')) return true;
-
-  // IPv4 private ranges
-  const ipv4Match = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (ipv4Match) {
-    const a = parseInt(ipv4Match[1], 10);
-    const b = parseInt(ipv4Match[2], 10);
-    // 10.0.0.0/8
-    if (a === 10) return true;
-    // 172.16.0.0/12
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    // 192.168.0.0/16
-    if (a === 192 && b === 168) return true;
-    // 169.254.0.0/16 (link-local)
-    if (a === 169 && b === 254) return true;
-    // 0.0.0.0/8
-    if (a === 0) return true;
-  }
-
-  // IPv6 private ranges
-  if (host.startsWith('fc') || host.startsWith('fd')) {
-    // More precise fc00::/7 check
-    const firstHextet = host.split(':')[0];
-    const first = parseInt(firstHextet, 16);
-    if (!isNaN(first) && (first & 0xfe) === 0xfc) return true; // fc00::/7
-  }
-  if (host === '::') return true; // unspecified
-  if (host === '::1') return true; // loopback (already caught above but safe)
-
-  // Cloud metadata endpoints (common patterns)
-  if (host === '169.254.169.254') return true; // AWS/Azure/GCE metadata
-  if (host === 'metadata.google.internal') return true;
-  if (host === 'metadata.azure.com') return true;
-
-  return false;
 }
 
 // ============================================================================
@@ -510,5 +463,5 @@ if (import.meta.main) {
 }
 
 // Export validators and SSRF helper for testability
-export { validateClickUpToken, validateErpNextCredentials, isPrivateOrReservedHost };
+export { validateClickUpToken, validateErpNextCredentials };
 export type { ValidatorDeps };

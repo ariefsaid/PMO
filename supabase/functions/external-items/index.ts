@@ -10,8 +10,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { listErpItems } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/itemCatalog.ts';
 import { listPurchaseTaxTemplates } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/erpPurchaseTaxRows.ts';
-import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
-import { isPrivateOrReservedHost } from '../external-companies/index.ts';
+import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 let jwks: JwksResolver | null = null;
@@ -74,27 +73,22 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
     return json({ error: 'BAD_REQUEST' }, 400);
 
   const service = createClient(url, key, clientOptions);
-  const { data: binding, error } = await service
-    .from('external_org_bindings')
-    .select('site_url,secret_ref,status,activated_at,config')
-    .eq('org_id', profile.org_id)
-    .eq('external_tier', 'erpnext')
-    .maybeSingle();
-  if (error || !binding) return json({ error: 'BINDING_NOT_FOUND' }, 404);
-  if (binding.status !== 'active' || !binding.activated_at)
-    return json({ error: 'config-rejected', message: 'ERPNext binding is not active' }, 422);
-  const company = (binding.config as { company?: unknown } | null)?.company;
-  if (purpose === 'purchase-tax-templates' && (typeof company !== 'string' || !company))
-    return json({ error: 'config-rejected', message: 'ERPNext company is not set' }, 422);
-  try {
-    const site = new URL(binding.site_url);
-    if (site.protocol !== 'https:' || isPrivateOrReservedHost(site.hostname))
+  const connection = await erpClientForOrg(service, profile.org_id, {
+    requireCompany: purpose === 'purchase-tax-templates',
+  });
+  if ('refusal' in connection) {
+    if (connection.refusal === 'company-not-set')
+      return json({ error: 'config-rejected', message: 'ERPNext company is not set' }, 422);
+    if (connection.refusal === 'not-found') return json({ error: 'BINDING_NOT_FOUND' }, 404);
+    if (connection.refusal === 'inactive')
+      return json({ error: 'config-rejected', message: 'ERPNext binding is not active' }, 422);
+    if (connection.refusal === 'invalid-site')
       return json({ error: 'config-rejected', message: 'ERPNext site URL is not permitted' }, 422);
-    const credentials = await resolveErpAuthPair(service, {
-      orgId: profile.org_id,
-      secretRef: binding.secret_ref,
-    });
-    const client = { ...credentials, baseUrl: binding.site_url, fetchImpl: fetch, maxRetries: 0 };
+    return json({ error: 'external-unreachable', message: purpose === 'purchase-tax-templates' ? 'Could not load ERP tax templates. Try again.' : 'Could not load ERP items. Try again.' }, 502);
+  }
+  const company = connection.config?.company;
+  try {
+    const client = connection.client;
     if (purpose === 'purchase-tax-templates')
       return json({ templates: await listPurchaseTaxTemplates(client, company as string) });
     const items = await listErpItems(client, purpose);
