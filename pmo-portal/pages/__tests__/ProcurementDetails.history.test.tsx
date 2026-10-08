@@ -145,6 +145,10 @@ describe('ProcurementDetails — History tab (AC-CHG-018, AC-CHG-023)', () => {
     renderAt('/procurement/proc-001/history');
     expect(screen.getByTestId('record-history')).toHaveTextContent('procurement:proc-001:true');
   });
+  it('AC-CHG-018: /procurement/:id/history includes the procurement and its vendor bill history (#920)', () => {
+    renderAt('/procurement/proc-001/history');
+    expect(screen.getByTestId('record-history')).toHaveTextContent('procurement:proc-001:true');
+  });
 
   it('AC-CHG-018: the History tab is keyboard-operable from the tab bar', async () => {
     renderAt('/procurement/proc-001');

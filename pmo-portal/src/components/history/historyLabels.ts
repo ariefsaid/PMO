@@ -73,6 +73,17 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     email: t('history.field.email', 'Email'),
     phone: t('history.field.phone', 'Phone'),
     notes: t('history.field.notes', 'Notes'),
+    efaktur_number: t('history.field.efaktur_number', 'e-Faktur number'),
+    efaktur_date: t('history.field.efaktur_date', 'e-Faktur date'),
+    received_date: t('history.field.received_date', 'Received date'),
+    author_user_id: t('history.field.author_user_id', 'Invoice author'),
+    approved_by_id: t('history.field.approved_by_id', 'Approved by'),
+    approved_at: t('history.field.approved_at', 'Approved at'),
+    pmo_native: t('history.field.pmo_native', 'PMO-created'),
+    pmo_number: t('history.field.pmo_number', 'PMO invoice number'),
+    native_lines: t('history.field.native_lines', 'Invoice lines'),
+    withheld_amount: t('history.field.withheld_amount', 'Tax withheld'),
+    withheld_pph_type: t('history.field.withheld_pph_type', 'Withholding tax type'),
   };
 }
 
@@ -90,6 +101,8 @@ export function kindLabels(t: TFunction): Record<string, string> {
     task: t('history.kind.task', 'Task'),
     company: t('history.kind.company', 'Company'),
     contact: t('history.kind.contact', 'Contact'),
+    sales_invoice: t('history.kind.sales_invoice', 'Sales invoice'),
+    procurement_invoice: t('history.kind.procurement_invoice', 'Vendor bill'),
   };
 }
 

@@ -3991,7 +3991,18 @@
       "rejection_notes": "Rejection notes",
       "email": "Email",
       "phone": "Phone",
-      "notes": "Notes"
+      "notes": "Notes",
+      "efaktur_number": "e-Faktur number",
+      "efaktur_date": "e-Faktur date",
+      "received_date": "Received date",
+      "author_user_id": "Invoice author",
+      "approved_by_id": "Approved by",
+      "approved_at": "Approved at",
+      "pmo_native": "PMO-created",
+      "pmo_number": "PMO invoice number",
+      "native_lines": "Invoice lines",
+      "withheld_amount": "Tax withheld",
+      "withheld_pph_type": "Withholding tax type"
     },
     "kind": {
       "project": "Project",
@@ -4005,7 +4016,13 @@
       "payment": "Payment",
       "task": "Task",
       "company": "Company",
-      "contact": "Contact"
+      "contact": "Contact",
+      "sales_invoice": "Sales invoice",
+      "procurement_invoice": "Vendor bill"
+    },
+    "withholdingType": {
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)"
     },
     "filter": {
       "all": "All",
