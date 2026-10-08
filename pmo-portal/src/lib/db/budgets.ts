@@ -17,6 +17,8 @@ export type BudgetVersionWithItems = BudgetVersionRow & {
   line_items: BudgetLineItemRow[];
   /** Σ budgeted_amount of this version's line-items, normalised to JS number. */
   total: number;
+  /** All recorded human editors, used only for the activation affordance; the RPC remains authoritative. */
+  editor_ids: string[];
 };
 
 /** What activating (or retrying the push for) a version did to the ERPNext side (HIGH-C). The PMO
@@ -99,10 +101,23 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
     .order('version', { ascending: true });
   if (error) throw toAppError(error);
   const rows = (data ?? []) as unknown as RawVersionWithItems[];
+  if (rows.length === 0) return [];
+  const { data: editors, error: editorError } = await supabase
+    .from('budget_version_editors')
+    .select('budget_version_id, user_id')
+    .in('budget_version_id', rows.map((v) => v.id));
+  if (editorError) throw toAppError(editorError);
+  const editorsByVersion = new Map<string, string[]>();
+  for (const editor of editors ?? []) {
+    const ids = editorsByVersion.get(editor.budget_version_id) ?? [];
+    ids.push(editor.user_id);
+    editorsByVersion.set(editor.budget_version_id, ids);
+  }
   return rows.map((v) => ({
     ...v,
     line_items: v.line_items ?? [],
     total: (v.line_items ?? []).reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
+    editor_ids: editorsByVersion.get(v.id) ?? [],
   }));
 }
 

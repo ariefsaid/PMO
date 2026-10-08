@@ -744,16 +744,18 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     !!selected &&
     can('transition', 'budgetVersion', {
       currentUserId,
-      record: { status: selected.status, created_by: selected.created_by },
+      record: { status: selected.status, created_by: selected.created_by, editor_ids: selected.editor_ids },
     });
   const activateBlockedReason =
     !selected || !canWrite || canActivate || selected.status !== 'Draft'
       ? null
-      : selected.created_by == null
-        ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
-        : selected.created_by === currentUserId
-          ? t('financeCopy.activateDrafterBlocked', 'You drafted this version, so someone else must activate it.')
-          : null;
+      : selected.editor_ids?.includes(currentUserId ?? '')
+        ? t('financeCopy.activateEditorBlocked', 'You edited this version, so someone else must activate it.')
+        : selected.created_by == null
+          ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
+          : selected.created_by === currentUserId
+            ? t('financeCopy.activateEditorBlocked', 'You edited this version, so someone else must activate it.')
+            : null;
 
   // Human-readable label for a version id (confirm copy). Falls back to the id.
   const versionLabel = (id: string): string => {

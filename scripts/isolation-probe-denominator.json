@@ -14,6 +14,7 @@
     {"table":"budget_category_account_map","has_org":true,"pk":"id"},
     {"table":"budget_line_items","has_org":true,"pk":"id"},
     {"table":"budget_projections","has_org":true,"pk":"id"},
+    {"table":"budget_version_editors","has_org":true,"pk":"budget_version_id"},
     {"table":"budget_version_erp_mirror","has_org":true,"pk":"id"},
     {"table":"budget_versions","has_org":true,"pk":"id"},
     {"table":"clickup_webhook_inbox","has_org":false,"pk":"id"},
