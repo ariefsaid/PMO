@@ -2,7 +2,7 @@
 begin;
 select plan(6);
 -- The database test runner mounts only the current test file into its container, so exercise
--- the rollback statements inline (kept in lock-step with migrations/rollback/0279_vendor_withholding_slips_down.sql).
+-- the rollback statements inline (kept in lock-step with migrations/rollback/0281_vendor_withholding_slips_down.sql).
 -- The rollback's precondition refuses while any slip exists (recorded tax evidence is never dropped
 -- as a side effect). Prove it with one bare row (FK/trigger checks bypassed inside this transaction).
 savepoint guard_probe;

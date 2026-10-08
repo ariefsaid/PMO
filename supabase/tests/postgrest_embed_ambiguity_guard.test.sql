@@ -84,7 +84,7 @@ select set_eq(
             -- auth.users. auth.users is not in a PostgREST-exposed schema, so no client embed of it
             -- can exist and none can become ambiguous; listed so the pair is a known one.
             ('sales_invoices -> users'),
-            -- 0279: a slip header references profiles as both creator and void actor. The new slip
+            -- 0281 (#911): a slip header references profiles as both creator and void actor. The new slip
             -- repository must qualify profile embeds with the intended constraint name.
             ('vendor_withholding_slips -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '

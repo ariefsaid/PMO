@@ -47,8 +47,8 @@ No `routeDomainWrite`, adapter-dispatch, external outbox or pending-push state f
 
 ## 2. Exact schema contract
 
-**Requested migration slot:** `supabase/migrations/0279_vendor_withholding_slips.sql`.
-**Rollback:** `supabase/migrations/rollback/0279_vendor_withholding_slips_down.sql`.
+**Requested migration slot:** `supabase/migrations/0281_vendor_withholding_slips.sql`.
+**Rollback:** `supabase/migrations/rollback/0281_vendor_withholding_slips_down.sql`.
 0278 is the brief's **placeholder slot**, not evidence it is available when build starts. Before build, inspect `supabase/migrations/0278*` and run `scripts/check-migration-collisions.sh`; a collision is a Director sequencing decision. Never overwrite an existing migration; use the sanctioned renumber script if needed and amend these paths atomically. Do not change historical migrations.
 
 ### Header: `public.vendor_withholding_slips`
@@ -291,11 +291,11 @@ Rollback is explicit SQL, not `db reset` as a production reversal:
 4. Drop link then header tables. Do not delete `record_changes`/audit rows; old evidence remains retained but source visibility no longer resolves it. Document this consequence.
 5. Drop only supporting unique constraints/indexes added by 0278 after all referencing new FKs are gone; leave bill money, grants, mirror guards and other feature tables untouched. Notify PostgREST.
 
-Local rollback proof: a pgTAP file applies the down file via `\ir ../migrations/rollback/0279_vendor_withholding_slips_down.sql` inside BEGIN/ROLLBACK, then proves new objects removed, incumbent source bills/withholding unchanged, remaining history catalog complete, old writer ACLs still intact. Transaction rollback restores the forward schema for later tests. Do not run this against a hosted target.
+Local rollback proof: a pgTAP file applies the down file via `\ir ../migrations/rollback/0281_vendor_withholding_slips_down.sql` inside BEGIN/ROLLBACK, then proves new objects removed, incumbent source bills/withholding unchanged, remaining history catalog complete, old writer ACLs still intact. Transaction rollback restores the forward schema for later tests. Do not run this against a hosted target.
 
 Add the **three writer names only** to `supabase/tests/0178_anon_executable_definers.test.sql`:
 `record_vendor_withholding_slip`, `correct_vendor_withholding_slip`, `void_vendor_withholding_slip`.
-This checkout's 66 becomes 69; manually re-derive after integration, do not auto-count the list or delete self-tests. Add paired membership/role/tenant tests in `0279_vendor_withholding_slips_access.test.sql`. Invoker readers and non-executable trigger helpers stay outside the definer allowlist.
+This checkout's 66 becomes 69; manually re-derive after integration, do not auto-count the list or delete self-tests. Add paired membership/role/tenant tests in `0281_vendor_withholding_slips_access.test.sql`. Invoker readers and non-executable trigger helpers stay outside the definer allowlist.
 
 Catalog test amendment: 12 becomes 14 explicitly in `record_changes_catalog_gate.test.sql`; retain classification, trigger and source-visibility planted-defect checks. Add two table entries and actual writer signatures to `scripts/isolation-probe-denominator.json`; trigger-returning functions and invoker readers are not entries in its non-trigger-definer list.
 
@@ -319,27 +319,27 @@ Do not use bare full-suite verify, install/regenerate a lockfile, inspect secret
 | # / minutes | RED → GREEN / exact paths / ACs | Verify |
 |---|---|---|
 | **01 / 2** | **Inspection only.** Check `supabase/migrations/0278*` slot and existing `(org_id,id)` unique keys on companies/procurements/invoices; record owned constraint names in migration/rollback header. Confirm spec approval/executor before any build. | `scripts/check-migration-collisions.sh` |
-| **02 / 5** | **Test scaffold only.** New `supabase/tests/0279_vendor_withholding_slips_schema.test.sql`: BEGIN/plan/ROLLBACK, named synthetic vendor, two case/bill fixtures, helper JWT contexts like `supabase/tests/0273_vendor_tax_accounts_native_withholding.test.sql`; assertions must call real public writers, never cloned implementations. Set both bills withholding 20,000/30,000 and type pph23 in same currency. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` (scaffold only; no behaviour claimed) |
-| **03 / 5** | RED AC-BUPOT-001 table/column/domain assertions → GREEN header DDL/number/money/status checks + owned composite company FK in `0279_vendor_withholding_slips.sql`. Temporary schema task does not declare record RPC success. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **04 / 5** | RED AC-BUPOT-002/005 link schema/snapshot/unique reservation assertions → GREEN link DDL + owned invoice/procurement composite keys and indexes (§2), both table FORCE RLS and initial explicit grants. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **05 / 5** | RED AC-BUPOT-002/003 empty/partial/incorrect-sum commit tests (`SET CONSTRAINTS ALL IMMEDIATE` inside savepoint) → GREEN deferred snapshot integrity trigger on both tables. Assert offsetting currency/type differences and void release consistency. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **06 / 5** | RED AC-BUPOT-008 normal/disabled/foreign/anon contexts in new `supabase/tests/0279_vendor_withholding_slips_access.test.sql` → GREEN record RPC signature and member/role/org gates, fixed path and explicit ACL. Test denial before inspecting targets. | `dbtest supabase/tests/0279_vendor_withholding_slips_access.test.sql` |
-| **07 / 5** | RED AC-BUPOT-001 numeric/date/period input cases through real RPC → GREEN scalar validation **before casts** and org-calendar comparisons. Include org morning boundary, NaN/infinity, 0.001 excess precision, max value and over-limit. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **08 / 5** | RED AC-BUPOT-002/003 ID count, duplicate/null IDs, wrong vendor/org/currency/cancel and Paid eligibility → GREEN advisory lock, sorted parent/invoice locks and complete re-read/eligibility in record RPC. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **09 / 5** | RED AC-BUPOT-004 unknown-type selection/declaration exact set and known conflict → GREEN declaration validator and original-type/type-source link snapshot construction; assert no invoice column changes. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **10 / 5** | RED AC-BUPOT-002/003 successful two-case grouping and ±0.01 mismatches → GREEN exact SQL SUM/entered amount comparison and atomic header+link INSERTs. Save no partial record on any error. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **11 / 5** | RED AC-BUPOT-005 duplicate active number/bill, same-number replacement after void, and same/different intent cases → GREEN original canonical create_payload comparison before mutable-source validation, constraint-error mapping. Verify a reused ID never returns a foreign row. | `dbtest supabase/tests/0279_vendor_withholding_slips_schema.test.sql` |
-| **12 / 5** | RED AC-BUPOT-006 in new `supabase/tests/0279_vendor_withholding_slips_lifecycle.test.sql`: correction reason, revision, immutable money/type/links and no-op → GREEN metadata-only correction RPC (§3), actual ACL and audit event. | `dbtest supabase/tests/0279_vendor_withholding_slips_lifecycle.test.sql` |
-| **13 / 5** | RED AC-BUPOT-007 void/retry/replace and stale update cases → GREEN void RPC with one timestamp, retained/released links, terminal state and identity-bound retry. Add AC-BUPOT-005 intent retries after correction/void. | `dbtest supabase/tests/0279_vendor_withholding_slips_lifecycle.test.sql` |
-| **14 / 5** | RED AC-BUPOT-008 direct DML/table-column grants/FK tenant graft/cascade retention across both orgs → GREEN own-org/member/source-visible SELECT policies, trusted grants and end-migration catalog assertions. Include every writer role permutation, not just record. | `dbtest supabase/tests/0279_vendor_withholding_slips_access.test.sql` |
-| **15 / 5** | RED AC-BUPOT-009 in new `supabase/tests/0279_vendor_withholding_slips_register.test.sql`: current-vs-snapshot changes including offsetting bill edits → GREEN header register view validation aggregation (§4), no changes to mirror code/guards. | `dbtest supabase/tests/0279_vendor_withholding_slips_register.test.sql` |
-| **16 / 5** | RED AC-BUPOT-010 state precedence and unreadable-link source fixture → GREEN invoice register view, expected/visible count guard and current-null-type resolution. Check active-link amount removal is needs-review, not not-required. | `dbtest supabase/tests/0279_vendor_withholding_slips_register.test.sql` |
-| **17 / 5** | RED AC-BUPOT-012 header totals/period/currency/keyset page boundaries and retained per-invoice active/void history → GREEN `list_vendor_withholding_slips` invoker reader with decimal-string money and two-part descending cursor. | `dbtest supabase/tests/0279_vendor_withholding_slips_register.test.sql` |
-| **18 / 5** | RED AC-BUPOT-012 candidate/page-2/date-null-phase/batch coverage and malformed cursor → GREEN `list_vendor_withholding_bills` invoker reader with §4 predicates, server candidate eligibility, 100 bound and null-date cursor phase. | `dbtest supabase/tests/0279_vendor_withholding_slips_register.test.sql` |
-| **19 / 5** | RED AC-BUPOT-008/012 full detail for active/void/incomplete/foreign IDs → GREEN `get_vendor_withholding_slip` invoker JSON envelope excluding original create_payload, complete ≤100 retained links and unavailable state. | `dbtest supabase/tests/0279_vendor_withholding_slips_access.test.sql supabase/tests/0279_vendor_withholding_slips_register.test.sql` |
-| **20 / 5** | RED AC-BUPOT-011 history registry/actor/source visibility in new `supabase/tests/0279_vendor_withholding_slips_history.test.sql` → GREEN two exact classification entries, capture triggers and visibility arms (§4); record/void audit and correction reason audit. | `dbtest supabase/tests/0279_vendor_withholding_slips_history.test.sql` (the standing catalog's explicit roster count is extended in task 21) |
-| **21 / 3** | **Declaration task, paired with existing RED completeness gates:** update 0178 names/count to 69 and history table count to 14 in their existing tests; add two table/three writer manifest entries in `scripts/isolation-probe-denominator.json`. No exclusions or weakened checks. | `dbtest supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/record_changes_catalog_gate.test.sql supabase/tests/0279_vendor_withholding_slips_access.test.sql`; `scripts/with-db-lock.sh node scripts/check-isolation-denominator.mjs` |
-| **22 / 5** | RED rollback assertions in new `supabase/tests/0279_vendor_withholding_slips_rollback.test.sql` → GREEN exact down migration §6, invoking it transactionally; source bill money/history/old ACL preservation. | `dbtest supabase/tests/0279_vendor_withholding_slips_rollback.test.sql` |
+| **02 / 5** | **Test scaffold only.** New `supabase/tests/0281_vendor_withholding_slips_schema.test.sql`: BEGIN/plan/ROLLBACK, named synthetic vendor, two case/bill fixtures, helper JWT contexts like `supabase/tests/0273_vendor_tax_accounts_native_withholding.test.sql`; assertions must call real public writers, never cloned implementations. Set both bills withholding 20,000/30,000 and type pph23 in same currency. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` (scaffold only; no behaviour claimed) |
+| **03 / 5** | RED AC-BUPOT-001 table/column/domain assertions → GREEN header DDL/number/money/status checks + owned composite company FK in `0281_vendor_withholding_slips.sql`. Temporary schema task does not declare record RPC success. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **04 / 5** | RED AC-BUPOT-002/005 link schema/snapshot/unique reservation assertions → GREEN link DDL + owned invoice/procurement composite keys and indexes (§2), both table FORCE RLS and initial explicit grants. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **05 / 5** | RED AC-BUPOT-002/003 empty/partial/incorrect-sum commit tests (`SET CONSTRAINTS ALL IMMEDIATE` inside savepoint) → GREEN deferred snapshot integrity trigger on both tables. Assert offsetting currency/type differences and void release consistency. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **06 / 5** | RED AC-BUPOT-008 normal/disabled/foreign/anon contexts in new `supabase/tests/0281_vendor_withholding_slips_access.test.sql` → GREEN record RPC signature and member/role/org gates, fixed path and explicit ACL. Test denial before inspecting targets. | `dbtest supabase/tests/0281_vendor_withholding_slips_access.test.sql` |
+| **07 / 5** | RED AC-BUPOT-001 numeric/date/period input cases through real RPC → GREEN scalar validation **before casts** and org-calendar comparisons. Include org morning boundary, NaN/infinity, 0.001 excess precision, max value and over-limit. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **08 / 5** | RED AC-BUPOT-002/003 ID count, duplicate/null IDs, wrong vendor/org/currency/cancel and Paid eligibility → GREEN advisory lock, sorted parent/invoice locks and complete re-read/eligibility in record RPC. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **09 / 5** | RED AC-BUPOT-004 unknown-type selection/declaration exact set and known conflict → GREEN declaration validator and original-type/type-source link snapshot construction; assert no invoice column changes. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **10 / 5** | RED AC-BUPOT-002/003 successful two-case grouping and ±0.01 mismatches → GREEN exact SQL SUM/entered amount comparison and atomic header+link INSERTs. Save no partial record on any error. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **11 / 5** | RED AC-BUPOT-005 duplicate active number/bill, same-number replacement after void, and same/different intent cases → GREEN original canonical create_payload comparison before mutable-source validation, constraint-error mapping. Verify a reused ID never returns a foreign row. | `dbtest supabase/tests/0281_vendor_withholding_slips_schema.test.sql` |
+| **12 / 5** | RED AC-BUPOT-006 in new `supabase/tests/0281_vendor_withholding_slips_lifecycle.test.sql`: correction reason, revision, immutable money/type/links and no-op → GREEN metadata-only correction RPC (§3), actual ACL and audit event. | `dbtest supabase/tests/0281_vendor_withholding_slips_lifecycle.test.sql` |
+| **13 / 5** | RED AC-BUPOT-007 void/retry/replace and stale update cases → GREEN void RPC with one timestamp, retained/released links, terminal state and identity-bound retry. Add AC-BUPOT-005 intent retries after correction/void. | `dbtest supabase/tests/0281_vendor_withholding_slips_lifecycle.test.sql` |
+| **14 / 5** | RED AC-BUPOT-008 direct DML/table-column grants/FK tenant graft/cascade retention across both orgs → GREEN own-org/member/source-visible SELECT policies, trusted grants and end-migration catalog assertions. Include every writer role permutation, not just record. | `dbtest supabase/tests/0281_vendor_withholding_slips_access.test.sql` |
+| **15 / 5** | RED AC-BUPOT-009 in new `supabase/tests/0281_vendor_withholding_slips_register.test.sql`: current-vs-snapshot changes including offsetting bill edits → GREEN header register view validation aggregation (§4), no changes to mirror code/guards. | `dbtest supabase/tests/0281_vendor_withholding_slips_register.test.sql` |
+| **16 / 5** | RED AC-BUPOT-010 state precedence and unreadable-link source fixture → GREEN invoice register view, expected/visible count guard and current-null-type resolution. Check active-link amount removal is needs-review, not not-required. | `dbtest supabase/tests/0281_vendor_withholding_slips_register.test.sql` |
+| **17 / 5** | RED AC-BUPOT-012 header totals/period/currency/keyset page boundaries and retained per-invoice active/void history → GREEN `list_vendor_withholding_slips` invoker reader with decimal-string money and two-part descending cursor. | `dbtest supabase/tests/0281_vendor_withholding_slips_register.test.sql` |
+| **18 / 5** | RED AC-BUPOT-012 candidate/page-2/date-null-phase/batch coverage and malformed cursor → GREEN `list_vendor_withholding_bills` invoker reader with §4 predicates, server candidate eligibility, 100 bound and null-date cursor phase. | `dbtest supabase/tests/0281_vendor_withholding_slips_register.test.sql` |
+| **19 / 5** | RED AC-BUPOT-008/012 full detail for active/void/incomplete/foreign IDs → GREEN `get_vendor_withholding_slip` invoker JSON envelope excluding original create_payload, complete ≤100 retained links and unavailable state. | `dbtest supabase/tests/0281_vendor_withholding_slips_access.test.sql supabase/tests/0281_vendor_withholding_slips_register.test.sql` |
+| **20 / 5** | RED AC-BUPOT-011 history registry/actor/source visibility in new `supabase/tests/0281_vendor_withholding_slips_history.test.sql` → GREEN two exact classification entries, capture triggers and visibility arms (§4); record/void audit and correction reason audit. | `dbtest supabase/tests/0281_vendor_withholding_slips_history.test.sql` (the standing catalog's explicit roster count is extended in task 21) |
+| **21 / 3** | **Declaration task, paired with existing RED completeness gates:** update 0178 names/count to 69 and history table count to 14 in their existing tests; add two table/three writer manifest entries in `scripts/isolation-probe-denominator.json`. No exclusions or weakened checks. | `dbtest supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/record_changes_catalog_gate.test.sql supabase/tests/0281_vendor_withholding_slips_access.test.sql`; `scripts/with-db-lock.sh node scripts/check-isolation-denominator.mjs` |
+| **22 / 5** | RED rollback assertions in new `supabase/tests/0281_vendor_withholding_slips_rollback.test.sql` → GREEN exact down migration §6, invoking it transactionally; source bill money/history/old ACL preservation. | `dbtest supabase/tests/0281_vendor_withholding_slips_rollback.test.sql` |
 | **23 / 3** | **Generated artifact only:** regenerate `pmo-portal/src/lib/supabase/database.types.ts` from this forward schema, never hand-invent DB row interfaces. | `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts'`; `scripts/with-test-lock.sh bash -c 'cd pmo-portal && npm run typecheck'` |
 
 ### Typed seam and UI tasks
@@ -409,12 +409,12 @@ npm run check:i18n
 cd ..
 
 scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db \
-  supabase/tests/0279_vendor_withholding_slips_schema.test.sql \
-  supabase/tests/0279_vendor_withholding_slips_access.test.sql \
-  supabase/tests/0279_vendor_withholding_slips_lifecycle.test.sql \
-  supabase/tests/0279_vendor_withholding_slips_register.test.sql \
-  supabase/tests/0279_vendor_withholding_slips_history.test.sql \
-  supabase/tests/0279_vendor_withholding_slips_rollback.test.sql \
+  supabase/tests/0281_vendor_withholding_slips_schema.test.sql \
+  supabase/tests/0281_vendor_withholding_slips_access.test.sql \
+  supabase/tests/0281_vendor_withholding_slips_lifecycle.test.sql \
+  supabase/tests/0281_vendor_withholding_slips_register.test.sql \
+  supabase/tests/0281_vendor_withholding_slips_history.test.sql \
+  supabase/tests/0281_vendor_withholding_slips_rollback.test.sql \
   supabase/tests/0178_anon_executable_definers.test.sql \
   supabase/tests/record_changes_catalog_gate.test.sql \
   supabase/tests/0269_vendor_withholding.test.sql \
@@ -433,18 +433,18 @@ Run changed-code coverage as a targeted unit run under the test lock; changed-co
 
 | AC | FR/NFR | Owning file / layer | Tasks |
 |---|---|---|---|
-| AC-BUPOT-001 | FR-001, NFR-001 | `supabase/tests/0279_vendor_withholding_slips_schema.test.sql` / pgTAP | 03,07 |
+| AC-BUPOT-001 | FR-001, NFR-001 | `supabase/tests/0281_vendor_withholding_slips_schema.test.sql` / pgTAP | 03,07 |
 | AC-BUPOT-002 | FR-002/003 | same / pgTAP | 04,05,08,10 |
 | AC-BUPOT-003 | FR-003, NFR-001 | same / pgTAP | 05,08,10 |
 | AC-BUPOT-004 | FR-004 | same / pgTAP | 09 |
 | AC-BUPOT-005 | FR-005 | same / pgTAP | 04,11,13; concurrent corroboration §8 |
-| AC-BUPOT-006 | FR-006 | `supabase/tests/0279_vendor_withholding_slips_lifecycle.test.sql` / pgTAP | 12 |
+| AC-BUPOT-006 | FR-006 | `supabase/tests/0281_vendor_withholding_slips_lifecycle.test.sql` / pgTAP | 12 |
 | AC-BUPOT-007 | FR-007 | same / pgTAP | 13; concurrent corroboration §8 |
-| AC-BUPOT-008 | FR-010 | `supabase/tests/0279_vendor_withholding_slips_access.test.sql` / pgTAP | 06,14,19,21 |
-| AC-BUPOT-009 | FR-008 | `supabase/tests/0279_vendor_withholding_slips_register.test.sql` / pgTAP | 15 |
+| AC-BUPOT-008 | FR-010 | `supabase/tests/0281_vendor_withholding_slips_access.test.sql` / pgTAP | 06,14,19,21 |
+| AC-BUPOT-009 | FR-008 | `supabase/tests/0281_vendor_withholding_slips_register.test.sql` / pgTAP | 15 |
 | AC-BUPOT-010 | FR-008/009 | same / pgTAP | 16 |
-| AC-BUPOT-011 | FR-011 | `supabase/tests/0279_vendor_withholding_slips_history.test.sql` / pgTAP | 20,21 |
-| AC-BUPOT-012 | FR-014, NFR-002 | `supabase/tests/0279_vendor_withholding_slips_register.test.sql` / pgTAP | 17–19 |
+| AC-BUPOT-011 | FR-011 | `supabase/tests/0281_vendor_withholding_slips_history.test.sql` / pgTAP | 20,21 |
+| AC-BUPOT-012 | FR-014, NFR-002 | `supabase/tests/0281_vendor_withholding_slips_register.test.sql` / pgTAP | 17–19 |
 | AC-BUPOT-013 | NFR-001/003 | `pmo-portal/src/lib/vendorWithholdingSlip.test.ts` / Vitest | 24 |
 | AC-BUPOT-014 | FR-015, NFR-002 | `pmo-portal/src/lib/repositories/__tests__/vendorWithholdingSlips.test.ts` / Vitest; DAL references corroborate | 25,26 |
 | AC-BUPOT-015 | FR-010 UX mirror | `pmo-portal/src/auth/policy.vendorWithholdingSlip.test.ts` / Vitest | 27 |
