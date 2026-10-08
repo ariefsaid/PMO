@@ -6,6 +6,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../src/lib/supabase/database.types';
 import { login, requireServiceRoleKey } from './helpers';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -20,18 +21,18 @@ const viA = `BUPOT-A-${suffix}`;
 const viB = `BUPOT-B-${suffix}`;
 const slipNumber = `BUPOT-${suffix}`;
 
-async function seed(admin: ReturnType<typeof createClient>) {
+async function seed(admin: ReturnType<typeof createClient<Database>>) {
   const { error: vendorError } = await admin.from('companies').insert({ id: ids.vendor, org_id: ORG_ID, name: `BUPOT vendor ${suffix}`, type: 'Vendor' });
   if (vendorError) throw new Error(`vendor fixture failed: ${vendorError.message}`);
   const cases = [
-    { id: ids.caseA, org_id: ORG_ID, title: `BUPOT case A ${suffix}`, status: 'Ordered', vendor_id: ids.vendor, currency: 'IDR' },
-    { id: ids.caseB, org_id: ORG_ID, title: `BUPOT case B ${suffix}`, status: 'Ordered', vendor_id: ids.vendor, currency: 'IDR' },
+    { id: ids.caseA, org_id: ORG_ID, title: `BUPOT case A ${suffix}`, status: 'Ordered' as const, vendor_id: ids.vendor, currency: 'IDR' },
+    { id: ids.caseB, org_id: ORG_ID, title: `BUPOT case B ${suffix}`, status: 'Ordered' as const, vendor_id: ids.vendor, currency: 'IDR' },
   ];
   const { error: caseError } = await admin.from('procurements').insert(cases);
   if (caseError) throw new Error(`case fixtures failed: ${caseError.message}`);
   const bills = [
-    { id: ids.billA, org_id: ORG_ID, procurement_id: ids.caseA, vi_number: viA, invoice_date: new Date().toISOString().slice(0, 10), status: 'Paid', amount: 100000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 20000, withheld_pph_type: 'pph23' },
-    { id: ids.billB, org_id: ORG_ID, procurement_id: ids.caseB, vi_number: viB, invoice_date: new Date().toISOString().slice(0, 10), status: 'Paid', amount: 150000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 30000, withheld_pph_type: 'pph23' },
+    { id: ids.billA, org_id: ORG_ID, procurement_id: ids.caseA, vi_number: viA, invoice_date: new Date().toISOString().slice(0, 10), status: 'Paid' as const, amount: 100000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 20000, withheld_pph_type: 'pph23' },
+    { id: ids.billB, org_id: ORG_ID, procurement_id: ids.caseB, vi_number: viB, invoice_date: new Date().toISOString().slice(0, 10), status: 'Paid' as const, amount: 150000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 30000, withheld_pph_type: 'pph23' },
   ];
   const { error: billError } = await admin.from('procurement_invoices').insert(bills);
   if (billError) throw new Error(`bill fixtures failed: ${billError.message}`);
@@ -44,7 +45,7 @@ async function openDocuments(page: import('@playwright/test').Page, caseId: stri
 }
 
 test('AC-BUPOT-020 Finance records, corrects and voids one slip covering two Paid bills in separate cases', async ({ page }) => {
-  const admin = createClient(SUPABASE_URL, serviceKey!);
+  const admin = createClient<Database>(SUPABASE_URL, serviceKey!);
   const { count: outboxBefore, error: outboxBeforeError } = await admin.from('external_command_outbox').select('id', { count: 'exact', head: true }).eq('org_id', ORG_ID);
   if (outboxBeforeError) throw new Error(`outbox baseline read failed: ${outboxBeforeError.message}`);
   try {
