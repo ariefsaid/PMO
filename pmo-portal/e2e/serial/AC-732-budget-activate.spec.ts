@@ -119,7 +119,7 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   // --- Step 5: the drafter cannot activate their own version (OD-BUDGET-6) ---
   await expect(draftCard.getByRole('button', { name: 'Activate' })).toHaveCount(0);
   await expect(draftCard.getByTestId('activate-blocked-reason')).toHaveText(
-    'You drafted this version, so someone else must activate it.',
+    'You edited this version, so someone else must activate it.',
   );
 
   // --- Step 6: a second person (Finance) opens the same Draft and activates it (confirm-gated) ---

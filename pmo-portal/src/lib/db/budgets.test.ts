@@ -10,6 +10,7 @@ const {
   mockFrom,
   mockSelect,
   mockEq,
+  mockIn,
   mockOrder,
   mockLimit,
   mockUpdate,
@@ -23,6 +24,7 @@ const {
   const mockFrom = vi.fn();
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
+  const mockIn = vi.fn();
   const mockOrder = vi.fn();
   const mockLimit = vi.fn();
   const mockUpdate = vi.fn();
@@ -36,6 +38,7 @@ const {
     mockFrom,
     mockSelect,
     mockEq,
+    mockIn,
     mockOrder,
     mockLimit,
     mockUpdate,
@@ -92,6 +95,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   const self = () => builder;
   builder.select = mockSelect.mockReturnValue(builder);
   builder.eq = mockEq.mockReturnValue(builder);
+  builder.in = mockIn.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.limit = mockLimit.mockReturnValue(builder);
   builder.update = mockUpdate.mockReturnValue(builder);
@@ -112,6 +116,7 @@ beforeEach(() => {
   mockFrom.mockReset();
   mockSelect.mockReset();
   mockEq.mockReset();
+  mockIn.mockReset();
   mockOrder.mockReset();
   mockLimit.mockReset();
   mockUpdate.mockReset();
@@ -202,6 +207,7 @@ describe('listBudgetVersions', () => {
     expect(result).toHaveLength(2);
     expect(result[0].total).toBe(4700000);
     expect(result[1].total).toBe(0);
+    expect(result.map((version) => version.editor_ids)).toEqual([[], []]);
     // numerics are JS numbers
     expect(typeof result[0].total).toBe('number');
     // no org_id sent in the query args

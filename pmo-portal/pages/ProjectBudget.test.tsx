@@ -334,10 +334,21 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
     expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
-      'You drafted this version, so someone else must activate it.',
+      'You edited this version, so someone else must activate it.',
     );
     // The drafter keeps every other Draft affordance.
     expect(screen.getByRole('button', { name: /Delete draft/i })).toBeInTheDocument();
+  });
+
+  it('DD-BUDGET-7: a line editor who is not the drafter also sees the editor reason, not Activate', () => {
+    budgetState.data = 0;
+    // u2 drafted; the signed-in u1 edited a line, so u1 may not activate either.
+    versionsState.data = [{ ...draftVersion, created_by: 'u2', editor_ids: ['u1'] }];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
+      'You edited this version, so someone else must activate it.',
+    );
   });
 
   it('OD-BUDGET-6: a PM sees that a version with no recorded drafter needs Admin or Finance', () => {
@@ -365,7 +376,7 @@ describe('ProjectBudget Draft version actions', () => {
     await financeTestI18n.changeLanguage('id');
     renderPage();
     expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
-      'Anda menyusun versi ini, jadi orang lain yang harus mengaktifkannya.',
+      'Anda mengedit versi ini, jadi orang lain yang harus mengaktifkannya.',
     );
   });
 
