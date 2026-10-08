@@ -49,7 +49,8 @@ export interface RecordHistoryRepository {
 export const recordHistoryRepository: RecordHistoryRepository = {
   async lookupNames(ids) {
     const result: Record<string, Map<string, string>> = {};
-    const bounded = (ids: string[] | undefined) => [...new Set(ids ?? [])].filter(Boolean).slice(0, 50);
+    // The caller supplies ids in rendered history order; retain the newest visible events.
+    const bounded = (ids: string[] | undefined) => [...new Set(ids ?? [])].filter(Boolean).slice(-50);
     const specs = [
       ['purchase_request', 'purchase_requests', 'pr_number'], ['rfq', 'rfqs', 'rfq_number'],
       ['purchase_order', 'purchase_orders', 'po_number'], ['payment', 'payments', 'pay_number'],

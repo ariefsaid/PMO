@@ -232,7 +232,7 @@ export function useListReturn({
           .find((element) => element.dataset.listReturnFocus === focusTarget);
         (target ?? main)?.focus({ preventScroll: true });
       }
-      if (scrollTop !== undefined) markScrollConsumed(location.key);
+      if (scrollTop !== undefined || focusTarget) markScrollConsumed(location.key);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [contentReady, list, location.key, location.pathname, location.search, location.state]);

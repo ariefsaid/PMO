@@ -29,6 +29,8 @@ export interface ConfirmDialogProps {
   /** Gate the confirm button — for a dialog that hosts a required input (e.g. an attestation reason).
    *  Cancel/Esc/scrim are NEVER blocked by this: the escape hatch stays open. */
   confirmDisabled?: boolean;
+  /** Consumer-owned focus destination if the opener is removed while the dialog is open. */
+  restoreFocusFallback?: () => HTMLElement | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -64,6 +66,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   tone = 'default',
   loading = false,
   confirmDisabled = false,
+  restoreFocusFallback,
   onConfirm,
   onCancel,
 }) => {
@@ -78,6 +81,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   // The element focused before the dialog opened — restored on close.
   const triggerRef = useRef<HTMLElement | null>(null);
+  const restoreFocusFallbackRef = useRef(restoreFocusFallback);
+  restoreFocusFallbackRef.current = restoreFocusFallback;
 
   // Esc to close (blocked while loading to avoid orphaning an in-flight mutation).
   useEffect(() => {
@@ -114,7 +119,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     window.setTimeout(() => {
       const target = trigger.isConnected
         ? trigger
-        : document.querySelector<HTMLElement>('#budget-version-select') ??
+        : restoreFocusFallbackRef.current?.() ??
           document.querySelector<HTMLElement>('[data-app-shell="root"] main');
       target?.focus({ preventScroll: true });
     }, 0);

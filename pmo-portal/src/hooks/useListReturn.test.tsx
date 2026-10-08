@@ -315,6 +315,29 @@ describe('useListReturn', () => {
     });
   });
 
+  it('FR-LRC-005: consumes a focus-only restore so later ready toggles do not refocus the row', () => {
+    vi.useFakeTimers();
+    renderAt('/companies', true, {
+      pmoListScrollRestore: {
+        list: 'companies',
+        path: '/companies',
+        focusTarget: 'companies:company-1',
+      },
+    });
+    const trigger = screen.getByRole('button', { name: 'Open company' });
+    fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
+    act(() => vi.advanceTimersByTime(0));
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(screen.getByRole('button', { name: 'List loading' }));
+    const readyButton = screen.getByRole('button', { name: 'List ready' });
+    readyButton.focus();
+    fireEvent.click(readyButton);
+    act(() => vi.advanceTimersByTime(0));
+    expect(readyButton).toHaveFocus();
+    expect(trigger).not.toHaveFocus();
+  });
+
   it('FR-LRC-005: never scrolls before the list is ready and restores exactly once once it is', () => {
     vi.useFakeTimers();
     const state = {

@@ -903,6 +903,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
+      restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-version-select')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
     />

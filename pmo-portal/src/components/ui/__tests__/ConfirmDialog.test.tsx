@@ -165,6 +165,23 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
     trigger.remove();
   });
 
+  it('SH-4: uses the consumer fallback when the trigger was removed before unmount', async () => {
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const fallback = document.createElement('button');
+    fallback.textContent = 'Budget version selector';
+    document.body.appendChild(fallback);
+    const restoreFocusFallback = vi.fn(() => fallback);
+    const { unmount } = render(<ConfirmDialog {...baseProps} restoreFocusFallback={restoreFocusFallback} />);
+    trigger.remove();
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(restoreFocusFallback).toHaveBeenCalledOnce();
+    expect(fallback).toHaveFocus();
+    fallback.remove();
+  });
+
   it('AC-CONFIRM-005: restores focus to the trigger on close', async () => {
     const trigger = document.createElement('button');
     trigger.textContent = 'open';
