@@ -24,9 +24,11 @@ beforeEach(async () => {
   await financeTestI18n.changeLanguage('en');
 });
 function renderSetting() {
-  render(<FinanceI18nTestProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<FinanceI18nTestProvider><QueryClientProvider client={client}>
     <ToastProvider><OrgVendorTaxAccounts /></ToastProvider>
   </QueryClientProvider></FinanceI18nTestProvider>);
+  return client;
 }
 
 it('AC-VWH-029 an Admin sets the three vendor-bill tax accounts (trimmed; blank is none)', async () => {
@@ -36,6 +38,18 @@ it('AC-VWH-029 an Admin sets the three vendor-bill tax accounts (trimmed; blank 
   await user.type(screen.getByLabelText('PPh 23 payable account'), 'PPh 23 Payable - DEMO');
   await user.click(screen.getByRole('button', { name: 'Save accounts' }));
   expect(h.set).toHaveBeenCalledWith({ inputVatAccount: 'Input VAT - DEMO', pph23PayableAccount: 'PPh 23 Payable - DEMO', pph42PayableAccount: null });
+});
+
+it('AC-VWH-029 preserves a dirty draft on refreshed data and offers an explicit reload', async () => {
+  const client = renderSetting();
+  const user = userEvent.setup();
+  const input = await screen.findByLabelText('Input VAT account');
+  await user.type(input, 'Draft VAT account');
+  client.setQueryData(['org-vendor-tax-accounts', 'fixture-org'], { inputVatAccount: 'Remote VAT', pph23PayableAccount: null, pph42PayableAccount: null });
+  expect(await screen.findByText('The saved accounts changed. Your edits are kept; reload the saved values to discard them.')).toBeInTheDocument();
+  expect(input).toHaveValue('Draft VAT account');
+  await user.click(screen.getByRole('button', { name: 'Reload saved values' }));
+  expect(input).toHaveValue('Remote VAT');
 });
 
 it('AC-VWH-029 a non-Admin sees the accounts read-only', async () => {

@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { getPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -262,7 +263,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
       // BLOCK 2 (ADR-0058): the form session's command identity rides along with the body.
       intent: { id: expect.any(String), idempotencyKey: expect.any(String) },
     });
-    expect(await screen.findByText('Invoice created')).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', 'Invoice created')).toBeInTheDocument();
     expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 

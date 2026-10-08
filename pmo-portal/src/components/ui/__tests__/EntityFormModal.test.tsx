@@ -142,6 +142,9 @@ describe('EntityFormModal: error summary with focus-move', () => {
     expect(summary).toHaveTextContent('Fix 2 fields');
     expect(summary).toHaveTextContent('Opportunity name is required');
     expect(summary).toHaveTextContent('Select a client company');
+    expect(summary.querySelector('div.text-destructive-text')).toBeInTheDocument();
+    const correctionLink = summary.querySelector('a[href="#f-name"]');
+    expect(correctionLink).toHaveClass('min-h-6', 'py-1', 'text-destructive-text');
   });
 
   it('no error summary rendered when errorSummary is empty', () => {

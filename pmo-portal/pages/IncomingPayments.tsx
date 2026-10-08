@@ -638,6 +638,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       <FormSection legend={t('financeCopy.paymentDetails', 'Payment details')}>
         <FormGrid>
           <Combobox
+            id={customerField.id}
             label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
@@ -648,6 +649,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             noun="customer"
           />
           <Combobox
+            id={salesInvoiceField.id}
             label={native ? t('financeCopy.salesInvoiceLabel', 'Sales Invoice') : t('financeCopy.salesInvoiceOptional', "Sales Invoice (optional)")}
             required={native}
             value={salesInvoiceField.value ?? ''}
@@ -666,6 +668,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             noun="invoice"
           />
           <NumberField
+            id={paidAmountField.id}
             label={t('financeCopy.paidAmount', "Paid Amount")}
             value={String(paidAmountField.value)}
             onChange={(v) => {
@@ -687,6 +690,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             localeAware
           />
           <NumberField
+            id={receivedAmountField.id}
             label={t('financeCopy.receivedAmount', "Received Amount")}
             value={String(receivedAmountField.value)}
             onChange={(v) => receivedAmountField.onChange(v)}
@@ -720,6 +724,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
           />
           <TextField
+            id={dateField.id}
             label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
             max={native ? orgToday() : undefined}
             min={native ? chosenInvoice?.invoice_date ?? undefined : undefined}

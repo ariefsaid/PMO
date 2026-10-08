@@ -49,6 +49,7 @@ import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } fro
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
@@ -128,16 +129,19 @@ const validate = (
     for (let i = 0; i < v.lineItems.length; i++) {
       const item = v.lineItems[i];
       const rate = parseRate(item.rate);
+      let lineError: string | undefined;
       // FR-NAR-002 (I-3): a PMO line needs an item code OR a description; an ERP line needs its item code.
       if (native) {
         if (!item.item_code.trim() && !item.description?.trim()) {
-          errors.lineItems = t('financeCopy.invoiceLineCodeOrDescription', 'Line {{line}}: Enter an item code or a description.', { line: i + 1 });
+          lineError = t('financeCopy.invoiceLineCodeOrDescription', 'Line {{line}}: Enter an item code or a description.', { line: i + 1 });
         }
-      } else if (!item.item_code.trim()) errors.lineItems = t('financeCopy.invoiceLineItemCodeRequired', 'Line {{line}}: Item code is required.', { line: i + 1 });
-      if (item.qty <= 0) errors.lineItems = t('financeCopy.invoiceLineQuantityPositive', 'Line {{line}}: Quantity must be positive.', { line: i + 1 });
+      } else if (!item.item_code.trim()) lineError = t('financeCopy.invoiceLineItemCodeRequired', 'Line {{line}}: Item code is required.', { line: i + 1 });
+      if (item.qty <= 0) lineError = t('financeCopy.invoiceLineQuantityPositive', 'Line {{line}}: Quantity must be positive.', { line: i + 1 });
       if (rate === null) {
-        errors.lineItems = t('financeCopy.invoiceLineRateValid', 'Line {{line}}: Enter a valid rate with no more than 2 decimal places.', { line: i + 1 });
-      } else if (rate < 0) errors.lineItems = t('financeCopy.invoiceLineRateNonNegative', 'Line {{line}}: Rate cannot be negative.', { line: i + 1 });
+        lineError = t('financeCopy.invoiceLineRateValid', 'Line {{line}}: Enter a valid rate with no more than 2 decimal places.', { line: i + 1 });
+      } else if (rate < 0) lineError = t('financeCopy.invoiceLineRateNonNegative', 'Line {{line}}: Rate cannot be negative.', { line: i + 1 });
+      // The summary links to the first invalid line, so its message must identify that same line.
+      if (!errors.lineItems && lineError) errors.lineItems = lineError;
     }
   }
   return errors;
@@ -167,7 +171,14 @@ const SalesInvoices: React.FC = () => {
   const canCancel = may('transition', 'salesInvoice');
   const canRecordReceipt = may('record_received_date', 'salesInvoice');
   const canRecordEfaktur = may('record_efaktur', 'salesInvoice');
-  const canRowWrite = canEdit || canCancel || canRecordReceipt || canRecordEfaktur;
+  // One permission oracle for both the row-menu action and its View-modal continuation. The RPC
+  // applies the same append-only author-set SoD rule; read-only users may still open invoice details.
+  const canApproveDraft = (inv: SalesInvoiceRow) =>
+    inv.status === 'Draft'
+    && may('submit_sales_invoice', 'salesInvoice', {
+      currentUserId: currentUser?.id,
+      record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
+    });
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -176,6 +187,7 @@ const SalesInvoices: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const [viewTarget, setViewTarget] = useState<SalesInvoiceRow | null>(null);
 
   const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
@@ -383,6 +395,10 @@ const SalesInvoices: React.FC = () => {
 
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
+    if (inv.pmo_native) items.push({
+      label: t('financeCopy.viewInvoice', 'View invoice'),
+      onClick: () => setViewTarget(inv),
+    });
     // #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history — no approve or cancel.
     const frozen = Boolean(inv.pmo_native) && !native;
     // #912 (OD-INV-PDF-1, AC-PDF-003): the ERP's own PDF of a submitted invoice — what the client receives.
@@ -419,15 +435,11 @@ const SalesInvoices: React.FC = () => {
     // #784: a PMO Draft is APPROVED in PMO by a second person (DD-NAR-5) — the same predicate.
     if (
       !frozen
-      && inv.status === 'Draft'
-      && may('submit_sales_invoice', 'salesInvoice', {
-        currentUserId: currentUser?.id,
-        record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
-      })
+      && canApproveDraft(inv)
     ) {
       items.push({
         label: inv.pmo_native ? t('financeCopy.approve', 'Approve') : t('financeCopy.submit', "Submit"),
-        onClick: () => setSubmitTarget(inv),
+        onClick: () => inv.pmo_native ? setViewTarget(inv) : setSubmitTarget(inv),
       });
     }
     return items;
@@ -554,7 +566,7 @@ const SalesInvoices: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(inv) => inv.id}
-          rowMenu={canRowWrite ? rowMenu : undefined}
+          rowMenu={rowMenu}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
@@ -617,6 +629,26 @@ const SalesInvoices: React.FC = () => {
             }
           }}
         />
+      )}
+
+      {viewTarget?.pmo_native && (
+        <EntityFormModal
+          open
+          title={t('financeCopy.invoiceDetailsTitle', 'Invoice details')}
+          subtitle={viewTarget.customer_name ?? undefined}
+          submitLabel={canApproveDraft(viewTarget) ? t('financeCopy.continueToApprove', 'Continue to approve') : t('entityForm.close', 'Close')}
+          cancelLabel={t('entityForm.close', 'Close')}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canApproveDraft(viewTarget)) setSubmitTarget(viewTarget);
+            setViewTarget(null);
+          }}
+          onClose={() => setViewTarget(null)}
+          loading={false}
+          dirty={false}
+        >
+          <SalesInvoiceApprovalPreview inv={viewTarget} />
+        </EntityFormModal>
       )}
 
       {/* Cancel confirm (destructive tone) */}
@@ -757,7 +789,16 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     ? [
         ...(form.errors.customerId ? [{ fieldId: customerField.id, message: form.errors.customerId }] : []),
         ...(form.errors.projectId ? [{ fieldId: projectField.id, message: form.errors.projectId }] : []),
-        ...(form.errors.lineItems ? [{ fieldId: 'line-items', message: form.errors.lineItems }] : []),
+        ...(form.errors.lineItems ? [{ fieldId: (() => {
+          const first = form.values.lineItems.findIndex((item) => (native ? !item.item_code.trim() && !item.description?.trim() : !item.item_code.trim()) || item.qty <= 0 || parseRate(item.rate) === null || parseRate(item.rate)! < 0);
+          const index = Math.max(first, 0);
+          const item = form.values.lineItems[index];
+          return item && (parseRate(item.rate) === null || parseRate(item.rate)! < 0)
+            ? `sales-invoice-line-${index}-rate`
+            : item && item.qty <= 0
+              ? `sales-invoice-line-${index}-qty`
+              : `sales-invoice-line-${index}-item`;
+        })(), message: form.errors.lineItems }] : []),
       ]
     : undefined;
 
@@ -836,6 +877,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       <FormSection legend={t('financeCopy.invoiceDetails', 'Invoice details')}>
         <FormGrid>
           <Combobox
+            id={customerField.id}
             label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
@@ -851,6 +893,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             noun="customer"
           />
           <Combobox
+            id={projectField.id}
             label={t('financeCopy.project', "Project")}
             required={native}
             value={projectField.value ?? ''}
@@ -875,6 +918,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             <div className="min-w-0 flex-1 space-y-2">
               {erpItems.connected ? (
                 <Combobox
+                  id={`sales-invoice-line-${index}-item`}
                   label={t('financeCopy.erpItem', 'ERP item')}
                   value={item.item_code || null}
                   selectedOption={item.item_code ? { value: item.item_code, label: item.item_code } : null}
@@ -887,6 +931,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                 />
               ) : (
                 <TextField
+                  id={`sales-invoice-line-${index}-item`}
                   label={t('financeCopy.itemCode', "Item code")}
                   value={item.item_code}
                   onChange={(v) => updateLineItem(index, 'item_code', v)}
@@ -908,6 +953,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               )}
             </div>
             <NumberField
+              id={`sales-invoice-line-${index}-qty`}
               label={t('financeCopy.qty', "Qty")}
               value={String(item.qty)}
               onChange={(v) => updateLineItem(index, 'qty', Number(v))}
@@ -917,6 +963,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               className="w-full sm:w-24"
             />
             <NumberField
+              id={`sales-invoice-line-${index}-rate`}
               label={t('financeCopy.rate', "Rate")}
               value={item.rate}
               onChange={(v) => updateLineItem(index, 'rate', v)}
