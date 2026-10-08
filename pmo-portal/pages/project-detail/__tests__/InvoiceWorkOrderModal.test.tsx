@@ -6,13 +6,14 @@ import { MemoryRouter } from 'react-router';
 import { AppError } from '@/src/lib/appError';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 
-const h = vi.hoisted(() => ({ mutateAsync: vi.fn(), connected: false, mode: 'erp' as 'erp' | 'native' }));
+const h = vi.hoisted(() => ({ mutateAsync: vi.fn(), connected: false, mode: 'erp' as 'erp' | 'native' | undefined, routeReady: true }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useRevenueMutations: () => ({ create: { mutateAsync: h.mutateAsync, isPending: false } }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({
   useErpItemOptions: () => ({ connected: h.connected, loadOptions: async () => [{ value: 'SVC', label: 'SVC — Services' }] }),
 }));
 vi.mock('@/src/hooks/useCommandIntent', () => ({ useCommandIntent: () => ({ id: 'intent-1', idempotencyKey: 'key-1' }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined }));
 
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -35,6 +36,7 @@ beforeEach(() => {
   h.mutateAsync.mockResolvedValue({ id: 'si-1', si_number: 'ACC-SINV-1' });
   h.connected = false;
   h.mode = 'erp';
+  h.routeReady = true;
   onCreated.mockReset();
 });
 
@@ -182,6 +184,24 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
     renderModal();
     expect(screen.getByText(/Creates a draft invoice in ERPNext/)).toBeInTheDocument();
     expect(screen.getByText(/A different Finance or Admin user submits it/)).toBeInTheDocument();
+  });
+
+  it('#913 a known mode cannot submit before the repository route is ready', async () => {
+    h.routeReady = false;
+    renderModal();
+    await userEvent.type(screen.getByLabelText(/Item code/), 'SVC');
+    expect(screen.getByRole('button', { name: 'Create draft invoice' })).toBeDisabled();
+    await submit();
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('#913 an unresolved mode cannot submit after the ERP fields are filled', async () => {
+    h.mode = undefined;
+    renderModal();
+    await userEvent.type(screen.getByLabelText(/Item code/), 'SVC');
+    expect(screen.getByRole('button', { name: 'Create draft invoice' })).toBeDisabled();
+    await submit();
+    expect(h.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { Combobox, EntityFormModal, FormGrid, NumberField, TextField, useEntityForm, type SubmitError } from '@/src/components/ui';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 import { useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -49,9 +50,10 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
   workOrder, projectId, clientId, remaining, onClose, onCreated,
 }) => {
   const { t } = useTranslation();
-  // #913: who raises the org's invoices — the mode the repository routes the create by. The tab opens this dialog only
-  // once the mode is known; if it were somehow still loading, ERP is the honest default (its refusals say so).
+  // #913: the query-derived mode must agree with the synced repository route. Stay fail-closed if the cache
+  // is not ready or changes while this dialog is open.
   const revenueMode = useRevenueMode();
+  const modeReady = useRevenueRouteReady(revenueMode);
   const native = revenueMode === 'native';
   const erpItems = useErpItemOptions('sales');
   const { create } = useRevenueMutations();
@@ -109,6 +111,10 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // The parent normally withholds this dialog until the cache-backed mode is known. Keep the
+    // modal fail-closed too: a cache clear during an open dialog must not let an ERP-shaped form
+    // submit through the repository's native fail-closed route.
+    if (!modeReady) return;
     void form.handleSubmit(async (v) => {
       const rate = parseMoneyInputAtScale(v.amount, 2);
       if (rate === null) return; // unreachable after validate
@@ -193,7 +199,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!modeReady || !form.isComplete}
       errorSummary={errorSummary}
     >
       {/* DD-BWO-8: the work order's client PO goes on the ERP invoice. Shown, read-only, so the user knows what the client

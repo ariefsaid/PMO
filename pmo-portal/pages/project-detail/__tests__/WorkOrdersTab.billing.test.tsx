@@ -10,7 +10,8 @@ import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 const h = vi.hoisted(() => ({
   list: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
-  mode: 'erp' as 'erp' | 'native',
+  mode: 'erp' as 'erp' | 'native' | undefined,
+  routeReady: true,
   role: 'Finance' as string,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
@@ -23,6 +24,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('../InvoiceWorkOrderModal', () => ({
@@ -63,6 +65,7 @@ beforeEach(() => {
   h.list.data = [wo()];
   h.billing = { data: [bill()], isPending: false, isError: false, refetch: vi.fn() };
   h.mode = 'erp';
+  h.routeReady = true;
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
@@ -204,6 +207,18 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   ])('AC-BWO-004 no Invoice for %s', (_label, arrange, role, clientId) => {
     arrange();
     renderTab(role, clientId);
+    expect(screen.queryByRole('button', { name: 'Invoice' })).toBeNull();
+  });
+
+  it('#913 an undecidable revenue mode (undefined — the routing cache is not synced yet) offers no Invoice action', () => {
+    h.mode = undefined;
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'Invoice' })).toBeNull();
+  });
+
+  it('#913 ownership loaded but repository route not ready offers no Invoice action', () => {
+    h.routeReady = false;
+    renderTab();
     expect(screen.queryByRole('button', { name: 'Invoice' })).toBeNull();
   });
 

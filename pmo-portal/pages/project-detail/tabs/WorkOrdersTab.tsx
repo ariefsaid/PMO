@@ -30,6 +30,7 @@ import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 import {
   canInvoiceWorkOrder,
   deriveWorkOrderBillingState,
@@ -112,12 +113,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   // ── OD-BILL-1 (#913): billing by work order. Read = the revenue read set; Invoice = the invoice-create authority
   //    (Admin/Finance — the same `can()` the native create's RPC enforces) with a client to invoice, in EITHER revenue
-  //    mode: the dialog branches its copy and the repository routes the write. Read through `useRevenueMode` (not the
-  //    module cache) so the action appears the moment ownership resolves. UX only — the database refuses
+  //    mode: the dialog branches its copy and the repository routes the write. Require the synced repository route to
+  //    agree with `useRevenueMode` before exposing the action. UX only — the database refuses
   //    past-the-value invoices before any write (0262), ERP or native.
   const revenueMode = useRevenueMode();
+  const revenueRouteReady = useRevenueRouteReady(revenueMode);
   const canViewBilling = may('view', 'salesInvoice');
-  const canInvoice = may('create', 'salesInvoice') && revenueMode !== undefined && Boolean(clientId);
+  const canInvoice = may('create', 'salesInvoice') && revenueRouteReady && Boolean(clientId);
   const billing = useWorkOrderBilling(projectId, canViewBilling);
   const billingById = useMemo(
     () => new Map((billing.data ?? []).map((b) => [b.workOrderId, b] as const)),
