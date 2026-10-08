@@ -1,23 +1,13 @@
--- 0279_invoice_change_history.sql — #920: history for PMO-owned facts on ERP-mirrored invoices.
--- Sales/vendor invoice amounts, statuses and ERP read-model fields are deliberately omitted: syncs refresh them.
--- e-Faktur is PMO-owned (#893). Sales received_date (#767) and vendor withholding (#876) are captured for
--- authenticated PMO writes only: the ERP feed also refreshes those mirror columns, and must not create noise.
--- Rollback: supabase/migrations/rollback/0279_invoice_change_history_down.sql.
+-- Reverses #920: remove invoice capture, registry entries and their visibility arms. This down migration
+-- drops captured sales/vendor invoice history because the restored visibility function cannot read it;
+-- the shared history tables and other entities are untouched.
+drop trigger if exists sales_invoices_zz_record_change on public.sales_invoices;
+drop trigger if exists procurement_invoices_zz_record_change on public.procurement_invoices;
+delete from public.record_history_config where entity_type in ('sales_invoice', 'procurement_invoice');
+-- Remove rows before restoring record_history_visible: its rollback definition has no invoice arms, so
+-- retaining these types would make every authenticated record_changes read raise an exception.
+delete from public.record_changes where entity_type in ('sales_invoice', 'procurement_invoice');
 
-insert into public.record_history_config
-  (entity_type, table_name, parent_type, parent_col, captured, flag_cols, omit_cols) values
-('sales_invoice', 'sales_invoices', 'project', 'project_id',
- '{"efaktur_number":"text","efaktur_date":"date","received_date":"date","author_user_id":"ref","approved_by_id":"ref","approved_at":"timestamp","pmo_native":"bool","pmo_number":"text","native_lines":"text"}',
- '{}',
- '{id,org_id,project_id,customer_id,si_number,reference_number,invoice_date,amount,erp_outstanding_amount,status,erp_docstatus,erp_modified,erp_amended_from,erp_cancelled_at,created_at,currency,tax_treatment,tax_amount,tax_rate,tax_template,work_order_id,tax_base_numerator,tax_base_denominator,erp_due_date,overpaid_amount,erp_opening_amount,erp_opening_at}'),
-('procurement_invoice', 'procurement_invoices', 'procurement', 'procurement_id',
- '{"efaktur_number":"text","efaktur_date":"date","withheld_amount":"money","withheld_pph_type":"enum"}',
- '{}',
- '{id,org_id,procurement_id,vi_number,invoice_date,status,created_at,po_id,reference_number,amount,import_batch_id,imported_at,import_key,erp_outstanding_amount,erp_docstatus,erp_modified,erp_amended_from,erp_cancelled_at,currency,tax_treatment,tax_amount,tax_rate,tax_template,tax_base_numerator,tax_base_denominator,external_ref}');
-
--- Keep machine mirror updates of received_date and vendor withholding fields out of history. Their
--- SECURITY DEFINER PMO setters retain auth.uid(), so user edits are captured and attributed; other
--- captured columns retain the generic 0260 behavior.
 create or replace function public.record_change_capture() returns trigger
   language plpgsql security definer set search_path = public as $$
 declare
@@ -35,19 +25,14 @@ begin
     raise exception 'record_change_capture: table % is not in record_history_config', tg_table_name
       using errcode = 'P0001';
   end if;
-
   if tg_op = 'UPDATE' then
     if old is not distinct from new then return null; end if;
     v_old := to_jsonb(old);
     v_new := to_jsonb(new);
     for v_col in select jsonb_object_keys(v_cfg.captured) loop
-      if current_setting('role', true) is distinct from 'service_role'
-         or not ((v_cfg.table_name = 'sales_invoices' and v_col in ('received_date', 'author_user_id'))
-                 or (v_cfg.table_name = 'procurement_invoices' and v_col in ('withheld_amount', 'withheld_pph_type'))) then
-        if v_old -> v_col is distinct from v_new -> v_col then
-          v_changes := v_changes || jsonb_build_object(v_col,
-            jsonb_build_object('old', v_old -> v_col, 'new', v_new -> v_col));
-        end if;
+      if v_old -> v_col is distinct from v_new -> v_col then
+        v_changes := v_changes || jsonb_build_object(v_col,
+          jsonb_build_object('old', v_old -> v_col, 'new', v_new -> v_col));
       end if;
     end loop;
     foreach v_col in array v_cfg.flag_cols loop
@@ -59,7 +44,6 @@ begin
   else
     v_new := to_jsonb(new);
   end if;
-
   if v_cfg.parent_col is not null then
     v_parent := (v_new ->> v_cfg.parent_col)::uuid;
     if v_cfg.parent_via = 'budget_versions' then
@@ -70,12 +54,8 @@ begin
     end if;
   end if;
   v_currency := coalesce(v_new ->> 'currency', v_currency);
-
   v_actor := auth.uid();
-  if v_actor is null then
-    v_actor := nullif(current_setting('app.actor_id', true), '')::uuid;
-  end if;
-
+  if v_actor is null then v_actor := nullif(current_setting('app.actor_id', true), '')::uuid; end if;
   insert into public.record_changes
     (org_id, entity_type, entity_id, parent_type, parent_id, op, actor_id, changes, currency)
   values
@@ -101,15 +81,19 @@ begin
     when 'task'              then return exists (select 1 from public.tasks              where id = p_entity_id);
     when 'company'           then return exists (select 1 from public.companies           where id = p_entity_id);
     when 'contact'           then return exists (select 1 from public.contacts            where id = p_entity_id);
-    when 'sales_invoice'     then return exists (select 1 from public.sales_invoices     where id = p_entity_id);
-    when 'procurement_invoice' then return exists (select 1 from public.procurement_invoices where id = p_entity_id);
     else
       raise exception 'record_history_visible: no visibility arm for entity type %', p_entity_type
         using errcode = 'P0001';
   end case;
 end $$;
 
-create trigger sales_invoices_zz_record_change
-  after insert or update on public.sales_invoices for each row execute function public.record_change_capture();
-create trigger procurement_invoices_zz_record_change
-  after insert or update on public.procurement_invoices for each row execute function public.record_change_capture();
+-- Rollback invariant: no retained row may ask the restored visibility function to handle an invoice type.
+do $rollback_history_check$
+begin
+  if exists (select 1 from public.record_changes
+             where entity_type in ('sales_invoice', 'procurement_invoice')) then
+    raise exception '0278 rollback left invoice change history rows behind'
+      using errcode = 'P0001';
+  end if;
+end
+$rollback_history_check$;

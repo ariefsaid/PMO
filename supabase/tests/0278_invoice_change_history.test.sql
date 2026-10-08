@@ -1,7 +1,7 @@
--- 0279_invoice_change_history.test.sql — #920: PMO-owned invoice facts are auditable, ERP mirror refreshes are quiet.
+-- 0278_invoice_change_history.test.sql — #920: PMO-owned invoice facts are auditable, ERP mirror refreshes are quiet.
 -- AC-CHG-920: a caller's e-Faktur edit produces one attributed history event; mirror-owned status/balance
 -- refreshes on both invoice mirrors produce no event. The catalog gate owns the complete column inventory.
--- Migration under test: 0279_invoice_change_history.sql.
+-- Migration under test: 0278_invoice_change_history.sql.
 begin;
 create extension if not exists pgtap;
 select plan(14);
