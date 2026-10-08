@@ -85,6 +85,7 @@ export function Tabs<V extends string = string>({
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.altKey || e.metaKey || e.ctrlKey) return;
     const isNext = e.key === 'ArrowRight';
     const isPrev = e.key === 'ArrowLeft';
     const isHome = e.key === 'Home';

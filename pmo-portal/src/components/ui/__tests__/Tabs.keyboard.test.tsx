@@ -65,6 +65,19 @@ describe('#879 Tabs keyboard contract (WAI-ARIA tabs pattern)', () => {
     );
   });
 
+  it('AC #879: modified ArrowRight does not intercept browser navigation shortcuts', () => {
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} />);
+    const overview = screen.getByRole('tab', { name: 'Overview' });
+    overview.focus();
+    fireEvent.keyDown(overview, { key: 'ArrowRight', altKey: true });
+    fireEvent.keyDown(overview, { key: 'ArrowRight', metaKey: true });
+    fireEvent.keyDown(overview, { key: 'ArrowRight', ctrlKey: true });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(overview).toHaveAttribute('aria-selected', 'true');
+    expect(overview).toHaveFocus();
+  });
+
   it('AC #879: ArrowLeft activates the previous tab and focus moves to it', () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);

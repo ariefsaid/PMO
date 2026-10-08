@@ -1,4 +1,5 @@
 import type { ListName } from './listWorkingSet';
+import { TAB_SWITCH_NAV_STATE_KEY } from './tabSwitchNav';
 
 export const LIST_RETURN_CONTEXT_KEY = 'pmoListReturn';
 export const LIST_SCROLL_RESTORE_STATE_KEY = 'pmoListScrollRestore';
@@ -169,6 +170,7 @@ export function withListReturnContext(
 ): Record<string, unknown> {
   const next = isRecord(state) ? { ...state } : {};
   delete next[LIST_RETURN_CONTEXT_KEY];
+  delete next[TAB_SWITCH_NAV_STATE_KEY];
   const validated = listName(context?.list)
     ? createListReturnContext(context.list, context.path, context.scrollTop)
     : undefined;
@@ -188,6 +190,7 @@ export function withListScrollRestore(
   const next = isRecord(state) ? { ...state } : {};
   delete next[LIST_RETURN_CONTEXT_KEY];
   delete next[LIST_SCROLL_RESTORE_STATE_KEY];
+  delete next[TAB_SWITCH_NAV_STATE_KEY];
   const validated = context && listName(context.list)
     ? createListReturnContext(context.list, context.path, context.scrollTop)
     : undefined;

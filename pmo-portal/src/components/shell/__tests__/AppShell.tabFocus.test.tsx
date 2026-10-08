@@ -37,7 +37,7 @@ describe('#879 AppShell route-focus exemption for tab switches', () => {
       );
     };
     const tree = render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/projects/p1/overview']}>
         <AppShell rail={null} header={null}>
           <div>x</div>
         </AppShell>
@@ -93,6 +93,62 @@ describe('#879 AppShell route-focus exemption for tab switches', () => {
     expect(btn).toHaveFocus();
     expect(main).not.toHaveFocus();
     tree.unmount();
+  });
+
+  it('AC #879: a marked tab navigation to another record moves focus to main', () => {
+    const NavProbe = () => {
+      const navigate = useNavigate();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            navigate('/projects/p2/overview', { state: withTabSwitchNavState(undefined) })
+          }
+        >
+          another-record
+        </button>
+      );
+    };
+    render(
+      <MemoryRouter initialEntries={['/projects/p1/overview']}>
+        <AppShell rail={null} header={null}><div>x</div></AppShell>
+        <NavProbe />
+      </MemoryRouter>,
+    );
+    const main = screen.getByRole('main');
+    fireEvent.click(screen.getByRole('button', { name: 'another-record' }));
+    expect(main).toHaveFocus();
+  });
+
+  it('AC #879: browser Back to a marked record entry from elsewhere moves focus to main', () => {
+    const NavProbe = () => {
+      const navigate = useNavigate();
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => navigate('/projects/p1/budget', { state: withTabSwitchNavState(undefined) })}
+          >
+            marked-tab
+          </button>
+          <button type="button" onClick={() => navigate('/companies')}>elsewhere</button>
+          <button type="button" onClick={() => navigate(-1)}>back</button>
+        </>
+      );
+    };
+    render(
+      <MemoryRouter initialEntries={['/projects/p1/overview']}>
+        <AppShell rail={null} header={null}><div>x</div></AppShell>
+        <NavProbe />
+      </MemoryRouter>,
+    );
+    const main = screen.getByRole('main');
+    fireEvent.click(screen.getByRole('button', { name: 'marked-tab' }));
+    fireEvent.click(screen.getByRole('button', { name: 'elsewhere' }));
+    const back = screen.getByRole('button', { name: 'back' });
+    back.focus();
+    fireEvent.click(back);
+    expect(main).toHaveFocus();
   });
 
   it('AC #879: a navigation WITHOUT the marker still moves focus to main (real navigation unchanged)', () => {

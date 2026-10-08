@@ -104,21 +104,29 @@ export const AppShell: React.FC<AppShellProps> = ({
   // scroll. Skip the very first mount so we don't yank focus on load.
   // #879 (WCAG 2.4.3): record pages encode the active tab in the URL, so an arrow-key
   // tab switch is also a pathname change — but it is NOT a route change to the user.
-  // Tab-switch navigations carry the `pmoTabSwitch` marker (tabSwitchNav.ts); for those
-  // we skip the focus move (the Tabs roving-focus handler already moved focus to the
-  // activated tab) and only reset scroll. Real navigation still moves focus to main.
+  // Skip focus only when the marker is present AND both locations are within the same
+  // project/procurement record. Router history can retain that state on later real
+  // navigations, so the marker alone must never suppress the route-focus move.
   // Deps are pathname + state, NOT the location object: a search/hash-only navigation
   // (Approvals scope switch, M365 param cleanup) is not a route change and must keep
   // the pre-#879 behaviour of not re-running this effect — the marker rides in
   // location.state, so both parts are needed to see marked tab switches.
   const mounted = useRef(false);
+  const previousPathname = useRef(location.pathname);
   const { pathname, state } = location;
   useEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
+      previousPathname.current = pathname;
       return;
     }
-    if (!isTabSwitchNavState(state)) mainRef.current?.focus();
+    const previousRecordBase = previousPathname.current.match(/^\/(projects|procurement)\/([^/]+)/u);
+    const currentRecordBase = pathname.match(/^\/(projects|procurement)\/([^/]+)/u);
+    const sameRecordBase =
+      previousRecordBase?.[0] !== undefined &&
+      previousRecordBase[0] === currentRecordBase?.[0];
+    previousPathname.current = pathname;
+    if (!isTabSwitchNavState(state) || !sameRecordBase) mainRef.current?.focus();
     mainRef.current?.scrollTo?.({ top: 0 });
   }, [pathname, state]);
 

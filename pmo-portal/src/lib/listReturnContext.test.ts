@@ -207,6 +207,22 @@ describe('validated list return context', () => {
     });
   });
 
+  it('AC #879: strips a stale tab-switch marker when attaching list return context or restoring the list', () => {
+    const context = createListReturnContext('projects', '/projects', 160)!;
+    expect(withListReturnContext({ pmoTabSwitch: true, unrelated: 'keep' }, context)).toEqual({
+      unrelated: 'keep',
+      [LIST_RETURN_CONTEXT_KEY]: context,
+    });
+    expect(withListScrollRestore({ pmoTabSwitch: true, unrelated: 'keep' }, context)).toEqual({
+      unrelated: 'keep',
+      [LIST_SCROLL_RESTORE_STATE_KEY]: {
+        list: 'projects',
+        path: '/projects',
+        scrollTop: 160,
+      },
+    });
+  });
+
   it('FR-LRC-003: preserves other router state when attaching a validated return context', () => {
     const context = createListReturnContext('projects', '/projects?filter=at-risk', 160)!;
     expect(withListReturnContext({ modal: 'edit', focusId: 'row-7' }, context)).toEqual({
