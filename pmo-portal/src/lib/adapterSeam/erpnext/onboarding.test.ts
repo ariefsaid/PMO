@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { listErpContactSources, listErpPartySources, onboardParties, type OnboardPartiesDeps } from './onboarding.ts';
 import type { PmoRecord } from '../contract.ts';
-import type { ErpClientDeps } from './client.ts';
+import { ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -64,6 +64,29 @@ describe('erpnext/onboarding — listErpPartySources (confined GET-list mapping)
     expect(sources).toEqual([
       { doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1', isInternal: false },
       { doctype: 'Customer', id: 'Acme Buyer', name: 'Acme Buyer', taxId: null, isInternal: true, paymentTermsDays: undefined },
+    ]);
+  });
+
+  it('#918 the party pull reads a body over the SHARED default cap — its raised per-call cap is wired, not assumed', async () => {
+    // `limit_page_length=0` is unbounded by pagination, so onboarding raises the client's 5 MiB
+    // default to ERP_PARTY_PULL_MAX_BYTES. Feeding a body OVER the default cap proves the wiring:
+    // the pull only succeeds because the caller really passes the raised cap — dropping the option
+    // from either party request makes this RED (the client refuses the body as over-cap).
+    const hugeSupplierName = 'A'.repeat(ERP_RESPONSE_MAX_BYTES); // JSON total lands just over 5 MiB
+    const fetchImpl = async (url: string) => {
+      if (url.includes('Supplier')) {
+        return new Response(
+          JSON.stringify({ data: [{ name: 'SUP-1', supplier_name: hugeSupplierName, tax_id: null, is_internal_supplier: 0 }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return jsonResponse(200, { data: [{ name: 'CUS-1' }] });
+    };
+    const deps: ErpClientDeps = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' };
+    const sources = await listErpPartySources(deps);
+    expect(sources).toEqual([
+      { doctype: 'Supplier', id: 'SUP-1', name: hugeSupplierName, taxId: null, isInternal: false },
+      { doctype: 'Customer', id: 'CUS-1', name: 'CUS-1', taxId: null, isInternal: false, paymentTermsDays: undefined },
     ]);
   });
 

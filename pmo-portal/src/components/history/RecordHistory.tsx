@@ -8,7 +8,7 @@ import type { HistoryEvent, FieldChange } from '@/src/lib/repositories/recordHis
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';
-import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel } from './historyLabels';
+import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel, auditActionLabel } from './historyLabels';
 import {
   KIND_FILTERS, RECORD_NAME_SOURCE, REF_SOURCE, fieldKind, humanizeColumn,
 } from './historyFields';
@@ -135,7 +135,9 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>
       <ul className="mt-1 space-y-0.5 text-sm text-foreground">
-        {ev.source === 'audit' && <li className="break-words">{ev.action}</li>}
+        {/* #880: a merged audit line reads as a translated "did X" label (humanised when the code is
+            unknown) — never the internal action code. */}
+        {ev.source === 'audit' && <li className="break-words">{auditActionLabel(t, ev.action)}</li>}
         {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
         {entries.map(([column, change]) => (
           <li key={column} className="break-words">{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>

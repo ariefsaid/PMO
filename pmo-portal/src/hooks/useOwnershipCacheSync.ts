@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useExternalDomainOwnership } from './useExternalDomainOwnership';
 import { useAuth } from '@/src/auth/useAuth';
@@ -7,7 +7,11 @@ import {
   setTaskOwnership,
   setProjectBindings,
   clearOwnershipCache,
+  isOwnershipCacheSynced,
+  subscribeOwnershipCache,
+  routeDomainWrite,
 } from '@/src/lib/adapterSeam/ownershipCache';
+import type { RevenueMode } from './useRevenueMode';
 
 /**
  * ADR-0056 — seeds the ADR-0056 module-level ownership cache load-on-auth. Mounted ONCE in the
@@ -43,4 +47,22 @@ export function useOwnershipCacheSync(): void {
   useEffect(() => {
     return () => clearOwnershipCache();
   }, []);
+}
+
+/**
+ * #913 review — the cache-sync readiness signal: true once the module cache the repository routes
+ * writes by is seeded (ownership AND project bindings resolved, above). A surface that derives its
+ * mode from the ownership query must hold its action until this flips: while false,
+ * `routeDomainWrite` fails closed to 'pmo' no matter what the query already says, so acting on the
+ * query alone can point an ERP-intended write at the native RPC (`erp-owns-revenue`).
+ */
+export function useOwnershipCacheSynced(): boolean {
+  return useSyncExternalStore(subscribeOwnershipCache, isOwnershipCacheSynced);
+}
+
+/** True only when the synced repository route agrees with the query-derived mode for revenue. */
+export function useRevenueRouteReady(mode: RevenueMode | undefined): boolean {
+  const synced = useOwnershipCacheSynced();
+  if (!synced || mode === undefined) return false;
+  return (mode === 'erp') === (routeDomainWrite('revenue') === 'external');
 }

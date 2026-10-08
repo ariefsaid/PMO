@@ -6,7 +6,7 @@
  * shape (the edge fn `supabase/functions/erpnext-onboard/index.ts` is thin wiring around this).
  */
 import { adoptParty, externalIdFor, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
-import { erpnextRequest, type ErpClientDeps } from './client.ts';
+import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { getDoc } from './client.ts';
 import { listErpChangesSinceWatermark } from './sweepCursor.ts';
 import { contactCanonicalFromDoc, CONTACT_FROM_DOC_FIELDS } from './bodies/contact.ts';
@@ -26,6 +26,13 @@ interface RawCustomerRow {
   payment_terms?: string | null;
 }
 
+/** The response-body cap for the party pull below (#918). `limit_page_length=0` is Frappe's "no
+ *  limit", so this is the ONE response whose size is set by the org's data — not by this repo's
+ *  pagination. A party row is five short fields (~200 bytes JSON-encoded), so the shared 5 MiB
+ *  default covers orgs up to ~25k parties; this raises the ceiling to ~125k — generous room for a
+ *  large party master — while still bounding the response so one pull can never buffer without end. */
+export const ERP_PARTY_PULL_MAX_BYTES = ERP_RESPONSE_MAX_BYTES * 5;
+
 /** GET `/api/resource/Supplier`/`/api/resource/Customer` and map into `ErpPartySource[]` — the ONE
  *  place this edge-fn-adjacent onboarding flow touches Frappe REST vocabulary (confinement,
  *  NFR-ENA-CONTRACT-001) so `supabase/functions/erpnext-onboard/index.ts` stays vocabulary-free.
@@ -36,8 +43,8 @@ export async function listErpPartySources(client: ErpClientDeps): Promise<ErpPar
   const supplierFields = encodeURIComponent(JSON.stringify(['name', 'supplier_name', 'tax_id', 'is_internal_supplier']));
   const customerFields = encodeURIComponent(JSON.stringify(['name', 'customer_name', 'tax_id', 'is_internal_customer', 'payment_terms']));
   const [suppliers, customers] = await Promise.all([
-    erpnextRequest(client, { method: 'GET', path: `/api/resource/Supplier?fields=${supplierFields}&limit_page_length=0` }) as Promise<{ data?: RawSupplierRow[] }>,
-    erpnextRequest(client, { method: 'GET', path: `/api/resource/Customer?fields=${customerFields}&limit_page_length=0` }) as Promise<{ data?: RawCustomerRow[] }>,
+    erpnextRequest(client, { method: 'GET', path: `/api/resource/Supplier?fields=${supplierFields}&limit_page_length=0`, maxResponseBytes: ERP_PARTY_PULL_MAX_BYTES }) as Promise<{ data?: RawSupplierRow[] }>,
+    erpnextRequest(client, { method: 'GET', path: `/api/resource/Customer?fields=${customerFields}&limit_page_length=0`, maxResponseBytes: ERP_PARTY_PULL_MAX_BYTES }) as Promise<{ data?: RawCustomerRow[] }>,
   ]);
   const supplierSources: ErpPartySource[] = (suppliers.data ?? []).map((row) => ({
     doctype: 'Supplier',

@@ -29,6 +29,10 @@ export function useHistoryEnumLabel(): (entityType: string, column: string, valu
 
   return (entityType, column, value) => {
     if (column === 'tax_treatment') return taxOptions.find((o) => o.value === value)?.label ?? value;
+    if (column === 'withheld_pph_type') {
+      if (value === 'pph23') return t('history.withholdingType.pph23', 'PPh 23');
+      if (value === 'pph4_2') return t('history.withholdingType.pph4_2', 'PPh 4(2)');
+    }
     if (column === 'award_type' || column === 'bidding_entity') return classificationValueLabel(t, value);
     if (column === 'budget_category' || (entityType === 'budget_line_item' && column === 'category')) {
       return budgetCategoryLabel(value, t);

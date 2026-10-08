@@ -17,8 +17,14 @@ function useCached<T>(key: readonly unknown[] | undefined, enabledByOrg: boolean
   const cache = qc.getQueryCache();
   const live = Boolean(key) && enabledByOrg;
   // Stable snapshot: the Query's state object only changes identity when the query updates.
+  // ⚑ The subscription callback is DEFERRED (#891): the query cache notifies synchronously — and a
+  // page mounted after the shell (lazy chunk) creates its queries and subscribes its observers
+  // mid-render, so an immediate setState here is React's "Cannot update a component (ShellChrome)
+  // while rendering a different component (ExecutiveDashboard)". A microtask runs after that
+  // render's stack unwinds; useSyncExternalStore re-reads the snapshot on every notification, so
+  // coalescing several cache events into one deferred re-render loses nothing.
   const state = useSyncExternalStore(
-    (cb) => cache.subscribe(cb),
+    (cb) => cache.subscribe(() => queueMicrotask(cb)),
     () => (live ? qc.getQueryState<T>(key as readonly unknown[]) : undefined),
   );
   // A key-less / org-less read stays unsettled, which callers treat as "not resolved yet".

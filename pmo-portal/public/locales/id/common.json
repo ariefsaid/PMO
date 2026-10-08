@@ -1843,6 +1843,9 @@
         "emptySub": "Satu tagihan menagih uang muka atau kuantitas yang selesai, sebagai satu faktur ERP.",
         "error": "Tagihan tidak dapat dimuat",
         "errorSub": "Coba lagi, atau buka ulang proyek.",
+        "errors": {
+          "claimWithdrawn": "Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan."
+        },
         "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
         "kind": {
           "downPayment": "Uang muka",
@@ -2506,12 +2509,15 @@
             "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
             "amountPositive": "Jumlah harus lebih dari nol.",
             "itemRequired": "Pilih item ERP.",
-            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya."
+            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refusedNative": "Tidak ada yang disimpan. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "lineRequired": "Masukkan kode item atau deskripsi."
           },
           "item": "Item ERP",
           "itemCode": "Kode item",
           "submit": "Buat draf faktur",
           "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
+          "subtitleNative": "Membuat draf faktur di PMO untuk disetujui oleh orang Finance/Admin kedua.",
           "title": "Tagih Work Order ini",
           "createFailed": "Draf faktur tidak dapat dibuat",
           "cancel": "Batal",
@@ -2533,7 +2539,9 @@
         "summaryTitle": "Penagihan per Work Order",
         "toast": {
           "created": "Draf faktur dibuat",
-          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan."
+          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan.",
+          "nativeCreated": "Draf faktur dibuat di PMO",
+          "nativeCreatedSub": "{{wo}} — orang Finance/Admin kedua menyetujuinya dari Faktur Penjualan."
         },
         "unavailable": "Tidak tersedia",
         "notSubmitted": "Belum dikirim",
@@ -3988,7 +3996,18 @@
       "rejection_notes": "Catatan penolakan",
       "email": "Email",
       "phone": "Telepon",
-      "notes": "Catatan"
+      "notes": "Catatan",
+      "efaktur_number": "Nomor e-Faktur",
+      "efaktur_date": "Tanggal e-Faktur",
+      "received_date": "Tanggal diterima",
+      "author_user_id": "Penulis faktur",
+      "approved_by_id": "Disetujui oleh",
+      "approved_at": "Waktu persetujuan",
+      "pmo_native": "Dibuat di PMO",
+      "pmo_number": "Nomor faktur PMO",
+      "native_lines": "Baris faktur",
+      "withheld_amount": "Pajak dipotong",
+      "withheld_pph_type": "Jenis pajak potong"
     },
     "kind": {
       "project": "Proyek",
@@ -4002,7 +4021,13 @@
       "payment": "Pembayaran",
       "task": "Tugas",
       "company": "Perusahaan",
-      "contact": "Kontak"
+      "contact": "Kontak",
+      "sales_invoice": "Faktur penjualan",
+      "procurement_invoice": "Tagihan vendor"
+    },
+    "withholdingType": {
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)"
     },
     "filter": {
       "all": "Semua",
@@ -4014,6 +4039,42 @@
       "workOrders": "Tidak ada perubahan work order",
       "procurement": "Tidak ada perubahan pengadaan",
       "tasks": "Tidak ada perubahan tugas"
+    },
+    "auditRecorded": "Peristiwa tercatat",
+    "action": {
+      "m365_connection_revoked": "Koneksi Microsoft 365 dicabut",
+      "integration_activate": "Integrasi ERP diaktifkan",
+      "integration_disconnect": "Integrasi ERP diputus",
+      "integration_set_company": "Pemetaan perusahaan ERP diatur",
+      "integration_site_url_set": "URL situs ERP diatur",
+      "integration_trap_recovery": "Sinkronisasi ERP dipulihkan",
+      "integration_connect_cleanup": "Koneksi ERP dibersihkan",
+      "integration_connect_finalize": "Koneksi ERP diselesaikan",
+      "project_document_create": "Dokumen proyek dibuat",
+      "project_document_update": "Dokumen proyek diperbarui",
+      "project_document_transition": "Status dokumen proyek berubah",
+      "progress_claim_create": "Klaim progres dibuat",
+      "progress_claim_withdraw": "Klaim progres ditarik",
+      "progress_claim_evidence_attach": "Bukti klaim progres dilampirkan",
+      "procurement_invoice_create": "Invoice vendor dibuat",
+      "procurement_approval_route": "Rute persetujuan dicatat",
+      "incoming_payment_create": "Pembayaran masuk dicatat",
+      "incoming_payment_cancel": "Pembayaran masuk dibatalkan",
+      "expense_advance_return": "Uang muka biaya dikembalikan",
+      "expense_claim_transition": "Status klaim biaya berubah",
+      "expense_claim_approval_route": "Rute persetujuan dicatat",
+      "timesheet_create": "Timesheet dibuat",
+      "spend_approver_add": "Penyetuju belanja ditambahkan",
+      "spend_approver_remove": "Penyetuju belanja dihapus",
+      "sales_invoice_transition": "Status faktur penjualan berubah",
+      "credits_grant": "Kredit diberikan",
+      "company_tax_defaults_change": "Pajak bawaan perusahaan diubah",
+      "org_withholding_account_change": "Akun pemotongan pajak diubah",
+      "org_vendor_tax_accounts_change": "Akun pajak vendor diubah",
+      "org_tax_default_change": "Pajak bawaan diubah",
+      "org_down_payment_item_change": "Item uang muka diubah",
+      "meeting_grant_create": "Akses rapat diberikan",
+      "meeting_grant_revoke": "Akses rapat dicabut"
     }
   },
   "entityForm": {

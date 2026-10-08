@@ -122,7 +122,8 @@ update purchase_orders set amount = 650 where id = '07190000-0000-0000-0000-0000
 select is(
   (select parent_type || '|' || parent_id::text from record_changes
     where entity_type = 'purchase_order' and entity_id = '07190000-0000-0000-0000-0000000000f2' and op = 'update'),
-  'project|07190000-0000-0000-0000-0000000000c1', 'AC-CHG-006 a PO rolls up to its procurement''s project');
+  'procurement|07190000-0000-0000-0000-0000000000f1',
+  'AC-CHG-006 a PO is filed under its procurement (#878; the project reaches it on read)');
 select is(
   (select parent_type || '|' || parent_id::text from record_changes
     where entity_type = 'budget_version' and entity_id = '07190000-0000-0000-0000-0000000000e1' and op = 'insert'),

@@ -29,6 +29,7 @@ export function setTaskOwnership(rows: readonly OwnershipRow[]): void {
   const map: Record<string, string> = {};
   for (const row of rows) map[row.domain] = row.externalTier;
   cache = map;
+  notifyOwnershipCacheListeners();
 }
 
 /** Active project bindings used by the per-project tasks gate (migration 0146). */
@@ -58,6 +59,7 @@ export const setDomainOwnership = setTaskOwnership;
 export function clearOwnershipCache(): void {
   cache = null;
   boundTaskProjects = null;
+  notifyOwnershipCacheListeners();
 }
 
 /**
@@ -67,6 +69,35 @@ export function clearOwnershipCache(): void {
  */
 export function routeDomainWrite(domain: string): WriteRoute {
   return cache ? routeWrite(domain, cache) : 'pmo';
+}
+
+// ── Cache-sync readiness (#913 review) ─────────────────────────────────────────────────────────
+// A UI mode derived from the ownership QUERY can disagree with `routeDomainWrite` while `cache` is
+// still null: the repository fails closed to 'pmo' until `useOwnershipCacheSync` has seeded BOTH
+// the ownership rows and the project bindings. These three exports are the one readiness signal a
+// mode must wait on (`useSyncExternalStore` needs a stable subscribe + snapshot; both stay pure —
+// Deno-importable, like the rest of the module).
+
+type OwnershipCacheListener = () => void;
+const listeners = new Set<OwnershipCacheListener>();
+
+function notifyOwnershipCacheListeners(): void {
+  for (const listener of listeners) listener();
+}
+
+/** True once the cache is seeded — ownership AND project bindings have resolved and been stamped.
+ *  This is exactly the state `routeDomainWrite` consults, so a mode held until this flips can
+ *  never disagree with where the write will land. */
+export function isOwnershipCacheSynced(): boolean {
+  return cache !== null;
+}
+
+/** React-side subscription for `isOwnershipCacheSynced` (see `useOwnershipCacheSynced`). */
+export function subscribeOwnershipCache(listener: OwnershipCacheListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /** Project-aware tasks route matching `project_domain_externally_owned` (migration 0146).

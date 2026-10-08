@@ -2,15 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { AppError } from '@/src/lib/appError';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 
-const h = vi.hoisted(() => ({ mutateAsync: vi.fn(), connected: false }));
+const h = vi.hoisted(() => ({ mutateAsync: vi.fn(), connected: false, mode: 'erp' as 'erp' | 'native' | undefined, routeReady: true }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useRevenueMutations: () => ({ create: { mutateAsync: h.mutateAsync, isPending: false } }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({
   useErpItemOptions: () => ({ connected: h.connected, loadOptions: async () => [{ value: 'SVC', label: 'SVC — Services' }] }),
 }));
 vi.mock('@/src/hooks/useCommandIntent', () => ({ useCommandIntent: () => ({ id: 'intent-1', idempotencyKey: 'key-1' }) }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined }));
 
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -19,9 +22,11 @@ import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider
 
 const WO = { id: 'wo-1', project_id: 'p1', wo_number: 'WO-1', title: 'Phase 1 fabrication', status: 'Issued', currency: 'USD' } as WorkOrderRow;
 const onCreated = vi.fn();
-const renderModal = (remaining = 80_000) => render(
-  <InvoiceWorkOrderModal workOrder={WO} projectId="p1" clientId="c-1" remaining={remaining}
-    onClose={vi.fn()} onCreated={onCreated} />,
+const renderModal = (remaining = 80_000, over: Partial<WorkOrderRow> = {}) => render(
+  <MemoryRouter>
+    <InvoiceWorkOrderModal workOrder={{ ...WO, ...over }} projectId="p1" clientId="c-1" remaining={remaining}
+      onClose={vi.fn()} onCreated={onCreated} />
+  </MemoryRouter>,
 );
 const amountInput = () => screen.getByLabelText(/Amount \(excl\. PPN\)/);
 const submit = () => userEvent.click(screen.getByRole('button', { name: 'Create draft invoice' }));
@@ -30,6 +35,8 @@ beforeEach(() => {
   h.mutateAsync.mockReset();
   h.mutateAsync.mockResolvedValue({ id: 'si-1', si_number: 'ACC-SINV-1' });
   h.connected = false;
+  h.mode = 'erp';
+  h.routeReady = true;
   onCreated.mockReset();
 });
 
@@ -171,5 +178,96 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
     } finally {
       await financeTestI18n.changeLanguage('en');
     }
+  });
+
+  it('#913 the ERP subtitle names ERPNext and a submitting user — unchanged by the native branch', () => {
+    renderModal();
+    expect(screen.getByText(/Creates a draft invoice in ERPNext/)).toBeInTheDocument();
+    expect(screen.getByText(/A different Finance or Admin user submits it/)).toBeInTheDocument();
+  });
+
+  it('#913 a known mode cannot submit before the repository route is ready', async () => {
+    h.routeReady = false;
+    renderModal();
+    await userEvent.type(screen.getByLabelText(/Item code/), 'SVC');
+    expect(screen.getByRole('button', { name: 'Create draft invoice' })).toBeDisabled();
+    await submit();
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('#913 an unresolved mode cannot submit after the ERP fields are filled', async () => {
+    h.mode = undefined;
+    renderModal();
+    await userEvent.type(screen.getByLabelText(/Item code/), 'SVC');
+    expect(screen.getByRole('button', { name: 'Create draft invoice' })).toBeDisabled();
+    await submit();
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('InvoiceWorkOrderModal — PMO owns revenue, no ERP (#913, OD-NAR-1 item 5)', () => {
+  beforeEach(() => {
+    h.mode = 'native';
+    // A PMO Draft has no number yet (DD-NAR-9: minted on approval).
+    h.mutateAsync.mockResolvedValue({ id: 'si-native-1', si_number: null });
+  });
+
+  it('#913 the copy names PMO and the second-person approval — never ERPNext', () => {
+    renderModal();
+    expect(screen.getByText('Creates a draft invoice in PMO for a second Finance/Admin person to approve.')).toBeInTheDocument();
+    expect(screen.queryByText(/ERPNext/)).toBeNull();
+  });
+
+  it('#913 the line needs no ERP item — the work-order description alone completes the form', () => {
+    renderModal();
+    expect(screen.getByRole('button', { name: 'Create draft invoice' })).toBeEnabled();
+  });
+
+  it('#913 submitting calls the native create with the work order prefilled: client, project, work order, one line at the typed amount', async () => {
+    renderModal();
+    await userEvent.clear(amountInput());
+    await userEvent.type(amountInput(), '25000.50');
+    await submit();
+    expect(h.mutateAsync).toHaveBeenCalledWith({
+      customerId: 'c-1', projectId: 'p1', workOrderId: 'wo-1',
+      items: [{ item_code: '', qty: 1, rate: 25000.5, description: 'WO-1 — Phase 1 fabrication' }],
+      intent: { id: 'intent-1', idempotencyKey: 'key-1' },
+    });
+    // A PMO Draft has no number yet — none is reported.
+    expect(onCreated).toHaveBeenCalledWith('');
+  });
+
+  it('#913 clearing both the item code and the description refuses the line before the round trip', async () => {
+    renderModal();
+    await userEvent.clear(screen.getByLabelText('Description'));
+    await submit();
+    expect(screen.getAllByText('Enter an item code or a description.').length).toBeGreaterThan(0);
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('#913 a vat-rate-missing refusal shows the VAT guidance with the link to the project', async () => {
+    h.mutateAsync.mockRejectedValue(
+      new AppError('this project is subject to VAT but has no VAT rate: record it with the contract value before invoicing', 'vat-rate-missing'),
+    );
+    renderModal();
+    await submit();
+    const region = await screen.findByTestId('entity-modal-save-error');
+    expect(region).toHaveTextContent('This project has no VAT rate recorded');
+    const link = screen.getByRole('link', { name: 'Record the VAT rate on the project' });
+    expect(link).toHaveAttribute('href', '/projects/p1');
+  });
+
+  it('#913 the 0262 ceiling refusal reads in PMO words — nothing was saved here — with the work-order amount', async () => {
+    h.mutateAsync.mockRejectedValue(
+      new AppError('this invoice would bill 80000.00 against work order WO-1: only 0.00 is still to invoice', 'BW001'),
+    );
+    renderModal();
+    await submit();
+    const region = await screen.findByTestId('entity-modal-save-error');
+    expect(region).toHaveTextContent('That would invoice past the work order');
+    expect(screen.getByText(/This work order had \$80,000\.00 still to invoice when you opened this dialog/)).toBeInTheDocument();
+    expect(region).toHaveTextContent('Nothing was saved.');
+    expect(region).not.toHaveTextContent('ERPNext');
+    expect(onCreated).not.toHaveBeenCalled();
   });
 });
