@@ -16,6 +16,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -484,7 +485,7 @@ describe('Projects index — New project create + gating', () => {
     const listbox = await screen.findByRole('listbox', { name: /compan/i });
     await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
     await userEvent.click(within(dialog).getByRole('button', { name: /^Create project$/i }));
-    const toast = await screen.findByRole('alert');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });

@@ -61,6 +61,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [statusAnnouncement, setStatusAnnouncement] = useState('');
   const [alertAnnouncement, setAlertAnnouncement] = useState('');
   const seq = useRef(0);
+  const lastAnnouncement = useRef<{ urgent: boolean; message: string } | null>(null);
 
   const toast = useCallback((title: string, subOrKind?: string, kind?: ToastKind) => {
     const isKind = (value: string | undefined): value is ToastKind =>
@@ -80,6 +81,19 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     const message = [item.title, item.sub].filter(Boolean).join(' ');
     const urgent = item.kind === 'warning' || item.kind === 'error';
+    const repeated = lastAnnouncement.current?.urgent === urgent && lastAnnouncement.current.message === message;
+    lastAnnouncement.current = { urgent, message };
+
+    if (repeated) {
+      setStatusAnnouncement('');
+      setAlertAnnouncement('');
+      const timer = setTimeout(() => {
+        setStatusAnnouncement(urgent ? '' : message);
+        setAlertAnnouncement(urgent ? message : '');
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+
     setStatusAnnouncement(urgent ? '' : message);
     setAlertAnnouncement(urgent ? message : '');
   }, [item]);

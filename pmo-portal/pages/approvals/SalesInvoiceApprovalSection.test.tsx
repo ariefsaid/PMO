@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -196,7 +197,7 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     await expand(user);
     await user.click(within(region()).getByRole('button', { name: 'Approve' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
-    expect(await screen.findByText(/approver must differ from author/)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /approver must differ from author/)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Customer invoices awaiting you' })).toHaveTextContent('Site survey');
   });
 });

@@ -388,7 +388,7 @@ describe('Approvals page actions', () => {
       { id: 'ts-1' },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
   });
 
   it('T3: Return opens a DESTRUCTIVE modal and the reject mutation fires only on Confirm', async () => {

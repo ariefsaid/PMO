@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
@@ -233,8 +234,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'Invoice' }));
     await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
-    expect(screen.getByRole('status')).toHaveTextContent('Draft invoice created');
-    expect(screen.getByRole('status')).toHaveTextContent('ACC-SINV-1 — submit it from Sales Invoices.');
+    const toast = await findToastAnnouncement('status', 'Draft invoice created');
+    expect(toast).toHaveTextContent('ACC-SINV-1 — submit it from Sales Invoices.');
   });
 
   it('#913 a PMO-native draft is named by its work order and routed to a second person for approval', async () => {
@@ -242,9 +243,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'Invoice' }));
     await userEvent.click(screen.getByRole('button', { name: 'modal-created-unnamed' }));
-    expect(screen.getByRole('status')).toHaveTextContent('Draft invoice created in PMO');
-    expect(screen.getByRole('status')).toHaveTextContent('WO-1 — a second Finance/Admin person approves it from Sales Invoices.');
-    expect(screen.getByRole('status')).not.toHaveTextContent('ERPNext');
+    const toast = await findToastAnnouncement('status', 'Draft invoice created in PMO');
+    expect(toast).toHaveTextContent('WO-1 — a second Finance/Admin person approves it from Sales Invoices.');
+    expect(toast).not.toHaveTextContent('ERPNext');
   });
 
   it('AC-UNB-002 the project totals add Issued and Closed work orders; an over-invoiced one adds nothing left', () => {

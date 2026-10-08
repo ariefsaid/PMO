@@ -81,6 +81,17 @@ describe('Toast accessibility and timing', () => {
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
+  it('re-announces an identical message by clearing and restoring the live-region text', () => {
+    renderToast();
+    act(() => fire('Saved', undefined, 'success'));
+    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+
+    act(() => fire('Saved', undefined, 'success'));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    act(() => vi.advanceTimersByTime(0));
+    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+  });
+
   it('mounts status and alert live regions before inserting toast text', () => {
     renderToast();
     expect(screen.getByRole('status')).toBeEmptyDOMElement();

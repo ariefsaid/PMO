@@ -356,7 +356,7 @@ describe('Timesheets submit button', () => {
       { id: 'ts-draft' },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
 
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
@@ -534,7 +534,7 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     expect(arg.weekStartDate).toBe(currentWeekStartStr());
     expect(arg.diff.upserts.some((u: { hours: number }) => u.hours === 8)).toBe(true);
     // Success toast.
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/saved/i));
+    expect(await findToastAnnouncement('status', /saved/i)).toBeInTheDocument();
   });
 
   it('AC-TSE-017: Save diffs an existing sheet to upsert changed cells and delete a zeroed cell', async () => {

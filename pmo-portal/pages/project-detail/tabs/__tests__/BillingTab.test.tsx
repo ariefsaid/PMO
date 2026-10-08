@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatCurrencyCents } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
@@ -172,7 +173,7 @@ describe('BillingTab', () => {
     const user = renderTab();
     await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
     await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', "This claim was withdrawn — its invoice can't be raised.");
     expect(toast).toHaveTextContent("This claim was withdrawn — its invoice can't be raised.");
     expect(toast).not.toHaveTextContent('Update failed');
   });
@@ -185,7 +186,7 @@ describe('BillingTab', () => {
     const { user } = await renderTabLocalized('id');
     await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan faktur' }));
     await user.click(screen.getByRole('button', { name: 'Buat faktur ERP' }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan.');
     expect(toast).toHaveTextContent('Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan.');
     expect(toast).not.toHaveTextContent('Update failed');
   });
