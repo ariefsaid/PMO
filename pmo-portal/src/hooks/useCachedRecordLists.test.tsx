@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { recordLabelForPath } from '@/src/components/shell/routeMatch';
 
@@ -72,6 +72,52 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(recordLabelForPath('/companies/c1', result.current.lists)).toBe('Acme');
     expect(result.current.resolved).toBe(true);
     expect(dal.list).not.toHaveBeenCalled();
+  });
+});
+
+describe("#891 the shell cache subscription never updates the shell during another component's render", () => {
+  /** A page-shaped consumer of the queries the shell reads passively (#840/#891). */
+  const PageQueries = () => {
+    const pipeline = useQuery({ queryKey: ['sales-pipeline', 'org-1'], queryFn: async () => ({ projects: [{ id: 'd1', name: 'Deal 1' }] }) });
+    const procurements = useQuery({ queryKey: ['procurements', 'org-1'], queryFn: async () => [{ id: 'pr1' }] });
+    const projects = useQuery({ queryKey: ['projects', 'org-1'], queryFn: async () => [{ id: 'p1' }] });
+    return <div data-testid="page-status">{pipeline.status}:{procurements.status}:{projects.status}</div>;
+  };
+
+  const ShellCrumb = () => {
+    const { lists } = useCachedRecordLists('/sales');
+    return <div data-testid="shell-projects">{lists.projects?.length ?? 0}</div>;
+  };
+
+  it('a page mounted AFTER the shell (lazy chunk) logs NO React "Cannot update a component" warning, and the shell still reads the page\'s data', async () => {
+    const { act, render, waitFor } = await import('@testing-library/react');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function App({ children }: { children: React.ReactNode }) {
+      const [pageMounted, setPageMounted] = React.useState(false);
+      return (
+        <QueryClientProvider client={qc}>
+          <ShellCrumb />
+          {pageMounted ? children : null}
+          <button onClick={() => setPageMounted(true)}>mount-page</button>
+        </QueryClientProvider>
+      );
+    }
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const { getByText } = render(
+      <App>
+        <PageQueries />
+      </App>,
+    );
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    await user.click(getByText('mount-page'));
+    // The page's queries settle AND the shell picked their data up — the subscription still works.
+    await waitFor(() => expect(document.querySelector('[data-testid="page-status"]')?.textContent).toBe('success:success:success'));
+    await waitFor(() => expect(document.querySelector('[data-testid="shell-projects"]')?.textContent).toBe('1'));
+    // React logs this warning with a format string + substitutions — join before asserting.
+    const logged = consoleError.mock.calls.map((call) => call.map(String).join(' ')).join('\n');
+    expect(logged).not.toContain('Cannot update a component');
+    consoleError.mockRestore();
   });
 });
 

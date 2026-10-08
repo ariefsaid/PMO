@@ -2,8 +2,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import i18next from 'i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { I18nextProvider } from 'react-i18next';
 import { EntityFormModal } from '../EntityFormModal';
 import { TextField } from '../FormFields';
+import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 // ---------------------------------------------------------------------------
 // EntityFormModal — the create / focused-edit composite (crud-components §2.2).
@@ -377,5 +382,53 @@ describe('EntityFormModal: focus management', () => {
     );
     expect(trigger).toHaveFocus();
     trigger.remove();
+  });
+});
+
+// ── #891: the shared "Nothing was saved" line under a rejected save is localized ──
+/** The REAL shipped catalogues — assertions pin the actual copy in both languages. */
+const readCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
+
+async function makeI18n(lng: 'en' | 'id') {
+  const i18n = i18next.createInstance();
+  await i18n.init({
+    lng,
+    fallbackLng: 'en',
+    defaultNS: 'common',
+    resources: { en: { common: readCatalogue('en') }, id: { common: readCatalogue('id') } },
+    parseMissingKeyHandler,
+    returnEmptyString: false,
+  });
+  return i18n;
+}
+
+describe('EntityFormModal: the save-error "nothing saved" line is localized (#891)', () => {
+  it('Bahasa (id) renders the localized line under a rejected save', async () => {
+    const i18n = await makeI18n('id');
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EntityFormModal {...baseProps} submitError={{ headline: 'Gagal menyimpan' }}>
+          <TextField label="Name" value="" onChange={() => {}} />
+        </EntityFormModal>
+      </I18nextProvider>,
+    );
+    const region = screen.getByTestId('entity-modal-save-error');
+    expect(region).toHaveTextContent('Tidak ada yang tersimpan — isian Anda masih ada.');
+    expect(region).not.toHaveTextContent('Nothing was saved');
+  });
+
+  it('English (en) renders the English line under a rejected save', async () => {
+    const i18n = await makeI18n('en');
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EntityFormModal {...baseProps} submitError={{ headline: 'Save failed' }}>
+          <TextField label="Name" value="" onChange={() => {}} />
+        </EntityFormModal>
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId('entity-modal-save-error')).toHaveTextContent(
+      'Nothing was saved — your entries are still here.',
+    );
   });
 });

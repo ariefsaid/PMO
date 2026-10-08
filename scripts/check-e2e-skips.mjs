@@ -51,6 +51,12 @@ export const ALLOWED_SKIPS = [
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
     verified: '2026-10-07',
   },
+  {
+    file: 'serial/AC-VPAY-001-vendor-payment-form.spec.ts',
+    reason: 'Vendor payment through the ledger form proves a Payment Entry in ERPNext; requires the local served-functions lane and throwaway ERPNext bench.',
+    restore: 'Run with scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --reset --project=serial --workers=1 e2e/serial/AC-VPAY-001-vendor-payment-form.spec.ts (passed 2026-10-08, #910).',
+    verified: '2026-10-08',
+  },
   // ── Served lane absent: config.toml sets [edge_runtime] enabled = false in CI *and* local, so
   // nothing serves functions/v1 unless scripts/serve-functions.sh is running (it exports
   // SUPABASE_FUNCTIONS_URL). These run in the served lane and skip everywhere else.

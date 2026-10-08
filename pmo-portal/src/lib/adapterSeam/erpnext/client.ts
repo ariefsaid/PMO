@@ -137,6 +137,17 @@ export const ERP_RETRY_AFTER_CAP_MS = 15_000;
 export const ERP_DEFAULT_MAX_RETRIES = 3;
 
 /**
+ * The default cap on ONE ERP response body (#918), modeled on invoicePdf.ts's PDF cap (#912).
+ *
+ * 5 MiB sits far above every legitimate response the shared client is issued for — single-doc
+ * GET/POST/PUT, the ≤500-row list pages of ledgerFetch/sweepCursor, item/tax-row catalog pages of
+ * 200, and the onboarding party pull — while bounding a runaway or hostile bench response so no
+ * caller can be made to buffer an unbounded payload. The invoice-PDF fetcher keeps its own separate
+ * 10 MiB cap (it issues its own fetch, not this client).
+ */
+export const ERP_RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
  * The worst-case wall-clock ONE idempotent ERP request can occupy: every attempt may burn its full
  * per-attempt deadline, and every retry may wait the full capped `Retry-After`.
  *
@@ -203,6 +214,13 @@ export interface ErpRequestOptions {
   /** Full path incl. leading slash, already doctype/name-encoded by the doctypePath() helper below. */
   path: string;
   body?: unknown;
+  /** Per-call response-body cap in bytes (#918), defaulting to `ERP_RESPONSE_MAX_BYTES` (5 MiB).
+   *  Most endpoints are single-doc or paginated (≤500 rows/request) and never need this; the callers
+   *  whose endpoint is unbounded by pagination — onboarding's party pull (`limit_page_length=0`,
+   *  all of an org's suppliers + customers → `ERP_PARTY_PULL_MAX_BYTES`, onboarding.ts) and the
+   *  unpaged AR/AP ageing report RPC (one row per voucher → `AGING_REPORT_MAX_BYTES`,
+   *  agingSnapshot.ts) — raise it to their own named ceilings. */
+  maxResponseBytes?: number;
 }
 
 interface ParsedFrappeError {
@@ -252,9 +270,70 @@ function retryDelayMs(retryAfterHeader: string | null, attempt: number): number 
   return Math.min(seconds * 1000, ERP_RETRY_AFTER_CAP_MS);
 }
 
-async function safeParseBody(res: Response): Promise<unknown> {
+/** Internal signal: a response body passed the byte cap (#918). Converted at the single catch site of
+ *  `erpnextRequest` into the client's existing `external-unreachable` classification — never allowed to
+ *  escape as a raw error. */
+class BodyTooLargeError extends Error {
+  constructor(maxBytes: number) {
+    super(`ERPNext response body exceeded the ${maxBytes}-byte cap`);
+    this.name = 'BodyTooLargeError';
+  }
+}
+
+/** Reads a response body as a STREAM with a hard byte cap (#918, modeled on invoicePdf.ts #912): the
+ *  read is refused the moment the bytes pass `maxBytes` — declared up front (Content-Length, refused
+ *  before a single byte is pulled) or seen while streaming (the reader is cancelled mid-stream, never
+ *  buffering past the cap). Returns the decoded text, or null for an empty/absent body (the exact
+ *  contract the previous `res.text()`-based parse had). */
+async function readBodyText(res: Response, maxBytes: number): Promise<string | null> {
   if (res.status === 204) return null;
-  const text = await res.text();
+  const declared = Number(res.headers.get('content-length') ?? '0');
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    void res.body?.cancel().catch(() => undefined);
+    throw new BodyTooLargeError(maxBytes);
+  }
+  if (!res.body) return null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new BodyTooLargeError(maxBytes);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    // #918 fix-round: every exit from the read loop — cap refusal (cancel), a deadline abort
+    // mid-body (read rejects), or success — releases the reader. `cancel()` closes the stream but
+    // does NOT unlock it, and a rejected read leaves the lock held forever, pinning the response
+    // stream (and with it the connection the pool lent it) against reuse. `releaseLock()` is a safe
+    // no-op on an already-detached reader; the guard keeps an exotic runtime's throw from masking
+    // the original outcome.
+    try {
+      reader.releaseLock();
+    } catch {
+      // already released — nothing to do.
+    }
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const text = new TextDecoder().decode(bytes);
+  return text || null;
+}
+
+/** Parses a capped response body as JSON: null on an empty body or malformed JSON (semantics
+ *  unchanged); only the byte cap can reject the read itself. */
+async function safeParseBody(res: Response, maxBytes: number): Promise<unknown> {
+  const text = await readBodyText(res, maxBytes);
   if (!text) return null;
   try {
     return JSON.parse(text);
@@ -277,6 +356,8 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
   };
 
   const timeoutMs = deps.timeoutMs ?? ERP_REQUEST_TIMEOUT_MS;
+  // #918: the response-body cap, per call (the unpaged endpoints raise it) or the default.
+  const maxBodyBytes = opts.maxResponseBytes ?? ERP_RESPONSE_MAX_BYTES;
 
   let attempt = 0;
   for (;;) {
@@ -307,6 +388,9 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     // reclaim window, so a hung-but-alive request can never still be able to commit while recovery
     // has already started a second POST (see ERP_REQUEST_TIMEOUT_MS). The controller/timer is
     // per-attempt and always cleared, so a settled request leaves no dangling timer or handle.
+    // #918: the deadline now stays armed until the BODY is fully read too — a host that sends
+    // headers and then stalls is hung exactly as much as one that never answers at all (the same
+    // model invoicePdf.ts ships for the PDF fetch, #912).
     const controller = new AbortController();
     const deadline = setTimeout(
       () => controller.abort(new Error(`ERPNext request exceeded its ${timeoutMs}ms deadline`)),
@@ -324,6 +408,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
         redirect: 'manual',
       });
     } catch (err) {
+      clearTimeout(deadline);
       if (attempt < maxRetries) {
         attempt += 1;
         await sleep(500 * attempt);
@@ -332,45 +417,72 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // Server-only module (creds) — log the real cause; the client-facing error stays typed/generic.
       console.error(`[erpnext-client] fetch failed ${opts.method} ${opts.path}:`, err instanceof Error ? err.message : String(err));
       throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext request failed', true);
+    }
+
+    // #918: the timer stays armed through the WHOLE body read. Every response-path branch below —
+    // redirect refusal, 429/5xx retry, error/OK body parse, and the return — exits through this
+    // try/catch/finally, the ONE place the per-attempt timer is cleared once headers have arrived.
+    try {
+      // #655: a redirect is a deterministic answer (not retried) and an AMBIGUOUS one for a create, so it
+      // is classified `external-unreachable` — the outbox reconciler, not this client, decides what landed.
+      // `opaqueredirect` is the fetch-spec form of a manual redirect (status 0); Deno/undici return the 3xx.
+      if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+        console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
+        throw new ErpError(
+          res.status,
+          'external-unreachable',
+          `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
+          false,
+        );
+      }
+
+      if (res.status === 429 || res.status >= 500) {
+        const body = await safeParseBody(res, maxBodyBytes);
+        const parsed = parseFrappeErrorBody(body);
+        // The 500-TypeError bucket is non-retryable regardless of method or remaining budget.
+        if (res.status === 500 && isTypeErrorBucket(parsed)) {
+          throw new ErpError(500, 'commit-rejected', parsed.message ?? 'ERPNext server error (TypeError)', false);
+        }
+        if (attempt < maxRetries) {
+          attempt += 1;
+          await sleep(retryDelayMs(res.headers.get('Retry-After'), attempt));
+          continue;
+        }
+        console.error(`[erpnext-client] upstream ${res.status} ${opts.method} ${opts.path}:`, (parsed.message ?? '').slice(0, 300));
+        throw new ErpError(res.status, 'external-unreachable', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+      }
+
+      const body = await safeParseBody(res, maxBodyBytes);
+      if (res.status >= 400) {
+        const parsed = parseFrappeErrorBody(body);
+        throw new ErpError(res.status, 'commit-rejected', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+      }
+      return body;
+    } catch (err) {
+      if (err instanceof ErpError) throw err; // an already-classified answer flows through untouched
+      if (err instanceof BodyTooLargeError) {
+        // #918: an over-cap body is a deterministic answer this client refuses to consume — the same
+        // policy as a redirect (re-asking cannot shrink it), so it is NOT retried.
+        console.error(`[erpnext-client] response body over the ${maxBodyBytes}-byte cap ${res.status} ${opts.method} ${opts.path}`);
+        throw new ErpError(
+          res.status,
+          'external-unreachable',
+          `ERPNext response body exceeded the ${maxBodyBytes}-byte response cap`,
+          false,
+        );
+      }
+      // A deadline abort (or a socket failure) WHILE READING the body is classified exactly like the
+      // same failure while waiting for headers — same budget, same `external-unreachable` (#918).
+      if (attempt < maxRetries) {
+        attempt += 1;
+        await sleep(500 * attempt);
+        continue;
+      }
+      console.error(`[erpnext-client] body read failed ${opts.method} ${opts.path}:`, err instanceof Error ? err.message : String(err));
+      throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext response body failed', true);
     } finally {
       clearTimeout(deadline);
     }
-
-    // #655: a redirect is a deterministic answer (not retried) and an AMBIGUOUS one for a create, so it
-    // is classified `external-unreachable` — the outbox reconciler, not this client, decides what landed.
-    // `opaqueredirect` is the fetch-spec form of a manual redirect (status 0); Deno/undici return the 3xx.
-    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-      console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
-      throw new ErpError(
-        res.status,
-        'external-unreachable',
-        `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
-        false,
-      );
-    }
-
-    if (res.status === 429 || res.status >= 500) {
-      const body = await safeParseBody(res);
-      const parsed = parseFrappeErrorBody(body);
-      // The 500-TypeError bucket is non-retryable regardless of method or remaining budget.
-      if (res.status === 500 && isTypeErrorBucket(parsed)) {
-        throw new ErpError(500, 'commit-rejected', parsed.message ?? 'ERPNext server error (TypeError)', false);
-      }
-      if (attempt < maxRetries) {
-        attempt += 1;
-        await sleep(retryDelayMs(res.headers.get('Retry-After'), attempt));
-        continue;
-      }
-      console.error(`[erpnext-client] upstream ${res.status} ${opts.method} ${opts.path}:`, (parsed.message ?? '').slice(0, 300));
-      throw new ErpError(res.status, 'external-unreachable', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
-    }
-
-    const body = await safeParseBody(res);
-    if (res.status >= 400) {
-      const parsed = parseFrappeErrorBody(body);
-      throw new ErpError(res.status, 'commit-rejected', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
-    }
-    return body;
   }
 }
 

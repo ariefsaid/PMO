@@ -96,7 +96,10 @@ test(
     // the NAME cell keeps the oracle identical (the line item is rendered with its own name) while
     // excluding the Edit-button cell. Do NOT relax to .first(): that would pass even if only the
     // action cell rendered.
-    await expect(lineItems.getByRole('cell', { name: itemDesc, exact: true })).toBeVisible({
+    // Exclude the inline add-row: until its inputs reset after the save, its description cell carries the same
+    // accessible name (the typed value) — a load-dependent strict-mode race seen in CI (release #941).
+    const savedRows = lineItems.locator('tr:not([data-testid="line-item-add-row"])');
+    await expect(savedRows.getByRole('cell', { name: itemDesc, exact: true })).toBeVisible({
       timeout: 15_000,
     });
     await expect(lineItems.getByText(/\$2,064/).first()).toBeVisible({ timeout: 10_000 });

@@ -87,8 +87,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
 
-  const fail = (err: unknown) => {
-    const { headline, detail } = classifyMutationError(err);
+  const fail = (err: unknown, headlineOverrides?: Record<string, string>) => {
+    const { headline, detail } = classifyMutationError(err, headlineOverrides);
     toast(headline, detail, 'warning');
   };
 
@@ -122,7 +122,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       await mutations.raiseInvoice.mutateAsync({ claimId: claim.id, customerId: clientId, intent: { id: claim.id, idempotencyKey } });
       toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
     } catch (err) {
-      fail(err);
+      // 55000 is the database's own refusal to raise a WITHDRAWN claim's invoice (0250's fence,
+      // carried by dispatchClient as AppError code). The generic headline says nothing about the
+      // one situation this confirm can hit — name it in the user's language (BW001's precedent,
+      // InvoiceWorkOrderModal).
+      fail(err, {
+        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn — its invoice can't be raised."),
+      });
     } finally {
       setRaiseFor(null);
     }
