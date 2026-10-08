@@ -988,7 +988,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
       if (priorWatermarkError) throw new AppError(priorWatermarkError.message, priorWatermarkError.code);
       const { error: attemptError } = await serviceClient.from('external_sync_watermarks').upsert({
         org_id: org.orgId, external_tier: ERPNEXT_TIER, domain: wmDomain,
-        watermark_cursor: (priorWatermark as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? null,
+        watermark_cursor: (priorWatermark as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? '',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'org_id,external_tier,domain' });
       if (attemptError) throw new AppError(attemptError.message, attemptError.code);
@@ -2346,6 +2346,10 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
  * outbox/probe/fence/re-authorization machinery. `persistPayload` is set only for a fresh command: it makes the
  * outbox INSERT carry the payload and the recorded actor (a recovery row already has both).
  */
+export function moneyWriteReplayOptions(persistPayload: boolean): { replay: boolean } {
+  return { replay: !persistPayload };
+}
+
 export async function buildMoneyWriteDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
@@ -2379,7 +2383,8 @@ export async function buildMoneyWriteDepsLive(
     rateLimiter: { acquire: async () => {} },
     doctypeBodies: DOCTYPE_BODIES,
     // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
-    replay: true,
+    // Fresh expense commands carry their own frozen payload and must use the ordinary first-build path.
+    ...moneyWriteReplayOptions(args.persistPayload),
   });
 
   const anchorField = entry.anchorField;
