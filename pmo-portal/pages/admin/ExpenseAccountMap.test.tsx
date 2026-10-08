@@ -61,6 +61,26 @@ describe('expense account readiness (AD-2)', () => {
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
   });
 
+  it('uses the AD-2 integrations remedy for the external-set-company CONFIG_REJECTED AppError while preserving the account remedy', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.binding = { status: 'active' };
+    h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];
+    h.save.mockRejectedValueOnce(new AppError('company binding refused', 'CONFIG_REJECTED'));
+    const user = userEvent.setup();
+    renderMap();
+    await user.click(await screen.findByRole('button', { name: 'Map Travel' }));
+    await user.type(await screen.findByRole('textbox'), 'Travel');
+    await user.click(screen.getByRole('button', { name: /Save account|Simpan akun/ }));
+    expect(await screen.findByText('Connect ERPNext before mapping expense accounts. Expense posting is not active.')).toBeInTheDocument();
+
+    h.save.mockRejectedValueOnce(new AppError('account rejected', 'config-rejected'));
+    await user.click(screen.getByRole('button', { name: 'Map Travel' }));
+    await user.clear(screen.getByRole('textbox'));
+    await user.type(screen.getByRole('textbox'), 'Travel');
+    await user.click(screen.getByRole('button', { name: /Save account|Simpan akun/ }));
+    expect(await screen.findByText('Check the account name and type in ERPNext, then try again. Your entry is kept.')).toBeInTheDocument();
+  });
+
   it('keeps one localized persistent error and the entry after an account refusal (AD-3)', async () => {
     h.binding = { status: 'active' };
     h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];

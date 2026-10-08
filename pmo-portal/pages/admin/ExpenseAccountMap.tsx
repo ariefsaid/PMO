@@ -99,7 +99,7 @@ const ExpenseAccountMap: React.FC = () => {
     } catch (err) {
       // The server's FR-EXP-112 refusal names the account and the rule — show it verbatim in the form.
       const code = (err as { code?: unknown } | null)?.code;
-      const connectionRefusal = code === 'ERP_NOT_CONNECTED' || code === 'integration-not-connected';
+      const connectionRefusal = code === 'CONFIG_REJECTED' || code === 'ERP_NOT_CONNECTED' || code === 'integration-not-connected';
       setSaveError({
         headline: t('admin.expenseMap.error.saveHeadline', 'Couldn’t save the expense account'),
         detail: connectionRefusal
