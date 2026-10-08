@@ -12,9 +12,10 @@ afterEach(() => resetActiveLocale());
 describe('AC-BUPOT-017 capture form', () => {
   it('pins the vendor/currency, preselects the starting bill, and refuses a one-cent mismatch', async () => {
     h.data = { pages: [{ rows: [bill] }] };
-    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" vendorName="Northwind Supplies" open onClose={vi.fn()} onSave={h.save} />);
     expect((await screen.findAllByText(/IDR.?20,000\.00/)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Vendor details unavailable/)).toBeInTheDocument();
+    expect(screen.getByText(/Northwind Supplies/)).toBeInTheDocument();
+    expect(screen.queryByText('vendor-a')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/issued slip number/i), { target: { value: 'DJ-TEST-1' } });
     fireEvent.change(screen.getByLabelText(/tax base/i), { target: { value: '20000.00' } });
     fireEvent.change(screen.getByLabelText(/issued withheld amount/i), { target: { value: '19999.99' } });
@@ -23,14 +24,19 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(h.save).not.toHaveBeenCalled();
   });
   it('AC-BUPOT-017 preserves a user deselection and removes incompatible bills when PPh type changes', async () => {
-    h.data = { pages: [{ rows: [bill, { ...bill, invoice_id: 'invoice-b', withheld_amount: '30000.00', withheld_pph_type: null }] }] };
+    h.data = { pages: [{ rows: [bill, { ...bill, invoice_id: 'invoice-b', withheld_amount: '30000.00', withheld_pph_type: null }, { ...bill, invoice_id: 'invoice-c', withheld_amount: '40000.00' }] }] };
     render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
     const starting = await screen.findByRole('checkbox', { name: /select bill invoice-a/i });
     fireEvent.click(starting);
     expect(starting).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByRole('checkbox', { name: /select bill invoice-c/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /select bill invoice-b/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /confirm as PPh 23 from issued slip/i }));
+    expect(screen.getByRole('checkbox', { name: /confirm as PPh 23 from issued slip/i })).toHaveAttribute('aria-checked', 'true');
     fireEvent.change(screen.getByLabelText('PPh type'), { target: { value: 'pph4_2' } });
-    expect(screen.getByRole('checkbox', { name: /select bill invoice-a/i })).toHaveAttribute('aria-checked', 'false');
-    expect(screen.queryByText(/Selected total: IDR 20000/)).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /select bill invoice-c/i })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('checkbox', { name: /confirm as PPh 4\(2\) from issued slip/i })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByText(/Selected total: IDR 40000/)).not.toBeInTheDocument();
   });
 
   it('AC-BUPOT-017 initializes the starting bill before its candidate page arrives and keeps deselection across paging', async () => {

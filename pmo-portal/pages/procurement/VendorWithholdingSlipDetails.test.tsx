@@ -38,6 +38,8 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     renderPanel();
     expect(screen.getByText('TAX-2026-1')).toBeInTheDocument();
     expect(screen.getByText(/IDR.?500,000\.00/)).toBeInTheDocument();
+    expect(screen.queryAllByText(/^(needs-review|reconciled|active|void|pph23)$/i, { selector: 'dd' })).toHaveLength(0);
+    if (overrides.status === 'active') expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.getAllByText(/IDR.?20,000\.00/)).toHaveLength(2);
     expect(screen.getByText('VI-002')).toBeInTheDocument();
     expect(screen.getByText('Slip change history')).toBeInTheDocument();
@@ -114,6 +116,18 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Duplicate PMO evidence' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Void PMO entry' }).at(-1)!);
     await waitFor(() => expect(state.voidSlip).toHaveBeenCalledWith({ slipId: 'slip-1', expectedRevision: 7, reason: 'Duplicate PMO evidence' }));
+  });
+
+  it('maps an invalid-facts refusal to an edit remedy and preserves the draft', async () => {
+    state.correct.mockRejectedValueOnce({ code: '23514', details: 'bupot-invalid-facts' });
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Correct metadata' }));
+    fireEvent.change(screen.getByLabelText(/Issued slip number/), { target: { value: 'TAX-DRAFT' } });
+    fireEvent.change(screen.getByLabelText(/Correction reason/), { target: { value: 'Fix facts' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findAllByText('Review the entered facts and try again.')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Issued slip number/)).toHaveValue('TAX-DRAFT');
   });
 
   it('offers Reload when correction is refused as stale', async () => {
