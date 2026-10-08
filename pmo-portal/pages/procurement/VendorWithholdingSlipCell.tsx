@@ -29,9 +29,9 @@ export function VendorWithholdingSlipCell({ row, isLoading = false, isError = fa
     {isActive && <>
       <span className="max-w-full break-all font-mono">{row.slip_number ?? ''}</span>
       {row.slip_date && <span className="text-muted-foreground">{formatDateOnly(row.slip_date)}</span>}
-      <button type="button" className="underline underline-offset-2" onClick={() => onView?.(row.active_slip_id!)}>{t('bupot.view', 'View bukti potong')}</button>
+      <button type="button" className="touch-target inline-flex items-center justify-center underline underline-offset-2 max-[767px]:min-h-11" onClick={() => onView?.(row.active_slip_id!)}>{t('bupot.view', 'View bukti potong')}</button>
     </>}
-    {!isActive && row.coverage_state === 'not-recorded' && canWrite && <button type="button" className="underline underline-offset-2" onClick={onRecord}>{t('bupot.record', 'Record bukti potong')}</button>}
-    {onHistory && <button type="button" className="underline underline-offset-2" onClick={onHistory}>{t('bupot.history', 'Bukti potong history')}</button>}
+    {!isActive && row.coverage_state === 'not-recorded' && canWrite && <button type="button" className="touch-target inline-flex items-center justify-center underline underline-offset-2 max-[767px]:min-h-11" onClick={onRecord}>{t('bupot.record', 'Record bukti potong')}</button>}
+    {onHistory && <button type="button" className="touch-target inline-flex items-center justify-center underline underline-offset-2 max-[767px]:min-h-11" onClick={onHistory}>{t('bupot.history', 'Bukti potong history')}</button>}
   </div>;
 }

@@ -128,7 +128,7 @@ test('AC-BUPOT-020 Finance records, corrects and voids one slip covering two Pai
     await page.goto(`/procurement/${ids.caseA}/documents?bupot=${encodeURIComponent(slipId)}`);
     await expect(page.getByLabel(/Bukti potong details/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByLabel(/Bukti potong details/i).getByText(slipNumber)).toBeVisible();
-    await expect(page.getByLabel(/Bukti potong details/i).getByText(/^void$/i)).toHaveCount(2);
+    await expect(page.getByLabel(/Bukti potong details/i).getByText(/^Voided in PMO$/i)).toHaveCount(2);
   } finally {
     const { data: slipRows } = await admin.from('vendor_withholding_slips').select('id').eq('slip_number', slipNumber);
     const slipIds = (slipRows ?? []).map((row) => row.id as string);

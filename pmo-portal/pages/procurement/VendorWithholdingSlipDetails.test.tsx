@@ -36,12 +36,13 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     state.detail.data = detail(overrides);
     renderPanel();
     expect(screen.getByText('TAX-2026-1')).toBeInTheDocument();
-    expect(screen.getByText('IDR 500000.00')).toBeInTheDocument();
-    expect(screen.getAllByText('IDR 20000.00')).toHaveLength(2);
+    expect(screen.getByText(/IDR.?500,000\.00/)).toBeInTheDocument();
+    expect(screen.getAllByText(/IDR.?20,000\.00/)).toHaveLength(2);
     expect(screen.getByText('VI-002')).toBeInTheDocument();
     expect(screen.getByText('Slip change history')).toBeInTheDocument();
     if (overrides.status === 'void') expect(screen.getByText(/Duplicate entry/)).toBeInTheDocument();
-    if (overrides.validation_state === 'needs-review') expect(screen.getByText('needs-review')).toBeInTheDocument();
+    if (overrides.validation_state === 'needs-review') { expect(screen.getByText('Needs review')).toBeInTheDocument(); expect(screen.getByText(/Verify the source/)).toBeInTheDocument(); }
+    if (overrides.validation_state === 'reconciled') { expect(screen.getByText('Reconciled')).toBeInTheDocument(); expect(screen.queryByText('Needs review', { selector: 'dt' })).not.toBeInTheDocument(); }
   });
 
   it('shows unavailable with an actionable Reload rather than fabricated facts', () => {

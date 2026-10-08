@@ -1116,14 +1116,14 @@ const ProcurementDetails: React.FC = () => {
       </div>
 
       {recordSlipInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
-        invoice={recordSlipInvoice} vendorId={p.vendor_id} onClose={() => setRecordSlipInvoice(null)}
+        invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
       />}
       {slipHistoryInvoiceId && <VendorWithholdingSlipHistory invoiceId={slipHistoryInvoiceId} onClose={() => setSlipHistoryInvoiceId(null)} onView={(id) => { setSlipHistoryInvoiceId(null); setBupotSelection(id); }} />}
       {new URLSearchParams(location.search).get('bupot') && <VendorWithholdingSlipDetails
         slipId={new URLSearchParams(location.search).get('bupot')!}
         canWrite={may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
         onClose={() => setBupotSelection(null)}
-        onOpenProcurement={(id, slipId) => navigate(`/procurement/${id}?bupot=${encodeURIComponent(slipId)}`)}
+        onOpenProcurement={(id, slipId) => navigate(`/procurement/${id}/documents?bupot=${encodeURIComponent(slipId)}`)}
       />}
 
       {/* Approval / rejection notes */}
@@ -1227,16 +1227,16 @@ const ProcurementDetails: React.FC = () => {
   );
 };
 
-function VendorWithholdingSlipRecordForm({ invoice, vendorId, onClose }: { invoice: ProcurementDetail['invoices'][number]; vendorId: string; onClose: () => void }) {
+function VendorWithholdingSlipRecordForm({ invoice, vendorId, vendorName, onClose }: { invoice: ProcurementDetail['invoices'][number]; vendorId: string; vendorName?: string; onClose: () => void }) {
   const mutation = useVendorWithholdingSlipMutations();
-  return <VendorWithholdingSlipModal invoice={invoice} vendorId={vendorId} open loading={mutation.record.isPending} onClose={onClose} onSave={(input) => mutation.record.mutateAsync(input)} />;
+  return <VendorWithholdingSlipModal invoice={invoice} vendorId={vendorId} vendorName={vendorName} open loading={mutation.record.isPending} onClose={onClose} onSave={(input) => mutation.record.mutateAsync(input)} />;
 }
 
 function VendorWithholdingSlipHistory({ invoiceId, onClose, onView }: { invoiceId: string; onClose: () => void; onView: (id: string) => void }) {
   const { t } = useTranslation();
   const query = useVendorWithholdingRegister({ invoiceId });
   return <Card className="mt-3"><CardHead><div className="flex justify-between"><span>{t('bupot.history', 'Bukti potong history')}</span><Button variant="outline" onClick={onClose}>{t('bupot.close', 'Close')}</Button></div></CardHead><CardPad>
-    {query.isLoading ? <p role="status">{t('bupot.loading', 'Loading bukti potong…')}</p> : query.isError ? <p role="alert">{t('bupot.loadError', 'Bukti potong unavailable')} <Button onClick={() => void query.refetch()}>{t('admin.retry', 'Retry')}</Button></p> : <ul>{(query.data?.pages ?? []).flatMap((page) => page.rows).map((slip) => <li key={slip.slip_id} className="flex justify-between gap-2 py-2"><span className="break-all">{slip.slip_number} · {slip.status}</span><Button variant="outline" onClick={() => onView(slip.slip_id)}>{t('bupot.view', 'View bukti potong')}</Button></li>)}</ul>}
+    {query.isLoading ? <ListState variant="loading" rows={2} /> : query.isError ? <ListState variant="error" title={t('bupot.loadError', 'Bukti potong unavailable')} onRetry={() => void query.refetch()} retryLabel={t('bupot.retry', 'Retry')} /> : (query.data?.pages ?? []).flatMap((page) => page.rows).length === 0 ? <ListState variant="empty" title={t('bupot.noBillHistory', 'No withholding slips recorded for this bill.')} /> : <ul>{(query.data?.pages ?? []).flatMap((page) => page.rows).map((slip) => <li key={slip.slip_id} className="flex justify-between gap-2 py-2"><span className="break-all">{slip.slip_number} · {slip.status}</span><Button variant="outline" onClick={() => onView(slip.slip_id)}>{t('bupot.view', 'View bukti potong')}</Button></li>)}</ul>}
     {query.hasNextPage && <Button variant="outline" onClick={() => void query.fetchNextPage()}>{t('bupot.loadMoreSlips', 'Load more history')}</Button>}
   </CardPad></Card>;
 }
