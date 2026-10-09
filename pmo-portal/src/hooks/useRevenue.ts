@@ -117,6 +117,8 @@ export function useRevenueMutations() {
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
   const isExternal = routeDomainWrite('revenue') === 'external';
 
+  const invalidateVatEligibility = () => qc.invalidateQueries({ queryKey: ['project-vat-editability'] });
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['salesInvoices'] });
     qc.invalidateQueries({ queryKey: ['salesInvoice'] });
@@ -136,6 +138,7 @@ export function useRevenueMutations() {
     },
     onSuccess: () => {
       invalidate();
+      invalidateVatEligibility();
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
@@ -151,6 +154,7 @@ export function useRevenueMutations() {
     },
     onSuccess: () => {
       invalidate();
+      invalidateVatEligibility();
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
@@ -166,6 +170,7 @@ export function useRevenueMutations() {
     },
     onSuccess: () => {
       invalidate();
+      invalidateVatEligibility();
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
