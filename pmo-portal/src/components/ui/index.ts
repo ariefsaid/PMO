@@ -68,6 +68,7 @@ export { CompanyNameLink, type CompanyNameLinkProps } from './CompanyNameLink';
 export { ContactNameLink, type ContactNameLinkProps } from './ContactNameLink';
 export { HoursBar, type HoursBarProps } from './HoursBar';
 export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
+export { MobileActionBar } from './MobileActionBar';
 export { EntryList, type EntryListProps } from './EntryList';
 
 // --- CRUD form primitives (Phase 1, crud-components §2) ---

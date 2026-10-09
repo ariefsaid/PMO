@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
+  MobileActionBar,
   CardHead,
   CardPad,
   Button,
@@ -1197,7 +1198,7 @@ const ProcurementDetails: React.FC = () => {
           The in-card action row remains the canonical slot; this bar mirrors the
           primary CTA only, providing the mobile reach affordance. */}
       {actions.length > 0 && !showVICapture && (
-        <div
+        <MobileActionBar
           data-testid="mobile-sticky-action"
           aria-hidden="true"
           className="hidden max-[920px]:flex fixed bottom-0 left-0 right-0 z-10 items-center gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-sm"
@@ -1222,7 +1223,7 @@ const ProcurementDetails: React.FC = () => {
                 </Button>
               );
             })}
-        </div>
+        </MobileActionBar>
       )}
     </div>
   );
