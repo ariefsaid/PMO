@@ -18,8 +18,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipModal', () => ({ VendorWithholdingSlipModal: ({ invoice, onSave }: { invoice: { id: string }; onSave: (input: { slipId: string }) => void }) => <div role="dialog" aria-label="Record modal"><span>{invoice.id}</span><button onClick={() => onSave({ slipId: 'new-slip' })}>Save evidence</button></div> }));
-vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string) => void }) => <div data-testid="slip-detail">Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId)}>Open bill in case</button></div> }));
-vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void }) => <section aria-label="Bill row"><span>{invoices[0]?.vi_number}</span><button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record evidence for bill</button><button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
+vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement, suppressArrivalFocus }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string, invoiceId: string) => void; suppressArrivalFocus?: boolean }) => <div data-testid="slip-detail" data-suppress-arrival-focus={suppressArrivalFocus ? 'true' : 'false'}>Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId, 'invoice-2')}>Open bill in case</button></div> }));
+vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span><button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record evidence for bill</button><button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [] }), useProjectOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'requester', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
@@ -50,7 +50,11 @@ function LocationText() { const location = useLocation(); return <output data-te
 function renderAt(path: string) {
   return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
 }
-beforeEach(() => { h.detail.data = procurement; h.detail.isPending = false; h.detail.isError = false; h.detail.error = null; });
+beforeEach(() => {
+  h.detail.data = procurement; h.detail.isPending = false; h.detail.isError = false; h.detail.error = null;
+  h.history.data = { pages: [{ rows: [{ slip_id: 'slip-history', slip_number: 'TAX-HISTORY', status: 'void' }] }] };
+  h.history.isLoading = false; h.history.isError = false;
+});
 
 describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
   it('opens the record modal from a paid bill row', () => {
@@ -61,19 +65,30 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     expect(screen.getByRole('button', { name: 'Save evidence' })).toBeInTheDocument();
   });
 
-  it('opens slip details from the URL and closing removes only bupot, preserving other params', async () => {
-    renderAt('/procurement/proc-001?keep=1&bupot=slip-from-url&tabHint=history');
+  it('opens slip details from the URL and closing removes bupot targets, preserving other params', async () => {
+    renderAt('/procurement/proc-001?keep=1&bupot=slip-from-url&bupotBill=invoice-2&tabHint=history');
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-from-url');
     fireEvent.click(screen.getByRole('button', { name: 'Close slip' }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/proc-001?keep=1&tabHint=history'));
   });
 
-  it('AC-BUPOT-020 opens a linked bill in its case Documents tab with the same slip selected', async () => {
+  it('#961 open-case-scroll carries the selected slip and linked bill to the target Documents ledger', async () => {
     renderAt('/procurement/proc-001?bupot=slip-from-url');
     fireEvent.click(screen.getByRole('button', { name: 'Open bill in case' }));
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/documents?bupot=slip-from-url'));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/documents?bupot=slip-from-url&bupotBill=invoice-2'));
     expect(screen.getByRole('tab', { name: /^Documents/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-from-url');
+    expect(screen.getByTestId('slip-detail')).toHaveAttribute('data-suppress-arrival-focus', 'true');
+    expect(screen.getByRole('region', { name: 'Bill row' })).toHaveAttribute('data-target-invoice', 'invoice-2');
+  });
+
+  it('#961 F15 states that this bill has no withholding history', async () => {
+    h.history.data = { pages: [{ rows: [] }] };
+    renderAt('/procurement/proc-001/documents');
+    fireEvent.click(screen.getByRole('button', { name: 'Bill history' }));
+    expect(await screen.findByText('No withholding slips recorded for this bill.')).toBeInTheDocument();
+    expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('opens a retained slip from the bill history entry point, including void entries', async () => {
