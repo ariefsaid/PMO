@@ -84,6 +84,8 @@ export interface DataTableProps<Row> {
    * control (e.g. a name button) to avoid nesting interactive elements.
    */
   rowLabel?: (row: Row) => string;
+  /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
+  rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
   sort?: SortState;
   onSort?: (key: string) => void;
@@ -184,6 +186,7 @@ export function DataTable<Row>({
   rowKey,
   onActivate,
   rowLabel,
+  rowTarget,
   selectedKey,
   sort,
   onSort,
@@ -294,6 +297,7 @@ export function DataTable<Row>({
             ) : (
               rows.map((row) => {
                 const key = rowKey(row);
+                const targetId = rowTarget?.(row);
                 const selected = key === selectedKey;
                 // The <tr> keeps its IMPLICIT role="row" (never role="link",
                 // which breaks table-row semantics and hides body rows from
@@ -304,6 +308,8 @@ export function DataTable<Row>({
                 return (
                   <tr
                     key={key}
+                    id={targetId}
+                    tabIndex={targetId ? -1 : undefined}
                     onClick={
                       onActivate
                         ? (e) => {
@@ -407,6 +413,7 @@ export function DataTable<Row>({
         ) : (
           rows.map((row) => {
             const key = rowKey(row);
+            const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
             const [titleCol, ...restCols] = columns;
             const hasMenu = !!rowMenu;
@@ -415,6 +422,8 @@ export function DataTable<Row>({
             return (
               <li
                 key={key}
+                id={targetId}
+                tabIndex={targetId ? -1 : undefined}
                 className={cn(
                   'relative flex flex-col gap-2 p-4 text-[13.5px] transition-colors',
                   onActivate && 'cursor-pointer',

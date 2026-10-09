@@ -33,7 +33,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         onClick={onToggleRail}
         className="touch-target mobile-rail-toggle hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground max-[921px]:grid [&_svg]:size-[17px]"
       >
-        <Icon name="cols" />
+        <Icon name="menu" />
       </button>
 
       <Breadcrumb parts={breadcrumb} />

@@ -112,6 +112,51 @@ describe('recordHistoryRepository.list', () => {
     expect(names.purchase_request?.get('child-75')).toBe('PR-child-75');
   });
 
+  it('#961 history-bill-label resolves a withholding-link id to its vendor bill number', async () => {
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ data: [
+        { id: 'link-1', invoice: { vi_number: 'VI-2026-01', reference_number: 'ref-1' } },
+        { id: 'link-2', invoice: { vi_number: null, reference_number: 'SUP-REF-02' } },
+      ], error: null }),
+    };
+    from.mockReturnValue(query);
+
+    const names = await recordHistoryRepository.lookupNames({ vendor_withholding_slip_bill: ['link-1', 'link-2'] });
+
+    expect(from).toHaveBeenCalledWith('vendor_withholding_slip_bills');
+    expect(query.select).toHaveBeenCalledWith('id,invoice:procurement_invoices!vendor_withholding_slip_bills_org_id_invoice_id_fkey(vi_number,reference_number)');
+    expect(query.in).toHaveBeenCalledWith('id', ['link-1', 'link-2']);
+    expect(names.vendor_withholding_slip_bill?.get('link-1')).toBe('VI-2026-01');
+    expect(names.vendor_withholding_slip_bill?.get('link-2')).toBe('SUP-REF-02');
+  });
+
+  it('#961 hidden joined invoice stays unresolved when RLS omits it', async () => {
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ data: [{ id: 'private-link-id-42', invoice: null }], error: null }),
+    };
+    from.mockReturnValue(query);
+
+    const names = await recordHistoryRepository.lookupNames({ vendor_withholding_slip_bill: ['private-link-id-42'] });
+
+    expect(names.vendor_withholding_slip_bill?.has('private-link-id-42')).toBe(false);
+  });
+
+  it('#961 archived but readable joined invoice still resolves to its bill number', async () => {
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ data: [
+        { id: 'archived-link', invoice: { vi_number: 'VI-ARCHIVED-01', reference_number: 'archive-ref', archived_at: '2026-10-01T00:00:00Z' } },
+      ], error: null }),
+    };
+    from.mockReturnValue(query);
+
+    const names = await recordHistoryRepository.lookupNames({ vendor_withholding_slip_bill: ['archived-link'] });
+
+    expect(names.vendor_withholding_slip_bill?.get('archived-link')).toBe('VI-ARCHIVED-01');
+  });
+
   it('surfaces an RPC error as an AppError carrying the code', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'boom', code: '42501' } });
     await expect(recordHistoryRepository.list({ entityType: 'project', entityId: 'p1' })).rejects.toMatchObject({

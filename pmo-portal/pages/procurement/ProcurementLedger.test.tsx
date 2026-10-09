@@ -5,7 +5,7 @@
  * empty/filtered-empty states. Uses RTL + the real DataTable (not mocked).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -224,6 +224,26 @@ describe('PR-1 Bahasa rendered-copy contract', () => {
 });
 
 describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
+  it('#961 open-case-scroll focuses the targeted vendor-bill row after route landing', async () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const targetedLedger = () => <MemoryRouter><QueryClientProvider client={client}><ProcurementLedger {...BASE_PROPS} targetInvoiceId="vi-1" /></QueryClientProvider></MemoryRouter>;
+    const view = render(targetedLedger());
+    try {
+      const row = document.getElementById('invoice-vi-1');
+      expect(row).toBeInTheDocument();
+      await waitFor(() => expect(row).toHaveFocus());
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+      view.rerender(targetedLedger());
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      view.unmount();
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: originalScrollIntoView });
+    }
+  });
+
   it('renders a table or card list with all rows', () => {
     wrap(<ProcurementLedger {...BASE_PROPS} />);
     // All system numbers appear

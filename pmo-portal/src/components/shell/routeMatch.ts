@@ -26,10 +26,10 @@ export interface ModuleDef {
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
 export const MODULES: ModuleDef[] = [
   // Dashboard: every authenticated role (no roles restriction = all).
-  { module: 'dashboard', icon: 'grid', label: 'Dashboard', path: '/' },
+  { module: 'dashboard', icon: 'dashboard', label: 'Dashboard', path: '/' },
   {
     module: 'sales',
-    icon: 'pipe',
+    icon: 'pipeline',
     label: 'Sales Pipeline',
     path: '/sales',
     detail: { pattern: '/sales/:opportunityId', param: 'opportunityId' },
@@ -38,7 +38,7 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'procurement',
-    icon: 'cart',
+    icon: 'procurement',
     label: 'Procurement',
     path: '/procurement',
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
@@ -47,7 +47,7 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'projects',
-    icon: 'folder',
+    icon: 'projects',
     label: 'Projects',
     path: '/projects',
     detail: { pattern: '/projects/:projectId', param: 'projectId' },
@@ -65,7 +65,7 @@ export const MODULES: ModuleDef[] = [
   // breadcrumb resolves via the module path and ⌘K Navigate includes them.
   {
     module: 'companies',
-    icon: 'doc',
+    icon: 'companies',
     label: 'Companies',
     path: '/companies',
     // CW-4b: /companies/:id is a routable detail page (retires the drawer-as-record) — the detail
@@ -76,7 +76,7 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'contacts',
-    icon: 'doc',
+    icon: 'contacts',
     label: 'Contacts',
     path: '/contacts',
     // CW-4b: /contacts/:id is a routable detail page (retires the drawer-as-record) — the detail
@@ -105,13 +105,13 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/meetings/:meetingId', param: 'meetingId' },
   },
   // #775: Expenses — every role (own claims); RLS scopes reads.
-  { module: 'expenses', icon: 'dollar', label: 'Expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
+  { module: 'expenses', icon: 'expenses', label: 'Expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
   // AC-W3-N4: My Tasks — the IC's primary landing. Was in PLACEHOLDER_TITLES only (no ⌘K target).
   // Adding here makes it reachable via ⌘K Navigate for roles that have the nav item.
   // Mirror Rail: Engineer·Admin (B-1, AC-W2-IXD-001, OD-W2-4).
   {
     module: 'my-tasks',
-    icon: 'check',
+    icon: 'tasks',
     label: 'My Tasks',
     path: '/my-tasks',
     roles: [UserRole.Engineer, UserRole.Admin],
@@ -121,7 +121,7 @@ export const MODULES: ModuleDef[] = [
   // Finance approves procurement; Exec·PM·Admin approve timesheets. Engineer stays OUT.
   {
     module: 'approvals',
-    icon: 'check',
+    icon: 'approvals',
     label: 'Approvals',
     path: '/approvals',
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],

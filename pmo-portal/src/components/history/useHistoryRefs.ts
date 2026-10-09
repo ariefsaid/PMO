@@ -102,6 +102,7 @@ export function useHistoryRefs(args: {
       payments: new Map([...(docs?.payments ?? []).map((d) => [d.id, joinName(d.pay_number, d.reference_number)] as [string, string]), ...(eventNames.data?.payment ?? new Map())]),
       salesInvoices: eventNames.data?.sales_invoice ?? new Map(),
       procurementInvoices: eventNames.data?.procurement_invoice ?? new Map(),
+      withholdingSlipBills: eventNames.data?.vendor_withholding_slip_bill ?? new Map(),
     };
   }, [
     t, archivedCompanies, profiles.data, companies.data, tasks.data, milestones.data, procurements.data,
