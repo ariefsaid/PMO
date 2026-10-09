@@ -111,10 +111,10 @@ async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<type
 }
 
 /** Synchronous on purpose: the caller attaches `.rejects` in the same tick, so no rejection goes unhandled. */
-function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {}) {
+function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {}, projectTax: Row = {}) {
   const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, evidence), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, evidence, {}, projectTax), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
@@ -198,6 +198,20 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(body.taxes).toBeUndefined();
     const down = await push({}, { ...CLAIM, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00' }, {}, {}, { subject_to_vat: false });
     expect(down.body.taxes).toBeUndefined();
+  });
+
+  it('AC-PPNC-015 a claim create stamps the authoritative project flag over any caller value, and fails closed on a non-boolean source', async () => {
+    // The caller forges FALSE; the project says TRUE — the claim stamp is the project's.
+    const on = await push({ vat_flag_at_resolution: false });
+    expect(on.command.record.vat_flag_at_resolution).toBe(true);
+    // ...and the false direction: a VAT-off project stamps false (never the caller's true).
+    const off = await push({ vat_flag_at_resolution: true }, CLAIM, {}, {}, { subject_to_vat: false });
+    expect(off.command.record.vat_flag_at_resolution).toBe(false);
+
+    // A non-boolean project flag refuses the resolution before any ERP call (fails closed).
+    const { attempt, fetchImpl } = refused(command({ vat_flag_at_resolution: true }), CLAIM, EVIDENCE, {}, { subject_to_vat: 'true' });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('AC-PB-020 AC-PPNC-018 a VAT-on progress claim create sends server-resolved tax rows on claim-derived net total', async () => {
