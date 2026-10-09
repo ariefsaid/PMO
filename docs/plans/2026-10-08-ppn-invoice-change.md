@@ -701,4 +701,33 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 | j — delete persisted create taxes on replay (`dispatchFactory.ts`) | `FAIL ... AC-858-1 a replayed ordinary create keeps its persisted tax rows: no ERPNext read, same digest after the template rate or VAT flag changes`; digest equality AssertionError. | salesInvoiceTaxRows.test.ts: 24/24 PASS |
 | k1 — count Cancelled in submitted AR/revenue (`projectInvoicing.ts` shared allow-list) | `FAIL ... AC-UNB-001: reports submitted invoice totals and remaining contract value on the contract basis`; `invoicedToDate: 10900` vs `2900`. DAL submitted-status filter test also RED. | revenue.test.ts + projectInvoicing.test.ts: 21/21 PASS |
 | k2 — count Cancelled in work-order billing (`0262_billing_by_work_order.sql`) | `Failed test 11: "AC-BWO-001 the cancelled invoice and the withdrawn claim are out, and a raised claim counts once (as its invoice)"`; totals/pending/count tests 3/5/7 also RED. | 0262_work_order_billing_figures.test.sql: Files=1, Tests=18, Result: PASS |
+| l1 — remove outbox project FOR SHARE | `RACE stale_insert: T2 completed without project serialization`; `RACE stale_insert: committed facts violate VAT/history oracle`; failed claim revival also completes with `success` instead of `vat-context-changed`. | AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts |
+
+### AC-PPNC-016 two-session proof output
+
+Harness: `scripts/spikes/ppnc-vat-concurrency.sh`, local Docker psql only, under DB lock.
+T1 is held by an explicit FIFO BEGIN/COMMIT barrier; T2 must appear blocked by T1 in
+`pg_stat_activity`/`pg_blocking_pids` before COMMIT is sent. Bounded polling is observation,
+not sleep-based transaction ordering. Synthetic fixtures are cleaned by an EXIT trap.
+Native creation is the real 0275 RPC. The postconditions check invoice tax, committed flag,
+actor-attributed old/new history and absence of stale activation; failed revival preserves
+its exact payload, digest and failed state.
+
+Restored output (exit 0):
+
+```text
+PASS native_first: T2 waits on T1 project transaction
+PASS native_first: T2 outcome=vat-live-invoice
+PASS native_first: committed VAT, invoice/body and history consistent
+PASS setter_first: T2 waits on T1 project transaction
+PASS setter_first: T2 outcome=success
+PASS setter_first: committed VAT, invoice/body and history consistent
+PASS stale_insert: T2 waits on T1 project transaction
+PASS stale_insert: T2 outcome=vat-context-changed
+PASS stale_insert: committed VAT, invoice/body and history consistent
+PASS stale_revival: T2 waits on T1 project transaction
+PASS stale_revival: T2 outcome=vat-context-changed
+PASS stale_revival: committed VAT, invoice/body and history consistent
+AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts
+```
 
