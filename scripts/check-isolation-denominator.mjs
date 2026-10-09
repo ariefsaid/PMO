@@ -70,7 +70,7 @@ const BUCKETS_SQL = `SELECT id FROM storage.buckets ORDER BY id;`;
 // targets those tables today (they are in the 83-table denominator). The issue requires every public
 // table enumerated, so a composite key is a valid single-column `pk`, not a blocker.
 
-const CATEGORIES = ['tables', 'definer_functions', 'edge_functions', 'buckets'];
+const CATEGORIES = ['tables', 'definer_functions', 'edge_functions', 'buckets', 'rpcs'];
 
 function parseLines(out) {
   return out.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -80,13 +80,12 @@ function parseLines(out) {
  * One-line, paste-ready rendering of a single denominator entry, in the EXACT form the manifest
  * stores it — so an `add to <category>` / `remove from <category>` line is a valid manifest line.
  * Tables render as the `{table, has_org, pk}` object; every other category is a JSON-encoded string.
- * A table carrying the probe's optional column-grant list (`columns`, #965) renders WITH it, so the
- * line stays a complete manifest entry and `--write` regeneration cannot drop the list.
+ * Table expectations render with their catalog tuple so regeneration preserves reviewed metadata.
  */
 export function formatEntry(category, entry) {
   if (category === 'tables') {
     const base = { table: entry.table, has_org: entry.has_org, pk: entry.pk };
-    if (entry.columns != null) base.columns = entry.columns;
+    for (const key of ['columns', 'b_read', 'by_id']) if (entry[key] != null) base[key] = entry[key];
     return JSON.stringify(base);
   }
   return JSON.stringify(entry);
@@ -102,14 +101,15 @@ function tupleOf(list, table) {
 }
 
 /**
- * Carry the manifest's per-table `columns` grant lists (#965) onto freshly-read catalog entries —
- * the merge `--write` regeneration applies so a routine regenerate preserves the probe's
- * data-driven column-grant lists (the live catalog cannot know them; they come from migrations).
+ * Carry reviewed per-table probe metadata onto fresh catalog tuples. New tables remain incomplete
+ * until their source-derived expectations are supplied; regeneration never invents them.
  */
-export function preserveColumns(actualTables, recordedTables) {
+export function preserveTableExpectations(actualTables, recordedTables) {
   return actualTables.map((t) => {
     const rec = recordedTables.find((r) => r.table === t.table);
-    return rec?.columns != null ? { ...t, columns: rec.columns } : t;
+    const metadata = {};
+    for (const key of ['columns', 'b_read', 'by_id']) if (rec?.[key] != null) metadata[key] = rec[key];
+    return { ...t, ...metadata };
   });
 }
 
@@ -154,7 +154,7 @@ export function validateDenominator(parsed) {
   for (const cat of CATEGORIES) {
     if (!Array.isArray(parsed[cat])) throw new Error(`invalid denominator: "${cat}" must be an array`);
   }
-  // The manifest carries EXACTLY the four enumerated categories — no other root key.
+  // Enumeration plus explicit probe expectations; no unrecognized root key.
   const unexpected = Object.keys(parsed).filter((k) => !CATEGORIES.includes(k));
   if (unexpected.length) {
     throw new Error(`invalid denominator: unexpected root key(s) ${unexpected.join(', ')} — manifest holds only ${CATEGORIES.join(', ')}`);
@@ -166,10 +166,14 @@ export function validateDenominator(parsed) {
     }
     if (typeof t.has_org !== 'boolean') throw new Error(`invalid denominator: table ${t.table ?? '(unnamed)'} has_org must be a boolean`);
     if (typeof t.pk !== 'string' || !t.pk.trim()) throw new Error(`invalid denominator: table ${t.table} needs a non-empty "pk" string`);
-    if (t.columns != null && (typeof t.columns !== 'string' || !t.columns.trim())) {
-      throw new Error(`invalid denominator: table ${t.table} columns must be a non-empty string when present`);
+    if (typeof t.columns !== 'string' || !/^(\*|[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*)$/.test(t.columns)) {
+      throw new Error(`invalid denominator: table ${t.table} columns must be an explicit SELECT list`);
     }
-    const key = canonicalTable(t);
+    if (!['own-org-only', 'none', 'global-readable'].includes(t.b_read)) throw new Error(`invalid denominator: table ${t.table} b_read is required`);
+    if (typeof t.by_id !== 'string' || !(t.by_id === 'applicable' || /^n\/a: \S.+/.test(t.by_id)) || (!t.has_org && t.by_id === 'applicable')) {
+      throw new Error(`invalid denominator: table ${t.table} by_id must explain N/A for no-org tables`);
+    }
+    const key = t.table;
     if (tableKeys.has(key)) throw new Error(`invalid denominator: duplicate table tuple ${formatEntry('tables', t)}`);
     tableKeys.add(key);
   }
@@ -181,11 +185,63 @@ export function validateDenominator(parsed) {
       seen.add(entry);
     }
   }
+  const rpcNames = new Set();
+  for (const r of parsed.rpcs) {
+    if (!r || !/^[a-z_][a-z0-9_]*$/.test(r.name) || rpcNames.has(r.name)) throw new Error('invalid denominator: duplicate or invalid RPC name');
+    rpcNames.add(r.name);
+    if (!['inert', 'write'].includes(r.class)) throw new Error(`invalid denominator: RPC ${r.name} class is required`);
+    if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== 500))) {
+      throw new Error(`invalid denominator: RPC ${r.name} expect_denial must declare SQLSTATE/HTTP pairs (never 401)`);
+    }
+    if (r.shape != null && !['empty-array', 'false'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
+    if (!r.expect_denial.length && !r.shape) throw new Error(`invalid denominator: RPC ${r.name} expect_denial or shape is required`);
+    if (!Array.isArray(r.source) || !r.source.length || r.source.some(s => !/^supabase\/migrations\/\d{4}_[a-z0-9_]+\.sql:[1-9][0-9]*$/.test(s))) throw new Error(`invalid denominator: RPC ${r.name} source citations are required`);
+    if (!parsed.definer_functions.some(f => f.replace(/^public\./, '').startsWith(`${r.name}(`))) throw new Error(`invalid denominator: RPC ${r.name} is absent from definer_functions`);
+  }
   return parsed;
 }
 
 export function readDenominator(filePath) {
-  return validateDenominator(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  const parsed = validateDenominator(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  for (const r of parsed.rpcs) {
+    const cited = r.source.map(s => {
+      const [file, line] = s.split(':');
+      const text = fs.readFileSync(path.join(ROOT, file), 'utf8').split('\n')[Number(line) - 1];
+      if (!text?.trim()) throw new Error(`invalid denominator: RPC ${r.name} source citation is stale`);
+      return text;
+    }).join('\n');
+    for (const e of r.expect_denial) {
+      if (!cited.includes(`'${e.sqlstate}'`) && !(e.sqlstate === '42501' && /revoke execute.*from public, anon, authenticated/.test(cited))) throw new Error(`invalid denominator: RPC ${r.name} source does not support ${e.sqlstate}`);
+    }
+  }
+  const script = fs.readFileSync(path.join(ROOT, 'scripts/isolation-probe.sh'), 'utf8');
+  const probed = new Set([
+    ...[...script.matchAll(/\$\(rpc ([a-z_][a-z0-9_]*)\b/g)].map(m => m[1]),
+    ...[...script.matchAll(/"([a-z_][a-z0-9_]*):A_[A-Z_]+:p_[a-z_]+"/g)].map(m => m[1]),
+  ]);
+  const declared = new Set(parsed.rpcs.map(r => r.name));
+  if (probed.size !== declared.size || [...probed].some(name => !declared.has(name))) throw new Error('invalid denominator: RPC probe coverage must exactly match rpcs');
+  return parsed;
+}
+
+export function validateProbeInputs(env = process.env) {
+  const d = readDenominator(DENOMINATOR_PATH);
+  if (Object.hasOwn(env, 'TABLES_JSON')) {
+    let tables;
+    try { tables = JSON.parse(fs.readFileSync(env.TABLES_JSON, 'utf8')); } catch { throw new Error('TABLES_JSON must name a readable, non-empty denominator override'); }
+    const canonical = list => JSON.stringify(list.map(t => Object.fromEntries(Object.entries(t).sort())).sort((a, b) => a.table.localeCompare(b.table)));
+    if (!Array.isArray(tables) || !tables.length || canonical(tables) !== canonical(d.tables)) throw new Error('TABLES_JSON must exactly match the checked-in denominator');
+  }
+  let rows;
+  try { rows = JSON.parse(fs.readFileSync(env.A_ROWS_JSON, 'utf8')); } catch { throw new Error('A_ROWS_JSON must name a readable JSON row manifest'); }
+  const seen = new Set();
+  if (!Array.isArray(rows)) throw new Error('A_ROWS_JSON must contain an array');
+  for (const row of rows) {
+    const t = d.tables.find(t => t.table === row?.table);
+    if (!t || t.by_id !== 'applicable' || row.pk !== t.pk || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(row.id) || seen.has(row.table)) throw new Error('A_ROWS_JSON must contain unique applicable {table,pk,id} records matching the denominator');
+    seen.add(row.table);
+  }
+  return d;
 }
 
 /**
@@ -322,21 +378,21 @@ function selfTest() {
 const isRunAsMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
 if (isRunAsMain) {
   const args = process.argv.slice(2);
+  if (args[0] === '--validate-inputs') {
+    try { validateProbeInputs(); process.exit(0); } catch (err) { console.error(`isolation-probe: ${err.message}`); process.exit(2); }
+  }
   if (args[0] === '--self-test') {
     if (args.length !== 1) { console.error('usage: check-isolation-denominator.mjs --self-test'); process.exit(2); }
     try { process.exit(selfTest()); } catch (err) { console.error(`✗ ${err.message}`); process.exit(1); }
   }
   if (args[0] === '--write') {
     // Regenerate the manifest from the live catalog — the fix path when the guard reports MISSING/STALE.
-    // Per-table `columns` grant lists (#965) exist only in the manifest, so they are merged back from
-    // the current file before writing; a catalog-only regenerate would silently revert them.
+    // Source-derived expectations stay reviewed data; a catalog cannot recreate them.
     if (args.length !== 1) { console.error('usage: check-isolation-denominator.mjs --write'); process.exit(2); }
     const actual = readActualCatalog({});
-    let recorded = null;
-    try { recorded = readDenominator(DENOMINATOR_PATH); } catch {
-      console.error('note: existing denominator unreadable — regenerating without columns merge');
-    }
-    const merged = recorded ? { ...actual, tables: preserveColumns(actual.tables, recorded.tables) } : actual;
+    const recorded = readDenominator(DENOMINATOR_PATH);
+    const merged = { ...actual, tables: preserveTableExpectations(actual.tables, recorded.tables), rpcs: recorded.rpcs };
+    validateDenominator(merged); // New surfaces need reviewed expectations, never inferred defaults.
     fs.writeFileSync(DENOMINATOR_PATH, `${formatDenominator(merged)}\n`);
     console.log(`wrote ${path.relative(ROOT, DENOMINATOR_PATH)} from the live catalog — review the diff, then commit it with the surface it names`);
     process.exit(0);

@@ -554,7 +554,7 @@ catalog is the claim. 2026-09-07: the sweep found 37 vs 4 and a vault reader ans
 closed by an emergency revoke + `0210`. Expected steady state: exactly the RLS helpers (`auth_org_id`,
 `auth_role`, `is_active_member`, `org_feature_enabled`).
 
-⚑ **The probe's table list comes from the checked-in denominator** (`scripts/isolation-probe-denominator.json`, #612 item 1): `scripts/isolation-probe.sh` reads its `tables` array itself when `TABLES_JSON` is unset; set `TABLES_JSON` only to override. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps that file equal to the catalog; `--write` regenerates it.
+⚑ **The probe's table list comes from the checked-in denominator** (`scripts/isolation-probe-denominator.json`, #612 item 1): `scripts/isolation-probe.sh` reads its `tables` array itself when `TABLES_JSON` is unset; an explicit `TABLES_JSON` must exactly match that array, including its reviewed expectations. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps that file equal to the catalog; `--write` regenerates it.
 
 ⚑ **After each deploy, run `scripts/post-deploy-probes.sh`**. It runs `scripts/second-org-smoke.sh`,
 then `scripts/second-org-roles-smoke.sh`, then `scripts/isolation-probe.sh`, and prints one combined
@@ -583,7 +583,7 @@ to land in the caller's org. Money and approval records have no DELETE grant and
 the project that owns them (one project per run); the rest is deleted. Needs `SERVICE` (service role) ONLY
 for the GoTrue admin password rotation. The tracked combined command runs all three probes in order.
 
-For meaningful by-id isolation coverage, tenant A must be a dedicated disposable test org, never a client org. Seed it with one test row for each probed kind (including a procurement, sales invoice, procurement invoice, expense advance claim, budget version and withholding slip); write probes can mutate tenant A if a leak exists. Include each row's table, primary-key name and id in the row manifest. Missing-row checks are reported as skipped; strict mode fails the run when any probe is skipped unless `--allow-skips` is explicitly supplied.
+For meaningful by-id isolation coverage, tenant A must be a dedicated disposable test org, never a client org. Seed it with one test row for each probed kind (including a procurement, sales invoice, procurement invoice, expense advance claim, budget version and withholding slip); write probes can mutate tenant A if a leak exists. Include each row's table, primary-key name and id in the row manifest. Missing applicable-row checks are reported as skipped; no-org tables carry an explicit by-id N/A reason and still receive blind-read probes. Strict mode fails the run when any applicable probe is skipped unless `--allow-skips` is explicitly supplied.
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus

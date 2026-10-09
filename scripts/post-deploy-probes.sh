@@ -15,17 +15,8 @@ require_env() {
   fi
   [ -r "$A_ROWS_JSON" ] || { echo "post-deploy-probes: A_ROWS_JSON must name a readable file" >&2; return 2; }
   [ "${RPC_ONLY:-}" != 1 ] || { echo "post-deploy-probes: inherited RPC_ONLY=1 is not allowed" >&2; return 2; }
-  jq -e 'type == "array" and all(.[]; (.table|type)=="string" and (.table|test("^[a-z_][a-z0-9_]*$")) and (.pk|type)=="string" and (.pk|test("^[a-z_][a-z0-9_]*$")) and (.id|type)=="string" and (.id|test("^[0-9a-fA-F-]{36}$")))' "$A_ROWS_JSON" >/dev/null 2>&1 || { echo "post-deploy-probes: A_ROWS_JSON must be a JSON array of {table,pk,id} records" >&2; return 2; }
-  if [ "${TABLES_JSON+x}" = x ]; then
-    [ -n "$TABLES_JSON" ] && [ -r "$TABLES_JSON" ] || { echo "post-deploy-probes: TABLES_JSON override must name a readable, non-empty file" >&2; return 2; }
-    jq -e 'type == "array" and length > 0 and all(.[]; (.table|type)=="string" and (.table|test("^[a-z_][a-z0-9_]*$")) and (.pk|type)=="string" and (.pk|test("^[a-z_][a-z0-9_]*$")) and (.has_org|type)=="boolean")' "$TABLES_JSON" >/dev/null 2>&1 || { echo "post-deploy-probes: TABLES_JSON must contain a non-empty JSON array" >&2; return 2; }
-  fi
-  local table pk id code
-  while IFS=$'\t' read -r table pk id; do
-    [ -n "$table" ] || continue
-    code=$(curl -sS -o "${TMPDIR:-/tmp}/post-deploy-validate.body" -w '%{http_code}' -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" "$BASE/rest/v1/$table?select=org_id&$pk=eq.$id&limit=1" 2>/dev/null) || code=000
-    [ "$code" = 200 ] && jq -e --arg org "$A_ORG" 'type=="array" and length==1 and .[0].org_id==$org' "${TMPDIR:-/tmp}/post-deploy-validate.body" >/dev/null 2>&1 || { echo "post-deploy-probes: A_ROWS_JSON contains an id not verified as belonging to tenant A" >&2; return 2; }
-  done < <(jq -r '.[] | [.table,.pk,.id] | @tsv' "$A_ROWS_JSON")
+  node "$SCRIPT_DIR/check-isolation-denominator.mjs" --validate-inputs || return $?
+  ISOLATION_VALIDATE_ONLY=1 "$SCRIPT_DIR/isolation-probe.sh" || return $?
 }
 parse_summary() {
   local org=$1 roles=$2 isolation=$3
@@ -41,7 +32,7 @@ parse_summary() {
   [ -n "$org_steps" ] && [ -n "$org_fails" ] && [ -n "$roles_steps" ] && [ -n "$roles_fails" ] && [ -n "$checks" ] && [ -n "$leaks" ] && [ -n "$skipped" ] && [ -n "$probe_errors" ] || {
     echo "post-deploy-probes: could not parse all probe summaries" >&2; return 1;
   }
-  org_pass=$((org_steps - org_fails)); roles_pass=$((roles_steps - roles_fails)); isolation_pass=$((checks - leaks))
+  org_pass=$((org_steps - org_fails)); roles_pass=$((roles_steps - roles_fails)); isolation_pass=$((checks - leaks - probe_errors))
   printf 'post-deploy probes: org-smoke=%s passed/%s, %s failed; roles-smoke=%s passed/%s, %s failed; isolation=%s passed/%s, %s leaks, %s probe errors, %s skipped\n' \
     "$org_pass" "$org_steps" "$org_fails" "$roles_pass" "$roles_steps" "$roles_fails" "$isolation_pass" "$checks" "$leaks" "$probe_errors" "$skipped"
   [ "$org_fails" = 0 ] && [ "$roles_fails" = 0 ] && [ "$leaks" = 0 ] && [ "$probe_errors" = 0 ] && { [ "${ALLOW_SKIPS:-0}" = 1 ] || [ "$skipped" = 0 ]; }
@@ -49,13 +40,15 @@ parse_summary() {
 isolation_exit_status() {
   local output=$1 status=$2 allow_skips=$3
   if [ "$status" -eq 4 ] || printf '%s\n' "$output" | grep -Eq 'probe_errors: [1-9]'; then printf 4; return 0; fi
+  if [ "$status" -eq 1 ] || printf '%s\n' "$output" | grep -Eq 'leaks: [1-9]'; then printf 1; return 0; fi
   if [ "$allow_skips" != 1 ] && printf '%s\n' "$output" | grep -Eq 'skipped: [1-9]'; then printf 3; return 0; fi
   printf '%s' "$status"
 }
 self_test() {
-  local output
+  local output status
   if env -i PATH="$PATH" bash "$0" --invalid >/dev/null 2>&1; then echo 'FAIL invalid argument accepted'; return 1; fi
-  if env -i PATH="$PATH" bash -c 'script=$1; set --; POST_DEPLOY_PROBES_LIBRARY_ONLY=1; source "$script"; require_env' _ "$0" >/dev/null 2>&1; then echo 'FAIL missing env accepted'; return 1; fi
+  output=$(env -i PATH="$PATH" bash -c 'script=$1; set --; POST_DEPLOY_PROBES_LIBRARY_ONLY=1; source "$script"; require_env' _ "$0" 2>&1); status=$?
+  [ "$status" = 2 ] && [ "$output" = 'post-deploy-probes: required environment inputs missing: BASE ANON SMOKE_EMAIL SMOKE_PASSWORD SERVICE JWT_B A_ORG B_ORG A_ROWS_JSON' ] || { echo 'FAIL missing-env diagnostic/exit'; return 1; }
   ALLOW_SKIPS=1
   output=$(parse_summary 'second-org smoke: 12 steps, 0 failed' 'steps=20 fails=0' '=== checks: 40  leaks: 0  probe_errors: 0  skipped: 2 [missing rows]') || { echo 'FAIL summary parse'; return 1; }
   [ "$output" = 'post-deploy probes: org-smoke=12 passed/12, 0 failed; roles-smoke=20 passed/20, 0 failed; isolation=40 passed/40, 0 leaks, 0 probe errors, 2 skipped' ] || { echo "FAIL unexpected summary: $output"; return 1; }
@@ -65,7 +58,8 @@ self_test() {
   ALLOW_SKIPS=0
   if parse_summary 'second-org smoke: 12 steps, 0 failed' 'steps=20 fails=0' '=== checks: 40  leaks: 0  probe_errors: 0  skipped: 1 [missing rows]' >/dev/null; then echo 'FAIL strict-default skip accepted'; return 1; fi
   if env -i PATH="$PATH" bash -c 'script=$1; set --; POST_DEPLOY_PROBES_LIBRARY_ONLY=1; source "$script"; RPC_ONLY=1; BASE=x ANON=x SMOKE_EMAIL=x SMOKE_PASSWORD=x SERVICE=x JWT_B=x A_ORG=x B_ORG=x A_ROWS_JSON=/dev/null require_env' _ "$0" >/dev/null 2>&1; then echo 'FAIL RPC_ONLY accepted'; return 1; fi
-  echo 'PASS post-deploy-probes self-test: argument validation, required-env validation, summary parsing, probe-error exit, strict skips, RPC_ONLY rejection'
+  node --test "$SCRIPT_DIR/check-isolation-denominator.test.mjs" || return $?
+  echo 'PASS post-deploy-probes self-test: argument validation, exact missing-env diagnostic/exit, summary parsing, probe-error exit, strict skips, RPC_ONLY rejection, isolation behavior regressions'
 }
 
 [ "${POST_DEPLOY_PROBES_LIBRARY_ONLY:-0}" = 1 ] && return 0
