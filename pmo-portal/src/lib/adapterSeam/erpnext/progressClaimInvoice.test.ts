@@ -193,14 +193,14 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(body.items).toEqual([{ item_code: 'OWN-ITEM', qty: 2, rate: 10 }]);
   });
 
-  it('AC-856-6 a claim on a project that is not subject to VAT sends no tax rows and reads no template', async () => {
+  it('AC-856-6 AC-PPNC-018 a VAT-off progress or down-payment claim create follows the authoritative flag and sends no rows', async () => {
     const { body } = await push({ taxes: [{ charge_type: 'On Net Total', account_head: 'EVIL', rate: 99 }] }, CLAIM, {}, {}, { subject_to_vat: false });
     expect(body.taxes).toBeUndefined();
     const down = await push({}, { ...CLAIM, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00' }, {}, {}, { subject_to_vat: false });
     expect(down.body.taxes).toBeUndefined();
   });
 
-  it('AC-PB-020 sends the default template rows explicitly as On Net Total, and the net total excludes the recovery', async () => {
+  it('AC-PB-020 AC-PPNC-018 a VAT-on progress claim create sends server-resolved tax rows on claim-derived net total', async () => {
     const { body } = await push({});
     expect(body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
     // ERP taxes the net total: 4×50,000 + 1×100,000 − 40,000 recovery = 260,000 (the recovery line is in the items).
@@ -208,7 +208,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(items.reduce((sum, item) => sum + item.qty * item.rate, 0)).toBe(260000);
   });
 
-  it('AC-PB-020 sends the tax row on a down payment invoice too', async () => {
+  it('AC-PB-020 AC-PPNC-018 a VAT-on down-payment create uses its authoritative flag and server-resolved tax rows', async () => {
     const { body } = await push({}, { ...CLAIM, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00' });
     expect(body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
   });

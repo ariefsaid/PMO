@@ -100,8 +100,8 @@
     {"table":"timesheet_erp_mirror","has_org":true,"pk":"id"},
     {"table":"timesheets","has_org":true,"pk":"id"},
     {"table":"user_views","has_org":true,"pk":"id"},
-    {"table":"vendor_withholding_slips","has_org":true,"pk":"id"},
     {"table":"vendor_withholding_slip_bills","has_org":true,"pk":"id"},
+    {"table":"vendor_withholding_slips","has_org":true,"pk":"id"},
     {"table":"work_orders","has_org":true,"pk":"id"}
   ],
   "definer_functions": [
@@ -132,6 +132,7 @@
     "clone_budget_version(uuid)",
     "confirm_erp_employee_link(uuid,uuid)",
     "confirm_outbox(uuid,integer)",
+    "correct_vendor_withholding_slip(uuid,integer,text,date,date,text)",
     "create_native_sales_invoice(uuid,uuid,jsonb,uuid)",
     "create_payment(uuid,uuid,text,text,date,numeric,text,uuid,timestamp with time zone)",
     "create_procurement_invoice(uuid,procurement_invoice_status,date,text,numeric,text,uuid,timestamp with time zone,text,numeric,numeric,text,integer,integer,text,numeric,text)",
@@ -147,6 +148,7 @@
     "erpnext_sweep_tick()",
     "finalize_external_connect(uuid,text,text,boolean,boolean,uuid)",
     "get_process_gates(uuid)",
+    "get_project_vat_editability(uuid)",
     "grant_sales_invoice_submit_clearance(uuid,uuid,uuid)",
     "has_meeting_grant(uuid)",
     "insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid)",
@@ -190,12 +192,10 @@
     "rate_limit_hit(text,integer,integer)",
     "read_vault_secret(text)",
     "record_expense_advance_return(uuid,numeric,text)",
-    "record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])",
-    "correct_vendor_withholding_slip(uuid,integer,text,date,date,text)",
-    "void_vendor_withholding_slip(uuid,integer,text)",
     "record_native_receipt(uuid,numeric,numeric,numeric,text,date)",
     "record_outbox_ref(uuid,integer,text,text,text,text)",
     "record_timesheet_command_held(uuid,uuid,timestamp with time zone,text,uuid,integer)",
+    "record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])",
     "recover_external_connect_trap(uuid,text,boolean,boolean,uuid)",
     "release_credits(uuid)",
     "release_outbox_hold(uuid,text,text)",
@@ -223,6 +223,7 @@
     "transition_project(uuid,project_status,text,date)",
     "transition_timesheet(uuid,timesheet_status,text)",
     "transition_work_order(uuid,work_order_status,boolean)",
+    "void_vendor_withholding_slip(uuid,integer,text)",
     "withdraw_progress_claim(uuid)"
   ],
   "edge_functions": [

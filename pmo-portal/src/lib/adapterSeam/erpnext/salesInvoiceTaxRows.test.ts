@@ -116,6 +116,16 @@ describe('ordinary sales invoice tax rows (#856)', () => {
     expect(templateReads).toEqual([]);
   });
 
+  it('AC-PPNC-018 ordinary next create uses the authoritative current VAT flag, not caller taxes or cancelled history', async () => {
+    const forged = [{ charge_type: 'Actual', account_head: 'EVIL', rate: 99 }];
+    const enabled = await push({ ...TAXED, tax_base_numerator: 11, tax_base_denominator: 12 }, { taxes: forged });
+    expect((enabled.body.taxes as Row[])[0].rate).toBe(11);
+    expect(enabled.command.record.vat_flag_at_resolution).toBe(true);
+    const disabled = await push(VAT_OFF, { taxes: forged });
+    expect(disabled.body).not.toHaveProperty('taxes');
+    expect(disabled.command.record.vat_flag_at_resolution).toBe(false);
+  });
+
   it('AC-856-4 a caller-supplied taxes array is still stripped', async () => {
     const forged = [{ charge_type: 'Actual', account_head: 'EVIL', rate: 99 }];
     const { body } = await push(VAT_OFF, { taxes: forged });

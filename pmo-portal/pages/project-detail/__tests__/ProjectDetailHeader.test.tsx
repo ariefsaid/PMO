@@ -562,6 +562,23 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/invoice that is not cancelled/i);
   });
 
+  it('AC-PPNC-014 stale-save refusal retains the selected flag, shows one stable remedy, refetches, and never succeeds', async () => {
+    projectMutations.setContractValue.mutateAsync.mockRejectedValueOnce(new AppError('diagnostic text', '42501', 'vat-live-invoice'));
+    await openEditor('Finance');
+    await userEvent.click(screen.getByRole('checkbox', { name: /Subject to VAT/i }));
+    await userEvent.clear(screen.getByRole('textbox', { name: /Contract value/i }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Contract value/i }), '100');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '0');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /record/i }));
+    const remedy = await findToastAnnouncement('alert', /PPN was not changed.*invoice state changed/i);
+    expect(remedy).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-checked', 'false');
+    expect(vatBox.refetch).toHaveBeenCalled();
+    expect(screen.queryByText(/Contract value updated/i)).not.toBeInTheDocument();
+  });
+
   it('AC-PPNC-013 loading and unavailable reader states fail closed while preserving the stored flag', async () => {
     vatBox.isPending = true;
     await openEditor('Finance');

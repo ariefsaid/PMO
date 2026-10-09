@@ -25,6 +25,7 @@ import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
 import {
   currencySymbol,
   formatCurrency,
@@ -259,8 +260,18 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       setTaxAmountDraft('');
       setPendingValue(null);
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
+      const refusal = projectVatRefusal(err);
+      if (refusal === 'live-invoice' || refusal === 'command-pending' || refusal === 'context-changed') {
+        toast(
+          t('projectDetail.header.vatStaleSave', 'PPN was not changed. The project\'s invoice state changed; refresh and try again when all invoices are cancelled and commands have settled.'),
+          '',
+          'warning',
+        );
+        void vatCheck.refetch();
+      } else {
+        const { headline, detail } = classifyMutationError(err);
+        toast(headline, detail, 'warning');
+      }
       setPendingValue(null);
     }
   };
