@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 if [[ ${PMO_DB_LOCK_HELD:-0} != 1 ]]; then
-  exec scripts/with-db-lock.sh bash "$0"
+  exec scripts/with-db-lock.sh bash scripts/spikes/ppnc-vat-concurrency.sh
 fi
 psql_local() { docker exec -i supabase_db_pmo-portal psql -X -qAt -U postgres -d postgres -v ON_ERROR_STOP=1; }
 tmp=$(mktemp -d)
@@ -116,7 +116,6 @@ interleave stale_insert "$(setter "$p")" "insert into external_command_outbox(or
  "not (select subject_to_vat from projects where id='$p') and not exists(select 1 from external_command_outbox where idempotency_key='proof-create') and (select count(*)=1 from record_changes where entity_id='$p' and changes->'subject_to_vat'=jsonb_build_object('old',true,'new',false) and actor_id='$actor' and created_at is not null)" "$p"
 # Failed claim revival uses authoritative identity, no payload projectId.
 p=95601600-0000-0000-0000-0000000000b4
-# interleave creates the project, so insert failed fixtures inside T1 before flipping.
 claim=95601600-0000-0000-0000-0000000000d1
 # The fixture must be visible to T2 before T1's VAT transaction begins.
 psql_local <<SQL >/dev/null

@@ -732,3 +732,21 @@ PASS stale_revival: committed VAT, invoice/body and history consistent
 AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts
 ```
 
+### Final verification and self-review
+
+- `git diff 85fa1aa9 -- supabase/migrations`: empty. No production/schema repair required.
+- ONE full suite: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` (exit 0):
+
+```text
+All tests successful.
+Files=409, Tests=5545, 65 wallclock secs ( 1.50 usr  0.70 sys +  3.78 cusr  1.91 csys =  7.89 CPU)
+Result: PASS
+```
+
+- Final standalone harness invocation (self-acquired DB lock): four interleaves PASS, exit 0.
+- `bash -n scripts/spikes/ppnc-vat-concurrency.sh` and `git diff --check`: exit 0.
+- Self-review: changes add behavioral proofs only (claim-family fixtures, genuine uppercase UUIDs,
+  two-session script and evidence). All mutations restored; no assertions weakened, no new app
+  behavior, no push/deploy. Aggregate unit/pgTAP proofs support AC-001; they do not claim the
+  unavailable live ERP/rendered journey passed. Existing served acceptance remains a separate gate.
+
