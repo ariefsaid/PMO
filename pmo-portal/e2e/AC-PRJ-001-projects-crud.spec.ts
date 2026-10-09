@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — creates unique project names (Date.now()), full CRUD journey creates/edits/archives own data; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
-import { login, pickComboboxOption, openPipelineCard } from './helpers';
+import { login, pickComboboxOption, openPipelineCard, visibleToast } from './helpers';
 
 /**
  * AC-PRJ-001  Projects CRUD — real user journeys (binding BDD authoring principle).
@@ -89,7 +89,7 @@ test(
     const archiveDialog = page.getByRole('alertdialog');
     await expect(archiveDialog).toBeVisible({ timeout: 8_000 });
     await archiveDialog.getByRole('button', { name: /archive project/i }).click();
-    await expect(page.getByText('Project archived', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(visibleToast(page, 'Project archived')).toBeVisible({ timeout: 15_000 });
 
     // GOAL ORACLE: back in the Pipeline, the archived deal is gone from the default list.
     await page.goto('/sales');

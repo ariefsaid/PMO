@@ -20,7 +20,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { login } from '../helpers';
+import { login, visibleToast } from '../helpers';
 import {
   ORG_ID,
   ERP_ACTIVITY_TYPE,
@@ -99,7 +99,7 @@ async function approveInTheApp(page: Page, weekLabel: string) {
   await expect(dialog).not.toBeVisible({ timeout: 30_000 });
 
   // The manager must be TOLD it worked — a silent failure toast here is the journey failing.
-  await expect(page.getByText('Timesheet approved', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(visibleToast(page, 'Timesheet approved')).toBeVisible({ timeout: 30_000 });
   // ...and the approved week leaves the queue.
   await expect(queueItem).toHaveCount(0, { timeout: 20_000 });
 }

@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — dedicated engineer ts-colocated-eng@acme.test (seed profile b3, no other spec touches), steps to empty week + fills hours + saves + submits; own timesheet space.
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, visibleToast } from './helpers';
 
 // AC-IXD-TS-001 (OWNER-VERBATIM journey · OD-UX-1 · plan tasks 13/14/15/16):
 //
@@ -86,7 +86,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   // ── Step 4: Save → hours persist, QUIET toast, NO forced summary/view change ─
   await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
   await saveBtn.click();
-  await expect(page.getByText(/timesheet saved/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(visibleToast(page, /timesheet saved/i)).toBeVisible({ timeout: 15_000 });
 
   // Post-state: she STAYS on the editable grid (no view switch). The editable cell
   // is still an input; the weekly total reflects the persisted 8h; Draft pill shows.
