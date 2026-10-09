@@ -71,15 +71,20 @@ New build files:
 - `supabase/migrations/rollback/0282_vat_flag_unlock_down.sql` — full reversal described below.
 - `supabase/tests/0282_vat_flag_unlock.test.sql`, `0282_vat_flag_unlock_outbox.test.sql`,
   `0282_vat_flag_unlock_acl_history.test.sql` — state/refusal/scope/history proof.
-- `pmo-portal/src/hooks/useProjectVatEditability.ts`, `useProjectVatEditability.test.tsx`,
-  `useRevenue.vatUnlock.test.tsx` (actual existing-write/eligibility invalidation).
+- `pmo-portal/src/hooks/useProjectVatEditability.ts`, `useProjectVatEditability.test.tsx`
+  (the reader/cache-identity half; see the consolidation note below for the write-path half).
 - `pmo-portal/src/lib/projectVatRefusal.ts`, `projectVatRefusal.test.ts` — stable-detail copy selector.
-- `pmo-portal/src/lib/adapterSeam/erpnext/invoiceVatContext.test.ts` — witness source and replay tests.
-- `pmo-portal/pages/project-detail/__tests__/ProjectDetailHeader.vatUnlock.test.tsx`.
+- `pmo-portal/src/lib/adapterSeam/erpnext/salesInvoiceTaxRows.test.ts` +
+  `progressClaimInvoice.test.ts` — witness source and replay tests (consolidated from the planned
+  `invoiceVatContext.test.ts`; the served boundary evidence lives in
+  `supabase/functions/adapter-dispatch/moneyOutboxDeps.test.ts`).
+- `pmo-portal/pages/project-detail/__tests__/ProjectDetailHeader.test.tsx` (the planned
+  `ProjectDetailHeader.vatUnlock.test.tsx` was folded in here).
 - `pmo-portal/e2e/serial/AC-PPNC-001-ppn-reissue.spec.ts` — one curated served-lane normal
   cancel/create/submit journey with mandatory ERP child-row reads and rendered money oracles.
-- `pmo-portal/e2e/AC-PPNC-014-vat-stale-editor.spec.ts` — deterministic rendered stale-refusal journey,
-  mocked RPC/writes, read-only isolation (no DB mutations).
+- `pmo-portal/e2e/AC-PPNC-014-vat-stale-editor.spec.ts` — **not kept**: the deterministic
+  stale-refusal journey is owned at the component layer (AC-PPNC-014 in
+  `ProjectDetailHeader.test.tsx`) plus the stable-code mapping unit (`projectVatRefusal.test.ts`).
 - `scripts/spikes/ppnc-vat-concurrency.sh` — two-session local DB proof, no bench needed.
 - `scripts/spikes/ppnc-vat-rollback.sh` — transactional local up→down→up catalog/history proof.
 
@@ -638,8 +643,8 @@ not suitable for this public repository remain private; this plan specifies inte
 | 010 | pgTAP `0282_vat_flag_unlock_acl_history.test.sql` | Roles/member/org/grants refuse |
 | 011 | pgTAP same file | Existing history diff/actor/time, no-op/fail |
 | 012 | pgTAP `0282_vat_flag_unlock.test.sql` | Native next tax + immutable cancelled history/relock |
-| 013 | Unit `pages/project-detail/__tests__/ProjectDetailHeader.vatUnlock.test.tsx` | Role/state/a11y/i18n editor behavior |
-| 014 | UI e2e `e2e/AC-PPNC-014-vat-stale-editor.spec.ts` | Retained input/code-keyed remedy/refreshed lock |
+| 013 | Component `pages/project-detail/__tests__/ProjectDetailHeader.test.tsx` + `src/hooks/useProjectVatEditability.test.tsx` | Role/state/a11y/i18n editor behavior; reader/cache identity |
+| 014 | Component + unit `ProjectDetailHeader.test.tsx` (stale-save journey) + `src/lib/projectVatRefusal.test.ts` (code-keyed mapping) | Retained input/code-keyed remedy/refreshed lock |
 | 015 | pgTAP `0282_vat_flag_unlock_outbox.test.sql` | Failed revival witness refusal |
 | 016 | Integration `scripts/spikes/ppnc-vat-concurrency.sh` | Actual transaction interleaves |
 | 018 | Unit `src/lib/adapterSeam/erpnext/salesInvoiceTaxRows.test.ts` | New flag drives ordinary/claim/down-payment create |
@@ -652,6 +657,25 @@ served/live journey: existing `salesInvoiceTaxRows.test.ts` (AC-856-2 effective 
 `erpSalesTaxRows.test.ts` and normal SoD tests support it; sanitized spike evidence supports ERP and
 rendered semantics without replacing the canonical pin. There is no claim of PASS until run.
 No invoice/AR/drawdown expected values are weakened.
+
+**Consolidation note (post-implementation, 2026-10-09 review follow-up).** Four files this plan
+names were consolidated while building — their coverage shipped, none of it was lost:
+
+- `invoiceVatContext.test.ts` → the witness/digest/replay proof lives in
+  `salesInvoiceTaxRows.test.ts` (ordinary create + update/amend witness, replay digest) and
+  `progressClaimInvoice.test.ts` (claim witness pin, AC-PPNC-015); the boundary evidence (a forged
+  witness never persists; the digest binds the server-derived one) is served in
+  `supabase/functions/adapter-dispatch/moneyOutboxDeps.test.ts`.
+- `useRevenue.vatUnlock.test.tsx` → the eligibility/invalidation surface is covered by
+  `useProjectVatEditability.test.tsx` (reader + cache identity) and the `ProjectDetailHeader.test.tsx`
+  editor journeys (refetch after a stale refusal; state-driven rendering).
+- `ProjectDetailHeader.vatUnlock.test.tsx` → folded into `ProjectDetailHeader.test.tsx`
+  (AC-PPNC-013/014 live there).
+- `e2e/AC-PPNC-014-vat-stale-editor.spec.ts` → not kept; the stale-refusal journey is owned at the
+  component layer (above), so no AC lost its owner.
+
+Path references elsewhere in this plan (tasks D8/U1 and the Exact verification commands) to these
+four consolidated names read against the surviving owners listed here.
 
 ## Premise corrections and stop conditions
 
