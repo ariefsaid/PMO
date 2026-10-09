@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(20);
 
 insert into organizations (id, name) values ('02830000-0000-0000-0000-000000000001','VAT unlock org');
 insert into auth.users (id, email) values ('02830000-0000-0000-0000-0000000000a1','vat-unlock@example.com');
@@ -10,7 +10,10 @@ insert into companies (id, org_id, name, type) values
 insert into projects (id, org_id, name, status) values
   ('02830000-0000-0000-0000-0000000000b1','02830000-0000-0000-0000-000000000001','Empty','Leads'),
   ('02830000-0000-0000-0000-0000000000b2','02830000-0000-0000-0000-000000000001','Cancelled','Leads'),
-  ('02830000-0000-0000-0000-0000000000b3','02830000-0000-0000-0000-000000000001','Live','Leads');
+  ('02830000-0000-0000-0000-0000000000b3','02830000-0000-0000-0000-000000000001','Live','Leads'),
+  ('02830000-0000-0000-0000-0000000000b4','02830000-0000-0000-0000-000000000001','Native lifecycle','Leads');
+update projects set currency='IDR',tax_treatment='exclusive',tax_amount=0,tax_rate=12,
+ tax_base_numerator=11,tax_base_denominator=12 where id='02830000-0000-0000-0000-0000000000b4';
 insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, invoice_date, amount,
                             erp_outstanding_amount, status, erp_docstatus, author_user_id) values
   ('exclusive', 50, '02830000-0000-0000-0000-0000000000e1','02830000-0000-0000-0000-000000000001',
@@ -35,6 +38,47 @@ select is((select (get_project_vat_editability('02830000-0000-0000-0000-00000000
   'AC-PPNC-019 scoped reader reports eligible after cancellation');
 select is((select get_project_vat_editability('02830000-0000-0000-0000-0000000000b2')->>'hasInvoices'), 'true',
   'AC-PPNC-019 scoped reader reports invoice presence without invoice details');
+
+-- AC-PPNC-012: native invoices use the current flag and never rewrite cancelled tax facts.
+select lives_ok($$ select create_native_sales_invoice('02830000-0000-0000-0000-0000000000b4',
+ '02830000-0000-0000-0000-0000000000c1','[{"item_code":"SVC","description":"Taxed before unlock","qty":1,"rate":100}]'::jsonb) $$,
+ 'AC-PPNC-012 initial native invoice is created with VAT on');
+select is((select row(tax_amount,amount,tax_rate,tax_base_numerator,tax_base_denominator,tax_treatment)::text
+ from sales_invoices where native_lines @> '[{"description":"Taxed before unlock"}]'),
+ row(11.00::numeric,100.00::numeric,12.000::numeric,11,12,'exclusive')::text,
+ 'AC-PPNC-012 native invoice records tax at 12% of 11/12 base');
+select lives_ok($$ select transition_native_sales_invoice((select id from sales_invoices where native_lines @> '[{"description":"Taxed before unlock"}]'),'Cancelled') $$,
+ 'AC-PPNC-012 original native invoice cancels');
+select lives_ok($$ select set_project_contract_value('02830000-0000-0000-0000-0000000000b4'::uuid,100,
+ p_tax_treatment=>'exclusive',p_tax_amount=>0,p_subject_to_vat=>false) $$,
+ 'AC-PPNC-012 cancelled native invoice permits flag off');
+select is((select row(status,tax_amount,amount,tax_rate,tax_base_numerator,tax_base_denominator,tax_treatment)::text
+ from sales_invoices where native_lines @> '[{"description":"Taxed before unlock"}]'),
+ row('Cancelled',11.00::numeric,100.00::numeric,12.000::numeric,11,12,'exclusive')::text,
+ 'AC-PPNC-012 cancelled invoice tax/amount/rate/base/treatment remain byte-identical');
+select lives_ok($$ select create_native_sales_invoice('02830000-0000-0000-0000-0000000000b4',
+ '02830000-0000-0000-0000-0000000000c1','[{"item_code":"SVC","description":"Untaxed after unlock","qty":1,"rate":100}]'::jsonb) $$,
+ 'AC-PPNC-012 native invoice after flag-off is created');
+select is((select row(status,tax_amount,amount,tax_rate,tax_base_numerator,tax_base_denominator)::text
+ from sales_invoices where native_lines @> '[{"description":"Untaxed after unlock"}]'),
+ row('Draft',0.00::numeric,100.00::numeric,0.000::numeric,1,1)::text,
+ 'AC-PPNC-012 next native invoice is untaxed with retained rate basis');
+select throws_ok($$ select set_project_contract_value('02830000-0000-0000-0000-0000000000b4'::uuid,100,
+ p_tax_treatment=>'exclusive',p_tax_amount=>0,p_subject_to_vat=>true) $$,
+ '42501','this project VAT setting is locked by its invoice state',
+ 'AC-PPNC-012 live native draft relocks the VAT flag');
+select lives_ok($$ select transition_native_sales_invoice((select id from sales_invoices where native_lines @> '[{"description":"Untaxed after unlock"}]'),'Cancelled') $$,
+ 'AC-PPNC-012 cancel native draft to unlock next VAT change');
+select lives_ok($$ select set_project_contract_value('02830000-0000-0000-0000-0000000000b4'::uuid,100,
+ p_tax_treatment=>'exclusive',p_tax_amount=>0,p_subject_to_vat=>true) $$,
+ 'AC-PPNC-012 all native invoices cancelled permits flag on');
+select lives_ok($$ select create_native_sales_invoice('02830000-0000-0000-0000-0000000000b4',
+ '02830000-0000-0000-0000-0000000000c1','[{"item_code":"SVC","description":"Taxed after re-enable","qty":1,"rate":200}]'::jsonb) $$,
+ 'AC-PPNC-012 next native invoice after flag-on is created');
+select is((select row(status,tax_amount,amount,tax_rate,tax_base_numerator,tax_base_denominator)::text
+ from sales_invoices where native_lines @> '[{"description":"Taxed after re-enable"}]'),
+ row('Draft',22.00::numeric,200.00::numeric,12.000::numeric,11,12)::text,
+ 'AC-PPNC-012 next native invoice uses recorded rate and base');
 reset role;
 select is(has_function_privilege('anon','public.get_project_vat_editability(uuid)','execute'),false,
   'AC-PPNC-019 anonymous users cannot call the scoped reader');
