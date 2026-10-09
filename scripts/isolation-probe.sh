@@ -63,12 +63,11 @@ _rpc_count_file=$(mktemp "${TMPDIR:-/tmp}/isolation-rpc-count.XXXXXX")
 _rpc_error_file=$(mktemp "${TMPDIR:-/tmp}/isolation-rpc-errors.XXXXXX")
 trap 'rm -f "$_rpc_count_file" "$_rpc_error_file" ${_tables_tmp:+'"$_tables_tmp"'}' EXIT
 rpc(){
-  local fn=$1 body=$2 code error_code
+  local fn=$1 body=$2 code
   code=$(req -X POST "${hdr_b[@]}" "$BASE/rest/v1/rpc/$fn" -d "$body")
   printf 'x\n' >> "$_rpc_count_file"
-  error_code=$(jq -r '.code // empty' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || true)
-  if [ "$code" = 404 ] || [ "$error_code" = PGRST202 ]; then
-    printf '%s (HTTP %s%s)\n' "$fn" "$code" "$([ "$error_code" = PGRST202 ] && printf ', PGRST202')" >> "$_rpc_error_file"
+  if [ "$code" = 404 ] || grep -q 'PGRST202' "${TMPDIR:-/tmp}/probe.body"; then
+    printf '%s (HTTP %s%s)\n' "$fn" "$code" "$(grep -q 'PGRST202' "${TMPDIR:-/tmp}/probe.body" && printf ', PGRST202')" >> "$_rpc_error_file"
   fi
   say "  rpc $fn → $code $(head -c 110 "${TMPDIR:-/tmp}/probe.body" | tr '\n' ' ')" >&2
   echo "$code"
