@@ -690,6 +690,7 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
 it('AC-TAG-002 Projects intersects classification controls, preserves URL and clears the actual result', async () => {
   projectsState.data = seed.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) as unknown as ProjectWithRefs[];
   const user = userEvent.setup(); renderPage('Project Manager', '/projects?view=table');
+  await user.click(screen.getByRole('button', { name: /^Classification$/ }));
   await user.selectOptions(screen.getAllByLabelText('Filter by service line')[0], 'Engineering');
   expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
   expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
@@ -701,6 +702,7 @@ it('AC-TAG-002 Projects intersects classification controls, preserves URL and cl
 it('AC-TAG-002 Engineer classification filters remain available without manager-only customer controls', async () => {
   projectsState.data = seed.map((p) => ({ ...p, service_line: 'Engineering' })) as unknown as ProjectWithRefs[];
   renderPage('Engineer', '/projects?filter=All&view=table');
+  await userEvent.click(screen.getByRole('button', { name: /^Classification$/ }));
   expect(screen.getByLabelText('Filter by service line')).toBeInTheDocument();
   expect(screen.queryByLabelText('Filter by customer')).toBeNull();
 });

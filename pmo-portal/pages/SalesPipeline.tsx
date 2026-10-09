@@ -531,6 +531,36 @@ const SalesPipeline: React.FC = () => {
           ) : null}
         </>
       }
+      mobileToolbar={state !== 'loading' && (
+        <div className="w-full min-w-0 space-y-2">
+          {view === 'table' && (
+            <div className="max-w-full overflow-x-auto scroll-fade-x">
+              <ViewToggle<DealScope>
+                options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
+                value={scope} onChange={(v) => setWorkingSet((ws) => ({ ...ws, scope: v }))}
+                ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
+              />
+            </div>
+          )}
+          <div className="flex min-w-0 items-center gap-2">
+            <SearchMini placeholder={t('sales.search.placeholder', 'Search projects…')}
+              aria-label={t('sales.search.label', 'Search projects')} value={search}
+              onChange={(e) => setSearch(e.target.value)} containerClassName="min-w-0! flex-1" className="min-w-0" />
+            <ViewToggle
+              options={[
+                { value: 'kanban', label: t('sales.view.board', 'Board'), icon: 'cards' },
+                { value: 'table', label: t('sales.view.table', 'Table'), icon: 'table' },
+              ]}
+              value={view} onChange={onViewChange} ariaLabel={t('sales.viewToggleLabel', 'Pipeline view')}
+            />
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <ProjectClassificationFilters rows={kanbanProjects} value={workingSet}
+              onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} inlineTrigger />
+            <ExportButton rows={filtered} columns={exportColumns} entity="Pipeline" />
+          </div>
+        </div>
+      )}
       filters={
         state !== 'loading' &&
         /* Open / Lost scope — table-only (the kanban already shows the Lost column). */
@@ -543,7 +573,13 @@ const SalesPipeline: React.FC = () => {
           />
         )
       }
-      secondaryFilter={state !== 'loading' && <ProjectClassificationFilters rows={kanbanProjects} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />}
+      secondaryFilter={state !== 'loading' && (
+        <ProjectClassificationFilters
+          rows={kanbanProjects}
+          value={workingSet}
+          onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))}
+        />
+      )}
       search={
         state !== 'loading' && (
           <SearchMini

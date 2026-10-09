@@ -151,6 +151,7 @@ const Projects: React.FC = () => {
   // so the mobile toolbar can drive them.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [classificationOpen, setClassificationOpen] = useState(false);
   // null = closed; true = the create-deal modal is open.
   const [createOpen, setCreateOpen] = useState(false);
   // null = closed; { project } = edit modal open.
@@ -315,7 +316,14 @@ const Projects: React.FC = () => {
   );
 
   const classificationCount = activeClassificationCount(workingSet);
-  const classificationFilters = <ProjectClassificationFilters rows={all} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />;
+  const classificationFilters = (
+    <ProjectClassificationFilters rows={all} value={workingSet} closeOnMobileSelect
+      onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))}
+      open={classificationOpen} onOpenChange={(next) => {
+        setClassificationOpen(next);
+        if (next) { setFiltersOpen(false); setMoreOpen(false); }
+      }} />
+  );
   const filtersActive =
     classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
   const hasNonDefaultFilter =
@@ -400,7 +408,7 @@ const Projects: React.FC = () => {
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
         return (
-          <div className="flex min-w-0 max-w-none items-center gap-2.5 md:max-w-[160px]">
+          <div className="flex min-w-0 items-start gap-2.5">
             <span
               aria-hidden
               className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
@@ -408,8 +416,8 @@ const Projects: React.FC = () => {
             >
               {(p.name.trim().charAt(0) || '•').toUpperCase()}
             </span>
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5">
+            <div className="min-w-0 md:w-60 md:min-w-60">
+              <div className="flex min-w-0 flex-col items-start gap-1">
                 <button
                   type="button"
                   data-list-return-focus={`projects:${p.id}`}
@@ -417,7 +425,7 @@ const Projects: React.FC = () => {
                     e.stopPropagation();
                     onOpen(p);
                   }}
-                  className="block max-w-none whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:max-w-[16ch] md:truncate"
+                  className="block w-full whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:line-clamp-2"
                   title={p.name}
                 >
                   {p.name}
@@ -465,9 +473,7 @@ const Projects: React.FC = () => {
           />
         </div>
       ),
-      // Keep both customer columns at the high-priority 1440px desktop width.
-      // At narrower laptop widths, the table prioritizes project and delivery data.
-      colClassName: 'hidden min-[1360px]:table-cell',
+      // The DataTable's bounded scroll keeps ancillary fields reachable on laptops.
     },
     {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
@@ -484,7 +490,6 @@ const Projects: React.FC = () => {
           />
         </div>
       ),
-      colClassName: 'hidden min-[1360px]:table-cell',
     },
     {
       key: 'pm',
@@ -728,7 +733,7 @@ const Projects: React.FC = () => {
   // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
   // it into cards.
   const secondaryCount =
-    classificationCount + (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
+    (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
   const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
   const selectedEndCustomer = endCustomerFilterOptions.find((o) => o.value === filterEndCustomer);
   const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
@@ -815,7 +820,7 @@ const Projects: React.FC = () => {
             closeOnSelectChange
             onOpenChange={(next) => {
               setFiltersOpen(next);
-              if (next) setMoreOpen(false);
+              if (next) { setMoreOpen(false); setClassificationOpen(false); }
             }}
           >
             <div className="w-full min-w-0 space-y-3">
@@ -932,16 +937,7 @@ const Projects: React.FC = () => {
                     </p>
                   )}
               </div>
-              {classificationFilters}
             </div>
-          </MobileToolbarDisclosure>
-        )}
-
-        {isEngineer && (
-          <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
-            count={classificationCount} open={filtersOpen} closeOnSelectChange
-            onOpenChange={(next) => { setFiltersOpen(next); if (next) setMoreOpen(false); }}>
-            {classificationFilters}
           </MobileToolbarDisclosure>
         )}
 
@@ -951,7 +947,7 @@ const Projects: React.FC = () => {
             open={moreOpen}
             onOpenChange={(next) => {
               setMoreOpen(next);
-              if (next) setFiltersOpen(false);
+              if (next) { setFiltersOpen(false); setClassificationOpen(false); }
             }}
           >
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
@@ -960,6 +956,8 @@ const Projects: React.FC = () => {
           </MobileToolbarDisclosure>
         )}
       </div>
+
+      {classificationFilters}
 
       {/* active secondary-filter chips + Clear all (AC-PRJUX-002) */}
       {hasNonDefaultFilter && (
