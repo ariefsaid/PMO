@@ -156,12 +156,6 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               </div>
             )}
           </div>
-          {!isInline && (
-            <p className="max-w-[68ch] text-[13px] text-muted-foreground">
-              Approval actions remain permission-gated in the UI and server-enforced via the
-              procurement transition RPC.
-            </p>
-          )}
         </div>
 
         <div className={isInline ? 'space-y-3' : 'min-h-0 flex-1 space-y-4 overflow-y-auto pt-4'}>

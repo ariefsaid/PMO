@@ -74,7 +74,7 @@ vi.mock('react-router', async (importOriginal) => {
   return { ...actual, useNavigate: () => navigateMock };
 });
 
-import { ProcurementApprovalRow } from '../ProcurementApprovalRow';
+import { ProcurementApprovalPreview, ProcurementApprovalRow } from '../ProcurementApprovalRow';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -165,6 +165,19 @@ describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjace
     await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     // Our mocked DecisionSupportPanel renders "Budget impact · Solar Alpha"
     expect(screen.getByTestId('decision-support')).toBeInTheDocument();
+  });
+
+  it('approval preview contains no developer-facing enforcement copy', () => {
+    render(
+      <MemoryRouter>
+        <ImpersonationProvider realRole="Project Manager">
+          <ToastProvider>
+            <ProcurementApprovalPreview row={ROW as never} />
+          </ToastProvider>
+        </ImpersonationProvider>
+      </MemoryRouter>,
+    );
+    expect(document.body).not.toHaveTextContent(/RPC|server-enforced|permission-gated/i);
   });
 
   it('line item name renders in expanded panel', async () => {

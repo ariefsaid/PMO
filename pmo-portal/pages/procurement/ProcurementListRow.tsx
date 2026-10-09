@@ -26,19 +26,27 @@ import { LifecycleStepper } from '@/src/components/ui';
 /** UIP-007: one comparative desktop template, shared by the header and every row. */
 const columnGrid = 'grid grid-cols-2 gap-3 md:grid-cols-12';
 const columnFields = [
-  { key: 'request', label: 'Request', span: 'col-span-2 md:col-span-3' },
-  { key: 'project', label: 'Project', span: 'col-span-2 md:col-span-2' },
-  { key: 'requester', label: 'Requester', span: 'md:col-span-2' },
-  { key: 'value', label: 'Value', span: 'md:col-span-2 md:text-right' },
-  { key: 'age', label: 'Age', span: 'md:col-span-1' },
-  { key: 'status', label: 'Status', span: 'md:col-span-2' },
+  { key: 'request', span: 'col-span-2 md:col-span-3' },
+  { key: 'project', span: 'col-span-2 md:col-span-2' },
+  { key: 'requester', span: 'md:col-span-2' },
+  { key: 'value', span: 'md:col-span-2 md:text-right' },
+  { key: 'age', span: 'md:col-span-1 md:pl-4' },
+  { key: 'status', span: 'md:col-span-2' },
 ] as const;
 
 export const ProcurementListColumns: React.FC = () => {
   const { t } = useTranslation();
+  const labels = {
+    request: t('procurement.columns.request', 'Request'),
+    project: t('procurement.columns.project', 'Project'),
+    requester: t('procurement.columns.requester', 'Requester'),
+    value: t('procurement.columns.value', 'Value'),
+    age: t('procurement.columns.age', 'Age'),
+    status: t('procurement.columns.status', 'Status'),
+  };
   return (
     <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid`}>
-      {columnFields.map(({ key, label, span }) => <span key={key} className={span}>{t(`procurement.columns.${key}`, label)}</span>)}
+      {columnFields.map(({ key, span }) => <span key={key} className={span}>{labels[key]}</span>)}
     </div>
   );
 };
@@ -76,6 +84,7 @@ const ExpandedPanel: React.FC<{
    * footer link, so it carries the same validated Procurement return context as the row/title. */
   onOpen: (path: string) => boolean;
 }> = ({ row, panelId, onOpen }) => {
+  const { t } = useTranslation();
   const detail = useProcurementDetail(row.id);
 
   return (
@@ -91,7 +100,7 @@ const ExpandedPanel: React.FC<{
         <ListState
           variant="error"
           title="Couldn't load request details"
-          sub="Something went wrong fetching the preview."
+          sub={t('procurement.preview.loadErrorSub', 'Something went wrong fetching the preview.')}
           onRetry={() => detail.refetch()}
         />
       ) : detail.data ? (
@@ -109,9 +118,9 @@ const ExpandedPanel: React.FC<{
           {detail.data.items.length > 0 && (
             <div className="mb-3">
               <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                Line items
+                {t('procurement.preview.lineItems', 'Line items')}
               </h4>
-              <ul className="space-y-1" aria-label="Line items">
+              <ul className="space-y-1" aria-label={t('procurement.preview.lineItems', 'Line items')}>
                 {detail.data.items.map((item) => {
                   const lineTotal = item.amount ?? item.quantity * item.rate;
                   return (
@@ -149,7 +158,7 @@ const ExpandedPanel: React.FC<{
               }}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
             >
-              View full request
+              {t('procurement.preview.viewFullRequest', 'View full request')}
               <Icon name="chev" aria-hidden />
             </Link>
           </div>
@@ -190,7 +199,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           openRecord(`/procurement/${row.id}`);
         }}
         className={`${columnGrid} cursor-pointer items-start px-3.5 py-3 text-xs text-muted-foreground transition-colors hover:bg-accent/60`}>
-        <div className="col-span-2 flex min-w-0 items-start gap-2 md:col-span-3">
+        <div className={`${columnFields[0].span} flex min-w-0 items-start gap-2`}>
         {/* Disclosure toggle (AC-FIX5-PREVIEW-01) */}
         <Button
           variant="ghost"
@@ -235,23 +244,23 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
 
         </div>
         <dl className="contents">
-          <div className="col-span-2 min-w-0 break-words md:col-span-2">
+          <div className={`${columnFields[1].span} min-w-0 break-words`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.project', 'Project')}</dt>
             <dd><ProjectNameLink projectId={row.project_id} name={row.project?.name ?? null} className="block whitespace-normal break-words" /></dd>
           </div>
-          <div className="min-w-0 break-words md:col-span-2">
+          <div className={`${columnFields[2].span} min-w-0 break-words`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.requester', 'Requester')}</dt>
             <dd>{row.requested_by?.full_name ?? '—'}</dd>
           </div>
-          <div data-procurement-value className="min-w-0 tabular md:col-span-2 md:text-right">
+          <div data-procurement-value className={`${columnFields[3].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
             <dd className="break-words font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</dd>
           </div>
-          <div className="min-w-0 tabular md:col-span-1">
+          <div className={`${columnFields[4].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.age', 'Age')}</dt>
             <dd>{daysAgo(row.created_at)}</dd>
           </div>
-          <div className="min-w-0 md:col-span-2">
+          <div className={`${columnFields[5].span} min-w-0`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>
             <dd className="space-y-2">
               <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>
