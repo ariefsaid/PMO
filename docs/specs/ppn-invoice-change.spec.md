@@ -1,6 +1,6 @@
 # PPN invoice correction and project VAT unlock — #956
 
-Date: 2026-10-08. Status: **proposed for owner sign-off; implementation and rehearsal not run**.
+Date: 2026-10-08. Status: **signed off by the owner 2026-10-09; implementation and rehearsal not run**.
 Decision authority: OD-TAX-4, DD-TAX-4b (amends DD-TAX-4a's permanent lock only), OD-TAX-4c, DD-PBL-13,
 DD-PBL-7, OD-SAR-PMO-IS-THE-UI, OD-SAR-DRAFT-SUBMIT. e-Faktur replacement/cancellation in
 Coretax remains manual (#893 records its number/date only).
