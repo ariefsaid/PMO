@@ -37,7 +37,7 @@
     {"table":"expense_claim_lines","has_org":true,"pk":"id"},
     {"table":"expense_claims","has_org":true,"pk":"id"},
     {"table":"expense_posting_erp_mirror","has_org":true,"pk":"id"},
-    {"table":"external_command_outbox","has_org":true,"pk":"id"},
+    {"table":"external_command_outbox","has_org":true,"pk":"id","columns":"id,org_id,domain,pmo_record_id,external_tier,operation,state,external_record_id,canonical,payload,payload_digest,attempt_count,claim_generation,claimed_at,reconcile_after,last_error,actor_user_id,created_at,updated_at"},
     {"table":"external_domain_ownership","has_org":true,"pk":"id"},
     {"table":"external_org_bindings","has_org":true,"pk":"id"},
     {"table":"external_project_bindings","has_org":true,"pk":"id"},
@@ -100,7 +100,7 @@
     {"table":"timesheet_erp_mirror","has_org":true,"pk":"id"},
     {"table":"timesheets","has_org":true,"pk":"id"},
     {"table":"user_views","has_org":true,"pk":"id"},
-    {"table":"vendor_withholding_slips","has_org":true,"pk":"id"},
+    {"table":"vendor_withholding_slips","has_org":true,"pk":"id","columns":"id,org_id,vendor_id,slip_number,slip_date,tax_period,pph_type,currency,tax_base,withheld_amount,invoice_count,status,revision,created_by,created_at,updated_at,voided_by,voided_at,void_reason"},
     {"table":"vendor_withholding_slip_bills","has_org":true,"pk":"id"},
     {"table":"work_orders","has_org":true,"pk":"id"}
   ],

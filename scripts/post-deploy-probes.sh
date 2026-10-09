@@ -20,7 +20,7 @@ require_env() {
 }
 parse_summary() {
   local org=$1 roles=$2 isolation=$3
-  local org_steps org_fails org_pass roles_steps roles_fails roles_pass checks leaks skipped isolation_pass
+  local org_steps org_fails org_pass roles_steps roles_fails roles_pass checks leaks skipped rpc_errors isolation_pass
   org_steps=$(printf '%s\n' "$org" | sed -nE 's/.*: ([0-9]+) steps,.*/\1/p' | tail -1)
   org_fails=$(printf '%s\n' "$org" | sed -nE 's/.* ([0-9]+) failed.*/\1/p' | tail -1)
   roles_steps=$(printf '%s\n' "$roles" | sed -nE 's/.*steps=([0-9]+).*/\1/p' | tail -1)
@@ -28,20 +28,21 @@ parse_summary() {
   checks=$(printf '%s\n' "$isolation" | sed -nE 's/.*checks: ([0-9]+).*/\1/p' | tail -1)
   leaks=$(printf '%s\n' "$isolation" | sed -nE 's/.*leaks: ([0-9]+).*/\1/p' | tail -1)
   skipped=$(printf '%s\n' "$isolation" | sed -nE 's/.*skipped: ([0-9]+).*/\1/p' | tail -1)
-  [ -n "$org_steps" ] && [ -n "$org_fails" ] && [ -n "$roles_steps" ] && [ -n "$roles_fails" ] && [ -n "$checks" ] && [ -n "$leaks" ] && [ -n "$skipped" ] || {
+  rpc_errors=$(printf '%s\n' "$isolation" | sed -nE 's/.*probe_errors: ([0-9]+).*/\1/p' | tail -1)
+  [ -n "$org_steps" ] && [ -n "$org_fails" ] && [ -n "$roles_steps" ] && [ -n "$roles_fails" ] && [ -n "$checks" ] && [ -n "$leaks" ] && [ -n "$skipped" ] && [ -n "$rpc_errors" ] || {
     echo "post-deploy-probes: could not parse all probe summaries" >&2; return 1;
   }
   org_pass=$((org_steps - org_fails)); roles_pass=$((roles_steps - roles_fails)); isolation_pass=$((checks - leaks))
-  printf 'post-deploy probes: org-smoke=%s passed/%s, %s failed; roles-smoke=%s passed/%s, %s failed; isolation=%s passed/%s, %s leaks, %s skipped\n' \
-    "$org_pass" "$org_steps" "$org_fails" "$roles_pass" "$roles_steps" "$roles_fails" "$isolation_pass" "$checks" "$leaks" "$skipped"
-  [ "$org_fails" = 0 ] && [ "$roles_fails" = 0 ] && [ "$leaks" = 0 ] && { [ "${STRICT:-0}" != 1 ] || [ "$skipped" = 0 ]; }
+  printf 'post-deploy probes: org-smoke=%s passed/%s, %s failed; roles-smoke=%s passed/%s, %s failed; isolation=%s passed/%s, %s leaks, %s RPC errors, %s skipped\n' \
+    "$org_pass" "$org_steps" "$org_fails" "$roles_pass" "$roles_steps" "$roles_fails" "$isolation_pass" "$checks" "$leaks" "$rpc_errors" "$skipped"
+  [ "$org_fails" = 0 ] && [ "$roles_fails" = 0 ] && [ "$leaks" = 0 ] && [ "$rpc_errors" = 0 ] && { [ "${STRICT:-0}" != 1 ] || [ "$skipped" = 0 ]; }
 }
 self_test() {
   local output
   if env -i PATH="$PATH" bash "$0" --invalid >/dev/null 2>&1; then echo 'FAIL invalid argument accepted'; return 1; fi
   if env -i PATH="$PATH" bash -c 'source "$1"; require_env' _ "$0" >/dev/null 2>&1; then echo 'FAIL missing env accepted'; return 1; fi
-  output=$(parse_summary 'second-org smoke: 12 steps, 0 failed' 'steps=20 fails=0' '=== checks: 40  leaks: 0  skipped: 2 [missing rows]') || { echo 'FAIL summary parse'; return 1; }
-  [ "$output" = 'post-deploy probes: org-smoke=12 passed/12, 0 failed; roles-smoke=20 passed/20, 0 failed; isolation=40 passed/40, 0 leaks, 2 skipped' ] || { echo "FAIL unexpected summary: $output"; return 1; }
+  output=$(parse_summary 'second-org smoke: 12 steps, 0 failed' 'steps=20 fails=0' '=== checks: 40  leaks: 0  probe_errors: 0  skipped: 2 [missing rows]') || { echo 'FAIL summary parse'; return 1; }
+  [ "$output" = 'post-deploy probes: org-smoke=12 passed/12, 0 failed; roles-smoke=20 passed/20, 0 failed; isolation=40 passed/40, 0 leaks, 0 RPC errors, 2 skipped' ] || { echo "FAIL unexpected summary: $output"; return 1; }
   echo 'PASS post-deploy-probes self-test: argument validation, required-env validation, summary parsing'
 }
 
