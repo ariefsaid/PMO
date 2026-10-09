@@ -1,6 +1,6 @@
 // @e2e-isolation: serial — this journey changes the organisation-wide project-number pattern and restores it in finally.
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption } from '../helpers';
+import { login, pickComboboxOption, visibleToast } from '../helpers';
 
 test.setTimeout(120_000);
 
@@ -25,7 +25,7 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
     const savePattern = page.getByRole('button', { name: 'Save pattern' });
     await expect(savePattern).toBeEnabled();
     await savePattern.click();
-    await expect(page.getByRole('status').filter({ hasText: 'Project number pattern updated' })).toBeVisible({ timeout: 15_000 });
+    await expect(visibleToast(page, 'Project number pattern updated')).toBeVisible({ timeout: 15_000 });
     await page.reload();
     await expect(page.getByRole('textbox', { name: 'Project number pattern' })).toHaveValue(customPattern, { timeout: 15_000 });
 
@@ -84,7 +84,7 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
       const restoreButton = page.getByRole('button', { name: 'Save pattern' });
       await expect(restoreButton).toBeEnabled();
       await restoreButton.click();
-      await expect(page.getByRole('status').filter({ hasText: 'Project number pattern updated' })).toBeVisible({ timeout: 15_000 });
+      await expect(visibleToast(page, 'Project number pattern updated')).toBeVisible({ timeout: 15_000 });
       await page.reload();
     }
     await expect(page.getByRole('textbox', { name: 'Project number pattern' })).toHaveValue(originalPattern, { timeout: 15_000 });

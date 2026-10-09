@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — creates its own unique project (Date.now()), edits only that row, and archives it at the end; reads the seed client companies without writing them.
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { login, pickComboboxOption, openPipelineCard, waitForFonts } from './helpers';
+import { login, pickComboboxOption, openPipelineCard, waitForFonts, visibleToast } from './helpers';
 
 /**
  * AC-CHG-019 — Project change history (record-change-history spec D5), real user journey.
@@ -92,5 +92,5 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await archiveDialog.getByRole('button', { name: /archive project/i }).click();
   // The confirm closes only once the archive has saved (a refusal keeps it open with a toast).
   await expect(archiveDialog).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Project archived').first()).toBeVisible({ timeout: 15_000 });
+  await expect(visibleToast(page, 'Project archived')).toBeVisible({ timeout: 15_000 });
 });
