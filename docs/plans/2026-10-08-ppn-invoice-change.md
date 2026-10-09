@@ -697,4 +697,5 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 | g1 — delete witness comparison | `Failed test 1: "AC-PPNC-015 stale VAT witness is refused before activation"` (`caught: no exception`). | Files=4, Tests=88, Result: PASS |
 | g2 — delete failed-revival guard | `Failed test 4: "AC-PPNC-015 failed command cannot revive without a valid VAT witness"` (`caught: no exception`). | Files=4, Tests=88, Result: PASS |
 | h — suppress project record capture | `Failed test 9: "AC-PPNC-011 successful VAT change records exactly one actor-attributed diff"`; `Failed test 10: "AC-PPNC-011 VAT diff records old/new boolean and timestamp"`. | Files=4, Tests=88, Result: PASS |
+| i — remove create effective-rate scaling (`erpSalesTaxRows.ts`) | `FAIL ... AC-856-2 a reduced-base contract (11/12) scales the rate`; `AssertionError: expected 12 to be 11`; AC-PPNC-018 also RED. | salesInvoiceTaxRows.test.ts: 24/24 PASS |
 
