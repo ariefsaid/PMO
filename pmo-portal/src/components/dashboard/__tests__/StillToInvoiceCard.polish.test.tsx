@@ -41,9 +41,10 @@ describe('StillToInvoiceCard dashboard polish', () => {
     const utilities = document.createElement('style');
     utilities.textContent = `
       .p-2 { padding: 8px; }
-      .p-4 { padding: 16px; }
       .px-4 { padding-left: 16px; padding-right: 16px; }
       .py-2 { padding-top: 8px; padding-bottom: 8px; }
+      /* Match Tailwind's conflicting-utility outcome: p-4 follows and overrides py-2. */
+      .p-4 { padding: 16px; }
     `;
     document.head.append(utilities);
 

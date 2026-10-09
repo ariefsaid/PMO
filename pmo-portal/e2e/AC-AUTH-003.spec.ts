@@ -35,6 +35,7 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
 
   await page.goBack();
   await expect(page).toHaveURL('/');
+  await expect(page.getByText('Diego Salvatierra')).toBeVisible();
   const returnedStatusCard = page.getByText('Project Status', { exact: true }).locator('..');
   await expect(
     returnedStatusCard.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true }),
