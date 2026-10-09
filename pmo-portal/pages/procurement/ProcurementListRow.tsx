@@ -11,6 +11,7 @@
  */
 import React, { useId, useState } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
@@ -21,6 +22,26 @@ import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { pillVariantForStatus, stageLabelForStatus, lifecycleSteps } from '../../components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { LifecycleStepper } from '@/src/components/ui';
+
+/** UIP-007: one comparative desktop template, shared by the header and every row. */
+const columnGrid = 'grid grid-cols-2 gap-3 md:grid-cols-12';
+const columnFields = [
+  { key: 'request', label: 'Request', span: 'col-span-2 md:col-span-3' },
+  { key: 'project', label: 'Project', span: 'col-span-2 md:col-span-2' },
+  { key: 'requester', label: 'Requester', span: 'md:col-span-2' },
+  { key: 'value', label: 'Value', span: 'md:col-span-2 md:text-right' },
+  { key: 'age', label: 'Age', span: 'md:col-span-1' },
+  { key: 'status', label: 'Status', span: 'md:col-span-2' },
+] as const;
+
+export const ProcurementListColumns: React.FC = () => {
+  const { t } = useTranslation();
+  return (
+    <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid`}>
+      {columnFields.map(({ key, label, span }) => <span key={key} className={span}>{t(`procurement.columns.${key}`, label)}</span>)}
+    </div>
+  );
+};
 
 export interface ProcurementListRowProps {
   row: ProcurementWithRefs;
@@ -139,6 +160,7 @@ const ExpandedPanel: React.FC<{
 };
 
 export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
+  const { t } = useTranslation();
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
   // list-working-set-return (#682, AC-LRC-005): captures the current Procurement list URL +
@@ -167,7 +189,8 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           trackProcurementDetailOpened('/procurement/:procurementId', 'list');
           openRecord(`/procurement/${row.id}`);
         }}
-        className="flex cursor-pointer flex-wrap items-start gap-2 px-3.5 py-3 transition-colors hover:bg-accent/60">
+        className={`${columnGrid} cursor-pointer items-start px-3.5 py-3 text-xs text-muted-foreground transition-colors hover:bg-accent/60`}>
+        <div className="col-span-2 flex min-w-0 items-start gap-2 md:col-span-3">
         {/* Disclosure toggle (AC-FIX5-PREVIEW-01) */}
         <Button
           variant="ghost"
@@ -200,7 +223,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
               e.preventDefault();
               openRecord(`/procurement/${row.id}`);
             }}
-            className="block truncate font-semibold text-[13px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            className="block line-clamp-2 break-words font-semibold text-sm text-foreground hover:underline rounded"
             title={row.title}
           >
             {row.title}
@@ -210,28 +233,40 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           </div>
         </div>
 
-        {/* Meta — on phones drop to its own full-width line and wrap its items
-            (was `shrink-0`, which forced the block to its ~817px intrinsic width and
-            clipped the amount/status off the right edge under the shell's
-            overflow-x-hidden; AC-MOBILE-OVERFLOW-001). ≥640px: inline, non-shrinking. */}
-        <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-muted-foreground sm:w-auto sm:shrink-0">
-          {row.project?.name && (
-            <ProjectNameLink projectId={row.project_id} name={row.project.name} />
-          )}
-          {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
-          <span className="tabular font-medium text-foreground">
-            {formatCurrency(row.total_value, row.currency)}
-          </span>
-          <span>{daysAgo(row.created_at)}</span>
-          <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>
-            {stageLabelForStatus(row.status as ProcurementStatus)}
-          </StatusPill>
-          <LifecycleStepper
-            variant="inline"
-            steps={lifecycleSteps(row.status as ProcurementStatus)}
-            aria-label={`Lifecycle: ${stageLabelForStatus(row.status as ProcurementStatus)}`}
-          />
         </div>
+        <dl className="contents">
+          <div className="col-span-2 min-w-0 break-words md:col-span-2">
+            <dt className="font-semibold md:sr-only">{t('procurement.columns.project', 'Project')}</dt>
+            <dd><ProjectNameLink projectId={row.project_id} name={row.project?.name ?? null} className="block whitespace-normal break-words" /></dd>
+          </div>
+          <div className="min-w-0 break-words md:col-span-2">
+            <dt className="font-semibold md:sr-only">{t('procurement.columns.requester', 'Requester')}</dt>
+            <dd>{row.requested_by?.full_name ?? '—'}</dd>
+          </div>
+          <div data-procurement-value className="min-w-0 tabular md:col-span-2 md:text-right">
+            <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
+            <dd className="break-words font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</dd>
+          </div>
+          <div className="min-w-0 tabular md:col-span-1">
+            <dt className="font-semibold md:sr-only">{t('procurement.columns.age', 'Age')}</dt>
+            <dd>{daysAgo(row.created_at)}</dd>
+          </div>
+          <div className="min-w-0 md:col-span-2">
+            <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>
+            <dd className="space-y-2">
+              <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>
+                {stageLabelForStatus(row.status as ProcurementStatus)}
+              </StatusPill>
+              <span className="block">
+                <LifecycleStepper
+                  variant="inline"
+                  steps={lifecycleSteps(row.status as ProcurementStatus)}
+                  aria-label={`Lifecycle: ${stageLabelForStatus(row.status as ProcurementStatus)}`}
+                />
+              </span>
+            </dd>
+          </div>
+        </dl>
       </div>
 
       {/* Expanded preview panel (AC-FIX5-PREVIEW-02): ExpandedPanel mounts only when

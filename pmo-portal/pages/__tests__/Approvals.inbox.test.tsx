@@ -118,6 +118,21 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
+  it('UIP-008: desktop queue reserves two lines for request identity ahead of status and metadata', async () => {
+    const title = 'Cable supply for extended commissioning — northern distribution boards';
+    procState.data = [{ ...procRows[0], title }];
+    renderAs('Finance');
+    const button = screen.getByRole('button', { name: new RegExp(title) });
+    const identity = within(button).getByText(title);
+    expect(identity.className).toContain('line-clamp-2');
+    expect(identity.className).not.toContain('truncate');
+    expect(identity.parentElement).toContainElement(within(button).getByText('Requested'));
+    expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
+    await userEvent.tab();
+    await userEvent.click(button);
+    expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByRole('button', { name: /Approve/i })).toBeVisible();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
   it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
     renderAs('Project Manager');
     // The H1 reconciles with the rail's "Approvals" nav item — one canonical name.

@@ -1,5 +1,6 @@
 import React from 'react';
 import { PageHeader, type PageStat } from './PageHeader';
+import { cn } from './cn';
 
 export interface RecordHeaderProps {
   /** Leading icon tile glyph (a letter) or node. Mandatory by the RecordHeader contract. */
@@ -63,7 +64,8 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
         </span>
       ) : undefined
     }
-    className={className}
+    // Phone identity gets a complete row before status; desktop PageHeader is unchanged.
+    className={cn('[&_h1]:basis-full sm:[&_h1]:basis-0', className)}
   />
 );
 

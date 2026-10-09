@@ -87,20 +87,18 @@ function QueueButton({
           selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
         ].join(' ')}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{row.title}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
-              <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
-              <span>·</span>
-              <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
-            </div>
+        <div className="min-w-0">
+          <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
+          <StatusPill variant={workflowVariant(row.status)} className="mt-1">{row.status}</StatusPill>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
+            <span>·</span>
+            <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
           </div>
-          <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
-          <span>{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
-          <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
+        <div className="mt-2 text-xs text-muted-foreground">
+          <span className="block break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
+          <span className="mt-1 block tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
         </div>
       </button>
     );
