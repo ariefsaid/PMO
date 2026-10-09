@@ -21,6 +21,22 @@ describe('AC-BUPOT-016 withholding slip cell', () => {
     expect(screen.getByRole('button', { name: /view bukti potong/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /record bukti potong/i })).not.toBeInTheDocument();
   });
+  it('#961 F13 makes withholding actions at least 44px on phone', () => {
+    const { rerender } = render(<VendorWithholdingSlipCell row={bill('slipped', 'slip-id')} onView={vi.fn()} onHistory={vi.fn()} />);
+    for (const name of [/view bukti potong/i, /bukti potong history/i]) {
+      const action = screen.getByRole('button', { name });
+      expect(action.className).toContain('touch-target');
+      expect(action.className).toContain('max-[767px]:min-h-11');
+    }
+
+    rerender(<VendorWithholdingSlipCell row={bill('not-recorded')} canWrite onRecord={vi.fn()} onHistory={vi.fn()} />);
+    for (const name of [/record bukti potong/i, /bukti potong history/i]) {
+      const action = screen.getByRole('button', { name });
+      expect(action.className).toContain('touch-target');
+      expect(action.className).toContain('max-[767px]:min-h-11');
+    }
+  });
+
   it('offers record only for explicitly uncovered bills and preserves exception labels', () => {
     const record = vi.fn();
     render(<VendorWithholdingSlipCell row={bill('not-recorded')} canWrite onRecord={record} />);
