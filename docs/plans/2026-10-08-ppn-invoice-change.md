@@ -688,4 +688,5 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 | b2 — only payload projectId counted | `Failed test 30: "AC-PPNC-008 claim pmo_record_id blocks before a mirror exists"`; `Failed test 31: "AC-PPNC-008 command without projectId associates through invoice pmo_record_id"`. | Files=4, Tests=88, Result: PASS |
 | c — remove lowercase normalization | `Failed test 22: "AC-PPNC-008 pending SI create refuses the VAT change"`; identity tests 30/31; `Failed test 1: "AC-858-4 an in-flight create with an upper-case projectId still locks the VAT flag"` (0255). Graduated uppercase fixtures containing actual hex letters (the original matrix's project UUID was digits only). | Files=4, Tests=88, Result: PASS |
 | d1 — held treated as terminal | `Failed test 17: "AC-PPNC-008 held SI create refuses the VAT change"`; all held verbs (15–19) and identity (31) fail. | Files=4, Tests=88, Result: PASS |
+| d2 — quarantined treated as terminal | `Failed test 27: "AC-PPNC-008 quarantined SI create refuses the VAT change"`; all quarantined verbs (25–29) fail. | Files=4, Tests=88, Result: PASS |
 
