@@ -291,6 +291,17 @@ frontend (`git push origin <main sha>:refs/heads/production`) — DB-ahead-of-FE
 Then the hosted-grant sweep (§ Prod migration state). State of what is deployed: `supabase functions list`
 and the health endpoint, never this file.
 
+**Who runs which step (since 2026-10-09).** The Claude session's auto-mode safety check refuses the function
+deploy and any command that reads the management token, even with the owner's yes. So the Director runs
+`scripts/db-push-prod.sh` (it resolves its own secret) and then hands the owner ready-to-paste commands for:
+the function deploy (from a clean worktree at `origin/main`, token resolved inline in the same command — never
+written to a file), the health check, the `main` → `production` push, the hosted-grant sweep query, and the
+three after-push probes. The probe secrets (anon + service keys, the smoke-org Admin password rotated per run)
+must stay inside the one process the owner runs; making that a tracked one-command script is #965.
+⚑ GoTrue throttles password sign-ins right after the two smokes — wait a minute before the isolation probe's
+sign-in. ⚑ `supabase db query --linked` works only from the linked main checkout (a worktree has no
+`supabase/.temp/project-ref`).
+
 ### Production auth floor (cloud project — NOT in the committed `config.toml`)
 
 ⚠ The repo's `supabase/config.toml` is the **local-dev** config (open signup, confirmations off,
@@ -530,10 +541,9 @@ per-deployed-project sign-off is the control.
 commands that are the answer (`git rev-parse origin/{production,main,dev}`, the two `rev-list --count`s,
 `supabase migration list --linked`). This section keeps only the rules and the last dated snapshot.
 
-**Snapshot 2026-09-11 (orientation only):** Cloudflare `production` == `main` == `b9a84459` (**v0.10.1**, tag `v0.10.1`); cloud DB at **`0215`** (`0211`–`0215` pushed 2026-09-09 under an explicit owner deploy instruction; earlier: **`0210`** (pushed 2026-09-07/08 under an explicit
-owner deploy instruction: `0187`–`0209` with v0.10.0, then `0210`); all 22 edge functions deployed at stamp
-`d71939c6` (2026-09-10; before that `59f91bbf`) (`scripts/stamp-edge-fns.sh`, verified via `/functions/v1/health`); (before 2026-09-11: Cloudflare `production` == `aa20f394`, release tag `v0.10.0` = `1cd3863c`.) The earlier history (v0.1.0 at `0041`, v0.2.0 at
-`0057`, v0.7.0 …) is in `docs/history.md`.
+**Snapshot 2026-10-09 (orientation only):** `production` == `main` == `97c00cf7` (**v0.17.0**, tag `v0.17.0`); cloud
+DB at **`0282`** (`0262`–`0282` pushed 2026-10-09 under an explicit owner deploy instruction); all 24 edge functions
+stamped `97c00cf7`. Earlier snapshots and release history: `docs/history.md`.
 
 ⚑ **After every prod push, run the hosted-grant sweep** — hosted Supabase grants EXECUTE to `anon` and
 `authenticated` on every `public` function by default; local Docker does not, so a local proof certifies
