@@ -71,7 +71,7 @@ describe('useRecordSearch — pipeline record indexed once → canonical route (
     expect(navigate).not.toHaveBeenCalledWith('/sales/d1');
   });
 
-  it('AC-IXD-PROJ-006: a pipeline row carries the canonical sub-label "Project · Pipeline" + pipe icon', () => {
+  it('AC-IXD-PROJ-006 / UIP-001: a pipeline row carries its canonical sub-label and pipeline glyph', () => {
     state.pipeline = {
       data: { stages: [], projects: [{ id: 'd1', name: 'Harbour Tender' }] },
       isPending: false,
@@ -80,6 +80,6 @@ describe('useRecordSearch — pipeline record indexed once → canonical route (
     const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     const row = result.current.records.find((r) => r.title === 'Harbour Tender');
     expect(row?.sub).toBe('Project · Pipeline');
-    expect(row?.icon).toBe('pipe');
+    expect(row?.icon).toBe('pipeline');
   });
 });

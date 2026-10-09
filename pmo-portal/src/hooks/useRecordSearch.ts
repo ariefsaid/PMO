@@ -1,6 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useMemo } from 'react';
-import type { IconName } from '@/src/components/ui/icons';
 // Type-only import from the component file (not the barrel) — keeps the
 // value-side dependency one-directional (CommandPalette imports filterAndCap
 // from here; this file only borrows the PaletteItem type, erased at runtime).
@@ -90,7 +89,7 @@ export function useRecordSearch(
           p.code ? `Client Project Code: ${p.code}` : null,
         ].filter(Boolean).join(' · ') || undefined,
         searchCodes: [p.pmo_project_number, p.code].filter((value): value is string => Boolean(value)),
-        icon: 'folder' as IconName,
+        icon: 'projects',
         run: () => navigate(`/projects/${p.id}`),
       });
     }
@@ -107,7 +106,7 @@ export function useRecordSearch(
             o.code ? `Client Project Code: ${o.code}` : null,
           ].filter(Boolean).join(' · ') || undefined,
           searchCodes: [o.pmo_project_number, o.code].filter((value): value is string => Boolean(value)),
-          icon: 'pipe' as IconName,
+          icon: 'pipeline',
           // Model B (ADR-0020): a pipeline record has ONE canonical detail route, /projects/:id.
           // After the listProjects scope change the active projects cache no longer holds pre-win
           // rows, so this pipeline loop is the SOLE source of pre-win ⌘K rows — no double-index.
@@ -124,7 +123,7 @@ export function useRecordSearch(
           title: pr.title,
           sub: 'Procurement',
           code: pr.code ?? pr.pr_number ?? undefined,
-          icon: 'cart' as IconName,
+          icon: 'procurement',
           run: () => navigate(`/procurement/${pr.id}`),
         });
       }
@@ -137,7 +136,7 @@ export function useRecordSearch(
           group: 'Records',
           title: companyDisplayName(c),
           sub: c.short_name ? `Company · ${c.name}` : 'Company',
-          icon: 'doc' as IconName,
+          icon: 'companies',
           // CW-4b: open the routable `/companies/:id` record page (was an interim `?focus=<id>`
           // drawer-open until the page landed — now retired).
           run: () => navigate(`/companies/${c.id}`),
@@ -152,7 +151,7 @@ export function useRecordSearch(
           group: 'Records',
           title: ct.full_name,
           sub: 'Contact',
-          icon: 'doc' as IconName,
+          icon: 'contacts',
           // CW-4b: open the routable `/contacts/:id` record page (was an interim `?focus=<id>`
           // drawer-open until the page landed — now retired).
           run: () => navigate(`/contacts/${ct.id}`),
@@ -170,7 +169,7 @@ export function useRecordSearch(
           group: 'Records',
           title: inc.type,
           sub: 'Incident',
-          icon: 'alert' as IconName,
+          icon: 'alert',
           // CW-4a: open the routable detail page (was a dead-end — no detail route existed).
           run: () => navigate(`/incidents/${inc.id}`),
         });
