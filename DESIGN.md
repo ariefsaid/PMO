@@ -291,9 +291,14 @@ the content earns it (a phase/delivery card, a table frame).
 
 **UI font:** Inter variable (opsz 14..32, 400/500/600) + the cv stylistic sets
 (`font-feature-settings: "cv02","cv03","cv04","cv11"`) — the agent-native typographic signature (ADR-0068).
+
 Fallback `system-ui, -apple-system, "Segoe UI", sans-serif`. Root font-size is **16px** (load-bearing:
 rem-based utilities resolve to DESIGN.md sizes — `h-8` = 32px controls). Default body size is 14px,
 line-height 1.45.
+
+**Functional reference legibility.** Rail overlines use the existing 11px
+Overline token. Action/evidence document IDs in a lifecycle stepper use 12px
+identifier text, not decorative 10px microtype. Mono remains identifier-only.
 
 **Mono:** the Tailwind v4 `font-mono` default stack (`ui-monospace, SFMono-Regular, Menlo, …`), applied
 via the `font-mono` utility for IDs/codes/`⌘K` only. **Never** for prose or money (money is Inter-tabular).
@@ -791,10 +796,22 @@ the `ICON_PATHS` registry (`src/components/ui/iconPaths.tsx`). The facade is the
 `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={2}`, round caps/joins,
 `width/height="1em"` (sized by font-size), and `aria-hidden` unless an `aria-label`/`title` is passed.
 
-**Adopting Lucide is DEFERRED.** The hand-rolled monoline set (~36 icons) already matches the Lucide
-style (stroke-2, 24×24, currentColor), and the facade means Lucide can be swapped in behind `<Icon name>`
-with **zero call-site churn** if a future surface needs an icon the set lacks. This is a deliberate
-deferral, not an omission — do not introduce a second icon family or bypass the facade.
+**One licensed geometry family.** UI glyph geometry comes from a pinned Lucide
+release, copied into the typed icon registry with source provenance and the
+distributed license/attributions. `<Icon name=…>` is the public facade; legacy
+named icon exports delegate to it. Do not mix independent 1.5px/2px families.
+Keep 24×24 / stroke 2 / round caps and joins / currentColor. Keep existing
+rendered sizes: about 17px rail, 15px controls; icons remain decorative unless
+explicitly named. Vendor marks and charts are not UI-glyph substitutions.
+
+**Entity semantics stay stable.** Projects uses FolderKanban; Procurement uses
+ShoppingCart; Pipeline uses SquareKanban; Companies Building2; Contacts
+ContactRound; Approvals ListChecks; My Tasks ListTodo; Expenses Receipt;
+Incoming Payments Banknote; Management pack FileSpreadsheet. Use Menu for
+the phone drawer trigger, never the Board/Columns glyph. Rail, Navigate and
+record-search metadata agree for the same entity. Preserve old icon aliases
+until callers are deliberately mapped; do not repurpose financial chart keys
+globally to fix a navigation metaphor.
 
 ---
 
