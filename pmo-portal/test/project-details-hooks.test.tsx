@@ -6,6 +6,8 @@ import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../pages/project-detail/ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 
 // F-1 (baseline §9): the legacy ProjectDetails ran useState AFTER an early

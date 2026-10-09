@@ -2171,8 +2171,14 @@
       "clientCode": "Client Project Code",
       "notSet": "Not set",
       "subjectToVat": "Subject to VAT (PPN)",
-      "subjectToVatLocked": "Locked once the project has an invoice.",
-      "subjectToVatHint": "When on, this project's invoices carry the ERP sales tax. Locked once the project has an invoice."
+      "vatChecking": "Checking whether PPN can be changed…",
+      "vatUnavailable": "PPN editability could not be checked. Retry the check.",
+      "vatRoleReadOnly": "Only Finance or Admin can change whether this project is subject to PPN.",
+      "vatLiveLocked": "Locked while this project has an invoice that is not cancelled. Cancel every project invoice to change PPN.",
+      "vatCommandLocked": "Locked while an invoice command is in flight. Wait for it to settle; held commands need review.",
+      "vatCancelledHint": "All project invoices are cancelled and no invoice command is in flight. You can change PPN for the next invoice; cancelled invoices keep their original tax.",
+      "vatEmptyHint": "Editable until an invoice is raised. New invoices follow this setting.",
+      "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled."
     },
     "milestoneForm": {
       "create": "Create milestone",

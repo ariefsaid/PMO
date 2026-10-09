@@ -46,6 +46,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 import ProjectDetailHeader from '../ProjectDetailHeader';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
+
 const project: ProjectWithRefs = {
   id: 'p1',
   org_id: 'org-1',

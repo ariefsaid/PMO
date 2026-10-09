@@ -43,6 +43,7 @@ import {
   archiveProject,
   deleteProject,
   setProjectContractValue,
+  getProjectVatEditability,
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
@@ -369,6 +370,7 @@ const project: ProjectRepository = {
   archive: (id) => wrap(() => archiveProject(id)),
   delete: (id) => wrap(() => deleteProject(id)),
   setContractValue: (input) => wrap(() => setProjectContractValue(input)),
+  getVatEditability: (id) => wrap(() => getProjectVatEditability(id)),
   proposeNumber: (clientId) => wrap(() => proposeProjectNumber(clientId)),
 };
 

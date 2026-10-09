@@ -111,10 +111,10 @@ async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<type
 }
 
 /** Synchronous on purpose: the caller attaches `.rejects` in the same tick, so no rejection goes unhandled. */
-function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {}) {
+function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {}, projectTax: Row = {}) {
   const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, evidence), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, evidence, {}, projectTax), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
@@ -193,14 +193,28 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(body.items).toEqual([{ item_code: 'OWN-ITEM', qty: 2, rate: 10 }]);
   });
 
-  it('AC-856-6 a claim on a project that is not subject to VAT sends no tax rows and reads no template', async () => {
+  it('AC-856-6 AC-PPNC-018 a VAT-off progress or down-payment claim create follows the authoritative flag and sends no rows', async () => {
     const { body } = await push({ taxes: [{ charge_type: 'On Net Total', account_head: 'EVIL', rate: 99 }] }, CLAIM, {}, {}, { subject_to_vat: false });
     expect(body.taxes).toBeUndefined();
     const down = await push({}, { ...CLAIM, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00' }, {}, {}, { subject_to_vat: false });
     expect(down.body.taxes).toBeUndefined();
   });
 
-  it('AC-PB-020 sends the default template rows explicitly as On Net Total, and the net total excludes the recovery', async () => {
+  it('AC-PPNC-015 a claim create stamps the authoritative project flag over any caller value, and fails closed on a non-boolean source', async () => {
+    // The caller forges FALSE; the project says TRUE — the claim stamp is the project's.
+    const on = await push({ vat_flag_at_resolution: false });
+    expect(on.command.record.vat_flag_at_resolution).toBe(true);
+    // ...and the false direction: a VAT-off project stamps false (never the caller's true).
+    const off = await push({ vat_flag_at_resolution: true }, CLAIM, {}, {}, { subject_to_vat: false });
+    expect(off.command.record.vat_flag_at_resolution).toBe(false);
+
+    // A non-boolean project flag refuses the resolution before any ERP call (fails closed).
+    const { attempt, fetchImpl } = refused(command({ vat_flag_at_resolution: true }), CLAIM, EVIDENCE, {}, { subject_to_vat: 'true' });
+    await expect(attempt).rejects.toMatchObject({ code: 'config-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('AC-PB-020 AC-PPNC-018 a VAT-on progress claim create sends server-resolved tax rows on claim-derived net total', async () => {
     const { body } = await push({});
     expect(body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
     // ERP taxes the net total: 4×50,000 + 1×100,000 − 40,000 recovery = 260,000 (the recovery line is in the items).
@@ -208,7 +222,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(items.reduce((sum, item) => sum + item.qty * item.rate, 0)).toBe(260000);
   });
 
-  it('AC-PB-020 sends the tax row on a down payment invoice too', async () => {
+  it('AC-PB-020 AC-PPNC-018 a VAT-on down-payment create uses its authoritative flag and server-resolved tax rows', async () => {
     const { body } = await push({}, { ...CLAIM, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00' });
     expect(body.taxes).toEqual([{ charge_type: 'On Net Total', account_head: 'VAT - SC', description: 'VAT', rate: 10 }]);
   });

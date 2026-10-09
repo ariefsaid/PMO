@@ -208,7 +208,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'list', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),

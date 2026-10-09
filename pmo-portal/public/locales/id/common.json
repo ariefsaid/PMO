@@ -2171,8 +2171,14 @@
       "clientCode": "Kode Proyek Klien",
       "notSet": "Belum diatur",
       "subjectToVat": "Kena PPN",
-      "subjectToVatLocked": "Terkunci setelah proyek memiliki faktur.",
-      "subjectToVatHint": "Jika aktif, faktur proyek ini membawa pajak penjualan ERP. Terkunci setelah proyek memiliki faktur."
+      "vatChecking": "Memeriksa apakah PPN dapat diubah…",
+      "vatUnavailable": "Status perubahan PPN tidak dapat diperiksa. Coba periksa kembali.",
+      "vatRoleReadOnly": "Hanya Finance atau Admin yang dapat mengubah status PPN proyek ini.",
+      "vatLiveLocked": "Terkunci selama proyek memiliki faktur yang belum dibatalkan. Batalkan semua faktur proyek untuk mengubah PPN.",
+      "vatCommandLocked": "Terkunci selama perintah faktur sedang berjalan. Tunggu hingga selesai; perintah tertahan perlu ditinjau.",
+      "vatCancelledHint": "Semua faktur proyek telah dibatalkan dan tidak ada perintah faktur yang berjalan. PPN dapat diubah untuk faktur berikutnya; pajak faktur yang dibatalkan tetap.",
+      "vatEmptyHint": "Dapat diubah hingga faktur diterbitkan. Faktur baru mengikuti pengaturan ini.",
+      "vatStaleSave": "PPN tidak diubah. Status faktur proyek telah berubah; muat ulang dan coba lagi setelah semua faktur dibatalkan dan perintah selesai."
     },
     "milestoneForm": {
       "create": "Buat milestone",

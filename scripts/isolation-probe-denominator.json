@@ -147,6 +147,7 @@
     "erpnext_sweep_tick()",
     "finalize_external_connect(uuid,text,text,boolean,boolean,uuid)",
     "get_process_gates(uuid)",
+    "get_project_vat_editability(uuid)",
     "grant_sales_invoice_submit_clearance(uuid,uuid,uuid)",
     "has_meeting_grant(uuid)",
     "insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid)",

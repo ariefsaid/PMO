@@ -26,6 +26,11 @@ describe('Checkbox (custom 16px, role=checkbox)', () => {
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
+  it('forwards aria-describedby so associated help is announced with the checkbox', () => {
+    render(<><p id="vat-help">Eligibility explanation</p><Checkbox checked={false} onChange={() => {}} label="VAT" describedBy="vat-help" /></>);
+    expect(screen.getByRole('checkbox', { name: 'VAT' })).toHaveAttribute('aria-describedby', 'vat-help');
+  });
+
   it('mixed renders aria-checked=mixed', () => {
     render(<Checkbox checked="mixed" onChange={() => {}} label="all" />);
     expect(screen.getByRole('checkbox')).toHaveAttribute('aria-checked', 'mixed');
