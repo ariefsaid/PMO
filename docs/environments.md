@@ -554,16 +554,22 @@ catalog is the claim. 2026-09-07: the sweep found 37 vs 4 and a vault reader ans
 closed by an emergency revoke + `0210`. Expected steady state: exactly the RLS helpers (`auth_org_id`,
 `auth_role`, `is_active_member`, `org_feature_enabled`).
 
-⚑ **The probe's table list comes from the checked-in denominator** (`scripts/isolation-probe-denominator.json`, #612 item 1): `scripts/isolation-probe.sh` reads its `tables` array itself when `TABLES_JSON` is unset; set `TABLES_JSON` only to override. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps that file equal to the catalog; `--write` regenerates it.
+⚑ **The probe's table list comes from the checked-in denominator** (`scripts/isolation-probe-denominator.json`, #612 item 1): `scripts/isolation-probe.sh` reads its `tables` array itself when `TABLES_JSON` is unset; an explicit `TABLES_JSON` must exactly match that array, including its reviewed expectations. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps that file equal to the catalog; `--write` regenerates it.
 
-⚑ **Then run the two second-org probes** (2026-09-09, #618): `scripts/isolation-probe.sh` (cross-org
-reads/writes/RPCs as a tenant-B user — #490) and **`scripts/second-org-smoke.sh`** (a `lifecycle=test`
-org's Admin creates, reads back and deletes one row per core entity through REST with NO `org_id` sent,
-and every row must land in *their* org — the check that would have caught #616). Every unit / pgTAP / e2e
-suite runs inside the seed org, where the wrong default is the right value; only a second-org caller
-proves the stamp/trigger-order class (`0212`, `0213`, `0215`). Locally the same lens is
-`E2E_SECOND_ORG=1 scripts/e2e-local.sh` — it moves the seed org to another id after the reset and runs
-the portfolio as that org.
+⚑ **After each deploy, run `scripts/post-deploy-probes.sh`**. It runs `scripts/second-org-smoke.sh`,
+then `scripts/second-org-roles-smoke.sh`, then `scripts/isolation-probe.sh`, and prints one combined
+pass/leak/probe-error/skip summary. Skips fail by default; use `--allow-skips` only when explicitly
+accepting an incomplete probe run. The isolation probe's tenant A must be a dedicated disposable test
+org, never a client org: write probes mutate tenant A if a leak exists. Set `PROBE_A_DISPOSABLE=1` only
+for that disposable org; without it, mutation-capable RPC probes are loudly skipped. Supply all inputs
+through the invoking shell (or caller-owned mode-600 files exported into that shell), exactly as the
+individual scripts do; the tracked runner does not load credential files or resolve credentials. The
+first smoke proves a second-org Admin's core CRUD writes
+land in that org; the per-role smoke walks day-one workflows; the isolation probe exercises cross-org
+reads, writes and RPCs as a tenant-B user. Unit / pgTAP / e2e suites run inside the seed org, where the
+wrong default is the right value; only a second-org caller proves the stamp/trigger-order class
+(`0212`, `0213`, `0215`). Locally the same lens is `E2E_SECOND_ORG=1 scripts/e2e-local.sh` — it moves
+the seed org to another id after reset and runs the portfolio as that org.
 ⚑ **Third probe, per role (2026-09-12): `scripts/second-org-roles-smoke.sh`** — RIS's day one is four non-Admin
 roles touching every workflow (`OD-RIS-1`), and the Admin-only smoke cannot see a role-gated path. It signs in
 as the test org's Admin, rotates the passwords of four standing role fixtures (`smoke-pm` / `smoke-engineer`
@@ -575,8 +581,9 @@ task + sub-task + dependency, document → issued, timesheet → submitted by th
 incident report, sales invoice + incoming payment, the Executive dashboards. 81 steps, every write asserted
 to land in the caller's org. Money and approval records have no DELETE grant and stay in the test org with
 the project that owns them (one project per run); the rest is deleted. Needs `SERVICE` (service role) ONLY
-for the GoTrue admin password rotation. Run it after the other two; ~10 min (the hosted project stalls a
-request now and then — the helper retries a transport stall once).
+for the GoTrue admin password rotation. The tracked combined command runs all three probes in order.
+
+For meaningful by-id isolation coverage, tenant A must be a dedicated disposable test org, never a client org. Seed it with one test row for each probed kind (including a procurement, sales invoice, procurement invoice, expense advance claim, budget version and withholding slip); write probes can mutate tenant A if a leak exists. Include each row's table, primary-key name and id in the row manifest. Missing applicable-row checks are reported as skipped; no-org tables carry an explicit by-id N/A reason and still receive blind-read probes. Strict mode fails the run when any applicable probe is skipped unless `--allow-skips` is explicitly supplied.
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus

@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — dedicated engineer tse-021-eng@acme.test + own week; self-cleans.
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, visibleToast } from './helpers';
 
 // AC-TSE-021 — Engineer logs, edits, deletes, and submits a timesheet week via the real stack.
 //
@@ -54,7 +54,7 @@ async function stepToEmptyWeek(page: Page, maxWeeks = 26): Promise<void> {
 
 /** Wait for a success toast. Use .first() to handle multiple stacked toasts. */
 async function expectSaveToast(page: Page): Promise<void> {
-  await expect(page.getByText(/timesheet saved/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(visibleToast(page, /timesheet saved/i)).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(300);
 }
 

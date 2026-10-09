@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 const h = vi.hoisted(() => ({
   createMutate: vi.fn(async () => ({ id: 'si-new', si_number: '' })),
   submitMutate: vi.fn(async () => undefined),
+  setReceivedDate: vi.fn(async () => undefined),
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   route: 'pmo' as 'pmo' | 'external',
   /** null = ownership still loading; otherwise derived from `route`. */
@@ -32,7 +33,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     create: { mutateAsync: h.createMutate, isPending: false },
     submitInvoice: { mutateAsync: h.submitMutate, isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
-    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: h.setReceivedDate, isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
 }));
@@ -111,6 +112,7 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, la
 beforeEach(async () => {
   h.createMutate.mockClear();
   h.submitMutate.mockClear();
+  h.setReceivedDate.mockReset().mockResolvedValue(undefined);
   h.invoices.data = [];
   h.route = 'pmo';
   h.ownershipLoaded = true;
@@ -436,6 +438,27 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     renderPage();
     await openMenu(user, rowFor('INV-2610070001'));
     expect(screen.getByRole('menuitem', { name: 'Record received date' })).toBeInTheDocument();
+  });
+
+  it('#953 keeps a rejected received-date save in the modal, preserves the date, and does not emit a trapped toast', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
+    h.setReceivedDate.mockRejectedValueOnce(Object.assign(new Error('Permission denied'), { code: '42501' }));
+    const user = userEvent.setup();
+    renderPage();
+    await openMenu(user, rowFor('INV-2610070001'));
+    await user.click(screen.getByRole('menuitem', { name: 'Record received date' }));
+
+    const receivedDate = screen.getByLabelText('Received');
+    await user.type(receivedDate, '2026-10-08');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    const dialog = screen.getByRole('dialog');
+    const saveError = await screen.findByTestId('entity-modal-save-error');
+    expect(dialog).toContainElement(saveError);
+    expect(saveError).toHaveAttribute('role', 'alert');
+    await waitFor(() => expect(saveError).toHaveFocus());
+    expect(receivedDate).toHaveValue('2026-10-08');
+    expect(h.toast).not.toHaveBeenCalled();
   });
 
   it('AC-NAR-004 (DD-NAR-11) a frozen PMO invoice offers no "Record received date" once the ERP owns revenue', async () => {

@@ -13,7 +13,7 @@
 // Un-quarantined 2026-07-25 (it was `test.fixme`d pending "e2e runs serially", which this lane gives).
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { login, requireServiceRoleKey, SEED_PASSWORD } from '../helpers';
+import { login, requireServiceRoleKey, SEED_PASSWORD, visibleToast } from '../helpers';
 
 // These journeys MUTATE shared DB state (approve timesheets/procurements). A retry would
 // re-run against the already-approved (depleted) fixtures and fail spuriously, so retries
@@ -83,7 +83,7 @@ test(
     await expect(dialog).toContainText(new RegExp(`Approve ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?`, 'i'), { timeout: 10_000 });
     await dialog.getByRole('button', { name: /^approve$/i }).click();
     await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
-    await expect(page.getByRole('status').filter({ hasText: /request approved/i })).toContainText(/request approved/i, { timeout: 15_000 });
+    await expect(visibleToast(page, /request approved/i)).toContainText(/request approved/i, { timeout: 15_000 });
     await expect(queue.getByRole('button')).toHaveCount(initialCount - 1, { timeout: 15_000 });
   },
 );

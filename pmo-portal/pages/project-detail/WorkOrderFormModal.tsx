@@ -101,7 +101,6 @@ export interface WorkOrderFormModalProps {
   onClose: () => void;
   onCreate: (input: WorkOrderInput) => Promise<void>;
   onUpdate: (id: string, patch: WorkOrderPatch) => Promise<void>;
-  onError: (err: unknown) => void;
 }
 
 const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
@@ -110,7 +109,6 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
   onClose,
   onCreate,
   onUpdate,
-  onError,
 }) => {
   const { t } = useTranslation();
   const isEdit = !!workOrder;
@@ -201,11 +199,8 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           endDate: blankToNull(values.endDate),
         });
       } catch (err) {
-        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
-        // toast and owns the single `save_failed` event (ADR-0067).
-        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        const { headline, detail } = classifyMutationError(err);
         setSaveError({ headline, detail });
-        onError(err);
       }
     });
   };

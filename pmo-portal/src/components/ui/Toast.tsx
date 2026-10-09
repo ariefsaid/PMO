@@ -169,7 +169,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {children}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
       <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true">{alertAnnouncement}</div>
-      <div className="pointer-events-none fixed bottom-5 right-5 z-[1000] flex flex-col gap-2.5">
+      <div
+        className="pointer-events-none fixed bottom-5 right-5 z-[1000] flex flex-col gap-2.5"
+        style={{ transform: 'translateY(calc(0px - var(--mobile-action-bar-height, 0px)))' }}
+      >
         {item && (
           <AutoDismiss key={item.id} kind={item.kind} textLength={item.title.length + (item.sub?.length ?? 0)} onDone={dismiss}>
             <div className="pointer-events-auto flex max-w-[min(360px,calc(100vw-40px))] items-start gap-1">

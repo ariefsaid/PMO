@@ -22,7 +22,7 @@
  * signs the URL lazily on click (try/catch — non-fatal) and shows an upload
  * affordance for canWrite rows with no file.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CardPad,
@@ -222,6 +222,8 @@ export interface ProcurementLedgerProps {
   onRecordWithholdingSlip?: (invoice: ProcurementInvoiceRow) => void;
   onViewWithholdingSlip?: (slipId: string) => void;
   onWithholdingHistory?: (invoiceId: string) => void;
+  /** Invoice to scroll to after opening this case from a withholding slip detail. */
+  targetInvoiceId?: string;
   /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
   isApprover?: boolean;
 }
@@ -248,10 +250,12 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   onRecordWithholdingSlip,
   onViewWithholdingSlip,
   onWithholdingHistory,
+  targetInvoiceId,
   isApprover = false,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
+  const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation();
   const resolvedWithholdingCoverage = withholdingCoverage;
   const slipCoverageLoading = withholdingCoverageLoading;
@@ -319,6 +323,19 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
     if (filter === 'has-file') return row.fileHref !== null;
     return true;
   });
+
+  useLayoutEffect(() => {
+    if (!targetInvoiceId) {
+      focusedInvoiceTarget.current = null;
+      return;
+    }
+    if (!filteredRows.some((row) => row.type === 'Invoice' && row.recordId === targetInvoiceId)) return;
+    const target = document.getElementById(`invoice-${targetInvoiceId}`);
+    if (!target || target === focusedInvoiceTarget.current) return;
+    target.scrollIntoView({ block: 'nearest' });
+    target.focus({ preventScroll: true });
+    focusedInvoiceTarget.current = target;
+  }, [targetInvoiceId, filteredRows]);
 
   // Determine DataTable state
   const tableState = filteredRows.length === 0 ? 'empty' : undefined;
@@ -406,6 +423,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
+        rowTarget={(row) => row.type === 'Invoice' && row.recordId === targetInvoiceId ? `invoice-${row.recordId}` : undefined}
         rowMenu={(row): RowMenuItem[] | undefined => {
           if (row.type !== 'Invoice') return undefined;
           const items: RowMenuItem[] = [];
