@@ -54,7 +54,7 @@ begin
   foreach v_state in array array['pending','committing','committed','quarantined','held'] loop
     foreach v_verb in array array['create','cancel','amend','update','submit'] loop
       v_n := v_n + 1;
-      v_project := ('02831000-0000-0000-0000-'||lpad(v_n::text,12,'0'))::uuid;
+      v_project := ('02831a00-0000-0000-0000-'||lpad(v_n::text,12,'0'))::uuid;
       v_operation := case when v_verb in ('create','update') then v_verb else 'transition' end;
       v_payload := jsonb_build_object('erp_doc_kind','sales-invoice','projectId',v_project::text);
       if v_state='pending' and v_verb='create' then v_payload := jsonb_set(v_payload,'{projectId}',to_jsonb(upper(v_project::text))); end if;
@@ -82,7 +82,7 @@ insert into progress_claim_evidence(org_id,claim_id,document_id,document_status,
  ('02831000-0000-0000-0000-000000000001','02831000-0000-0000-0000-0000000000c1',
   '02831000-0000-0000-0000-0000000000c2','Approved','02831000-0000-0000-0000-0000000000a1');
 insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload)
- values ('02831000-0000-0000-0000-000000000001','revenue','02831000-0000-0000-0000-0000000000c1',
+ values ('02831000-0000-0000-0000-000000000001','revenue','02831000-0000-0000-0000-0000000000C1',
   'claim-no-mirror','erpnext','transition','pending',
   '{"erp_doc_kind":"sales-invoice","verb":"cancel","vat_flag_at_resolution":true}');
 select is(pg_temp.vat_change_outcome('02831000-0000-0000-0000-0000000000b1'::uuid),'42501|vat-command-pending',
@@ -94,7 +94,7 @@ insert into sales_invoices(tax_treatment,tax_amount,id,org_id,project_id,si_numb
  values ('exclusive',0,'02831000-0000-0000-0000-0000000000d1','02831000-0000-0000-0000-000000000001',
  '02831000-0000-0000-0000-0000000000b1','SI-ASSOC','2026-10-01',100,0,'Cancelled',2,null);
 insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload)
- values ('02831000-0000-0000-0000-000000000001','revenue','02831000-0000-0000-0000-0000000000d1',
+ values ('02831000-0000-0000-0000-000000000001','revenue','02831000-0000-0000-0000-0000000000D1',
   'invoice-id-only','erpnext','transition','held','{"erp_doc_kind":"sales-invoice","verb":"submit"}');
 select is(pg_temp.vat_change_outcome('02831000-0000-0000-0000-0000000000b1'::uuid),'42501|vat-command-pending',
  'AC-PPNC-008 command without projectId associates through invoice pmo_record_id');
