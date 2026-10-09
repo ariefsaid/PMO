@@ -198,7 +198,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       // scrim (`aria-modal` alone is advisory). The toast host lives OUTSIDE this shell
       // and stays announceable.
       data-app-shell="root"
-      className="grid h-[100dvh] w-screen overflow-hidden"
+      className="grid h-[100dvh] w-full overflow-hidden"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
         // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the
