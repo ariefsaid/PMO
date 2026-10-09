@@ -43,7 +43,6 @@ set local request.jwt.claims='{"sub":"02832000-0000-0000-0000-0000000000b1","rol
 select throws_ok($$ select get_project_vat_editability('02832000-0000-0000-0000-0000000000b1'::uuid) $$,
  '42501','not authorized','AC-PPNC-019 wrong-org member cannot read project VAT eligibility');
 set local request.jwt.claims='{"sub":"02832000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-set local request.jwt.claims='{"sub":"02832000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select set_project_contract_value('02832000-0000-0000-0000-0000000000b1'::uuid,100,p_tax_treatment=>'exclusive',p_tax_amount=>0,p_subject_to_vat=>true) $$,
  'AC-PPNC-011 unchanged VAT flag save succeeds');
 select is((select count(*) from record_changes where entity_type='project' and entity_id='02832000-0000-0000-0000-0000000000b1' and changes ? 'subject_to_vat'),0::bigint,
