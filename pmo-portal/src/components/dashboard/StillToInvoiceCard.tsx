@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ListState, TaxBasisLabel } from '@/src/components/ui';
+import { Card, CardHead, ListState, TaxBasisLabel } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { formatCurrencyCents } from '@/src/lib/format';
@@ -25,7 +25,7 @@ const StillToInvoiceBody: React.FC = () => {
   return (
     <Card data-testid="dashboard-still-to-invoice">
       <CardHead>{t('dashboard.stillToInvoice.title', 'Still to invoice on work orders')}</CardHead>
-      <CardPad className={isClear ? 'p-2 px-4' : undefined}>
+      <div className={isClear ? 'px-4 py-2' : 'p-4'}>
         {isPending ? (
           <ListState variant="loading" rows={3} testId="still-to-invoice-loading" />
         ) : isError || !data ? (
@@ -38,7 +38,7 @@ const StillToInvoiceBody: React.FC = () => {
           <div
             role="status"
             data-testid="still-to-invoice-clear"
-            className="py-2 text-[13px] text-muted-foreground"
+            className="text-[13px] text-muted-foreground"
           >
             {t('dashboard.stillToInvoice.empty', 'Nothing left to invoice on issued work orders')}
           </div>
@@ -116,7 +116,7 @@ const StillToInvoiceBody: React.FC = () => {
             </ul>
           </div>
         )}
-      </CardPad>
+      </div>
     </Card>
   );
 };

@@ -32,4 +32,11 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
 
   await expect(page).toHaveURL('/projects/41000000-0000-0000-0000-000000000002');
   await expect(page.getByRole('heading', { name: 'Cascade Foods 6.0 MW Ground-Mount PV' })).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL('/');
+  const returnedStatusCard = page.getByText('Project Status', { exact: true }).locator('..');
+  await expect(
+    returnedStatusCard.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true }),
+  ).toBeVisible();
 });

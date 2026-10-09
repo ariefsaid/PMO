@@ -38,13 +38,22 @@ describe('StillToInvoiceCard dashboard polish', () => {
       refetch: vi.fn(),
     };
 
+    const utilities = document.createElement('style');
+    utilities.textContent = `
+      .p-2 { padding: 8px; }
+      .p-4 { padding: 16px; }
+      .px-4 { padding-left: 16px; padding-right: 16px; }
+      .py-2 { padding-top: 8px; padding-bottom: 8px; }
+    `;
+    document.head.append(utilities);
+
     renderCard();
 
     const clear = screen.getByTestId('still-to-invoice-clear');
     expect(clear).toHaveAttribute('role', 'status');
     expect(clear).toHaveTextContent('Nothing left to invoice on issued work orders');
-    expect(clear.className).toContain('py-2');
-    expect(clear.parentElement?.className).toContain('p-2');
+    expect(Number.parseFloat(getComputedStyle(clear.parentElement!).paddingTop)).toBeLessThanOrEqual(8);
+    utilities.remove();
     expect(clear).not.toHaveTextContent(/\b0\b|\$/);
     expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
