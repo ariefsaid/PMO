@@ -19,11 +19,13 @@ const LINK = 'min-w-0 hover:underline focus-visible:outline focus-visible:outlin
 const StillToInvoiceBody: React.FC = () => {
   const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useUnbilledWorkOrders();
+  const isClear = !isPending && !isError && data !== undefined
+    && data.totals.length === 0 && data.incompleteCount === 0;
 
   return (
     <Card data-testid="dashboard-still-to-invoice">
       <CardHead>{t('dashboard.stillToInvoice.title', 'Still to invoice on work orders')}</CardHead>
-      <CardPad>
+      <CardPad className={isClear ? 'p-2 px-4' : undefined}>
         {isPending ? (
           <ListState variant="loading" rows={3} testId="still-to-invoice-loading" />
         ) : isError || !data ? (
@@ -33,7 +35,13 @@ const StillToInvoiceBody: React.FC = () => {
             onRetry={() => refetch()}
           />
         ) : data.totals.length === 0 && data.incompleteCount === 0 ? (
-          <ListState variant="empty" icon="doc" title={t('dashboard.stillToInvoice.empty', 'Nothing left to invoice on issued work orders')} />
+          <div
+            role="status"
+            data-testid="still-to-invoice-clear"
+            className="py-2 text-[13px] text-muted-foreground"
+          >
+            {t('dashboard.stillToInvoice.empty', 'Nothing left to invoice on issued work orders')}
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             <ul className="flex flex-col gap-1" data-testid="still-to-invoice-totals">
