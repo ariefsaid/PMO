@@ -774,3 +774,33 @@ Result: PASS
   behavior, no push/deploy. Aggregate unit/pgTAP proofs support AC-001; they do not claim the
   unavailable live ERP/rendered journey passed. Existing served acceptance remains a separate gate.
 
+### Rollback spike evidence (2026-10-09 review follow-up)
+
+`bash scripts/spikes/ppnc-vat-rollback.sh` (self-acquired DB lock; local `supabase_db_pmo-portal`
+only; the down SQL + fixtures + assertions run inside ONE transaction that is always rolled back;
+the trap restores the current schema with `supabase db reset`). Exit 0. The assertion portion of
+the run:
+
+```text
+[db-lock] ACQUIRED (waited 0s) - running: bash scripts/spikes/ppnc-vat-rollback.sh
+Applying 0283 rollback in a transaction on local supabase_db_pmo-portal...
+BEGIN
+SET
+DROP TRIGGER / DROP TRIGGER / DROP FUNCTION ×4 / DROP INDEX ×4  (0283 down SQL)
+CREATE FUNCTION ×2 / REVOKE ×2 / GRANT   (pre-0283 guard + setter bodies restored)
+INSERT 0 1 ×6   (synthetic org/user/profile/company/project/cancelled-invoice fixtures)
+SET ×2
+NOTICE:  PASS: pre-0283 setter refuses the VAT flip after a cancelled invoice (0253 message, 42501)
+DO
+RESET
+NOTICE:  PASS: the VAT flag is still locked at its pre-refusal value (true)
+DO
+NOTICE:  PASS: VAT column, project history table, and the cancelled invoice tax survive the rollback
+ROLLBACK
+PASS: rollback assertions completed; restoring current local schema with supabase db reset.
+```
+
+Then the restore (same run): `supabase db reset` re-applied all migrations through
+`0283_vat_flag_unlock.sql`, reseeded, and
+`[db-lock] released (rc=0)`.
+
