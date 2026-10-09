@@ -694,4 +694,5 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 | e2 — remove active-member checks (reader/setter) | `Failed test 3: "AC-PPNC-019 inactive member cannot read project VAT eligibility"`; `Failed test 15: "AC-PPNC-010 inactive Finance member is refused"`. | Files=4, Tests=88, Result: PASS |
 | e3 — remove org checks (reader/setter) | `Failed test 4: "AC-PPNC-019 wrong-org member cannot read project VAT eligibility"`; `Failed test 16: "AC-PPNC-010 wrong-org Finance is refused"`. | Files=4, Tests=88, Result: PASS |
 | f — grant direct flag UPDATE | `Failed test 24: "AC-PPNC-010 direct VAT UPDATE remains unavailable"`; `Failed test 25: "AC-PPNC-010 authenticated direct UPDATE is refused"`. | Files=4, Tests=88, Result: PASS |
+| g1 — delete witness comparison | `Failed test 1: "AC-PPNC-015 stale VAT witness is refused before activation"` (`caught: no exception`). | Files=4, Tests=88, Result: PASS |
 
