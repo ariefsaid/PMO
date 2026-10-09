@@ -692,4 +692,5 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 | d3 — committed treated as terminal | `Failed test 7: "AC-PPNC-008 committed SI create refuses the VAT change"`; all committed verbs (5–9) fail. | Files=4, Tests=88, Result: PASS |
 | e1 — remove flag-role check | `Failed test 11: "AC-PPNC-010 Project Manager is refused"`; Executive/Engineer (13/14) and unchanged-facts/history assertions fail. | Files=4, Tests=88, Result: PASS |
 | e2 — remove active-member checks (reader/setter) | `Failed test 3: "AC-PPNC-019 inactive member cannot read project VAT eligibility"`; `Failed test 15: "AC-PPNC-010 inactive Finance member is refused"`. | Files=4, Tests=88, Result: PASS |
+| e3 — remove org checks (reader/setter) | `Failed test 4: "AC-PPNC-019 wrong-org member cannot read project VAT eligibility"`; `Failed test 16: "AC-PPNC-010 wrong-org Finance is refused"`. | Files=4, Tests=88, Result: PASS |
 
