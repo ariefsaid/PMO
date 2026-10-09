@@ -43,7 +43,7 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
       await expect(intended).toBeVisible();
       if (route === 'projects') {
         await waitForFonts(page);
-        expect(await intended.evaluate((el) => el.parentElement!.getBoundingClientRect().width)).toBeGreaterThanOrEqual(240);
+        expect(await intended.evaluate((el) => el.closest('td')!.getBoundingClientRect().width)).toBeGreaterThanOrEqual(240);
         expect(await intended.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
         expect(await intended.evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('2');
         for (const theme of ['light', 'dark']) {

@@ -35,7 +35,8 @@ describe('UIP-003 project recognition', () => {
     const title = screen.getByRole('button', { name: state.data[0].name });
     expect(title).toHaveClass('md:line-clamp-2');
     expect(title.className).not.toMatch(/truncate|16ch/);
-    expect(title.parentElement?.parentElement).toHaveClass('md:w-60');
+    expect(title.parentElement?.parentElement).toHaveClass('md:w-[190px]');
+    expect(title.closest('td')).toHaveClass('min-[1280px]:w-[244px]');
     for (const name of ['Customer', 'End customer']) {
       expect(screen.getByRole('columnheader', { name })).not.toHaveClass('hidden');
     }

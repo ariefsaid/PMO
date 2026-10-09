@@ -56,6 +56,14 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
       `Projects table scroller scrollWidth ${scrollerScrollWidth}px exceeds clientWidth ${scrollerClientWidth}px`,
     ).toBeLessThanOrEqual(scrollerClientWidth);
 
+    const action = table.getByRole('button', { name: 'Change status' }).first();
+    const actionBounds = await action.boundingBox();
+    const scrollerBounds = await scroller.boundingBox();
+    expect(actionBounds, 'Projects Action button should be rendered').not.toBeNull();
+    expect(scrollerBounds, 'Projects table viewport should be rendered').not.toBeNull();
+    expect(actionBounds!.x).toBeGreaterThanOrEqual(scrollerBounds!.x);
+    expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(scrollerBounds!.x + scrollerBounds!.width);
+
     const { scrollWidth, clientWidth } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,

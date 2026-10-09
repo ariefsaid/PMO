@@ -205,6 +205,24 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.getAllByText('Alice Manager').length).toBeGreaterThan(0);
   });
 
+  it('keeps contract basis concise while exposing the complete qualifier to assistive technology', () => {
+    const previous = projectsState.data;
+    projectsState.data = [{
+      ...seed[0], tax_treatment: 'exclusive', tax_rate: 11,
+      tax_base_numerator: 1, tax_base_denominator: 1,
+    }] as unknown as ProjectWithRefs[];
+    try {
+      renderPage();
+      expect(screen.getByText('excl. PPN')).toBeVisible();
+      const detail = screen.getByText('excl. PPN 11% · DPP 1/1');
+      expect(detail).toHaveAttribute('data-testid', 'contract-tax-label-p1');
+      expect(detail.parentElement).toHaveClass('sr-only');
+      expect(detail.parentElement?.parentElement).toHaveAttribute('aria-describedby', detail.parentElement?.id);
+    } finally {
+      projectsState.data = previous;
+    }
+  });
+
   it('defaults to the Table view and the toggle switches to Cards (AC-A)', async () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
@@ -359,7 +377,7 @@ describe('Projects table — compact layout (#1)', () => {
     expect(outerSpan).not.toBeNull();
   });
 
-  it('M-D: PM name renders in full and wraps — no tight max-w-[10ch] truncation', () => {
+  it('M-D: PM name stays on one line, truncates in the cell, and remains available as a title', () => {
     renderPage();
     // Scope to the table body (the toolbar PM filter <select> also lists the name).
     const tbody = document.querySelector('tbody')!;
@@ -367,10 +385,10 @@ describe('Projects table — compact layout (#1)', () => {
       .getAllByText('Alice Manager')
       .find((el) => el.tagName === 'SPAN')!;
     expect(pmName).toBeTruthy();
-    // The name span allows wrapping (whitespace-normal) rather than truncating.
-    expect(pmName.className).toContain('whitespace-normal');
-    expect(pmName.className).not.toContain('truncate');
-    expect(pmName.className).not.toContain('max-w-[10ch]');
+    // The compact one-line label is truncated visually while the containing PM cell carries its full title.
+    expect(pmName.className).toContain('truncate');
+    expect(pmName.className).toContain('whitespace-nowrap');
+    expect(pmName.parentElement).toHaveAttribute('title', 'Alice Manager');
   });
 });
 
