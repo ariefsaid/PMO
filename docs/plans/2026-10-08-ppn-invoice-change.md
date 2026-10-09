@@ -696,4 +696,5 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 | f — grant direct flag UPDATE | `Failed test 24: "AC-PPNC-010 direct VAT UPDATE remains unavailable"`; `Failed test 25: "AC-PPNC-010 authenticated direct UPDATE is refused"`. | Files=4, Tests=88, Result: PASS |
 | g1 — delete witness comparison | `Failed test 1: "AC-PPNC-015 stale VAT witness is refused before activation"` (`caught: no exception`). | Files=4, Tests=88, Result: PASS |
 | g2 — delete failed-revival guard | `Failed test 4: "AC-PPNC-015 failed command cannot revive without a valid VAT witness"` (`caught: no exception`). | Files=4, Tests=88, Result: PASS |
+| h — suppress project record capture | `Failed test 9: "AC-PPNC-011 successful VAT change records exactly one actor-attributed diff"`; `Failed test 10: "AC-PPNC-011 VAT diff records old/new boolean and timestamp"`. | Files=4, Tests=88, Result: PASS |
 
