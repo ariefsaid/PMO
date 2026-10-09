@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   ListState,
@@ -24,6 +24,8 @@ export interface MilestoneStripProps {
    * where delivery planning is possible but secondary to the sales levers.
    */
   compactWhenEmpty?: boolean;
+  /** UIP-005: common context only; the full planner belongs to Overview. */
+  summary?: boolean;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -52,8 +54,9 @@ const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 
 const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
 
-const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false }) => {
+const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false, summary = false }) => {
   const { t } = useTranslation();
+  const location = useLocation();
   const may = usePermission();
   const { toast } = useToast();
   const isDesktop = useIsDesktop();
@@ -116,6 +119,42 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
       setDeleteTarget(null);
     }
   };
+
+  if (summary) {
+    const current = all.find(milestone => milestone.id === currentMilestoneId);
+    const hasOverdue = all.some(isOverdueMilestone);
+    return (
+      <div data-testid="milestone-summary" className="mb-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {isPending ? (
+          <span role="status">{t('projectDetail.milestones.heading', 'Delivery phases')}…</span>
+        ) : isError ? (
+          <>
+            <span role="alert">{t('projectDetail.milestones.errorTitle', "Couldn't load milestones")}</span>
+            <Button variant="ghost" size="sm" onClick={() => refetch()}>
+              {t('projectDetail.loadError.retry', 'Retry')}
+            </Button>
+          </>
+        ) : all.length === 0 ? (
+          <span>{t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}</span>
+        ) : (
+          <>
+            <span className="tabular">
+              <span className="sr-only md:not-sr-only">{t('projectDetail.milestones.rollupLabel', 'Project delivery')} </span>{pct(deliveryRollup)}
+            </span>
+            {current && <span className="min-w-0 break-words font-semibold text-foreground">{current.name}</span>}
+          </>
+        )}
+        <Link to={`/projects/${projectId}/overview`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
+          {t('projectDetail.tabs.overview', 'Overview')}
+        </Link>
+        {!isPending && !isError && hasOverdue && (
+          <Link to={`/projects/${projectId}/tasks`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
+            {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
+          </Link>
+        )}
+      </div>
+    );
+  }
 
   if (isPending) {
     return (

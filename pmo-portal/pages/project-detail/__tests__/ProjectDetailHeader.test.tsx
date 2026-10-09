@@ -12,8 +12,9 @@ import { currencySymbol } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 // Mutable real-role box + project mutations (hoisted) — drive the edit/archive/value gating.
-const { roleBox, projectMutations } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },
+  desktopBox: { value: true },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -22,6 +23,7 @@ const { roleBox, projectMutations } = vi.hoisted(() => ({
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktopBox.value }));
 // B-0.2: useProjectBudget is now called from ProjectDetailHeader to get the DERIVED
 // budget (Σ Active-version line-items). Default: 4_200_000 (real budget, not the
 // stale stored budget 4_700_000 on the onHand fixture).
@@ -88,6 +90,7 @@ const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHan
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
+  desktopBox.value = true;
   invoiceBox.data = [];
   Object.values(projectMutations).forEach((m) => {
     m.mutateAsync.mockReset();
@@ -98,6 +101,53 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it.each(['Project Manager', 'Finance'])('UIP-006: %s sees one idle contract amount and one tax-basis presentation', (role) => {
+    renderHeader(role);
+    expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
+    expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
+    const contractTile = screen.getAllByTestId('stat-tile')[0];
+    if (role === 'Finance') {
+      expect(within(contractTile).getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
+    } else {
+      expect(within(contractTile).getByText('Read-only')).toBeInTheDocument();
+    }
+  });
+
+  it('UIP-005: phone keeps Contract available and discloses the unchanged supporting financial metrics', async () => {
+    desktopBox.value = false;
+    renderHeader('Finance');
+    const disclosure = screen.getByText('Financial summary').closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(screen.getByText('$5,000,000').closest('details')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Financial summary'));
+    expect(disclosure).toHaveAttribute('open');
+    expect(disclosure).toHaveTextContent('Committed$2,100,000');
+    expect(disclosure).toHaveTextContent('Actual$2,100,000');
+    expect(disclosure).toHaveTextContent('On-hand margin$2,900,000');
+    expect(disclosure).toHaveTextContent('Spend50%');
+  });
+
+  it('UIP-006: the lock reason is adjacent to the single metric and disclosed without a dead edit control', async () => {
+    renderHeader('Project Manager');
+    const lock = screen.getByText('Read-only');
+    expect(lock.closest('details')).not.toHaveAttribute('open');
+    await userEvent.click(lock);
+    expect(lock.closest('details')).toHaveAttribute('open');
+    expect(lock.closest('details')).toHaveTextContent('Once a project is won, the contract value is locked for your role.');
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
+  });
+
+  it('UIP-006: explicit edit keeps the editor and audit explanation; Cancel restores the single read', async () => {
+    renderHeader('Finance');
+    expect(screen.queryByText(/Changing the value on a won project/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,000,000');
+    expect(screen.getByText(/Changing the value on a won project/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
+    expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
+    expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
+  });
   it('AC-CODE-003: labels PMO Project Number separately from Client Project Code and keeps Customer PO metadata', () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
