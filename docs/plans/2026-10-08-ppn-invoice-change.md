@@ -674,3 +674,14 @@ owner question queue. Remaining owner-only checkpoint: spec sign-off (and the us
 of the existing editor hint if not already approved). No unresolved owner product question is
 introduced by this revision; ERP amended-from is only a future owner-requested scope change.
 No bench/DB execution is performed as part of the present documentation brief.
+
+## Mutation evidence (2026-10-09)
+
+Each row is a single temporary mutation, owning oracle failure, `git checkout -- <file>`,
+and fresh restored GREEN. SQL runs reset + four owning files under one DB lock (0283 state,
+outbox, ACL/history and 0255 case); production mutations are never committed.
+
+| Row / mutation | Quoted RED oracle | Restored GREEN |
+|---|---|---|
+| a — only ordinary invoices counted | Initial suite survived; added real progress/down-payment invoice fixtures. `Failed test 21: "AC-PPNC-007 live progress invoice blocks"` and `Failed test 22: "AC-PPNC-007 live down-payment invoice blocks"`; `caught: no exception`, `wanted: 42501`. | Files=4, Tests=88, Result: PASS |
+

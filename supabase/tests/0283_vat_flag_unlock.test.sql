@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(22);
 
 insert into organizations (id, name) values ('02830000-0000-0000-0000-000000000001','VAT unlock org');
 insert into auth.users (id, email) values ('02830000-0000-0000-0000-0000000000a1','vat-unlock@example.com');
@@ -82,5 +82,29 @@ select is((select row(status,tax_amount,amount,tax_rate,tax_base_numerator,tax_b
 reset role;
 select is(has_function_privilege('anon','public.get_project_vat_editability(uuid)','execute'),false,
   'AC-PPNC-019 anonymous users cannot call the scoped reader');
+-- Claims share their invoice UUID; both families must participate in the lock.
+insert into projects(id,org_id,name,status)
+select ('02830000-0000-0000-0000-0000000000b'||n)::uuid,
+ '02830000-0000-0000-0000-000000000001','Claim family '||n,'Leads'
+from generate_series(5,6) n;
+insert into progress_claims(id,org_id,project_id,kind,currency,gross_amount,
+ down_payment_amount,recovery_pct,dp_item_code,created_by) values
+ ('02830000-0000-0000-0000-0000000000e5','02830000-0000-0000-0000-000000000001',
+ '02830000-0000-0000-0000-0000000000b5','progress','IDR',100,null,null,null,'02830000-0000-0000-0000-0000000000a1'),
+ ('02830000-0000-0000-0000-0000000000e6','02830000-0000-0000-0000-000000000001',
+ '02830000-0000-0000-0000-0000000000b6','down_payment','IDR',100,100,10,'DP','02830000-0000-0000-0000-0000000000a1');
+insert into sales_invoices(id,org_id,project_id,si_number,invoice_date,amount,
+ erp_outstanding_amount,status,erp_docstatus,tax_treatment,tax_amount)
+select id,org_id,project_id,'SI-FAMILY-'||kind,'2026-10-01',100,100,'Unpaid',1,'exclusive',0
+from progress_claims where id in ('02830000-0000-0000-0000-0000000000e5','02830000-0000-0000-0000-0000000000e6');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"02830000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ select set_project_contract_value('02830000-0000-0000-0000-0000000000b5',100,
+ p_tax_treatment=>'exclusive',p_tax_amount=>0,p_subject_to_vat=>false) $$,
+ '42501','this project VAT setting is locked by its invoice state','AC-PPNC-007 live progress invoice blocks');
+select throws_ok($$ select set_project_contract_value('02830000-0000-0000-0000-0000000000b6',100,
+ p_tax_treatment=>'exclusive',p_tax_amount=>0,p_subject_to_vat=>false) $$,
+ '42501','this project VAT setting is locked by its invoice state','AC-PPNC-007 live down-payment invoice blocks');
+reset role;
 select * from finish();
 rollback;
