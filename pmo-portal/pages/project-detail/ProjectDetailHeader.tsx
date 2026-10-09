@@ -180,18 +180,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const tiles: StatTile[] = [
     {
-      label: t('projectDetail.header.tile.contract', 'Contract'),
-      value: (
-        <div className="flex flex-wrap items-center gap-2">
-          {formatCurrency(contract, project.currency)}
-          {!valueEditing && (canEditValue && isFinanceForward ? (
-            <Button variant="outline" size="sm" onClick={() => beginValueEdit()}
-              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
-              {t('projectDetail.header.action.edit', 'Edit')}
-            </Button>
-          ) : isOnHand ? (
+      label: (
+        <div className="flex flex-wrap items-center gap-1">
+          <span>{t('projectDetail.header.tile.contract', 'Contract')}</span>
+          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
             <details className="text-xs font-normal text-muted-foreground">
-              <summary className="flex w-fit cursor-pointer items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 font-semibold">
+              <summary className="flex w-fit cursor-pointer items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-semibold">
                 <Icon name="lock" className="size-3" />
                 {t('projectDetail.header.readOnly', 'Read-only')}
                 <Icon name="chev" className="size-3 rotate-90" />
@@ -200,19 +194,22 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
               </p>
             </details>
-          ) : null)}
+          )}
         </div>
       ),
-      // OD-TAX-1 §2: the ceiling states its basis. From THIS project's stored `tax_treatment` —
-      // never the org default, which pre-selects a form and is never read to interpret a row. A
-      // NULL treatment (0197 pairs it with a zero contract value) renders nothing at all.
-      // Keep both existing basis hooks on the ONE caption: the metric and its
-      // edit affordance now share the same read presentation (UIP-006).
-      sub: project.tax_treatment ? (
-        <span data-testid="contract-value-tax-basis">
-          <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />
-        </span>
-      ) : null,
+      value: (
+        <div className="flex flex-wrap items-center gap-2">
+          {formatCurrency(contract, project.currency)}
+          {!valueEditing && canEditValue && isFinanceForward && (
+            <Button variant="outline" size="sm" onClick={() => beginValueEdit()}
+              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
+              {t('projectDetail.header.action.edit', 'Edit')}
+            </Button>
+          )}
+        </div>
+      ),
+      // The basis is rendered once below the KPI row so the compact Contract tile
+      // can keep its value and read-only/edit affordance together without wrapping.
     },
     { label: t('projectDetail.header.tile.committed', 'Committed'), value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
@@ -480,6 +477,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 className="mt-2 gap-x-3 gap-y-2 md:mt-0 [&>div]:min-w-0" />
             </details>
           </div>
+          {project.tax_treatment && (
+            <div className="mb-1 text-[11px] text-muted-foreground">
+              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />
+            </div>
+          )}
           <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>
         </>
       )}

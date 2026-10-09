@@ -524,18 +524,18 @@ describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
   const exclusive = { ...onHand, tax_treatment: 'exclusive', tax_amount: 550000 } as unknown as ProjectWithRefs;
   const unstated = { ...onHand, contract_value: 0, tax_treatment: null, tax_amount: null } as unknown as ProjectWithRefs;
 
-  it('#548: an INCLUSIVE contract reads "incl. PPN" on both the tile and the SoD row', () => {
+  it('#548: an INCLUSIVE contract has one visible basis presentation', () => {
     renderHeader('Finance', inclusive);
+    expect(screen.getAllByTestId('contract-tile-tax-basis')).toHaveLength(1);
     expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('incl. PPN');
-    expect(screen.getByTestId('contract-value-tax-basis')).toHaveTextContent('incl. PPN');
   });
 
   it('#548: an EXCLUSIVE contract reads "excl. PPN" — the label is derived from the row, not fixed', () => {
     // ⚑ The pair is the oracle. One-treatment fixtures cannot distinguish a derived label from a
     // hardcoded one (the DD-CUR-6 / #529 blind spot named in this issue's own test note).
     renderHeader('Finance', exclusive);
+    expect(screen.getAllByTestId('contract-tile-tax-basis')).toHaveLength(1);
     expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('excl. PPN');
-    expect(screen.getByTestId('contract-value-tax-basis')).toHaveTextContent('excl. PPN');
   });
 
   it('#548: a project with NO stated treatment renders NO basis — never a guessed one', () => {
@@ -543,7 +543,6 @@ describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
     // label here would be a claim the database deliberately does not make.
     renderHeader('Finance', unstated);
     expect(screen.queryByTestId('contract-tile-tax-basis')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('contract-value-tax-basis')).not.toBeInTheDocument();
   });
 
   it('#548: the basis follows the RECORD even when it differs from what other records use', () => {

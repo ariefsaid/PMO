@@ -38,11 +38,11 @@ vi.mock('@/src/components/ui/useIsDesktop', () => ({
 
 import MilestoneStrip from '../MilestoneStrip';
 
-const render$ = (projectId = 'p1') =>
+const render$ = (projectId = 'p1', summary = false) =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <MilestoneStrip projectId={projectId} />
+        <MilestoneStrip projectId={projectId} summary={summary} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -148,6 +148,31 @@ describe('fillClass priority (I1, I4)', () => {
 });
 
 describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
+  it('compact summary names the current phase and exposes overdue state, but omits it when on time', () => {
+    milestoneState.data = [
+      {
+        id: 'm1', project_id: 'p1', name: 'Procurement', sort_order: 0,
+        target_date: '2020-01-01', weight: 1, input_pct: 63, task_count: 3,
+        calculated_pct: 63, effective_pct: 63,
+      },
+    ];
+    const overdue = render$('p1', true);
+
+    expect(screen.getByText('Current: Procurement')).toBeInTheDocument();
+    const overdueState = screen.getByText('Overdue');
+    expect(overdueState).toBeInTheDocument();
+    expect(overdueState.className).toContain('text-warning-foreground');
+
+    overdue.unmount();
+    milestoneState.data = [{
+      id: 'm1', project_id: 'p1', name: 'Procurement', sort_order: 0,
+      target_date: '2999-01-01', weight: 1, input_pct: 63, task_count: 3,
+      calculated_pct: 63, effective_pct: 63,
+    }];
+    render$('p1', true);
+    expect(screen.getByText('Current: Procurement')).toBeInTheDocument();
+    expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+  });
   it('AC-DEL-008: renders a single segmented track plus the effective headline, weight share, and NO From tasks on desktop', () => {
     milestoneState.data = [
       {

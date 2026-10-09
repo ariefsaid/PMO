@@ -141,13 +141,22 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             <span className="tabular">
               <span className="sr-only md:not-sr-only">{t('projectDetail.milestones.rollupLabel', 'Project delivery')} </span>{pct(deliveryRollup)}
             </span>
-            {current && <span className="min-w-0 break-words font-semibold text-foreground">{current.name}</span>}
+            {current && (
+              <span className="min-w-0 break-words font-semibold text-foreground">
+                {t('projectDetail.milestones.currentPhase', 'Current: {{name}}', { name: current.name })}
+              </span>
+            )}
+            {current && isOverdueMilestone(current) && (
+              <span className="font-semibold text-warning-foreground">
+                {t('projectDetail.milestones.overdue', 'Overdue')}
+              </span>
+            )}
           </>
         )}
         <Link to={`/projects/${projectId}/overview`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
           {t('projectDetail.tabs.overview', 'Overview')}
         </Link>
-        {!isPending && !isError && hasOverdue && (
+        {!isPending && !isError && hasOverdue && !location.pathname.endsWith('/tasks') && (
           <Link to={`/projects/${projectId}/tasks`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
             {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
           </Link>
