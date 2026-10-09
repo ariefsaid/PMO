@@ -452,6 +452,14 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - **Reflow (OD-W4-4):** single-renders — `<table>` at `md` (768px), stacked card list below. One branch
   in the DOM (no flash, no `aria-hidden` dup). Touch targets extend to ≥44px via `.touch-target`.
 
+**Recognition before compression** (2026-10-09, UI polish UIP-003/007). Primary record identity gets enough
+space to distinguish same-prefix records before ancillary columns. On the desktop Projects table, target a
+minimum 240px identity region and two readable lines; at 1440 the whole table fits with no clipped control
+(customer ≥12 visible characters; PM as initials with the full name as its accessible name). Use bounded
+table scrolling only below ~1280 — never reduce a name to a few characters. Keep full accessible names,
+numeric comparison alignment and available fields. Repeating procurement rows share one column template
+(header and cells from one definition) with aligned headers and a gutter between adjacent numeric columns.
+
 ### Kanban Card (signature)
 White `card`, `lg` radius, ~11px padding, faint rest shadow; hover lift + `muted-foreground/35%` border;
 active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill. 26px icon,
@@ -597,6 +605,13 @@ Anatomy (non-optional): **[icon tile] [name] [status pill] … [Edit] [Archive/D
 actions top-right. Optional `meta` row + `StatTiles` strip below. Thin wrapper over `PageHeader`
 (`src/components/ui/PageHeader.tsx`); the Project detail header is the template.
 
+**Selected-job-first** (2026-10-09, UIP-005/006/009). Compact common identity/status comes before the tab
+strip; the selected tab's work follows without a mandatory tour of Overview cards. Full project phase cards
+stay actionable in Overview; other tabs keep a one-line phase summary (`Current: <phase>`, overdue named in
+text) with an adjacent Overview/blocker link. One idle contract-value presentation; the Read-only chip sits
+where the Edit control sits, so KPI values share one baseline. On phone, a long record title takes the full
+width; status/metadata stack below it. Approval previews keep readable request identity before secondary metadata.
+
 ### Record-open paradigm (The Record-Open Rule)
 - **Every primary entity is a routable `/x/:id` page** with breadcrumb + Back + ⌘K indexing. Drawers are
   optional quick-peek previews that carry a URL + "Open full record" — never the only home.
@@ -627,6 +642,13 @@ control the user intentionally selected.
 ### Approvals (one inbox)
 `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one
 `ApprovalRow`, one decision affordance (inline Approve/Return + "Open"). Rail label + H1 = "Approvals".
+
+### Dashboard states
+
+**A clear queue is compact, not absent** (2026-10-09, UIP-010/011). A dashboard work panel with no items states
+its exact scope in a compact region (≤120px at 1440, in every locale), letting active work below rise. Loading,
+error and unavailable states stay distinct. A displayed project exception links to its canonical record in one
+step; presentation changes never alter financial calculations.
 
 ### Skeleton loading pattern
 - **Page-head skeleton:** two `skel` divs mirroring `DashPageHead` (h1 + two-line sub) — never a single
