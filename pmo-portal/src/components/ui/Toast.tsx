@@ -173,7 +173,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         {item && (
           <AutoDismiss key={item.id} kind={item.kind} textLength={item.title.length + (item.sub?.length ?? 0)} onDone={dismiss}>
             <div className="pointer-events-auto flex max-w-[min(360px,calc(100vw-40px))] items-start gap-1">
-              <div aria-hidden="true" className="min-w-0 flex-1">
+              <div aria-hidden="true" data-toast="visible" className="min-w-0 flex-1">
                 <ToastView kind={item.kind} title={item.title} sub={item.sub} announce={false} moreCount={item.kind === 'warning' || item.kind === 'error' ? queueCount : 0} />
               </div>
               <DismissButton onClick={dismiss} />

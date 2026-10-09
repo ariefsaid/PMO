@@ -33,7 +33,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { signIn } from './helpers';
+import { signIn, visibleToast } from './helpers';
 
 test.setTimeout(150_000);
 
@@ -310,7 +310,7 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   await expect(statusSelect).toBeVisible({ timeout: 15_000 });
   await statusSelect.selectOption('In Progress');
   // The real write lands in Postgres; the toast confirms the user's edit was accepted.
-  await expect(page.getByText(/Status updated/i)).toBeVisible({ timeout: 10_000 });
+  await expect(visibleToast(page, /Status updated/i)).toBeVisible({ timeout: 10_000 });
 
   // The disabled adapter-dispatch would now push this edit to ClickUp and confirm it. Seed that
   // outcome: one outbox row for the task, state 'confirmed', carrying the ClickUp-side task id.

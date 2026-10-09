@@ -1,7 +1,7 @@
 // @e2e-isolation: self-isolated — the Admin creates one project named with the exclusive prefix "E2E RAM-001 " plus a run id; beforeEach and afterEach service-role-delete that prefix in the seed org (the AC-PRJ-006 cleanup pattern). No shared seed row is written.
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, pickComboboxOption, requireServiceRoleKey } from './helpers';
+import { signIn, pickComboboxOption, requireServiceRoleKey, visibleToast } from './helpers';
 
 /**
  * AC-RAM-001 (#688) — the ONE curated cross-stack journey for the RIS Admin route (ADR-0010):
@@ -77,7 +77,7 @@ test('AC-RAM-001: a RIS Admin goes from organization setup to a first project, o
   await dialog.getByRole('button', { name: /^Create project$/i }).click();
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
   // GOAL: success names the created record, and the app opens the new record directly (FR-RAM-009 / AC-RAM-006).
-  await expect(page.getByRole('status').filter({ hasText: 'Project created' })).toContainText(name);
+  await expect(visibleToast(page, 'Project created')).toContainText(name);
 
   // 4 — GOAL: the canonical record, in its pipeline lens, opened directly (no detour through Sales).
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);

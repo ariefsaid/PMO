@@ -1,6 +1,6 @@
 // @e2e-isolation: serial — temporarily adds options to the org-wide project setup lists and restores them.
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption } from '../helpers';
+import { login, pickComboboxOption, visibleToast } from '../helpers';
 
 test.setTimeout(120_000);
 test('AC-TAG-002 classifications persist through form, detail editing, Projects and Pipeline filters', async ({ page }) => {
@@ -21,7 +21,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await lines.fill(`${oldLines}\n${serviceLine}`);
     await sectors.fill(`${oldSectors}\n${sector}`);
     await page.getByRole('button', { name: 'Save options' }).click();
-    await expect(page.getByText('Classification options saved')).toBeVisible();
+    await expect(visibleToast(page, 'Classification options saved')).toBeVisible();
     for (const [name, stage] of [[deal, 'Leads'], [internal, 'Internal Project']] as const) {
       await page.goto('/projects');
       await page.getByRole('button', { name: /new project/i }).click();
@@ -75,7 +75,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await page.getByLabel('Service lines').fill(oldLines);
     await page.getByLabel('Sectors').fill(oldSectors);
     await page.getByRole('button', { name: 'Save options' }).click();
-    await expect(page.getByText('Classification options saved')).toBeVisible();
+    await expect(visibleToast(page, 'Classification options saved')).toBeVisible();
     for (const name of created) {
       await page.goto(name === deal ? '/sales?view=table' : '/projects?view=table');
       await page.getByText(name, { exact: true }).click();
