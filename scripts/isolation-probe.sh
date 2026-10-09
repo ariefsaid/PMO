@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# isolation-probe.sh — adversarial cross-org probe (#490, DD-TEN-1). Run against a HOSTED project
-# (production grant defaults), never only against local Docker: a proof that only runs where the grants
-# differ from production certifies nothing (0185 / 0210 / 0211 all found that way).
+# isolation-probe.sh — adversarial cross-org probe (#490, DD-TEN-1). Use the hosted project for deployed-grant verification.
 #
 # A real signed-in principal of tenant B attempts, on every table and every org-argument RPC, to read
-# tenant A's rows blind, read them by id, update them (no-op PATCH), and to call RPCs with A's org/ids;
+# tenant A's rows blind, read them by id, and PATCH them (pk-to-itself can still trigger mutations);
+# it also calls RPCs with A's org/ids.
 # the anon key attempts every table. Any row returned or write accepted is a LEAK and is named.
 #
 # Inputs (env): BASE (https://<ref>.supabase.co) · ANON (anon key) · JWT_B (access token of a tenant-B
@@ -13,8 +12,8 @@
 # catalog with psql (see docs/environments.md § Prod migration state → isolation probe). Never pass
 # keys on the command line; source them from 600 files.
 #
-# Writes: PATCH bodies set a row's pk to itself (no-op); RPC payloads are inert (status=current, amount 0).
-# A leak that accepts a write leaves evidence you must clean up — that is the point.
+# Write probes mutate tenant A if a leak exists. They must only target a dedicated disposable test org;
+# never run them against a client org. Set PROBE_A_DISPOSABLE=1 only after verifying tenant A is disposable.
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${BASE:?}" "${ANON:?}" "${JWT_B:?}" "${A_ORG:?}" "${B_ORG:?}" "${A_ROWS_JSON:?}"
@@ -31,45 +30,92 @@ if [ -z "${TABLES_JSON:-}" ]; then
 fi
 hdr_b=(-H "apikey: $ANON" -H "Authorization: Bearer $JWT_B" -H "Content-Type: application/json")
 hdr_anon=(-H "apikey: $ANON" -H "Authorization: Bearer $ANON")
-leaks=0; checks=0; skipped=0; skipped_names=""
+leaks=0; checks=0; skipped=0; skipped_names=""; rpc_errors=0; rpc_error_names=""
+_skip_file=$(mktemp "${TMPDIR:-/tmp}/isolation-skips.XXXXXX")
 say(){ printf '%s\n' "$*"; }
 flag(){ leaks=$((leaks+1)); say "  ⛔ LEAK  $*"; }
-skip(){ skipped=$((skipped+1)); skipped_names="${skipped_names}${skipped_names:+, }$1"; say "  ⚠ SKIPPED  $1"; }
-req(){ curl -s -o "${TMPDIR:-/tmp}/probe.body" -w "%{http_code}" "$@"; }
+probe_error(){ rpc_errors=$((rpc_errors+1)); rpc_error_names="${rpc_error_names}${rpc_error_names:+, }$*"; say "  ❌ PROBE-ERROR  $*" >&2; }
+skip(){ printf '%s\n' "$1" >> "$_skip_file"; say "  ⚠ SKIPPED  $1" >&2; }
+req(){ curl -sS -o "${TMPDIR:-/tmp}/probe.body" -w "%{http_code}" "$@" 2>/dev/null || { : > "${TMPDIR:-/tmp}/probe.body"; printf 000; }; }
+classify_table_read(){
+  local name=$1 code=$2 n
+  if [ "$code" = 401 ] || [ "$code" = 403 ]; then return 0; fi
+  [ "$code" = 200 ] || { probe_error "$name HTTP $code"; return 1; }
+  [ -s "${TMPDIR:-/tmp}/probe.body" ] && jq -e 'type=="array"' "${TMPDIR:-/tmp}/probe.body" >/dev/null 2>&1 || { probe_error "$name expected JSON array"; return 1; }
+  n=$(jq 'length' "${TMPDIR:-/tmp}/probe.body")
+  [ "$n" -eq 0 ] || return 2
+  return 0
+}
+classify_table_update(){
+  local name=$1 code=$2 n
+  if [ "$code" = 401 ] || [ "$code" = 403 ]; then return 0; fi
+  [ "$code" = 200 ] || { [ "$code" = 204 ] && return 0; probe_error "$name HTTP $code"; return 1; }
+  [ -s "${TMPDIR:-/tmp}/probe.body" ] && jq -e 'type=="array"' "${TMPDIR:-/tmp}/probe.body" >/dev/null 2>&1 || { probe_error "$name expected JSON array"; return 1; }
+  n=$(jq 'length' "${TMPDIR:-/tmp}/probe.body")
+  [ "$n" -eq 0 ] || return 2
+  return 0
+}
+classify_response(){
+  local name=$1 code=$2 body=${3:-${TMPDIR:-/tmp}/probe.body} n
+  if [ "$code" = 401 ] || [ "$code" = 403 ] || grep -Eq '"(code|sqlstate)"[[:space:]]*:[[:space:]]*"(42501|P0002)"' "$body" 2>/dev/null; then return 0; fi
+  [ "$code" = 200 ] || { probe_error "$name HTTP $code"; return 1; }
+  [ -s "$body" ] && jq -e 'true' "$body" >/dev/null 2>&1 || { probe_error "$name HTTP $code invalid/empty JSON"; return 1; }
+  n=$(jq -r 'if .==null or .==false then "empty" elif type=="array" and length==0 then "empty" else "nonempty" end' "$body")
+  [ "$n" = empty ] || return 2
+  return 0
+}
 if [ "${RPC_ONLY:-}" != 1 ]; then
 # --- tables, as B ---
 for t in $(jq -r '.[].table' "$TABLES_JSON"); do
   has_org=$(jq -r --arg t "$t" '.[]|select(.table==$t)|.has_org' "$TABLES_JSON"); pk=$(jq -r --arg t "$t" '.[]|select(.table==$t)|.pk' "$TABLES_JSON")
   columns=$(jq -r --arg t "$t" '(.[]|select(.table==$t)|.columns) // "*"' "$TABLES_JSON")
-  code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$columns&limit=3"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1))
+  code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$columns&limit=3"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1)); classify_table_read "table $t blind read" "$code"; class=$?
   if [ "$code" = "200" ] && [ "$n" -gt 0 ]; then
     # rows visible to B: allowed only if they are B's own (org_id == B) or the table has no org_id and is a justified global
-    if [ "$has_org" = "true" ]; then foreign=$(jq --arg b "$B_ORG" '[.[]|select(.org_id!=$b)]|length' "${TMPDIR:-/tmp}/probe.body"); [ "$foreign" -gt 0 ] && flag "B reads $foreign foreign row(s) from $t (blind select)"; else say "  ℹ  $t (no org_id): B sees $n row(s) — review: $(jq -c '.[0]|keys' "${TMPDIR:-/tmp}/probe.body" | cut -c1-100)"; fi
-  elif [ "$code" != "200" ]; then say "  ℹ  $t blind select → HTTP $code"; fi
+    if [ "$has_org" = "true" ]; then foreign=$(jq --arg b "$B_ORG" '[.[]|select(.org_id!=$b)]|length' "${TMPDIR:-/tmp}/probe.body"); if [ "$foreign" -gt 0 ]; then flag "B reads $foreign foreign row(s) from $t (blind select)"; else say "  EXPECTED-DENIAL  table $t blind read exposes no foreign rows"; fi; else say "  EXPECTED-DENIAL  $t is an explicitly global table; B sees $n row(s) — review: $(jq -c '.[0]|keys' "${TMPDIR:-/tmp}/probe.body" | cut -c1-100)"; fi
+  elif [ "$code" = "200" ]; then say "  EXPECTED-DENIAL  table $t blind read returned no rows"; elif [ "$code" = "401" ] || [ "$code" = "403" ]; then say "  EXPECTED-DENIAL  table $t blind read HTTP $code"; fi
   # targeted read + no-op update on A's row
   aid=$(jq -r --arg t "$t" '.[]|select(.table==$t)|.id' "$A_ROWS_JSON")
   if [ -z "$aid" ] || [ "$aid" = "null" ]; then
     skip "$t by-id read"; skip "$t update"; continue
   fi
-  code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?$pk=eq.$aid&select=$columns"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1)); [ "$code" = "200" ] && [ "$n" -gt 0 ] && flag "B reads A's row $t/$aid by id"
-  code=$(req -X PATCH "${hdr_b[@]}" -H "Prefer: return=representation" "$BASE/rest/v1/$t?$pk=eq.$aid" -d "{\"$pk\":\"$aid\"}"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1)); [ "$code" = "200" ] && [ "$n" -gt 0 ] && flag "B UPDATES A's row $t/$aid (no-op update returned $n row)"
+  code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?$pk=eq.$aid&select=$columns"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1)); classify_table_read "table $t by-id read" "$code"; class=$?; if [ "$class" = 2 ]; then flag "B reads A's row $t/$aid by id"; elif [ "$class" = 0 ]; then say "  EXPECTED-DENIAL  table $t by-id read"; fi
+  if [ "${PROBE_A_DISPOSABLE:-0}" != 1 ]; then skip "$t update — write probe — needs disposable tenant A"; else
+    code=$(req -X PATCH "${hdr_b[@]}" -H "Prefer: return=representation" "$BASE/rest/v1/$t?$pk=eq.$aid" -d "{\"$pk\":\"$aid\"}"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1)); classify_table_update "table $t update" "$code"; class=$?; if [ "$class" = 2 ]; then flag "B UPDATES A's row $t/$aid (no-op update returned $n row)"; elif [ "$class" = 0 ]; then say "  EXPECTED-DENIAL  table $t update"; fi
+  fi
 done
 # --- tables, as anon ---
-for t in $(jq -r '.[].table' "$TABLES_JSON"); do columns=$(jq -r --arg t "$t" '(.[]|select(.table==$t)|.columns) // "*"' "$TABLES_JSON"); code=$(req "${hdr_anon[@]}" "$BASE/rest/v1/$t?select=$columns&limit=1"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1)); [ "$code" = "200" ] && [ "$n" -gt 0 ] && flag "ANON reads $n row(s) from $t"; done
+for t in $(jq -r '.[].table' "$TABLES_JSON"); do columns=$(jq -r --arg t "$t" '(.[]|select(.table==$t)|.columns) // "*"' "$TABLES_JSON"); code=$(req "${hdr_anon[@]}" "$BASE/rest/v1/$t?select=$columns&limit=1"); n=$(jq 'if type=="array" then length else -1 end' "${TMPDIR:-/tmp}/probe.body" 2>/dev/null || echo -1); checks=$((checks+1)); classify_table_read "anon table $t read" "$code"; class=$?; if [ "$class" = 2 ]; then flag "ANON reads $n row(s) from $t"; elif [ "$class" = 0 ]; then say "  EXPECTED-DENIAL  anon table $t read"; fi; done
 fi
 # --- org-arg RPCs as B, with A's org / A's ids ---
 A_PROFILE=$(jq -r '.[]|select(.table=="profiles")|.id' "$A_ROWS_JSON"); A_PROC=$(jq -r '.[]|select(.table=="procurements")|.id' "$A_ROWS_JSON")
 _rpc_count_file=$(mktemp "${TMPDIR:-/tmp}/isolation-rpc-count.XXXXXX")
 _rpc_error_file=$(mktemp "${TMPDIR:-/tmp}/isolation-rpc-errors.XXXXXX")
-trap 'rm -f "$_rpc_count_file" "$_rpc_error_file" ${_tables_tmp:+'"$_tables_tmp"'}' EXIT
+trap 'rm -f "$_rpc_count_file" "$_rpc_error_file" "$_skip_file" ${_tables_tmp:+'"$_tables_tmp"'}' EXIT
 rpc(){
-  local fn=$1 body=$2 code
+  local fn=$1 body=$2 code result write_probe=0
+  case "$fn" in
+    admin_set_user_status|operator_toggle_feature|operator_grant_credits|reserve_credits|create_vault_secret_for_org|m365_disconnect_cascade|audit_m365_event|cancel_native_receipt|transition_native_sales_invoice|record_native_receipt|set_sales_invoice_efaktur|set_procurement_invoice_efaktur|set_vendor_tax_defaults|record_vendor_withholding_slip|correct_vendor_withholding_slip|void_vendor_withholding_slip|record_expense_advance_return|activate_budget_version|create_native_sales_invoice|create_progress_claim|create_procurement_invoice|capture_vendor_invoice)
+      write_probe=1
+      if [ "${PROBE_A_DISPOSABLE:-0}" != 1 ]; then skip "$fn — write probe — needs disposable tenant A"; echo SKIPPED; return 0; fi ;;
+  esac
   code=$(req -X POST "${hdr_b[@]}" "$BASE/rest/v1/rpc/$fn" -d "$body")
   printf 'x\n' >> "$_rpc_count_file"
-  if [ "$code" = 404 ] || grep -q 'PGRST202' "${TMPDIR:-/tmp}/probe.body"; then
-    printf '%s (HTTP %s%s)\n' "$fn" "$code" "$(grep -q 'PGRST202' "${TMPDIR:-/tmp}/probe.body" && printf ', PGRST202')" >> "$_rpc_error_file"
-  fi
   say "  rpc $fn → $code $(head -c 110 "${TMPDIR:-/tmp}/probe.body" | tr '\n' ' ')" >&2
+  if [ "$code" = 401 ] || [ "$code" = 403 ] || grep -Eq '"(code|sqlstate)"[[:space:]]*:[[:space:]]*"(42501|P0002)"' "${TMPDIR:-/tmp}/probe.body"; then
+    say "  EXPECTED-DENIAL  rpc $fn" >&2
+  elif [ "$write_probe" = 1 ] && [[ "$code" =~ ^(200|201|204)$ ]]; then
+    if [ "$code" != 204 ] && { [ ! -s "${TMPDIR:-/tmp}/probe.body" ] || ! jq -e 'true' "${TMPDIR:-/tmp}/probe.body" >/dev/null 2>&1; }; then
+      say "  ❌ PROBE-ERROR  rpc $fn HTTP $code invalid/empty JSON body" >&2
+      printf 'rpc %s HTTP %s invalid/empty JSON body\n' "$fn" "$code" >> "$_rpc_error_file"
+    else say "  LEAK  rpc $fn accepted write" >&2; fi
+  else
+    classify_response "rpc $fn" "$code"; result=$?
+    if [ "$result" = 1 ]; then printf 'rpc %s HTTP %s\n' "$fn" "$code" >> "$_rpc_error_file"
+    elif [ "$result" = 0 ]; then say "  EXPECTED-DENIAL  rpc $fn" >&2
+    elif [ "$fn" = operator_list_orgs ] && ! grep -q "$A_ORG" "${TMPDIR:-/tmp}/probe.body"; then say "  EXPECTED-DENIAL  rpc $fn did not list tenant A" >&2
+    else say "  LEAK  rpc $fn returned non-empty data for tenant A probe" >&2; fi
+  fi
   echo "$code"
 }
 c=$(rpc org_credit_balance "{\"p_org_id\":\"$A_ORG\"}"); [ "$c" = 200 ] && ! grep -q '^null$' "${TMPDIR:-/tmp}/probe.body" && flag "org_credit_balance(A) answered B"
@@ -125,9 +171,11 @@ else skip "correct_vendor_withholding_slip (vendor_withholding_slips)"; skip "vo
 if [ -n "$A_CLAIM" ] && [ "$A_CLAIM" != null ]; then c=$(rpc record_expense_advance_return "{\"p_id\":\"$A_CLAIM\",\"p_amount\":0.01,\"p_reference\":\"probe\"}"); [ "$c" = 200 ] || [ "$c" = 204 ] && flag "record_expense_advance_return on A accepted from B"; else skip "record_expense_advance_return (expense_claims)"; fi
 if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}"); [ "$c" = 200 ] || [ "$c" = 204 ] && flag "activate_budget_version on A accepted from B"; else skip "activate_budget_version (budget_versions)"; fi
 checks=$((checks + $(wc -l < "$_rpc_count_file")))
-rpc_errors=$(wc -l < "$_rpc_error_file" | tr -d ' ')
-rpc_error_names=$(awk 'NR > 1 { printf ", " } { printf "%s", $0 } END { print "" }' "$_rpc_error_file")
+skipped=$(wc -l < "$_skip_file" | tr -d ' ')
+skipped_names=$(awk 'NR > 1 { printf ", " } { printf "%s", $0 } END { print "" }' "$_skip_file")
+rpc_errors=$((rpc_errors + $(wc -l < "$_rpc_error_file")))
+rpc_error_names="${rpc_error_names}${rpc_error_names:+, }$(awk 'NR > 1 { printf ", " } { printf "%s", $0 } END { print "" }' "$_rpc_error_file")"
 say "=== checks: $checks  leaks: $leaks  probe_errors: $rpc_errors${rpc_error_names:+ [$rpc_error_names]}  skipped: $skipped${skipped_names:+ [$skipped_names]}"
 [ "$rpc_errors" = 0 ] || exit 4
 [ "$leaks" = 0 ] || exit 1
-[ "${STRICT:-0}" != 1 ] || [ "$skipped" = 0 ] || exit 3
+[ "${STRICT:-1}" != 1 ] || [ "$skipped" = 0 ] || exit 3
