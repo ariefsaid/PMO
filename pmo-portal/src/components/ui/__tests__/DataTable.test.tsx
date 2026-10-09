@@ -3,6 +3,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 
+afterEach(() => vi.unstubAllGlobals());
+
 interface Row {
   id: string;
   name: string;
@@ -18,6 +20,26 @@ const columns: Column<Row>[] = [
 ];
 
 describe('DataTable', () => {
+  it('#961 open-case-scroll exposes a focusable row target in both table and card branches', () => {
+    const rowTarget = (row: Row) => row.id === 'PRJ-1' ? 'target-alpha' : undefined;
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: true, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const desktop = render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} rowTarget={rowTarget} />);
+    expect(document.getElementById('target-alpha')?.tagName).toBe('TR');
+    expect(document.getElementById('target-alpha')).toHaveAttribute('tabindex', '-1');
+    desktop.unmount();
+
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} rowTarget={rowTarget} />);
+    expect(document.getElementById('target-alpha')?.tagName).toBe('LI');
+    expect(document.getElementById('target-alpha')).toHaveAttribute('tabindex', '-1');
+  });
+
   it('renders one row per record and the column headers', () => {
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     expect(screen.getByText('Alpha')).toBeInTheDocument();

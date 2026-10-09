@@ -44,7 +44,7 @@ async function openDocuments(page: import('@playwright/test').Page, caseId: stri
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }
 
-test('AC-BUPOT-020 Finance records, corrects and voids one slip covering two Paid bills in separate cases', async ({ page }) => {
+test('#961 open-case-scroll opens, scrolls, and focuses the linked bill in its destination case (AC-BUPOT-020 record/correct/void journey)', async ({ page }) => {
   const admin = createClient<Database>(SUPABASE_URL, serviceKey!);
   const { count: outboxBefore, error: outboxBeforeError } = await admin.from('external_command_outbox').select('id', { count: 'exact', head: true }).eq('org_id', ORG_ID);
   if (outboxBeforeError) throw new Error(`outbox baseline read failed: ${outboxBeforeError.message}`);
@@ -74,8 +74,10 @@ test('AC-BUPOT-020 Finance records, corrects and voids one slip covering two Pai
     await expect(page.getByLabel(/Bukti potong details/i)).toBeVisible({ timeout: 20_000 });
     const details = page.getByLabel(/Bukti potong details/i);
     await expect(details.getByText(slipNumber)).toBeVisible();
-    await expect(details.getByText(viA)).toBeVisible();
-    await expect(details.getByText(viB)).toBeVisible();
+    await expect(details.getByText(viA, { exact: true })).toBeVisible();
+    await expect(details.getByText(viB, { exact: true })).toBeVisible();
+    await expect(details.getByText(new RegExp(`Bukti potong bill link · ${viA}`))).toBeVisible();
+    await expect(details.getByText(new RegExp(`Bukti potong bill link · ${viB}`))).toBeVisible();
     const { data: recorded, error: recordedError } = await admin.from('vendor_withholding_slips').select('id,slip_number,withheld_amount,revision,status').eq('slip_number', slipNumber).single();
     if (recordedError || !recorded) throw new Error(`recorded slip readback failed: ${recordedError?.message}`);
     expect(recorded).toMatchObject({ slip_number: slipNumber, withheld_amount: 50000, revision: 1, status: 'active' });
@@ -129,6 +131,13 @@ test('AC-BUPOT-020 Finance records, corrects and voids one slip covering two Pai
     await expect(page.getByLabel(/Bukti potong details/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByLabel(/Bukti potong details/i).getByText(slipNumber)).toBeVisible();
     await expect(page.getByLabel(/Bukti potong details/i).getByText(/^Voided in PMO$/i)).toHaveCount(2);
+
+    const retainedDetails = page.getByLabel(/Bukti potong details/i);
+    await retainedDetails.getByRole('button', { name: new RegExp(`Open bill ${viB} in case ${ids.caseB}`) }).click();
+    await expect(page).toHaveURL(new RegExp(`/procurement/${ids.caseB}/documents\\?bupot=${slipId}&bupotBill=${ids.billB}`));
+    const destinationRow = page.locator(`#invoice-${ids.billB}`);
+    await expect(destinationRow).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => destinationRow.evaluate((row) => row === document.activeElement), { timeout: 10_000 }).toBe(true);
   } finally {
     const { data: slipRows } = await admin.from('vendor_withholding_slips').select('id').eq('slip_number', slipNumber);
     const slipIds = (slipRows ?? []).map((row) => row.id as string);

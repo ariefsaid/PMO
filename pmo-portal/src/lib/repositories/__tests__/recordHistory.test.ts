@@ -112,6 +112,25 @@ describe('recordHistoryRepository.list', () => {
     expect(names.purchase_request?.get('child-75')).toBe('PR-child-75');
   });
 
+  it('#961 history-bill-label resolves a withholding-link id to its vendor bill number', async () => {
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ data: [
+        { id: 'link-1', invoice: { vi_number: 'VI-2026-01', reference_number: 'ref-1' } },
+        { id: 'link-2', invoice: { vi_number: null, reference_number: 'SUP-REF-02' } },
+      ], error: null }),
+    };
+    from.mockReturnValue(query);
+
+    const names = await recordHistoryRepository.lookupNames({ vendor_withholding_slip_bill: ['link-1', 'link-2'] });
+
+    expect(from).toHaveBeenCalledWith('vendor_withholding_slip_bills');
+    expect(query.select).toHaveBeenCalledWith('id,invoice:procurement_invoices!vendor_withholding_slip_bills_org_id_invoice_id_fkey(vi_number,reference_number)');
+    expect(query.in).toHaveBeenCalledWith('id', ['link-1', 'link-2']);
+    expect(names.vendor_withholding_slip_bill?.get('link-1')).toBe('VI-2026-01');
+    expect(names.vendor_withholding_slip_bill?.get('link-2')).toBe('SUP-REF-02');
+  });
+
   it('surfaces an RPC error as an AppError carrying the code', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'boom', code: '42501' } });
     await expect(recordHistoryRepository.list({ entityType: 'project', entityId: 'p1' })).rejects.toMatchObject({

@@ -286,6 +286,9 @@ const ProcurementDetails: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const bupotParams = new URLSearchParams(location.search);
+  const bupotId = bupotParams.get('bupot');
+  const targetInvoiceId = bupotId ? bupotParams.get('bupotBill') : null;
 
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
@@ -296,7 +299,13 @@ const ProcurementDetails: React.FC = () => {
   const historyReturnFocus = React.useRef<HTMLElement | null>(null);
   const setBupotSelection = (slipId: string | null) => {
     const params = new URLSearchParams(location.search);
-    if (slipId) params.set('bupot', slipId); else params.delete('bupot');
+    if (slipId) {
+      params.set('bupot', slipId);
+      params.delete('bupotBill');
+    } else {
+      params.delete('bupot');
+      params.delete('bupotBill');
+    }
     const query = params.toString();
     navigate(`${location.pathname}${query ? `?${query}` : ''}${location.hash}`, { replace: !slipId });
   };
@@ -1066,6 +1075,7 @@ const ProcurementDetails: React.FC = () => {
                 );
               }}
               invoices={p.invoices}
+              targetInvoiceId={targetInvoiceId ?? undefined}
               canWriteWithholdingSlip={canWriteWithholdingSlip}
               onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
@@ -1120,11 +1130,17 @@ const ProcurementDetails: React.FC = () => {
         invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
       />}
       {slipHistoryInvoiceId && <VendorWithholdingSlipHistory invoiceId={slipHistoryInvoiceId} onClose={() => { setSlipHistoryInvoiceId(null); requestAnimationFrame(() => historyReturnFocus.current?.focus()); }} onView={(id) => { setSlipHistoryInvoiceId(null); setBupotSelection(id); }} />}
-      {new URLSearchParams(location.search).get('bupot') && <VendorWithholdingSlipDetails
-        slipId={new URLSearchParams(location.search).get('bupot')!}
+      {bupotId && <VendorWithholdingSlipDetails
+        slipId={bupotId}
         canWrite={may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
         onClose={() => setBupotSelection(null)}
-        onOpenProcurement={(id, slipId) => navigate(`/procurement/${id}/documents?bupot=${encodeURIComponent(slipId)}`)}
+        suppressArrivalFocus={Boolean(targetInvoiceId)}
+        onOpenProcurement={(id, slipId, invoiceId) => {
+          const params = new URLSearchParams(location.search);
+          params.set('bupot', slipId);
+          params.set('bupotBill', invoiceId);
+          navigate(`/procurement/${encodeURIComponent(id)}/documents?${params.toString()}${location.hash}`);
+        }}
       />}
 
       {/* Approval / rejection notes */}

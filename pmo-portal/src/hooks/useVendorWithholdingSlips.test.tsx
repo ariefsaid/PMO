@@ -62,6 +62,23 @@ describe('AC-BUPOT-019 withholding-slip queries', () => {
     expect(client.getQueryCache().find({ queryKey: vendorWithholdingSlipKeys.register('org-a', registerParams) })).toBeTruthy();
   });
 
+  it('#961 F17 requests the next candidate cursor under the same organization-scoped query', async () => {
+    const cursor = { date: '2026-10-01', id: 'i1', nullDate: false };
+    const { client, wrapper } = setup();
+    const params = { vendorId: 'v1', pphType: 'pph23', currency: 'IDR' };
+    repo.listBills.mockReset()
+      .mockResolvedValueOnce({ rows: [{ invoice_id: 'i1' }], nextCursor: cursor })
+      .mockResolvedValueOnce({ rows: [{ invoice_id: 'i2' }], nextCursor: null });
+    const candidates = renderHook(() => useVendorWithholdingCandidates(params), { wrapper });
+    await waitFor(() => expect(candidates.result.current.isSuccess).toBe(true));
+    let nextResult: typeof candidates.result.current | undefined;
+    await act(async () => { nextResult = await candidates.result.current.fetchNextPage(); });
+    expect(repo.listBills).toHaveBeenNthCalledWith(1, { ...params, candidatesOnly: true, cursor: undefined, limit: 50 });
+    expect(repo.listBills).toHaveBeenNthCalledWith(2, { ...params, candidatesOnly: true, cursor, limit: 50 });
+    expect(nextResult?.data?.pages.map((page) => page.rows[0].invoice_id)).toEqual(['i1', 'i2']);
+    expect(client.getQueryCache().find({ queryKey: vendorWithholdingSlipKeys.candidates('org-a', params) })).toBeTruthy();
+  });
+
   it('does not fetch without an organization or selected invoice IDs', () => {
     const { wrapper } = setup(); auth.orgId = undefined;
     const noOrg = renderHook(() => useVendorWithholdingCoverage(['i1']), { wrapper });

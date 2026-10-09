@@ -15,6 +15,9 @@ test.skip(!serviceKey, 'AC-BUPOT-021 requires service-role access for isolated f
 test.setTimeout(120_000);
 const id = { vendor: crypto.randomUUID(), procurement: crypto.randomUUID(), invoice: crypto.randomUUID() };
 const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+const candidateInvoices = Array.from({ length: 15 }, (_, index) => ({
+  id: crypto.randomUUID(), vi_number: `BUPOT-VIS-CANDIDATE-${suffix}-${index + 1}`,
+}));
 const viNumber = `BUPOT-VIS-${suffix}`;
 const slipNumber = `BUPOT-VIS-SLIP-${suffix}`;
 
@@ -35,17 +38,18 @@ async function openDocuments(page: import('@playwright/test').Page, width: numbe
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }
 
-test('AC-BUPOT-021 cell, capture and details are accessible and fit at 360/1440 in English and Indonesian', async ({ page }) => {
+test('#961 F18 keeps reconciliation visible above the modal footer on a long candidate list (AC-BUPOT-021 visual states)', async ({ page }) => {
   const admin = createClient(SUPABASE_URL, serviceKey!);
   const { error: vendorError } = await admin.from('companies').insert({ id: id.vendor, org_id: ORG_ID, name: `BUPOT visual vendor ${suffix}`, type: 'Vendor' });
   if (vendorError) throw new Error(`vendor fixture failed: ${vendorError.message}`);
   const { error: caseError } = await admin.from('procurements').insert({ id: id.procurement, org_id: ORG_ID, title: `BUPOT visual case ${suffix}`, status: 'Ordered', vendor_id: id.vendor, currency: 'IDR' });
   if (caseError) throw new Error(`case fixture failed: ${caseError.message}`);
-  const { error: billError } = await admin.from('procurement_invoices').insert({
-    id: id.invoice, org_id: ORG_ID, procurement_id: id.procurement, vi_number: viNumber,
-    invoice_date: new Date().toISOString().slice(0, 10), status: 'Paid', amount: 100000, currency: 'IDR',
-    tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 20000, withheld_pph_type: 'pph23',
-  });
+  const invoiceDate = new Date().toISOString().slice(0, 10);
+  const invoiceFacts = { org_id: ORG_ID, procurement_id: id.procurement, invoice_date: invoiceDate, status: 'Paid' as const, amount: 100000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 20000, withheld_pph_type: 'pph23' };
+  const { error: billError } = await admin.from('procurement_invoices').insert([
+    { ...invoiceFacts, id: id.invoice, vi_number: viNumber },
+    ...candidateInvoices.map((candidate) => ({ ...invoiceFacts, ...candidate })),
+  ]);
   if (billError) throw new Error(`bill fixture failed: ${billError.message}`);
   let slipId: string | null = null;
   let activeLocale: 'en' | 'id' = 'en';
@@ -79,6 +83,18 @@ test('AC-BUPOT-021 cell, capture and details are accessible and fit at 360/1440 
           const modal = page.getByRole('dialog');
           await expect(modal).toBeVisible();
           await expect(modal.getByLabel(/Issued slip number|Nomor slip terbit/i)).toBeVisible();
+          const body = modal.locator('form > div.overflow-y-auto');
+          const reconciliation = modal.getByText(/Selection .* · Slip .* · Difference/);
+          await expect(body).toBeVisible();
+          await expect(reconciliation).toBeVisible();
+          expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+          await body.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+          await expect(reconciliation).toBeInViewport();
+          const summaryBox = await reconciliation.boundingBox();
+          const footerBox = await modal.locator('form > div.border-t').boundingBox();
+          expect(summaryBox).not.toBeNull();
+          expect(footerBox).not.toBeNull();
+          expect(summaryBox!.y + summaryBox!.height).toBeLessThanOrEqual(footerBox!.y);
           await assertRendered(page, width);
           await modal.getByLabel(/Issued slip number|Nomor slip terbit/i).fill(slipNumber);
           await modal.getByLabel(/Tax base|Dasar pengenaan pajak/i).fill('100000');
@@ -95,7 +111,9 @@ test('AC-BUPOT-021 cell, capture and details are accessible and fit at 360/1440 
         }
         const details = page.getByLabel(/Bukti potong details|Detail bukti potong/i);
         await expect(details.getByText(slipNumber)).toBeVisible();
-        await expect(details.getByText(viNumber)).toBeVisible();
+        await expect(details.getByText(viNumber, { exact: true })).toBeVisible();
+        const historyLinkLabel = locale === 'en' ? 'Bukti potong bill link' : 'Tautan tagihan bukti potong';
+        await expect(details.getByText(new RegExp(`${historyLinkLabel} · ${viNumber}`))).toBeVisible();
         await assertRendered(page, width);
       }
     }
@@ -104,7 +122,7 @@ test('AC-BUPOT-021 cell, capture and details are accessible and fit at 360/1440 
     const slipIds = (slips ?? []).map((slip) => slip.id as string);
     if (slipIds.length) await admin.from('vendor_withholding_slip_bills').delete().in('slip_id', slipIds);
     if (slipIds.length) await admin.from('vendor_withholding_slips').delete().in('id', slipIds);
-    await admin.from('procurement_invoices').delete().eq('id', id.invoice);
+    await admin.from('procurement_invoices').delete().in('id', [id.invoice, ...candidateInvoices.map((candidate) => candidate.id)]);
     await admin.from('procurements').delete().eq('id', id.procurement);
     await admin.from('companies').delete().eq('id', id.vendor);
   }

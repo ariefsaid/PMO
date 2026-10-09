@@ -98,6 +98,21 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     });
   });
 
+  it('#961 history-bill-label names a linked withholding bill', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [
+      ev(1, { entityType: 'vendor_withholding_slip_bill', entityId: 'link-1', op: 'insert', changes: {} }),
+    ], nextCursor: null });
+    repo.recordHistory.lookupNames.mockResolvedValue({
+      vendor_withholding_slip_bill: new Map([['link-1', 'VI-2026-01']]),
+    });
+
+    renderIt({ entityType: 'vendor_withholding_slip', entityId: 'slip-1', includeChildren: true });
+
+    expect(await screen.findByText('Bukti potong bill link · VI-2026-01')).toBeInTheDocument();
+    expect(screen.queryByText(/Unavailable/)).not.toBeInTheDocument();
+    expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({ vendor_withholding_slip_bill: ['link-1'] });
+  });
+
   it('HI-2: names invoice event records from only the event IDs on the visible page', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [
       ev(2, { entityType: 'sales_invoice', entityId: 'si-1', changes: {} }),
