@@ -64,6 +64,8 @@ export interface ComboboxProps {
   clearable?: boolean;
   onClear?: () => void;
   disabled?: boolean;
+  /** Stable DOM id for form error-summary focus links. */
+  id?: string;
   className?: string;
 }
 
@@ -85,6 +87,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   clearable,
   onClear,
   disabled,
+  id,
   className,
 }) => {
   const { t } = useTranslation();
@@ -280,6 +283,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
       <div className="relative">
         <button
           ref={triggerRef}
+          id={id}
           type="button"
           role="combobox"
           aria-haspopup="listbox"

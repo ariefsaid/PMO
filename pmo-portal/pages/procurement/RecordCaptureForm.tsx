@@ -21,7 +21,6 @@ import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
 import {
   TAX_TREATMENT_OPTIONS,
-  TAX_TREATMENT_PLACEHOLDER,
   VI_TAX_REQUIRED_HINT,
   taxIsPmoAuthored,
   ERP_AUTHORED_TAX,
@@ -34,6 +33,7 @@ import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
+import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
@@ -339,6 +339,18 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const { toast } = useToast();
   const { t } = useTranslation();
   const cfg = kindConfig(kind);
+  // #910 (DD-VPAY-8): the payment capture NEVER asks for a status — the form's `{Pending, Processed,
+  // Cleared}` options are illegal against the `payments.status ('Scheduled','Paid')` CHECK (0035), so
+  // every native form capture from this form failed (0178). The native RPC coalesces a null status to
+  // `Scheduled`; the external wire record omits status entirely (DD-VPAY-1) — the ERP docstatus is
+  // the only status truth. Other kinds keep their selects.
+  const isPayment = kind === 'payment';
+  // #910 (DD-VPAY-3 + DD-VPAY-10, FR-VPAY-010): on a FLIPPED org (the same org-level predicate the
+  // group-ref hide uses) the dispatched payment must name its bill — so the invoice FK is required,
+  // and selecting a bill prefills the amount with its mirrored ERP outstanding (what we actually
+  // owe, net of withholding). On a PMO-native org the FK stays optional (nullable predecessor).
+  const paymentBillRequired = isPayment && !groupRefIsPmoAuthored();
+  const [billError, setBillError] = useState<string | undefined>(undefined);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [groupRef, setGroupRef] = useState('');
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
@@ -471,7 +483,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     try {
       const refNum = referenceNumber.trim() || null;
       const dateVal = date || null;
-      const statusVal = status || null;
+      // DD-VPAY-8: a payment never sends a status — not the (hidden, illegal) select value.
+      const statusVal = isPayment ? null : (status || null);
+
+      // DD-VPAY-3: on a flipped org the payment MUST name its bill — refused here, locally, before
+      // any dispatch call (the server gate is the authority; this is the form not throwing blind).
+      if (paymentBillRequired && !invoiceId) {
+        setBillError(t('procurementDetail.paymentBillRequired', 'Select the vendor invoice this payment closes.'));
+        setSubmitting(false);
+        return;
+      }
 
       let input: CreateRecordInput;
       if (kind === 'payment') {
@@ -495,7 +516,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       }
 
       await onCreate(input);
-      toast(`${label} recorded`, refNum ?? undefined, 'success');
+      toast(isPayment ? t('procurementDetail.paymentRecorded', 'Payment recorded') : t('procurementDetail.captureRecorded', '{{label}} recorded', { label }), refNum ?? undefined, 'success');
       onClose();
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -525,7 +546,11 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           htmlFor={`${formId}-ref`}
           className="text-[12px] font-semibold text-muted-foreground"
         >
-          {cfg.refLabel} <span className="font-normal">(optional)</span>
+          {kind === 'payment'
+            ? t('procurementDetail.externalRefOptional', 'External ref (optional)')
+            : kind === 'vendor_invoice'
+              ? t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')
+              : cfg.refLabel} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
         </label>
         <input
           id={`${formId}-ref`}
@@ -570,7 +595,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             htmlFor={`${formId}-date`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            {cfg.dateLabel}
+            {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date') : cfg.dateLabel}
           </label>
           <input
             id={`${formId}-date`}
@@ -582,17 +607,23 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           />
         </div>
 
-        {/* Status */}
-        <div className="min-w-[140px] flex-1">
-          <SelectField
-            id={`${formId}-status`}
-            label="Status"
-            value={status}
-            onChange={setStatus}
-            options={statusOptions}
-            data-testid={cfg.statusTestId}
-          />
-        </div>
+        {/* Status — never rendered for a payment: DD-VPAY-8 (the options are illegal; null is sent). */}
+        {!isPayment && (
+          <div className="min-w-[140px] flex-1">
+            <SelectField
+              id={`${formId}-status`}
+              label={isVendorInvoice ? t('procurementDetail.vendorInvoice.invoiceStatus', 'Invoice status') : t('procurementDetail.status', 'Status')}
+              value={status}
+              onChange={setStatus}
+              options={statusOptions.map((option) => isVendorInvoice
+                ? { ...option, label: option.value === 'Received'
+                  ? t('procurementDetail.vendorInvoice.received', 'Received')
+                  : t('procurementDetail.vendorInvoice.scheduled', 'Scheduled') }
+                : option)}
+              data-testid={cfg.statusTestId}
+            />
+          </div>
+        )}
       </div>
 
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
@@ -602,7 +633,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             htmlFor={`${formId}-amount`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            Amount <span className="font-normal">(optional)</span>
+            {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)') : t('procurementDetail.amountOptional', 'Amount (optional)')}
           </label>
           <input
             id={`${formId}-amount`}
@@ -651,11 +682,17 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           <div className="min-w-[180px] flex-1">
             <SelectField
               id={`${formId}-tax-treatment`}
-              label="Tax treatment"
+              label={t('procurementDetail.vendorInvoice.taxTreatment', 'Tax treatment')}
               value={taxTreatmentStr}
               onChange={setTaxTreatmentStr}
-              placeholder={TAX_TREATMENT_PLACEHOLDER}
-              options={TAX_TREATMENT_OPTIONS}
+              placeholder={t('procurementDetail.vendorInvoice.taxTreatmentPlaceholder', 'Select tax treatment')}
+              helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}
+              options={TAX_TREATMENT_OPTIONS.map((option) => ({
+                ...option,
+                label: option.value === 'inclusive'
+                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
+                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+              }))}
               data-testid={VI_FIELD_TEST_IDS.taxTreatment}
             />
           </div>
@@ -664,7 +701,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               htmlFor={`${formId}-tax-amount`}
               className="text-[12px] font-semibold text-muted-foreground"
             >
-              Tax amount
+              {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
             </label>
             <input
               id={`${formId}-tax-amount`}
@@ -691,17 +728,41 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </p>
       )}
 
-      {/* [PD-5]: predecessor FK for payment — optional inline-select */}
+      {/* [PD-5]: predecessor FK for payment — required on a flipped org (DD-VPAY-3), optional otherwise */}
       {cfg.showInvoiceFk && (
-        <SelectField
-          id={`${formId}-invoice`}
-          label={<>Links to invoice <span className="font-normal">(optional)</span></>}
-          value={invoiceId}
-          onChange={setInvoiceId}
-          data-testid="payment-invoice-select"
-          placeholder="— none —"
-          options={invoices.map((inv) => ({ value: inv.id, label: inv.vi_number ?? inv.id }))}
-        />
+        <div className="flex flex-col gap-1">
+          <SelectField
+            id={`${formId}-invoice`}
+            label={<>Links to invoice {!paymentBillRequired && <span className="font-normal">(optional)</span>}</>}
+            value={invoiceId}
+            onChange={(next) => {
+              setInvoiceId(next);
+              setBillError(undefined);
+              // DD-VPAY-10: the bill's mirrored ERP outstanding is the default amount — what we
+              // actually owe, net of withholding (AC-VWH-005's figures: gross 1,110,000 → 1,090,000).
+              // The user may pay less (partial); the server gate (DD-VPAY-7) remains the authority.
+              if (paymentBillRequired) {
+                const selected = invoices.find((inv) => inv.id === next);
+                const raw = selected?.erp_outstanding_amount;
+                const outstanding = typeof raw === 'string' ? Number(raw) : raw;
+                if (typeof outstanding === 'number' && Number.isFinite(outstanding)) {
+                  setAmountStr(formatMoneyInputValue(outstanding));
+                  setAmountError(undefined);
+                }
+              }
+            }}
+            data-testid="payment-invoice-select"
+            placeholder="— none —"
+            options={invoices.map((inv) => ({ value: inv.id, label: inv.vi_number ?? inv.id }))}
+          />
+          <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
+        </div>
+      )}
+
+      {isVendorInvoice && pmoAuthorsTax && !amountStr && vendorTax?.pphType && taxIncomplete && (
+        <p role="status" className="text-[12px] text-muted-foreground">
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+        </p>
       )}
 
       {/* Action row */}
@@ -715,7 +776,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={taxIncomplete}
           data-testid={cfg.saveTestId}
         >
-          {cfg.saveLabel}
+          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save VI') : cfg.saveLabel}
         </Button>
         <Button
           type="button"
@@ -725,7 +786,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={isBusy}
           data-testid={cfg.cancelTestId}
         >
-          Cancel
+          {t('financeCopy.cancel', 'Cancel')}
         </Button>
       </div>
     </form>

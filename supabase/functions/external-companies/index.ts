@@ -31,6 +31,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface CompaniesBody {
   tier: 'erpnext';
@@ -83,41 +84,6 @@ function errorResponse(message: string, code: string, status: number): Response 
 // SSRF guard (mirrors external-connect exactly)
 // ============================================================================
 
-function isPrivateOrReservedHost(hostname: string): boolean {
-  let host = hostname.toLowerCase();
-  if (host.startsWith('[') && host.endsWith(']')) {
-    host = host.slice(1, -1);
-  }
-  host = host.split(':')[0];
-
-  if (host === 'localhost' || host === 'localhost.localdomain') return true;
-  if (host === '::1' || host.startsWith('127.')) return true;
-
-  const ipv4Match = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (ipv4Match) {
-    const a = parseInt(ipv4Match[1], 10);
-    const b = parseInt(ipv4Match[2], 10);
-    if (a === 10) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 0) return true;
-  }
-
-  if (host.startsWith('fc') || host.startsWith('fd')) {
-    const firstHextet = host.split(':')[0];
-    const first = parseInt(firstHextet, 16);
-    if (!isNaN(first) && (first & 0xfe) === 0xfc) return true;
-  }
-  if (host === '::') return true;
-  if (host === '::1') return true;
-  if (host === '169.254.169.254') return true;
-  if (host === 'metadata.google.internal') return true;
-  if (host === 'metadata.azure.com') return true;
-
-  return false;
-}
-
 // ============================================================================
 // ERPNext company fetch (injected fetch for testability)
 // ============================================================================
@@ -142,7 +108,7 @@ async function fetchErpNextCompanies(deps: ErpCompanyDeps): Promise<string[]> {
   }
 
   const hostname = parsedUrl.hostname;
-  if (isPrivateOrReservedHost(hostname)) {
+  if (await isPrivateOrReservedHost(hostname)) {
     throw new AppError('Private or reserved addresses are not allowed', 'config-rejected');
   }
 

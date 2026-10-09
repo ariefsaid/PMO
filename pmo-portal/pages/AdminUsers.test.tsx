@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
@@ -231,7 +232,7 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Admin');
     await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });
@@ -297,7 +298,7 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(/email/i), 'existing@example.com');
     await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /already in your workspace/i);
     expect(toast).toHaveTextContent(/already in your workspace/i);
   });
 });

@@ -74,8 +74,9 @@ import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
-import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
+import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -715,6 +716,19 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
   const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN || command.domain === ERPNEXT_BUDGET_DOMAIN || command.domain === ERPNEXT_TIMESHEETS_DOMAIN;
 
+  // ── #784 — a revenue command names its record by the canonical uuid every PMO revenue table keys it on;
+  // the whole money path compares that id as TEXT (the outbox fence, the one-in-flight index, external_refs,
+  // the native receipt RPCs' ownership checks). Every erp_doc_kind — sales-invoice, incoming-payment, … —
+  // answers the shape HERE, before any guard read, before adapter selection, before any outbox/ref write.
+  // `checkRevenueErpPathTarget` re-asserts it (unit-provable) and `dispatchMoneyWrite` re-asserts it on the
+  // pure path, the same boundary-plus-re-assertion layering the idempotency-key rule below uses.
+  if (command.domain === ERPNEXT_REVENUE_DOMAIN && !isCanonicalUuid(String(command.record.id))) {
+    return new Response(
+      JSON.stringify({ error: 'commit-rejected', message: 'revenue record.id must be a canonical UUID' }),
+      { status: 422, headers },
+    );
+  }
+
   // ── Luna BLOCK 4 — server-side authorization gate for erpnext-tier commands (money audit).
   // After resolving the caller's org/userId and parsing the command, but BEFORE any adapter/
   // outbox/ERP write. The deputy `callerClient` (caller's JWT) is used so domain_externally_owned
@@ -958,6 +972,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   //      that record's external identity to a fresh ERP document before the mirror insert fails on
   //      the duplicate PK. This command's own retry (same idempotency key) stays allowed.
   if (isErpDomain) {
+    // #784 — a PMO-native invoice or receipt is never acted on through the ERP path (any operation).
+    const erpPath = await checkRevenueErpPathTarget(serviceClient as never, command);
+    if (!erpPath.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: erpPath.message }), {
+        status: erpPath.status,
+        headers,
+      });
+    }
     const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
     if (!binding.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {
@@ -976,6 +998,31 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
           headers,
         });
       }
+    }
+  }
+
+  // ── #910 (FR-VPAY-005, DD-VPAY-5) — the vendor-payment money gate: SoD-b (approver ≠ payer) + the
+  // case state, enforced on the DISPATCH path. On a flipped org the dispatched Payment Entry IS the
+  // money release, so `transition_procurement`'s `Vendor Invoiced → Paid` SoD-b branch (0006) never
+  // runs and authGuard's role check alone cannot stop the case's own approver from paying it (either
+  // through the form or a direct dispatch). A procurement `payment` create therefore re-reads the
+  // CASE from the DB — 403 with 0006's exact wording when the verified caller (`userId`, the JWT
+  // sub, never a payload field) is the approver, 422 when the case is not at `Vendor Invoiced`, and
+  // fail-closed on a missing/unreadable row. Runs BEFORE the outbox insert, so a refused payment
+  // leaves no outbox row and touches no ERP. Positioned after the binding/target guards so a command
+  // that is about to be rejected for those reasons never pays for this read.
+  if (isProcurementPaymentCreate(command)) {
+    const paymentGate = await enforcePaymentGate(
+      serviceClient as never,
+      orgId,
+      userId,
+      String((command.record as { procurementId?: unknown }).procurementId ?? ''),
+    );
+    if (!paymentGate.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: paymentGate.message }), {
+        status: paymentGate.status,
+        headers,
+      });
     }
   }
 

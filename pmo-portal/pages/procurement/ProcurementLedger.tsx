@@ -45,6 +45,9 @@ import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import { withholdingFigures } from '@/src/lib/vendorWithholding';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSlips';
+import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
+import type { BillRow } from '@/src/lib/db/vendorWithholdingSlips';
 
 // ---------------------------------------------------------------------------
 // Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
@@ -72,6 +75,23 @@ const FILTER_CHIPS: FilterChipDef[] = [
   { value: 'financial', label: 'Financial' },
   { value: 'has-file', label: 'Has file' },
 ];
+const LedgerHeader: React.FC<{ translationKey: string; fallback: string }> = ({ translationKey, fallback }) => {
+  const { t } = useTranslation();
+  const value = translationKey === 'procurementLedger.date' ? t('procurementLedger.date', 'Date')
+    : translationKey === 'procurementLedger.typeHeader' ? t('procurementLedger.typeHeader', 'Type')
+      : translationKey === 'procurementLedger.systemNumber' ? t('procurementLedger.systemNumber', 'System #')
+        : translationKey === 'procurementLedger.externalRef' ? t('procurementLedger.externalRef', 'External ref')
+          : translationKey === 'procurementLedger.amount' ? t('procurementLedger.amount', 'Amount')
+            : t('procurementLedger.file', 'File');
+  return <>{value || fallback}</>;
+};
+const LedgerTypeLabel: React.FC<{ type: LedgerRow['type'] }> = ({ type }) => {
+  const { t } = useTranslation();
+  const label = type === 'PR' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
+    : type === 'PO' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
+      : type === 'Payment' ? t('procurementLedger.types.payment', 'Payment') : type;
+  return <>{label}</>;
+};
 
 // ---------------------------------------------------------------------------
 // Static column definitions (all except File — that one needs canWrite context)
@@ -90,7 +110,7 @@ const EfakturHeader: React.FC = () => {
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
-    header: 'Date',
+    header: <LedgerHeader translationKey="procurementLedger.date" fallback="Date" />,
     cell: (row) => (
       <span className="text-[13px] text-muted-foreground">
         {formatBusinessDate(row.date)}
@@ -99,16 +119,16 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'type',
-    header: 'Type',
+    header: <LedgerHeader translationKey="procurementLedger.typeHeader" fallback="Type" />,
     cell: (row) => (
       <StatusPill variant="neutral">
-        {row.type}
+        <LedgerTypeLabel type={row.type} />
       </StatusPill>
     ),
   },
   {
     key: 'systemNumber',
-    header: 'System #',
+    header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
         <span className="font-mono text-[12.5px] font-semibold">{row.systemNumber}</span>
@@ -118,7 +138,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'externalRef',
-    header: 'External ref',
+    header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
         <span className="font-mono text-[12.5px] text-muted-foreground">{row.externalRef}</span>
@@ -145,32 +165,6 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     cell: (row) => row.type === 'Invoice'
       ? <EfakturCell number={row.efakturNumber ?? null} date={row.efakturDate ?? null} />
       : null,
-  },
-  {
-    key: 'amount',
-    header: 'Amount',
-    align: 'num',
-    // OD-TAX-1 §2: a vendor invoice's total states its basis (0196's NOT NULL marker). The other
-    // ledger types carry no treatment column at all, so `taxTreatment` is null for them and the
-    // label renders nothing — a PO amount is not silently re-labelled with the invoice's basis.
-    // #876 (DD-VWH-6): a vendor invoice with tax withheld adds VAT · Tax withheld (PPh) · Net payable under its gross
-    // total; every other row renders exactly as before.
-    cell: (row) => {
-      if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
-      const total = (
-        <span className="inline-flex items-baseline justify-end gap-1.5">
-          <span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span>
-          <TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} />
-        </span>
-      );
-      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
-      return figures ? (
-        <div className="inline-flex flex-col items-end gap-0.5">
-          {total}
-          <WithholdingBreakdown figures={figures} currency={row.currency} />
-        </div>
-      ) : total;
-    },
   },
   {
     key: 'status',
@@ -220,13 +214,23 @@ export interface ProcurementLedgerProps {
   efakturSaving?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
+  withholdingCoverage?: Record<string, BillRow>;
+  withholdingCoverageLoading?: boolean;
+  withholdingCoverageError?: boolean;
+  canWriteWithholdingSlip?: boolean;
+  onRetryWithholdingCoverage?: () => void;
+  onRecordWithholdingSlip?: (invoice: ProcurementInvoiceRow) => void;
+  onViewWithholdingSlip?: (slipId: string) => void;
+  onWithholdingHistory?: (invoiceId: string) => void;
+  /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
+  isApprover?: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
+const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   detail,
   rows,
   procurementId,
@@ -236,10 +240,27 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   onSetEfaktur,
   efakturSaving = false,
   invoices = [],
+  withholdingCoverage = {},
+  withholdingCoverageLoading = false,
+  withholdingCoverageError = false,
+  canWriteWithholdingSlip = false,
+  onRetryWithholdingCoverage,
+  onRecordWithholdingSlip,
+  onViewWithholdingSlip,
+  onWithholdingHistory,
+  isApprover = false,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const { t } = useTranslation();
+  const resolvedWithholdingCoverage = withholdingCoverage;
+  const slipCoverageLoading = withholdingCoverageLoading;
+  const slipCoverageError = withholdingCoverageError;
+  const filterLabels: Record<LedgerFilter, string> = {
+    all: t('procurementLedger.filter.all', 'All'),
+    financial: t('procurementLedger.filter.financial', 'Financial'),
+    'has-file': t('procurementLedger.filter.hasFile', 'Has file'),
+  };
 
   // Mutations for the capture row (invalidate the detail query on success)
   const mutations = useProcurementRecordMutations(procurementId);
@@ -249,7 +270,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const fileColumn = useMemo<Column<LedgerRow>>(
     () => ({
       key: 'file',
-      header: 'File',
+      header: <LedgerHeader translationKey="procurementLedger.file" fallback="File" />,
       cell: (row) => (
         <LedgerFileCell
           type={row.type}
@@ -267,9 +288,21 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     [canWrite, procurementId, uploadedById],
   );
 
+  const amountColumn = useMemo<Column<LedgerRow>>(() => ({
+    key: 'amount', header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
+    cell: (row) => {
+      if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
+      const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
+      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
+      const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
+      const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={resolvedWithholdingCoverage[row.recordId]} isLoading={slipCoverageLoading} isError={slipCoverageError} canWrite={canWriteWithholdingSlip} onRetry={onRetryWithholdingCoverage} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
+      return figures ? <div className="inline-flex flex-col items-end gap-0.5">{total}<WithholdingBreakdown figures={figures} currency={row.currency} />{slipCell}</div> : slipCell ? <div className="inline-flex flex-col items-end gap-0.5">{total}{slipCell}</div> : total;
+    },
+  }), [canWriteWithholdingSlip, invoices, onRecordWithholdingSlip, onRetryWithholdingCoverage, onViewWithholdingSlip, onWithholdingHistory, resolvedWithholdingCoverage, slipCoverageError, slipCoverageLoading]);
+
   const columns = useMemo<Column<LedgerRow>[]>(
-    () => [...STATIC_COLUMNS, fileColumn],
-    [fileColumn],
+    () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
+    [amountColumn, fileColumn],
   );
 
   // The set of record types already present in the ledger — drives the capture
@@ -335,11 +368,11 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     <div data-testid="procurement-ledger">
       {/* Toolbar: card-head + filter chips */}
       <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
-        <span className="text-[13px] font-semibold">Case ledger</span>
+        <span className="text-[13px] font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
         {/* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */}
         <div
           role="group"
-          aria-label="Filter records"
+          aria-label={t('procurementLedger.filter.label', 'Filter records')}
           className="flex flex-wrap gap-1.5"
         >
           {FILTER_CHIPS.map((chip) => {
@@ -361,7 +394,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
                   .filter(Boolean)
                   .join(' ')}
               >
-                {chip.label}
+                {filterLabels[chip.value]}
               </button>
             );
           })}
@@ -373,10 +406,17 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
-        rowMenu={canRecordEfaktur && onSetEfaktur ? (row): RowMenuItem[] | undefined => {
-          if (row.type !== 'Invoice' || row.efakturLocked) return undefined;
-          return [{ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) }];
-        } : undefined}
+        rowMenu={(row): RowMenuItem[] | undefined => {
+          if (row.type !== 'Invoice') return undefined;
+          const items: RowMenuItem[] = [];
+          if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
+          const coverage = resolvedWithholdingCoverage[row.recordId];
+          const invoice = invoices.find((item) => item.id === row.recordId);
+          if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
+          else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
+          items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
+          return items.length ? items : undefined;
+        }}
         state={tableState}
         emptyTitle={emptyTitle}
         emptySub={emptySub}
@@ -409,15 +449,33 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           existingTypes={existingTypes}
           canWrite={canWrite}
           invoices={invoices}
+          isApprover={isApprover}
           busy={captureBusy}
           onCreate={handleCreate}
         />
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Every record appears once, chronological. Empty record types have no row.
+          {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>
       </CardPad>
     </div>
   );
+};
+
+function WithholdingCoverageBridge(props: ProcurementLedgerProps) {
+  const query = useVendorWithholdingCoverage((props.invoices ?? []).map((invoice) => invoice.id));
+  return <ProcurementLedgerContent
+    {...props}
+    withholdingCoverage={Object.fromEntries((query.data ?? []).map((row) => [row.invoice_id, row]))}
+    withholdingCoverageLoading={query.isLoading}
+    withholdingCoverageError={query.isError}
+    onRetryWithholdingCoverage={props.onRetryWithholdingCoverage ?? (() => void query.refetch())}
+  />;
+}
+
+export const ProcurementLedger: React.FC<ProcurementLedgerProps> = (props) => {
+  if (props.withholdingCoverage) return <ProcurementLedgerContent {...props} />;
+  if (props.onRecordWithholdingSlip) return <WithholdingCoverageBridge {...props} />;
+  return <ProcurementLedgerContent {...props} withholdingCoverage={{}} withholdingCoverageLoading={false} withholdingCoverageError={false} />;
 };
 
 ProcurementLedger.displayName = 'ProcurementLedger';

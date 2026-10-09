@@ -777,6 +777,49 @@ export type Database = {
           },
         ]
       }
+      budget_version_editors: {
+        Row: {
+          budget_version_id: string
+          first_edited_at: string
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          budget_version_id: string
+          first_edited_at?: string
+          org_id: string
+          user_id: string
+        }
+        Update: {
+          budget_version_id?: string
+          first_edited_at?: string
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_version_editors_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_editors_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_editors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_version_erp_mirror: {
         Row: {
           activated_at_witness: string | null
@@ -2634,6 +2677,7 @@ export type Database = {
       incoming_payments: {
         Row: {
           amount: number | null
+          cancelled_at: string | null
           created_at: string
           currency: string
           customer_id: string | null
@@ -2645,6 +2689,8 @@ export type Database = {
           id: string
           ip_number: string | null
           org_id: string
+          pmo_native: boolean
+          pmo_number: string | null
           received_amount: number | null
           reference_number: string | null
           sales_invoice_id: string | null
@@ -2654,6 +2700,7 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          cancelled_at?: string | null
           created_at?: string
           currency?: string
           customer_id?: string | null
@@ -2665,6 +2712,8 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          pmo_native?: boolean
+          pmo_number?: string | null
           received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
@@ -2674,6 +2723,7 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          cancelled_at?: string | null
           created_at?: string
           currency?: string
           customer_id?: string | null
@@ -2685,6 +2735,8 @@ export type Database = {
           id?: string
           ip_number?: string | null
           org_id?: string
+          pmo_native?: boolean
+          pmo_number?: string | null
           received_amount?: number | null
           reference_number?: string | null
           sales_invoice_id?: string | null
@@ -3268,6 +3320,7 @@ export type Database = {
           org_id: string
           pay_number: string | null
           procurement_id: string
+          recorded_by_id: string | null
           reference_number: string | null
           status: string
         }
@@ -3288,6 +3341,7 @@ export type Database = {
           org_id?: string
           pay_number?: string | null
           procurement_id: string
+          recorded_by_id?: string | null
           reference_number?: string | null
           status?: string
         }
@@ -3308,6 +3362,7 @@ export type Database = {
           org_id?: string
           pay_number?: string | null
           procurement_id?: string
+          recorded_by_id?: string | null
           reference_number?: string | null
           status?: string
         }
@@ -3318,6 +3373,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "procurement_invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_withholding_bill_register"
+            referencedColumns: ["invoice_id"]
           },
           {
             foreignKeyName: "payments_org_id_fkey"
@@ -3331,6 +3393,13 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_recorded_by_id_fkey"
+            columns: ["recorded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3509,6 +3578,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "procurement_invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_files_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_withholding_bill_register"
+            referencedColumns: ["invoice_id"]
           },
           {
             foreignKeyName: "procurement_invoice_files_org_id_fkey"
@@ -5467,6 +5543,8 @@ export type Database = {
       sales_invoices: {
         Row: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -5478,10 +5556,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -5497,6 +5581,8 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          approved_at?: string | null
+          approved_by_id?: string | null
           author_user_id?: string | null
           created_at?: string
           currency?: string
@@ -5508,10 +5594,16 @@ export type Database = {
           erp_docstatus?: number | null
           erp_due_date?: string | null
           erp_modified?: string | null
+          erp_opening_amount?: number | null
+          erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
           id?: string
           invoice_date?: string | null
+          native_lines?: Json | null
           org_id?: string
+          overpaid_amount?: number | null
+          pmo_native?: boolean
+          pmo_number?: string | null
           project_id?: string | null
           received_date?: string | null
           reference_number?: string | null
@@ -5527,6 +5619,8 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          approved_at?: string | null
+          approved_by_id?: string | null
           author_user_id?: string | null
           created_at?: string
           currency?: string
@@ -5538,10 +5632,16 @@ export type Database = {
           erp_docstatus?: number | null
           erp_due_date?: string | null
           erp_modified?: string | null
+          erp_opening_amount?: number | null
+          erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
           id?: string
           invoice_date?: string | null
+          native_lines?: Json | null
           org_id?: string
+          overpaid_amount?: number | null
+          pmo_native?: boolean
+          pmo_number?: string | null
           project_id?: string | null
           received_date?: string | null
           reference_number?: string | null
@@ -6024,6 +6124,175 @@ export type Database = {
           },
         ]
       }
+      vendor_withholding_slip_bills: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          invoice_id: string
+          org_id: string
+          pph_type_at_record: string | null
+          procurement_id: string
+          released_at: string | null
+          slip_id: string
+          type_source: string
+          withheld_at_record: number
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          id?: string
+          invoice_id: string
+          org_id: string
+          pph_type_at_record?: string | null
+          procurement_id: string
+          released_at?: string | null
+          slip_id: string
+          type_source: string
+          withheld_at_record: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_id?: string
+          org_id?: string
+          pph_type_at_record?: string | null
+          procurement_id?: string
+          released_at?: string | null
+          slip_id?: string
+          type_source?: string
+          withheld_at_record?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_withholding_slip_bills_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_withholding_slip_bills_org_id_invoice_id_fkey"
+            columns: ["org_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_invoices"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "vendor_withholding_slip_bills_org_id_procurement_id_fkey"
+            columns: ["org_id", "procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "vendor_withholding_slip_bills_org_id_slip_id_fkey"
+            columns: ["org_id", "slip_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_withholding_slips"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      vendor_withholding_slips: {
+        Row: {
+          create_payload: Json
+          created_at: string
+          created_by: string
+          currency: string
+          id: string
+          invoice_count: number
+          org_id: string
+          pph_type: string
+          revision: number
+          slip_date: string
+          slip_number: string
+          status: string
+          tax_base: number
+          tax_period: string
+          updated_at: string
+          vendor_id: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          withheld_amount: number
+        }
+        Insert: {
+          create_payload: Json
+          created_at?: string
+          created_by: string
+          currency: string
+          id: string
+          invoice_count: number
+          org_id: string
+          pph_type: string
+          revision?: number
+          slip_date: string
+          slip_number: string
+          status?: string
+          tax_base: number
+          tax_period: string
+          updated_at?: string
+          vendor_id: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          withheld_amount: number
+        }
+        Update: {
+          create_payload?: Json
+          created_at?: string
+          created_by?: string
+          currency?: string
+          id?: string
+          invoice_count?: number
+          org_id?: string
+          pph_type?: string
+          revision?: number
+          slip_date?: string
+          slip_number?: string
+          status?: string
+          tax_base?: number
+          tax_period?: string
+          updated_at?: string
+          vendor_id?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          withheld_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_withholding_slips_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_withholding_slips_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_withholding_slips_org_id_vendor_id_fkey"
+            columns: ["org_id", "vendor_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "vendor_withholding_slips_voided_by_fkey"
+            columns: ["voided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_orders: {
         Row: {
           cancelled_at: string | null
@@ -6192,6 +6461,99 @@ export type Database = {
           },
         ]
       }
+      vendor_withholding_bill_register: {
+        Row: {
+          active_slip_id: string | null
+          case_status: Database["public"]["Enums"]["procurement_status"] | null
+          coverage_state: string | null
+          currency: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          invoice_date: string | null
+          invoice_id: string | null
+          invoice_month: string | null
+          linked_withheld_at_record: number | null
+          procurement_id: string | null
+          project_id: string | null
+          reference_number: string | null
+          resolved_pph_type: string | null
+          review_reasons: string[] | null
+          slip_date: string | null
+          slip_number: string | null
+          tax_period: string | null
+          type_source: string | null
+          vendor_id: string | null
+          vi_number: string | null
+          withheld_amount: number | null
+          withheld_pph_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_invoices_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurements_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurements_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_withholding_slip_register: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          difference: number | null
+          has_declared_type: boolean | null
+          invoice_count: number | null
+          linked_withheld_at_record: number | null
+          linked_withheld_current: number | null
+          pph_type: string | null
+          revision: number | null
+          slip_date: string | null
+          slip_id: string | null
+          slip_number: string | null
+          status: string | null
+          tax_base: number | null
+          tax_period: string | null
+          updated_at: string | null
+          validation_state: string | null
+          vendor_id: string | null
+          visible_invoice_count: number | null
+          voided_at: string | null
+          voided_by: string | null
+          withheld_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_withholding_slips_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_withholding_slips_voided_by_fkey"
+            columns: ["voided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_order_billing: {
         Row: {
           closed_at: string | null
@@ -6314,6 +6676,10 @@ export type Database = {
         Returns: undefined
       }
       assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
+      assert_sales_invoice_approver: {
+        Args: { p_actor: string; p_author_user_id: string; p_si_id: string }
+        Returns: undefined
+      }
       assert_work_order_invoiceable: {
         Args: {
           p_billed: number
@@ -6373,6 +6739,10 @@ export type Database = {
         Returns: boolean
       }
       can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
+      cancel_native_receipt: {
+        Args: { p_receipt_id: string }
+        Returns: undefined
+      }
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
@@ -6486,6 +6856,29 @@ export type Database = {
         Args: { p_generation: number; p_id: string }
         Returns: number
       }
+      correct_vendor_withholding_slip: {
+        Args: {
+          p_expected_revision: number
+          p_reason: string
+          p_slip_date: string
+          p_slip_id: string
+          p_slip_number: string
+          p_tax_period: string
+        }
+        Returns: {
+          revision: number
+          slip_id: string
+        }[]
+      }
+      create_native_sales_invoice: {
+        Args: {
+          p_customer_id: string
+          p_lines: Json
+          p_project_id: string
+          p_work_order_id?: string
+        }
+        Returns: string
+      }
       create_payment: {
         Args: {
           p_amount: number
@@ -6515,6 +6908,7 @@ export type Database = {
           org_id: string
           pay_number: string | null
           procurement_id: string
+          recorded_by_id: string | null
           reference_number: string | null
           status: string
         }
@@ -6967,11 +7361,17 @@ export type Database = {
       }
       get_sales_pipeline: { Args: never; Returns: Json }
       get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }
+      get_vendor_withholding_slip: {
+        Args: { p_slip_id: string }
+        Returns: Json
+      }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       grant_sales_invoice_submit_clearance: {
         Args: { p_actor_id: string; p_clearance_id: string; p_si_id: string }
         Returns: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -6983,10 +7383,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -7110,6 +7516,79 @@ export type Database = {
           source: string
         }[]
       }
+      list_vendor_withholding_bills: {
+        Args: {
+          p_after_date?: string
+          p_after_id?: string
+          p_after_null_date?: boolean
+          p_candidates_only?: boolean
+          p_currency?: string
+          p_invoice_ids?: string[]
+          p_limit?: number
+          p_pph_type?: string
+          p_vendor_id?: string
+        }
+        Returns: {
+          active_slip_id: string
+          case_status: string
+          coverage_state: string
+          currency: string
+          erp_cancelled_at: string
+          erp_docstatus: number
+          invoice_date: string
+          invoice_id: string
+          invoice_month: string
+          linked_withheld_at_record: string
+          procurement_id: string
+          project_id: string
+          reference_number: string
+          resolved_pph_type: string
+          review_reasons: string[]
+          slip_date: string
+          slip_number: string
+          tax_period: string
+          type_source: string
+          vendor_id: string
+          vi_number: string
+          withheld_amount: string
+          withheld_pph_type: string
+        }[]
+      }
+      list_vendor_withholding_slips: {
+        Args: {
+          p_before_id?: string
+          p_before_period?: string
+          p_invoice_id?: string
+          p_limit?: number
+          p_tax_period?: string
+          p_vendor_id?: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string
+          currency: string
+          difference: string
+          has_declared_type: boolean
+          invoice_count: number
+          linked_withheld_at_record: string
+          linked_withheld_current: string
+          pph_type: string
+          revision: number
+          slip_date: string
+          slip_id: string
+          slip_number: string
+          status: string
+          tax_base: string
+          tax_period: string
+          updated_at: string
+          validation_state: string
+          vendor_id: string
+          visible_invoice_count: number
+          voided_at: string
+          voided_by: string
+          withheld_amount: string
+        }[]
+      }
       lock_work_order_billing: {
         Args: { p_work_order_id: string }
         Returns: undefined
@@ -7203,6 +7682,70 @@ export type Database = {
           p_patch: Json
         }
         Returns: undefined
+      }
+      native_invoice_gross: {
+        Args: {
+          p_amount: number
+          p_tax_amount: number
+          p_tax_treatment: string
+        }
+        Returns: number
+      }
+      native_invoice_restate: {
+        Args: { p_si_id: string }
+        Returns: {
+          amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
+          author_user_id: string | null
+          created_at: string
+          currency: string
+          customer_id: string | null
+          efaktur_date: string | null
+          efaktur_number: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_due_date: string | null
+          erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
+          erp_outstanding_amount: number | null
+          id: string
+          invoice_date: string | null
+          native_lines: Json | null
+          org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
+          project_id: string | null
+          received_date: string | null
+          reference_number: string | null
+          si_number: string | null
+          status: string
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      native_invoice_settled: {
+        Args: { p_org: string; p_si_id: string }
+        Returns: number
+      }
+      native_org_today: { Args: { p_org: string }; Returns: string }
+      native_revenue_doc_number: {
+        Args: { p_doc_date: string; p_org: string; p_prefix: string }
+        Returns: string
       }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
@@ -7455,6 +7998,17 @@ export type Database = {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: boolean
       }
+      record_native_receipt: {
+        Args: {
+          p_amount?: number
+          p_date?: string
+          p_received_amount?: number
+          p_sales_invoice_id: string
+          p_withheld_amount?: number
+          p_withholding_slip_number?: string
+        }
+        Returns: string
+      }
       record_outbox_ref: {
         Args: {
           p_domain: string
@@ -7494,6 +8048,24 @@ export type Database = {
           p_timesheet_id: string
         }
         Returns: string
+      }
+      record_vendor_withholding_slip: {
+        Args: {
+          p_declared_invoice_ids?: string[]
+          p_invoice_ids: string[]
+          p_pph_type: string
+          p_slip_date: string
+          p_slip_id: string
+          p_slip_number: string
+          p_tax_base: number
+          p_tax_period: string
+          p_vendor_id: string
+          p_withheld_amount: number
+        }
+        Returns: {
+          revision: number
+          slip_id: string
+        }[]
       }
       recover_external_connect_trap: {
         Args: {
@@ -7614,6 +8186,7 @@ export type Database = {
           tax_treatment: string
           vi_number: string | null
           withheld_amount: number
+          withheld_pph_type: string | null
         }
         SetofOptions: {
           from: "*"
@@ -7644,6 +8217,8 @@ export type Database = {
         }
         Returns: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -7655,10 +8230,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -7683,6 +8264,8 @@ export type Database = {
         Args: { p_received_date: string; p_si_id: string }
         Returns: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -7694,10 +8277,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -7800,6 +8389,8 @@ export type Database = {
         Args: { p_si_id: string }
         Returns: {
           amount: number | null
+          approved_at: string | null
+          approved_by_id: string | null
           author_user_id: string | null
           created_at: string
           currency: string
@@ -7811,10 +8402,16 @@ export type Database = {
           erp_docstatus: number | null
           erp_due_date: string | null
           erp_modified: string | null
+          erp_opening_amount: number | null
+          erp_opening_at: string | null
           erp_outstanding_amount: number | null
           id: string
           invoice_date: string | null
+          native_lines: Json | null
           org_id: string
+          overpaid_amount: number | null
+          pmo_native: boolean
+          pmo_number: string | null
           project_id: string | null
           received_date: string | null
           reference_number: string | null
@@ -7861,6 +8458,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      transition_native_sales_invoice: {
+        Args: { p_id: string; p_to: string }
+        Returns: undefined
+      }
       transition_procurement: {
         Args: {
           p_id: string
@@ -7897,6 +8498,17 @@ export type Database = {
       valid_project_classification_options: {
         Args: { p_options: string[] }
         Returns: boolean
+      }
+      void_vendor_withholding_slip: {
+        Args: {
+          p_expected_revision: number
+          p_reason: string
+          p_slip_id: string
+        }
+        Returns: {
+          revision: number
+          slip_id: string
+        }[]
       }
       withdraw_progress_claim: { Args: { p_id: string }; Returns: undefined }
     }

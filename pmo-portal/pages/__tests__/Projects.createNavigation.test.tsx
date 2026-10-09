@@ -17,6 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 import Projects from '../Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -117,7 +118,7 @@ describe('Projects create navigation (AC-RAM-006)', () => {
     await submitNewProject('Harborside Terminal');
 
     // The success toast names the created record (goal oracle).
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('status', /Harborside Terminal/);
     expect(toast).toHaveTextContent(/Harborside Terminal/);
     // The app navigates to the newly created record's canonical route.
     await waitFor(() =>
@@ -143,7 +144,7 @@ describe('Projects create navigation (AC-RAM-006)', () => {
 
     await submitNewProject('Harborside Annex');
 
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /ERP linking needs attention/);
     expect(toast).toHaveTextContent(/ERP linking needs attention/);
     expect(toast).toHaveTextContent(/Harborside Annex/);
   });

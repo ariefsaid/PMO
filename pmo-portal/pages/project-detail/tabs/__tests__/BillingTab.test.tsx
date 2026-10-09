@@ -2,8 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import i18next from 'i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { I18nextProvider } from 'react-i18next';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatCurrencyCents } from '@/src/lib/format';
+import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
@@ -65,6 +71,28 @@ beforeEach(() => {
 function renderTab(clientId: string | null = 'c1') {
   render(<ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /></ToastProvider>);
   return userEvent.setup();
+}
+
+// #891: the withdrawn-claim refusal headline is LOCALIZED — assertions pin the REAL shipped copy.
+const readCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
+
+async function renderTabLocalized(lng: 'en' | 'id') {
+  const i18n = i18next.createInstance();
+  await i18n.init({
+    lng,
+    fallbackLng: 'en',
+    defaultNS: 'common',
+    resources: { en: { common: readCatalogue('en') }, id: { common: readCatalogue('id') } },
+    parseMissingKeyHandler,
+    returnEmptyString: false,
+  });
+  render(
+    <I18nextProvider i18n={i18n}>
+      <ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider>
+    </I18nextProvider>,
+  );
+  return { user: userEvent.setup(), i18n };
 }
 
 describe('BillingTab', () => {
@@ -135,6 +163,32 @@ describe('BillingTab', () => {
     await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
     expect(await screen.findAllByText('Not raised')).toHaveLength(2);
     expect(screen.getByText(/ACC-SINV-1/)).toBeInTheDocument();
+  });
+
+  it('AC-PB-009 a withdrawn-claim refusal (SQLSTATE 55000, carried by dispatchClient) toasts the specific headline, never the generic one', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.m.raiseInvoice.mutateAsync.mockRejectedValue(
+      new AppError('this progress claim was withdrawn, so no invoice can be raised for it', '55000'),
+    );
+    const user = renderTab();
+    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
+    const toast = await findToastAnnouncement('alert', "This claim was withdrawn — its invoice can't be raised.");
+    expect(toast).toHaveTextContent("This claim was withdrawn — its invoice can't be raised.");
+    expect(toast).not.toHaveTextContent('Update failed');
+  });
+
+  it('AC-PB-009 the withdrawn-claim refusal headline is localized — Bahasa (id) under an id session', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.m.raiseInvoice.mutateAsync.mockRejectedValue(
+      new AppError('this progress claim was withdrawn, so no invoice can be raised for it', '55000'),
+    );
+    const { user } = await renderTabLocalized('id');
+    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan faktur' }));
+    await user.click(screen.getByRole('button', { name: 'Buat faktur ERP' }));
+    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan.');
+    expect(toast).toHaveTextContent('Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan.');
+    expect(toast).not.toHaveTextContent('Update failed');
   });
 
   it('AC-PB-008 attaching evidence sends the claim and the chosen document', async () => {

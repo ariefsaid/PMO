@@ -33,6 +33,15 @@ export const FIELD_KINDS: Record<string, Record<string, HistoryKind>> = {
   rfq: { ...PURCHASE_DOC, rfq_number: 'text' },
   purchase_order: { ...PURCHASE_DOC, po_number: 'text' },
   payment: { ...PURCHASE_DOC, invoice_id: 'ref', pay_number: 'text' },
+  sales_invoice: {
+    efaktur_number: 'text', efaktur_date: 'date', received_date: 'date', author_user_id: 'ref',
+    approved_by_id: 'ref', approved_at: 'timestamp', pmo_native: 'bool', pmo_number: 'text', native_lines: 'text',
+  },
+  procurement_invoice: {
+    efaktur_number: 'text', efaktur_date: 'date', withheld_amount: 'money', withheld_pph_type: 'enum',
+  },
+  vendor_withholding_slip: { vendor_id: 'ref', slip_number: 'text', slip_date: 'date', tax_period: 'date', pph_type: 'enum', currency: 'text', tax_base: 'money', withheld_amount: 'money', invoice_count: 'number', status: 'enum', voided_at: 'timestamp', voided_by: 'ref' },
+  vendor_withholding_slip_bill: { slip_id: 'ref', invoice_id: 'ref', procurement_id: 'ref', withheld_at_record: 'money', pph_type_at_record: 'enum', type_source: 'enum', currency: 'text', released_at: 'timestamp' },
   task: {
     project_id: 'ref', assignee_id: 'ref', milestone_id: 'ref', parent_task_id: 'ref', meeting_id: 'ref', name: 'text',
     status: 'enum', priority: 'enum', start_date: 'date', end_date: 'date', archived_at: 'timestamp',
@@ -56,6 +65,8 @@ export type RefSource = 'profiles' | 'companies' | 'tasks' | 'milestones' | 'pro
 export const REF_SOURCE: Record<string, RefSource> = {
   project_manager_id: 'profiles',
   requested_by_id: 'profiles',
+  author_user_id: 'profiles',
+  approved_by_id: 'profiles',
   assignee_id: 'profiles',
   client_id: 'companies',
   end_client_id: 'companies',
@@ -66,14 +77,36 @@ export const REF_SOURCE: Record<string, RefSource> = {
   parent_task_id: 'tasks',
 };
 
-/** Child entity type → the project list that names the record (project History). Others read "Unavailable". */
-export type NameSource = 'tasks' | 'procurements' | 'workOrders' | 'budgetVersions' | 'budgetLines';
+/**
+ * Child entity type → the list that names the record. On a project History the project's own lists
+ * name tasks / procurements / work orders / budget rows; on a PROCUREMENT History the four purchase
+ * documents (#878: filed under their procurement, 0277) are named from the same cached procurement
+ * detail the page itself uses. Others read "Unavailable".
+ */
+export type NameSource =
+  | 'tasks'
+  | 'procurements'
+  | 'workOrders'
+  | 'budgetVersions'
+  | 'budgetLines'
+  | 'purchaseRequests'
+  | 'rfqs'
+  | 'purchaseOrders'
+  | 'payments'
+  | 'salesInvoices'
+  | 'procurementInvoices';
 export const RECORD_NAME_SOURCE: Record<string, NameSource> = {
   task: 'tasks',
   procurement: 'procurements',
   work_order: 'workOrders',
   budget_version: 'budgetVersions',
   budget_line_item: 'budgetLines',
+  purchase_request: 'purchaseRequests',
+  rfq: 'rfqs',
+  purchase_order: 'purchaseOrders',
+  payment: 'payments',
+  sales_invoice: 'salesInvoices',
+  procurement_invoice: 'procurementInvoices',
 };
 
 /** `contract_value` → "Contract value": the label fallback so an unlabelled column never renders blank. */
@@ -85,9 +118,9 @@ export function humanizeColumn(column: string): string {
 /** Kind-filter groups for the project History (Q7): chip label key → entity types it narrows to. */
 export const KIND_FILTERS: { key: string; label: string; types: string[] | null }[] = [
   { key: 'all', label: 'All', types: null },
-  { key: 'project', label: 'Project', types: ['project'] },
+  { key: 'project', label: 'Project', types: ['project', 'sales_invoice'] },
   { key: 'budget', label: 'Budget', types: ['budget_version', 'budget_line_item'] },
   { key: 'workOrders', label: 'Work orders', types: ['work_order'] },
-  { key: 'procurement', label: 'Procurement', types: ['procurement', 'purchase_request', 'rfq', 'purchase_order', 'payment'] },
+  { key: 'procurement', label: 'Procurement', types: ['procurement', 'purchase_request', 'rfq', 'purchase_order', 'payment', 'procurement_invoice'] },
   { key: 'tasks', label: 'Tasks', types: ['task'] },
 ];

@@ -29,7 +29,8 @@ import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
-import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 import {
   canInvoiceWorkOrder,
   deriveWorkOrderBillingState,
@@ -110,11 +111,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
 
-  // ── OD-BILL-1: billing by work order. Read = the revenue read set; Invoice = the invoice-create authority, only
-  //    where an invoice can be raised today (revenue on ERPNext) and only with a client to invoice. UX only — the
-  //    database refuses past-the-value invoices before any ERP write (0262).
+  // ── OD-BILL-1 (#913): billing by work order. Read = the revenue read set; Invoice = the invoice-create authority
+  //    (Admin/Finance — the same `can()` the native create's RPC enforces) with a client to invoice, in EITHER revenue
+  //    mode: the dialog branches its copy and the repository routes the write. Require the synced repository route to
+  //    agree with `useRevenueMode` before exposing the action. UX only — the database refuses
+  //    past-the-value invoices before any write (0262), ERP or native.
+  const revenueMode = useRevenueMode();
+  const revenueRouteReady = useRevenueRouteReady(revenueMode);
   const canViewBilling = may('view', 'salesInvoice');
-  const canInvoice = may('create', 'salesInvoice') && routeDomainWrite('revenue') === 'external' && Boolean(clientId);
+  const canInvoice = may('create', 'salesInvoice') && revenueRouteReady && Boolean(clientId);
   const billing = useWorkOrderBilling(projectId, canViewBilling);
   const billingById = useMemo(
     () => new Map((billing.data ?? []).map((b) => [b.workOrderId, b] as const)),
@@ -608,15 +613,28 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           remaining={invoiceFor.remaining}
           onClose={() => setInvoiceFor(null)}
           onCreated={(siNumber) => {
-            toast(
-              t('projectDetail.workOrders.billing.toast.created', 'Draft invoice created'),
-              t('projectDetail.workOrders.billing.toast.createdSub', {
-                defaultValue: '{{number}} — submit it from Sales Invoices.',
-                number: siNumber,
-                interpolation: { escapeValue: false },
-              }),
-              'success',
-            );
+            if (revenueMode === 'native') {
+              // #913: a PMO Draft has no number yet (DD-NAR-9 mints it on approval) — name it by its work order.
+              toast(
+                t('projectDetail.workOrders.billing.toast.nativeCreated', 'Draft invoice created in PMO'),
+                t('projectDetail.workOrders.billing.toast.nativeCreatedSub', {
+                  defaultValue: '{{wo}} — a second Finance/Admin person approves it from Sales Invoices.',
+                  wo: invoiceFor.row.wo_number ?? invoiceFor.row.title,
+                  interpolation: { escapeValue: false },
+                }),
+                'success',
+              );
+            } else {
+              toast(
+                t('projectDetail.workOrders.billing.toast.created', 'Draft invoice created'),
+                t('projectDetail.workOrders.billing.toast.createdSub', {
+                  defaultValue: '{{number}} — submit it from Sales Invoices.',
+                  number: siNumber,
+                  interpolation: { escapeValue: false },
+                }),
+                'success',
+              );
+            }
             setInvoiceFor(null);
           }}
         />

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 const updateSpy = vi.fn().mockResolvedValue(undefined);
@@ -215,7 +216,7 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 85 } });
     });
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('status', /Progress updated/);
     expect(toast).toHaveTextContent(/Progress updated/);
     expect(toast).toHaveTextContent(/Engineering design/);
   });
@@ -229,7 +230,7 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 90 } });
     });
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /Update failed/);
     expect(toast).toHaveTextContent(/Update failed/);
     expect(toast).toHaveTextContent(/Network error/);
   });

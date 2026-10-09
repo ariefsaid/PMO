@@ -21,6 +21,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state (same pattern as ProjectBudget.test.tsx)
@@ -172,6 +173,13 @@ const newDraftVersion = {
   total: 0,
 };
 
+function expectInlineError(field: HTMLElement) {
+  expect(field).toHaveAttribute('aria-invalid', 'true');
+  const ids = (field.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+  const error = ids.map((id) => document.getElementById(id)).find((node) => node?.getAttribute('role') === 'alert');
+  expect(error).toBeInTheDocument();
+}
+
 function resetState() {
   budgetState.data = 0;
   budgetState.isPending = false;
@@ -262,9 +270,7 @@ describe('AC-IXD-BUDGET-W5-C4: clone-to-revise auto-opens new draft', () => {
     await userEvent.click(screen.getByRole('button', { name: /Clone to revise/i }));
     await userEvent.click(screen.getByRole('button', { name: /Clone version/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole('status')).toBeInTheDocument();
-    });
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
   });
 });
 
@@ -380,8 +386,8 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
     expect(mockUpdateLineItem).not.toHaveBeenCalled();
-    // Error message must be present (announced)
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // The field's own error remains linked and announced.
+    expectInlineError(amountEl);
   });
 
   it('invalid amount (non-numeric) is rejected — updateLineItem not called', async () => {
@@ -397,7 +403,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
     expect(mockUpdateLineItem).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expectInlineError(amountEl);
   });
 
   it('zero amount is rejected (budget line items must be > 0)', async () => {
@@ -413,7 +419,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
     expect(mockUpdateLineItem).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expectInlineError(amountEl);
   });
 
   it('Cancel closes editor without calling updateLineItem', async () => {
@@ -445,9 +451,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole('status')).toBeInTheDocument();
-    });
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
   });
 
   it('Delete button is still present in the same row when editing', async () => {

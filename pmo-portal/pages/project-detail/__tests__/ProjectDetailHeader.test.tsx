@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import ProjectDetailHeader from '../ProjectDetailHeader';
@@ -191,7 +192,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /Still in use|Archive/i);
     expect(toast).toBeInTheDocument();
   });
 
@@ -291,7 +292,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await userEvent.type(screen.getByLabelText(/tax amount/i), '0');
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(await screen.findByText(/valid|decimal/i, { selector: 'span[role="alert"]' })).toHaveTextContent(/valid|decimal/i);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
   });
@@ -388,7 +389,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
     const confirm = await screen.findByRole('dialog');
     await userEvent.click(within(confirm).getByRole('button', { name: /record/i }));
-    const toast = await screen.findByRole('status');
+    const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });

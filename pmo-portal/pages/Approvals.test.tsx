@@ -7,6 +7,7 @@ import React from 'react';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { ToastProvider } from '@/src/components/ui';
 import ApprovalsPage from './Approvals';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ---------------------------------------------------------------------------
 // Shared hook state (mutated per test)
@@ -67,6 +68,10 @@ const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean }
 };
 const confirmMutation: MutationState = { mutate: vi.fn(), isPending: false };
 
+vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
+// #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
+const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => queryState,
@@ -163,6 +168,9 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  invoiceState.rows = [];
+  invoiceState.isPending = false;
+  invoiceState.isError = false;
   queryState.data = undefined;
   queryState.isPending = false;
   queryState.isError = false;
@@ -208,6 +216,33 @@ describe('Approvals page states', () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText(/all caught up/i)).toBeInTheDocument();
+  });
+
+  it('AC-NAR-002 (C-1) a customer invoice awaiting the viewer keeps the page out of "all caught up" and counts in the All tab', () => {
+    authState.role = 'Admin';
+    queryState.data = [];
+    procState.data = [];
+    invoiceState.rows = [{ id: 'si-1' }, { id: 'si-2' }];
+    renderPage('all');
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+    const scope = screen.getByLabelText('Approvals scope');
+    expect(within(scope).getByText('All').closest('[role="tab"], button')).toHaveTextContent('2');
+  });
+
+  it('AC-NAR-002 (C-1) while the invoices awaiting the viewer are still loading, the page does not claim "all caught up"', () => {
+    queryState.data = [];
+    procState.data = [];
+    invoiceState.isPending = true;
+    renderPage();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+
+  it('AC-NAR-002 (C-1) the page copy names customer invoices among what waits on the viewer', () => {
+    queryState.data = [];
+    procState.data = [];
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
+    expect(screen.getByTestId('approvals-caught-up')).toHaveTextContent(/customer invoices/i);
   });
 
   it('AC-904: timesheet error + Retry re-runs the query (NFR-TS-UI-001)', () => {
@@ -295,7 +330,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     await waitFor(() => expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(2));
     expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'ts-1' });
     expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'ts-2' });
-    expect(await screen.findByText(/2 approved/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /2 approved/i)).toBeInTheDocument();
   });
 
   it('AC-912: scope=all select-all selects only timesheets, never the procurement row', async () => {
@@ -353,7 +388,7 @@ describe('Approvals page actions', () => {
       { id: 'ts-1' },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
   });
 
   it('T3: Return opens a DESTRUCTIVE modal and the reject mutation fires only on Confirm', async () => {
@@ -479,7 +514,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     renderPage();
 
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
-    expect(await screen.findByText(/could not be pushed|update failed/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('alert', /could not be pushed|update failed/i)).toBeInTheDocument();
   });
 
   it('I-13 a Retry that SUCCEEDS says so too', async () => {
@@ -490,7 +525,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     renderPage();
 
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
-    expect(await screen.findByText(/pushed to ERPNext/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /pushed to ERPNext/i)).toBeInTheDocument();
   });
 
   // ⚑ I-12 — axe `landmark-unique`: `<section aria-label="Employee links awaiting confirmation">`

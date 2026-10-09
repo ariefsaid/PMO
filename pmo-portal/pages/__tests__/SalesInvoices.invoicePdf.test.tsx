@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement, queryToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -27,6 +28,8 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }),
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'external') }));
+// The page waits for revenue ownership (#784 useRevenueMode); this org's ERP owns revenue (ERP-path invoices).
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }], isError: false }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: async () => [] }) }));
 vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn() }));
 
@@ -68,12 +71,14 @@ async function rowFor(siNumber: string): Promise<HTMLElement> {
   return row;
 }
 
-/** The live toast carrying `text`, and its variant (the stripe class ToastView sets per kind). */
-async function toastWith(text: RegExp | string): Promise<{ el: HTMLElement; kind: 'info' | 'success' | 'warning' | undefined }> {
-  const el = (await screen.findByText(text)).closest<HTMLElement>('[role="status"]');
-  if (!el) throw new Error(`no toast for ${String(text)}`);
+/** The live announcement and its visible variant, preserving the message and classification oracles. */
+async function toastWith(text: RegExp | string, role: 'status' | 'alert' = 'status'): Promise<{ el: HTMLElement; kind: 'info' | 'success' | 'warning' | undefined }> {
+  const el = await findToastAnnouncement(role, text);
+  const visuals = document.querySelectorAll<HTMLElement>('.toast-anim');
+  if (visuals.length !== 1) throw new Error(`expected one visible toast, found ${visuals.length}`);
+  const visual = visuals[0];
   const kind = (['info', 'success', 'warning'] as const).find((k) =>
-    el.className.includes({ info: 'border-l-primary', success: 'border-l-success', warning: 'border-l-warning' }[k]),
+    visual.className.includes({ info: 'border-l-primary', success: 'border-l-success', warning: 'border-l-warning' }[k]),
   );
   return { el, kind };
 }
@@ -160,7 +165,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     release(pdf);
     const done = await toastWith(/PDF downloaded — ACC-SINV-2026-00001\.pdf/);
     expect(done.kind).toBe('success');
-    expect(screen.queryByText('Preparing PDF…')).not.toBeInTheDocument();
+    expect(queryToastAnnouncement('status', 'Preparing PDF…')).toBeNull();
   });
 
   // Deliberate UX change (fix round): the repeat click used to be silently swallowed; it is now
@@ -199,9 +204,9 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     renderPage('Finance');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    const refused = await toastWith(/give the integration user Print access/);
+    const refused = await toastWith(/give the integration user Print access/, 'alert');
     expect(refused.kind).toBe('warning');
-    expect(within(refused.el).getByText("Couldn't download the PDF")).toBeInTheDocument();
+    expect(refused.el).toHaveTextContent("Couldn't download the PDF");
     expect(triggerBlobDownload).not.toHaveBeenCalled();
   });
 
@@ -215,7 +220,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     renderPage('Finance');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect((await toastWith(/PMO could not reach the download service/)).kind).toBe('warning');
+    expect((await toastWith(/PMO could not reach the download service/, 'alert')).kind).toBe('warning');
     expect(triggerBlobDownload).not.toHaveBeenCalled();
   });
 
@@ -241,7 +246,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     renderPage(role as Role);
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect((await toastWith(match)).kind).toBe('warning');
+    expect((await toastWith(match, 'alert')).kind).toBe('warning');
   });
 
   it('AC-PDF-011 an expired session tells the user to sign in again', async () => {
@@ -252,7 +257,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     renderPage('Finance');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect((await toastWith('Your session expired — sign in again.')).kind).toBe('warning');
+    expect((await toastWith('Your session expired — sign in again.', 'alert')).kind).toBe('warning');
     expect(screen.queryByText(/PMO could not reach the download service/)).not.toBeInTheDocument();
     expect(triggerBlobDownload).not.toHaveBeenCalled();
   });

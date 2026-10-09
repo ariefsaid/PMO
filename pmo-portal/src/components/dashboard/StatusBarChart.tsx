@@ -74,7 +74,8 @@ export function StatusBarChart<S extends string>({
   const summary = `${label}, ${total} ${noun}, most in ${topStatus}.`;
 
   return (
-    <figure role="img" aria-label={summary} className="m-0">
+    <figure className="m-0">
+      <div role="img" aria-label={summary}>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
@@ -119,8 +120,9 @@ export function StatusBarChart<S extends string>({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      </div>
 
-      <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+      <figcaption role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
         {data.map((d) => {
           const inner = (
             <>

@@ -53,13 +53,14 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),
-  useProjectOptions: () => ({ data: [] }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }),
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 
 import IncomingPayments from '../IncomingPayments';
 import SalesInvoices from '../SalesInvoices';

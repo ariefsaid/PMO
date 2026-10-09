@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const rpc = vi.fn();
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
+const from = vi.fn();
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (...a: unknown[]) => from(...a) } }));
 
 import { recordHistoryRepository } from '../recordHistory';
 
@@ -20,6 +21,7 @@ describe('recordHistoryRepository.list', () => {
   // Block body: an arrow returning the mock would hand vitest a function it then runs as a cleanup hook.
   beforeEach(() => {
     rpc.mockReset();
+    from.mockReset();
   });
 
   it('AC-CHG-017: calls the read RPC with the record, filters and cursor — never an org_id', async () => {
@@ -88,6 +90,26 @@ describe('recordHistoryRepository.list', () => {
     const seen = [...first.events, ...second.events].map((e) => e.seq);
     expect(new Set(seen).size).toBe(seen.length);
     expect([...seen].sort()).toEqual([5, 6, 7, 8, 9]);
+  });
+
+  it('resolves names for the newest visible child events when one kind exceeds fifty ids', async () => {
+    const ids = Array.from({ length: 75 }, (_, i) => `child-${i + 1}`);
+    const requested: string[][] = [];
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn((_column: string, values: string[]) => {
+        requested.push(values);
+        return Promise.resolve({ data: values.map((id) => ({ id, pr_number: `PR-${id}`, reference_number: null })), error: null });
+      }),
+    };
+    from.mockReturnValue(query);
+
+    const names = await recordHistoryRepository.lookupNames({ purchase_request: ids });
+
+    expect(requested[0]).toHaveLength(50);
+    expect(requested[0]).toContain('child-75');
+    expect(requested[0]).not.toContain('child-1');
+    expect(names.purchase_request?.get('child-75')).toBe('PR-child-75');
   });
 
   it('surfaces an RPC error as an AppError carrying the code', async () => {

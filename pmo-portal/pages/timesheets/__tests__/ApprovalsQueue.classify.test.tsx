@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // A Postgres-coded error that classifyMutationError maps to a specific headline.
 const pgPermissionError = Object.assign(new Error('permission denied for table timesheets'), {
@@ -85,10 +86,8 @@ describe('ApprovalsQueue error classification (W2-8)', () => {
     await user.click(allBtns[allBtns.length - 1]);
 
     // The toast headline must be the classified one (not the raw error message)
-    await waitFor(() => {
-      // classifyMutationError('42501') → "You don't have permission to do that."
-      expect(screen.getByText(/you don't have permission to do that/i)).toBeInTheDocument();
-    });
+    // classifyMutationError('42501') → "You don't have permission to do that."
+    expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
 
     // The raw error message must NOT be the toast headline
     expect(screen.queryByRole('heading', { name: /permission denied for table timesheets/i })).not.toBeInTheDocument();
@@ -116,9 +115,7 @@ describe('ApprovalsQueue error classification (W2-8)', () => {
     await user.click(within(dialog).getByRole('button', { name: /return timesheet/i }));
 
     // The toast headline must be the classified one (not the raw error message)
-    await waitFor(() => {
-      expect(screen.getByText(/you don't have permission to do that/i)).toBeInTheDocument();
-    });
+    expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
 
     // The raw error message must NOT be in the toast
     expect(screen.queryByRole('heading', { name: /permission denied for table timesheets/i })).not.toBeInTheDocument();

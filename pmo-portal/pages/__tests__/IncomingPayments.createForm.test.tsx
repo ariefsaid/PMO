@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
@@ -82,6 +83,9 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
+// These journeys are the ERP-path receipt (optional invoice, on-account, withholding against an ERP invoice); the PMO
+// receipt path is IncomingPayments.native.test.tsx.
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }], isError: false }) }));
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useNavigate: () => hoisted.navigateMock };
@@ -259,6 +263,8 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
         receivedAmount: 750,
       }),
     );
+    expect(await findToastAnnouncement('status', 'Payment created')).toBeInTheDocument();
+    expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 
   it('AC-PLC-009: rejects en-US payment amounts with excess precision before creating', async () => {
@@ -282,11 +288,13 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
   });
 
   it('AC-PLC-009: persists id-ID grouped payment amounts as 1234', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', customer_id: 'cust-1' })];
     setActiveLocale(ID_LOCALE);
     const user = userEvent.setup();
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-ACME');
     for (const label of [/Paid Amount/, /Received Amount/]) {
       const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);

@@ -68,6 +68,7 @@ export type Entity =
   | 'userView'
   | 'salesInvoice'
   | 'procurementInvoice'
+  | 'vendorWithholdingSlip'
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
@@ -87,6 +88,8 @@ export interface PolicyContext {
   currentUserId?: string | null;
   /** The record under consideration — for status/ownership-conditional rules. */
   record?: {
+    /** Feature-local view-as fence for evidence writes; callers compare effective and real roles. */
+    viewOnly?: boolean;
     status?: string | null;
     assignee_id?: string | null;
     /** Author id — for the document-edit author rule (A-7). */
@@ -102,6 +105,8 @@ export interface PolicyContext {
      *  append-only `sales_invoice_authors` set). The `author_id` scalar is last-writer-wins and so is
      *  only a legacy member of this set, never the whole truth. */
     author_ids?: string[] | null;
+    /** Every user who has ever edited this budget version's lines; activation is forbidden to the full editor set. */
+    editor_ids?: string[] | null;
     /** The sheet's approver (`timesheets.approved_by`) — the P3b `push_timesheet` oracle
      *  (FR-TSP-011): the sheet's OWN approver may always push it, regardless of role. */
     approved_by?: string | null;
@@ -342,15 +347,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   /**
-   * Budget version activation (`transition`) — OD-BUDGET-6, mirroring `activate_budget_version`
-   * (migration 0271): a Draft only; the drafter (`created_by`, server-stamped, never client-set) may
-   * not activate their own version whatever their role, Admin included; a version with no recorded
-   * drafter is Admin or Finance only. The RPC is the authority.
+   * Budget version activation (`transition`) — OD-BUDGET-6/DD-BUDGET-7, mirroring `activate_budget_version`
+   * (migration 0280): a Draft only; no recorded editor (including the drafter) may activate their
+   * version, whatever their role, Admin included; a version with no recorded drafter is Admin or
+   * Finance only. The RPC is the authority.
    */
   budgetVersion: {
     transition: (role, ctx) => {
       if (!has(MASTER_DATA, role) || ctx.record?.status !== 'Draft') return false;
       const drafter = ctx.record?.created_by ?? null;
+      if (ctx.currentUserId && (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)) return false;
       if (drafter === null) return role === 'Admin' || role === 'Finance';
       return !!ctx.currentUserId && drafter !== ctx.currentUserId;
     },
@@ -479,6 +485,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   procurementInvoice: {
     // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
     record_efaktur: allow(REVENUE_WRITE),
+  },
+  vendorWithholdingSlip: {
+    // Any authenticated org role may read source-visible evidence; server RLS remains authoritative.
+    view: () => true,
+    create: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
+    edit: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
+    archive: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
   },
   incomingPayment: {
     // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);

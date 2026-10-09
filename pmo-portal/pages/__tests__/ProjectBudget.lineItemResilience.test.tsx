@@ -4,11 +4,12 @@
  * AC-B-0-7: Save button disabled/loading while pending (no double-submit).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -112,11 +113,8 @@ describe('AC-B-0-6: line-item update failure surfaces a warning toast', () => {
     const saveBtn = screen.getByRole('button', { name: /^Save$/i });
     await user.click(saveBtn);
 
-    // A warning toast must appear (not silent)
-    await waitFor(() => {
-      const toast = screen.queryByRole('status');
-      expect(toast).toBeTruthy();
-    });
+    // A warning toast must contain announced text (not just the persistent empty live region).
+    expect(await findToastAnnouncement('alert', /.+/)).toBeInTheDocument();
   });
 });
 
@@ -139,11 +137,8 @@ describe('AC-B-0-6: line-item create failure surfaces a warning toast', () => {
     // The last Save is the Add row's save
     await user.click(saveBtns[saveBtns.length - 1]);
 
-    // A warning toast must appear
-    await waitFor(() => {
-      const toast = screen.queryByRole('status');
-      expect(toast).toBeTruthy();
-    });
+    // A warning toast must contain announced text (not just the persistent empty live region).
+    expect(await findToastAnnouncement('alert', /.+/)).toBeInTheDocument();
   });
 });
 

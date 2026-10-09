@@ -136,6 +136,12 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
+vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
+  useVendorWithholdingCoverage: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useVendorWithholdingRegister: () => ({ data: { pages: [] }, isLoading: false, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn() }),
+  useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
+}));
+
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -381,6 +387,32 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
       expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('exclusive'),
     );
     expect(screen.getByTestId('vi-tax-amount-input')).toBeInTheDocument();
+  });
+
+  it('PR-1: the enabled Confirm & mark invoiced action uses semantic contrast tokens in light and dark themes', async () => {
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await waitFor(() => expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('exclusive'));
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+
+    const button = screen.getByTestId('btn-submit-vi-capture');
+    expect(button).toBeEnabled();
+    // axe's colour-contrast rule cannot compute Tailwind CSS-variable colors in jsdom. Assert the
+    // primary foreground/background tokens instead; the app's light/dark theme defines both tokens.
+    const hadDark = document.documentElement.classList.contains('dark');
+    try {
+      for (const theme of ['light', 'dark'] as const) {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        expect(button).toHaveClass('bg-primary', 'text-primary-foreground');
+        expect(button).toHaveTextContent('Confirm & mark invoiced');
+        expect(button).toBeEnabled();
+      }
+    } finally {
+      document.documentElement.classList.toggle('dark', hadDark);
+    }
   });
 
   it('#505: the inline capture cannot be submitted until the tax treatment is chosen', async () => {

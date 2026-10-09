@@ -199,6 +199,7 @@ const ExecutiveDashboard: React.FC = () => {
           />
           <MobileExecutiveDashboard
             data={data}
+            headingAction={<BoardPackAction />}
             approvalCount={mobileApprovalCount}
             approvalError={mobileApprovalError}
             belowFold={<div className="mt-3 space-y-4">{chartsSection}</div>}
@@ -334,7 +335,7 @@ const ExecutiveDashboard: React.FC = () => {
           <div className="flex items-center gap-1 text-[13px]">
             <Link
               to="/projects?filter=at-risk"
-              className="font-medium text-warning hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="font-medium text-warning-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
               aria-label={t('dashboard.atRisk.linkLabel', 'View {{n}} at-risk projects', {
                 n: String(data.projects_at_risk),
               })}

@@ -214,7 +214,12 @@ Proposed by the planner (Director to ratify; ADR-0084):
 
 - **DD-VWH-15** — the ERP-connected bill form's tax choice is "Enter the tax amounts" (default) or a named ERPNext
   template; "ERPNext default" is no longer offered (on a headless ERP it would apply a template nobody sees). The server
-  still accepts a create naming neither (AC-520-2 unchanged) for non-form callers.
+  still accepts a create naming neither for non-form callers — *(amended 2026-10-08, #915: no longer "AC-520-2
+  unchanged"* — such a create now reads the company's default Purchase Taxes and Charges Template and, when one exists,
+  resolves it through the same validator a chosen template gets before any ERP write (a malformed default is refused
+  `config-rejected` naming the template, not posted to be refused by the mirror afterwards); none found → the bill
+  posts untaxed as AC-520-2 always allowed, now at the cost of one list read. Owning test:
+  `pmo-portal/src/lib/adapterSeam/erpnext/purchaseInvoiceTaxTemplate.test.ts` (AC-520-2 block, #915)).
 - **DD-VWH-16** — the "only through the function" rule on the three company columns is a BEFORE INSERT/UPDATE trigger
   honouring a transaction-local flag set by the function (the 0252 pattern), not a column-grant conversion of
   `companies` (which would freeze every future companies column out of client writes). Exempt: the service role and a

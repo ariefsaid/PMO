@@ -160,6 +160,32 @@ describe('erpnext/agingSnapshot — refreshAging PRIMARY (report RPC)', () => {
     expect(svc.tables).not.toContain('erp_payment_ledger_mirror');
     expect(svc.tables).not.toContain('procurement_invoices');
   });
+
+  it('accepts an unpaged ageing report between the 5 MiB default and the report cap on the PRIMARY path — a large-but-legitimate report never degrades to the mirror fallback (#918 fix-round)', async () => {
+    // The v15 detail report is UNPAGED (one row per voucher, no limit_page_length), so its size is
+    // set by the org's ledger. A valid report padded to ~6 MiB — past the shared 5 MiB default,
+    // far under the raised report cap — must parse on the PRIMARY path. RED today: the read is
+    // refused at the default, the catch silently buckets the (here EMPTY) mirror, and the snapshot
+    // publishes the fallback provenance as if the report had failed.
+    const pad = 'A'.repeat(6 * 1024 * 1024);
+    const report = reportResponse([
+      { party: 'Spike Supplier', party_type: 'Supplier', currency: 'IDR', outstanding: 50000, range1: 50000 },
+    ]) as { message: Record<string, unknown> };
+    report.message.report_note = pad; // an envelope field the parser ignores — carries the size
+    expect(JSON.stringify(report).length).toBeGreaterThan(5 * 1024 * 1024);
+    const fetchImpl = async () => new Response(JSON.stringify(report), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const svc = makeServiceClient([]); // empty mirror: a fallback here could only publish emptiness
+    await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', AP_SCOPE);
+    expect(svc.tables).not.toContain('erp_payment_ledger_mirror'); // the PRIMARY answer stood
+    const rows = svc.inserted[0]! as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      party: 'Spike Supplier',
+      total_outstanding: 50000,
+      b_0_30: 50000,
+      source_report: 'Accounts Payable', // PRIMARY provenance — NOT '(mirrored-ledger fallback)'
+    });
+  });
 });
 
 describe('erpnext/agingSnapshot — refreshAging FALLBACK (mirrored-ledger bucketing)', () => {

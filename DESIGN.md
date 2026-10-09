@@ -419,6 +419,16 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
   UPPERCASE, `muted-foreground`** (NOT §3's Overline: the tighter tracking is deliberate for dense
   numeric columns), bottom `border`. Numeric columns right-align. Row `⋯` menu trigger is **always
   visible** (hover-hidden was reverted: undiscoverable on touch + keyboard).
+- **Row actions:** on the desktop table branch, the generated `rowMenu` column sticks to the right
+  during horizontal scrolling. Its header stacks above its body cells; both use the opaque `card`
+  surface with a 1px inset-hairline divider (`--border`) and a left-cast gradient from the
+  `foreground` token (dark at the column edge fading out over 12px). Chromium pins, honored by the
+  implementation (AC-TBL-STICKY-001): a collapsed cell border does not travel with a sticky cell
+  (hence the inset hairline); an outset box-shadow on a sticky cell is never painted (hence the
+  positioned gradient strip); and the cell sticks 1px past the scrollport edge (`-right-px`) so the
+  scroller's own clip closes the seam pixel its background would otherwise miss at `right-0` —
+  scrolled text must never show right of the ⋯ column. The mobile card branch keeps its existing
+  top-right action placement.
 - **Column budget:** a new column must not push the row `⋯` trigger out of the 1440 view — merge related
   facts into one cell first (a primary value over a `muted` second line, as the e-Faktur number + date
   cell does, #893) before adding a column.
@@ -515,8 +525,13 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
     token; AC-A11Y-FIELD-001 binds it to the component and proves AA contrast on background/popover.
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
-- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
-  right, slide-in (`.toast-anim`).
+- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary` for info, `success` for ok,
+  `warning` for warning, `destructive` for error), bottom-right, slide-in (`.toast-anim`).
+  **Toast timing (DD-TOAST-1):** warning and error messages persist until dismissed because they
+  carry remedies. Info and success auto-dismiss after `max(4s, 60ms × displayed characters)`, capped
+  at 10s. Hover or keyboard focus pauses that timer. Every toast has a visible, keyboard-reachable
+  dismiss control. The provider mounts its polite `role="status"` and assertive `role="alert"` live
+  regions once, empty, then inserts each announcement into the existing region.
 - **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
   near-white text, `lg`-derived radius, `0 8px 24px / 0.4` shadow, max 280px; bold title + `tabular`
   key/value rows; `tooltip-muted` for de-emphasised body. (The tooltip surface is constant-dark in both

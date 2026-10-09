@@ -74,7 +74,7 @@ select throws_ok(
 -- The drafter cannot activate their own version.
 select throws_ok(
   $$ select activate_budget_version('f9222222-0000-0000-0000-000000000001') $$,
-  '42501', 'separation of duties: the person who drafted a budget version cannot activate it',
+  '42501', 'separation of duties: You edited this version, so someone else must activate it.',
   'OD-BUDGET-6: the drafter is refused activation of their own version');
 
 select is(
@@ -112,7 +112,7 @@ select is(
 
 select throws_ok(
   format('select activate_budget_version(%L)', (select id from _clone)),
-  '42501', 'separation of duties: the person who drafted a budget version cannot activate it',
+  '42501', 'separation of duties: You edited this version, so someone else must activate it.',
   'OD-BUDGET-6: the cloner is refused activation of their own copy');
 
 -- Executive is not Admin/Finance: refused a version with no recorded drafter.
@@ -141,7 +141,7 @@ select lives_ok(
 
 select throws_ok(
   $$ select activate_budget_version('f9222222-0000-0000-0000-000000000004') $$,
-  '42501', 'separation of duties: the person who drafted a budget version cannot activate it',
+  '42501', 'separation of duties: You edited this version, so someone else must activate it.',
   'OD-BUDGET-6: an Admin is refused activation of their own version');
 
 select lives_ok(

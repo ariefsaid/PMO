@@ -137,6 +137,8 @@ import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStats
 import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
+import type { RecordSlipInput, CorrectSlipInput, VoidSlipInput, SlipWriteResult } from '@/src/lib/vendorWithholdingSlip';
+import type { BillCursor, BillPage, SlipCursor, SlipDetail, SlipPage } from '@/src/lib/db/vendorWithholdingSlips';
 
 /**
  * The identity of ONE user INTENT to write an externally-owned record (BLOCK 2, ADR-0058).
@@ -456,15 +458,17 @@ export interface ProcurementRepository {
 }
 
 export interface RevenueRepository {
-  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. */
+  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. The number is null
+   *  for a PMO Draft (#784 DD-NAR-9 mints it on approval). */
   createInvoice(input: {
     customerId: string;
     projectId?: string | null;
     items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
     /** OD-BILL-1: the work order this invoice bills ("Invoice this work order"). */
     workOrderId?: string | null;
-  }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
-  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
+  }, intent?: CommandIntent): Promise<{ id: string; si_number: string | null }>;
+  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. The number is null for a
+   *  PMO receipt (#784: the RPC returns only the id; the list read carries its PMO number). */
   createPayment(input: {
     customerId: string;
     salesInvoiceId?: string | null;
@@ -473,7 +477,7 @@ export interface RevenueRepository {
     withheldAmount?: number;
     withholdingSlipNumber?: string | null;
     date: string;
-  }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
+  }, intent?: CommandIntent): Promise<{ id: string; ip_number: string | null }>;
   /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
   setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
   /** DD-EFK-1: edit the PMO-owned sales e-Faktur facts through the guarded setter RPC. */
@@ -488,7 +492,7 @@ export interface RevenueRepository {
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
-  listInvoices(params?: { projectId?: string } & PageParams): Promise<SalesInvoiceRow[]>;
+  listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean } & PageParams): Promise<SalesInvoiceRow[]>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */
@@ -735,8 +739,19 @@ export interface ReportsRepository {
 }
 
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
+export interface VendorWithholdingSlipsRepository {
+  record(input: RecordSlipInput): Promise<SlipWriteResult>;
+  correct(input: CorrectSlipInput): Promise<SlipWriteResult>;
+  void(input: VoidSlipInput): Promise<SlipWriteResult>;
+  listSlips(params?: { vendorId?: string; taxPeriod?: string; invoiceId?: string; cursor?: SlipCursor; limit?: number }): Promise<SlipPage>;
+  listBills(params?: { vendorId?: string; pphType?: string; currency?: string; invoiceIds?: string[]; candidatesOnly?: boolean; cursor?: BillCursor; limit?: number }): Promise<BillPage>;
+  coverage(invoiceIds: string[]): Promise<BillPage['rows']>;
+  get(slipId: string): Promise<SlipDetail>;
+}
+
 export interface Repositories {
   recordHistory: RecordHistoryRepository;
+  vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
   company: CompanyRepository;
   document: DocumentRepository;

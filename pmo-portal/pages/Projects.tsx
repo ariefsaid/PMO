@@ -400,7 +400,7 @@ const Projects: React.FC = () => {
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
         return (
-          <div className="flex min-w-0 max-w-[160px] items-center gap-2.5">
+          <div className="flex min-w-0 max-w-none items-center gap-2.5 md:max-w-[160px]">
             <span
               aria-hidden
               className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
@@ -412,11 +412,12 @@ const Projects: React.FC = () => {
               <div className="flex min-w-0 items-center gap-1.5">
                 <button
                   type="button"
+                  data-list-return-focus={`projects:${p.id}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpen(p);
                   }}
-                  className="block max-w-[16ch] truncate text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="block max-w-none whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:max-w-[16ch] md:truncate"
                   title={p.name}
                 >
                   {p.name}

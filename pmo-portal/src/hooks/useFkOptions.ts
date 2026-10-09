@@ -1,5 +1,7 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { ComboboxOption } from '@/src/components/ui';
@@ -53,16 +55,58 @@ export function useProjectOptions() {
   });
 }
 
-/** Client companies as FK options (id→value, name→label, "Client" sub). */
-export function useClientCompanyOptions() {
+/** A project as an invoice picker option, with what the invoice form needs to know about it (#784). */
+export interface InvoiceProjectOption extends ComboboxOption {
+  /** The project's client — the invoice form offers only the chosen customer's projects (M-1). */
+  clientId: string | null;
+  /** OD-TAX-4: the project decides a PMO invoice's VAT; a VAT project with no rate is refused (DD-TAX-4a). */
+  subjectToVat: boolean;
+  taxRate: number | null;
+  /** Archived projects stay resolvable by name (an approval preview) but are never offered for a new invoice. */
+  archived: boolean;
+}
+
+/** Every project with its client and VAT setting, for the sales-invoice form and the invoice approval preview (#784). */
+export function useInvoiceProjectOptions() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
+  return useQuery<InvoiceProjectOption[]>({
+    queryKey: ['fk-options', 'invoice-project', orgId],
+    queryFn: async () => {
+      const rows = await repositories.project.list();
+      return rows.map((p) => ({
+        value: p.id,
+        label: p.name,
+        sub: p.code ?? undefined,
+        clientId: p.client_id,
+        subjectToVat: p.subject_to_vat,
+        taxRate: p.tax_rate,
+        archived: p.archived_at != null,
+      }));
+    },
+    enabled: Boolean(orgId),
+    staleTime: FK_STALE_MS,
+  });
+}
+
+/** Client companies as FK options (id→value, name→label, "Client" sub — translated at read, so the cached list
+ *  follows a language switch). */
+export function useClientCompanyOptions() {
+  const { currentUser } = useAuth();
+  const { t } = useTranslation();
+  const orgId = currentUser?.org_id;
+  const clientLabel = t('companies.type.client', 'Client');
+  const select = useCallback(
+    (options: ComboboxOption[]) => options.map((o) => (o.sub ? o : { ...o, sub: clientLabel })),
+    [clientLabel],
+  );
+  return useQuery<ComboboxOption[], Error, ComboboxOption[]>({
     queryKey: ['fk-options', 'client', orgId],
     queryFn: async () => {
       const rows = await repositories.company.listClients();
-      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), sub: c.short_name ? c.name : 'Client' }));
+      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
+    select,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });

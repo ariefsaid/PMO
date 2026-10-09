@@ -1,4 +1,8 @@
 {
+  "toast": {
+    "dismiss": "Dismiss notification",
+    "more": "+{{count}} more"
+  },
   "efaktur": {
     "title": "Record e-Faktur details",
     "number": "e-Faktur number",
@@ -22,6 +26,27 @@
     "keepEditing": "Keep editing",
     "saved": "e-Faktur details saved"
   },
+  "bupot": {
+    "loading": "Loading bukti potong…", "loadError": "Bukti potong unavailable", "unavailable": "Unavailable",
+    "view": "View bukti potong", "record": "Record bukti potong", "history": "Bukti potong history",
+    "state": { "slipped": "Slipped", "needsReview": "Needs review", "unavailable": "Unavailable", "notRecorded": "Not recorded", "notRequired": "Not required", "returnReview": "Return review" },
+    "select": "Select", "selectBill": "Select bill {{bill}}", "bill": "Bill", "withheld": "Withheld", "type": "PPh type",
+    "confirmUnknown": "Confirm as {{type}} from issued slip", "recordTitle": "Record bukti potong",
+    "vendor": "Vendor", "slipNumber": "Issued slip number", "slipDate": "Slip date", "taxPeriod": "Tax period", "taxBase": "Tax base", "withheldAmount": "Issued withheld amount",
+    "typeWarning": "Confirm the PPh type from the issued external slip. PMO does not issue or cancel tax documents.", "candidates": "Eligible bills",
+    "selectedTotal": "Selected total: {{currency}} {{amount}}", "loadMore": "Load more bills", "reconciliation": "Selection {{sum}} · Slip {{amount}} · Difference {{difference}}",
+    "amountMismatch": "The slip amount must exactly equal selected bill withholding.", "startingBillSelected": "Starting bill selected",
+    "refusal": { "stale": "This slip changed. Reload it before saving.", "conflict": "A slip number or bill is already covered. Inspect existing slip history.", "invalidFacts": "Review the entered facts and selected bills.", "retrySameIntent": "The result is uncertain. Retry with this same slip intent.", "ineligibleBill": "One or more bills are no longer eligible.", "amountMismatch": "The issued amount does not match selected bills.", "typeConfirmation": "Confirm the unknown bill types.", "billLimit": "A slip can cover at most 100 bills.", "notPermitted": "You do not have permission to record this slip.", "notFound": "The slip or bill is no longer available.", "voided": "This slip has already been voided." },
+    "remedy": { "reload": "Reload and review the latest slip facts.", "inspect": "Inspect existing coverage before recording another slip.", "edit": "Edit the facts and try again.", "retry": "Retry this same request; do not start a new slip." },
+    "detailTitle": "Bukti potong details", "status": "Status", "voidReason": "Void reason",
+    "validationState": "Validation state", "reconciled": "Reconciled", "active": "Active", "voidedStatus": "Voided in PMO", "sourceUnavailableShort": "Source data unavailable",
+    "reviewReason": "Bill withholding changed. Verify the source; void and record a replacement if needed.", "sourceUnavailable": "Source data is unavailable. Coverage cannot be verified.",
+    "recordedTotal": "Recorded", "currentTotal": "Current", "difference": "Difference", "taxPeriodMonth": "Tax period (month)",
+    "invalidAmount": "Enter a positive amount with at most two decimal places.", "invalidSlipDate": "Choose a slip date no later than today.", "amountExceedsBase": "Issued withholding cannot exceed the tax base.", "invalidTaxPeriod": "Choose a tax month no later than the current month.", "invalidFactsCopy": "Review the entered facts and try again.", "vendorUnavailable": "Vendor details unavailable",
+    "noBillHistory": "No withholding slips recorded for this bill.", "selectedBills": "Selected bills ({{count}})", "candidateEmpty": "No eligible bills for this vendor, currency and PPh type.", "candidateError": "Unable to load eligible bills. Your entries are kept. Retry loading.", "retry": "Retry",
+    "openBillCase": "Open bill {{bill}} in case {{case}}", "case": "Case", "billDate": "Bill date", "openBill": "Open bill in case", "selectFirst": "Select this bill first.", "loadMoreSlips": "Load more history", "void": "Void PMO entry", "correct": "Correct metadata", "voidWarning": "This only removes PMO coverage. It does not cancel a DJP document.",
+    "reason": "Reason", "confirmVoid": "Void this PMO entry?", "reload": "Reload", "close": "Close", "save": "Save changes", "correctionReason": "Correction reason"
+  },
   "budget": {
     "category": {
       "specialExpenses": "Special expenses"
@@ -29,6 +54,13 @@
   },
   "admin": {
     "expenseMap": {
+      "notReady": "Connect ERPNext before mapping expense accounts. Expense posting is not active.",
+      "error": {
+        "saveHeadline": "Couldn’t save the expense account",
+        "accountRemedy": "Check the account name and type in ERPNext, then try again. Your entry is kept.",
+        "unknownRemedy": "Check your connection and try again. Your entry is kept."
+      },
+      "openIntegrations": "Open integrations",
       "change": "Change {{key}}",
       "clear": "Clear {{key}}",
       "confirmClear": {
@@ -348,6 +380,8 @@
       }
     },
     "vendorTaxAccounts": {
+      "remoteChanged": "The saved accounts changed. Your edits are kept; reload the saved values to discard them.",
+      "reloadSaved": "Reload saved values",
       "heading": "Vendor bill tax accounts",
       "helper": "Enter the exact ERPNext account name. Leave blank if not used.",
       "inputVat": "Input VAT account",
@@ -362,6 +396,17 @@
     }
   },
   "approvals": {
+    "salesInvoices": {
+      "label": "Customer invoices awaiting you",
+      "heading": "Customer invoices awaiting you ({{count}})",
+      "errorTitle": "Couldn't load invoices awaiting you",
+      "errorSub": "Purchase requests and timesheets below are unaffected.",
+      "raisedBy": "Raised by",
+      "net": "Net (before tax)",
+      "tax": "Tax",
+      "gross": "Total due",
+      "showDetails": "Show invoice details for {{customer}}"
+    },
     "bulk": {
       "approveN": "Approve {{count}}",
       "clear": "Clear",
@@ -403,7 +448,7 @@
       "title": "Confirm what ERPNext holds"
     },
     "caughtUp": {
-      "sub": "Nothing is waiting on your approval right now. New purchase requests and submitted timesheets will appear here.",
+      "sub": "Nothing is waiting on your approval right now. New purchase requests, timesheets, expense claims and customer invoices will appear here.",
       "title": "You’re all caught up"
     },
     "employeeLinks": {
@@ -473,7 +518,7 @@
       "timesheets": "Timesheets"
     },
     "scopeToggleLabel": "Approvals scope",
-    "subtitle": "Needs my approval — everything waiting on your decision, across procurement and timesheets.",
+    "subtitle": "Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.",
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
@@ -729,6 +774,7 @@
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)",
       "pphRate": "PPh rate (%)",
+      "pphRateHelper": "Required when withholding is selected. Enter a rate above 0 and below 100%.",
       "pphRateError": "Enter a rate above 0 and below 100 with no more than 3 decimal places.",
       "save": "Save defaults",
       "saved": "Vendor tax defaults saved",
@@ -1583,6 +1629,14 @@
     },
     "viewToggleLabel": "Procurement view"
   },
+  "procurementLedger": {
+    "title": "Case ledger",
+    "filter": { "label": "Filter records", "all": "All", "financial": "Financial", "hasFile": "Has file" },
+    "date": "Date", "typeHeader": "Type", "systemNumber": "System #", "externalRef": "External ref", "amount": "Amount", "file": "File",
+    "ledgerNote": "Every record appears once, chronological. Empty record types have no row.",
+    "types": { "purchaseRequest": "Purchase Request", "purchaseOrder": "Purchase Order", "payment": "Payment", "rfq": "RFQ" },
+    "capture": { "action": "Capture {{record}}", "next": "+ Capture {{record}} — the next record for this phase." }
+  },
   "procurementDetail": {
     "accessDenied": {
       "sub": "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.",
@@ -1601,8 +1655,34 @@
       "selectQuote": "Select Quote",
       "submitRequest": "Submit Request"
     },
+    "vendorInvoice": {
+      "enterDetails": "Enter invoice details to mark as Vendor Invoiced:",
+      "invoiceNumber": "Invoice #",
+      "optional": "optional",
+      "invoicePlaceholder": "e.g. INV-2291",
+      "amountOptional": "Amount (optional)",
+      "invoiceStatus": "Invoice status",
+      "received": "Received",
+      "scheduled": "Scheduled",
+      "invoiceDate": "Invoice date",
+      "taxTreatment": "Tax treatment",
+      "taxTreatmentPlaceholder": "Select tax treatment",
+      "taxInclusive": "Inclusive — VAT included",
+      "taxExclusive": "Exclusive — VAT added",
+      "taxTreatmentHelper": "Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.",
+      "taxAmount": "Tax amount",
+      "confirmMarkInvoiced": "Confirm & mark invoiced"
+    },
+    "externalRefOptional": "External ref (optional)",
+    "amountOptional": "Amount (optional)",
+    "savePayment": "Save Payment",
+    "paymentRecorded": "Payment recorded",
+    "captureRecorded": "{{label}} recorded",
     "approvalNotes": "Approval notes",
     "backToProcurement": "Procurement",
+    "paymentBillRequired": "Select the vendor invoice this payment closes.",
+    "paymentApproverCannotPay": "Separation of duties: the approver cannot pay their own procurement.",
+    "withholdingNeedsAmount": "Enter the bill amount to calculate the vendor withholding.",
     "confirm": {
       "approveBody": "Approve <money/>?",
       "cancelTitle": "Cancel this request?",
@@ -1832,6 +1912,9 @@
         "emptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
         "error": "Couldn’t load the billing claims",
         "errorSub": "Retry, or reopen the project.",
+        "errors": {
+          "claimWithdrawn": "This claim was withdrawn — its invoice can't be raised."
+        },
         "evidenceNeeded": "Attach evidence before raising",
         "kind": {
           "downPayment": "Down payment",
@@ -2495,12 +2578,15 @@
             "amountOver": "Only {{remaining}} is still to invoice on this work order.",
             "amountPositive": "The amount must be more than zero.",
             "itemRequired": "Choose the ERP item.",
-            "refused": "Nothing was written to ERPNext. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left."
+            "refused": "Nothing was written to ERPNext. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left.",
+            "refusedNative": "Nothing was saved. This work order had {{remaining}} still to invoice when you opened this dialog; another invoice or a change to the work order may have used it since. Close and reopen it to see what is left.",
+            "lineRequired": "Enter an item code or a description."
           },
           "item": "ERP item",
           "itemCode": "Item code",
           "submit": "Create draft invoice",
           "subtitle": "Creates a draft invoice in ERPNext for the project's client. A different Finance or Admin user submits it.",
+          "subtitleNative": "Creates a draft invoice in PMO for a second Finance/Admin person to approve.",
           "title": "Invoice this work order",
           "createFailed": "Couldn't create the draft invoice",
           "cancel": "Cancel",
@@ -2522,7 +2608,9 @@
         "summaryTitle": "Billing against work orders",
         "toast": {
           "created": "Draft invoice created",
-          "createdSub": "{{number}} — submit it from Sales Invoices."
+          "createdSub": "{{number}} — submit it from Sales Invoices.",
+          "nativeCreated": "Draft invoice created in PMO",
+          "nativeCreatedSub": "{{wo}} — a second Finance/Admin person approves it from Sales Invoices."
         },
         "unavailable": "Unavailable",
         "notSubmitted": "Not yet submitted",
@@ -3382,6 +3470,33 @@
     "title": "Allow {{client}} to access your PMO account?"
   },
   "financeCopy": {
+    "viewInvoice": "View invoice",
+    "invoiceDetailsTitle": "Invoice details",
+    "continueToApprove": "Continue to approve",
+    "nativeSalesInvoicesDescription": "Client invoices raised, approved and settled in PMO.",
+    "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",
+    "nativeProjectRequired": "Project is required: it decides the invoice's VAT.",
+    "nativeSelectProject": "Select project…",
+    "approve": "Approve",
+    "approveInvoiceNamed": "Approve the invoice for {{customer}}?",
+    "approveInvoiceBody": "Approving issues the invoice: it gets its number, becomes Unpaid and can receive payments. Its author cannot approve it.",
+    "approveInvoice": "Approve invoice",
+    "invoiceApproved": "Invoice approved",
+    "nativeCancelInvoiceBody": "This cancels the invoice in PMO and it stops counting as billed. An invoice with receipts can be cancelled only after its receipts are cancelled.",
+    "statusPartlyPaid": "Partly paid",
+    "recordedBeforeErp": "Recorded in PMO before the ERP was connected",
+    "overpaidBy": "Overpaid by {{amount}}",
+    "carriedIntoErpOpening": "Carried into the ERP opening balance: {{amount}} on {{date}}",
+    "nativeIncomingPaymentsDescription": "Customer receipts recorded in PMO against approved invoices.",
+    "salesInvoiceLabel": "Sales Invoice",
+    "salesInvoiceRequired": "Choose the invoice this receipt settles.",
+    "paymentDateLabel": "Payment date",
+    "paymentDateNotFuture": "The payment date cannot be in the future.",
+    "nativeReceiptAmountHelper": "Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.",
+    "receiptDateMissing": "Enter the payment date.",
+    "receiptRefused": "Check the receipt amounts.",
+    "nativeCancelReceiptBody": "This cancels the receipt in PMO and puts its amount back on the invoice's balance.",
+    "receiptCancelled": "Receipt cancelled",
     "invoicePdf": {
       "download": "Download PDF",
       "downloaded": "PDF downloaded — {{name}}",
@@ -3407,6 +3522,13 @@
     "statusDraft": "Draft",
     "statusActive": "Active",
     "statusArchived": "Archived",
+    "amountMustBeGreaterThanZero": "Amount must be greater than 0",
+    "confirmCreateDescription": "This creates a new Draft budget version named \"{{name}}\".",
+    "confirmActivateDescription": "This makes {{version}} the live active budget and supersedes the current active version.",
+    "confirmCloneDescription": "This copies {{version}} into a new editable Draft.",
+    "confirmArchiveDescription": "This removes {{version}} as the active budget. You can clone it later to revise.",
+    "confirmDeleteDraftDescription": "This permanently deletes the draft {{version}}. This cannot be undone.",
+    "confirmDeleteLineItemDescription": "This permanently removes the line item from the draft. This cannot be undone.",
     "category": "Category",
     "description": "Description",
     "fiscalYear": "Fiscal year",
@@ -3424,7 +3546,7 @@
     "total": "Total",
     "addBudgetLineItem": "+ Add line item",
     "activate": "Activate",
-    "activateDrafterBlocked": "You drafted this version, so someone else must activate it.",
+    "activateEditorBlocked": "You edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
     "deleteDraft": "Delete draft",
     "archive": "Archive",
@@ -3646,7 +3768,47 @@
     "selectOrSearchItem": "Select or search item…",
     "searchItemCodeOrName": "Search item code or name…",
     "describeWorkOrGoods": "Describe the work or goods…",
-    "currency": "Currency"
+    "currency": "Currency",
+    "statusReceived": "Received",
+    "draftInvoiceLabel": "Draft · {{customer}}",
+    "preErpBadge": "Pre-ERP",
+    "totalDueAmount": "Total due {{amount}}",
+    "paidToDateAmount": "Paid {{amount}}",
+    "invoiceLineCodeOrDescription": "Line {{line}}: Enter an item code or a description.",
+    "vatRateMissing": "This project has no VAT rate recorded",
+    "vatRateMissingInline": "This project has no VAT rate recorded, so it cannot be invoiced yet.",
+    "recordVatRateOnProject": "Record the VAT rate on the project",
+    "paymentDateBeforeInvoice": "The payment date cannot be before the invoice date.",
+    "notPmoNative": "This invoice belongs to the ERP",
+    "erpOwnsRevenue": "The connected ERP now raises and settles invoices",
+    "newInvoiceTitle": "New invoice",
+    "editInvoiceTitle": "Edit invoice",
+    "newInvoiceSubtitle": "Create a new sales invoice for a client",
+    "editInvoiceSubtitle": "Update this sales invoice",
+    "saveInvoice": "Save invoice",
+    "createInvoice": "Create invoice",
+    "removeLine": "Remove line {{line}}",
+    "editPaymentTitle": "Edit payment",
+    "editPaymentSubtitle": "Update this incoming payment",
+    "receivePaymentSubtitle": "Record a new incoming payment from a client",
+    "savePayment": "Save payment",
+    "recordPayment": "Record payment",
+    "amountOutstanding": "{{amount}} outstanding",
+    "pmoNative": "This invoice was raised in PMO — approve it from Approvals",
+    "withheldAmountRefused": "Check the withheld tax amount.",
+    "receiptSplitMismatch": "Cash received plus withheld tax must equal the amount paid.",
+    "withholdingSlipMissing": "Enter the withholding-slip number.",
+    "receiptOnPmoInvoice": "Receipts for an invoice raised in PMO are recorded in PMO",
+    "invoiceLinesCount": "An invoice needs 1 to 100 lines.",
+    "invoiceLineInvalid": "Check the invoice lines.",
+    "invoiceTotalInvalid": "The invoice total must be above zero.",
+    "invoiceNotReceivable": "This invoice cannot receive a payment",
+    "invoiceHasReceipts": "Cancel this invoice's receipts first",
+    "receiptAlreadyCancelled": "This receipt is already cancelled",
+    "invoiceIllegalTransition": "That change isn't allowed from the invoice's current status.",
+    "sodSelfApproval": "You raised this invoice — a different person must approve it",
+    "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
+    "nativeDraftsOpen": "Invoices raised in PMO are still in draft"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
@@ -3759,6 +3921,8 @@
     "filterLocation": "Filter by location"
   },
   "managementPack": {
+    "actions": "Actions",
+    "retry": "Retry",
     "title": "Monthly management pack",
     "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
     "from": "From",
@@ -3913,7 +4077,19 @@
       "rejection_notes": "Rejection notes",
       "email": "Email",
       "phone": "Phone",
-      "notes": "Notes"
+      "notes": "Notes",
+      "efaktur_number": "e-Faktur number",
+      "efaktur_date": "e-Faktur date",
+      "received_date": "Received date",
+      "author_user_id": "Invoice author",
+      "approved_by_id": "Approved by",
+      "approved_at": "Approved at",
+      "pmo_native": "PMO-created",
+      "pmo_number": "PMO invoice number",
+      "native_lines": "Invoice lines",
+      "withheld_amount": "Tax withheld",
+      "withheld_pph_type": "Withholding tax type",
+      "slip_number": "Slip number", "slip_date": "Slip date", "tax_period": "Tax period", "pph_type": "PPh type", "tax_base": "Tax base", "invoice_count": "Bill count", "voided_at": "Voided at", "voided_by": "Voided by", "slip_id": "Bukti potong", "withheld_at_record": "Withheld at record", "pph_type_at_record": "PPh type at record", "type_source": "Type source", "released_at": "Released at"
     },
     "kind": {
       "project": "Project",
@@ -3927,8 +4103,18 @@
       "payment": "Payment",
       "task": "Task",
       "company": "Company",
-      "contact": "Contact"
+      "contact": "Contact",
+      "sales_invoice": "Sales invoice",
+      "procurement_invoice": "Vendor bill",
+      "vendor_withholding_slip": "Bukti potong",
+      "vendor_withholding_slip_bill": "Bukti potong bill link"
     },
+    "withholdingType": {
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)"
+    },
+    "typeSource": { "bill": "Bill type", "declared": "Declared from slip" },
+    "slipStatus": { "active": "Active", "void": "Void" },
     "filter": {
       "all": "All",
       "project": "Project"
@@ -3939,6 +4125,56 @@
       "workOrders": "No work order changes",
       "procurement": "No procurement changes",
       "tasks": "No task changes"
+    },
+    "auditRecorded": "Recorded event",
+    "action": {
+      "m365_connection_revoked": "Microsoft 365 connection revoked",
+      "integration_activate": "ERP integration activated",
+      "integration_disconnect": "ERP integration disconnected",
+      "integration_set_company": "ERP company mapping set",
+      "integration_site_url_set": "ERP site URL set",
+      "integration_trap_recovery": "ERP sync recovered",
+      "integration_connect_cleanup": "ERP connection cleaned up",
+      "integration_connect_finalize": "ERP connection finalized",
+      "project_document_create": "Project document created",
+      "project_document_update": "Project document updated",
+      "project_document_transition": "Project document status changed",
+      "progress_claim_create": "Progress claim created",
+      "progress_claim_withdraw": "Progress claim withdrawn",
+      "progress_claim_evidence_attach": "Progress claim evidence attached",
+      "procurement_invoice_create": "Vendor invoice created",
+      "procurement_approval_route": "Approval route recorded",
+      "incoming_payment_create": "Incoming payment recorded",
+      "incoming_payment_cancel": "Incoming payment cancelled",
+      "expense_advance_return": "Expense advance returned",
+      "expense_claim_transition": "Expense claim status changed",
+      "expense_claim_approval_route": "Approval route recorded",
+      "timesheet_create": "Timesheet created",
+      "spend_approver_add": "Spend approver added",
+      "spend_approver_remove": "Spend approver removed",
+      "sales_invoice_transition": "Customer invoice status changed",
+      "credits_grant": "Credits granted",
+      "company_tax_defaults_change": "Company tax defaults changed",
+      "org_withholding_account_change": "Withholding accounts changed",
+      "org_vendor_tax_accounts_change": "Vendor tax accounts changed",
+      "org_tax_default_change": "Tax defaults changed",
+      "org_down_payment_item_change": "Down-payment items changed",
+      "meeting_grant_create": "Meeting access granted",
+      "meeting_grant_revoke": "Meeting access revoked"
     }
+  },
+  "entityForm": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "saveFailed": "Save failed",
+    "formErrors": "Form errors",
+    "nothingSaved": "Nothing was saved — your entries are still here.",
+    "completeRequired": "Complete all required fields (marked with an asterisk) to save.",
+    "discardTitle": "Discard your changes?",
+    "discardBody": "This form has unsaved changes. Discarding will lose them.",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "fixFields_one": "Fix {{count}} field before saving",
+    "fixFields_other": "Fix {{count}} fields before saving"
   }
 }

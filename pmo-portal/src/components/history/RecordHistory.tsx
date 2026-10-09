@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ListState, Button } from '@/src/components/ui';
 import { useRecordHistory } from '@/src/hooks/useRecordHistory';
-import type { HistoryEvent, FieldChange } from '@/src/lib/repositories/recordHistory';
+import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repositories/recordHistory';
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';
-import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel } from './historyLabels';
+import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel, auditActionLabel } from './historyLabels';
 import {
   KIND_FILTERS, RECORD_NAME_SOURCE, REF_SOURCE, fieldKind, humanizeColumn,
 } from './historyFields';
@@ -135,7 +135,9 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>
       <ul className="mt-1 space-y-0.5 text-sm text-foreground">
-        {ev.source === 'audit' && <li className="break-words">{ev.action}</li>}
+        {/* #880: a merged audit line reads as a translated "did X" label (humanised when the code is
+            unknown) — never the internal action code. */}
+        {ev.source === 'audit' && <li className="break-words">{auditActionLabel(t, ev.action)}</li>}
         {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
         {entries.map(([column, change]) => (
           <li key={column} className="break-words">{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>
@@ -173,7 +175,17 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
   const events = useMemo(() => q.data?.pages.flatMap((p) => p.events) ?? [], [q.data]);
   const companyIdsKey = companyIdsOf(events).join(',');
   const companyIds = useMemo(() => (companyIdsKey ? companyIdsKey.split(',') : []), [companyIdsKey]);
-  const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds });
+  const recordIdsByType = useMemo(() => {
+    const ids: Partial<Record<HistoryNameKind, string[]>> = {};
+    for (const event of events) {
+      if (['purchase_request', 'rfq', 'purchase_order', 'payment', 'sales_invoice', 'procurement_invoice'].includes(event.entityType)) {
+        const kind = event.entityType as HistoryNameKind;
+        (ids[kind] ??= []).push(event.entityId);
+      }
+    }
+    return ids;
+  }, [events]);
+  const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
 

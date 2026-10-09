@@ -31,6 +31,8 @@ import {
   CardPad,
   Button,
   FieldError,
+  FormGrid,
+  SelectField,
   Icon,
   RecordActionZone,
   useMoneyInputMask,
@@ -40,7 +42,6 @@ import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
 import {
   TAX_TREATMENT_OPTIONS,
-  TAX_TREATMENT_PLACEHOLDER,
   VI_TAX_REQUIRED_HINT,
   taxIsPmoAuthored,
   ERP_AUTHORED_TAX,
@@ -485,16 +486,16 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
       <p className="text-[12px] font-semibold text-muted-foreground">
-        Enter invoice details to mark as Vendor Invoiced:
+        {t('procurementDetail.vendorInvoice.enterDetails', 'Enter invoice details to mark as Vendor Invoiced:')}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Invoice # <span className="font-normal">(optional)</span>
+          {t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')} <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>
           <input
             type="text"
             value={refNum}
             onChange={(e) => setRefNum(e.target.value)}
-            placeholder="e.g. INV-2291"
+            placeholder={t('procurementDetail.vendorInvoice.invoicePlaceholder', 'e.g. INV-2291')}
             maxLength={64}
             data-testid={VI_FIELD_TEST_IDS.ref}
             className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -516,7 +517,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           </label>
         )}
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Amount <span className="font-normal">(optional)</span>
+          {t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')} 
           <input
             type="text"
             inputMode="decimal"
@@ -531,20 +532,20 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           />
         </label>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Invoice status
+          {t('procurementDetail.vendorInvoice.invoiceStatus', 'Invoice status')}
           <select
             value={viStatus}
             onChange={(e) => setViStatus(e.target.value as 'Received' | 'Scheduled')}
             data-testid={VI_FIELD_TEST_IDS.status}
             className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <option value="Received">Received</option>
-            <option value="Scheduled">Scheduled</option>
+            <option value="Received">{t('procurementDetail.vendorInvoice.received', 'Received')}</option>
+            <option value="Scheduled">{t('procurementDetail.vendorInvoice.scheduled', 'Scheduled')}</option>
             {/* N1 (AC-W3-N1): Paid excluded — Mark as Paid is the sole PR→Paid authority. */}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Invoice date
+          {t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')}
           <input
             type="date"
             value={invoiceDate}
@@ -559,22 +560,29 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
         {pmoAuthorsTax && (
         <>
         <TaxRateFields fields={taxFields} />
+        <div className="min-w-[180px] flex-1">
+          <FormGrid>
+            <SelectField
+              fullWidth
+              label={t('procurementDetail.vendorInvoice.taxTreatment', 'Tax treatment')}
+              value={taxTreatmentStr}
+              onChange={setTaxTreatmentStr}
+              data-testid={VI_FIELD_TEST_IDS.taxTreatment}
+              options={[
+                { value: '', label: t('procurementDetail.vendorInvoice.taxTreatmentPlaceholder', 'Select tax treatment') },
+                ...TAX_TREATMENT_OPTIONS.map((o) => ({
+                  value: o.value,
+                  label: o.value === 'inclusive'
+                    ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
+                    : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+                })),
+              ]}
+              helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}
+            />
+          </FormGrid>
+        </div>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Tax treatment
-          <select
-            value={taxTreatmentStr}
-            onChange={(e) => setTaxTreatmentStr(e.target.value)}
-            data-testid={VI_FIELD_TEST_IDS.taxTreatment}
-            className="h-8 w-56 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <option value="">{TAX_TREATMENT_PLACEHOLDER}</option>
-            {TAX_TREATMENT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Tax amount
+          {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
           <input
             type="text"
             inputMode="decimal"
@@ -593,14 +601,14 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
         </>
         )}
         <Button
-          variant="success"
+          variant="primary"
           size="sm"
           loading={busy}
           disabled={!invoiceDate || !tax || withheldInvalid}
           data-testid="btn-submit-vi-capture"
           onClick={handleSubmit}
         >
-          Confirm &amp; Mark Invoiced
+          {t('procurementDetail.vendorInvoice.confirmMarkInvoiced', 'Confirm & mark invoiced')}
         </Button>
         <Button
           type="button"
@@ -609,13 +617,18 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           data-testid="btn-cancel-vi-capture"
           onClick={onCancel}
         >
-          Cancel
+          {t('financeCopy.cancel', 'Cancel')}
         </Button>
       </div>
       {/* #505: say WHY submit is blocked rather than leaving a dead button. Also the a11y hint —
           the tax fields carry no `required` attribute (the select's empty option is the unanswered
           state), so this line is the programmatic explanation. */}
       <FieldError id={amtErrorId}>{amtError}</FieldError>
+      {pmoAuthorsTax && !amtStr && vendorTax?.pphType && withheldInvalid && (
+        <p role="status" className="text-[12px] text-muted-foreground">
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+        </p>
+      )}
       {!tax && (
         <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
           {VI_TAX_REQUIRED_HINT}

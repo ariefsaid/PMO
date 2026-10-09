@@ -293,6 +293,61 @@ Deno.test({
   },
 });
 
+// ── #910 (DD-VPAY-9, FR-VPAY-009, AC-VPAY-008): the payer-attribution stamp. The create-path insert
+// stamps `recorded_by_id` from the dispatch caller (ctx.callerUserId — the verified JWT sub); a
+// machine write (sweep finalize/replay — no caller) leaves it null; and an UPDATE (finalize retry,
+// cancel tombstone) never writes the column, so the original attribution is never overwritten.
+// ====================================================================================================
+Deno.test({
+  name: "#910 (kind payment) a create with a dispatch caller stamps recorded_by_id from ctx.callerUserId",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-b' },
+      { id: 'pmo-pe-910', pay_number: 'ACC-PAY-2026-00910', amount: '1090000.00', erp_docstatus: 1, erp_modified: '2026-10-08 10:00:00.000000' },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pe-910', procurementId: 'proc-1', invoiceId: 'pmo-pi-1', paid_amount: 1090000, erp_doc_kind: 'payment' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'payments');
+    assert(insertCall !== undefined, 'expected an insert into payments');
+    const row = insertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.recorded_by_id, 'user-b', 'the pay artifact names the verified dispatch caller');
+  },
+});
+
+Deno.test({
+  name: "#910 (kind payment) a create with NO caller (sweep finalize/replay) leaves recorded_by_id null",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pe-911', pay_number: 'ACC-PAY-2026-00911', amount: '1090000.00', erp_docstatus: 1, erp_modified: '2026-10-08 10:00:00.000000' },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pe-911', procurementId: 'proc-1', invoiceId: 'pmo-pi-1', paid_amount: 1090000, erp_doc_kind: 'payment' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'payments');
+    const row = insertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.recorded_by_id ?? null, null, 'a machine write is never attributed to a user');
+  },
+});
+
+Deno.test({
+  name: "#910 (kind payment) an UPDATE (finalize retry, cancel tombstone) never writes recorded_by_id",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-b' },
+      { id: 'pmo-pe-910', pay_number: 'ACC-PAY-2026-00910', amount: '1090000.00', erp_docstatus: 2, erp_modified: '2026-10-09 09:00:00.000000' },
+      { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pe-910', erp_doc_kind: 'payment', externalRecordId: 'ACC-PAY-2026-00910', verb: 'cancel' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'payments');
+    assert(updateCall !== undefined, 'expected an update on payments');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assertEquals('recorded_by_id' in patch, false, 'the original attribution is never overwritten');
+  },
+});
+
 Deno.test({
   name: "READ_MODEL_WRITERS['procurement'].upsert (kind payment) updates the mirror row on a non-create operation",
   fn: async () => {

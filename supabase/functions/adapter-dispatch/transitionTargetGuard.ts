@@ -180,6 +180,16 @@ export async function checkCreateTargetUnmapped(
       return { ok: false, status: 422, message: 'Contact create requires a new record identity' };
     }
   }
+  // #784 — a revenue create always names a NEW record: its id must not already be a sales invoice or a customer
+  // receipt (an ERP-path row whose mapping has not landed yet, or a PMO-native one, which is never mapped at all).
+  // Both are global primary keys, so any occupied identity is refused — except this command's own retry.
+  if (command.domain === 'revenue') {
+    const occupied = await revenueRowsFor(client, String(command.record.id));
+    if (occupied === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record identity could not be validated' };
+    if (occupied.length > 0 && !(idempotencyKey && await outboxRowExists(client, orgId, command.domain, pmoRecordId, idempotencyKey))) {
+      return { ok: false, status: 422, message: 'a revenue create must name a new record — record.id is already a sales invoice or customer receipt' };
+    }
+  }
   const mapped = await resolveExternalRef(client, orgId, command.domain, pmoRecordId);
   if (mapped === null) return OK;
 
@@ -198,6 +208,13 @@ export async function checkCreateTargetUnmapped(
  *  version/variant-pinned: any opaque 122-bit-ish UUID is fine, the property we need is unguessable
  *  fixed-width opacity, not a particular UUID version. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** #784 — the uuid-shaped identity a PMO revenue row is keyed on. Served-boundary and guard-level shape
+ *  check for a revenue `record.id`; the pure path (`dispatchMoneyWrite`) re-asserts the strictly canonical
+ *  spelling, which is what every downstream TEXT comparison of the id relies on. */
+export function isCanonicalUuid(id: string): boolean {
+  return UUID_RE.test(id);
+}
 
 /**
  * P3b FR-TSP-041 (ADR-0059 §4) — the DETERMINISTIC Posture-B key: `'<prefix>:<uuid>:<state stamp>'`.
@@ -304,4 +321,60 @@ async function outboxRowExists(
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data !== null && data !== undefined;
+}
+
+/** The two revenue read-model tables a revenue `record.id` can name (both keyed by a global uuid). */
+const REVENUE_ROW_TABLES = ['sales_invoices', 'incoming_payments'] as const;
+
+interface RevenueRow { table: (typeof REVENUE_ROW_TABLES)[number]; pmoNative: boolean }
+
+/** Every revenue row whose id is `id`, read with the service role (RLS-blind, so another org's row counts too).
+ *  A non-uuid id cannot be a row of either table, so it is not looked up — a revenue command's own `record.id`
+ *  is canonical by the time it reaches here (the guard below refuses the rest first); the shape skip remains
+ *  for the `salesInvoiceId` a receipt cites. `'lookup-failed'` fails closed. */
+async function revenueRowsFor(client: GuardLookupClient, id: string): Promise<RevenueRow[] | 'lookup-failed'> {
+  if (!UUID_RE.test(id)) return [];
+  const rows: RevenueRow[] = [];
+  for (const table of REVENUE_ROW_TABLES) {
+    const { data, error } = await client.from(table).select('id, pmo_native').eq('id', id).maybeSingle();
+    if (error) return 'lookup-failed';
+    if (data) rows.push({ table, pmoNative: (data as { pmo_native?: unknown }).pmo_native === true });
+  }
+  return rows;
+}
+
+/**
+ * #784 — revenue commands through the ERP path only ever target ERP-path rows.
+ *
+ * An invoice or receipt raised in PMO (`pmo_native`, migration 0275) is approved, settled and cancelled by PMO's
+ * own RPCs and is never an ERP document. So every revenue command — create, update or transition — is refused
+ * when its `record.id` is a PMO-native invoice or receipt, or when it cites a PMO-native invoice as the invoice a
+ * receipt settles (`record.salesInvoiceId`). There is no retry exemption: no ERP-path command ever legitimately
+ * names such a row. Runs before the outbox and before any ERP call; a lookup failure fails closed (503).
+ */
+export async function checkRevenueErpPathTarget(
+  client: GuardLookupClient,
+  command: GuardCommand,
+): Promise<TransitionBindingResult> {
+  if (command.domain !== 'revenue') return OK;
+  // #784 — every revenue command (every erp_doc_kind) names its record by the canonical uuid the revenue
+  // tables key it on. Anything else is refused here — before the row lookups, before the outbox and before
+  // any ERP call; index.ts answers the same shape at the served boundary.
+  if (!isCanonicalUuid(String(command.record.id))) {
+    return { ok: false, status: 422, message: 'revenue record.id must be a canonical UUID' };
+  }
+  const cited = (command.record as { salesInvoiceId?: unknown }).salesInvoiceId;
+  const ids = [String(command.record.id), ...(typeof cited === 'string' && cited.length > 0 ? [cited] : [])];
+  for (const id of ids) {
+    const rows = await revenueRowsFor(client, id);
+    if (rows === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record could not be validated' };
+    if (rows.some((row) => row.pmoNative)) {
+      return {
+        ok: false,
+        status: 422,
+        message: 'this invoice or receipt was raised in PMO — it is approved, settled and cancelled in PMO, never through the ERP',
+      };
+    }
+  }
+  return OK;
 }

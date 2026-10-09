@@ -43,7 +43,7 @@ function CompaniesList() {
   const navigate = useNavigate();
   return (
     <div>
-      <button type="button" onClick={() => openRecord('/companies/company-1')}>
+      <button type="button" data-list-return-focus="companies:company-1" onClick={() => openRecord('/companies/company-1')}>
         Open company
       </button>
       <button type="button" onClick={() => openRecord('https://outside.example/path')}>
@@ -185,6 +185,31 @@ describe('useReturnNavigate', () => {
 });
 
 describe('useListReturn', () => {
+  it('SH-2: restores focus to the originating row activation control after the list is ready', async () => {
+    renderAt('/companies');
+    const trigger = screen.getByRole('button', { name: 'Open company' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
+    const restoredTrigger = screen.getByRole('button', { name: 'Open company' });
+    fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
+    await waitFor(() => expect(restoredTrigger).toHaveFocus());
+  });
+
+  it('AC #879: a tab marker is cleared on list return and does not poison the next record navigation', () => {
+    renderAt('/companies/company-1', true, { pmoTabSwitch: true });
+    const main = screen.getByRole('main');
+    fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
+    expect(main).toHaveFocus();
+    const listState = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(listState.pmoTabSwitch).toBeUndefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open company' }));
+    expect(main).toHaveFocus();
+    const recordState = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(recordState.pmoTabSwitch).toBeUndefined();
+  });
+
   it('FR-LRC-003: captures the list URL and scroll before opening the canonical record path', () => {
     renderAt('/companies?type=Client&q=harbor&campaign=source');
     const main = sizeMainScroll();
@@ -288,6 +313,29 @@ describe('useListReturn', () => {
       idx: 0,
       pmoListScrollConsumedFor: expect.any(String),
     });
+  });
+
+  it('FR-LRC-005: consumes a focus-only restore so later ready toggles do not refocus the row', () => {
+    vi.useFakeTimers();
+    renderAt('/companies', true, {
+      pmoListScrollRestore: {
+        list: 'companies',
+        path: '/companies',
+        focusTarget: 'companies:company-1',
+      },
+    });
+    const trigger = screen.getByRole('button', { name: 'Open company' });
+    fireEvent.click(screen.getByRole('button', { name: 'List ready' }));
+    act(() => vi.advanceTimersByTime(0));
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(screen.getByRole('button', { name: 'List loading' }));
+    const readyButton = screen.getByRole('button', { name: 'List ready' });
+    readyButton.focus();
+    fireEvent.click(readyButton);
+    act(() => vi.advanceTimersByTime(0));
+    expect(readyButton).toHaveFocus();
+    expect(trigger).not.toHaveFocus();
   });
 
   it('FR-LRC-005: never scrolls before the list is ready and restores exactly once once it is', () => {

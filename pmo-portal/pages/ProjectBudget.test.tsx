@@ -5,6 +5,7 @@ import { axe } from 'jest-axe';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,35 @@ afterEach(() => resetActiveLocale());
 // ---------------------------------------------------------------------------
 // Core states (AC-726, NFR-BV-UI-001)
 // ---------------------------------------------------------------------------
+describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
+  it('renders all six confirmation descriptions in Bahasa in an id locale session', async () => {
+    await financeTestI18n.changeLanguage('id');
+    const cases = [
+      { versions: [activeVersion], trigger: /Versi baru/i, fill: true, confirm: /Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
+      { versions: [draftVersion], trigger: /^Aktifkan$/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
+      { versions: [activeVersion], trigger: /Salin untuk revisi/i, confirm: /Salin versi/i, body: 'Ini menyalin Version 1 (v1) menjadi Draf baru' },
+      { versions: [activeVersion], trigger: /^Arsipkan$/i, confirm: /Arsipkan versi/i, body: 'Ini menonaktifkan Version 1 (v1) sebagai anggaran aktif' },
+      { versions: [draftVersion], trigger: /Hapus draf/i, confirm: /Hapus draf/i, body: 'Ini menghapus draf Draft v2 (v2) secara permanen' },
+      { versions: [draftVersion], trigger: /Hapus item anggaran/i, confirm: /^Hapus$/i, body: 'Ini menghapus item anggaran dari draf secara permanen' },
+    ];
+    for (const scenario of cases) {
+      budgetState.data = 0;
+      versionsState.data = scenario.versions;
+      const view = renderPage();
+      if (scenario.fill) {
+        await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
+        await userEvent.type(screen.getByPlaceholderText(/nama versi/i), 'Anggaran baru');
+      } else {
+        await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
+      }
+      if (scenario.fill) await userEvent.click(screen.getByRole('button', { name: scenario.confirm }));
+      const dialog = screen.queryByRole('dialog') ?? screen.getByRole('alertdialog');
+      expect(dialog).toHaveTextContent(scenario.body);
+      view.unmount();
+    }
+  });
+});
+
 describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
   it('uses the AA primary-text token for the active version-card action', () => {
     budgetState.data = activeVersion.total;
@@ -180,6 +210,17 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     const region = screen.getByRole('region', { name: 'Budget version line items, scrollable horizontally' });
     expect(region).toHaveAttribute('tabindex', '0');
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('BU-3: amount validation message is Indonesian in an id locale session', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    await userEvent.click(screen.getByText(/Tambah item anggaran/i));
+    await userEvent.type(screen.getByPlaceholderText(/Jumlah/i), '0');
+    await userEvent.click(screen.getByRole('button', { name: /^Simpan$/i }));
+    expect(await screen.findByText('Jumlah harus lebih besar dari 0')).toBeInTheDocument();
   });
 
   it('AC-L10N-B01 renders the actual Indonesian empty state from the shipped catalogue', async () => {
@@ -287,7 +328,7 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
     resetState();
   });
 
@@ -303,9 +344,8 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
-    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
-    expect(screen.getByRole('status')).toHaveTextContent(/ERPNext/i);
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/ERPNext/i);
     resetState();
   });
 
@@ -321,11 +361,10 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
-    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
-    expect(screen.getByRole('status')).toHaveTextContent(/no budget lines/i);
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/no budget lines/i);
     // …and it does NOT tell the operator to retry a push that was never attempted.
-    expect(screen.getByRole('status')).not.toHaveTextContent(/retry/i);
+    expect(toast).not.toHaveTextContent(/retry/i);
     resetState();
   });
 
@@ -335,10 +374,21 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
     expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
-      'You drafted this version, so someone else must activate it.',
+      'You edited this version, so someone else must activate it.',
     );
     // The drafter keeps every other Draft affordance.
     expect(screen.getByRole('button', { name: /Delete draft/i })).toBeInTheDocument();
+  });
+
+  it('DD-BUDGET-7: a line editor who is not the drafter also sees the editor reason, not Activate', () => {
+    budgetState.data = 0;
+    // u2 drafted; the signed-in u1 edited a line, so u1 may not activate either.
+    versionsState.data = [{ ...draftVersion, created_by: 'u2', editor_ids: ['u1'] }];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
+      'You edited this version, so someone else must activate it.',
+    );
   });
 
   it('OD-BUDGET-6: a PM sees that a version with no recorded drafter needs Admin or Finance', () => {
@@ -366,7 +416,7 @@ describe('ProjectBudget Draft version actions', () => {
     await financeTestI18n.changeLanguage('id');
     renderPage();
     expect(screen.getByTestId('activate-blocked-reason')).toHaveTextContent(
-      'Anda menyusun versi ini, jadi orang lain yang harus mengaktifkannya.',
+      'Anda mengedit versi ini, jadi orang lain yang harus mengaktifkannya.',
     );
   });
 
@@ -493,6 +543,21 @@ describe('ProjectBudget Archived version actions', () => {
 // New version form in non-empty (versions list) state
 // ---------------------------------------------------------------------------
 describe('ProjectBudget New version form (versions list state)', () => {
+  it('BU-1: newly created version becomes the selected version', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    mockCreateVersion.mockImplementationOnce(async () => {
+      versionsState.data = [activeVersion, { ...draftVersion, id: 'v-new', name: 'Budget v2', version: 2 }];
+      return { id: 'v-new' };
+    });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New version/i }));
+    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v2');
+    await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
+    expect(screen.getByRole('combobox', { name: /version/i })).toHaveValue('v-new');
+  });
+
   it('shows + New version button in list state', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
@@ -589,7 +654,7 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     await userEvent.type(screen.getByPlaceholderText(/Amount/i), '1.234');
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/valid|decimal/i);
+    expect(await screen.findByText(/valid|decimal/i, { selector: 'span[role="alert"]' })).toHaveTextContent(/valid|decimal/i);
     expect(mockCreateLineItem).not.toHaveBeenCalled();
   });
 
@@ -668,6 +733,18 @@ describe('ProjectBudget New version form (empty state)', () => {
 // ---------------------------------------------------------------------------
 describe('ProjectBudget version selector (budget-dropdown)', () => {
   // T1/T2: AC-BD-01 — labelled selector present when ≥1 version exists
+  it('BU-3: Indonesian selector option labels are Draf, Aktif, and Diarsipkan', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion, archivedVersion];
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    const selector = screen.getByRole('combobox', { name: /versi/i });
+    const optionLabels = Array.from((selector as HTMLSelectElement).options).map((option) => option.textContent ?? '');
+    expect(optionLabels.some((label) => label.includes('(Draf)'))).toBe(true);
+    expect(optionLabels.some((label) => label.includes('(Aktif)'))).toBe(true);
+    expect(optionLabels.some((label) => label.includes('(Diarsipkan)'))).toBe(true);
+  });
+
   it('AC-BD-01: renders a labelled "Version" combobox with ≥1 version', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion, draftVersion];

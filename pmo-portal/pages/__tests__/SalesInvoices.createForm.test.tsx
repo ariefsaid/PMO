@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { getPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 /**
@@ -31,7 +33,7 @@ const hoisted = vi.hoisted(() => ({
     { value: 'cust-1', label: 'Acme Energy', sub: 'Client' },
     { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' },
   ],
-  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01' }],
+  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false }],
   connected: false,
 }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: hoisted.connected, loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] }) }));
@@ -51,7 +53,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: hoisted.clientOptions }),
-  useProjectOptions: () => ({ data: hoisted.projectOptions }),
+  useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }),
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -63,6 +65,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useNavigate: () => hoisted.navigateMock };
@@ -165,6 +168,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
     await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
     await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
@@ -218,7 +222,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(await screen.findByRole('option', { name: /Alpha Platform/ })).toBeInTheDocument();
   });
 
-  it('enables "Create invoice" once a customer is chosen (it was permanently disabled)', async () => {
+  it('enables "Create invoice" once a customer and project are chosen (it was permanently disabled)', async () => {
     const user = userEvent.setup();
     renderPage();
     await openForm(user);
@@ -227,6 +231,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(submit).toBeDisabled();
 
     await pick(user, 'Customer', 'Acme Energy');
+
+    expect(screen.getByRole('button', { name: 'Create invoice' })).toBeDisabled();
+    await pick(user, 'Project', 'Alpha Platform');
 
     expect(screen.getByRole('button', { name: 'Create invoice' })).toBeEnabled();
   });
@@ -256,6 +263,8 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
       // BLOCK 2 (ADR-0058): the form session's command identity rides along with the body.
       intent: { id: expect.any(String), idempotencyKey: expect.any(String) },
     });
+    expect(await findToastAnnouncement('status', 'Invoice created')).toBeInTheDocument();
+    expect(screen.queryByText('cust-1')).not.toBeInTheDocument();
   });
 
   it('AC-PLC-009: rejects an en-US sales-invoice rate with excess precision before creating', async () => {
@@ -264,13 +273,14 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
     const rate = screen.getByLabelText(/Rate/);
     await user.clear(rate);
     await user.type(rate, '1.234');
     await user.click(screen.getByRole('button', { name: 'Create invoice' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/rate|decimal/i);
+    expect(getPageAnnouncement('alert', /rate|decimal/i).textContent).toMatch(/rate|decimal/i);
     expect(hoisted.createMutate).not.toHaveBeenCalled();
   });
 
@@ -280,6 +290,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
     const rate = screen.getByLabelText(/Rate/);
     await user.clear(rate);
@@ -297,6 +308,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await openForm(user);
 
     await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await user.type(screen.getByLabelText(/Item code/), 'ITEM-001');
     await user.click(screen.getByRole('button', { name: /Add line item/i }));
 

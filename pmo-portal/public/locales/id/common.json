@@ -1,4 +1,8 @@
 {
+  "toast": {
+    "dismiss": "Tutup notifikasi",
+    "more": "+{{count}} lainnya"
+  },
   "efaktur": {
     "title": "Catat detail e-Faktur",
     "number": "Nomor e-Faktur",
@@ -22,6 +26,27 @@
     "keepEditing": "Lanjut mengedit",
     "saved": "Detail e-Faktur disimpan"
   },
+  "bupot": {
+    "loading": "Memuat bukti potong…", "loadError": "Bukti potong tidak tersedia", "unavailable": "Tidak tersedia",
+    "view": "Lihat bukti potong", "record": "Catat bukti potong", "history": "Riwayat bukti potong",
+    "state": { "slipped": "Sudah dipotong", "needsReview": "Perlu ditinjau", "unavailable": "Tidak tersedia", "notRecorded": "Belum dicatat", "notRequired": "Tidak diperlukan", "returnReview": "Tinjau pengembalian" },
+    "select": "Pilih", "selectBill": "Pilih tagihan {{bill}}", "bill": "Tagihan", "withheld": "Dipotong", "type": "Jenis PPh",
+    "confirmUnknown": "Konfirmasi sebagai {{type}} berdasarkan bukti potong terbit", "recordTitle": "Catat bukti potong",
+    "vendor": "Vendor", "slipNumber": "Nomor slip terbit", "slipDate": "Tanggal slip", "taxPeriod": "Masa pajak", "taxBase": "Dasar pengenaan pajak", "withheldAmount": "Jumlah potongan pada slip",
+    "typeWarning": "Konfirmasi jenis PPh dari slip eksternal. PMO tidak menerbitkan atau membatalkan dokumen pajak.", "candidates": "Tagihan yang memenuhi syarat",
+    "selectedTotal": "Total pilihan: {{currency}} {{amount}}", "loadMore": "Muat tagihan lainnya", "reconciliation": "Pilihan {{sum}} · Slip {{amount}} · Selisih {{difference}}",
+    "amountMismatch": "Jumlah slip harus sama persis dengan total potongan tagihan yang dipilih.", "startingBillSelected": "Tagihan awal dipilih",
+    "refusal": { "stale": "Slip ini telah berubah. Muat ulang sebelum menyimpan.", "conflict": "Nomor slip atau tagihan sudah tercatat. Periksa riwayat bukti potong.", "invalidFacts": "Periksa fakta dan tagihan yang dipilih.", "retrySameIntent": "Hasil belum pasti. Coba lagi dengan niat slip yang sama.", "ineligibleBill": "Satu atau beberapa tagihan tidak lagi memenuhi syarat.", "amountMismatch": "Jumlah terbit tidak sama dengan tagihan yang dipilih.", "typeConfirmation": "Konfirmasi jenis tagihan yang belum diketahui.", "billLimit": "Satu slip hanya dapat mencakup maksimal 100 tagihan.", "notPermitted": "Anda tidak memiliki izin untuk mencatat slip ini.", "notFound": "Slip atau tagihan tidak lagi tersedia.", "voided": "Slip ini sudah dibatalkan." },
+    "remedy": { "reload": "Muat ulang dan periksa fakta slip terbaru.", "inspect": "Periksa cakupan yang ada sebelum mencatat slip lain.", "edit": "Perbaiki fakta lalu coba lagi.", "retry": "Coba ulangi permintaan yang sama; jangan mulai slip baru." },
+    "detailTitle": "Detail bukti potong", "status": "Status", "voidReason": "Alasan pembatalan",
+    "validationState": "Status validasi", "reconciled": "Sesuai", "active": "Aktif", "voidedStatus": "Dibatalkan di PMO", "sourceUnavailableShort": "Data sumber tidak tersedia",
+    "reviewReason": "Potongan tagihan berubah. Periksa sumber; batalkan catatan dan catat penggantinya bila perlu.", "sourceUnavailable": "Data sumber tidak tersedia. Cakupan belum dapat diverifikasi.",
+    "recordedTotal": "Saat dicatat", "currentTotal": "Saat ini", "difference": "Selisih", "taxPeriodMonth": "Masa pajak (bulan)",
+    "invalidAmount": "Masukkan jumlah positif dengan maksimal dua angka desimal.", "invalidSlipDate": "Pilih tanggal slip yang tidak melebihi hari ini.", "amountExceedsBase": "Jumlah potongan pada bukti potong tidak boleh melebihi dasar pengenaan pajak.", "invalidTaxPeriod": "Pilih masa pajak yang tidak melebihi bulan berjalan.", "invalidFactsCopy": "Periksa data yang dimasukkan lalu coba lagi.", "vendorUnavailable": "Detail vendor tidak tersedia",
+    "noBillHistory": "Belum ada bukti potong yang dicatat untuk tagihan ini.", "selectedBills": "Tagihan dipilih ({{count}})", "candidateEmpty": "Tidak ada tagihan yang memenuhi syarat untuk vendor, mata uang, dan jenis PPh ini.", "candidateError": "Tagihan yang memenuhi syarat tidak dapat dimuat. Isian Anda tetap tersimpan. Coba muat lagi.", "retry": "Coba lagi",
+    "openBillCase": "Buka tagihan {{bill}} di kasus {{case}}", "case": "Kasus", "billDate": "Tanggal tagihan", "openBill": "Buka tagihan di kasus", "selectFirst": "Pilih tagihan ini terlebih dahulu.", "loadMoreSlips": "Muat riwayat lainnya", "void": "Batalkan catatan PMO", "correct": "Koreksi metadata", "voidWarning": "Tindakan ini hanya menghapus cakupan PMO. Tindakan ini tidak membatalkan dokumen DJP.",
+    "reason": "Alasan", "confirmVoid": "Batalkan catatan PMO ini?", "reload": "Muat ulang", "close": "Tutup", "save": "Simpan perubahan", "correctionReason": "Alasan koreksi"
+  },
   "budget": {
     "category": {
       "specialExpenses": "Biaya khusus"
@@ -29,6 +54,13 @@
   },
   "admin": {
     "expenseMap": {
+      "notReady": "Hubungkan ERPNext sebelum memetakan akun pengeluaran. Pengiriman pengeluaran belum aktif.",
+      "error": {
+        "saveHeadline": "Akun pengeluaran tidak dapat disimpan",
+        "accountRemedy": "Periksa nama dan jenis akun di ERPNext, lalu coba lagi. Isian Anda tetap ada.",
+        "unknownRemedy": "Periksa koneksi Anda, lalu coba lagi. Isian Anda tetap ada."
+      },
+      "openIntegrations": "Buka integrasi",
       "change": "Ubah {{key}}",
       "clear": "Hapus {{key}}",
       "confirmClear": {
@@ -348,6 +380,8 @@
       }
     },
     "vendorTaxAccounts": {
+      "remoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
+      "reloadSaved": "Muat ulang nilai tersimpan",
       "heading": "Akun pajak tagihan vendor",
       "helper": "Masukkan nama akun ERPNext yang persis. Kosongkan jika tidak digunakan.",
       "inputVat": "Akun PPN Masukan",
@@ -362,6 +396,17 @@
     }
   },
   "approvals": {
+    "salesInvoices": {
+      "label": "Faktur pelanggan yang menunggu Anda",
+      "heading": "Faktur pelanggan yang menunggu Anda ({{count}})",
+      "errorTitle": "Gagal memuat faktur yang menunggu Anda",
+      "errorSub": "Permintaan pembelian dan lembar waktu di bawah tidak terpengaruh.",
+      "raisedBy": "Dibuat oleh",
+      "net": "Neto (sebelum pajak)",
+      "tax": "Pajak",
+      "gross": "Total tagihan",
+      "showDetails": "Tampilkan detail faktur untuk {{customer}}"
+    },
     "bulk": {
       "approveN": "Setujui {{count}}",
       "clear": "Bersihkan",
@@ -403,7 +448,7 @@
       "title": "Konfirmasi apa yang tercatat di ERPNext"
     },
     "caughtUp": {
-      "sub": "Tidak ada yang menunggu persetujuan Anda saat ini. Permintaan pembelian baru dan timesheet yang diajukan akan muncul di sini.",
+      "sub": "Tidak ada yang menunggu persetujuan Anda saat ini. Permintaan pembelian, timesheet, klaim biaya, dan faktur pelanggan yang baru akan muncul di sini.",
       "title": "Semua sudah beres"
     },
     "employeeLinks": {
@@ -473,7 +518,7 @@
       "timesheets": "Timesheet"
     },
     "scopeToggleLabel": "Cakupan persetujuan",
-    "subtitle": "Perlu persetujuan saya — semua yang menunggu keputusan Anda, dari pengadaan hingga timesheet.",
+    "subtitle": "Perlu persetujuan saya — semua yang menunggu keputusan Anda: permintaan pembelian, timesheet, klaim biaya, dan faktur pelanggan.",
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
@@ -729,6 +774,7 @@
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)",
       "pphRate": "Tarif PPh (%)",
+      "pphRateHelper": "Wajib jika pemotongan pajak dipilih. Masukkan tarif lebih dari 0 dan kurang dari 100%.",
       "pphRateError": "Masukkan tarif di atas 0 dan di bawah 100 dengan paling banyak 3 angka desimal.",
       "save": "Simpan default",
       "saved": "Default pajak vendor disimpan",
@@ -1583,6 +1629,14 @@
     },
     "viewToggleLabel": "Tampilan pengadaan"
   },
+  "procurementLedger": {
+    "title": "Buku besar kasus",
+    "filter": { "label": "Filter catatan", "all": "Semua", "financial": "Keuangan", "hasFile": "Dengan berkas" },
+    "date": "Tanggal", "typeHeader": "Jenis", "systemNumber": "Nomor sistem", "externalRef": "Ref eksternal", "amount": "Jumlah", "file": "Berkas",
+    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak memiliki baris.",
+    "types": { "purchaseRequest": "Permintaan Pembelian", "purchaseOrder": "Pesanan Pembelian", "payment": "Pembayaran", "rfq": "RFQ" },
+    "capture": { "action": "Catat {{record}}", "next": "+ Catat {{record}} — dokumen berikutnya untuk tahap ini." }
+  },
   "procurementDetail": {
     "accessDenied": {
       "sub": "Permintaan pengadaan ini tidak ada atau tidak terlihat untuk role Anda. Jika Anda yang mengajukannya, buka dari permintaan Anda sendiri.",
@@ -1601,8 +1655,34 @@
       "selectQuote": "Pilih penawaran",
       "submitRequest": "Ajukan permintaan"
     },
+    "vendorInvoice": {
+      "enterDetails": "Masukkan detail faktur untuk menandai tahap vendor ditagih:",
+      "invoiceNumber": "No. faktur",
+      "optional": "opsional",
+      "invoicePlaceholder": "cth. INV-2291",
+      "amountOptional": "Jumlah (opsional)",
+      "invoiceStatus": "Status faktur",
+      "received": "Diterima",
+      "scheduled": "Dijadwalkan",
+      "invoiceDate": "Tanggal faktur",
+      "taxTreatment": "Perlakuan pajak",
+      "taxTreatmentPlaceholder": "Pilih perlakuan pajak",
+      "taxInclusive": "Inklusif — termasuk PPN",
+      "taxExclusive": "Eksklusif — PPN ditambahkan",
+      "taxTreatmentHelper": "Inklusif: PPN sudah termasuk dalam jumlah tagihan. Eksklusif: PPN ditambahkan ke jumlah tersebut.",
+      "taxAmount": "Jumlah pajak",
+      "confirmMarkInvoiced": "Konfirmasi & tandai ditagih"
+    },
+    "externalRefOptional": "Referensi eksternal (opsional)",
+    "amountOptional": "Jumlah (opsional)",
+    "savePayment": "Simpan pembayaran",
+    "paymentRecorded": "Pembayaran dicatat",
+    "captureRecorded": "{{label}} dicatat",
     "approvalNotes": "Catatan persetujuan",
     "backToProcurement": "Pengadaan",
+    "paymentBillRequired": "Pilih faktur vendor yang ditutup oleh pembayaran ini.",
+    "paymentApproverCannotPay": "Pemisahan tugas: penyetuju tidak dapat membayar pengadaan yang disetujuinya sendiri.",
+    "withholdingNeedsAmount": "Masukkan jumlah tagihan untuk menghitung pemotongan pajak vendor.",
     "confirm": {
       "approveBody": "Setujui <money/>?",
       "cancelTitle": "Batalkan permintaan ini?",
@@ -1832,6 +1912,9 @@
         "emptySub": "Satu tagihan menagih uang muka atau kuantitas yang selesai, sebagai satu faktur ERP.",
         "error": "Tagihan tidak dapat dimuat",
         "errorSub": "Coba lagi, atau buka ulang proyek.",
+        "errors": {
+          "claimWithdrawn": "Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan."
+        },
         "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
         "kind": {
           "downPayment": "Uang muka",
@@ -2495,12 +2578,15 @@
             "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
             "amountPositive": "Jumlah harus lebih dari nol.",
             "itemRequired": "Pilih item ERP.",
-            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya."
+            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refusedNative": "Tidak ada yang disimpan. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "lineRequired": "Masukkan kode item atau deskripsi."
           },
           "item": "Item ERP",
           "itemCode": "Kode item",
           "submit": "Buat draf faktur",
           "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
+          "subtitleNative": "Membuat draf faktur di PMO untuk disetujui oleh orang Finance/Admin kedua.",
           "title": "Tagih Work Order ini",
           "createFailed": "Draf faktur tidak dapat dibuat",
           "cancel": "Batal",
@@ -2522,7 +2608,9 @@
         "summaryTitle": "Penagihan per Work Order",
         "toast": {
           "created": "Draf faktur dibuat",
-          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan."
+          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan.",
+          "nativeCreated": "Draf faktur dibuat di PMO",
+          "nativeCreatedSub": "{{wo}} — orang Finance/Admin kedua menyetujuinya dari Faktur Penjualan."
         },
         "unavailable": "Tidak tersedia",
         "notSubmitted": "Belum dikirim",
@@ -3382,6 +3470,33 @@
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
   "financeCopy": {
+    "viewInvoice": "Lihat faktur",
+    "invoiceDetailsTitle": "Detail faktur",
+    "continueToApprove": "Lanjutkan untuk menyetujui",
+    "nativeSalesInvoicesDescription": "Faktur klien yang dibuat, disetujui, dan dilunasi di PMO.",
+    "nativeNewInvoiceSubtitle": "Membuat draf. Pengguna Finance atau Admin lain yang menyetujuinya.",
+    "nativeProjectRequired": "Proyek wajib diisi: proyek menentukan PPN faktur.",
+    "nativeSelectProject": "Pilih proyek…",
+    "approve": "Setujui",
+    "approveInvoiceNamed": "Setujui faktur untuk {{customer}}?",
+    "approveInvoiceBody": "Persetujuan menerbitkan faktur: faktur mendapat nomor, menjadi Belum Dibayar, dan dapat menerima pembayaran. Pembuatnya tidak dapat menyetujuinya.",
+    "approveInvoice": "Setujui faktur",
+    "invoiceApproved": "Faktur disetujui",
+    "nativeCancelInvoiceBody": "Ini membatalkan faktur di PMO sehingga tidak lagi dihitung sebagai tagihan. Faktur yang memiliki penerimaan hanya dapat dibatalkan setelah penerimaannya dibatalkan.",
+    "statusPartlyPaid": "Dibayar sebagian",
+    "recordedBeforeErp": "Dicatat di PMO sebelum ERP terhubung",
+    "overpaidBy": "Kelebihan bayar {{amount}}",
+    "carriedIntoErpOpening": "Dibawa ke saldo awal ERP: {{amount}} pada {{date}}",
+    "nativeIncomingPaymentsDescription": "Penerimaan pelanggan yang dicatat di PMO atas faktur yang telah disetujui.",
+    "salesInvoiceLabel": "Faktur Penjualan",
+    "salesInvoiceRequired": "Pilih faktur yang dilunasi penerimaan ini.",
+    "paymentDateLabel": "Tanggal pembayaran",
+    "paymentDateNotFuture": "Tanggal pembayaran tidak boleh di masa depan.",
+    "nativeReceiptAmountHelper": "Diisi dengan sisa tagihan {{amount}}. Isi lebih kecil untuk pembayaran sebagian, atau lebih besar jika klien membayar lebih; kelebihannya ditampilkan sebagai kelebihan bayar.",
+    "receiptDateMissing": "Isi tanggal pembayaran.",
+    "receiptRefused": "Periksa jumlah penerimaan.",
+    "nativeCancelReceiptBody": "Ini membatalkan penerimaan di PMO dan mengembalikan jumlahnya ke saldo faktur.",
+    "receiptCancelled": "Penerimaan dibatalkan",
     "invoicePdf": {
       "download": "Unduh PDF",
       "downloaded": "PDF diunduh — {{name}}",
@@ -3407,6 +3522,13 @@
     "statusDraft": "Draf",
     "statusActive": "Aktif",
     "statusArchived": "Diarsipkan",
+    "amountMustBeGreaterThanZero": "Jumlah harus lebih besar dari 0",
+    "confirmCreateDescription": "Ini membuat versi anggaran Draf baru bernama \"{{name}}\".",
+    "confirmActivateDescription": "Ini menjadikan {{version}} sebagai anggaran aktif dan menggantikan versi yang saat ini aktif.",
+    "confirmCloneDescription": "Ini menyalin {{version}} menjadi Draf baru yang dapat diubah.",
+    "confirmArchiveDescription": "Ini menonaktifkan {{version}} sebagai anggaran aktif. Anda dapat menyalinnya nanti untuk membuat revisi.",
+    "confirmDeleteDraftDescription": "Ini menghapus draf {{version}} secara permanen. Tindakan ini tidak dapat dibatalkan.",
+    "confirmDeleteLineItemDescription": "Ini menghapus item anggaran dari draf secara permanen. Tindakan ini tidak dapat dibatalkan.",
     "category": "Kategori",
     "description": "Deskripsi",
     "fiscalYear": "Tahun fiskal",
@@ -3424,7 +3546,7 @@
     "total": "Total",
     "addBudgetLineItem": "+ Tambah item anggaran",
     "activate": "Aktifkan",
-    "activateDrafterBlocked": "Anda menyusun versi ini, jadi orang lain yang harus mengaktifkannya.",
+    "activateEditorBlocked": "Anda mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
     "deleteDraft": "Hapus draf",
     "archive": "Arsipkan",
@@ -3503,7 +3625,7 @@
     "iTEM001": "ITEM-001",
     "qty": "Jml.",
     "rate": "Tarif",
-    "addLineItem": "Tambah item anggaran",
+    "addLineItem": "Tambah baris item",
     "youDonTHaveAccessToIncomingPayments": "Anda tidak memiliki akses ke Pembayaran Masuk",
     "theIncomingPaymentsListIsAvailableToFinanceProjectManagersAndExecutives": "Daftar pembayaran masuk tersedia untuk Finance, Manajer Proyek, dan Eksekutif.",
     "payment": "No. Pembayaran",
@@ -3646,7 +3768,47 @@
     "selectOrSearchItem": "Pilih atau cari item…",
     "searchItemCodeOrName": "Cari kode atau nama item…",
     "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…",
-    "currency": "Mata uang"
+    "currency": "Mata uang",
+    "statusReceived": "Diterima",
+    "draftInvoiceLabel": "Draf · {{customer}}",
+    "preErpBadge": "Pra-ERP",
+    "totalDueAmount": "Total tagihan {{amount}}",
+    "paidToDateAmount": "Dibayar {{amount}}",
+    "invoiceLineCodeOrDescription": "Baris {{line}}: Isi kode item atau deskripsi.",
+    "vatRateMissing": "Proyek ini belum memiliki tarif PPN yang tercatat",
+    "vatRateMissingInline": "Proyek ini belum memiliki tarif PPN yang tercatat, sehingga belum dapat ditagihkan.",
+    "recordVatRateOnProject": "Catat tarif PPN di proyek",
+    "paymentDateBeforeInvoice": "Tanggal pembayaran tidak boleh sebelum tanggal faktur.",
+    "notPmoNative": "Faktur ini dikelola di ERP",
+    "erpOwnsRevenue": "ERP yang terhubung kini menerbitkan dan melunasi faktur",
+    "newInvoiceTitle": "Faktur baru",
+    "editInvoiceTitle": "Ubah faktur",
+    "newInvoiceSubtitle": "Buat faktur penjualan baru untuk klien",
+    "editInvoiceSubtitle": "Perbarui faktur penjualan ini",
+    "saveInvoice": "Simpan faktur",
+    "createInvoice": "Buat faktur",
+    "removeLine": "Hapus baris {{line}}",
+    "editPaymentTitle": "Ubah pembayaran",
+    "editPaymentSubtitle": "Perbarui pembayaran masuk ini",
+    "receivePaymentSubtitle": "Catat pembayaran masuk baru dari klien",
+    "savePayment": "Simpan pembayaran",
+    "recordPayment": "Catat pembayaran",
+    "amountOutstanding": "{{amount}} belum dibayar",
+    "pmoNative": "Faktur ini dibuat di PMO — setujui dari Persetujuan",
+    "withheldAmountRefused": "Periksa jumlah pajak yang dipotong.",
+    "receiptSplitMismatch": "Kas yang diterima ditambah pajak yang dipotong harus sama dengan jumlah yang dibayar.",
+    "withholdingSlipMissing": "Isi nomor bukti potong.",
+    "receiptOnPmoInvoice": "Penerimaan untuk faktur yang dibuat di PMO dicatat di PMO",
+    "invoiceLinesCount": "Faktur memerlukan 1 sampai 100 baris.",
+    "invoiceLineInvalid": "Periksa baris faktur.",
+    "invoiceTotalInvalid": "Total faktur harus lebih dari nol.",
+    "invoiceNotReceivable": "Faktur ini tidak dapat menerima pembayaran",
+    "invoiceHasReceipts": "Batalkan penerimaan faktur ini terlebih dahulu",
+    "receiptAlreadyCancelled": "Penerimaan ini sudah dibatalkan",
+    "invoiceIllegalTransition": "Perubahan itu tidak diizinkan dari status faktur saat ini.",
+    "sodSelfApproval": "Anda membuat faktur ini — orang lain harus menyetujuinya",
+    "sodAuthorMissing": "Faktur ini tidak memiliki pembuat tercatat, sehingga tidak dapat disetujui",
+    "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf"
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",
@@ -3759,6 +3921,8 @@
     "filterLocation": "Filter menurut lokasi"
   },
   "managementPack": {
+    "actions": "Tindakan",
+    "retry": "Coba lagi",
     "title": "Laporan manajemen bulanan",
     "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
     "from": "Dari",
@@ -3913,7 +4077,19 @@
       "rejection_notes": "Catatan penolakan",
       "email": "Email",
       "phone": "Telepon",
-      "notes": "Catatan"
+      "notes": "Catatan",
+      "efaktur_number": "Nomor e-Faktur",
+      "efaktur_date": "Tanggal e-Faktur",
+      "received_date": "Tanggal diterima",
+      "author_user_id": "Penulis faktur",
+      "approved_by_id": "Disetujui oleh",
+      "approved_at": "Waktu persetujuan",
+      "pmo_native": "Dibuat di PMO",
+      "pmo_number": "Nomor faktur PMO",
+      "native_lines": "Baris faktur",
+      "withheld_amount": "Pajak dipotong",
+      "withheld_pph_type": "Jenis pajak potong",
+      "slip_number": "Nomor slip", "slip_date": "Tanggal slip", "tax_period": "Masa pajak", "pph_type": "Jenis PPh", "tax_base": "Dasar pengenaan pajak", "invoice_count": "Jumlah tagihan", "voided_at": "Waktu pembatalan", "voided_by": "Dibatalkan oleh", "slip_id": "Bukti potong", "withheld_at_record": "Jumlah potongan saat dicatat", "pph_type_at_record": "Jenis PPh saat dicatat", "type_source": "Sumber jenis", "released_at": "Waktu pelepasan"
     },
     "kind": {
       "project": "Proyek",
@@ -3927,8 +4103,18 @@
       "payment": "Pembayaran",
       "task": "Tugas",
       "company": "Perusahaan",
-      "contact": "Kontak"
+      "contact": "Kontak",
+      "sales_invoice": "Faktur penjualan",
+      "procurement_invoice": "Tagihan vendor",
+      "vendor_withholding_slip": "Bukti potong",
+      "vendor_withholding_slip_bill": "Tautan tagihan bukti potong"
     },
+    "withholdingType": {
+      "pph23": "PPh 23",
+      "pph4_2": "PPh 4(2)"
+    },
+    "typeSource": { "bill": "Jenis tagihan", "declared": "Dinyatakan dari slip" },
+    "slipStatus": { "active": "Aktif", "void": "Dibatalkan" },
     "filter": {
       "all": "Semua",
       "project": "Proyek"
@@ -3939,6 +4125,56 @@
       "workOrders": "Tidak ada perubahan work order",
       "procurement": "Tidak ada perubahan pengadaan",
       "tasks": "Tidak ada perubahan tugas"
+    },
+    "auditRecorded": "Peristiwa tercatat",
+    "action": {
+      "m365_connection_revoked": "Koneksi Microsoft 365 dicabut",
+      "integration_activate": "Integrasi ERP diaktifkan",
+      "integration_disconnect": "Integrasi ERP diputus",
+      "integration_set_company": "Pemetaan perusahaan ERP diatur",
+      "integration_site_url_set": "URL situs ERP diatur",
+      "integration_trap_recovery": "Sinkronisasi ERP dipulihkan",
+      "integration_connect_cleanup": "Koneksi ERP dibersihkan",
+      "integration_connect_finalize": "Koneksi ERP diselesaikan",
+      "project_document_create": "Dokumen proyek dibuat",
+      "project_document_update": "Dokumen proyek diperbarui",
+      "project_document_transition": "Status dokumen proyek berubah",
+      "progress_claim_create": "Klaim progres dibuat",
+      "progress_claim_withdraw": "Klaim progres ditarik",
+      "progress_claim_evidence_attach": "Bukti klaim progres dilampirkan",
+      "procurement_invoice_create": "Invoice vendor dibuat",
+      "procurement_approval_route": "Rute persetujuan dicatat",
+      "incoming_payment_create": "Pembayaran masuk dicatat",
+      "incoming_payment_cancel": "Pembayaran masuk dibatalkan",
+      "expense_advance_return": "Uang muka biaya dikembalikan",
+      "expense_claim_transition": "Status klaim biaya berubah",
+      "expense_claim_approval_route": "Rute persetujuan dicatat",
+      "timesheet_create": "Timesheet dibuat",
+      "spend_approver_add": "Penyetuju belanja ditambahkan",
+      "spend_approver_remove": "Penyetuju belanja dihapus",
+      "sales_invoice_transition": "Status faktur penjualan berubah",
+      "credits_grant": "Kredit diberikan",
+      "company_tax_defaults_change": "Pajak bawaan perusahaan diubah",
+      "org_withholding_account_change": "Akun pemotongan pajak diubah",
+      "org_vendor_tax_accounts_change": "Akun pajak vendor diubah",
+      "org_tax_default_change": "Pajak bawaan diubah",
+      "org_down_payment_item_change": "Item uang muka diubah",
+      "meeting_grant_create": "Akses rapat diberikan",
+      "meeting_grant_revoke": "Akses rapat dicabut"
     }
+  },
+  "entityForm": {
+    "close": "Tutup",
+    "cancel": "Batal",
+    "saveFailed": "Gagal menyimpan",
+    "formErrors": "Kesalahan formulir",
+    "nothingSaved": "Tidak ada yang tersimpan — isian Anda masih ada.",
+    "completeRequired": "Lengkapi semua kolom wajib (bertanda bintang) untuk menyimpan.",
+    "discardTitle": "Buang perubahan Anda?",
+    "discardBody": "Formulir ini memiliki perubahan yang belum disimpan. Membuangnya akan menghilangkannya.",
+    "discard": "Buang",
+    "keepEditing": "Lanjut mengedit",
+    "fixFields_one": "Perbaiki {{count}} kolom sebelum menyimpan",
+    "fixFields_other": "Perbaiki {{count}} kolom sebelum menyimpan"
   }
 }

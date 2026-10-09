@@ -136,11 +136,13 @@ describe('vendor invoice purchase tax template (#520)', () => {
     expect(await canonicalCommandDigest({ domain: cmd.domain, operation: cmd.operation, record: cmd.record })).not.toBe(without);
   });
 
-  it('AC-520-2 no template chosen sends no tax rows and reads no template (ERPNext default applies)', async () => {
+  // #915 (deliberate change): the neither-path now looks up the company's default template (one list read) to validate
+  // it BEFORE the ERP write; the goal oracle stands — no template chosen and no default ⇒ no tax rows, bill posts untaxed.
+  it('AC-520-2 no template chosen and no company default sends no tax rows: the default is looked up, none exists, the bill posts untaxed as before', async () => {
     const { body, templateReads } = await push();
     expect(body).not.toHaveProperty('taxes');
     expect(body).not.toHaveProperty('taxes_and_charges');
-    expect(templateReads).toEqual([]);
+    expect(templateReads).toEqual(['/api/resource/Purchase Taxes and Charges Template']);
   });
 
   it.each([
@@ -219,6 +221,27 @@ describe('vendor invoice purchase tax template (#520)', () => {
   });
 });
 
+describe('vendor invoice default purchase tax template (#915)', () => {
+  it('AC-520-2 the company\'s default template is resolved through the same validator as a chosen one and sent exactly as if chosen', async () => {
+    const { body, command: cmd, writes } = await push({}, [{ ...STANDARD, is_default: 1 }, FOREIGN, DISABLED]);
+    expect(writes).toHaveLength(1);
+    expect(body.taxes_and_charges).toBe('Synthetic Input VAT');
+    expect(body.taxes).toEqual(SENT_ROWS);
+    // The rows are part of the persisted command, exactly as on the chosen path (the outbox digest covers them).
+    expect(cmd.record.taxes).toEqual(SENT_ROWS);
+    expect(cmd.record.taxTemplate).toBe('Synthetic Input VAT');
+  });
+
+  it('AC-520-2 a malformed default is refused (config-rejected, naming the template) before any Purchase Invoice POST', async () => {
+    const erp = erpFetch([{ ...STANDARD, is_default: 1, taxes: [{ ...STANDARD.taxes[0], rate: -2 }] }]);
+    const err = await resolve(command(), erp).then(() => null, (e: Error & { code?: string }) => e);
+    // The SAME message the chosen path refuses this template with (same resolver, same wording, ADR-0072: no company).
+    expect(err).toMatchObject({ code: 'config-rejected', message: malformed('a row has a negative rate') });
+    expect(err!.message).not.toContain(COMPANY);
+    expect(erp.writes).toEqual([]);
+  });
+});
+
 const PPH23 = { charge_type: 'On Net Total', account_head: 'PPh 23 - SC', rate: 2, description: 'PPh 23', category: 'Total', add_deduct_tax: 'Deduct' };
 const SENT_PPH23 = { charge_type: 'On Net Total', account_head: 'PPh 23 - SC', description: 'PPh 23', rate: 2, category: 'Total', add_deduct_tax: 'Deduct', included_in_print_rate: 0 };
 const malformed = (reason: string) =>
@@ -255,5 +278,54 @@ describe('vendor withholding templates (#876)', () => {
     expect(err!.message).not.toContain(COMPANY);
     expect(err!.message).not.toMatch(/ - SC/);
     expect(erp.writes).toEqual([]);
+  });
+});
+
+// ── #915 fix round: the REPLAY of a marker-less create ────────────────────────────────────────────
+// A create refused with "no default found" (or made before the default path existed) persists no tax
+// marker, so its replay re-POSTs a body with no tax fields — and ERPNext applies the company's
+// CURRENT default template to such a POST. The replay therefore validates that default before
+// re-sending (a read is acceptable here), with the create path's own refusals. It exists to refuse,
+// never to mutate: the persisted body, its digest and the command stay byte-identical — a valid
+// default is ERPNext's to apply at POST time, not PMO's to inline.
+
+describe('vendor invoice default purchase tax template — replay of a marker-less create (#915 fix round)', () => {
+  /** First attempt with no default at all: the bill posted untaxed and the command stored no marker. */
+  async function markerlessCreate() {
+    const first = await push();
+    const replay = command();
+    replay.record = structuredClone(first.command.record) as AdapterCommand['record'];
+    return { first, replay };
+  }
+  const digestOf = (cmd: AdapterCommand) =>
+    canonicalCommandDigest({ domain: cmd.domain, operation: cmd.operation, record: cmd.record });
+
+  it('AC-520-2 a replay whose company has gained a MALFORMED default is refused (config-rejected, same wording) before the re-POST, command unmutated', async () => {
+    const { first, replay } = await markerlessCreate();
+    const erp = erpFetch([{ ...STANDARD, is_default: 1, taxes: [{ ...STANDARD.taxes[0], rate: -2 }] }]);
+    const err = await resolve(replay, erp, true).then(() => null, (e: Error & { code?: string }) => e);
+    expect(err).toMatchObject({ code: 'config-rejected', message: malformed('a row has a negative rate') });
+    expect(err!.message).not.toContain(COMPANY); // ADR-0072: names the template, never the ERP company
+    expect(erp.writes).toEqual([]);              // refused BEFORE the Purchase Invoice POST
+    expect(await digestOf(replay)).toBe(await digestOf(first.command)); // the replay is never mutated
+  });
+
+  it('AC-520-2 a replay whose company has gained a VALID default re-sends the persisted (untaxed) body unchanged', async () => {
+    const { first, replay } = await markerlessCreate();
+    const erp = erpFetch([{ ...STANDARD, is_default: 1 }]);
+    await (await resolve(replay, erp, true)).commit(replay);
+    expect(erp.writes).toHaveLength(1);
+    expect(erp.writes[0]).not.toHaveProperty('taxes');             // the body is exactly as persisted —
+    expect(erp.writes[0]).not.toHaveProperty('taxes_and_charges'); // the valid default is ERPNext's to apply
+    expect(await digestOf(replay)).toBe(await digestOf(first.command)); // the replay is never mutated
+  });
+
+  it('AC-520-2 a replay with still no default posts untaxed, exactly as before the fix', async () => {
+    const { replay } = await markerlessCreate();
+    const erp = erpFetch([]);
+    await (await resolve(replay, erp, true)).commit(replay);
+    expect(erp.writes).toHaveLength(1);
+    expect(erp.writes[0]).not.toHaveProperty('taxes');
+    expect(erp.writes[0]).not.toHaveProperty('taxes_and_charges');
   });
 });

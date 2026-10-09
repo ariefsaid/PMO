@@ -17,6 +17,14 @@ import {
 } from './listReturnContext';
 
 describe('validated list return context', () => {
+  it('SH-2: preserves only an owner-scoped stable row activation target', () => {
+    expect(createListReturnContext('projects', '/projects', 10, 'projects:p-1')).toEqual({
+      list: 'projects', path: '/projects', scrollTop: 10, focusTarget: 'projects:p-1',
+    });
+    expect(createListReturnContext('projects', '/projects', 10, 'procurement:p-1')?.focusTarget).toBeUndefined();
+    expect(createListReturnContext('projects', '/projects', 10, 'projects:bad/id')?.focusTarget).toBeUndefined();
+  });
+
   it('FR-LRC-003: accepts the owning list route and preserves its query and offset', () => {
     const context = createListReturnContext(
       'companies',
@@ -204,6 +212,22 @@ describe('validated list return context', () => {
     expect(readListReturnContext(state, 'meetings')).toEqual({
       list: 'meetings',
       path: '/meetings?project=project-1&q=review',
+    });
+  });
+
+  it('AC #879: strips a stale tab-switch marker when attaching list return context or restoring the list', () => {
+    const context = createListReturnContext('projects', '/projects', 160)!;
+    expect(withListReturnContext({ pmoTabSwitch: true, unrelated: 'keep' }, context)).toEqual({
+      unrelated: 'keep',
+      [LIST_RETURN_CONTEXT_KEY]: context,
+    });
+    expect(withListScrollRestore({ pmoTabSwitch: true, unrelated: 'keep' }, context)).toEqual({
+      unrelated: 'keep',
+      [LIST_SCROLL_RESTORE_STATE_KEY]: {
+        list: 'projects',
+        path: '/projects',
+        scrollTop: 160,
+      },
     });
   });
 

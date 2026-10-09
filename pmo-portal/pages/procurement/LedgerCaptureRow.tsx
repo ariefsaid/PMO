@@ -26,6 +26,8 @@ import type { RecordType } from '@/src/lib/db/procurementLedger';
 // present). Extracted to a sibling module so it stays unit-testable directly (no
 // mirror → no drift) without a react-refresh component-export lint violation.
 import { nextExpectedType } from './ledgerCapture';
+import { groupRefIsPmoAuthored } from './groupRef';
+import { useTranslation } from 'react-i18next';
 
 /** Human label for the capture type (shown in the dashed row label).
  *  GR/VI are NOT capturable here (handled by the action-zone forms — see
@@ -60,6 +62,8 @@ export interface LedgerCaptureRowProps {
   canWrite: boolean;
   /** Whether any mutation is in flight (busy state). */
   busy?: boolean;
+  /** The case approver cannot pay on an ERP-owned org (server SoD gate). */
+  isApprover?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,14 +77,20 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   invoices = [],
   canWrite,
   busy = false,
+  isApprover = false,
 }) => {
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
   const nextKind = nextExpectedType(status, existingTypes);
 
   // Honest doorway: hide when canWrite=false OR terminal status
   if (!canWrite || nextKind === null) return null;
 
-  const label = CAPTURE_LABELS[nextKind];
+  const label = nextKind === 'purchase_request' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
+    : nextKind === 'rfq' ? t('procurementLedger.types.rfq', 'RFQ')
+      : nextKind === 'purchase_order' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
+        : nextKind === 'payment' ? t('procurementLedger.types.payment', 'Payment') : CAPTURE_LABELS[nextKind];
+  const paymentBlocked = nextKind === 'payment' && isApprover && !groupRefIsPmoAuthored();
 
   return (
     <div data-testid="ledger-capture-row" className="mt-3">
@@ -98,19 +108,24 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
           className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-2px)] border-[1.5px] border-dashed border-primary/35 bg-primary/[0.04] px-4 py-3"
         >
           <span className="text-[13px] text-muted-foreground">
-            + Capture{' '}
-            <span className="font-semibold text-[hsl(var(--nav-active-text))]">{label}</span>
-            {' '}— the next record for this phase.
+            {t('procurementLedger.capture.next', '+ Capture {{record}} — the next record for this phase.', { record: label })}
           </span>
           <button
             type="button"
             data-testid="ledger-capture-open"
             onClick={() => setOpen(true)}
-            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            disabled={paymentBlocked}
+            aria-describedby={paymentBlocked ? 'ledger-payment-sod-reason' : undefined}
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <Icon name="plus" className="size-3.5" />
-            Capture {label}
+            {t('procurementLedger.capture.action', 'Capture {{record}}', { record: label })}
           </button>
+          {paymentBlocked && (
+            <span id="ledger-payment-sod-reason" className="basis-full text-right text-[12px] text-muted-foreground">
+              {t('procurementDetail.paymentApproverCannotPay', 'Separation of duties: the approver cannot pay their own procurement.')}
+            </span>
+          )}
         </div>
       )}
     </div>

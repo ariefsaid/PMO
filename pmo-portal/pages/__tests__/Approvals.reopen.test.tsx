@@ -22,6 +22,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 // ── Hoisted, controllable mocks ─────────────────────────────────────────────
@@ -66,6 +67,8 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => {
 });
 
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
+vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: () => undefined }) }));
 import ApprovalsPage from '../Approvals';
 
 const renderPage = (role: string = 'Admin') => {
@@ -166,7 +169,7 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
 
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
 
-    await waitFor(() => expect(screen.getByText(/already in erp|pushed to erp|cannot be re-opened/i)).toBeInTheDocument());
+    expect(await findToastAnnouncement('alert', /already in erp|pushed to erp|cannot be re-opened/i)).toBeInTheDocument();
   });
 
   it('AC-TSC-R5: an unknown-outcome refusal (reopen-push-outcome-unknown) says an administrator must CONFIRM what ERPNext holds — not a raw error code, and not "released"', async () => {
@@ -184,9 +187,7 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
 
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/administrator must confirm what ERPNext holds/i)).toBeInTheDocument(),
-    );
+    expect(await findToastAnnouncement('alert', /administrator must confirm what ERPNext holds/i)).toBeInTheDocument();
   });
 
   // ⚑ Luna FU-1a round-8 BLOCK — a week whose ERP outcome is UNKNOWN must not be offered as an action.
@@ -336,9 +337,7 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
       await user.type(within(dialog).getByRole('textbox'), 'Checked ERPNext');
       await user.click(within(dialog).getByRole('button', { name: /confirm|attest/i }));
 
-      await waitFor(() =>
-        expect(screen.getAllByRole('status').some((el) => /not authorized/i.test(el.textContent ?? ''))).toBe(true),
-      );
+      expect(await findToastAnnouncement('alert', /not authorized/i)).toBeInTheDocument();
     });
   });
 

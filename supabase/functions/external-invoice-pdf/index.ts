@@ -21,9 +21,8 @@ import {
   type InvoicePdfFailure,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/invoicePdf.ts';
 import { safePdfFilename } from '../../../pmo-portal/src/lib/invoicePdfFilename.ts';
-import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
-import { isPrivateOrReservedHost } from '../external-companies/index.ts';
-import { moneyWriteRolesForDomain } from '../adapter-dispatch/authGuard.ts';
+import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
+import { moneyWriteRolesForDomain } from '../_shared/moneyWriteRoles.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
@@ -144,31 +143,12 @@ export async function handleInvoicePdfRequest(req: Request): Promise<Response> {
   const erpName = link.external_record_id as string;
 
   const service = createClient(url, key, clientOptions);
-  const { data: binding, error: bindingError } = await service
-    .from('external_org_bindings')
-    .select('site_url,secret_ref,status,activated_at')
-    .eq('org_id', orgId)
-    .eq('external_tier', 'erpnext')
-    .maybeSingle();
-  if (bindingError || !binding || binding.status !== 'active' || !binding.activated_at)
-    return refuse('ERP_NOT_CONNECTED');
-  let site: URL;
-  try {
-    site = new URL(binding.site_url);
-  } catch {
-    return refuse('ERP_NOT_CONNECTED');
-  }
-  if (site.protocol !== 'https:' || isPrivateOrReservedHost(site.hostname)) return refuse('ERP_NOT_CONNECTED');
-  let credentials: { apiKey: string; apiSecret: string };
-  try {
-    credentials = await resolveErpAuthPair(service, { orgId, secretRef: binding.secret_ref });
-  } catch {
-    return refuse('ERP_NOT_CONNECTED');
-  }
+  const connection = await erpClientForOrg(service, orgId);
+  if ('refusal' in connection) return refuse('ERP_NOT_CONNECTED');
 
   try {
     const bytes = await fetchSubmittedSalesInvoicePdf(
-      { ...credentials, baseUrl: binding.site_url, fetchImpl: fetch, maxRetries: 0 },
+      connection.client,
       erpName,
     );
     return new Response(bytes, {
