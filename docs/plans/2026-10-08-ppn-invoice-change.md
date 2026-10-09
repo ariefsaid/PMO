@@ -685,4 +685,5 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 |---|---|---|
 | a — only ordinary invoices counted | Initial suite survived; added real progress/down-payment invoice fixtures. `Failed test 21: "AC-PPNC-007 live progress invoice blocks"` and `Failed test 22: "AC-PPNC-007 live down-payment invoice blocks"`; `caught: no exception`, `wanted: 42501`. | Files=4, Tests=88, Result: PASS |
 | b1 — only creates counted | `Failed test 20: "AC-PPNC-008 pending SI amend refuses the VAT change"`; also pending cancel/submit/update (21/23/24) and identity cases (30/31), 22 failures. | Files=4, Tests=88, Result: PASS |
+| b2 — only payload projectId counted | `Failed test 30: "AC-PPNC-008 claim pmo_record_id blocks before a mirror exists"`; `Failed test 31: "AC-PPNC-008 command without projectId associates through invoice pmo_record_id"`. | Files=4, Tests=88, Result: PASS |
 
