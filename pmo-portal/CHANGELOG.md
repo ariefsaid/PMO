@@ -10,6 +10,34 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.17.0](https://github.com/ariefsaid/PMO/compare/v0.16.0...v0.17.0) (2026-10-09)
+
+
+### Features
+
+* **history:** change history for PMO-owned facts on invoices and vendor bills ([#920](https://github.com/ariefsaid/PMO/issues/920)) ([#949](https://github.com/ariefsaid/PMO/issues/949)) ([89b445f](https://github.com/ariefsaid/PMO/commit/89b445fffb513cc2f1155f6ce1937c14a70bb87f))
+* **history:** procurement documents under their procurement; translated admin audit lines ([#878](https://github.com/ariefsaid/PMO/issues/878), [#880](https://github.com/ariefsaid/PMO/issues/880)) ([#945](https://github.com/ariefsaid/PMO/issues/945)) ([1b5a915](https://github.com/ariefsaid/PMO/commit/1b5a915f5b7dfcfa70efdb288ea0f5c741762418))
+* **procurement:** pay a vendor bill from PMO on an ERP-connected org ([#910](https://github.com/ariefsaid/PMO/issues/910)) ([#939](https://github.com/ariefsaid/PMO/issues/939)) ([284e88e](https://github.com/ariefsaid/PMO/commit/284e88e02563305f73132e8e15cadee3f336a6e0))
+* **procurement:** record the vendor's withholding slip (bukti potong) against vendor bills ([#911](https://github.com/ariefsaid/PMO/issues/911)) ([#958](https://github.com/ariefsaid/PMO/issues/958)) ([6815559](https://github.com/ariefsaid/PMO/commit/681555936233ea28a8b4d28b9966f740469feab8))
+* **revenue:** customer invoices and receipts for orgs without an ERP ([#784](https://github.com/ariefsaid/PMO/issues/784)) ([#936](https://github.com/ariefsaid/PMO/issues/936)) ([924ba32](https://github.com/ariefsaid/PMO/commit/924ba32f412cfbc34a41e6a1a9575cbb538b74ec))
+* **revenue:** invoice a work order directly when the org has no ERP ([#913](https://github.com/ariefsaid/PMO/issues/913)) ([#948](https://github.com/ariefsaid/PMO/issues/948)) ([75f1e9b](https://github.com/ariefsaid/PMO/commit/75f1e9b00c068efa5a9be47bbfe65a12c553ed76))
+
+
+### Bug Fixes
+
+* **a11y:** arrow-key tab switching keeps focus in the tab bar ([#879](https://github.com/ariefsaid/PMO/issues/879)) ([#950](https://github.com/ariefsaid/PMO/issues/950)) ([fffa5cb](https://github.com/ariefsaid/PMO/commit/fffa5cb572f2f38f1b2b638855b77d91cd2fc0ab))
+* **budget:** activation refuses anyone who edited the version (DD-BUDGET-7) ([#957](https://github.com/ariefsaid/PMO/issues/957)) ([83cf104](https://github.com/ariefsaid/PMO/commit/83cf1047465a7b1461d055059f82e7064487f1c6))
+* **e2e:** assert the visible toast, not its screen-reader copy ([#963](https://github.com/ariefsaid/PMO/issues/963)) ([e316880](https://github.com/ariefsaid/PMO/commit/e316880b9eac1a649971e0f61ac9c340deda699e))
+* **erpnext:** bound the sweep's work per invocation ([#916](https://github.com/ariefsaid/PMO/issues/916)) ([#940](https://github.com/ariefsaid/PMO/issues/940)) ([8592054](https://github.com/ariefsaid/PMO/commit/85920547f5b3f5a25effa14a105751c09dba69e2))
+* **erpnext:** release-review fixes — payment recovery, sweep fairness, ledger catch-up, DNS fallback, employee ledger scope ([#955](https://github.com/ariefsaid/PMO/issues/955)) ([9840a15](https://github.com/ariefsaid/PMO/commit/9840a15b4e06dba14ef13a9eddeef536805ae025))
+* **erpnext:** the sweep adopts each new Supplier/Customer under its own Supplier:/Customer:&lt;docname&gt; id ([#935](https://github.com/ariefsaid/PMO/issues/935)) ([#938](https://github.com/ariefsaid/PMO/issues/938)) ([f3c41c5](https://github.com/ariefsaid/PMO/commit/f3c41c5417083d3f5216f15e7f68adca54d6a05d))
+* **erp:** the ERP client bounds the whole response ([#918](https://github.com/ariefsaid/PMO/issues/918)) ([#947](https://github.com/ariefsaid/PMO/issues/947)) ([96289d6](https://github.com/ariefsaid/PMO/commit/96289d6e1d2e8e58aca0fd0f3f19a6b517158154))
+* **procurement:** withholding slip screens — critique fixes ([#911](https://github.com/ariefsaid/PMO/issues/911) polish) ([#962](https://github.com/ariefsaid/PMO/issues/962)) ([ae514d6](https://github.com/ariefsaid/PMO/commit/ae514d639ff4d3a4bb8891b9412a5fb2ededd6a1))
+* **ui:** Bahasa for the form 'Nothing was saved' line, shell updates deferred out of render, withdrawn-claim headline ([#891](https://github.com/ariefsaid/PMO/issues/891)) ([#943](https://github.com/ariefsaid/PMO/issues/943)) ([4ad3b16](https://github.com/ariefsaid/PMO/commit/4ad3b169294a1b254446964fa49b30c6783f8594))
+* **ui:** release-review fixes — list search focus, approver payment gate, id-ID prefill, copy ([#954](https://github.com/ariefsaid/PMO/issues/954)) ([04c6d78](https://github.com/ariefsaid/PMO/commit/04c6d78883886d089a9cb385d895f22b50bd3145))
+* **ui:** row actions stay visible when a wide table scrolls sideways ([#925](https://github.com/ariefsaid/PMO/issues/925)) ([#937](https://github.com/ariefsaid/PMO/issues/937)) ([5584a12](https://github.com/ariefsaid/PMO/commit/5584a125cf8e7866f56888a7f94c7084c1a0d815))
+* **ui:** toasts a user can read, announced reliably ([#926](https://github.com/ariefsaid/PMO/issues/926)) ([#952](https://github.com/ariefsaid/PMO/issues/952)) ([2df6318](https://github.com/ariefsaid/PMO/commit/2df6318f5157646ea26b5c5960c41957019777c5))
+
 ## [0.16.0](https://github.com/ariefsaid/PMO/compare/v0.15.0...v0.16.0) (2026-10-07)
 
 
