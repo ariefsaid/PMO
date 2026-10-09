@@ -7,7 +7,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { compareDenominators, formatEntry, validateDenominator } from './check-isolation-denominator.mjs';
+import { compareDenominators, formatEntry, preserveColumns, validateDenominator } from './check-isolation-denominator.mjs';
 
 const fixture = () => ({
   tables: [
@@ -96,6 +96,46 @@ test('formatEntry renders a table object and a scalar on one line', () => {
 test('formatEntry quotes scalar entries with JSON so they paste into the manifest exactly', () => {
   assert.equal(formatEntry('edge_functions', 'health'), '"health"');
   assert.equal(formatEntry('buckets', 'procurement-files'), '"procurement-files"');
+});
+
+// #965 — the probe's column-grant lists (e.g. 0134/0281 column-level SELECT grants) live in an
+// optional per-table `columns` field. The formatter (diagnostics AND `--write` regeneration) must
+// round-trip it, or one routine `--write` silently reverts the probe to `select=*` on those tables.
+test('formatEntry preserves an optional columns field on a table entry', () => {
+  const entry = { table: 'alpha', has_org: true, pk: 'id', columns: 'id,org_id' };
+  const line = formatEntry('tables', entry);
+  assert.deepEqual(JSON.parse(line), entry);
+  // No columns field → the entry renders exactly as before (no empty "columns" key).
+  assert.equal(formatEntry('tables', { table: 'alpha', has_org: true, pk: 'id' }), JSON.stringify({ table: 'alpha', has_org: true, pk: 'id' }));
+});
+
+test('preserveColumns carries recorded column-grant lists onto freshly-read catalog entries', () => {
+  const actual = [
+    { table: 'alpha', has_org: true, pk: 'id' },
+    { table: 'beta', has_org: false, pk: 'uuid' },
+  ];
+  const recorded = [
+    { table: 'alpha', has_org: true, pk: 'id', columns: 'id,org_id' },
+    { table: 'beta', has_org: false, pk: 'uuid' },
+  ];
+  const merged = preserveColumns(actual, recorded);
+  assert.deepEqual(merged, [
+    { table: 'alpha', has_org: true, pk: 'id', columns: 'id,org_id' },
+    { table: 'beta', has_org: false, pk: 'uuid' },
+  ]);
+  // Unknown/renamed tables in the manifest never leak onto the regenerated catalog.
+  assert.equal(preserveColumns(actual, [{ table: 'ghost', has_org: true, pk: 'id', columns: 'id' }]).find((t) => t.table === 'alpha')?.columns, undefined);
+});
+
+test('validateDenominator rejects a columns field that is not a non-empty string', () => {
+  const bad = fixture();
+  bad.tables[0] = { table: 'alpha', has_org: true, pk: 'id', columns: '' };
+  assert.throws(() => validateDenominator(bad), /columns/);
+  bad.tables[0] = { table: 'alpha', has_org: true, pk: 'id', columns: 42 };
+  assert.throws(() => validateDenominator(bad), /columns/);
+  const good = fixture();
+  good.tables[0] = { table: 'alpha', has_org: true, pk: 'id', columns: 'id,org_id' };
+  assert.doesNotThrow(() => validateDenominator(good));
 });
 
 test('validateDenominator accepts a well-formed manifest with all four arrays', () => {

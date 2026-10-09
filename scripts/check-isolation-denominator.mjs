@@ -80,9 +80,15 @@ function parseLines(out) {
  * One-line, paste-ready rendering of a single denominator entry, in the EXACT form the manifest
  * stores it — so an `add to <category>` / `remove from <category>` line is a valid manifest line.
  * Tables render as the `{table, has_org, pk}` object; every other category is a JSON-encoded string.
+ * A table carrying the probe's optional column-grant list (`columns`, #965) renders WITH it, so the
+ * line stays a complete manifest entry and `--write` regeneration cannot drop the list.
  */
 export function formatEntry(category, entry) {
-  if (category === 'tables') return JSON.stringify({ table: entry.table, has_org: entry.has_org, pk: entry.pk });
+  if (category === 'tables') {
+    const base = { table: entry.table, has_org: entry.has_org, pk: entry.pk };
+    if (entry.columns != null) base.columns = entry.columns;
+    return JSON.stringify(base);
+  }
   return JSON.stringify(entry);
 }
 
@@ -93,6 +99,18 @@ function canonicalTable(t) {
 /** Whether a same-named table tuple in `other` carries the same has_org/pk classification. */
 function tupleOf(list, table) {
   return list.find((t) => t.table === table);
+}
+
+/**
+ * Carry the manifest's per-table `columns` grant lists (#965) onto freshly-read catalog entries —
+ * the merge `--write` regeneration applies so a routine regenerate preserves the probe's
+ * data-driven column-grant lists (the live catalog cannot know them; they come from migrations).
+ */
+export function preserveColumns(actualTables, recordedTables) {
+  return actualTables.map((t) => {
+    const rec = recordedTables.find((r) => r.table === t.table);
+    return rec?.columns != null ? { ...t, columns: rec.columns } : t;
+  });
 }
 
 /**
@@ -148,6 +166,9 @@ export function validateDenominator(parsed) {
     }
     if (typeof t.has_org !== 'boolean') throw new Error(`invalid denominator: table ${t.table ?? '(unnamed)'} has_org must be a boolean`);
     if (typeof t.pk !== 'string' || !t.pk.trim()) throw new Error(`invalid denominator: table ${t.table} needs a non-empty "pk" string`);
+    if (t.columns != null && (typeof t.columns !== 'string' || !t.columns.trim())) {
+      throw new Error(`invalid denominator: table ${t.table} columns must be a non-empty string when present`);
+    }
     const key = canonicalTable(t);
     if (tableKeys.has(key)) throw new Error(`invalid denominator: duplicate table tuple ${formatEntry('tables', t)}`);
     tableKeys.add(key);
@@ -307,8 +328,16 @@ if (isRunAsMain) {
   }
   if (args[0] === '--write') {
     // Regenerate the manifest from the live catalog — the fix path when the guard reports MISSING/STALE.
+    // Per-table `columns` grant lists (#965) exist only in the manifest, so they are merged back from
+    // the current file before writing; a catalog-only regenerate would silently revert them.
     if (args.length !== 1) { console.error('usage: check-isolation-denominator.mjs --write'); process.exit(2); }
-    fs.writeFileSync(DENOMINATOR_PATH, `${formatDenominator(readActualCatalog({}))}\n`);
+    const actual = readActualCatalog({});
+    let recorded = null;
+    try { recorded = readDenominator(DENOMINATOR_PATH); } catch {
+      console.error('note: existing denominator unreadable — regenerating without columns merge');
+    }
+    const merged = recorded ? { ...actual, tables: preserveColumns(actual.tables, recorded.tables) } : actual;
+    fs.writeFileSync(DENOMINATOR_PATH, `${formatDenominator(merged)}\n`);
     console.log(`wrote ${path.relative(ROOT, DENOMINATOR_PATH)} from the live catalog — review the diff, then commit it with the surface it names`);
     process.exit(0);
   }
