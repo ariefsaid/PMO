@@ -122,6 +122,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
 
   if (summary) {
     const current = all.find(milestone => milestone.id === currentMilestoneId);
+    const overdueElsewhere = all.find(milestone => milestone.id !== current?.id && isOverdueMilestone(milestone));
     const hasOverdue = all.some(isOverdueMilestone);
     return (
       <div data-testid="milestone-summary" className="mb-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -146,11 +147,15 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                 {t('projectDetail.milestones.currentPhase', 'Current: {{name}}', { name: current.name })}
               </span>
             )}
-            {current && isOverdueMilestone(current) && (
+            {current && isOverdueMilestone(current) ? (
               <span className="font-semibold text-warning-foreground">
                 {t('projectDetail.milestones.overdue', 'Overdue')}
               </span>
-            )}
+            ) : overdueElsewhere ? (
+              <span className="font-semibold text-warning-foreground">
+                {t('projectDetail.milestones.overduePhase', 'Overdue: {{name}}', { name: overdueElsewhere.name })}
+              </span>
+            ) : null}
           </>
         )}
         <Link to={`/projects/${projectId}/overview`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">

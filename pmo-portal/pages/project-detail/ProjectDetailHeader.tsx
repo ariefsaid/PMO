@@ -109,6 +109,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
+  const [lockReasonOpen, setLockReasonOpen] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
   // #513: the basis the new value is stated on. ⛔ Both start EMPTY on every open and are never
   // seeded — not from the stored row either. 0197's backfill wrote 'exclusive' onto every existing
@@ -180,31 +181,28 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const tiles: StatTile[] = [
     {
-      label: (
-        <div className="flex flex-wrap items-center gap-1">
-          <span>{t('projectDetail.header.tile.contract', 'Contract')}</span>
-          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
-            <details className="text-xs font-normal text-muted-foreground">
-              <summary className="flex w-fit cursor-pointer items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-semibold">
-                <Icon name="lock" className="size-3" />
-                {t('projectDetail.header.readOnly', 'Read-only')}
-                <Icon name="chev" className="size-3 rotate-90" />
-              </summary>
-              <p className="mt-2">
-                {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
-              </p>
-            </details>
-          )}
-        </div>
-      ),
+      label: t('projectDetail.header.tile.contract', 'Contract'),
       value: (
-        <div className="flex flex-wrap items-center gap-2">
-          {formatCurrency(contract, project.currency)}
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span data-testid="contract-value-amount">{formatCurrency(contract, project.currency)}</span>
           {!valueEditing && canEditValue && isFinanceForward && (
             <Button variant="outline" size="sm" onClick={() => beginValueEdit()}
               aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
               {t('projectDetail.header.action.edit', 'Edit')}
             </Button>
+          )}
+          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
+            <button
+              type="button"
+              aria-expanded={lockReasonOpen}
+              aria-controls="contract-value-lock-reason"
+              onClick={() => setLockReasonOpen(open => !open)}
+              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground"
+            >
+              <Icon name="lock" className="size-3" />
+              {t('projectDetail.header.readOnly', 'Read-only')}
+              <Icon name="chev" className="size-3 rotate-90" />
+            </button>
           )}
         </div>
       ),
@@ -477,6 +475,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 className="mt-2 gap-x-3 gap-y-2 md:mt-0 [&>div]:min-w-0" />
             </details>
           </div>
+          {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (
+            <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
+              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
+                {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
+              </p>
+            </div>
+          )}
           {project.tax_treatment && (
             <div className="mb-1 text-[11px] text-muted-foreground">
               <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />

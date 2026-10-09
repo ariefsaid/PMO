@@ -148,7 +148,7 @@ describe('fillClass priority (I1, I4)', () => {
 });
 
 describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
-  it('compact summary names the current phase and exposes overdue state, but omits it when on time', () => {
+  it('compact summary names a current overdue phase and names a different overdue phase', () => {
     milestoneState.data = [
       {
         id: 'm1', project_id: 'p1', name: 'Procurement', sort_order: 0,
@@ -164,6 +164,24 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(overdueState.className).toContain('text-warning-foreground');
 
     overdue.unmount();
+    milestoneState.data = [
+      {
+        id: 'm1', project_id: 'p1', name: 'Design', sort_order: 0,
+        target_date: '2999-01-01', weight: 1, input_pct: 40, task_count: 3,
+        calculated_pct: 40, effective_pct: 40,
+      },
+      {
+        id: 'm2', project_id: 'p1', name: 'Construction', sort_order: 1,
+        target_date: '2020-01-01', weight: 1, input_pct: 63, task_count: 3,
+        calculated_pct: 63, effective_pct: 63,
+      },
+    ];
+    render$('p1', true);
+    expect(screen.getByText('Current: Design')).toBeInTheDocument();
+    expect(screen.getByText('Overdue: Construction')).toBeInTheDocument();
+  });
+
+  it('compact summary omits overdue state when all active phases are on time', () => {
     milestoneState.data = [{
       id: 'm1', project_id: 'p1', name: 'Procurement', sort_order: 0,
       target_date: '2999-01-01', weight: 1, input_pct: 63, task_count: 3,

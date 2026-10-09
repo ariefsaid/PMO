@@ -22,6 +22,29 @@ async function aboveFold(page: Page, target: Locator) {
 }
 
 for (const role of ['pm', 'finance'] as const) {
+  test(`UIP-006: ${role} contract and committed KPI value tops align at 1440px`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page, `${role}@acme.test`);
+    await page.goto(`${projectPath}/overview`);
+    const tiles = page.getByTestId('stat-tile');
+    const contractAmount = tiles.nth(0).getByTestId('contract-value-amount');
+    const committedValue = tiles.nth(1).locator(':scope > div').nth(1);
+    await expect(contractAmount).toBeVisible();
+    await expect(committedValue).toHaveText(/\$[\d,]+/);
+    await waitForFonts(page);
+    const contractTop = await contractAmount.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().top;
+    });
+    const committedTop = await committedValue.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().top;
+    });
+    expect(Math.abs(contractTop - committedTop)).toBeLessThanOrEqual(2);
+  });
+
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     test(`UIP-005: ${role} sees tab work immediately at ${viewport.width}, with Overview phase actions intact`, async ({ page }) => {
       await page.setViewportSize(viewport);

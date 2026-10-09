@@ -128,13 +128,17 @@ describe('ProjectDetailHeader — content', () => {
     expect(disclosure).toHaveTextContent('Spend50%');
   });
 
-  it('UIP-006: the lock reason is adjacent to the single metric and disclosed without a dead edit control', async () => {
+  it('UIP-006: the PM lock chip is in the contract value row and discloses its reason in a full-width lane', async () => {
     renderHeader('Project Manager');
-    const lock = screen.getByText('Read-only');
-    expect(lock.closest('details')).not.toHaveAttribute('open');
+    const lock = screen.getByRole('button', { name: /Read-only/i });
+    const contractTile = screen.getAllByTestId('stat-tile')[0];
+    expect(contractTile.children[1]).toContainElement(lock);
+    expect(lock).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(lock);
-    expect(lock.closest('details')).toHaveAttribute('open');
-    expect(lock.closest('details')).toHaveTextContent('Once a project is won, the contract value is locked for your role.');
+    expect(lock).toHaveAttribute('aria-expanded', 'true');
+    const reason = screen.getByTestId('contract-value-lock-reason');
+    expect(reason).toHaveTextContent('Once a project is won, the contract value is locked for your role.');
+    expect(reason.parentElement).toHaveAttribute('data-testid', 'contract-value-lock-lane');
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 
