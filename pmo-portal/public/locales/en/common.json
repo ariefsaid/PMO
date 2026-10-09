@@ -2220,7 +2220,9 @@
       "fallbackName": "Milestone",
       "heading": "Delivery phases",
       "moreActionsFor": "More actions for",
+      "currentPhase": "Current: {{name}}",
       "overdue": "Overdue",
+      "overduePhase": "Overdue: {{name}}",
       "planPhases": "Plan delivery phases",
       "prewinPlaceholder": "Delivery planning starts once this is won",
       "progressRangeError": "Progress must be between 0 and 100",
@@ -2788,7 +2790,8 @@
       "project": "Project",
       "status": "Status",
       "committed": "Committed",
-      "endCustomer": "End customer"
+      "endCustomer": "End customer",
+      "endCustomerShort": "End"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
@@ -3918,7 +3921,10 @@
     "filterSector": "Filter by sector",
     "filterAwardType": "Filter by award type",
     "filterBiddingEntity": "Filter by bidding entity",
-    "filterLocation": "Filter by location"
+    "filterLocation": "Filter by location",
+    "applied": "Applied classifications",
+    "remove": "Remove classification: {{selection}}",
+    "clear": "Clear classifications"
   },
   "managementPack": {
     "actions": "Actions",

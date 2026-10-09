@@ -2220,7 +2220,9 @@
       "fallbackName": "Milestone",
       "heading": "Fase pelaksanaan",
       "moreActionsFor": "Tindakan lainnya untuk",
+      "currentPhase": "Fase saat ini: {{name}}",
       "overdue": "Terlambat",
+      "overduePhase": "Terlambat: {{name}}",
       "planPhases": "Rencanakan fase pelaksanaan",
       "prewinPlaceholder": "Perencanaan pelaksanaan dimulai setelah proyek ini menang",
       "progressRangeError": "Progres harus antara 0 dan 100",
@@ -2788,7 +2790,8 @@
       "project": "Proyek",
       "status": "Status",
       "committed": "Komitmen",
-      "endCustomer": "Pelanggan akhir"
+      "endCustomer": "Pelanggan akhir",
+      "endCustomerShort": "Akhir"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
@@ -3918,7 +3921,10 @@
     "filterSector": "Filter menurut sektor",
     "filterAwardType": "Filter menurut jenis perolehan",
     "filterBiddingEntity": "Filter menurut entitas penawar",
-    "filterLocation": "Filter menurut lokasi"
+    "filterLocation": "Filter menurut lokasi",
+    "applied": "Klasifikasi yang diterapkan",
+    "remove": "Hapus klasifikasi: {{selection}}",
+    "clear": "Hapus klasifikasi"
   },
   "managementPack": {
     "actions": "Tindakan",
