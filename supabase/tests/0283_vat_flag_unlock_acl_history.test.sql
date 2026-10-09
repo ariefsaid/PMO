@@ -1,5 +1,5 @@
 begin;
-select plan(27);
+select plan(29);
 create function pg_temp.vat_refusal_outcome(p_project uuid) returns text language plpgsql as $$
 declare v_state text; v_detail text;
 begin
@@ -36,6 +36,13 @@ insert into profiles(id,org_id,full_name,email,role,status) values
  ('02832000-0000-0000-0000-0000000000a5','02832000-0000-0000-0000-000000000001','Inactive','vat-inactive@example.com','Finance','disabled'),
  ('02832000-0000-0000-0000-0000000000b1','02832000-0000-0000-0000-000000000002','Other','vat-other@example.com','Finance','active');
 set local role authenticated;
+set local request.jwt.claims='{"sub":"02832000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok($$ select get_project_vat_editability('02832000-0000-0000-0000-0000000000b1'::uuid) $$,
+ '42501','not authorized','AC-PPNC-019 inactive member cannot read project VAT eligibility');
+set local request.jwt.claims='{"sub":"02832000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$ select get_project_vat_editability('02832000-0000-0000-0000-0000000000b1'::uuid) $$,
+ '42501','not authorized','AC-PPNC-019 wrong-org member cannot read project VAT eligibility');
+set local request.jwt.claims='{"sub":"02832000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 set local request.jwt.claims='{"sub":"02832000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select set_project_contract_value('02832000-0000-0000-0000-0000000000b1'::uuid,100,p_tax_treatment=>'exclusive',p_tax_amount=>0,p_subject_to_vat=>true) $$,
  'AC-PPNC-011 unchanged VAT flag save succeeds');
