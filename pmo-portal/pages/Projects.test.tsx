@@ -351,13 +351,9 @@ describe('Projects table — compact layout (#1)', () => {
 
   it('#1: PM column avatar is 18px (compact) — not 22px — to fit at 1180px', () => {
     renderPage();
-    // Find the PM avatar in the table tbody (has single-letter initial, size-[18px])
-    const tableBody = document.querySelector('tbody');
-    const pmCells = tableBody?.querySelectorAll('td');
-    const pmAvatar = Array.from(pmCells ?? [])
-      .flatMap(td => Array.from(td.querySelectorAll('[aria-hidden="true"]')))
-      .find(el => el.className.includes('rounded-full') && el.className.includes('size-[18px]'));
-    expect(pmAvatar).toBeTruthy();
+    const tableBody = document.querySelector('tbody')!;
+    const pmAvatar = within(tableBody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0];
+    expect(pmAvatar).toHaveClass('rounded-full', 'size-[18px]');
   });
 
   it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {
@@ -377,18 +373,13 @@ describe('Projects table — compact layout (#1)', () => {
     expect(outerSpan).not.toBeNull();
   });
 
-  it('M-D: PM name stays on one line, truncates in the cell, and remains available as a title', () => {
+  it('M-D: PM initials are visible while the full name remains accessible', () => {
     renderPage();
-    // Scope to the table body (the toolbar PM filter <select> also lists the name).
     const tbody = document.querySelector('tbody')!;
-    const pmName = within(tbody as HTMLElement)
-      .getAllByText('Alice Manager')
-      .find((el) => el.tagName === 'SPAN')!;
-    expect(pmName).toBeTruthy();
-    // The compact one-line label is truncated visually while the containing PM cell carries its full title.
-    expect(pmName.className).toContain('truncate');
-    expect(pmName.className).toContain('whitespace-nowrap');
-    expect(pmName.parentElement).toHaveAttribute('title', 'Alice Manager');
+    const avatar = within(tbody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0];
+    expect(avatar).toHaveTextContent('AM');
+    expect(avatar).toHaveAttribute('title', 'Alice Manager');
+    expect(within(tbody as HTMLElement).queryByText('Alice Manager')).not.toBeInTheDocument();
   });
 });
 

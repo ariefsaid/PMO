@@ -460,7 +460,7 @@ const Projects: React.FC = () => {
     {
       key: 'customer',
       header: t('projects.columns.customer', 'Customer'),
-      colClassName: 'min-[1280px]:w-[78px] min-[1280px]:max-w-[78px]',
+      colClassName: 'min-[1280px]:w-[132px] min-[1280px]:max-w-[132px]',
       exportValue: (p) => p.client ? companyDisplayName(p.client) : '',
       // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
       // can navigate directly to the client record. stopPropagation prevents the
@@ -471,7 +471,7 @@ const Projects: React.FC = () => {
           <CompanyNameLink
             companyId={p.client_id}
             name={p.client ? companyDisplayName(p.client) : null}
-            className="block max-w-[58px] text-[13px]"
+            className="block max-w-[132px] overflow-visible text-clip whitespace-normal break-words text-[13px]"
           />
         </div>
       ),
@@ -481,15 +481,19 @@ const Projects: React.FC = () => {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
-      header: t('projects.columns.endCustomer', 'End customer'),
-      colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2',
+      header: all.some((project) => project.end_client)
+        ? t('projects.columns.endCustomer', 'End customer')
+        : <span aria-label={t('projects.columns.endCustomer', 'End customer')} title={t('projects.columns.endCustomer', 'End customer')}>{t('projects.columns.endCustomerShort', 'End')}</span>,
+      colClassName: all.some((project) => project.end_client)
+        ? 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2'
+        : 'min-[1280px]:w-[52px] min-[1280px]:max-w-[52px] min-[1280px]:px-2',
       exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()} title={p.end_client ? companyDisplayName(p.end_client) : undefined}>
           <CompanyNameLink
             companyId={p.end_client_id}
             name={p.end_client ? companyDisplayName(p.end_client) : null}
-            className="block max-w-[48px] text-[13px]"
+            className="block max-w-[96px] text-[13px]"
           />
         </div>
       ),
@@ -497,7 +501,7 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
-      colClassName: 'min-[1280px]:w-[90px] min-[1280px]:max-w-[90px]',
+      colClassName: 'min-[1280px]:w-[44px] min-[1280px]:max-w-[44px]',
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
       exportValue: (p) =>
@@ -507,8 +511,7 @@ const Projects: React.FC = () => {
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         }),
-      // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
-      // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
+      // The compact initials avatar preserves the full PM name for assistive technology and hover.
       cell: (p) => {
         const label = projectManagerLabel({
           managerId: p.project_manager_id,
@@ -516,15 +519,18 @@ const Projects: React.FC = () => {
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
+        const initials = label.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
         return (
-          <span className="flex max-w-[74px] min-w-0 items-center gap-1.5" title={label}>
+          <span className="flex items-center justify-center">
             <span
-              aria-hidden
-              className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+              role="img"
+              aria-label={label}
+              title={label}
+              className="grid size-[18px] shrink-0 place-items-center rounded-full text-[8px] font-bold text-white"
+              style={{ background: 'hsl(var(--avatar-2))' }}
             >
-              {(label.trim().charAt(0) || '?').toUpperCase()}
+              {initials}
             </span>
-            <span className="min-w-0 truncate whitespace-nowrap leading-tight">{label}</span>
           </span>
         );
       },
@@ -535,14 +541,14 @@ const Projects: React.FC = () => {
       // status labels is its own decision (it needs one map every surface shares) and is not in
       // this pass. Only the column header moves.
       header: t('projects.columns.status', 'Status'),
-      colClassName: 'min-[1280px]:w-[92px] min-[1280px]:max-w-[92px]',
+      colClassName: 'min-[1280px]:w-[76px] min-[1280px]:max-w-[76px]',
       exportValue: (p) => String(p.status),
       cell: (p) => (
         <StatusPill
           variant={pillVariantForProjectStatus(p.status as string)}
           // The label wraps beside its dot: `!` overrides the pill's own whitespace-nowrap (cn does
           // not merge conflicting utilities), so a long status never forces the column wider.
-          className="max-w-[92px] leading-tight whitespace-normal!"
+          className="max-w-[68px] px-1.5 py-0.5 text-[10px] leading-tight whitespace-normal!"
         >
           {p.status}
         </StatusPill>
