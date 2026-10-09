@@ -230,7 +230,7 @@ else if (args.some(a => a === 'apikey: service')) {
   const expected = entry?.expect_denial?.[0];
   if (expected) { code = expected.http; body = {code: expected.sqlstate}; }
   else body = fn === 'org_has_member_email' ? false : [];
-  if (fn === 'org_credit_balance' && mode === 'unexpected-rpc') {code = 404; body = {code:'P0002'};}
+  if ((fn === 'org_credit_balance' && mode === 'unexpected-rpc') || (fn === 'activate_budget_version' && mode === 'unexpected-verified-target')) {code = 500; body = {code:'P0002'};}
   if (fn === 'org_credit_balance' && mode === 'run-401') {code = 401; body = {code:'42501'};}
   if (fn === 'org_credit_balance' && mode === 'unexpected-empty') {code = 200; body = null;}
   if (fn === 'operator_list_orgs' && mode === 'unexpected-shape-status') code = 201;
@@ -278,7 +278,7 @@ for (const runner of [false, true]) for (const override of ['', [], [{table:'pro
   assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.match(r.stderr, /TABLES_JSON/);
 });
-for (const mode of ['unexpected-rpc', 'run-401', 'bad-shape', 'unexpected-empty', 'unexpected-shape-status']) test(`${mode} is a probe error, never a denial`, () => {
+for (const mode of ['unexpected-rpc', 'unexpected-verified-target', 'run-401', 'bad-shape', 'unexpected-empty', 'unexpected-shape-status']) test(`${mode} is a probe error, never a denial`, () => {
   const r = probeFixture(mode);
   assert.equal(r.status, 4, r.stdout + r.stderr);
   assert.match(r.stdout, /probe_errors: [1-9]/);
