@@ -2,6 +2,18 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 
+test('UIP-002: dashboard has no horizontal page overflow at 1440×900', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, 'exec@acme.test');
+
+  await expect(page.getByRole('main')).toBeVisible();
+  const widths = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(widths.scrollWidth).toBeLessThanOrEqual(widths.clientWidth);
+});
+
 test('UIP-002: phone navigation uses the menu glyph, opens routes, and returns keyboard focus', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page, 'exec@acme.test');
