@@ -702,6 +702,7 @@ outbox, ACL/history and 0255 case); production mutations are never committed.
 | k1 — count Cancelled in submitted AR/revenue (`projectInvoicing.ts` shared allow-list) | `FAIL ... AC-UNB-001: reports submitted invoice totals and remaining contract value on the contract basis`; `invoicedToDate: 10900` vs `2900`. DAL submitted-status filter test also RED. | revenue.test.ts + projectInvoicing.test.ts: 21/21 PASS |
 | k2 — count Cancelled in work-order billing (`0262_billing_by_work_order.sql`) | `Failed test 11: "AC-BWO-001 the cancelled invoice and the withdrawn claim are out, and a raised claim counts once (as its invoice)"`; totals/pending/count tests 3/5/7 also RED. | 0262_work_order_billing_figures.test.sql: Files=1, Tests=18, Result: PASS |
 | l1 — remove outbox project FOR SHARE | `RACE stale_insert: T2 completed without project serialization`; `RACE stale_insert: committed facts violate VAT/history oracle`; failed claim revival also completes with `success` instead of `vat-context-changed`. | AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts |
+| l2 — remove native VAT-read and invoice-trigger project FOR SHARE | `RACE setter_first: committed facts violate VAT/history oracle`; AC-PPNC-016 FAIL (exit 1). A later FK wait still occurs, but tax was read under the old flag: waiting alone is not the oracle. Both 0275 and 0283 restored with checkout. | AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts |
 
 ### AC-PPNC-016 two-session proof output
 
