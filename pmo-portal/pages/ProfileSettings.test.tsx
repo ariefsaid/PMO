@@ -81,6 +81,20 @@ function languageSelect() {
 }
 
 describe('ProfileSettings (profile language settings slice)', () => {
+  it('UIP-012: keeps the resting preferences card flat, bordered, and keyboard-focusable', () => {
+    renderPage();
+
+    const heading = screen.getByRole('heading', { name: /profile & preferences/i });
+    const card = heading.parentElement;
+    expect(card).not.toBeNull();
+    expect(card).toHaveClass('rounded-lg', 'border', 'border-border', 'bg-card', 'p-4', 'sm:p-6');
+    expect(card).not.toHaveClass('shadow-sm');
+
+    languageSelect().focus();
+    expect(document.activeElement).toBe(languageSelect());
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+  });
+
   it('exposes exactly the three language options and reflects the current stored choice', () => {
     // Inherit (NULL)
     currentUserState = { ...currentUserState, locale: null };

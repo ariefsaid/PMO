@@ -18,6 +18,7 @@ import {
   useToast,
   type StatTile,
 } from '@/src/components/ui';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
@@ -97,6 +98,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   onEditProject,
 }) => {
   const { t } = useTranslation();
+  const isDesktop = useIsDesktop();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
@@ -107,6 +109,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
+  const [lockReasonOpen, setLockReasonOpen] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
   // #513: the basis the new value is stated on. ⛔ Both start EMPTY on every open and are never
   // seeded — not from the stored row either. 0197's backfill wrote 'exclusive' onto every existing
@@ -179,11 +182,32 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const tiles: StatTile[] = [
     {
       label: t('projectDetail.header.tile.contract', 'Contract'),
-      value: formatCurrency(contract, project.currency),
-      // OD-TAX-1 §2: the ceiling states its basis. From THIS project's stored `tax_treatment` —
-      // never the org default, which pre-selects a form and is never read to interpret a row. A
-      // NULL treatment (0197 pairs it with a zero contract value) renders nothing at all.
-      sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />,
+      value: (
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span data-testid="contract-value-amount">{formatCurrency(contract, project.currency)}</span>
+          {!valueEditing && canEditValue && isFinanceForward && (
+            <Button variant="outline" size="sm" onClick={() => beginValueEdit()}
+              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
+              {t('projectDetail.header.action.edit', 'Edit')}
+            </Button>
+          )}
+          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
+            <button
+              type="button"
+              aria-expanded={lockReasonOpen}
+              aria-controls="contract-value-lock-reason"
+              onClick={() => setLockReasonOpen(open => !open)}
+              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground"
+            >
+              <Icon name="lock" className="size-3" />
+              {t('projectDetail.header.readOnly', 'Read-only')}
+              <Icon name="chev" className="size-3 rotate-90" />
+            </button>
+          )}
+        </div>
+      ),
+      // The basis is rendered once below the KPI row so the compact Contract tile
+      // can keep its value and read-only/edit affordance together without wrapping.
     },
     { label: t('projectDetail.header.tile.committed', 'Committed'), value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
@@ -319,12 +343,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     </>
   );
 
-  /** The contract-value SoD row — shared between header (finance-forward) and the
-   *  Financial summary aside (delivery-forward). Always read-only for Engineers. */
+  /** Existing explicit editor + role explanation; the idle value lives only in the metric. */
   const sodRow = isDelivery ? (
     <div
       data-testid="contract-value-sod"
-      className="flex flex-wrap items-center gap-3 py-1"
+      className={`flex flex-wrap items-center gap-3 ${valueEditing ? 'py-1' : ''}`}
     >
       {valueEditing && isFinanceForward ? (
         <div className="flex flex-wrap items-end gap-2">
@@ -407,36 +430,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             </p>
           )}
         </div>
-      ) : (
-        <span className="flex items-center gap-2.5">
-          <span className="text-[12.5px] font-semibold text-muted-foreground">
-            {t('projectDetail.header.contractValue', 'Contract value')}
-          </span>
-          <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-            {formatCurrency(contract, project.currency)}
-          </span>
-          {/* OD-TAX-1 §2 — the SoD row's own copy of the figure states its basis too. Two figures
-              on one screen with one caption between them is how a reader ends up applying the
-              wrong basis to the wrong number. */}
-          <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-value-tax-basis" />
-          {canEditValue && isFinanceForward ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={beginValueEdit}
-              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}
-            >
-              {t('projectDetail.header.action.edit', 'Edit')}
-            </Button>
-          ) : isOnHand ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-              <Icon name="lock" className="size-3" />
-              {t('projectDetail.header.readOnly', 'Read-only')}
-            </span>
-          ) : null}
-        </span>
-      )}
-      {isOnHand && canEditValue && isFinanceForward && !valueEditing && (
+      ) : null}
+      {isOnHand && canEditValue && isFinanceForward && valueEditing && (
         <span className="basis-full text-[12px] text-muted-foreground">
           {t(
             'projectDetail.header.sodEditableNote',
@@ -444,14 +439,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           )}
         </span>
       )}
-      {isOnHand && (!canEditValue || !isFinanceForward) && (
-        <span className="basis-full text-[12px] text-muted-foreground">
-          {t(
-            'projectDetail.header.sodLockedNote',
-            'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.',
-          )}
-        </span>
-      )}
+
     </div>
   ) : null;
 
@@ -464,17 +452,42 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         status={
           <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>
         }
-        meta={meta || undefined}
+        // Phone keeps identity/status; the persistent Details rail below the
+        // selected work already carries these codes, customer and PO facts.
+        meta={meta ? <span className="hidden md:inline">{meta}</span> : undefined}
         actions={canEdit || canArchive || canDelete ? actions : undefined}
+        variant="drawer"
+        className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"
       />
 
-      {/* Finance-forward roles (Admin·Exec·Finance·PM): keep the delivery finance strip
-          + SoD row in the header, exactly as shipped (OD-W5-C3-A). The strip renders
-          borderless (content-over-containers) so the page leads with content, not boxes. */}
+      {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.
+          The editor and its confirm remain unchanged; no finance or authority changes. */}
       {isDelivery && isFinanceForward && (
         <>
-          <StatTiles tiles={tiles} columns={5} variant="bare" className="mb-4" />
-          <div className="mb-4">{sodRow}</div>
+          <div className="mb-1 grid min-w-0 grid-cols-1 gap-2 md:grid-cols-5 md:gap-3">
+            <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
+              className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
+            <details open={isDesktop} className="min-w-0 md:col-span-4">
+              <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
+                {t('projectDetail.overview.finance.title', 'Financial summary')}
+              </summary>
+              <StatTiles tiles={tiles.slice(1)} columns={4} variant="bare"
+                className="mt-2 gap-x-3 gap-y-2 md:mt-0 [&>div]:min-w-0" />
+            </details>
+          </div>
+          {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (
+            <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
+              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
+                {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
+              </p>
+            </div>
+          )}
+          {project.tax_treatment && (
+            <div className="mb-1 text-[11px] text-muted-foreground">
+              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />
+            </div>
+          )}
+          <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>
         </>
       )}
 

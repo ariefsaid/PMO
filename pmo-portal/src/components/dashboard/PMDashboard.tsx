@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Link } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
@@ -128,7 +129,12 @@ export const PMDashboard: React.FC = () => {
                   const projectAtRisk = isAtRisk(p);
                   return (
                     <li key={p.id} className="flex items-center gap-2.5 py-3">
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{p.name}</span>
+                      <Link
+                        to={`/projects/${p.id}`}
+                        className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                      >
+                        {p.name}
+                      </Link>
                       {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
                       {projectAtRisk && <StatusPill variant="warn">At risk</StatusPill>}
                       {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
