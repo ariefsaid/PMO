@@ -25,6 +25,7 @@ import type {
   CreateProjectInput,
   ProjectHeaderInput,
   SetProjectContractValueInput,
+  ProjectVatEditability,
 } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type {
@@ -178,6 +179,8 @@ export interface ProjectRepository {
    * TypeScript forbids a required parameter after an optional one.
    */
   setContractValue(input: SetProjectContractValueInput): Promise<void>;
+  /** Read advisory server-side VAT editability for this project. */
+  getVatEditability(id: string): Promise<ProjectVatEditability>;
   /** Reserve one editable PMO project-number proposal for the selected client. */
   proposeNumber(clientId: string): Promise<string>;
 }

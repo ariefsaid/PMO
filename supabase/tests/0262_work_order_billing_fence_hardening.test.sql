@@ -52,11 +52,11 @@ set local request.jwt.claims = '{"role":"service_role"}';
 -- ── §A a failed command revived by claim_outbox_for_commit is re-checked against its STORED payload ──────
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-000000000c11', 'bwo-h-k11', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d1","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":2,"rate":300}]}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d1","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":2,"rate":300}]}');
 update external_command_outbox set state = 'failed' where pmo_record_id = '02621000-0000-0000-0000-000000000c11';
 select lives_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-000000000c12', 'bwo-h-k12', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d1","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":1000}]}') $$,
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d1","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":1000}]}') $$,
   'AC-BWO-002 with the first command failed, a second reserves the whole work order');                                -- 1
 select throws_ok($$ select public.claim_outbox_for_commit((select id from external_command_outbox where pmo_record_id = '02621000-0000-0000-0000-000000000c11')) $$,
   'BW001', 'this invoice would bill 600.00 against work order WO-H-1 (worth 1000.00 excl. tax, with 1000.00 already invoiced or in draft): only 0.00 is still to invoice',
@@ -67,7 +67,7 @@ select is((select state from external_command_outbox where pmo_record_id = '0262
 -- A failed command on a work order with room revives, under that work order's billing lock.
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-000000000c21', 'bwo-h-k21', 'erpnext', 'create', 'failed',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d2","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD"}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d2","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD"}');
 update external_command_outbox set payload = payload || '{"items":[{"item_code":"SVC","qty":2,"rate":300}]}'
  where pmo_record_id = '02621000-0000-0000-0000-000000000c21';
 select set_config('bwo.locks', (select count(*)::text from pg_locks where locktype = 'advisory' and pid = pg_backend_pid()), true);
@@ -80,7 +80,7 @@ select is((select count(*)::int from pg_locks where locktype = 'advisory' and pi
 -- An edit revived from failed reads its work order from the mirror row, like the insert fence.
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-0000000008a1', 'bwo-h-k81', 'erpnext', 'update', 'failed',
-          '{"erp_doc_kind":"sales-invoice","externalRecordId":"SI-H-8"}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"externalRecordId":"SI-H-8"}');
 update external_command_outbox set payload = payload || '{"items":[{"item_code":"SVC","qty":1,"rate":650}]}'
  where pmo_record_id = '02621000-0000-0000-0000-0000000008a1';
 select throws_ok($$ select public.claim_outbox_for_commit((select id from external_command_outbox where pmo_record_id = '02621000-0000-0000-0000-0000000008a1')) $$,
@@ -90,9 +90,9 @@ select throws_ok($$ select public.claim_outbox_for_commit((select id from extern
 -- ── §B a claim withdrawn after its failed attempt is never revived into an invoice (FR-PB-013) ─────────
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-0000000003e1', 'bwo-h-k31', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d3","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":500}]}'),
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d3","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":500}]}'),
          ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-0000000003e2', 'bwo-h-k32', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d3","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":300}]}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d3","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":300}]}');
 update external_command_outbox set state = 'failed'
  where pmo_record_id in ('02621000-0000-0000-0000-0000000003e1', '02621000-0000-0000-0000-0000000003e2');
 set local role authenticated;
@@ -110,30 +110,30 @@ select is((select state from public.claim_outbox_for_commit((select id from exte
 -- ── §C a sales-invoice command names its record by the canonical uuid text, or it is refused ─────────────
 select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '0262100000000000000000000000c401', 'bwo-h-k41', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":5000}]}') $$,
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":5000}]}') $$,
   'BW001', 'a sales invoice command must name its invoice by its canonical id',
   'AC-BWO-002 a record id without hyphens is refused, not waved past the fence');                                     -- 10
 select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '{02621000-0000-0000-0000-00000000c402}', 'bwo-h-k42', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":5000}]}') $$,
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":5000}]}') $$,
   'BW001', 'a sales invoice command must name its invoice by its canonical id',
   'AC-BWO-002 a braced record id is refused');                                                                         -- 11
 select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', 'si-h-403', 'bwo-h-k43', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":5000}]}') $$,
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":5000}]}') $$,
   'BW001', 'a sales invoice command must name its invoice by its canonical id',
   'AC-BWO-002 a record id that is not a uuid at all is refused');                                                      -- 12
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-00000000c404', 'bwo-h-k44', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":900}]}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":900}]}');
 select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-00000000C4AB', 'bwo-h-k45', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":200}]}') $$,
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":200}]}') $$,
   'BW001', 'this invoice would bill 200.00 against work order WO-H-4 (worth 1000.00 excl. tax, with 900.00 already invoiced or in draft): only 100.00 is still to invoice',
   'AC-BWO-002 an upper-case record id is measured like its lower-case form');                                         -- 13
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '0262100000000000000000000000c406', 'bwo-h-k46', 'erpnext', 'create', 'failed',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD"}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d4","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD"}');
 update external_command_outbox set payload = payload || '{"items":[{"item_code":"SVC","qty":1,"rate":5000}]}'
  where pmo_record_id = '0262100000000000000000000000c406';
 select throws_ok($$ select public.claim_outbox_for_commit((select id from external_command_outbox where pmo_record_id = '0262100000000000000000000000c406')) $$,
@@ -143,7 +143,7 @@ select throws_ok($$ select public.claim_outbox_for_commit((select id from extern
 -- ── §D a negative amount is refused (claims are never negative; a down payment bills 0) ──────────────────
 select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-00000000c501', 'bwo-h-k51', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d5","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":-100}]}') $$,
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d5","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":-100}]}') $$,
   'BW001', 'an invoice cannot bill a negative amount against work order WO-H-5',
   'AC-BWO-002 an ERP command whose lines total below zero is refused');                                               -- 15
 set local role authenticated;
@@ -175,22 +175,22 @@ set local request.jwt.claims = '{"role":"service_role"}';
 -- In flight on WO-H-6: 600 under an id that another org later uses for a claim. It still counts here.
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-00000000c601', 'bwo-h-k61', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d6","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":600}]}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d6","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":600}]}');
 insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, dp_recovery_amount, created_by) values
   ('02621000-0000-0000-0000-00000000c601', '02621000-0000-0000-0000-000000000002', '02621000-0000-0000-0000-0000000000c9', 'progress', 'USD', 1, 0, '02621000-0000-0000-0000-0000000000b1');
 select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-00000000c602', 'bwo-h-k62', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d6","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":600}]}') $$,
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d6","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":600}]}') $$,
   'BW001', 'this invoice would bill 600.00 against work order WO-H-6 (worth 1000.00 excl. tax, with 600.00 already invoiced or in draft): only 400.00 is still to invoice',
   'AC-BWO-002 a command in flight still counts when another org holds a claim under its id');                          -- 20
 -- Failed on WO-H-7, with the remainder then reserved; another org then holds a claim under the failed command's id.
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-00000000c701', 'bwo-h-k71', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d7","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":600}]}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d7","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":600}]}');
 update external_command_outbox set state = 'failed' where pmo_record_id = '02621000-0000-0000-0000-00000000c701';
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
   values ('02621000-0000-0000-0000-000000000001', 'revenue', '02621000-0000-0000-0000-00000000c702', 'bwo-h-k72', 'erpnext', 'create', 'pending',
-          '{"erp_doc_kind":"sales-invoice","workOrderId":"02621000-0000-0000-0000-0000000000d7","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":1000}]}');
+          '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"workOrderId":"02621000-0000-0000-0000-0000000000d7","projectId":"02621000-0000-0000-0000-0000000000c1","currency":"USD","items":[{"item_code":"SVC","qty":1,"rate":1000}]}');
 insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, dp_recovery_amount, created_by) values
   ('02621000-0000-0000-0000-00000000c701', '02621000-0000-0000-0000-000000000002', '02621000-0000-0000-0000-0000000000c9', 'progress', 'USD', 1, 0, '02621000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select public.claim_outbox_for_commit((select id from external_command_outbox where pmo_record_id = '02621000-0000-0000-0000-00000000c701')) $$,

@@ -40,6 +40,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-10-05',
   },
   {
+    file: 'serial/AC-PPNC-001-ppn-reissue.spec.ts',
+    reason: 'PPN cancel + re-issue proof reads full ERP Sales Invoice tax rows; requires the local served-functions lane and throwaway ERPNext bench.',
+    restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
+    verified: '2026-10-09',
+  },
+  {
     file: 'serial/AC-VWH-005-vendor-withholding.spec.ts',
     reason: 'Vendor withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',

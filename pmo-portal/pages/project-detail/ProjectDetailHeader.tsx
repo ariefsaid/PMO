@@ -23,9 +23,10 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
-import { useSalesInvoices } from '@/src/hooks/useRevenue';
+import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
 import {
   currencySymbol,
   formatCurrency,
@@ -118,10 +119,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // RPC demands the basis on every set for the same reason: restating the value restates the basis.
   const [taxTreatmentDraft, setTaxTreatmentDraft] = useState('');
   const [taxAmountDraft, setTaxAmountDraft] = useState('');
-  // OD-TAX-4: "Subject to VAT (PPN)", set with the value by Finance/Admin; locked server-side once the project has a sales invoice.
+  // VAT eligibility is advisory UX only; the setter and database trigger remain authoritative.
   const [vatDraft, setVatDraft] = useState(true);
-  const { data: projectInvoices } = useSalesInvoices(project.id);
-  const vatLocked = (projectInvoices?.length ?? 0) > 0;
+  const vatCheck = useProjectVatEditability(project.id);
+  const vatLocked = vatCheck.isPending || vatCheck.isFetching || vatCheck.isError || vatCheck.data?.eligible !== true;
   const taxFields = useStandaloneTaxFields(valueDraft, taxTreatmentDraft, taxAmountDraft, setTaxAmountDraft, project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate), `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
   // The audit-confirm holds the pending new value + its basis until the user confirms the SoD action.
   const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
@@ -231,6 +232,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
     setVatDraft(project.subject_to_vat ?? true);
+    void vatCheck.refetch();
     taxFields.setRateRaw(project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate));
     taxFields.setBaseRaw(`${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
     setValueEditing(true);
@@ -282,8 +284,18 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       setTaxAmountDraft('');
       setPendingValue(null);
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
+      const refusal = projectVatRefusal(err);
+      if (refusal === 'live-invoice' || refusal === 'command-pending' || refusal === 'context-changed') {
+        toast(
+          t('projectDetail.header.vatStaleSave', 'PPN was not changed. The project\'s invoice state changed; refresh and try again when all invoices are cancelled and commands have settled.'),
+          '',
+          'warning',
+        );
+        void vatCheck.refetch();
+      } else {
+        const { headline, detail } = classifyMutationError(err);
+        toast(headline, detail, 'warning');
+      }
       setPendingValue(null);
     }
   };
@@ -386,15 +398,30 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                   disabled={vatLocked}
                   label={t('projectDetail.header.subjectToVat', 'Subject to VAT (PPN)')}
                   labelledBy="contract-vat-flag-label"
+                  describedBy="contract-vat-flag-hint"
                 />
-                <span id="contract-vat-flag-label" className="text-[13px] text-foreground">
+                <span
+                  id="contract-vat-flag-label"
+                  className={`text-[13px] text-foreground ${vatLocked ? '' : 'cursor-pointer'}`}
+                  onClick={() => { if (!vatLocked) setVatDraft(!vatDraft); }}
+                >
                   {t('projectDetail.header.subjectToVat', 'Subject to VAT (PPN)')}
                 </span>
               </div>
               <p data-testid="contract-vat-flag-hint" className="text-[12px] text-muted-foreground">
-                {vatLocked
-                  ? t('projectDetail.header.subjectToVatLocked', 'Locked once the project has an invoice.')
-                  : t('projectDetail.header.subjectToVatHint', 'When on, this project\'s invoices carry the ERP sales tax. Locked once the project has an invoice.')}
+                {vatCheck.isPending || vatCheck.isFetching
+                  ? t('projectDetail.header.vatChecking', 'Checking whether PPN can be changed…')
+                  : vatCheck.isError
+                    ? t('projectDetail.header.vatUnavailable', 'PPN editability could not be checked. Retry the check.')
+                    : !canSetVat
+                      ? t('projectDetail.header.vatRoleReadOnly', 'Only Finance or Admin can change whether this project is subject to PPN.')
+                      : vatCheck.data?.reason === 'vat-live-invoice'
+                        ? t('projectDetail.header.vatLiveLocked', 'Locked while this project has an invoice that is not cancelled. Cancel every project invoice to change PPN.')
+                        : vatCheck.data?.reason === 'vat-command-pending'
+                          ? t('projectDetail.header.vatCommandLocked', 'Locked while an invoice command is in flight. Wait for it to settle; held commands need review.')
+                          : vatCheck.data?.hasInvoices
+                            ? t('projectDetail.header.vatCancelledHint', 'All project invoices are cancelled and no invoice command is in flight. You can change PPN for the next invoice; cancelled invoices keep their original tax.')
+                            : t('projectDetail.header.vatEmptyHint', 'Editable until an invoice is raised. New invoices follow this setting.')}
               </p>
             </div>
           )}

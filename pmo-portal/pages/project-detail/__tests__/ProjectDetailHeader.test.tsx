@@ -31,11 +31,9 @@ const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetBox,
 }));
-// OD-TAX-4: the header reads the project's invoices to know whether the VAT flag is locked.
-const { invoiceBox } = vi.hoisted(() => ({ invoiceBox: { data: [] as unknown[] } }));
-vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => invoiceBox,
-}));
+// VAT editability comes from the scoped server reader, never an invoice list in the UI.
+const { vatBox } = vi.hoisted(() => ({ vatBox: { data: { eligible: true, reason: null as string | null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() } }));
+vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => vatBox }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => projectMutations,
   useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),
@@ -90,8 +88,12 @@ const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHan
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
+  vatBox.data = { eligible: true, reason: null, hasInvoices: false };
+  vatBox.isPending = false;
+  vatBox.isFetching = false;
+  vatBox.isError = false;
+  vatBox.refetch.mockReset();
   desktopBox.value = true;
-  invoiceBox.data = [];
   Object.values(projectMutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -606,10 +608,34 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
     expect(screen.queryByRole('checkbox', { name: /Subject to VAT/i })).not.toBeInTheDocument();
   });
 
-  it('AC-856-8 once the project has a sales invoice the flag is shown disabled with the reason', async () => {
-    invoiceBox.data = [{ id: 'si-1' }];
+  it('AC-PPNC-013 a live invoice disables the VAT flag with a clear reason', async () => {
+    vatBox.data = { eligible: false, reason: 'vat-live-invoice', hasInvoices: true };
     await openEditor('Finance');
     expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/locked once the project has an invoice/i);
+    expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/invoice that is not cancelled/i);
+  });
+
+  it('AC-PPNC-014 stale-save refusal retains the selected flag, shows one stable remedy, refetches, and never succeeds', async () => {
+    projectMutations.setContractValue.mutateAsync.mockRejectedValueOnce(new AppError('diagnostic text', '42501', 'vat-live-invoice'));
+    await openEditor('Finance');
+    await userEvent.click(screen.getByRole('checkbox', { name: /Subject to VAT/i }));
+    await userEvent.clear(screen.getByRole('textbox', { name: /Contract value/i }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Contract value/i }), '100');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '0');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /record/i }));
+    const remedy = await findToastAnnouncement('alert', /PPN was not changed.*invoice state changed/i);
+    expect(remedy).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-checked', 'false');
+    expect(vatBox.refetch).toHaveBeenCalled();
+    expect(screen.queryByText(/Contract value updated/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-PPNC-013 loading and unavailable reader states fail closed while preserving the stored flag', async () => {
+    vatBox.isPending = true;
+    await openEditor('Finance');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/checking whether PPN can be changed/i);
   });
 });
