@@ -178,6 +178,30 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     }
   });
 
+  it('#953 shows a rejected Set value save in the modal without an unreachable warning toast', async () => {
+    listState.data = [row()];
+    mutations.setValue.mutateAsync.mockRejectedValueOnce(new Error('Could not save'));
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Set value' }));
+
+    const dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByTestId('wo-value-input'), '300000');
+    await user.selectOptions(within(dialog).getByTestId('wo-value-tax-treatment'), 'inclusive');
+    await user.type(within(dialog).getByTestId('wo-value-tax-amount'), '30000');
+    await user.click(within(dialog).getByRole('button', { name: 'Set value' }));
+
+    const saveError = await within(dialog).findByTestId('entity-modal-save-error');
+    await waitFor(() => expect(saveError).toHaveFocus());
+    // The locale-aware NumberField displays the entered digits with en-US grouping.
+    expect(within(dialog).getByTestId('wo-value-input')).toHaveValue('300,000');
+    expect(mutations.setValue.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      value: 300_000,
+      taxTreatment: 'inclusive',
+    }));
+    expect(document.querySelector('[data-toast="visible"]')).toBeNull();
+  });
+
   it('an Engineer may READ work orders but gets no write affordance anywhere', () => {
     listState.data = [row()];
     renderTab('Engineer');

@@ -601,7 +601,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           currencySymbolPrefix={prefix}
           onClose={() => setValueFor(null)}
           onSave={runSetValue}
-          onError={fail}
         />
       )}
 

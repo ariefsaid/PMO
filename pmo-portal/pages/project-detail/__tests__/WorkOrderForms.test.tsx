@@ -12,7 +12,7 @@
  *     resistance for the very decision the SoD is asking a second person to make.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
@@ -248,7 +248,6 @@ describe('WorkOrderValueModal', () => {
         currencySymbolPrefix="$"
         onClose={vi.fn()}
         onSave={onSave}
-        onError={vi.fn()}
       />,
     );
 
@@ -272,6 +271,43 @@ describe('WorkOrderValueModal', () => {
     await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '30000');
     await userEvent.click(screen.getByRole('button', { name: 'Set value' }));
 
+    expect(onSave).toHaveBeenCalledWith({
+      id: 'wo-1',
+      value: 300_000,
+      taxTreatment: 'inclusive',
+      taxAmount: 30_000,
+      taxRate: null,
+      taxBaseNumerator: 1,
+      taxBaseDenominator: 1,
+    });
+  });
+
+  it('#953 keeps a rejected Set value save keyboard-reachable in the modal while preserving entered values', async () => {
+    onSave.mockRejectedValueOnce(new Error('Could not save'));
+    render(
+      <WorkOrderValueModal
+        workOrder={draft()}
+        currentValueText="$250,000 excl. PPN"
+        currencySymbolPrefix="$"
+        onClose={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    await userEvent.type(screen.getByTestId('wo-value-input'), '300000');
+    await userEvent.selectOptions(screen.getByTestId('wo-value-tax-treatment'), 'inclusive');
+    await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '30000');
+    await userEvent.click(screen.getByRole('button', { name: 'Set value' }));
+
+    const dialog = screen.getByRole('dialog');
+    const saveError = await screen.findByTestId('entity-modal-save-error');
+    expect(dialog).toContainElement(saveError);
+    await waitFor(() => expect(saveError).toHaveFocus());
+    // NumberField applies the active en-US grouping mask; the typed digits remain
+    // intact semantically, while the controlled display is formatted for reading.
+    expect(screen.getByTestId('wo-value-input')).toHaveValue('300,000');
+    expect(screen.getByTestId('wo-value-tax-treatment')).toHaveValue('inclusive');
+    expect(screen.getByTestId('wo-value-tax-amount')).toHaveValue('30,000');
     expect(onSave).toHaveBeenCalledWith({
       id: 'wo-1',
       value: 300_000,

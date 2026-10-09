@@ -3,7 +3,7 @@ import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
+import { Tabs, tabId, tabPanelId, ListState, MobileActionBar, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
@@ -342,7 +342,7 @@ const ProjectDetail: React.FC = () => {
           </div>
 
           {!isDesktop && canTransitionProject && (
-            <div
+            <MobileActionBar
               data-testid="mobile-sticky-action"
               className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 pt-3 backdrop-blur-sm"
               style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
@@ -354,7 +354,7 @@ const ProjectDetail: React.FC = () => {
                   triggerSize="sm"
                 />
               </div>
-            </div>
+            </MobileActionBar>
           )}
         </>
       )}

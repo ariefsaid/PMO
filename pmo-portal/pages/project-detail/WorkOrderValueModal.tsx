@@ -85,7 +85,6 @@ export interface WorkOrderValueModalProps {
   currencySymbolPrefix: string;
   onClose: () => void;
   onSave: (input: SetWorkOrderValueInput) => Promise<void>;
-  onError: (err: unknown) => void;
 }
 
 const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
@@ -94,7 +93,6 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
   currencySymbolPrefix,
   onClose,
   onSave,
-  onError,
 }) => {
   const { t } = useTranslation();
   const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
@@ -142,11 +140,8 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
           taxRate: tax.taxRate, taxBaseNumerator: tax.taxBaseNumerator, taxBaseDenominator: tax.taxBaseDenominator,
         });
       } catch (err) {
-        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
-        // toast and owns the single `save_failed` event (ADR-0067).
-        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        const { headline, detail } = classifyMutationError(err);
         setSaveError({ headline, detail });
-        onError(err);
       }
     });
   };

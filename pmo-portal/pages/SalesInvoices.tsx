@@ -619,14 +619,9 @@ const SalesInvoices: React.FC = () => {
           loading={setReceivedDate.isPending}
           onClose={() => setReceiptTarget(null)}
           onSave={async (date) => {
-            try {
-              await setReceivedDate.mutateAsync({ siId: receiptTarget.id, receivedDate: date });
-              toast(t('financeCopy.receivedDateSaved', 'Received date saved'), invoiceNumber(receiptTarget) ?? receiptTarget.id, 'success');
-              setReceiptTarget(null);
-            } catch (err) {
-              const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t));
-              toast(headline, detail, 'warning');
-            }
+            await setReceivedDate.mutateAsync({ siId: receiptTarget.id, receivedDate: date });
+            toast(t('financeCopy.receivedDateSaved', 'Received date saved'), invoiceNumber(receiptTarget) ?? receiptTarget.id, 'success');
+            setReceiptTarget(null);
           }}
         />
       )}
@@ -693,6 +688,7 @@ const ReceivedDateModal: React.FC<{
 }> = ({ invoice, loading, onClose, onSave }) => {
   const { t } = useTranslation();
   const [value, setValue] = useState(invoice.received_date ?? '');
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const tooEarly = !!value && !!invoice.invoice_date && value < invoice.invoice_date;
   return (
     <EntityFormModal
@@ -702,12 +698,17 @@ const ReceivedDateModal: React.FC<{
       submitLabel={t('financeCopy.save', 'Save')}
       onSubmit={(e) => {
         e.preventDefault();
-        if (!tooEarly) void onSave(value || null);
+        if (tooEarly) return;
+        void onSave(value || null).catch((err: unknown) => {
+          const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t));
+          setSaveError({ headline, detail });
+        });
       }}
       onClose={onClose}
       loading={loading}
       dirty={value !== (invoice.received_date ?? '')}
       submitDisabled={tooEarly}
+      submitError={saveError}
     >
       <TextField
         label={t('financeCopy.receivedDate', 'Received')}
