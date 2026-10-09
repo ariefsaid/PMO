@@ -205,6 +205,24 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.getAllByText('Alice Manager').length).toBeGreaterThan(0);
   });
 
+  it('keeps contract basis concise while exposing the complete qualifier to assistive technology', () => {
+    const previous = projectsState.data;
+    projectsState.data = [{
+      ...seed[0], tax_treatment: 'exclusive', tax_rate: 11,
+      tax_base_numerator: 1, tax_base_denominator: 1,
+    }] as unknown as ProjectWithRefs[];
+    try {
+      renderPage();
+      expect(screen.getByText('excl. PPN')).toBeVisible();
+      const detail = screen.getByText('excl. PPN 11% · DPP 1/1');
+      expect(detail).toHaveAttribute('data-testid', 'contract-tax-label-p1');
+      expect(detail.parentElement).toHaveClass('sr-only');
+      expect(detail.parentElement?.parentElement).toHaveAttribute('aria-describedby', detail.parentElement?.id);
+    } finally {
+      projectsState.data = previous;
+    }
+  });
+
   it('defaults to the Table view and the toggle switches to Cards (AC-A)', async () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
@@ -333,13 +351,9 @@ describe('Projects table — compact layout (#1)', () => {
 
   it('#1: PM column avatar is 18px (compact) — not 22px — to fit at 1180px', () => {
     renderPage();
-    // Find the PM avatar in the table tbody (has single-letter initial, size-[18px])
-    const tableBody = document.querySelector('tbody');
-    const pmCells = tableBody?.querySelectorAll('td');
-    const pmAvatar = Array.from(pmCells ?? [])
-      .flatMap(td => Array.from(td.querySelectorAll('[aria-hidden="true"]')))
-      .find(el => el.className.includes('rounded-full') && el.className.includes('size-[18px]'));
-    expect(pmAvatar).toBeTruthy();
+    const tableBody = document.querySelector('tbody')!;
+    const pmAvatar = within(tableBody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0];
+    expect(pmAvatar).toHaveClass('rounded-full', 'size-[18px]');
   });
 
   it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {
@@ -359,18 +373,13 @@ describe('Projects table — compact layout (#1)', () => {
     expect(outerSpan).not.toBeNull();
   });
 
-  it('M-D: PM name renders in full and wraps — no tight max-w-[10ch] truncation', () => {
+  it('M-D: PM initials are visible while the full name remains accessible', () => {
     renderPage();
-    // Scope to the table body (the toolbar PM filter <select> also lists the name).
     const tbody = document.querySelector('tbody')!;
-    const pmName = within(tbody as HTMLElement)
-      .getAllByText('Alice Manager')
-      .find((el) => el.tagName === 'SPAN')!;
-    expect(pmName).toBeTruthy();
-    // The name span allows wrapping (whitespace-normal) rather than truncating.
-    expect(pmName.className).toContain('whitespace-normal');
-    expect(pmName.className).not.toContain('truncate');
-    expect(pmName.className).not.toContain('max-w-[10ch]');
+    const avatar = within(tbody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0];
+    expect(avatar).toHaveTextContent('AM');
+    expect(avatar).toHaveAttribute('title', 'Alice Manager');
+    expect(within(tbody as HTMLElement).queryByText('Alice Manager')).not.toBeInTheDocument();
   });
 });
 
@@ -690,6 +699,7 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
 it('AC-TAG-002 Projects intersects classification controls, preserves URL and clears the actual result', async () => {
   projectsState.data = seed.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) as unknown as ProjectWithRefs[];
   const user = userEvent.setup(); renderPage('Project Manager', '/projects?view=table');
+  await user.click(screen.getByRole('button', { name: /^Classification$/ }));
   await user.selectOptions(screen.getAllByLabelText('Filter by service line')[0], 'Engineering');
   expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
   expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
@@ -701,6 +711,7 @@ it('AC-TAG-002 Projects intersects classification controls, preserves URL and cl
 it('AC-TAG-002 Engineer classification filters remain available without manager-only customer controls', async () => {
   projectsState.data = seed.map((p) => ({ ...p, service_line: 'Engineering' })) as unknown as ProjectWithRefs[];
   renderPage('Engineer', '/projects?filter=All&view=table');
+  await userEvent.click(screen.getByRole('button', { name: /^Classification$/ }));
   expect(screen.getByLabelText('Filter by service line')).toBeInTheDocument();
   expect(screen.queryByLabelText('Filter by customer')).toBeNull();
 });

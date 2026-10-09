@@ -2790,7 +2790,8 @@
       "project": "Project",
       "status": "Status",
       "committed": "Committed",
-      "endCustomer": "End customer"
+      "endCustomer": "End customer",
+      "endCustomerShort": "End"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
@@ -3920,7 +3921,10 @@
     "filterSector": "Filter by sector",
     "filterAwardType": "Filter by award type",
     "filterBiddingEntity": "Filter by bidding entity",
-    "filterLocation": "Filter by location"
+    "filterLocation": "Filter by location",
+    "applied": "Applied classifications",
+    "remove": "Remove classification: {{selection}}",
+    "clear": "Clear classifications"
   },
   "managementPack": {
     "actions": "Actions",
