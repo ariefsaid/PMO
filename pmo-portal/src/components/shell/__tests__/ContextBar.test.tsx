@@ -84,9 +84,11 @@ describe('ContextBar', () => {
     expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
   });
 
-  it('the rail toggle (open navigation) is present', () => {
+  it('UIP-002: the navigation menu trigger uses the menu glyph and keeps its accessible name', () => {
     renderBar();
-    expect(screen.getByRole('button', { name: /open navigation/i })).toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: /open navigation/i });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger.querySelector('svg')).toHaveAttribute('data-icon', 'menu');
   });
 });
 

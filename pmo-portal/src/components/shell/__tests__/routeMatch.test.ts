@@ -15,6 +15,23 @@ import {
  */
 
 // C-MIN-4: unknown route breadcrumb must read "Not found", not "Dashboard".
+describe('UIP-001: navigation module icon semantics', () => {
+  it('keeps each module on its distinct entity metaphor', () => {
+    const icons = Object.fromEntries(MODULES.map(({ path, icon }) => [path, icon]));
+    expect(icons).toMatchObject({
+      '/': 'dashboard',
+      '/sales': 'pipeline',
+      '/procurement': 'procurement',
+      '/projects': 'projects',
+      '/timesheets': 'clock',
+      '/companies': 'companies',
+      '/contacts': 'contacts',
+      '/approvals': 'approvals',
+      '/my-tasks': 'tasks',
+    });
+  });
+});
+
 describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
   it('C-MIN-4: an unknown path resolves breadcrumb label to "Not found"', () => {
     const crumbs = breadcrumbForPath('/no-such-route');
