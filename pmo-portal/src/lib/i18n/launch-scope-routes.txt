@@ -89,7 +89,7 @@
 # ── Delivery spend register, worked daily by PM/procurement alongside the project. The record
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would
 #    leave a tab of English inside an otherwise gated screen.
-/procurement                   pages/Procurement.tsx
+/procurement                   pages/Procurement.tsx pages/procurement/ProcurementListRow.tsx
 /procurement/:procurementId    pages/ProcurementDetails.tsx
 /procurement/:procurementId/:tab  pages/ProcurementDetails.tsx
 

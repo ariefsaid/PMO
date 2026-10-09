@@ -74,7 +74,7 @@ vi.mock('react-router', async (importOriginal) => {
   return { ...actual, useNavigate: () => navigateMock };
 });
 
-import { ProcurementApprovalRow } from '../ProcurementApprovalRow';
+import { ProcurementApprovalPreview, ProcurementApprovalRow } from '../ProcurementApprovalRow';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -120,6 +120,19 @@ beforeEach(() => {
 // ── AC-IFW-PROC-01: Inline preview — collapsed state ─────────────────────────
 
 describe('AC-IFW-PROC-01: collapsed state', () => {
+  it('UIP-008: request identity wraps before status, with project/ref on a separate metadata row', () => {
+    renderAs();
+    const name = screen.getByText(ROW.title);
+    expect(name.className).toContain('line-clamp-2');
+    expect(name.className).not.toContain('truncate');
+    expect(name.parentElement).toContainElement(screen.getByText('Requested'));
+    const project = screen.getByRole('link', { name: /Solar Alpha/ });
+    expect(project.parentElement).toContainElement(screen.getByText(ROW.code));
+    expect(project.parentElement?.className).toContain('block');
+    expect(project.className).toContain('whitespace-normal');
+    expect(screen.getByText(ROW.code).className).toContain('whitespace-nowrap');
+    expect(screen.getByRole('button', { name: `Show budget impact for ${ROW.title}` })).toHaveAccessibleName(`Show budget impact for ${ROW.title}`);
+  });
   it('renders a disclosure button with aria-expanded=false by default', () => {
     renderAs();
     const btn = screen.getByRole('button', { name: /show budget impact/i });
@@ -152,6 +165,19 @@ describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjace
     await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     // Our mocked DecisionSupportPanel renders "Budget impact · Solar Alpha"
     expect(screen.getByTestId('decision-support')).toBeInTheDocument();
+  });
+
+  it('approval preview contains no developer-facing enforcement copy', () => {
+    render(
+      <MemoryRouter>
+        <ImpersonationProvider realRole="Project Manager">
+          <ToastProvider>
+            <ProcurementApprovalPreview row={ROW as never} />
+          </ToastProvider>
+        </ImpersonationProvider>
+      </MemoryRouter>,
+    );
+    expect(document.body).not.toHaveTextContent(/RPC|server-enforced|permission-gated/i);
   });
 
   it('line item name renders in expanded panel', async () => {

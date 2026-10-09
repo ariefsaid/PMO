@@ -1556,6 +1556,19 @@
     "title": "My Tasks"
   },
   "procurement": {
+    "columns": {
+      "request": "Request",
+      "project": "Project",
+      "requester": "Requester",
+      "value": "Value",
+      "age": "Age",
+      "status": "Status"
+    },
+    "preview": {
+      "loadErrorSub": "Something went wrong fetching the preview.",
+      "lineItems": "Line items",
+      "viewFullRequest": "View full request"
+    },
     "column": {
       "lifecycle": "Lifecycle",
       "project": "Project",

@@ -1556,6 +1556,19 @@
     "title": "Tugas Saya"
   },
   "procurement": {
+    "columns": {
+      "request": "Permintaan",
+      "project": "Proyek",
+      "requester": "Pemohon",
+      "value": "Nilai",
+      "age": "Umur",
+      "status": "Status"
+    },
+    "preview": {
+      "loadErrorSub": "Terjadi kesalahan saat mengambil pratinjau.",
+      "lineItems": "Rincian barang",
+      "viewFullRequest": "Lihat permintaan lengkap"
+    },
     "column": {
       "lifecycle": "Siklus",
       "project": "Proyek",
