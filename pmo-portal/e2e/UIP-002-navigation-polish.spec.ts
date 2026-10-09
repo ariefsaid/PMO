@@ -1,12 +1,13 @@
 // @e2e-isolation: read-only — only opens/closes navigation and follows an existing route.
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 test('UIP-002: dashboard has no horizontal page overflow at 1440×900', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 'exec@acme.test');
 
   await expect(page.getByRole('main')).toBeVisible();
+  await waitForFonts(page);
   const widths = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
@@ -35,5 +36,6 @@ test('UIP-002: phone navigation uses the menu glyph, opens routes, and returns k
   await expect(drawer).toHaveCount(0);
   await expect(trigger).toBeFocused();
 
+  await waitForFonts(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
