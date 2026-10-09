@@ -242,6 +242,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/p1');
 
     const sticky = screen.getByTestId('mobile-sticky-action');
+    expect(sticky).toHaveAttribute('data-mobile-action-bar');
     expect(sticky.className).toMatch(/fixed|sticky/);
     expect(sticky.className).toContain('bottom-0');
     expect(sticky.textContent).toMatch(/change status/i);

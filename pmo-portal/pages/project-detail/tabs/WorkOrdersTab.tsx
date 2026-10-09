@@ -590,7 +590,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           onClose={() => setFormFor(undefined)}
           onCreate={runCreate}
           onUpdate={runUpdate}
-          onError={fail}
         />
       )}
 

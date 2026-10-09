@@ -18,6 +18,7 @@ import React from 'react';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
+import { ToastProvider } from '@/src/components/ui/Toast';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
@@ -74,11 +75,64 @@ const renderCreate = () =>
       onClose={vi.fn()}
       onCreate={onCreate}
       onUpdate={onUpdate}
-      onError={vi.fn()}
     />,
   );
 
 describe('WorkOrderFormModal — create', () => {
+  it('#953 keeps a failed create inline, focused, and editable without calling the toast handler', async () => {
+    onCreate.mockRejectedValueOnce(new Error('write rejected'));
+    render(
+      <ToastProvider>
+        <WorkOrderFormModal
+          workOrder={null}
+          currencySymbolPrefix="$"
+          onClose={vi.fn()}
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+        />
+      </ToastProvider>,
+    );
+    const title = screen.getByLabelText(/Title/);
+    await userEvent.type(title, 'Phase 2');
+    await userEvent.type(screen.getByTestId('wo-order-value'), '500000');
+    await userEvent.selectOptions(screen.getByTestId('wo-tax-treatment'), 'exclusive');
+    await userEvent.type(screen.getByTestId('wo-tax-amount'), '0');
+    await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
+
+    const error = await screen.findByLabelText('Save failed');
+    await waitFor(() => expect(error).toHaveFocus());
+    expect(error).toHaveTextContent(/nothing was saved/i);
+    expect(document.querySelector('[data-toast="visible"]')).toBeNull();
+    expect(title).toHaveValue('Phase 2');
+    expect(screen.getByTestId('wo-order-value')).toHaveValue('500,000');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('#953 keeps a failed edit inline and retains the revised title without a toast', async () => {
+    onUpdate.mockRejectedValueOnce(new Error('write rejected'));
+    render(
+      <ToastProvider>
+        <WorkOrderFormModal
+          workOrder={draft()}
+          currencySymbolPrefix="$"
+          onClose={vi.fn()}
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+        />
+      </ToastProvider>,
+    );
+    const title = screen.getByLabelText(/Title/);
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Revised draft');
+    await userEvent.click(screen.getByRole('button', { name: 'Save work order' }));
+
+    const error = await screen.findByLabelText('Save failed');
+    await waitFor(() => expect(error).toHaveFocus());
+    expect(document.querySelector('[data-toast="visible"]')).toBeNull();
+    expect(title).toHaveValue('Revised draft');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('OD-TAX-1: the tax treatment starts UNCHOSEN — nothing is pre-selected', () => {
     renderCreate();
     expect(screen.getByTestId('wo-tax-treatment')).toHaveValue('');
@@ -206,7 +260,6 @@ describe('WorkOrderFormModal — edit', () => {
         onClose={vi.fn()}
         onCreate={onCreate}
         onUpdate={onUpdate}
-        onError={vi.fn()}
       />,
     );
 

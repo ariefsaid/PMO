@@ -45,6 +45,7 @@ export const MobileActionBar: React.FC<React.HTMLAttributes<HTMLDivElement>> = (
       };
     }
 
+    // Without ResizeObserver, window resize is a best-effort approximation of element resizing.
     window.addEventListener('resize', update);
     return () => {
       window.removeEventListener('resize', update);
