@@ -38,7 +38,7 @@ async function openDocuments(page: import('@playwright/test').Page, width: numbe
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }
 
-test('#961 F18 keeps reconciliation visible above the modal footer on a long candidate list (AC-BUPOT-021 visual states)', async ({ page }) => {
+test('AC-BUPOT-021 #961 F18 keeps reconciliation visible above the modal footer on a long candidate list (visual states)', async ({ page }) => {
   const admin = createClient(SUPABASE_URL, serviceKey!);
   const { error: vendorError } = await admin.from('companies').insert({ id: id.vendor, org_id: ORG_ID, name: `BUPOT visual vendor ${suffix}`, type: 'Vendor' });
   if (vendorError) throw new Error(`vendor fixture failed: ${vendorError.message}`);
@@ -88,7 +88,12 @@ test('#961 F18 keeps reconciliation visible above the modal footer on a long can
           await expect(body).toBeVisible();
           await expect(reconciliation).toBeVisible();
           expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-          await body.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+          await body.evaluate((element) => {
+            element.scrollTop = Math.floor((element.scrollHeight - element.clientHeight) / 2);
+          });
+          const scrollPosition = await body.evaluate((element) => element.scrollTop);
+          expect(scrollPosition).toBeGreaterThan(0);
+          expect(scrollPosition).toBeLessThan(await body.evaluate((element) => element.scrollHeight - element.clientHeight));
           await expect(reconciliation).toBeInViewport();
           const summaryBox = await reconciliation.boundingBox();
           const footerBox = await modal.locator('form > div.border-t').boundingBox();

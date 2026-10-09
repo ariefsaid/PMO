@@ -44,7 +44,7 @@ async function openDocuments(page: import('@playwright/test').Page, caseId: stri
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }
 
-test('#961 open-case-scroll opens, scrolls, and focuses the linked bill in its destination case (AC-BUPOT-020 record/correct/void journey)', async ({ page }) => {
+test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked bill in its destination case (record/correct/void journey)', async ({ page }) => {
   const admin = createClient<Database>(SUPABASE_URL, serviceKey!);
   const { count: outboxBefore, error: outboxBeforeError } = await admin.from('external_command_outbox').select('id', { count: 'exact', head: true }).eq('org_id', ORG_ID);
   if (outboxBeforeError) throw new Error(`outbox baseline read failed: ${outboxBeforeError.message}`);
