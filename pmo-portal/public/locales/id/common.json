@@ -3190,6 +3190,8 @@
     }
   },
   "table": {
+    "actions": "Tindakan",
+    "openRow": "Buka {{name}}",
     "rowActions": "Tindakan baris"
   },
   "task": {

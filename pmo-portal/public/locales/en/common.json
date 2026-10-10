@@ -3190,6 +3190,8 @@
     }
   },
   "table": {
+    "actions": "Actions",
+    "openRow": "Open {{name}}",
     "rowActions": "Row actions"
   },
   "task": {
