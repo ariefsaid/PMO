@@ -53,7 +53,7 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
     expect(modules.find((m) => m.module === 'my-tasks')?.roles).toContain(UserRole.ProjectManager);
     expect(modulesForRole(UserRole.Executive).map((m) => m.module)).not.toContain('my-tasks');
     const vendors = modules.find((m) => m.module === 'vendors');
-    expect(vendors).toMatchObject({ path: '/companies', search: '?type=Vendor', labelKey: 'shell.nav.vendors' });
+    expect(vendors).toMatchObject({ path: '/companies?type=Vendor', labelKey: 'shell.nav.vendors' });
   });
 
   it('AC-W3-N3: Finance sees Sales, Procurement, Companies but NOT My Tasks', () => {

@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
+import { MODULES } from './routeMatch';
 
 export interface BreadcrumbPart {
   label: string;
@@ -44,12 +45,20 @@ export interface BreadcrumbProps {
  */
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   const { t } = useTranslation();
+  const filteredModule = typeof window === 'undefined'
+    ? undefined
+    : MODULES.find((module) => module.path.includes('?') && module.path === `${window.location.pathname}${window.location.search}`);
+  const visibleParts = filteredModule && parts.length > 0
+    ? parts.map((part, index) => index === parts.length - 1
+      ? { ...part, label: filteredModule.label, i18nKey: filteredModule.labelKey }
+      : part)
+    : parts;
   return (
     <nav
       aria-label={t('shell.breadcrumb.label', 'Breadcrumb')}
       className={cn('flex min-w-0 items-center gap-[7px] text-[13.5px]', className)}
     >
-      {parts.map((part, i) => {
+      {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
         const label = part.i18nKey ? t(part.i18nKey, part.label) : part.label;
         return (

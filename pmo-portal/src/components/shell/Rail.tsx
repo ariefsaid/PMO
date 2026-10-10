@@ -202,7 +202,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   };
   const navLabels: Record<string, string> = Object.fromEntries(
     items.map((item) => {
-      const route = MODULES.find((module) => `${module.path}${module.search ?? ''}` === item.to);
+      const route = MODULES.find((module) => module.path === item.to);
       return [
         item.to,
         route?.labelKey

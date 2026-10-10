@@ -53,8 +53,7 @@ describe('UXS-006 shared route vocabulary', () => {
   it('every navigable module owns the translation key used across shell surfaces', () => {
     expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
     expect(MODULES.find((module) => module.module === 'vendors')).toMatchObject({
-      path: '/companies',
-      search: '?type=Vendor',
+      path: '/companies?type=Vendor',
       label: 'Vendors',
       labelKey: 'shell.nav.vendors',
     });

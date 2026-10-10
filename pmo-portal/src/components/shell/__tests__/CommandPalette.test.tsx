@@ -26,7 +26,7 @@ describe('CommandPalette', () => {
         open
         items={[{
           id: 'nav-companies', group: 'Navigate', title: 'Perusahaan',
-          searchCodes: ['Companies'], icon: 'companies', run,
+          icon: 'companies', run,
         }]}
         onClose={vi.fn()}
       />,
