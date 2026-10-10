@@ -265,6 +265,13 @@ const SalesInvoices: React.FC = () => {
         </Button>
         {isPending || mode === undefined ? (
           <ListState variant="loading" rows={3} />
+        ) : isError || !data ? (
+          <ListState
+            variant="error"
+            title={t('financeCopy.salesInvoicesLoadFailed', "Couldn't load sales invoices")}
+            sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
+            onRetry={() => refetch()}
+          />
         ) : viewTarget ? (
           <>
             <header className="mb-5 border-b border-border pb-4">
@@ -703,7 +710,6 @@ const SalesInvoices: React.FC = () => {
           }}
         />
       )}
-
 
 
       {/* Cancel confirm (destructive tone) */}

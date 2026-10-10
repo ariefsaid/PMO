@@ -171,4 +171,23 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=ACC-SINV-2026-00002');
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
   });
+
+  it('UXS-014 an unknown invoice id reads as not found', () => {
+    renderAt('/sales-invoices/inv-missing');
+    expect(screen.getByText('Invoice not found')).toBeInTheDocument();
+  });
+
+  it('UXS-014 a failed load on a record link is an error with retry, never "not found"', async () => {
+    const prev = { isError: salesInvoicesState.isError, data: salesInvoicesState.data };
+    Object.assign(salesInvoicesState, { isError: true, data: undefined });
+    try {
+      renderAt('/sales-invoices/inv-1');
+      expect(screen.queryByText('Invoice not found')).not.toBeInTheDocument();
+      expect(screen.getByText("Couldn't load sales invoices")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+      expect(salesInvoicesState.refetch).toHaveBeenCalled();
+    } finally {
+      Object.assign(salesInvoicesState, prev);
+    }
+  });
 });
