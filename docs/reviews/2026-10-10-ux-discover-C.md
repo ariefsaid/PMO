@@ -268,13 +268,3 @@ High = important task-trust/completion issue, fix before accepting this money wo
 - Only this review document was authored by Area C. Other concurrently appearing Area A/B/D documents were not changed. No commit or push. Session **disc-C** was closed; no other browser session or application server was closed.
 
 DISCOVER-C-DONE
-
-## Director verification (2026-10-10)
-
-The three money-path suspects were checked against the database functions at head; all three are real.
-
-- **UXD-C-001 — confirmed.** Approval routing uses `procurement_request_amount()` = greatest(`total_value`, Σ line amounts). Nothing rolls line amounts into `procurements.total_value`, and the screens (approval queue, detail tiles, confirm dialogs, reserved/committed spend) read the raw `total_value`. A request priced only through its lines is routed on its real amount but shown, and counted in budget spend, as 0.
-- **UXD-C-004 — confirmed.** `transition_procurement` → Paid inserts a Paid payment of `total_value` only when no payment exists. If Finance already captured a Scheduled payment, it stays Scheduled while the case reads Paid; if the request was line-priced, the inserted payment is 0. The "releases payment" confirm copy is also wrong for PMO-owned payments (nothing is transferred).
-- **UXD-C-005 — confirmed.** `transition_procurement` allows Vendor Quoted → Quote Selected with no quote selected; only `select_procurement_quote` records a bid. The status button bypasses it.
-
-These are money-path fixes (Director-dispatched), ranked ahead of every visual slice.
