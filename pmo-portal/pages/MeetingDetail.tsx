@@ -37,6 +37,7 @@ import {
   useMeetingMutations,
 } from '@/src/hooks/useMeetings';
 import { useProjects } from '@/src/hooks/useProjects';
+import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
 import {
@@ -227,13 +228,15 @@ const MeetingDetail: React.FC = () => {
    * the attendance-keyed read model the moment it is created; the modal is what makes that an
    * informed act. FR-MTG-017's placeholder remains the empty-name fallback.
    */
-  const onCreateActionItem = async (name: string) => {
+  const onCreateActionItem = async (input: { name: string; assigneeId: string; endDate: string }) => {
     const finalName =
-      name.trim() || t('meetingDetail.action.placeholderName', 'Untitled action');
+      input.name.trim() || t('meetingDetail.action.placeholderName', 'Untitled action');
     const created = await createActionItem.mutateAsync({
       meetingId: meeting.id,
       projectId: meeting.project_id,
       name: finalName,
+      assigneeId: input.assigneeId || null,
+      endDate: input.endDate || null,
     });
     // DD-MTG-2: the block stores only the new task's id — the row stays the source of truth.
     editorRef.current?.insertActionItem(created.id);
@@ -438,14 +441,27 @@ const MeetingDetail: React.FC = () => {
           ) : (
             <ul className="flex flex-col gap-2" data-testid="action-items-list">
               {actionItems.map((task) => (
-                <li key={task.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <span className="font-medium">{task.name}</span>
-                  <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
-                  {task.assignee && (
-                    <span className="text-muted-foreground">{task.assignee.full_name}</span>
+                <li id={`task-${task.id}`} key={task.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  {task.project_id || (task.meeting_id && task.meeting_id !== meeting.id) ? (
+                    <Link
+                      to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
+                      className="rounded font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {task.name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{task.name}</span>
                   )}
+                  <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+                  <span className="text-muted-foreground">
+                    {task.assignee
+                      ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
+                      : t('meetingDetail.minutes.unassigned', 'Unassigned — assign an owner')}
+                  </span>
                   {task.end_date && (
-                    <span className="text-muted-foreground">{formatDateOnly(task.end_date)}</span>
+                    <span className="text-muted-foreground">
+                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDateOnly(task.end_date)}
+                    </span>
                   )}
                 </li>
               ))}
@@ -686,7 +702,7 @@ interface ActionItemModalProps {
   /** The meeting's project name, or null — the task's project is FIXED to it, shown not chosen. */
   projectName: string | null;
   onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (input: { name: string; assigneeId: string; endDate: string }) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -705,20 +721,29 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
   onError,
 }) => {
   const { t } = useTranslation();
-  const form = useEntityForm<{ name: string }>({
-    initialValues: { name: initialName },
+  const { data: profiles, isPending: profilesPending, isError: profilesError } = useAssignableProfiles();
+  const form = useEntityForm<{ name: string; assigneeId: string; endDate: string }>({
+    initialValues: { name: initialName, assigneeId: '', endDate: '' },
     validate: () => ({}), // an empty name is legal — FR-MTG-017's placeholder covers it on save
     idPrefix: 'meeting-action-form',
     module: 'meetings',
   });
   const nameField = form.fieldProps('name');
+  const assigneeField = form.fieldProps('assigneeId');
+  const endDateField = form.fieldProps('endDate');
+  const assigneeOptions: ComboboxOption[] = (profiles ?? []).map((profile) => ({
+    value: profile.id,
+    label: profile.full_name,
+    sub: profile.role,
+  }));
+  const selectedAssignee = assigneeOptions.find((option) => option.value === assigneeField.value) ?? null;
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
       try {
-        await onCreate(values.name);
+        await onCreate(values);
       } catch (err) {
         // #526 security review: the 0206 trigger blocks linking a task to a meeting the caller
         // can't read. This should never fire here — the modal only opens from a meeting already
@@ -760,7 +785,7 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
       dirty={form.isDirty}
       submitError={saveError}
     >
-      <FormSection legend={t('meetingDetail.action.modalSection', 'Task')}>
+      <FormSection legend={t('meetingDetail.action.modalSection', 'Follow-up task')}>
         <FormGrid>
           <TextField
             id={nameField.id}
@@ -774,6 +799,36 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
               'Prefilled from the minute line. Left empty, the task is created with the placeholder name.',
             )}
             fullWidth
+          />
+          {profilesError && (
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              {t(
+                'projectDetail.tasks.form.peopleLoadFailed',
+                'People could not be loaded; you can still save and assign later.',
+              )}
+            </p>
+          )}
+          <Combobox
+            label={t('meetingDetail.minutes.ownerLabel', 'Owner')}
+            value={assigneeField.value || null}
+            selectedOption={selectedAssignee}
+            loadOptions={async () => assigneeOptions}
+            onChange={(value) => assigneeField.onChange(value)}
+            placeholder={
+              profilesPending
+                ? t('projectDetail.tasks.form.loadingPeople', 'Loading people…')
+                : t('projectDetail.tasks.unassigned', 'Unassigned')
+            }
+            searchPlaceholder={t('projectDetail.tasks.form.searchPeople', 'Search people…')}
+            noun={t('meetingDetail.action.personNoun', 'person')}
+          />
+          <TextField
+            id={endDateField.id}
+            label={t('meetingDetail.minutes.dueLabel', 'Due date')}
+            type="date"
+            value={endDateField.value}
+            onChange={endDateField.onChange}
+            onBlur={endDateField.onBlur}
           />
           <div className="text-sm">
             <div className="mb-1 font-medium text-muted-foreground">

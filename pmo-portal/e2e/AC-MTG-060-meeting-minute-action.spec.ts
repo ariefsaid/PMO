@@ -37,6 +37,7 @@ import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 
 const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 test.setTimeout(120_000);
 
@@ -125,6 +126,23 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     const nameBox = actionModal.getByRole('textbox', { name: 'Task name' });
     await expect(nameBox).toHaveValue(actionLine); // prefilled from the minute line
     await nameBox.fill(taskName); // …and consciously edited before publishing
+    const currentUserName = await page
+      .getByRole('button', { name: 'Account menu' })
+      .locator('span.block.max-w-full')
+      .innerText();
+    const ownerPicker = actionModal.getByRole('combobox', { name: /^Owner$/ });
+    await ownerPicker.click();
+    await expect(page.getByTestId('combo-loading')).toHaveCount(0, { timeout: 30_000 });
+    // The BlockNote slash menu also has a listbox in the DOM after the modal opens; scope to
+    // the task-owner picker so selecting a person cannot accidentally target the editor menu.
+    const ownerOptions = page.getByRole('listbox', { name: 'persons' });
+    const ownerOption = ownerOptions.getByRole('option', {
+      name: new RegExp(`^${escapeRegExp(currentUserName)}(?:\\s|$)`),
+    });
+    await expect(ownerOption).toBeVisible({ timeout: 30_000 });
+    await ownerOption.click();
+    await expect(ownerPicker).toContainText(currentUserName);
+    await actionModal.getByLabel('Due date').fill('2099-12-31');
     await actionModal.getByRole('button', { name: 'Create task' }).click();
 
     // ── 5. GOAL: the task exists in the meeting's Action items list. This list renders only
@@ -132,6 +150,8 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       linkage oracle, not a DOM detail. It carries the EDITED name, never the raw line.
     const actionItems = page.getByTestId('action-items-list');
     await expect(actionItems.getByText(taskName)).toBeVisible({ timeout: 15_000 });
+    await expect(actionItems).toContainText(currentUserName);
+    await expect(actionItems).toContainText('Due date');
     //       …and the minutes carry an actionItem block that renders the LIVE task (id-only, DD-MTG-2).
     await expect(page.getByTestId('minutes-blocknote').getByTestId('action-item').getByText(taskName)).toBeVisible();
     //       The block REPLACED the line — the same words are not shown twice (the other minute stays).
@@ -150,8 +170,15 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     await expect(page.getByTestId('action-items-list').getByText(taskName)).toBeVisible({
       timeout: 15_000,
     });
+    await expect(page.getByTestId('action-items-list')).toContainText(currentUserName);
 
-    // ── 7. The DD-MTG-5 find story (I5): back on the list, search a term that lives ONLY in
+    // ── 7. The same persisted task appears in the assignee's focused personal queue.
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'My Tasks', exact: true }).click();
+    await page.waitForURL('**/my-tasks');
+    await page.getByRole('searchbox', { name: 'Search your tasks' }).fill(taskName);
+    await expect(page.getByRole('link', { name: taskName })).toBeVisible({ timeout: 15_000 });
+
+    // ── 8. The DD-MTG-5 find story (I5): back on the list, search a term that lives ONLY in
     //       the minute's NOTES ("flange" — the title never contains it), so the hit can only
     //       come from the DB-side notes_search projection. ─────────────────────────────────
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Meetings', exact: true }).click();
