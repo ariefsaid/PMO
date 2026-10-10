@@ -505,7 +505,7 @@
       "errorGeneric": "Could not re-open",
       "errorOutcomeUnknown": "This week’s ERP result is unknown — an administrator must confirm what ERPNext holds before it can be re-opened.",
       "errorPushInFlight": "A push is in flight for this week — try again shortly.",
-      "heading": "Approved — re-open for correction",
+      "heading": "Approved history and corrections",
       "outcomeUnknown": "ERP result unknown — an administrator must confirm what ERPNext holds",
       "pushInProgress": "Push in progress",
       "sectionLabel": "Approved timesheets from the last {{days}} days that can be re-opened for correction",
@@ -513,9 +513,14 @@
       "window": "last {{days}} days"
     },
     "scope": {
-      "all": "All",
-      "procurement": "Procurement",
-      "timesheets": "Timesheets"
+      "all": "All pending",
+      "procurement": "Purchase requests",
+      "timesheets": "Timesheets",
+      "expense": "Expense claims",
+      "invoice": "Customer invoices"
+    },
+    "timesheets": {
+      "policyHelp": "Policy: a different person approves each timesheet."
     },
     "scopeToggleLabel": "Approvals scope",
     "subtitle": "Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.",
@@ -1180,7 +1185,11 @@
       "errorSub": "Purchase requests and timesheets below are unaffected.",
       "errorTitle": "Couldn't load expense claims awaiting you",
       "heading": "Expense claims awaiting you ({{count}})",
-      "label": "Expense claims awaiting you"
+      "label": "Expense claims awaiting you",
+      "noReceipts": "No receipts attached.",
+      "previewEvidence": "Preview claim evidence",
+      "receiptsError": "Couldn't load receipts.",
+      "receiptsLoading": "Loading receipts…"
     },
     "columns": {
       "amount": "Amount",

@@ -505,7 +505,7 @@
       "errorGeneric": "Gagal membuka kembali",
       "errorOutcomeUnknown": "Hasil ERP minggu ini tidak diketahui — administrator harus mengonfirmasi apa yang tercatat di ERPNext sebelum minggu ini dapat dibuka kembali.",
       "errorPushInFlight": "Pengiriman untuk minggu ini sedang berlangsung — coba lagi sebentar lagi.",
-      "heading": "Disetujui — buka kembali untuk koreksi",
+      "heading": "Riwayat persetujuan dan koreksi",
       "outcomeUnknown": "Hasil ERP tidak diketahui — administrator harus mengonfirmasi apa yang tercatat di ERPNext",
       "pushInProgress": "Pengiriman sedang berlangsung",
       "sectionLabel": "Timesheet yang disetujui dalam {{days}} hari terakhir yang dapat dibuka kembali untuk koreksi",
@@ -513,9 +513,14 @@
       "window": "{{days}} hari terakhir"
     },
     "scope": {
-      "all": "Semua",
-      "procurement": "Pengadaan",
-      "timesheets": "Timesheet"
+      "all": "Semua yang menunggu",
+      "procurement": "Permintaan pembelian",
+      "timesheets": "Timesheet",
+      "expense": "Klaim biaya",
+      "invoice": "Faktur pelanggan"
+    },
+    "timesheets": {
+      "policyHelp": "Aturan: timesheet disetujui oleh orang yang berbeda."
     },
     "scopeToggleLabel": "Cakupan persetujuan",
     "subtitle": "Perlu persetujuan saya — semua yang menunggu keputusan Anda: permintaan pembelian, timesheet, klaim biaya, dan faktur pelanggan.",
@@ -1180,7 +1185,11 @@
       "errorSub": "Permintaan pembelian dan timesheet di bawah tidak terpengaruh.",
       "errorTitle": "Gagal memuat klaim biaya yang menunggu Anda",
       "heading": "Klaim biaya menunggu Anda ({{count}})",
-      "label": "Klaim biaya menunggu Anda"
+      "label": "Klaim biaya menunggu Anda",
+      "noReceipts": "Tidak ada bukti terlampir.",
+      "previewEvidence": "Pratinjau bukti klaim",
+      "receiptsError": "Gagal memuat bukti.",
+      "receiptsLoading": "Memuat bukti…"
     },
     "columns": {
       "amount": "Jumlah",

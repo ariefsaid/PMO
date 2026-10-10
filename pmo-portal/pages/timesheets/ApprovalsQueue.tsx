@@ -6,7 +6,6 @@ import {
   Card,
   Checkbox,
   ConfirmDialog,
-  GateNotice,
   Icon,
   ListState,
   StatusPill,
@@ -96,6 +95,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   surface = 'panel',
   showSodNotice = surface === 'panel',
 }) => {
+  const { t } = useTranslation();
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
   const may = usePermission();
@@ -173,10 +173,9 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
             {actionCluster}
           </div>
           {!isInline && showSodNotice && (
-            <GateNotice variant="blocked" className="mt-3">
-              <b>Separation of duties.</b> You cannot approve your own timesheet — only a line
-              manager can approve, and never their own week.
-            </GateNotice>
+            <p className="mt-3 text-[12px] text-muted-foreground">
+              {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
+            </p>
           )}
         </div>
 
@@ -322,10 +321,9 @@ export const ApprovalsQueue: React.FC = () => {
         <TimesheetBulkControls controller={bulk} sheets={sheets} />
       </div>
 
-      <GateNotice variant="blocked" className="mb-3">
-        <b>Separation of duties.</b> You cannot approve your own timesheet — only a line manager can
-        approve, and never their own week.
-      </GateNotice>
+      <p className="mb-3 text-[12px] text-muted-foreground">
+        {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
+      </p>
 
 
 

@@ -11,6 +11,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 const h = vi.hoisted(() => ({
   data: [] as unknown[],
   isError: false,
+  isPending: false,
   enabled: [] as boolean[],
   refetch: vi.fn(),
   submit: vi.fn(async (_args: unknown): Promise<void> => undefined),
@@ -21,7 +22,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useRevenue', () => ({
   useNativeDraftInvoices: (enabled: boolean) => {
     h.enabled.push(enabled);
-    return { data: h.isError ? undefined : h.data, isPending: false, isError: h.isError, refetch: h.refetch };
+    return { data: h.isError ? undefined : h.data, isPending: h.isPending, isError: h.isError, refetch: h.refetch };
   },
   useRevenueMutations: () => ({ submitInvoice: { mutateAsync: h.submit, isPending: false } }),
 }));
@@ -78,6 +79,7 @@ const renderSection = (role: Role = 'Finance') => render(
 beforeEach(() => {
   h.data = [draft()];
   h.isError = false;
+  h.isPending = false;
   h.enabled = [];
   h.refetch.mockClear();
   h.submit.mockReset();
@@ -93,6 +95,12 @@ async function expand(user: ReturnType<typeof userEvent.setup>, customer = 'Acme
 }
 
 describe('SalesInvoiceApprovalSection (#784)', () => {
+  it('shows loading instead of hiding the section while invoices are pending', () => {
+    h.isPending = true;
+    renderSection();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+
   it('AC-NAR-002 lists a PMO draft the viewer did not raise, and approving it calls the approve path', async () => {
     const user = userEvent.setup();
     renderSection();
