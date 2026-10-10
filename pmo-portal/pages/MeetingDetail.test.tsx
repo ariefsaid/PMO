@@ -8,7 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { Breadcrumb } from '@/src/components/shell/Breadcrumb';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
-const { meetingState, attendeesState, grantsState, actionItemsState, mutations, routeTaskWriteMock } =
+const { meetingState, attendeesState, grantsState, actionItemsState, profilesState, mutations, routeTaskWriteMock } =
   vi.hoisted(() => ({
     meetingState: {
       data: null as unknown,
@@ -19,6 +19,14 @@ const { meetingState, attendeesState, grantsState, actionItemsState, mutations, 
     attendeesState: { data: [] as unknown[], isPending: false, isError: false },
     grantsState: { data: [] as unknown[], isPending: false, isError: false },
     actionItemsState: { data: [] as unknown[], isPending: false, isError: false },
+    profilesState: {
+      data: [
+        { id: 'author-1', full_name: 'Ari Author', role: 'Engineer' },
+        { id: 'peer-1', full_name: 'Putri Peer', role: 'Engineer' },
+      ] as unknown[],
+      isPending: false,
+      isError: false,
+    },
     mutations: {
       create: { mutateAsync: vi.fn(), isPending: false },
       update: { mutateAsync: vi.fn(), isPending: false },
@@ -46,13 +54,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
 }));
 
 vi.mock('@/src/hooks/useTasks', () => ({
-  useAssignableProfiles: () => ({
-    data: [
-      { id: 'author-1', full_name: 'Ari Author', role: 'Engineer' },
-      { id: 'peer-1', full_name: 'Putri Peer', role: 'Engineer' },
-    ],
-    isPending: false,
-  }),
+  useAssignableProfiles: () => profilesState,
 }));
 
 let currentUserId = 'author-1';
@@ -243,6 +245,12 @@ beforeEach(() => {
   attendeesState.data = [];
   grantsState.data = [];
   actionItemsState.data = [];
+  profilesState.data = [
+    { id: 'author-1', full_name: 'Ari Author', role: 'Engineer' },
+    { id: 'peer-1', full_name: 'Putri Peer', role: 'Engineer' },
+  ];
+  profilesState.isPending = false;
+  profilesState.isError = false;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -576,6 +584,29 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
     const list = screen.getByTestId('action-items-list');
     expect(within(list).getByText('Order the flange samples')).toBeInTheDocument();
     expect(within(list).getByText('Owner: Putri Peer')).toBeInTheDocument();
+  });
+
+  it('does not link a project-less action item to this meeting, but links project tasks', () => {
+    actionItemsState.data = [
+      { id: 't1', name: 'Project-less task', project_id: null, meeting_id: 'm1', status: 'To Do', assignee: null, end_date: null, dependencies: [] },
+      { id: 't2', name: 'Project task', project_id: 'p1', meeting_id: 'm1', status: 'To Do', assignee: null, end_date: null, dependencies: [] },
+    ];
+    renderPage('Engineer');
+    const list = screen.getByTestId('action-items-list');
+    expect(within(list).getByText('Project-less task').closest('a')).toBeNull();
+    expect(within(list).getByRole('link', { name: 'Project task' })).toHaveAttribute('href', '/projects/p1/tasks#task-t2');
+  });
+
+  it('warns when people fail to load while keeping action-item save available', async () => {
+    profilesState.data = [];
+    profilesState.isError = true;
+    renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('stub-action'));
+    expect(await screen.findByText('People could not be loaded; you can still save and assign later.')).toBeInTheDocument();
+    const createButton = screen.getByRole('button', { name: 'Create task' });
+    expect(createButton).toBeEnabled();
+    await userEvent.click(createButton);
+    await waitFor(() => expect(mutations.createActionItem.mutateAsync).toHaveBeenCalled());
   });
 
   it('when the tasks domain is externally owned, /action is not offered and the page explains why', async () => {

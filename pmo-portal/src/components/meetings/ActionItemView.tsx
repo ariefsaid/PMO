@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
@@ -19,6 +19,7 @@ import { formatDateOnly } from '@/src/lib/format';
 export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
+  const { meetingId } = useParams<{ meetingId: string }>();
   const orgId = currentUser?.org_id;
   const query = useQuery({
     queryKey: ['tasks', orgId, 'one', taskId],
@@ -52,7 +53,7 @@ export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
   const task = query.data;
   return (
     <div className={shell} data-testid="action-item">
-      {task.project_id || task.meeting_id ? (
+      {task.project_id || (task.meeting_id && task.meeting_id !== meetingId) ? (
         <Link
           to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
           aria-label={t('meetingDetail.minutes.openTask', 'Open task: {{name}}', { name: task.name })}

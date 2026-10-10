@@ -442,7 +442,7 @@ const MeetingDetail: React.FC = () => {
             <ul className="flex flex-col gap-2" data-testid="action-items-list">
               {actionItems.map((task) => (
                 <li id={`task-${task.id}`} key={task.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  {task.project_id || task.meeting_id ? (
+                  {task.project_id || (task.meeting_id && task.meeting_id !== meeting.id) ? (
                     <Link
                       to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
                       className="rounded font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -721,7 +721,7 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
   onError,
 }) => {
   const { t } = useTranslation();
-  const { data: profiles, isPending: profilesPending } = useAssignableProfiles();
+  const { data: profiles, isPending: profilesPending, isError: profilesError } = useAssignableProfiles();
   const form = useEntityForm<{ name: string; assigneeId: string; endDate: string }>({
     initialValues: { name: initialName, assigneeId: '', endDate: '' },
     validate: () => ({}), // an empty name is legal — FR-MTG-017's placeholder covers it on save
@@ -800,6 +800,14 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
             )}
             fullWidth
           />
+          {profilesError && (
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              {t(
+                'projectDetail.tasks.form.peopleLoadFailed',
+                'People could not be loaded; you can still save and assign later.',
+              )}
+            </p>
+          )}
           <Combobox
             label={t('meetingDetail.minutes.ownerLabel', 'Owner')}
             value={assigneeField.value || null}

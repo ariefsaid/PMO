@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -13,7 +13,9 @@ import { ActionItemView } from './ActionItemView';
 const wrap = (ui: React.ReactElement) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={['/meetings/m1']}>
+        <Routes><Route path="/meetings/:meetingId" element={ui} /></Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 
@@ -45,6 +47,13 @@ describe('ActionItemView — the live row, never a copy (DD-MTG-2)', () => {
     const link = await screen.findByRole('link', { name: 'Open task: Confirm crane schedule' });
     expect(link).toHaveAttribute('href', '/projects/p1/tasks#task-t1');
     expect(screen.getByText('Unassigned — assign an owner')).toBeInTheDocument();
+  });
+
+  it('does not link a project-less task back to its current meeting', async () => {
+    getTask.mockResolvedValue({ ...task, project_id: null, meeting_id: 'm1' });
+    wrap(<ActionItemView taskId="t1" />);
+    expect(await screen.findByText('Confirm crane schedule')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open task: Confirm crane schedule' })).not.toBeInTheDocument();
   });
 
   it('AC-MTG-003 reopening after the task changed elsewhere shows the new values', async () => {
