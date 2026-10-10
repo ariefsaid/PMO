@@ -424,7 +424,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
         const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
         const canTransition = may('transition', 'workOrder');
-        // Mirrors transition_work_order's complete visible author predicate (0197 §8, lines 380–389):
+        // Mirrors transition_work_order's complete visible author predicate (0197 §8, lines 387–393):
         // only positive-value drafts issued below Finance need a distinct, active author who is the
         // issuer's manager or outranks them. The RPC remains authoritative for auth.users bans.
         const issuerRole = currentUser?.role ?? '';
