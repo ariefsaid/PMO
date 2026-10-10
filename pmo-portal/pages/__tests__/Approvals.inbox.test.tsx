@@ -118,6 +118,7 @@ beforeEach(() => {
   procState.data = procRows;
   procState.isPending = false;
   procState.isError = false;
+  tsState.data = [{ id: 's1', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Anita Rao' }, entries: [{ project_id: 'pA', entry_date: '2026-06-01', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }] }];
   tsState.isPending = false;
   tsState.isError = false;
   expenseState.data = [];
@@ -164,6 +165,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const history = screen.getByText('Approved history and corrections');
     expect(queue.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(history.closest('details')).not.toHaveAttribute('open');
+    expect(history).toHaveTextContent('last 90 days');
   });
 
   it('AC-UXS-005: All pending counts every eligible kind once and each kind filter uses the same population', async () => {
@@ -172,7 +174,9 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     renderAs('Project Manager');
 
     expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('4');
-    expect(screen.getByRole('tab', { name: /Procurement/i })).toHaveTextContent('1');
+    // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
+    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Customer invoices/i })).toHaveTextContent('1');
@@ -182,10 +186,33 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('Finance All pending excludes hook-returned timesheets from its count and selectable queue', () => {
+    procState.data = [];
+    expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
+    renderAs('Finance');
+
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('1');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).queryByRole('button', { name: /Anita Rao/i })).not.toBeInTheDocument();
+    expect(within(queue).queryByText('Timesheets')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Approval preview/i })).toHaveTextContent(/Select an approval item/i);
+  });
+
+  it('keeps the desktop preview loading while an eligible expense read is pending', () => {
+    procState.data = [];
+    tsState.data = [];
+    expenseState.isPending = true;
+    renderAs('Project Manager');
+
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Select an approval item/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No requests awaiting your decision/i)).not.toBeInTheDocument();
+  });
+
   it('L3-APPROVALS: a PM (sees both modules) gets queue filters for All, Procurement, and Timesheets', () => {
     renderAs('Project Manager');
     expect(screen.getByRole('tab', { name: /All/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Procurement/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toBeInTheDocument();
   });
 
@@ -229,7 +256,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getAllByText('Steel beams').length).toBeGreaterThan(0);
     expect(screen.queryByText('Crane rental')).not.toBeInTheDocument();
     expect(screen.queryByText('Already approved')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Procurement/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
   });
 
   it('a queue selection moves the preview pane + keeps approve/reject there — no navigation', async () => {

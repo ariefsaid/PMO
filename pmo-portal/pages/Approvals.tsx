@@ -419,11 +419,8 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
     >
       <details open={!hasPending} className="rounded-lg border border-border/70 px-3 py-2">
         <summary className="cursor-pointer text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('approvals.reopen.heading', 'Approved history and corrections')} <span className="tabular text-muted-foreground">{data.length}</span>
+          {t('approvals.reopen.heading', 'Approved history and corrections')} <span className="tabular text-muted-foreground">{data.length}</span> <span className="text-xs font-normal text-muted-foreground">({t('approvals.reopen.window', 'last {{days}} days', { days: String(REOPENABLE_WINDOW_DAYS) })})</span>
         </summary>
-        <p className="mt-1 pl-5 text-xs text-muted-foreground">
-          {t('approvals.reopen.window', 'last {{days}} days', { days: String(REOPENABLE_WINDOW_DAYS) })}
-        </p>
         <div className="mt-2 space-y-1.5">
         {data.map((row) => {
           // The SAME two pieces of evidence the RPC's precondition weighs (migration 0151 §A): a live
@@ -681,27 +678,32 @@ const ApprovalsPage: React.FC = () => {
   const invSettledEmpty = !invoices.isPending && !invoices.isError && pendingInv === 0;
   const expenseSettledEmpty = !expenseQuery.isPending && !expenseQuery.isError && pendingExpense === 0;
   const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty;
+  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && tsPending) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending);
 
   const allPopulation = useMemo(() => approvalPopulation<unknown>([
-    ...procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })),
-    ...timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })),
-    ...expenseRows.map((entry: ExpenseClaimAwaiting) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })),
-    ...invoices.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })),
-  ], 'all'), [procurementRows, timesheetRows, expenseRows, invoices.rows]);
-  const population = useMemo(() => approvalPopulation(allPopulation, activeScope), [allPopulation, activeScope]);
+    ...(canApproveProcurement ? procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
+    ...(canApproveTimesheets ? timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })) : []),
+    ...(canShowExpenses ? expenseRows.map((entry: ExpenseClaimAwaiting) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })) : []),
+    ...(canShowInvoices ? invoices.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })) : []),
+  ], 'all'), [canApproveProcurement, canApproveTimesheets, canShowExpenses, canShowInvoices, procurementRows, timesheetRows, expenseRows, invoices.rows]);
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
-  const activeScopePending = activeScope === 'all' ? population.length : countFor(activeScope);
-
+  const scopeLabels: Record<Scope, string> = {
+    all: t('approvals.scope.all', 'All pending'),
+    procurement: t('approvals.scope.procurement', 'Purchase requests'),
+    timesheets: t('approvals.scope.timesheets', 'Timesheets'),
+    expense: t('approvals.scope.expense', 'Expense claims'),
+    invoice: t('approvals.scope.invoice', 'Customer invoices'),
+  };
   const queueItems = useMemo<QueueItem[]>(() => {
     const items: QueueItem[] = [];
-    if (activeScope === 'all' || activeScope === 'procurement') {
+    if ((activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement) {
       items.push(...procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row })));
     }
-    if (activeScope === 'all' || activeScope === 'timesheets') {
+    if ((activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets) {
       items.push(...timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row })));
     }
     return items;
-  }, [activeScope, procurementRows, timesheetRows]);
+  }, [activeScope, canApproveProcurement, canApproveTimesheets, procurementRows, timesheetRows]);
 
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -732,10 +734,18 @@ const ApprovalsPage: React.FC = () => {
 
   const previewFallback = (() => {
     if (queueItems.length > 0) return null;
-    const currentPending =
-      activeScope === 'procurement' ? procPending : activeScope === 'timesheets' ? tsPending : procPending || tsPending;
-    const currentError =
-      activeScope === 'procurement' ? procError : activeScope === 'timesheets' ? tsError : procError || tsError;
+    const includesExpenses = (activeScope === 'all' || activeScope === 'expense') && canShowExpenses;
+    const includesInvoices = (activeScope === 'all' || activeScope === 'invoice') && canShowInvoices;
+    const currentPending = activeScope === 'procurement' ? procPending
+      : activeScope === 'timesheets' ? tsPending
+        : activeScope === 'expense' ? expenseQuery.isPending
+          : activeScope === 'invoice' ? invoices.isPending
+            : (canApproveProcurement && procPending) || (canApproveTimesheets && tsPending) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending);
+    const currentError = activeScope === 'procurement' ? procError
+      : activeScope === 'timesheets' ? tsError
+        : activeScope === 'expense' ? expenseQuery.isError
+          : activeScope === 'invoice' ? invoices.isError
+            : (canApproveProcurement && procError) || (canApproveTimesheets && tsError) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError);
 
     if (currentPending) return <ListState variant="loading" rows={4} />;
     if (currentError) {
@@ -787,9 +797,7 @@ const ApprovalsPage: React.FC = () => {
               className="max-w-full"
               options={availableScopes.map((scope) => ({
                 value: scope,
-                label: t(`approvals.scope.${scope}`, {
-                  defaultValue: ({ all: 'All pending', procurement: 'Procurement', timesheets: 'Timesheets', expense: 'Expense claims', invoice: 'Customer invoices' } as const)[scope],
-                }),
+                label: scopeLabels[scope],
                 icon: ({ all: 'grid', procurement: 'cart', timesheets: 'clock', expense: 'file', invoice: 'file' } as const)[scope],
                 count: scope === 'all' ? allPopulation.length : countFor(scope),
               }))}
@@ -844,7 +852,7 @@ const ApprovalsPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
-                <Badge>{activeScopePending}</Badge>
+                <Badge>{queueItems.length}</Badge>
               </div>
             </div>
 
@@ -863,7 +871,7 @@ const ApprovalsPage: React.FC = () => {
                   items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
                   selectedKey={selectedKey}
                   onSelect={setSelectedKey}
-                  isPending={procPending}
+                  isPending={procPending || (activeScope === 'all' && allScopePending && procurementRows.length === 0)}
                   isError={procError}
                   onRetry={() => refetchProc()}
                   emptyTitle={t(
@@ -884,7 +892,7 @@ const ApprovalsPage: React.FC = () => {
                   items={timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row }))}
                   selectedKey={selectedKey}
                   onSelect={setSelectedKey}
-                  isPending={tsPending}
+                  isPending={tsPending || (activeScope === 'all' && allScopePending && timesheetRows.length === 0)}
                   isError={tsError}
                   onRetry={() => refetchTimesheets()}
                   emptyTitle={t(

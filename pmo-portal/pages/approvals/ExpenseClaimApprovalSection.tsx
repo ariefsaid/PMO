@@ -54,7 +54,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
   const { data, isPending, isError, refetch } = useExpenseClaimsAwaitingDecision();
   const rows = useMemo(() => claimsAwaitingViewer(data ?? [], userId, realRole), [data, userId, realRole]);
   const [evidenceClaimId, setEvidenceClaimId] = useState<string | null>(null);
-  if (isPending) return null;
+  if (isPending) return <div className="mb-4"><ListState variant="loading" rows={3} /></div>;
   if (isError) {
     return (
       <div className="mb-4">

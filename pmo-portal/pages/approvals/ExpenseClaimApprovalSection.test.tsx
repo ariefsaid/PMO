@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
-const h = vi.hoisted(() => ({ data: [] as unknown[], receipts: [] as unknown[], download: vi.fn() }));
+const h = vi.hoisted(() => ({ data: [] as unknown[], receipts: [] as unknown[], isPending: false, download: vi.fn() }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
-  useExpenseClaimsAwaitingDecision: () => ({ data: h.data, isPending: false, isError: false, refetch: vi.fn() }),
+  useExpenseClaimsAwaitingDecision: () => ({ data: h.data, isPending: h.isPending, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useExpenseReceipts', () => ({
   useExpenseReceipts: () => ({
@@ -25,6 +25,13 @@ const item = (id: string, claimant: string, route: unknown) => ({
 });
 
 describe('ExpenseClaimApprovalSection', () => {
+  it('shows loading instead of hiding the section while claims are pending', () => {
+    h.isPending = true;
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    h.isPending = false;
+  });
+
   it('AC-UXS-005 wires approved claim evidence through the shared receipt preview', async () => {
     h.data = [item('evidence', 'eng', { route: 'flat', approvers: [] })];
     h.receipts = [{ id: 'file-1', file_path: 'claim/evidence/taxi-receipt.png' }];
