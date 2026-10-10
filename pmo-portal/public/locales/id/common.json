@@ -3244,7 +3244,21 @@
       "sub": "Terjadi kesalahan saat mengambil jam Anda.",
       "title": "Gagal memuat timesheet"
     },
-    "hoursThisWeek": "jam minggu ini",
+    "hoursThisWeek": "{{hours}} jam minggu ini",
+    "saveDraft": "Simpan draf",
+    "note": "Catatan",
+    "addNotePlaceholder": "Tambahkan catatan",
+    "submitWeek": "Ajukan minggu ini",
+    "weekTotal": "Total minggu",
+    "dailyTotal": "Total harian",
+    "rowTotal": "Total baris",
+    "projectColumn": "Proyek",
+    "totalColumn": "Total",
+    "hoursCell": "Jam {{project}}, {{day}}",
+    "noteForProject": "Catatan {{project}}",
+    "addNoteForProject": "Tambahkan catatan untuk {{project}}",
+    "deleteProjectRow": "Hapus baris {{project}}",
+    "invalidHours": "Hanya 0–24 jam",
     "nextWeek": "Minggu berikutnya",
     "picker": {
       "none": "Tidak ada proyek untuk ditambahkan",
@@ -3259,7 +3273,11 @@
     "review": "Tinjau {{n}} yang menunggu",
     "save": "Simpan",
     "status": {
-      "draftNotSubmitted": "Draf — belum diajukan"
+      "draftNotSubmitted": "Draf — belum diajukan",
+      "Draft": "Draf",
+      "Submitted": "Diajukan",
+      "Approved": "Disetujui",
+      "Rejected": "Dikembalikan untuk diperbaiki"
     },
     "submit": "Ajukan timesheet",
     "submitConfirm": {
