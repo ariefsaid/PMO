@@ -553,7 +553,7 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Evidence preview:** use a shared, keyboard-dismissible preview for supported image/PDF receipts, using
   the caller's existing authorized short-lived URL retrieval. Preserve a single Download original action
   for unsupported files and preview failures; closing returns focus to the opener.
-- **Tooltip (`.tooltip-surface`): a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
+- **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
   near-white text, `lg`-derived radius, `0 8px 24px / 0.4` shadow, max 280px; bold title + `tabular`
   key/value rows; `tooltip-muted` for de-emphasised body. (The tooltip surface is constant-dark in both
   themes, so `--tooltip-muted` is the same value in `:root` and `.dark`.)

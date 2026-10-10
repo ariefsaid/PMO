@@ -193,7 +193,6 @@ once all three artifacts exist:
 | Receipt evidence required leaving the review surface to inspect — UXD-D-004, 2026-10-10 | `ReceiptPreview.test.tsx` AC-UXS-012 (image/PDF/loading/retrieval error/unsupported fallback/Escape and focus return) | state-coverage + a11y × `/expenses/:claimId` receipt evidence | DESIGN.md Overlays: shared preview uses caller-authorized short-lived retrieval; original download is the fallback | ◐ (record preview complete; inbox host integration is serial follow-up after slice 1) |
 | A persistent warning could overlap dirty-discard controls on a phone — B-09, 2026-10-10 | `ToastDialogGeometry.test.tsx` AC-UXS-026 (remedy stays persistent while dialog state changes); rendered 390×844 dialog/action geometry check | overlay geometry + mobile@390 × dirty dialog with persistent toast | DESIGN.md Overlays: persistent remedy moves to the safe top edge while the modal actions remain unobscured | ☑ (390×844 light/dark × en/id renders: warning remains visible and dialog actions are unobscured) |
 
-
 ## Vendoring backlog (Layer 0)
 
 Standing shortlist (ADR-0030 §F; verified 2026-06):
