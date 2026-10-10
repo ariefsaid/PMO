@@ -1,11 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
-const h = vi.hoisted(() => ({ data: [] as unknown[] }));
+const h = vi.hoisted(() => ({ data: [] as unknown[], receipts: [] as unknown[], download: vi.fn() }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaimsAwaitingDecision: () => ({ data: h.data, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useExpenseReceipts', () => ({
+  useExpenseReceipts: () => ({
+    list: { data: h.receipts, isPending: false, isError: false },
+    download: h.download,
+  }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'pm', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
@@ -18,6 +25,20 @@ const item = (id: string, claimant: string, route: unknown) => ({
 });
 
 describe('ExpenseClaimApprovalSection', () => {
+  it('AC-UXS-005 wires approved claim evidence through the shared receipt preview', async () => {
+    h.data = [item('evidence', 'eng', { route: 'flat', approvers: [] })];
+    h.receipts = [{ id: 'file-1', file_path: 'claim/evidence/taxi-receipt.png' }];
+    h.download.mockResolvedValue('https://signed.test/receipt.png');
+    const user = userEvent.setup();
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+
+    await user.click(screen.getByRole('button', { name: /preview claim evidence/i }));
+    expect(screen.getByTestId('decision-context-summary')).toHaveTextContent('EXP-evidence');
+    await user.click(screen.getByRole('button', { name: /preview receipt/i }));
+    expect(await screen.findByRole('dialog', { name: 'taxi-receipt.png' })).toBeInTheDocument();
+    expect(h.download).toHaveBeenCalledWith('claim/evidence/taxi-receipt.png');
+  });
+
   it('AC-EXP-064 lists only records awaiting the viewer, each linking to its page', () => {
     h.data = [
       item('1', 'pm', null),
