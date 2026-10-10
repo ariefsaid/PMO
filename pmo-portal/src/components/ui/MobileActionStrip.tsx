@@ -28,12 +28,16 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
   onSubmit,
 }) => {
   const { t } = useTranslation();
+  const appEnv = (import.meta.env.VITE_APP_ENV ?? '').trim().toLowerCase();
+  const hasEnvironmentBadge = appEnv !== '' && appEnv !== 'prod' && appEnv !== 'production';
 
   return (
     <MobileActionBar
       data-testid="timesheets-mobile-action-strip"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background px-3 pt-2 md:hidden"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
+      style={{
+        paddingBottom: `calc(env(safe-area-inset-bottom) + ${hasEnvironmentBadge ? '2.75rem' : '0.5rem'})`,
+      }}
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
         <p className="text-center text-[13px] font-semibold tabular text-foreground">

@@ -27,7 +27,16 @@ async function renderStrip(locale: 'en' | 'id' = 'en', options?: { canSave?: boo
 }
 
 describe('MobileActionStrip', () => {
-  afterEach(() => resetActiveLocale());
+  afterEach(() => {
+    resetActiveLocale();
+    vi.unstubAllEnvs();
+  });
+  it('leaves room below the actions when the non-production environment badge is present', async () => {
+    vi.stubEnv('VITE_APP_ENV', 'local');
+    const { getByTestId } = await renderStrip();
+    expect(getByTestId('timesheets-mobile-action-strip').style.paddingBottom).toContain('2.75rem');
+  });
+
   it('AC-UXS-023: presents the current week total and both existing completion actions', async () => {
     await renderStrip();
     expect(screen.getByText('13.5 hours this week')).toBeInTheDocument();
