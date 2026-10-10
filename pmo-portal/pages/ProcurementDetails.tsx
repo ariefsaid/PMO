@@ -1106,12 +1106,12 @@ const ProcurementDetails: React.FC = () => {
             {vendorPickerOpen && canSetVendor && (
               <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
                 <Combobox
-                  label={t('procurementDetail.vendor', 'Vendor')}
-                  noun={t('procurementDetail.vendor', 'vendor')}
+                  label={t('bupot.vendor', 'Vendor')}
+                  noun={t('bupot.vendor', 'vendor')}
                   value={selectedVendorId}
                   onChange={(value) => setSelectedVendorId(value)}
                   loadOptions={async () => vendorOptions ?? []}
-                  placeholder={t('procurementDetail.selectVendor', 'Select a vendor…')}
+                  placeholder={t('bupot.selectVendor', 'Select a vendor…')}
                 />
                 <Button
                   variant="primary"
@@ -1127,8 +1127,8 @@ const ProcurementDetails: React.FC = () => {
                       onMutationError(err);
                     }
                   }}
-                >{t('common.save', 'Save')}</Button>
-                <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
+                >{t('bupot.saveVendor', 'Save vendor')}</Button>
+                <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
               </div>
             )}
           </Card>

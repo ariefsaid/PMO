@@ -68,7 +68,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
     expect(await screen.findByRole('option', { name: 'New vendor' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('option', { name: 'New vendor' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
 
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
     h.detail.data = { ...vendorlessBilled, vendor_id: 'vendor-new' };

@@ -28,7 +28,7 @@
   },
   "bupot": {
     "loading": "Loading bukti potong…", "loadError": "Bukti potong unavailable", "unavailable": "Unavailable",
-    "view": "View bukti potong", "record": "Record bukti potong", "setVendor": "Set vendor", "vendorRequired": "Set a vendor on the request before recording this slip.", "history": "Bukti potong history",
+    "view": "View bukti potong", "record": "Record bukti potong", "setVendor": "Set vendor", "vendorRequired": "Set a vendor on the request before recording this slip.", "vendorSet": "Vendor set", "selectVendor": "Select a vendor…", "saveVendor": "Save vendor", "cancelSetVendor": "Cancel", "history": "Bukti potong history",
     "state": { "slipped": "Slipped", "needsReview": "Needs review", "unavailable": "Unavailable", "notRecorded": "Not recorded", "notRequired": "Not required", "returnReview": "Return review" },
     "select": "Select", "selectBill": "Select bill {{bill}}", "bill": "Bill", "withheld": "Withheld", "type": "PPh type",
     "confirmUnknown": "Confirm as {{type}} from issued slip", "recordTitle": "Record bukti potong",
