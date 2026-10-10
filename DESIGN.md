@@ -545,6 +545,14 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   at 10s. Hover or keyboard focus pauses that timer. Every toast has a visible, keyboard-reachable
   dismiss control. The provider mounts its polite `role="status"` and assertive `role="alert"` live
   regions once, empty, then inserts each announcement into the existing region.
+- **Persistent toast + blocking dialog:** when a modal opens, keep persistent warning/error toasts
+  visible but move them to the safe top edge; never dismiss a remedy or cover the modal's actions.
+  Confirmations with context-dependent decisions restate the current record identity and caller-supplied,
+  authoritative amount inside the existing confirmation. Keep the safeguard and existing consequence; do
+  not add another confirmation layer or infer financial values in the shared presentation component.
+- **Evidence preview:** use a shared, keyboard-dismissible preview for supported image/PDF receipts, using
+  the caller's existing authorized short-lived URL retrieval. Preserve a single Download original action
+  for unsupported files and preview failures; closing returns focus to the opener.
 - **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
   near-white text, `lg`-derived radius, `0 8px 24px / 0.4` shadow, max 280px; bold title + `tabular`
   key/value rows; `tooltip-muted` for de-emphasised body. (The tooltip surface is constant-dark in both

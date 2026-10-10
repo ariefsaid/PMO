@@ -81,8 +81,8 @@ test('AC-EXP-070 a field claim is filed, approved by the project approver, paid 
 
   await signIn(page, 'pm@acme.test');
   await page.goto(claimUrl);
-  await page.getByRole('button', { name: 'Approve' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Approve', exact: true }).click();
+  await page.getByRole('button', { name: /^(Approve|Setujui)$/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /^(Approve|Setujui)$/ }).click();
   await expect(page.getByTestId('expense-status')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
 
   await signIn(page, 'finance@acme.test');
