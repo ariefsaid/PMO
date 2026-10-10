@@ -81,6 +81,13 @@ const BILLING_VARIANT: Record<Exclude<WorkOrderBillingState, 'not-billable'>, St
 /** The billing state is a property of the money, not the work order: it sits on a quiet `secondary` chip so it never
  *  reads as the work order's own status mark beside it (an Issued work order and a partly invoiced one share a hue). */
 const BILLING_CHIP = 'rounded-sm bg-secondary px-1.5 py-0.5';
+const ROLE_RANK: Record<string, number> = {
+  Engineer: 10,
+  'Project Manager': 20,
+  Finance: 30,
+  Executive: 40,
+  Admin: 50,
+};
 
 const STATUS_VARIANT: Record<WorkOrderStatus, StatusVariant> = {
   Draft: 'draft',
@@ -417,12 +424,24 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
         const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
         const canTransition = may('transition', 'workOrder');
-        // Mirrors the known client-side refusal in transition_work_order (0197 §8, lines 380–389):
-        // only positive-value drafts issued by a below-Finance role need a distinct approver.
-        // The RPC remains authoritative for author seniority/active-membership checks.
+        // Mirrors transition_work_order's complete visible author predicate (0197 §8, lines 380–389):
+        // only positive-value drafts issued below Finance need a distinct, active author who is the
+        // issuer's manager or outranks them. The RPC remains authoritative for auth.users bans.
+        const issuerRole = currentUser?.role ?? '';
+        const author = row.value_author;
+        const authorIsSelf = row.order_value_set_by === currentUser?.id;
+        const authorRelationshipFails = authorIsSelf
+          || !author
+          || author.status !== 'active'
+          || !currentUser?.id
+          || !(author.manager_id === currentUser.id
+            || (ROLE_RANK[author.role] ?? 0) > (ROLE_RANK[issuerRole] ?? 0));
         const issueBlockedByValueAuthor = Number(row.order_value ?? 0) > 0
-          && !['Finance', 'Executive', 'Admin'].includes(currentUser?.role ?? '')
-          && row.order_value_set_by === currentUser?.id;
+          && !['Finance', 'Executive', 'Admin'].includes(issuerRole)
+          && authorRelationshipFails;
+        const issueGateBody = authorIsSelf
+          ? t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')
+          : t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
         return (
           <div className="flex flex-wrap gap-1.5">
             {isDraft && canEdit && (
@@ -438,7 +457,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             {isDraft && canTransition && issueBlockedByValueAuthor ? (
               <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">
                 <strong>{t('projectDetail.workOrders.issueGate.title', 'Another reviewer must issue this order')}</strong>{' '}
-                {t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')}
+                {issueGateBody}
               </GateNotice>
             ) : isDraft && canTransition ? (
               <Button variant="primary" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>

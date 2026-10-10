@@ -90,6 +90,7 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
     start_date: null,
     end_date: null,
     order_value_set_by: 'u-2',
+    value_author: { role: 'Finance', manager_id: null, status: 'active' },
     order_value_set_at: '2026-08-01T00:00:00Z',
     issued_by: null,
     issued_at: null,
@@ -196,7 +197,18 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     expect(screen.queryByText(/Another reviewer must issue this order/)).not.toBeInTheDocument();
   });
 
-  it('a PM gets create, edit, set-value, issue and cancel on a draft set by another user', () => {
+  it('blocks a PM when a peer author does not outrank them per the server predicate', () => {
+    listState.data = [row({
+      order_value_set_by: 'u-2',
+      value_author: { role: 'Project Manager', manager_id: null, status: 'active' },
+    })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('Another reviewer must issue this order'));
+    expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
+  });
+
+  it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
     listState.data = [row({ order_value_set_by: 'u-2' })];
     renderTab('Project Manager');
     expect(screen.getByRole('button', { name: 'New work order' })).toBeInTheDocument();

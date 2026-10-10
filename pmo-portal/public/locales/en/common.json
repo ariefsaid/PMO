@@ -2649,7 +2649,8 @@
       "clientPo": "Client PO",
       "issueGate": {
         "title": "Another reviewer must issue this order",
-        "body": "You set its value. Ask another authorized reviewer to review and issue it."
+        "body": "You set its value. Ask another authorized reviewer to review and issue it.",
+        "peerBody": "The value must be set by your supervisor or a more senior active reviewer before this order can be issued."
       },
       "column": {
         "actions": "Actions",
