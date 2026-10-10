@@ -14,6 +14,7 @@ import {
 } from '@/src/lib/features';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
+import { MODULES } from './routeMatch';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -177,9 +178,10 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   // be invisible to the en-side completeness gate (FR-L10N-042a) and the key would read as orphaned.
   // `ALL_ITEMS` stays untouched data; its `text` remains the English source and the fallback for a
   // route added here without a label.
-  const navLabels: Record<string, string> = {
+  const staticNavLabels: Record<string, string> = {
+    // Literal translation calls keep catalogue extraction complete. Module metadata supplies
+    // each shared key; these localized values are the parser-visible fallbacks for that key.
     '/': t('shell.nav.dashboard', 'Dashboard'),
-    '/integrations': t('shell.nav.integrations', 'My integrations'),
     '/projects': t('shell.nav.projects', 'Projects'),
     '/sales': t('shell.nav.sales', 'Sales Pipeline'),
     '/procurement': t('shell.nav.procurement', 'Procurement'),
@@ -192,11 +194,23 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/incidents': t('shell.nav.incidents', 'Incidents'),
     '/meetings': t('shell.nav.meetings', 'Meetings'),
     '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
+    '/integrations': t('shell.nav.integrations', 'My integrations'),
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
     '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
     '/reports': t('shell.nav.managementPack', 'Management pack'),
   };
+  const navLabels: Record<string, string> = Object.fromEntries(
+    items.map((item) => {
+      const route = MODULES.find((module) => module.path === item.to);
+      return [
+        item.to,
+        route?.labelKey
+          ? t(route.labelKey, staticNavLabels[item.to] ?? route.label)
+          : staticNavLabels[item.to] ?? item.text,
+      ];
+    }),
+  );
   const groupLabels: Record<NavItem['group'], string> = {
     Overview: t('shell.rail.group.overview', 'Overview'),
     CRM: t('shell.rail.group.crm', 'CRM'),

@@ -49,6 +49,22 @@ describe('UXS-007 shell label consistency', () => {
   });
 });
 
+describe('UXS-006 shared route vocabulary', () => {
+  it('every navigable module owns the translation key used across shell surfaces', () => {
+    expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
+    expect(MODULES.find((module) => module.module === 'vendors')).toMatchObject({
+      path: '/companies?type=Vendor',
+      label: 'Vendors',
+      labelKey: 'shell.nav.vendors',
+    });
+    expect(MODULES.find((module) => module.module === 'my-tasks')).toMatchObject({
+      path: '/my-tasks',
+      label: 'My Tasks',
+      labelKey: 'shell.nav.myTasks',
+    });
+  });
+});
+
 describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
   it('C-MIN-4: an unknown path resolves breadcrumb label to "Not found"', () => {
     const crumbs = breadcrumbForPath('/no-such-route');

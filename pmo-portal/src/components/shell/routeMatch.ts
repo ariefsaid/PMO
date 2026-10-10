@@ -28,11 +28,12 @@ export interface ModuleDef {
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
 export const MODULES: ModuleDef[] = [
   // Dashboard: every authenticated role (no roles restriction = all).
-  { module: 'dashboard', icon: 'dashboard', label: 'Dashboard', path: '/' },
+  { module: 'dashboard', icon: 'dashboard', label: 'Dashboard', labelKey: 'shell.nav.dashboard', path: '/' },
   {
     module: 'sales',
     icon: 'pipeline',
     label: 'Sales Pipeline',
+    labelKey: 'shell.nav.sales',
     path: '/sales',
     detail: { pattern: '/sales/:opportunityId', param: 'opportunityId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Sales nav — rbac-visibility §C).
@@ -42,6 +43,7 @@ export const MODULES: ModuleDef[] = [
     module: 'procurement',
     icon: 'procurement',
     label: 'Procurement',
+    labelKey: 'shell.nav.procurement',
     path: '/procurement',
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Procurement nav — rbac-visibility §E).
@@ -51,6 +53,7 @@ export const MODULES: ModuleDef[] = [
     module: 'projects',
     icon: 'projects',
     label: 'Projects',
+    labelKey: 'shell.nav.projects',
     path: '/projects',
     detail: { pattern: '/projects/:projectId', param: 'projectId' },
     // Projects: all roles (every role has the Projects nav item — rbac-visibility §B).
@@ -59,6 +62,7 @@ export const MODULES: ModuleDef[] = [
     module: 'timesheets',
     icon: 'clock',
     label: 'Timesheets',
+    labelKey: 'shell.nav.timesheets',
     path: '/timesheets',
     // Mirror Rail: Exec·PM·Engineer·Admin (Finance excluded from Workforce surface).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
@@ -69,6 +73,7 @@ export const MODULES: ModuleDef[] = [
     module: 'companies',
     icon: 'companies',
     label: 'Companies',
+    labelKey: 'shell.nav.companies',
     path: '/companies',
     // CW-4b: /companies/:id is a routable detail page (retires the drawer-as-record) — the detail
     // pattern makes the breadcrumb drill [Companies > <record>] and lets ⌘K open one.
@@ -88,6 +93,7 @@ export const MODULES: ModuleDef[] = [
     module: 'contacts',
     icon: 'contacts',
     label: 'Contacts',
+    labelKey: 'shell.nav.contacts',
     path: '/contacts',
     // CW-4b: /contacts/:id is a routable detail page (retires the drawer-as-record) — the detail
     // pattern makes the breadcrumb drill [Contacts > <record>] and lets ⌘K open one.
@@ -99,6 +105,7 @@ export const MODULES: ModuleDef[] = [
     module: 'incidents',
     icon: 'alert',
     label: 'Incidents',
+    labelKey: 'shell.nav.incidents',
     path: '/incidents',
     // CW-4a: /incidents/:id is a routable detail page (fixes the Incidents dead-end) — the
     // detail pattern makes the breadcrumb drill [Incidents > <record>] and lets ⌘K open one.
@@ -111,6 +118,7 @@ export const MODULES: ModuleDef[] = [
     module: 'meetings',
     icon: 'cal',
     label: 'Meetings',
+    labelKey: 'shell.nav.meetings',
     path: '/meetings',
     detail: { pattern: '/meetings/:meetingId', param: 'meetingId' },
   },
@@ -133,6 +141,7 @@ export const MODULES: ModuleDef[] = [
     module: 'approvals',
     icon: 'approvals',
     label: 'Approvals',
+    labelKey: 'shell.nav.approvals',
     path: '/approvals',
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
@@ -141,6 +150,7 @@ export const MODULES: ModuleDef[] = [
     module: 'administration',
     icon: 'admin',
     label: 'Administration',
+    labelKey: 'shell.nav.administration',
     path: '/administration',
     roles: [UserRole.Executive, UserRole.Admin],
   },

@@ -24,14 +24,14 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(breadcrumbForPath('/settings/profile')).toEqual([{ label: 'Profile & preferences' }]);
   });
   it('AC-NAV-003: a module index route renders a single current crumb', () => {
-    expect(breadcrumbForPath('/projects')).toEqual([{ label: 'Projects' }]);
-    expect(breadcrumbForPath('/sales')).toEqual([{ label: 'Sales Pipeline' }]);
-    expect(breadcrumbForPath('/procurement')).toEqual([{ label: 'Procurement' }]);
-    expect(breadcrumbForPath('/timesheets')).toEqual([{ label: 'Timesheets' }]);
+    expect(breadcrumbForPath('/projects')).toEqual([{ label: 'Projects', i18nKey: 'shell.nav.projects' }]);
+    expect(breadcrumbForPath('/sales')).toEqual([{ label: 'Sales Pipeline', i18nKey: 'shell.nav.sales' }]);
+    expect(breadcrumbForPath('/procurement')).toEqual([{ label: 'Procurement', i18nKey: 'shell.nav.procurement' }]);
+    expect(breadcrumbForPath('/timesheets')).toEqual([{ label: 'Timesheets', i18nKey: 'shell.nav.timesheets' }]);
   });
 
   it('AC-NAV-003: the dashboard root renders the Dashboard crumb', () => {
-    expect(breadcrumbForPath('/')).toEqual([{ label: 'Dashboard' }]);
+    expect(breadcrumbForPath('/')).toEqual([{ label: 'Dashboard', i18nKey: 'shell.nav.dashboard' }]);
   });
 
   it('AC-NAV-004: a detail route with a resolved record name renders [module link > record current]', () => {
@@ -108,7 +108,7 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
   });
 
   it('AC-NAV-005: a placeholder route reads its OWN page label, not "Dashboard"', () => {
-    expect(breadcrumbForPath('/companies')).toEqual([{ label: 'Companies' }]);
+    expect(breadcrumbForPath('/companies')).toEqual([{ label: 'Companies', i18nKey: 'shell.nav.companies' }]);
     expect(breadcrumbForPath('/reports')).toEqual([{ label: 'Reports' }]);
     // The shell-owned Administration placeholder carries its i18n key so the crumb localizes.
     expect(breadcrumbForPath('/administration')).toEqual([

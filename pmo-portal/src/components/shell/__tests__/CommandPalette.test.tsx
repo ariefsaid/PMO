@@ -19,6 +19,21 @@ describe('CommandPalette', () => {
     expect(screen.getByTestId('cmdk-backdrop').className).toContain('bg-foreground/40');
   });
 
+  it('UXS-006: finds a destination by its localized route label', async () => {
+    const run = vi.fn();
+    render(
+      <CommandPalette
+        open
+        items={[{ id: 'nav-companies', group: 'Navigate', title: 'Perusahaan', icon: 'companies', run }]}
+        onClose={vi.fn()}
+      />,
+    );
+    await userEvent.type(screen.getByRole('combobox'), 'perusahaan');
+    expect(await screen.findByText('Perusahaan')).toBeInTheDocument();
+    await userEvent.keyboard('{Enter}');
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it('UXS-007: shows the assignee-scoped context beneath My Tasks', () => {
     const personalWork: PaletteItem[] = [{
       id: 'nav-my-tasks', group: 'Navigate', title: 'My Tasks',
