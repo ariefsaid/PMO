@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardHead,
@@ -129,6 +130,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   vendorMap = {},
   currency,
 }) => {
+  const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [total, setTotal] = useState('');
@@ -216,8 +218,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length === 0 && (
         <ListState
           variant="empty"
-          title="No vendor quotes yet"
-          sub="Quotes are captured after the RFQ is sent. Selecting one with rationale advances the case to Ordered."
+          title={t('procurementDetail.quotes.emptyTitle', 'No quotes recorded. Add a vendor quote to compare bids.')}
         />
       )}
 

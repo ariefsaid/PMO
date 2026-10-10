@@ -1665,7 +1665,7 @@
       "reject": "Tolak",
       "requestVendorQuotes": "Minta penawaran vendor",
       "rework": "Revisi (kembali ke Draf)",
-      "selectQuote": "Pilih penawaran",
+      "selectQuote": "Bandingkan dan pilih penawaran",
       "submitRequest": "Ajukan permintaan"
     },
     "vendorInvoice": {
@@ -1703,7 +1703,7 @@
       "grBody": "Ini mencatat penerimaan barang berstatus {{status}} untuk {{request}}.",
       "grTitle": "Catat penerimaan barang ini?",
       "keepRequest": "Pertahankan permintaan",
-      "markPaidBody": "Tandai <money/> sebagai lunas? Ini melepaskan pembayaran dan tidak dapat dibatalkan.",
+      "markPaidBody": "Catat {{amount}} sebagai dibayar? Ini mencatat bukti pembayaran, bukan mentransfer dana.",
       "moneyOnProject": "<amount>{{amount}}</amount> pada <project/>",
       "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> pada <project/>, diminta oleh <person>{{name}}</person>",
       "moneyRequestedBy": "<amount>{{amount}}</amount>, diminta oleh <person>{{name}}</person>",
@@ -1740,6 +1740,9 @@
       "history": "Riwayat"
     },
     "tabsLabel": "Bagian pengadaan",
+    "quotes": {
+      "emptyTitle": "Belum ada penawaran tercatat. Tambahkan penawaran vendor untuk membandingkannya."
+    },
     "tile": {
       "goodsReceived": "Barang diterima",
       "poCommitted": "Komitmen PO",
