@@ -32,11 +32,12 @@ vi.mock('@/src/hooks/useUserViews', () => ({
 }));
 
 // S6 entitlement rewire: Rail now calls useOrgFeatures() (which calls useAuth).
+let crmFeatureEnabled = true;
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({
     data: {
       incidents: false,
-      crm: true,
+      crm: crmFeatureEnabled,
       procurement: true,
       timesheets: true,
       import_export: true,
@@ -97,8 +98,12 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(screen.queryByRole('link', { name: 'My Tasks' })).not.toBeInTheDocument();
   });
 
-  it('UXS-030: Vendors opens the existing Companies list with the Vendor filter', () => {
+  it('UXS-030: Vendors opens the existing Companies list with the Vendor filter even when CRM navigation is hidden', () => {
+    crmFeatureEnabled = false;
     renderRailAs('Finance');
     expect(screen.getByRole('link', { name: 'Vendors' })).toHaveAttribute('href', '/companies?type=Vendor');
+    expect(screen.queryByRole('link', { name: 'Companies' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Contacts' })).not.toBeInTheDocument();
+    crmFeatureEnabled = true;
   });
 });
