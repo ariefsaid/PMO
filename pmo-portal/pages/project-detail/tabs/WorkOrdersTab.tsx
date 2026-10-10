@@ -417,6 +417,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
         const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
         const canTransition = may('transition', 'workOrder');
+        // Mirrors the known client-side refusal in transition_work_order (0197 §8, lines 380–389):
+        // only positive-value drafts issued by a below-Finance role need a distinct approver.
+        // The RPC remains authoritative for author seniority/active-membership checks.
+        const issueBlockedByValueAuthor = Number(row.order_value ?? 0) > 0
+          && !['Finance', 'Executive', 'Admin'].includes(currentUser?.role ?? '')
+          && row.order_value_set_by === currentUser?.id;
         return (
           <div className="flex flex-wrap gap-1.5">
             {isDraft && canEdit && (
@@ -429,7 +435,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {t('projectDetail.workOrders.action.setValue', 'Set value')}
               </Button>
             )}
-            {isDraft && canTransition && row.order_value_set_by === currentUser?.id ? (
+            {isDraft && canTransition && issueBlockedByValueAuthor ? (
               <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">
                 <strong>{t('projectDetail.workOrders.issueGate.title', 'Another reviewer must issue this order')}</strong>{' '}
                 {t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')}

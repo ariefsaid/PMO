@@ -63,7 +63,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: realRole }),
+  useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1', role: realRole }, role: realRole }),
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
@@ -169,14 +169,31 @@ describe('the rows', () => {
 // ── Affordances match what the server will honour ─────────────────────────────
 
 describe('authorization (UX gate; the RPCs are the authority)', () => {
-  it('AC-UXS-010 tells the value author another reviewer must issue before any confirmation', () => {
-    listState.data = [row({ order_value_set_by: 'u-1' })];
+  it('AC-UXS-010 blocks only a positive-value self-authored issue for a below-Finance issuer', () => {
+    listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('Another reviewer must issue this order'));
     expect(issueGate).toHaveTextContent('Another reviewer must issue this order');
     expect(issueGate).toHaveTextContent('You set its value. Ask another authorized reviewer to review and issue it.');
     expect(screen.queryByText('Issue this work order?')).not.toBeInTheDocument();
+  });
+
+  it.each(['Finance', 'Executive', 'Admin'] as const)(
+    'allows a %s value author to issue their own positive-value draft (0197 §8 exemption)',
+    (role) => {
+      listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
+      renderTab(role);
+      expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
+      expect(screen.queryByText(/Another reviewer must issue this order/)).not.toBeInTheDocument();
+    },
+  );
+
+  it('allows any author to issue a zero-value draft because there is no value to ratify', () => {
+    listState.data = [row({ order_value: 0, order_value_set_by: 'u-1' })];
+    renderTab('Project Manager');
+    expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
+    expect(screen.queryByText(/Another reviewer must issue this order/)).not.toBeInTheDocument();
   });
 
   it('a PM gets create, edit, set-value, issue and cancel on a draft set by another user', () => {
