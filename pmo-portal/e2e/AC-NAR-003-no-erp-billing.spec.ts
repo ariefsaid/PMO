@@ -112,6 +112,8 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await row.getByRole('button', { name: localized('Row actions', 'Tindakan baris') }).click();
   await page.getByRole('menuitem', { name: localized('View invoice', 'Lihat faktur') }).click();
   await expect(page).toHaveURL(/\/sales-invoices\/[^/?]+\?q=/);
+  await expect(page.getByText(localized('Invoice record', 'Detail faktur'), { exact: true })).toBeVisible();
+  await expect(page.getByText(localized('Not found', 'Tidak ditemukan'), { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Draft invoice|Draf faktur/ })).toContainText(tag);
   await expect(page.getByRole('button', { name: localized('Continue to approve', 'Lanjutkan untuk menyetujui') })).toHaveCount(0);
   await page.reload();

@@ -290,6 +290,17 @@ export const ShellChrome: React.FC = () => {
     if (pathname === '/settings/profile') {
       return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
+    if (/^\/sales-invoices\/[^/]+$/.test(pathname)) {
+      const listPath = `/sales-invoices${location.search}`;
+      return [
+        {
+          label: t('shell.nav.salesInvoices', 'Sales Invoices'),
+          href: listPath,
+          onClick: () => breadcrumbNavigate(listPath),
+        },
+        { label: t('shell.nav.invoiceRecord', 'Invoice record') },
+      ];
+    }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
@@ -312,6 +323,7 @@ export const ShellChrome: React.FC = () => {
     );
   }, [
     pathname,
+    location.search,
     contextualParent,
     t,
     breadcrumbNavigate,
