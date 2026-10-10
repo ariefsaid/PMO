@@ -78,8 +78,8 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     await expect(details.getByText(slipNumber)).toBeVisible();
     await expect(details.getByText(viA, { exact: true })).toBeVisible();
     await expect(details.getByText(viB, { exact: true })).toBeVisible();
-    await expect(details.getByText(viA, { exact: true })).toBeVisible();
-    await expect(details.getByText(viB, { exact: true })).toBeVisible();
+    await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viA}`, `Tautan tagihan bukti potong · ${viA}`))).toBeVisible();
+    await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viB}`, `Tautan tagihan bukti potong · ${viB}`))).toBeVisible();
     const { data: recorded, error: recordedError } = await admin.from('vendor_withholding_slips').select('id,slip_number,withheld_amount,revision,status').eq('slip_number', slipNumber).single();
     if (recordedError || !recorded) throw new Error(`recorded slip readback failed: ${recordedError?.message}`);
     expect(recorded).toMatchObject({ slip_number: slipNumber, withheld_amount: 50000, revision: 1, status: 'active' });
