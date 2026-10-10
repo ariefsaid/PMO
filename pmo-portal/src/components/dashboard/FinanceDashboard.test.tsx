@@ -147,6 +147,12 @@ describe('FinanceDashboard N17 — budget review from get_finance_budget_review 
     expect(screen.getByText(/budget review/i)).toBeInTheDocument();
     expect(screen.getByText(/portfolio-wide/i)).toBeInTheDocument();
   });
+
+  it('opens the named project budget directly from the budget exception', () => {
+    renderPane();
+    const link = screen.getByRole('link', { name: 'Review Rank1 budget' });
+    expect(link).toHaveAttribute('href', '/projects/b1/budget');
+  });
 });
 
 describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snapshots mounted', () => {
@@ -154,8 +160,8 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
     renderPane();
     expect(screen.getByRole('region', { name: 'Accounting snapshots' })).toBeInTheDocument();
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
-    expect(screen.getByText('No AP aging snapshot yet')).toBeInTheDocument();
-    expect(screen.getByText('No AR aging snapshot yet')).toBeInTheDocument();
+    expect(screen.getAllByText('No aging data has been synced yet.')).toHaveLength(2);
+    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
   });
 });
 

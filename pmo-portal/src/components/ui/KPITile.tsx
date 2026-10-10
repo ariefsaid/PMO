@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
@@ -39,6 +40,8 @@ export interface KPITileProps<L extends string = string> {
   negative?: boolean;
   /** Help tooltip — exposed as a keyboard-focusable `?`. */
   help?: string;
+  /** Optional localized title/name for the metric explanation. */
+  helpLabel?: string;
   /** Foot delta chip + vs-comparison. */
   delta?: KPIDelta;
   vs?: string;
@@ -77,6 +80,7 @@ export function KPITile<L extends string = string>({
   value,
   negative = false,
   help,
+  helpLabel,
   delta,
   vs,
   loading = false,
@@ -88,6 +92,7 @@ export function KPITile<L extends string = string>({
   ctaLabel,
   className,
 }: KPITileProps<L>) {
+  const { t } = useTranslation();
   const isLink = to != null;
   const rootClass = cn(
     'relative flex min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4',
@@ -114,7 +119,7 @@ export function KPITile<L extends string = string>({
           // In the link variant the help glyph is decorative-only (tabIndex=-1,
           // aria-hidden) so the tile stays a SINGLE focusable control — never a
           // <button> nested inside an <a>. The tooltip still shows on hover.
-          <Tooltip content={help}>
+          <Tooltip content={help} title={helpLabel}>
             <span
               tabIndex={-1}
               aria-hidden="true"
@@ -124,15 +129,14 @@ export function KPITile<L extends string = string>({
             </span>
           </Tooltip>
         ) : (
-          <Tooltip content={help}>
-            <span
-              tabIndex={0}
-              role="button"
-              aria-label={`Help: ${label}`}
+          <Tooltip content={help} title={helpLabel}>
+            <button
+              type="button"
+              aria-label={helpLabel ?? t('dashboard.kpi.helpLabel', 'Help: {{label}}', { label })}
               className="touch-target ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 hover:opacity-100 [&_svg]:size-3.5"
             >
               <Icon name="help" />
-            </span>
+            </button>
           </Tooltip>
         ))}
     </div>

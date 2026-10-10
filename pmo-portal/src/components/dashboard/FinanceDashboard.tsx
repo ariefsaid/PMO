@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useDashboard, useFinanceBudgetReview } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
@@ -182,6 +183,7 @@ function VarianceCell({ project, currency }: { project: BudgetReviewRow; currenc
  * - J4 console reframe: tabular nums everywhere, right-aligned money columns
  */
 export const FinanceDashboard: React.FC = () => {
+  const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useDashboard();
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
   const orgCurrency = useOrgCurrency();
@@ -248,7 +250,15 @@ export const FinanceDashboard: React.FC = () => {
     {
       key: 'name',
       header: 'Project',
-      cell: (p) => <span className="font-medium">{p.name}</span>,
+      cell: (p) => (
+        <Link
+          to={`/projects/${p.id}/budget`}
+          aria-label={t('dashboard.budgetReviewLink', 'Review {{project}} budget', { project: p.name })}
+          className="font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+        >
+          {p.name}
+        </Link>
+      ),
     },
     {
       key: 'budget',
