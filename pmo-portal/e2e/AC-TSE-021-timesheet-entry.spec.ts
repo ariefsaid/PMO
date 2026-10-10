@@ -29,6 +29,20 @@ test.setTimeout(120_000);
 const ENGINEER = 'tse-021-eng@acme.test';
 const PROJECT_NAME = 'Acme Internal Platform';
 
+/** Pin the signed-in persona's resolved locale to en for this journey, whatever the shared DB says.
+ *  Read-only route rewrite (no DB write) — same pattern as UXS-013/AC-BUPOT-021 — because the
+ *  journey's English assertions describe the en surface; id parity is covered at the component layer. */
+async function pinEnglishLocale(page: Page) {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const response = await route.fetch();
+    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
+    const localized = Array.isArray(profile)
+      ? profile.map((row) => ({ ...row, locale: 'en' }))
+      : { ...profile, locale: 'en' };
+    await route.fulfill({ response, json: localized });
+  });
+}
+
 /** Navigate forward week-by-week until the grid is empty (no rows) and editable. */
 async function stepToEmptyWeek(page: Page, maxWeeks = 26): Promise<void> {
   for (let attempt = 0; attempt < maxWeeks; attempt++) {
@@ -72,6 +86,7 @@ async function fillHourCell(page: Page, projectName: string, dayLabel: string, v
 test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real stack', async ({ page }) => {
 
   // ── Step 1: Sign in as Engineer and navigate to Timesheets ──────────────────
+  await pinEnglishLocale(page);
   await login(page, ENGINEER);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/timesheets');
